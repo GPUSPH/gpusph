@@ -89,8 +89,9 @@ COMPUTE_SELECT_HEADER=$(SRCDIR)/compute_select.h
 LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_HEADER) && \
 	grep "\#define PROBLEM" $(PROBLEM_SELECT_HEADER) | cut -f3 -d " ")
 # - was dbg enabled? (1 or 0, empty if file doesn't exist))
-LAST_DBG=$(shell test -e $(DBG_SELECT_HEADER) && \
-	grep "\#define _DEBUG_" $(DBG_SELECT_HEADER) | wc -l)
+# "strip" added for Mac compatibility: on MacOS wc outputs a tab...
+LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_HEADER) && \
+	grep "\#define _DEBUG_" $(DBG_SELECT_HEADER) | wc -l))
 # - for which compute capability? (11, 12 or 20, empty if file doesn't exist)
 LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_HEADER) && \
 	grep "\#define COMPUTE" $(COMPUTE_SELECT_HEADER) | cut -f3 -d " ")
