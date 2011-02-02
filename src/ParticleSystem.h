@@ -1,0 +1,156 @@
+#ifndef __PARTICLESYSTEM_H__
+#define __PARTICLESYSTEM_H__
+
+#include "particledefine.h"
+#include "Problem.h"
+#include "Writer.h"
+
+#include "radixsort.h"
+
+// ParticleSystem : class used to call CUDA kernels
+class ParticleSystem
+{
+	public:
+		enum ParticleArray
+		{
+			POSITION = 0,
+			VELOCITY,
+			INFO,
+			VORTICITY,
+			VISCOSITY,
+			FORCE,
+			FORCENORM,
+			VISCCFL,
+			NEIBSLIST,
+			HASH,
+			PARTINDEX,
+			CELLSTART,
+			CELLEND,
+			INVALID_PARTICLE_ARRAY
+		};
+
+		enum
+		{
+			VM_NORMAL = 0,
+			VM_VELOCITY,
+			VM_PRESSURE,
+			VM_DENSITY,
+			VM_VORTICITY
+		};
+
+		ParticleSystem(Problem *problem);
+		~ParticleSystem();
+
+		void	allocate(uint numParticles);
+		void	allocate_planes(uint numPlanes);
+		void	setPhysParams(void);
+		void	getPhysParams(void);
+		void	printPhysParams(FILE *summary = NULL);
+		void	printSimParams(FILE *summary = NULL);
+
+		TimingInfo	PredcorrTimeStep(bool);
+
+		void*	getArray(ParticleArray);
+		void	setArray(ParticleArray);
+		void	setPlanes();
+		void	drawParts(bool , int);
+		void	writeSummary(void);
+		void	writeToFile(void);
+
+		int		getNumParticles() const { return m_numParticles; }
+
+		long	getIter(void) { return m_iter; }
+		float	getTimestep(void) { return m_dt; }
+		float	getTime(void) { return m_simTime; }
+
+		// DEBUG
+		void saveneibs();
+		void savehash();
+		void saveindex();
+		void savesorted();
+		void savecellstartend();
+
+	public:
+		Problem		*m_problem;				// pointer to problem object
+
+		// Physicals and simulation parameters
+		PhysParams	m_physparams;
+		SimParams	m_simparams;
+		float		m_influenceRadius;		// slength*kernelRadius
+		float		m_nlInfluenceRadius;	// influence radius for neib listt construction
+		float		m_dtprev;				// DEBUG: dt at previous iter
+
+		// Informations for timing
+		TimingInfo	m_timingInfo;
+
+		// Geometrical datas and problem definition
+		uint		m_numParticles;			// total number of particles
+		uint		m_numPlanes;			// total number of planes
+		uint3		m_gridSize;				// number of domain cells in each direction
+		uint		m_nGridCells;			// total number of domain cells
+		uint		m_nSortingBits;			// number of significant bits for sorting (ceil(log2(m_nGridCells)))
+		float3		m_worldOrigin;			// origin of simulation domain
+		float3		m_worldSize;			// simulation domain size
+		float3		m_cellSize;				// size of domain cell
+
+		// Simultaion time datas
+		float		m_dt;					// time step
+		float		m_simTime;				// simulation time
+		long		m_iter;					// iteration number
+
+		// CPU arrays
+		float4*		m_hPos;					// postions array
+		float4*		m_hVel;					// velocity array
+		float4*		m_hForces;				// forces array
+		particleinfo*	m_hInfo;			// info array
+		float3*		m_hVort;				// vorticity
+		float*		m_hVisc;				// viscosity
+
+		// CPU arrays for geometry
+		float4*		m_hPlanes;
+		float *		m_hPlanesDiv;
+
+		// CPU arrays used for debugging
+		uint*		m_hNeibsList;
+		uint*		m_hParticleHash;
+		uint*		m_hCellStart;
+		uint*		m_hCellEnd;
+		uint*		m_hParticleIndex;
+
+		// GPU arrays
+		float4*		m_dForces;				// forces array
+		float4*		m_dXsph;				// mean velocity array
+		float4*		m_dPos[2];				// position array
+		float4*		m_dVel[2];				// velocity array
+		particleinfo*	m_dInfo[2];			// particle info array
+		float3*		m_dVort;				// vorticity
+		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE and rounded to power of 2
+		float*		m_dCfl;					// cfl for each block
+		float*		m_dTempFmax;			// auxiliary array used for max computing
+		float*		m_dVisc;				// viscosity array for power law fluids
+		float2*		m_dTau[3];				// SPS stress tensor
+
+		uint*		m_dParticleHash;		// hash table for sorting
+		uint*		m_dParticleIndex;		// sorted particle indexes
+		uint*		m_dCellStart;			// index of cell start in sorted order
+		uint*		m_dCellEnd;				// index of cell end in sorted order
+		uint*		m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
+
+		uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
+		uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)
+		uint		m_currentVelRead;		// current index in m_dVel for velocity reading (0 or 1)
+		uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
+		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
+		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
+
+		// Sorter
+		// old (3.0) radix sort
+		//RadixSort	*m_sorter;
+		// new (3.2) radix sort
+		nvRadixSort::RadixSort	*m_sorter;
+
+		// File writer
+		Problem::WriterType m_writerType;
+		Writer		*m_writer;
+};
+#endif

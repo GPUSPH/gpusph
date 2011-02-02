@@ -1,0 +1,12 @@
+# usage example: ./sss d_dem -C 2
+if [ -z "$@" ]
+then
+	echo "Synopsys:"
+	echo "    sss [-e] pattern [grep options] [additional files]"
+	echo "Examples:"
+	echo "  $ sss FIXME -i ../oldsrc/*.cc"
+	echo "  $ sss -e \"^/// R\" -e -C 1"
+	exit 1
+fi
+export SSS=`ls *.cc *.h *.cuh *.cu 2> /dev/null`
+grep -n --color=always "$@" "$SSS"

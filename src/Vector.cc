@@ -1,0 +1,294 @@
+/*
+ *  Vector2D.cpp
+ *  NNS
+ *
+ *  Created by Alexis Herault on 27/07/06.
+ *  Copyright 2006 __MyCompanyName__. All rights reserved.
+ *
+ */
+
+#include <math.h>
+#include "Vector.h"
+#include "Point.h"
+
+/// Constructor
+/*! Constructor from 2 points pnt1 and pnt2
+	V = pnt1pnt2
+	\param pnt1 : point1
+	\param pnt2 : point2
+*/
+Vector::Vector(const Point &pnt1, const Point &pnt2)
+{
+	x[0] = pnt2(0) - pnt1(0);
+	x[1] = pnt2(1) - pnt1(1);
+	x[2] = pnt2(2) - pnt1(2);
+}
+
+
+
+/// Constructor
+/*! Constructor from vector coordinates
+	\param xx : x vector coordinate
+	\param yy : y vector coordinate
+*/
+Vector::Vector(double xx, double yy, double zz)
+{
+	x[0] = xx;
+	x[1] = yy;
+	x[2] = zz;
+}
+
+
+/// Copy constructor
+/*!	\param source : source data
+*/
+Vector::Vector(const Vector &source)
+{
+	x[0] = source.x[0];
+	x[1] = source.x[1];
+	x[2] = source.x[2];
+}
+
+
+/// Return the norm of the vector
+/*!	\return the norm of vector
+*/
+double Vector::norm(void) const
+{
+	return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+}
+
+double Vector::normSquared(void) const
+{
+	return x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
+}
+
+
+/// Return a normal vector of the vector
+/*! \return the normal vector of the vector
+ A CORRIGER
+*/
+Vector Vector::Normal(void)
+{
+	return Vector(-x[1], x[0], x[2]);
+}
+
+Vector Vector::rotated(const double &angle, const Vector &normal) const
+{
+	double vnorm = normal.norm();
+	double ct = cosf(angle);
+	double st = sinf(angle);
+	double xx = normal(0),
+		   yy = normal(1),
+		   zz = normal(2);
+
+	double a11, a12, a13, a21, a22, a23, a31, a32, a33;
+
+	a11 = xx*xx + (yy*yy + zz*zz)*ct;
+	a11 /= vnorm*vnorm;
+
+	a22 = yy*yy + (xx*xx + zz*zz)*ct;
+	a22 /= vnorm*vnorm;
+
+	a33 = zz*zz + (xx*xx + yy*yy)*ct;
+	a33 /= vnorm*vnorm;
+
+	a12 = xx*yy*(1-ct)-zz*vnorm*st;
+	a12 /= vnorm*vnorm;
+
+	a21 = xx*yy*(1-ct)+zz*vnorm*st;
+	a21 /= vnorm*vnorm;
+
+	a13 = xx*zz*(1-ct)+yy*vnorm*st;
+	a13 /= vnorm*vnorm;
+
+	a31 = xx*zz*(1-ct)-yy*vnorm*st;
+	a31 /= vnorm*vnorm;
+
+	a23 = yy*zz*(1-ct)-xx*vnorm*st;
+	a23 /= vnorm*vnorm;
+
+	a32 = yy*zz*(1-ct)+xx*vnorm*st;
+	a32 /= vnorm*vnorm;
+
+	return Vector(
+		a11*x[0]+a12*x[1]+a13*x[2],
+		a21*x[0]+a22*x[1]+a23*x[2],
+		a31*x[0]+a32*x[1]+a33*x[2]);
+}
+
+
+/// Affectation operator
+/*! \param source : source vector
+	\return this = source
+*/
+Vector &Vector::operator=(const Vector &source)
+{
+	x[0] = source.x[0];
+	x[1] = source.x[1];
+	x[2] = source.x[2];
+	return *this;
+}
+
+
+/// Define the Vector2D+=Vector2D operator
+/*!	\param vect : vector
+	\return this = this + vect
+*/
+Vector &Vector::operator+=(const Vector &vect)
+{
+	x[0] += vect.x[0];
+	x[1] += vect.x[1];
+	x[2] += vect.x[2];
+	return *this;
+}
+
+
+/// Define the Vector2D-=Vector2D operator
+/*!	\param vect : vector
+	\return this = this - vect
+*/
+Vector &Vector::operator-=(const Vector &vect)
+{
+	x[0] -= vect.x[0];
+	x[1] -= vect.x[1];
+	x[2] -= vect.x[2];
+	return *this;
+}
+
+
+/// Define the Vector2D*=double operator
+/*!	\param k : scalar
+	\return vector = this*v
+*/
+Vector &Vector::operator*=(double k)
+{
+	x[0] *= k;
+	x[1] *= k;
+	x[2] *= k;
+	return *this;
+}
+
+
+/// Define the Vector2D/=double operator
+/*!	\param k : scalar
+	\return vector = this/k
+*/
+Vector &Vector::operator/=(double k)
+{
+	x[0] /= k;
+	x[1] /= k;
+	x[2] /= k;
+	return *this;
+}
+
+
+/// Return the value of coordinate i of vector
+/*!	\param i : coordinate number
+	\return reference to coordinate
+*/
+double &Vector::operator()(int i)
+{
+	return x[i];
+}
+
+
+/// Return the value of coordinate i of vector
+/*!	\param i : coordinate number
+	\return coordinate value
+*/
+double Vector::operator()(int i) const
+{
+	return x[i];
+}
+
+
+/// Define the + operator for Vector2D
+/*!	\param vect1 : vector1
+	\param vect2 : vector2
+	\return vector = vect1 + vect2
+*/
+Vector operator+(const Vector &vect1, const Vector &vect2)
+{
+	Vector res = vect1;
+	return res += vect2;
+}
+
+
+/// Define the - operator for Vector2D
+/*!	\param vect1 : vector1
+	\param vect2 : vector2
+	\return vector = vect1 - vect2
+*/
+Vector operator-(const Vector &vect1, const Vector &vect2)
+{
+	Vector res = vect1;
+	return res -= vect2;
+}
+
+
+/// Return opposite of vector
+/*! \param vect : vector
+	\return vector = -vect
+*/
+Vector operator-(const Vector &vect)
+{
+	Vector res = vect;
+	return res *= -1;
+}
+
+
+/// Define the double*Vector2D operator
+/*!	\param k : scalar
+	\param vect : vector
+	\return vector = k*vect
+*/
+Vector operator*(double k, const Vector &vect)
+{
+	Vector res = vect;
+	return res *= k;
+}
+
+
+/// Define the Vector2D*double operator
+/*!	\param k : scalar
+	\param vect : vector
+	\return vector = k*vect
+*/
+Vector operator*(const Vector &vect, double k)
+{
+	Vector res = vect;
+	return res *= k;
+}
+
+
+/// Define the Vector2D*Vector2D (dot product operator)
+/*!	\param vect1 : vector1
+	\param vect2 : vector2
+	\return vect1.vect2
+*/
+double operator*(const Vector &vect1, const Vector &vect2)
+{
+	return vect1.x[0]*vect2.x[0] + vect1.x[1]*vect2.x[1]  + vect1.x[2]*vect2.x[2];
+}
+
+
+/// Define the Vector2D/double operator
+/*!	\param k : scalar
+	\param vect : vector
+	\return vector = vect/k
+*/
+Vector operator/(const Vector &vect, double k)
+{
+	Vector res = vect;
+	return res /= k;
+}
+
+
+// DEBUG
+#include <iostream>
+void Vector::print(void)
+{
+	std::cout << "Vector (" << x[0] << ", " << x[1] << ", " << x[2] << ")\n";
+	return;
+}

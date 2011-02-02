@@ -1,0 +1,128 @@
+/* vi:set ft=cuda: */
+
+/* Euler kernel definitions */
+// Predictor Corrector time integration
+// - for step 1:
+//	  v(n+1/2) = v(n) + f(n)*dt/2
+//	  pos(n+1/2) = pos(n) + v(n)*dt/2
+//
+//	  We have oldVel = v(n), oldPos = pos(n), forces = f(n) so
+//	  newVel = v(n+1/2) = oldVel + forces*dt/2
+//	  newPos = pos(n+1/2) = oldPos + oldVel*dt/2
+//
+// - for step 2:
+//	  vc(n+1/2) = v(n) + f(n+1/2)*dt/2
+//	  posc(n+1/2) = pos(n) + vc(n+1/2)*dt/2
+//	  then:
+//	  v(n+1) = 2vc(n+1/2) - v(n) = v(n) + f(n+1/2)*dt
+//	  pos(n+1) = 2posc(n+1/2) - pos(n) = pos(n) + vc(n+1/2)*dt
+//
+//	  Whe have oldVel = v(n), oldPos = pos(n), force = f(n+1/2),
+//	  newVel = vel(n+1/2), newPos = pos(n+1/2) so
+//	  we store velc = v(n) + f(n+1/2)*dt/2 then
+//	  newPos = pos(n+1) = oldPos + velc*dt
+//	  newVel = vel(n+1) = oldVel + forces*dt;
+
+// Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
+template<int step, int periodicbound>
+__global__ void
+CUDA_KERNEL_NAME(
+	float4*	oldPos,
+	float4*	oldVel,
+	particleinfo* info,
+	float4*	forces,
+	float4*	xsph,
+	float4*	newPos,
+	float4*	newVel,
+	uint	numParticles,
+	float	dt,
+	float	t)
+{
+	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// Euler does nothing to boundary particles
+	particleinfo pinfo = info[index];
+	//if (type(pinfo) == BOUNDPART)
+	//	return;
+
+	float4 force = forces[index];	   // f(n) at step 1 and f(n+1/2) at step 2
+	float4 pos = oldPos[index];		 // always pos(n)
+	float4 vel = oldVel[index];		 // always vel(n)
+
+#	ifdef XSPH_KERNEL
+	float4 mean_vel = xsph[index];
+#	endif
+	/*
+	   velc = vel if step == 1, but
+	   velc = vel + forces[index]*dt/2.0f if step == 2
+	 */
+	float4 velc = vel + (step - 1)*forces[index]*dt/2.0f;
+
+	// Updating particle position
+	if (FLUID(pinfo)) {
+#		ifdef XSPH_KERNEL
+		pos.x +=  (velc.x + d_epsxsph*mean_vel.x)*dt;
+		pos.y +=  (velc.y + d_epsxsph*mean_vel.y)*dt;
+		pos.z +=  (velc.z + d_epsxsph*mean_vel.z)*dt;
+#		else
+		pos.x +=  velc.x*dt;
+		pos.y +=  velc.y*dt;
+		pos.z +=  velc.z*dt;
+#		endif
+
+		// Updating particle velocity
+		// For step 1:
+		//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
+		// For step 2:
+		//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
+		vel += dt*force;
+	}
+	// Updating postions for Piston particles
+	else if (type(pinfo) == PISTONPART && t > d_mbtstart.x && t < d_mbtend.x ) {
+		pos.x = d_mborigin.x + d_mbamplitude*cos(d_mbomega*(t + dt - d_mbtstart.x) + d_mbphase);
+	}
+	// Updating postions for Paddle particles
+	else if (type(pinfo)  == PADDLEPART && t > d_mbtstart.y && t < d_mbtend.y) {
+		// The following code is consistent with SPHysics and standard parlance of wavemakers (BDR)
+		// See Schaffer (1995) for theory of flap hinged below bed.
+		float l_flap = -d_mborigin.z;   //0.1344;
+		float f_of_z = 1.0f + (pos.z - d_paddle_h_SWL)/(d_paddle_h_SWL + l_flap);
+		float tim = t - d_mbtstart.y+dt;
+		pos.x = d_mborigin.x + f_of_z*0.5f*d_stroke*cos(d_mbomega*tim+d_mbphase);//added phase, RAD
+		pos.z = pos.z;
+	}
+	// Updating postions for Gate particles
+	else if (type(pinfo)  == GATEPART && t > d_mbtstart.z && t < d_mbtend.z) {
+		pos.x += d_mbv.x*dt;
+		pos.y += d_mbv.y*dt;
+		pos.z += d_mbv.z*dt;
+	}
+
+	if (periodicbound) {
+		if (d_dispvect3.x) {
+			if (pos.x >= d_maxlimit.x)
+				pos.x -= d_dispvect3.x;
+			else if (pos.x < d_minlimit.x)
+				pos.x += d_dispvect3.x;
+		}
+		if (d_dispvect3.y) {
+			if (pos.y >= d_maxlimit.y)
+				pos.y -= d_dispvect3.y;
+			else if (pos.y < d_minlimit.y)
+				pos.y += d_dispvect3.y;
+		}
+		if (d_dispvect3.z) {
+			if (pos.z >= d_maxlimit.z)
+				pos.z -= d_dispvect3.z;
+			else if (pos.z < d_minlimit.z)
+				pos.z += d_dispvect3.z;
+		}
+	}
+
+	newPos[index] = pos;
+	newVel[index] = vel;
+}

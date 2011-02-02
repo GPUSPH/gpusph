@@ -1,0 +1,12 @@
+Makefile.cpu
+Makefile.gpu
+src/problem_select.h
+src/dbg_select.h
+src/compute_select.h
+docs
+build
+dist
+GPUSPH*
+.DS_Store
+.*.swp
+*~
