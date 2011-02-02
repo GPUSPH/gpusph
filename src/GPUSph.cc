@@ -46,8 +46,6 @@
 
 /* Include only the problem selected at compile time */
 #include "problem_select.h"
-// _DEBUG_ switch
-#include "dbg_select.h"
 
 using namespace std;
 
