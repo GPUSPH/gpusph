@@ -7,19 +7,28 @@
 
 /*! \mainpage GPUSPH Developer's documentation
  *
- * (stub)
  *
- * \section intro_sec Introduction
+ * \section intro_sec  Introduction
  *
- * GPUSPH is a CUDA-based 3D SPH simulator (FIX).
+ * GPUSPH is a CUDA-based 3D SPH simulator (STUB).
  *
  * \section compile_sec Compiling and installing
  *
- * See "make help".
+ * See "make help" (STUB).
  *
+ * \section quick_links Internal links
+ * - \ref main \n
+ * - ParticleSystem
+ *
+ * \section links Links
+ * - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Complete Doxygen manual</a>
+ * - <a href="http://www.nvidia.com/object/cuda_gpus.html">GPUs and compute capabilites</a>
+ *
+ *
+ * GPUSPH is a CUDA-based 3D SPH simulator (FIX).
  *
  * This document was generated with Doxygen.\n
- *  <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Complete Doxygen manual</a>
+ *
  */
 
 #include <stdio.h>
