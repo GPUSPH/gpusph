@@ -1,12 +1,20 @@
+#!/bin/bash
+# SSS by Eugenio Rustico (rustico@dmi.unict.it)
 # usage example: ./sss d_dem -C 2
-if [ -z "$@" ]
+if [ "$#" = "0" ]
 then
+	echo "SSS: look for the specified patterns in current directory."
 	echo "Synopsys:"
-	echo "    sss [-e] pattern [grep options] [additional files]"
+	echo "    sss [-e] pattern [grep options]"
+	echo 'Default extensions: *.cc *.h *.cuh *.cu'
 	echo "Examples:"
-	echo "  $ sss FIXME -i ../oldsrc/*.cc"
+	echo "  $ sss FIXME"
+	echo "  $ sss \"#include <stdio>\" -i"
 	echo "  $ sss -e \"^/// R\" -e -C 1"
 	exit 1
 fi
-export SSS=`ls *.cc *.h *.cuh *.cu 2> /dev/null`
-grep -n --color=always "$@" "$SSS"
+ls *.cc *.h *.cuh *.cu 2> /dev/null | while read filename
+do
+	grep -n --color=always "$@" "$filename" /dev/null
+done
+
