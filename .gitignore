@@ -7,6 +7,10 @@ docs
 build
 dist
 GPUSPH*
+tags
+*.kdev4
+.kdev*
+TODO
 .DS_Store
 .*.swp
 *~
