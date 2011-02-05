@@ -78,13 +78,6 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 #endif
 ;
 
-
-#define EPSDETCHENBRAUN			0.05f
-#define MINCORRNEIBSCHENBRAUN   4
-
-#define EPSDETMUELLER			0.05f
-#define MINCORRNEIBSMUELLER		4
-
 #define EPSDETMLS				0.05f
 #define MINCORRNEIBSMLS			4
 
