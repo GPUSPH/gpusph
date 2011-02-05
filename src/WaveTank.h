@@ -31,19 +31,24 @@ class WaveTank: public Problem {
 		PointVect	paddle_parts;
 		PointVect	gate_parts;
 
-		Cylinder	cyl1,cyl2,cyl3,cyl4;
+		Cylinder	cyl1, cyl2, cyl3, cyl4;
 		Cylinder	cyl5, cyl6, cyl7;
 		Cylinder	cyl8, cyl9, cyl10;
 		Cylinder	cyl11;
 		Cone 		cone;
 		float		paddle_length;
 		float		paddle_width;
-		float		r0;
-		float		h_length, height, slope_length, beta, width;
-		float		h, w, l;
+		float		h_length, height, slope_length, beta;
 	    float		H;		// still water level
 		float		Hbox;	// height of experiment box
+
+		// Moving boundary data
 		float		m_S, m_Hoh, m_tau;
+		float		m_mbposx;
+		float		m_mbomega;
+		float		m_mbamplitude;
+		bool		m_mbnextimeupdate;
+		float		m_mbtstart, m_mbtend;
 
 	public:
 		WaveTank(const Options &);

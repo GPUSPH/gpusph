@@ -379,16 +379,16 @@ ParticleSystem::setPhysParams(void)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_visccoeff", &m_physparams.visccoeff, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_epsartvisc", &m_physparams.epsartvisc, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_epsxsph", &m_physparams.epsxsph, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbomega", &m_physparams.mbomega, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbphase", &m_physparams.mbphase, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbksintheta", &m_physparams.mbksintheta, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbamplitude", &m_physparams.mbamplitude, sizeof(float)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbomega", &m_physparams.mbomega, sizeof(float)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbphase", &m_physparams.mbphase, sizeof(float)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbksintheta", &m_physparams.mbksintheta, sizeof(float)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbamplitude", &m_physparams.mbamplitude, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mborigin", &m_physparams.mborigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &m_physparams.mbv, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbtstart", &m_physparams.mbtstart, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbtend", &m_physparams.mbtend, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_stroke", &m_physparams.stroke, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_paddle_h_SWL", &m_physparams.paddle_h_SWL, sizeof(float)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &m_physparams.mbv, sizeof(float3)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbtstart", &m_physparams.mbtstart, sizeof(float3)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbtend", &m_physparams.mbtend, sizeof(float3)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_stroke", &m_physparams.stroke, sizeof(float)));
+//	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_paddle_h_SWL", &m_physparams.paddle_h_SWL, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_dispvect1", &m_physparams.dispvect, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_dispvect2", &m_physparams.dispvect, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_dispvect3", &m_physparams.dispvect, sizeof(float3)));
@@ -434,16 +434,16 @@ ParticleSystem::getPhysParams(void)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.visccoeff, "d_visccoeff", sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.epsartvisc, "d_epsartvisc", sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.epsxsph, "d_epsxsph", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbomega, "d_mbomega", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbphase, "d_mbphase", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbamplitude, "d_mbamplitude", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbksintheta, "d_mbksintheta", sizeof(float), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbomega, "d_mbomega", sizeof(float), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbphase, "d_mbphase", sizeof(float), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbamplitude, "d_mbamplitude", sizeof(float), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbksintheta, "d_mbksintheta", sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mborigin, "d_mborigin", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbv, "d_mbv", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbtstart, "d_mbtstart", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbtend, "d_mbtend", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.stroke, "d_stroke", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.paddle_h_SWL, "d_paddle_h_SWL", sizeof(float), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbv, "d_mbv", sizeof(float3), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbtstart, "d_mbtstart", sizeof(float3), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.mbtend, "d_mbtend", sizeof(float3), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.stroke, "d_stroke", sizeof(float), 0));
+//	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.paddle_h_SWL, "d_paddle_h_SWL", sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.dispvect, "d_dispvect1", sizeof(float3), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.maxlimit, "d_maxlimit", sizeof(float3), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.minlimit, "d_minlimit", sizeof(float3), 0));
@@ -523,14 +523,14 @@ ParticleSystem::printPhysParams(FILE *summary)
 	}
 	fprintf(summary, "espartvisc = %g\n", m_physparams.epsartvisc);
 	fprintf(summary, "epsxsph = %g\n", m_physparams.epsxsph);
-	fprintf(summary, "Moving boundary parameters (omega, amplitude, origin, velocity, endtime) used when a moving boundary is defined\n");
-	fprintf(summary, "mb omega = %g\n", m_physparams.mbomega);
-	fprintf(summary, "mb amplitude = %g\n", m_physparams.mbamplitude);
-	fprintf(summary, "mb ksintheta = %g\n", m_physparams.mbksintheta);
-	fprintf(summary, "mb origin = (%g, %g, %g)\n", m_physparams.mborigin.x, m_physparams.mborigin.y, m_physparams.mborigin.z);
-	fprintf(summary, "mb velocity = (%g, %g, %g)\n", m_physparams.mbv.x, m_physparams.mbv.y, m_physparams.mbv.z);
-	fprintf(summary, "mb start time = (%f, %f,%f)\n", m_physparams.mbtstart.x, m_physparams.mbtstart.y, m_physparams.mbtstart.z);
-	fprintf(summary, "mb end time = (%f, %f,%f)\n", m_physparams.mbtend.x, m_physparams.mbtend.y, m_physparams.mbtend.z);
+//	fprintf(summary, "Moving boundary parameters (omega, amplitude, origin, velocity, endtime) used when a moving boundary is defined\n");
+//	fprintf(summary, "mb omega = %g\n", m_physparams.mbomega);
+//	fprintf(summary, "mb amplitude = %g\n", m_physparams.mbamplitude);
+//	fprintf(summary, "mb ksintheta = %g\n", m_physparams.mbksintheta);
+//	fprintf(summary, "mb origin = (%g, %g, %g)\n", m_physparams.mborigin.x, m_physparams.mborigin.y, m_physparams.mborigin.z);
+//	fprintf(summary, "mb velocity = (%g, %g, %g)\n", m_physparams.mbv.x, m_physparams.mbv.y, m_physparams.mbv.z);
+//	fprintf(summary, "mb start time = (%f, %f,%f)\n", m_physparams.mbtstart.x, m_physparams.mbtstart.y, m_physparams.mbtstart.z);
+//	fprintf(summary, "mb end time = (%f, %f,%f)\n", m_physparams.mbtend.x, m_physparams.mbtend.y, m_physparams.mbtend.z);
 	if (m_simparams.periodicbound) {
 		fprintf(summary, "Periodic boundary parameters (disp vect, min and max limit) used when x,y or z periodic boundary is set\n");
 		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams.dispvect.x, m_physparams.dispvect.y, m_physparams.dispvect.z);
@@ -597,7 +597,6 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hVort;
 		}
 
-
 #ifdef _DEBUG_
 	delete [] m_hForces;
 	delete [] m_hNeibsList;
@@ -611,7 +610,6 @@ ParticleSystem::~ParticleSystem()
 
 	CUDA_SAFE_CALL(cudaFree(m_dForces));
 	CUDA_SAFE_CALL(cudaFree(m_dXsph));
-
 
 	if (m_simparams.visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaFree(m_dTau[0]));
@@ -645,6 +643,9 @@ ParticleSystem::~ParticleSystem()
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempFmax));
 		}
+
+	if (m_problem->m_mbnumber)
+		CUDA_SAFE_CALL(cudaFree(m_dMbData));
 
 	printf("GPU and CPU memory released\n\n");
 }
@@ -1019,14 +1020,36 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// setting moving boundary velocity if necessary
 	if (m_simparams.mbcallback) {
 		MbCallBack mbcallback = m_problem->mb_callback(m_simTime);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &mbcallback.mbv, sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbamplitude", &mbcallback.mbamplitude, sizeof(float)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbphase", &mbcallback.mbphase, sizeof(float)));
+		if (mbcallback.needupdate) {
+			switch (mbcallback.type) {
+				case PADDLEPART:
+					CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbsincostheta", &mbcallback.mbsincostheta, sizeof(float2)));
+					break;
+
+				case PISTONPART:
+					CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdisp", &mbcallback.mbdisp, sizeof(float)));
+					break;
+
+				case GATEPART:
+					CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &mbcallback.mbv, sizeof(float3)));
+					break;
+
+				default:
+					stringstream ss;
+					ss << "Not supported moving boundary type";
+					throw runtime_error(ss.str());
+					break;
+			}
+
+//			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &mbcallback.mbv, sizeof(float3)));
+//			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbamplitude", &mbcallback.mbamplitude, sizeof(float)));
+//			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbphase", &mbcallback.mbphase, sizeof(float)));
+		}
 	}
 
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
-					m_dForces,				  // f(n)
+					m_dForces,					// f(n)
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
@@ -1073,6 +1096,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dVel[m_currentVelWrite],  // vel(n+1/2) = vel(n) + f(n)*dt/2
 			m_numParticles,
 			m_dt/2.0,
+			m_dt/2.0,
 			1,
 			m_simTime + m_dt/2.0,
 			m_simparams.xsph,
@@ -1096,9 +1120,31 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// setting moving boundary velocity if necessary
 	if (m_simparams.mbcallback) {
 		MbCallBack mbcallback = m_problem->mb_callback(m_simTime + m_dt/2.0);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &mbcallback.mbv, sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbamplitude", &mbcallback.mbamplitude, sizeof(float)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbphase", &mbcallback.mbphase, sizeof(float)));
+		if (mbcallback.needupdate) {
+			switch (mbcallback.type) {
+				case PADDLEPART:
+					CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbsincostheta", &mbcallback.mbsincostheta, sizeof(float2)));
+					break;
+
+				case PISTONPART:
+					CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdisp", &mbcallback.mbdisp, sizeof(float)));
+					break;
+
+				case GATEPART:
+					CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &mbcallback.mbv, sizeof(float3)));
+					break;
+
+				default:
+					stringstream ss;
+					ss << "Not supported moving boundary type";
+					throw runtime_error(ss.str());
+					break;
+			}
+
+//			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbv", &mbcallback.mbv, sizeof(float3)));
+//			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbamplitude", &mbcallback.mbamplitude, sizeof(float)));
+//			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbphase", &mbcallback.mbphase, sizeof(float)));
+		}
 	}
 
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
@@ -1137,6 +1183,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dVel[m_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 			m_numParticles,
 			m_dt,
+			m_dt/2.0,
 			2,
 			m_simTime + m_dt,
 			m_simparams.xsph,

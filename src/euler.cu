@@ -17,6 +17,7 @@ euler(	float4*		oldPos,
 		float4*		newVel,
 		uint		numParticles,
 		float		dt,
+		float		dt2,
 		int			step,
 		float		t,
 		bool		xsphcorr,
@@ -33,23 +34,23 @@ euler(	float4*		oldPos,
 				eulerXsphDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 			else
 				eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 		} else {
 			if (xsphcorr)
 				eulerXsphDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 			else
 				eulerDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 		}
 	} else if (step == 2) {
 		if (periodicbound) {
@@ -57,23 +58,23 @@ euler(	float4*		oldPos,
 				eulerXsphDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 			else
 				eulerDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 		} else {
 			if (xsphcorr)
 				eulerXsphDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 			else
 				eulerDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, t);
+									numParticles, dt, dt2, t);
 		}
 	} // if (step == 2)
 

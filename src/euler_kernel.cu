@@ -9,18 +9,12 @@
 #include "textures.cuh"
 
 __constant__ float	d_epsxsph;
-__constant__ float	d_mbomega;
-__constant__ float	d_mbphase;
-__constant__ float	d_mbksintheta;
-__constant__ float	d_mbamplitude;
 __constant__ float3	d_mborigin;
 __constant__ float3	d_mbv;
-__constant__ float3	d_mbtstart;   //.x piston, .y flap, .z gate
-__constant__ float3	d_mbtend;
+__constant__ float	d_mbdisp;
+__constant__ float2 d_mbsincostheta;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
-__constant__ float	d_stroke;   //BDR
-__constant__ float	d_paddle_h_SWL;   //BDR
 __constant__ float3 d_dispvect3;
 
 /*

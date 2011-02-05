@@ -33,9 +33,11 @@ class Problem {
 			CUSTOMTEXTWRITER
 		};
 
-		float3	m_size;
-		float3	m_origin;
-		float	m_deltap;
+		float3	m_size;			// Size of compuation domain
+		float3	m_origin;		// Origin of compuatation domain
+		float	m_deltap;		// Initial particle spacing
+
+		// Min and max values used for display
 		float	m_maxrho;
 		float	m_minrho;
 		float	m_maxvel;
@@ -55,6 +57,8 @@ class Problem {
 		SimParams	m_simparams;
 		PhysParams	m_physparams;
 		MbCallBack	m_mbcallback;
+		int			m_mbnumber;		// number of moving boundaries
+		float4*		m_mbdata;		// mb data provided by problem to euler
 
 		Problem(const Options &options = Options())
 		{
@@ -62,9 +66,20 @@ class Problem {
 			m_last_display_time = 0.0;
 			m_last_write_time = 0.0;
 			m_last_screenshot_time = 0.0;
+			m_mbnumber = 0;
+			m_mbdata = NULL;
 		};
 
-		~Problem(void) {};
+		~Problem(void)
+		{
+			if (m_mbdata)
+				delete [] m_mbdata;
+		};
+
+		void allocate_mbdata(void)
+		{
+			m_mbdata = new float4[m_mbnumber];
+		};
 
 		Options get_options(void)
 		{
@@ -75,7 +90,6 @@ class Problem {
 		{
 			return m_origin;
 		};
-
 
 		float3 get_worldsize(void)
 		{
@@ -144,5 +158,6 @@ class Problem {
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(float);
+		virtual float4* get_mbdata(const float);
 };
 #endif

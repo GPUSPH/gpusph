@@ -63,7 +63,7 @@ enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
 	INVALID_BOUNDARY
-} ;
+};
 
 #ifndef GPUSPH_MAIN
 extern
@@ -177,16 +177,16 @@ typedef struct PhysParams {
 	float	visccoeff;
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
-	float	mbomega;		// period/2*Pi of the moving boundary (piston or paddle)
-	float	mbamplitude;	// amplitude of movement for the paddle or piston
-	float	mbphase;		// amplitude of movement for the paddle or piston
-	float	mbksintheta;	// k * sin (wave angle) longshore wavenumber
+//	float	mbomega;		// period/2*Pi of the moving boundary (piston or paddle)
+//	float	mbamplitude;	// amplitude of movement for the paddle or piston
+//	float	mbphase;		// amplitude of movement for the paddle or piston
+//	float	mbksintheta;	// k * sin (wave angle) longshore wavenumber
 	float3	mborigin;		// coordinate of the center of rotation for paddle
-	float3	mbv;			// velocity of piston or gate
-	float3	mbtstart;		// start time for moving boundaries
-	float3	mbtend;			// end time for moving boundaries
-	float	stroke;			//BDR
-	float	paddle_h_SWL;
+//	float3	mbv;			// velocity of piston or gate
+//	float3	mbtstart;		// start time for moving boundaries
+//	float3	mbtend;			// end time for moving boundaries
+//	float	stroke;			//BDR
+//	float	paddle_h_SWL;
 	float3	dispvect;
 	float3	maxlimit;
 	float3	minlimit;
@@ -200,7 +200,7 @@ typedef struct PhysParams {
 	float	kspsfactor;		// 2/3*Ci*∆^2
 	int     numFluids;      // number of fluids in simulation
 	PhysParams(void) :
-		mbtstart(make_float3(0)),
+//		mbtstart(make_float3(0)),
 		partsurf(0),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
@@ -224,11 +224,15 @@ typedef struct PhysParams {
 
 
 typedef struct MbCallBack {
-	float3	mborigin;
-	float3	mbv;
-	float	mbomega;
-	float	mbamplitude;
-	float	mbphase;
+	bool			needupdate;
+	ParticleType	type;
+	float3			mborigin;
+	float3			mbv;
+	float2			mbsincostheta;
+	float			mbdisp;
+	float			mbomega;
+	float			mbamplitude;
+	float			mbphase;
 } MbCallBack;
 
 

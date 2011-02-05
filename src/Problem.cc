@@ -1,4 +1,3 @@
-#include "Problem.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -6,6 +5,9 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#include "Problem.h"
+#include "vector_math.h"
 
 
 /* NOT NEEDED NOW
@@ -205,4 +207,42 @@ uint Problem::fill_planes(void)
 void Problem::copy_planes(float4*, float*)
 {
 	return;
+}
+
+
+float4* Problem::get_mbdata(const float t)
+{
+	bool needupdate = false;
+
+	for (int i=1; i <= m_mbnumber; i++) {
+		mb_callback(t);
+		float4 data = make_float4(0.0f);
+		if (m_mbcallback.needupdate)
+			needupdate = true;
+
+		switch(m_mbcallback.type) {
+			case PISTONPART:
+				data.x = m_mbcallback.mborigin.x + m_mbcallback.mbdisp;
+				break;
+
+			case PADDLEPART:
+				data.x = m_mbcallback.mborigin.x;
+				data.y = m_mbcallback.mborigin.z;
+				data.z = m_mbcallback.mbsincostheta.x;
+				data.w = m_mbcallback.mborigin.y;
+				break;
+
+			case GATEPART:
+				data.x = m_mbcallback.mbv.x;
+				data.y = m_mbcallback.mbv.y;
+				data.z = m_mbcallback.mbv.z;
+				break;
+		}
+		m_mbdata[i] = data;
+	}
+
+	if (needupdate)
+		return m_mbdata;
+
+	return NULL;
 }
