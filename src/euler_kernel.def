@@ -26,7 +26,7 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 template<int step, int periodicbound>
 __global__ void
-CUDA_KERNEL_NAME(
+EULER_KERNEL_NAME(
 	float4*	oldPos,
 	float4*	oldVel,
 	particleinfo* info,

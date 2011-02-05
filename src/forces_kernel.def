@@ -2,15 +2,15 @@
 
 #ifdef XSPH_KERNEL
 #	ifdef DT_KERNEL
-#		define THIS_CUDA_KERNEL CUDA_KERNEL_NAME(VISC_TYPE, Xsph, Dt)
+#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph, Dt)
 #	else
-#		define THIS_CUDA_KERNEL CUDA_KERNEL_NAME(VISC_TYPE, Xsph,)
+#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph,)
 #	endif
 #else
 #	ifdef DT_KERNEL
-#		define THIS_CUDA_KERNEL CUDA_KERNEL_NAME(VISC_TYPE,, Dt)
+#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,, Dt)
 #	else
-#		define THIS_CUDA_KERNEL CUDA_KERNEL_NAME(VISC_TYPE,,)
+#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,,)
 #	endif
 #endif
 
@@ -21,7 +21,7 @@
 template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, bool usedem,
 		 SPHFormulation sph_formulation>
 __global__ void
-THIS_CUDA_KERNEL
+FORCES_CUDA_KERNEL
 (
 	float4*	forces,
 #	ifdef XSPH_KERNEL
@@ -113,7 +113,7 @@ THIS_CUDA_KERNEL
 
 				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 				float4 neib_vel = tex1Dfetch(velTex, neib_index);
-    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);				
 
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
@@ -192,10 +192,10 @@ THIS_CUDA_KERNEL
 						if (vel_dot_pos < 0.0f) {
 #							ifdef DT_KERNEL
 							maxprelvel = fmaxf(maxprelvel, -prelvel_by_slength);
-							DvDt += artviscdt(prelvel_by_slength, vel.w, neib_vel.w, sspeed,
+							DvDt += artviscdt(prelvel_by_slength, vel.w, neib_vel.w, sspeed, 
 											soundSpeed(neib_vel.w, object(neib_info)));
 #							else // DT_KERNEL
-							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed,
+							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
 											soundSpeed(neib_vel.w, object(neib_info)), r, slength);
 #							endif // DT_KERNEL
 						}
@@ -260,7 +260,7 @@ THIS_CUDA_KERNEL
 			if (d_numPlanes) {
 				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, slength, influenceradius, force));
 			}
-
+			
 #			ifdef DT_KERNEL
 			// storing data for cfl conditon in shared memory
 			s_cfl[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)),
@@ -281,4 +281,4 @@ THIS_CUDA_KERNEL
 }
 /************************************************************************************************************/
 
-#undef THIS_CUDA_KERNEL
+#undef FORCES_CUDA_KERNEL

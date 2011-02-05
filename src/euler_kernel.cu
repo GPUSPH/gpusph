@@ -28,14 +28,14 @@ __constant__ float3 d_dispvect3;
  */
 
 #undef XSPH_KERNEL
-#define CUDA_KERNEL_NAME eulerDevice
+#define EULER_KERNEL_NAME eulerDevice
 #include "euler_kernel.def"
-#undef CUDA_KERNEL_NAME
+#undef EULER_KERNEL_NAME
 
 #define XSPH_KERNEL 1
-#define CUDA_KERNEL_NAME eulerXsphDevice
+#define EULER_KERNEL_NAME eulerXsphDevice
 #include "euler_kernel.def"
 #undef XPSH_KERNEL
-#undef CUDA_KERNEL_NAME
+#undef EULER_KERNEL_NAME
 
 #endif

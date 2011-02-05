@@ -11,8 +11,8 @@ cudaArray*  dDem = NULL;
 /* These defines give a shorthand for the kernel with a given correction,
    viscosity, xsph and dt options. They will be used in forces.cu for
    consistency */
-#define _CUDA_KERNEL_NAME(visc, xsph, dt) forces_##visc##_##xsph##dt##Device
-#define CUDA_KERNEL_NAME(visc, xsph, dt) _CUDA_KERNEL_NAME(visc, xsph, dt)
+#define _FORCES_KERNEL_NAME(visc, xsph, dt) forces_##visc##_##xsph##dt##Device
+#define FORCES_KERNEL_NAME(visc, xsph, dt) _FORCES_KERNEL_NAME(visc, xsph, dt)
 
 #include "forces_kernel.cu"
 
@@ -24,16 +24,16 @@ cudaArray*  dDem = NULL;
 #define KERNEL_CHECK(kernel, boundarytype, periodic, formulation, visc, dem) \
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
-				CUDA_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
+				FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
 						(forces, neibsList, numParticles, slength, influenceradius); \
 		else if (!dtadapt && xsphcorr) \
-				CUDA_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
+				FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
 						(forces, xsph, neibsList, numParticles, slength, influenceradius); \
 		else if (dtadapt && !xsphcorr) \
-				CUDA_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
+				FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
 						(forces, neibsList, numParticles, slength, influenceradius, cfl); \
 		else if (dtadapt && xsphcorr) \
-				CUDA_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
+				FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
 						(forces, xsph, neibsList, numParticles, slength, influenceradius, cfl); \
 		break
 
@@ -189,7 +189,6 @@ forces(	float4*			pos,
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 	}
-
 
 	if (usedem) {
 		if (periodicbound) {
@@ -457,5 +456,5 @@ void releaseDemTexture()
 #undef VORT_CHECK
 
 /* These were defined in forces_kernel.cu */
-#undef _CUDA_KERNEL_NAME
-#undef CUDA_KERNEL_NAME
+#undef _FORCES_KERNEL_NAME
+#undef FORCES_KERNEL_NAME
