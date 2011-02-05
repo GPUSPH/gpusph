@@ -17,7 +17,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_size = make_float3(1.6f, 0.67f, 0.4f);
 	m_origin = make_float3(0.0f, 0.0f, 0.0f);
 
-	m_writerType = CUSTOMTEXTWRITER;
+	m_writerType = VTKWRITER;
 
 	// SPH parameters
 	set_deltap(0.025f);
@@ -36,40 +36,40 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f;
-
+     
 	// Physical parameters
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0,1000.0, 7.0f, 300.0f*H);
-
+	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
-
+	
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-
+	
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-
+	
 	// Scales for drawing
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
 	//m_maxvel = sqrt(m_physparams.gravity*H);
 	m_maxvel = 3.0f;
-
+	
 	// Drawing and saving times
 	m_displayinterval = 0.015f;
 	m_writefreq = 1;
 	m_screenshotfreq = 0;
-
+	
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
 	create_problem_dir();
