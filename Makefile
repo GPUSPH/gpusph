@@ -96,6 +96,13 @@ LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_HEADER) && \
 LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_HEADER) && \
 	grep "\#define COMPUTE" $(COMPUTE_SELECT_HEADER) | cut -f3 -d " ")
 
+# sed syntax differs a bit
+ifeq ($(platform), Darwin)
+	SED_COMAND=sed -i "" -e
+else # Linux
+	SED_COMAND=sed -i -e
+endif
+
 # option: problem - Name of the problem. Default: $(PROBLEM) in makefile
 ifdef problem
 	# user chooses
@@ -104,7 +111,7 @@ ifdef problem
 	ifneq ($(LAST_PROBLEM),$(PROBLEM))
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_HEADER) && \
-			sed -i"" -e 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_HEADER) )
+			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_HEADER) )
 	endif
 else
 	# no user choice, use last
@@ -129,7 +136,7 @@ ifneq ($(dbg), $(LAST_DBG))
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(DBG_SELECT_HEADER) && \
-			sed -i"" -e 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_HEADER) )
+			$(SED_COMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_HEADER) )
 	endif
 endif
 
@@ -143,7 +150,7 @@ ifdef compute
 	ifneq ($(LAST_COMPUTE),$(COMPUTE))
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(COMPUTE_SELECT_HEADER) && \
-			sed -i"" -e 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_HEADER) )
+			$(SED_COMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_HEADER) )
 	endif
 else
 	# no user choice, use last (if any) or default
