@@ -6,15 +6,16 @@ then
 	echo "SSS: look for the specified patterns in current directory."
 	echo "Synopsys:"
 	echo "    sss [-e] pattern [grep options]"
-	echo 'Default extensions: *.cc *.h *.cuh *.cu'
+	echo 'Default extensions: *.cc *.h *.cuh *.cu *.def *.inc'
 	echo "Examples:"
 	echo "  $ sss FIXME"
 	echo "  $ sss \"#include <stdio>\" -i"
 	echo "  $ sss -e \"^/// R\" -e -C 1"
 	exit 1
 fi
-ls *.cc *.h *.cuh *.cu 2> /dev/null | while read filename
+ls *.cc *.h *.cuh *.cu *.inc *.def 2> /dev/null | while read filename
 do
+	# /dev/null added to make grep show the current file
 	grep -n --color=always "$@" "$filename" /dev/null
 done
 
