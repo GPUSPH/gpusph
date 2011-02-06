@@ -37,6 +37,7 @@
 #include <time.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 
 #include <GL/glew.h>
 #ifdef __APPLE__
@@ -89,6 +90,7 @@ float modelView[16];
 
 // timing
 TimingInfo  timingInfo;
+clock_t		start_time;
 char title[256];
 
 // viewing parameters
@@ -317,6 +319,7 @@ void init(const char *arg)
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
+	start_time = clock();
 }
 
 
@@ -409,7 +412,11 @@ void display()
 	// render
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	double elapsed_sec = 0.0;
 	bool finished = problem->finished(timingInfo.t);
+	if (finished)
+		elapsed_sec = (clock() - start_time)/CLOCKS_PER_SEC;
+
 	bool need_display = displayEnabled && problem->need_display(timingInfo.t);
 	bool need_write = problem->need_write(timingInfo.t) || finished;
 	if (need_display || need_write)
@@ -421,6 +428,14 @@ void display()
 			if (problem->m_simparams.vorticity)
 				psystem->getArray(ParticleSystem::VORTICITY);
 			psystem->writeToFile();
+			#define ti timingInfo
+			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
+					"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
+					"mean integration in %es \n",
+					ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
+					ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
+					ti.meanTimeEuler);
+			#undef ti
 		}
 
 	}
@@ -487,16 +502,24 @@ void display()
 	}
 
 	// Writing to file
-	if (finished)
-		quit(0);
+	if (finished) {
+		printf("\nTotal time %e s\n", elapsed_sec);
+		exit(0);
+		}
 }
 
 void console_loop(void)
 {
+
+	double elapsed_sec = 0.0;
+
 	while (true) {
 		timingInfo = psystem->PredcorrTimeStep(true);
 
 		bool finished = problem->finished(timingInfo.t);
+		if (finished)
+			elapsed_sec = (clock() - start_time)/CLOCKS_PER_SEC;
+
 		bool need_write = problem->need_write(timingInfo.t) || finished;
 
 		if (need_write)
@@ -510,7 +533,7 @@ void console_loop(void)
 
 			psystem->writeToFile();
 			#define ti timingInfo
-			printf(	"\nSaving file at nt=%es iterations=%ld dt=%es %u parts.\n"
+			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
 					"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 					"mean integration in %es \n",
 					ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
@@ -523,8 +546,10 @@ void console_loop(void)
 			break;
 	}
 
-	if (problem->finished(timingInfo.t))
+	if (problem->finished(timingInfo.t)) {
+		printf("\nTotal time %e s\n", elapsed_sec);
 		exit(0);
+		}
 }
 
 
