@@ -53,6 +53,7 @@ SRCDIR = ./src
 EXPDIR = $(SRCDIR)/expanded
 SCRIPTSDIR = ./scripts
 DOCSDIR = ./docs
+OPTSDIR = ./options
 
 # target binary
 TARGETNAME := GPUSPH$(TARGET_SXF)
@@ -80,21 +81,21 @@ NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
 
 # files to store last compile options: problem, dbg, compute
-PROBLEM_SELECT_HEADER=$(SRCDIR)/problem_select.h
-DBG_SELECT_HEADER=$(SRCDIR)/dbg_select.h
-COMPUTE_SELECT_HEADER=$(SRCDIR)/compute_select.h
+PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
+DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
+COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 
 # check compile options used last time:
 # - which problem? (name of problem, empty if file doesn't exist)
-LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_HEADER) && \
-	grep "\#define PROBLEM" $(PROBLEM_SELECT_HEADER) | cut -f3 -d " ")
+LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
+	grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f3 -d " ")
 # - was dbg enabled? (1 or 0, empty if file doesn't exist))
 # "strip" added for Mac compatibility: on MacOS wc outputs a tab...
-LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_HEADER) && \
-	grep "\#define _DEBUG_" $(DBG_SELECT_HEADER) | wc -l))
+LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
+	grep "\#define _DEBUG_" $(DBG_SELECT_OPTFILE) | wc -l))
 # - for which compute capability? (11, 12 or 20, empty if file doesn't exist)
-LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_HEADER) && \
-	grep "\#define COMPUTE" $(COMPUTE_SELECT_HEADER) | cut -f3 -d " ")
+LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
+	grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f3 -d " ")
 
 # sed syntax differs a bit
 ifeq ($(platform), Darwin)
@@ -110,8 +111,8 @@ ifdef problem
 	# if choice differs from last...
 	ifneq ($(LAST_PROBLEM),$(PROBLEM))
 		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(PROBLEM_SELECT_HEADER) && \
-			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_HEADER) )
+		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
+			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last
@@ -135,8 +136,8 @@ ifneq ($(dbg), $(LAST_DBG))
 			_REP=undef
 		endif
 		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(DBG_SELECT_HEADER) && \
-			$(SED_COMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_HEADER) )
+		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
+			$(SED_COMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
 	endif
 endif
 
@@ -149,8 +150,8 @@ ifdef compute
 	# does it differ from last?
 	ifneq ($(LAST_COMPUTE),$(COMPUTE))
 		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(COMPUTE_SELECT_HEADER) && \
-			$(SED_COMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_HEADER) )
+		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
+			$(SED_COMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last (if any) or default
@@ -169,7 +170,7 @@ CFLAGS_GPU = -gencode arch=compute_$(COMPUTE),code=sm_$(COMPUTE) --use_fast_math
 # Default CFLAGS (see notes below)
 CFLAGS_STANDARD = -O2
 # Default debug CFLAGS: no -O optimizations, debug (-g) option
-# Note: -D_DEBUG_ is defined in $(DBG_SELECT_HEADER); however, to avoid adding an
+# Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
 # include to every source, the _DEBUG_ macro is still passed through g++
 CFLAGS_DEBUG = -g -D_DEBUG_
 
@@ -244,8 +245,8 @@ CCFILES = $(wildcard $(SRCDIR)/*.cc)
 CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
 #CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
 
-# headers (excluding "cookies")
-HEADERS = $(filter-out %_select.h,$(wildcard $(SRCDIR)/*.h))
+# headers
+HEADERS = $(wildcard $(SRCDIR)/*.h)
 
 # object files via filename replacement
 CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
@@ -282,6 +283,9 @@ else
 	$(warning architecture $(arch) not supported by this makefile)
 endif
 
+# make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
+INCPATH+= -I$(SRCDIR) -I$(OPTSDIR)
+
 # if NOT using local cudpp
 LIBS+= -lcudpp$(CUDPP_ARCH_SFX)$(CUDPP_DBG_SFX)
 
@@ -307,25 +311,25 @@ all: $(OBJS) | $(DISTDIR)
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
-$(PROBLEM_SELECT_HEADER):
+$(PROBLEM_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define the problem compiled into the main executable. */" \
-		> $(PROBLEM_SELECT_HEADER)
-	@echo "#define PROBLEM $(PROBLEM)" >> $(PROBLEM_SELECT_HEADER)
-	@echo "#define QUOTED_PROBLEM \"$(PROBLEM)\"" >> $(PROBLEM_SELECT_HEADER)
-	@echo "#include \"$(PROBLEM).h\"" >> $(PROBLEM_SELECT_HEADER)
-$(DBG_SELECT_HEADER):
+		> $(PROBLEM_SELECT_OPTFILE)
+	@echo "#define PROBLEM $(PROBLEM)" >> $(PROBLEM_SELECT_OPTFILE)
+	@echo "#define QUOTED_PROBLEM \"$(PROBLEM)\"" >> $(PROBLEM_SELECT_OPTFILE)
+	@echo "#include \"$(PROBLEM).h\"" >> $(PROBLEM_SELECT_OPTFILE)
+$(DBG_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define if debug option is on. */" \
-		> $(DBG_SELECT_HEADER)
-	@if test "$(dbg)" = "1" ; then echo "#define _DEBUG_" >> $(DBG_SELECT_HEADER); \
-	else echo "#undef _DEBUG_" >> $(DBG_SELECT_HEADER); fi
-$(COMPUTE_SELECT_HEADER):
+		> $(DBG_SELECT_OPTFILE)
+	@if test "$(dbg)" = "1" ; then echo "#define _DEBUG_" >> $(DBG_SELECT_OPTFILE); \
+	else echo "#undef _DEBUG_" >> $(DBG_SELECT_OPTFILE); fi
+$(COMPUTE_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define the compute capability GPU code was compiled for. */" \
-		> $(COMPUTE_SELECT_HEADER)
-	@echo "#define COMPUTE $(COMPUTE)" >> $(COMPUTE_SELECT_HEADER)
+		> $(COMPUTE_SELECT_OPTFILE)
+	@echo "#define COMPUTE $(COMPUTE)" >> $(COMPUTE_SELECT_OPTFILE)
 
-$(OBJDIR)/GPUSph.o: $(PROBLEM_SELECT_HEADER)
+$(OBJDIR)/GPUSph.o: $(PROBLEM_SELECT_OPTFILE)
 
-$(OBJS): $(DBG_SELECT_HEADER)
+$(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
@@ -334,7 +338,7 @@ $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_HEADER) | $(OBJDIR)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
 	$(CMDECHO)$(CARRIAGE_RETURN) && \
 	printf "[CU] $(@F)" && \
 	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
@@ -346,6 +350,10 @@ $(DISTDIR):
 # create objdir
 $(OBJDIR):
 	$(CMDECHO)mkdir -p $(OBJDIR)
+
+# create optsdir
+$(OPTSDIR):
+	$(CMDECHO)mkdir -p $(OPTSDIR)
 
 # target: clean - Clean everything but last compile choices
 # clean: cpuobjs, gpuobjs, deps makefiles, target, target symlink, dbg target
@@ -363,10 +371,10 @@ gpuclean:
 	$(RM) $(CUOBJS)
 
 # target: cookiesclean - Clean last dbg, problem and compute choices, forcing
-# target:                *_select.h headers to be regenerated (use if they're
+# target:                .*_select.opt files to be regenerated (use if they're
 # target:                messed up)
 cookiesclean:
-	$(RM) $(PROBLEM_SELECT_HEADER) $(DBG_SELECT_HEADER) $(COMPUTE_SELECT_HEADER)
+	$(RM) $(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(OPTSDIR)
 
 # target: showobjs - List detected sources and target objects
 showobjs:
@@ -391,6 +399,7 @@ show:
 #	@echo "   last:         $(LAST_PROBLEM)"
 	@echo "Snapshot file:   $(SNAPSHOT_FILE)"
 	@echo "Sources dir:     $(SRCDIR)"
+	@echo "Options dir:     $(OPTSDIR)"
 	@echo "Objects dir:     $(OBJDIR)"
 	@echo "Scripts dir:     $(SCRIPTSDIR)"
 	@echo "Docs dir:        $(DOCSDIR)"

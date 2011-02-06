@@ -54,7 +54,7 @@
 #include "Problem.h"
 
 /* Include only the problem selected at compile time */
-#include "problem_select.h"
+#include "problem_select.opt"
 
 using namespace std;
 

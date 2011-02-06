@@ -1,8 +1,6 @@
 Makefile.cpu
 Makefile.gpu
-src/problem_select.h
-src/dbg_select.h
-src/compute_select.h
+options
 docs
 build
 dist
