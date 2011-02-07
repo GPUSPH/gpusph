@@ -5,6 +5,10 @@ docs
 build
 dist
 GPUSPH*
+DamBreak*
+WaveTank*
+OpenChannel*
+TestTopo*
 tags
 *.kdev4
 .kdev*
