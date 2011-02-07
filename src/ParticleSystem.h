@@ -1,6 +1,8 @@
 #ifndef __PARTICLESYSTEM_H__
 #define __PARTICLESYSTEM_H__
 
+#include "cudpp/cudpp.h"
+
 #include "particledefine.h"
 #include "Problem.h"
 #include "Writer.h"
@@ -144,6 +146,9 @@ class ParticleSystem
 		uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
 		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
+
+		// CUDPP scanplan for parallel max
+		CUDPPHandle			m_CUDPPscanplan;
 
 		// Sorter
 		// old (3.0) radix sort

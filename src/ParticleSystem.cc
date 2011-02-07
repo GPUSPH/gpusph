@@ -26,7 +26,7 @@
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
-#include "fmax.cuh"
+
 
 static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] = {
 	"Position",
@@ -151,8 +151,6 @@ ParticleSystem::allocate(uint numParticles)
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
 	const uint neibslistSize = sizeof(uint)*MAXNEIBSNUM*m_numParticles;
-	m_numPartsFmax = 1 << (int) ceil(log((float) m_numParticles/BLOCK_SIZE_FORCES)/log(2.0f));
-	const uint fmaxTableSize = sizeof(float)*m_numPartsFmax;
 
 	uint memory = 0;
 
@@ -266,20 +264,36 @@ ParticleSystem::allocate(uint numParticles)
 	int numBlocks = 0;
 	int numThreads = 0;
 	if (m_simparams.dtadapt) {
+		m_numPartsFmax = (int) ceil(numParticles / (float) min(BLOCK_SIZE_FORCES, numParticles));
+		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
+
+		printf("fmaxTableSize = %d\n", fmaxTableSize);
+
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
 		memory += fmaxTableSize;
 
 		// local_cudpp change:
-		/*CUDA_SAFE_CALL(cudaMalloc((void**) &m_dTempFmax, fmaxTableSize));
+		CUDA_SAFE_CALL(cudaMalloc((void**) &m_dTempFmax, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempFmax, 0, fmaxTableSize));
-		memory += fmaxTableSize;  // */
-		// using fmax, before local_cudpp:
+		memory += fmaxTableSize;
 
-		getNumBlocksAndThreads(fmaxTableSize, MAX_BLOCKS_FMAX, MAX_THREADS_FMAX, numBlocks, numThreads);
-		CUDA_SAFE_CALL(cudaMalloc((void**) &m_dTempFmax, numBlocks*sizeof(float)));
-		CUDA_SAFE_CALL(cudaMemset(m_dTempFmax, 0, numBlocks*sizeof(float)));
-		memory += numBlocks*sizeof(float); // */
+		// Setup CUDPP config and scanplan for parallel max
+		CUDPPConfiguration config;
+		config.op = CUDPP_MAX;
+		config.datatype = CUDPP_FLOAT;
+		config.algorithm = CUDPP_SCAN;
+		config.options = CUDPP_OPTION_BACKWARD | CUDPP_OPTION_INCLUSIVE;
+
+		m_CUDPPscanplan = 0;
+		CUDPPResult result = cudppPlan(&m_CUDPPscanplan, config, m_numPartsFmax, 1, 0);
+
+		if (CUDPP_SUCCESS != result) {
+			printf("Error creating CUDPPPlan\n");
+			exit(-1);
+			}
+
+		printf("CUDPPPlan allocated\n");
 		}
 
 	// Allocating, reading and copying DEM
@@ -291,12 +305,9 @@ ParticleSystem::allocate(uint numParticles)
     printf("Number of fluids: %d\n",m_physparams.numFluids);
     printf("GPU memory allocated\n");
 	printf("GPU memory used : %.2f MB\n", memory/(1024.0*1024.0));
-	fflush(stdout);
 
 	// Initialize (new) RadixSort object
-	m_sorter = new nvRadixSort::RadixSort(m_numParticles); //************************
-	// Initialize (old) RadixSort object
-	//m_sorter = new RadixSort(m_numParticles); //************************
+	m_sorter = new nvRadixSort::RadixSort(m_numParticles);
 	printf("RadixSort object allocated\n");
 	fflush(stdout);
 }
@@ -642,6 +653,10 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams.dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempFmax));
+		CUDPPResult result = cudppDestroyPlan(m_CUDPPscanplan);
+		if (CUDPP_SUCCESS != result) {
+			printf("Error destroying CUDPPPlan\n");
+			}
 		}
 
 	if (m_problem->m_mbnumber)
@@ -1066,6 +1081,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCfl,
 					m_dTempFmax,
 					m_numPartsFmax,
+					m_CUDPPscanplan,
 					m_dVisc,
 					m_dTau,
 					m_simparams.periodicbound,
@@ -1166,6 +1182,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCfl,
 					m_dTempFmax,
 					m_numPartsFmax,
+					m_CUDPPscanplan,
 					m_dVisc,
 					m_dTau,
 					m_simparams.periodicbound,

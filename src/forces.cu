@@ -1,9 +1,8 @@
 #include <stdio.h>
+#include "cudpp/cudpp.h"
+
 #include "textures.cuh"
 #include "forces.cuh"
-// local_cudpp change:
-#include "fmax.cuh"
-//#include "local_cudpp.h"
 #include "particledefine.h"
 
 cudaArray*  dDem = NULL;
@@ -122,15 +121,6 @@ cudaArray*  dDem = NULL;
 extern "C"
 {
 
-// local_cudpp change: added custom getMax
-/* float local_cudpp_getMax(int size, float* d_idata, float* d_tempdata) {
-	float res;
-	local_cudppMax(d_tempdata, d_idata, size, 0);
-	const void * d_origin = ((void*)(d_tempdata  + size-1));
-	CUDA_SAFE_CALL(cudaMemcpy((void*)(&res), d_origin, sizeof(float), cudaMemcpyDeviceToHost));
-	return res;
-} // */
-
 float
 forces(	float4*			pos,
 		float4*			vel,
@@ -151,6 +141,7 @@ forces(	float4*			pos,
 		float*			cfl,
 		float*			tempfmax,
 		uint			numPartsFmax,
+		CUDPPHandle		scanplan,
 		float*			visc,
 		float2*			tau[],
 		bool			periodicbound,
@@ -217,10 +208,10 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (dtadapt) {
-		// local_cudpp change: use custom getMax
-		float maxcfl = getMax(numPartsFmax, cfl, tempfmax);
-		//float maxcfl = local_cudpp_getMax(numPartsFmax, cfl, tempfmax);
-
+		cudppScan(scanplan, tempfmax, cfl, numPartsFmax);
+		float maxcfl = 0;
+		CUDA_SAFE_CALL(cudaMemcpy((void*)(&maxcfl), tempfmax, sizeof(float), cudaMemcpyDeviceToHost));
+		
 		dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 		if (visctype != ARTVISC) {

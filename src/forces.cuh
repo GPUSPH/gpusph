@@ -1,6 +1,8 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
+#include "cudpp/cudpp.h"
+
 #define BLOCK_SIZE_CALCVORT		128
 #define BLOCK_SIZE_SHEPARD		128
 #define BLOCK_SIZE_MLS			128
@@ -30,6 +32,7 @@ forces(	float4*			pos,
 		float*			cfl,
 		float*			tempfmax,
 		uint			numPartsFmax,
+		CUDPPHandle		scanplan,
 		float*			visc,
 		float2*			tau[],
 		bool			periodicbound,
