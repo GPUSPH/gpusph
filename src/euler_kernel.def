@@ -85,29 +85,23 @@ EULER_KERNEL_NAME(
 		}
 		// Updating postions for Piston particles
 		else if (type(pinfo) == PISTONPART) {
-			//pos.x = d_mborigin.x + d_mbamplitude*cos(d_mbomega*(t + dt - d_mbtstart.x) + d_mbphase);
 			pos.x = d_mborigin.x + d_mbdisp;
 		}
 		// Updating postions for Paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
-			// The following code is consistent with SPHysics and standard parlance of wavemakers (BDR)
-			// See Schaffer (1995) for theory of flap hinged below bed.
-//			float l_flap = -d_mborigin.z;   //0.1344;
-//			float f_of_z = 1.0f + (pos.z - d_paddle_h_SWL)/(d_paddle_h_SWL + l_flap);
-//			float tim = t - d_mbtstart.y+dt;
-//			pos.x = d_mborigin.x + f_of_z*0.5f*d_stroke*cos(d_mbomega*tim+d_mbphase);//added phase, RAD
-//			pos.z = pos.z;
 			float r = length(make_float2(pos.x - d_mborigin.x, pos.z - d_mborigin.z));
 			pos.x = d_mborigin.x + r*d_mbsincostheta.x;	// r*sin(theta(t))
 			pos.z = d_mborigin.z + r*d_mbsincostheta.y;	// r*cos(theta(t))
 		}
 		// Updating postions for Gate particles
 		// At each substep the gate part covers a distance equals to v*dt/2.0
-		// so in 2 substep the gate covers v*dt
+		// so in 2 substep the gate covers v*dt BUT pos is always pos(n) so
+		// at step 1 we have pos += v*dt with dt=dt/2 and at step 2 we have
+		// pos += v*dt with dt = dt
 		else if (type(pinfo)  == GATEPART) {
-			pos.x += d_mbv.x*dt2;
-			pos.y += d_mbv.y*dt2;
-			pos.z += d_mbv.z*dt2;
+			pos.x += d_mbv.x*dt;
+			pos.y += d_mbv.y*dt;
+			pos.z += d_mbv.z*dt;
 		}
 
 		if (periodicbound) {

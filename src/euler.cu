@@ -34,23 +34,23 @@ euler(	float4*		oldPos,
 				eulerXsphDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, dt2, t);
+									numParticles, dt2, dt2, t);
 			else
 				eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, dt2, t);
+									numParticles, dt2, dt2, t);
 		} else {
 			if (xsphcorr)
 				eulerXsphDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, dt2, t);
+									numParticles, dt2, dt2, t);
 			else
 				eulerDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
-									numParticles, dt, dt2, t);
+									numParticles, dt2, dt2, t);
 		}
 	} else if (step == 2) {
 		if (periodicbound) {
