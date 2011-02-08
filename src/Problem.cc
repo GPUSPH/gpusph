@@ -151,8 +151,11 @@ std::string Problem::create_problem_dir(void)
 	ctime_r(&rawtime, time_str);
 	time_str[13]='h';
 	time_str[16] = '\0';
-	m_problem_dir = m_name + ' ' + std::string(time_str);
+	// if "./tests/" doesn't exist yet...
+	mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
+	m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+
 	return m_problem_dir;
 }
 
