@@ -4,6 +4,7 @@ options
 docs
 build
 dist
+nbproject
 GPUSPH*
 DamBreak*
 WaveTank*
