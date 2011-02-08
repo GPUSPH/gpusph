@@ -1034,7 +1034,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// setting moving boundary velocity if necessary
 	if (m_simparams.mbcallback) {
-		MbCallBack mbcallback = m_problem->mb_callback(m_simTime + m_dt/2.0);
+		MbCallBack mbcallback = m_problem->mb_callback(m_simTime + m_dt/2.0, m_dt/2.0);
 		if (mbcallback.needupdate) {
 			switch (mbcallback.type) {
 				case PADDLEPART:
@@ -1135,7 +1135,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// setting moving boundary velocity if necessary
 	if (m_simparams.mbcallback) {
-		MbCallBack mbcallback = m_problem->mb_callback(m_simTime + m_dt);
+		MbCallBack mbcallback = m_problem->mb_callback(m_simTime + m_dt, m_dt/2.0);
 		if (mbcallback.needupdate) {
 			switch (mbcallback.type) {
 				case PADDLEPART:

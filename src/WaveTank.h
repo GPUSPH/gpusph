@@ -59,7 +59,7 @@ class WaveTank: public Problem {
 
 		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
-	    MbCallBack& mb_callback(float);
+	    MbCallBack& mb_callback(const float, const float);
 
 		void release_memory(void);
 };

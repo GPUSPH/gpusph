@@ -157,7 +157,7 @@ class Problem {
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
-		virtual MbCallBack& mb_callback(float);
-		virtual float4* get_mbdata(const float);
+		virtual MbCallBack& mb_callback(const float, const float);
+		virtual float4* get_mbdata(const float, const float);
 };
 #endif

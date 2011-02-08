@@ -131,7 +131,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_screenshotfreq = 0;
 
 	// Call the callback function with t = 0;
-	mb_callback(0.0);
+	mb_callback(0.0, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
@@ -155,7 +155,7 @@ void WaveTank::release_memory(void)
 	piston_parts.clear();
 }
 
-MbCallBack& WaveTank::mb_callback(float t)
+MbCallBack& WaveTank::mb_callback(const float t, const float dt)
 {
 	// Paddle
 	if (wmakertype == 0) {

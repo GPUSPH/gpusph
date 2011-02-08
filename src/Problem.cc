@@ -192,7 +192,7 @@ bool Problem::finished(float t)
 }
 
 
-MbCallBack& Problem::mb_callback(float t)
+MbCallBack& Problem::mb_callback(const float t, const float dt)
 {
 	return m_mbcallback;
 };
@@ -210,12 +210,12 @@ void Problem::copy_planes(float4*, float*)
 }
 
 
-float4* Problem::get_mbdata(const float t)
+float4* Problem::get_mbdata(const float t, const float dt)
 {
 	bool needupdate = false;
 
 	for (int i=1; i <= m_mbnumber; i++) {
-		mb_callback(t);
+		mb_callback(t, dt);
 		float4 data = make_float4(0.0f);
 		if (m_mbcallback.needupdate)
 			needupdate = true;
