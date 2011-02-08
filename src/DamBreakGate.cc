@@ -74,15 +74,10 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	//Set up callback function
 	m_mbnextimeupdate = true;
 	m_mbtstart = 0.1f;
-	m_told = m_mbtstart;
-	m_mbtend =  0.8f;
-	m_pos = make_float3(0.0f);
+	m_mbtend =  0.5f;
 	m_mbcallback.type = GATEPART;
 	m_mbcallback.mbv = make_float3(0.0, 0.0, 0.0);
 	m_gateorigin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
-
-	// Call the callback function with t = 0;
-	mb_callback(0.0);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
@@ -105,17 +100,13 @@ void DamBreakGate::release_memory(void)
 }
 
 
-MbCallBack& DamBreakGate::mb_callback(float t)
+MbCallBack& DamBreakGate::mb_callback(const float t, const float dt)
 {
 	if (t >= m_mbtstart && t < m_mbtend) {
-		m_mbcallback.mbv = make_float3(0.0, 0.0, 4.*(t - m_mbtstart));
+		m_mbcallback.mbv = make_float3(0.0, 0.0, 4.*sqrt(t - m_mbtstart));
 		m_mbcallback.needupdate = true;
 		m_mbnextimeupdate = true;
-		float dt = t - m_told;
-		//m_gateorigin += m_mbcallback.mbv*dt/2.0;
-		m_gateorigin.z += 2.0*(t - m_mbtstart)*(t - m_mbtstart);
-		m_told = t;
-		//std::cout << "dt=" << dt << "\n";
+		m_gateorigin += m_mbcallback.mbv*dt;
 		}
 	else {
 		m_mbcallback.mbv = make_float3(0.0f);
@@ -198,15 +189,6 @@ void DamBreakGate::draw_boundary(float t)
 	experiment_box.GLDraw();
 
 	glColor3f(1.0, 0.0, 0.0);
-//        if (t < m_mbtstart ) {
-//             actual_gate= Rect(Point(0.4+2*r0,0.,0.),
-//				Vector(0, 0.67, 0),Vector(0, 0, 0.4));
-//        }
-//        else if (t > m_mbtstart  ){
-//            if (t < m_mbtend) {
-                
-//            }
-//        }
 	actual_gate = Rect(Point(m_gateorigin), Vector(0, 0.67, 0), Vector(0, 0, 0.4));
 	actual_gate.GLDraw();
 
