@@ -1,7 +1,6 @@
 //Created by Andrew 12/2009
 //To set to a cone,  let radiust be a really small number, but not zero; otherwise, use for a frustum
 #include <math.h>
-
 #include "Cone.h"
 #include "Circle.h"
 
@@ -19,7 +18,7 @@ Cone::Cone(const Point &c, const Vector &rb, const Vector &rt, const Vector &h)
 	center = c;
 	radiusb = rb;
 	radiust = rt;
-	height = h;
+	height = 5;
 }
 
 double
