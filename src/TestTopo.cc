@@ -12,6 +12,7 @@
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
+#include <cstdlib> // for exit(int)
 
 
 TestTopo::TestTopo(const Options &options) : Problem(options)
