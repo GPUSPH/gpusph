@@ -150,17 +150,12 @@ void WaveTank::release_memory(void)
 
 MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 {
-	float	theta = 0;
-
-	// In this example since one of the two moving boundary is moving for
-	// almost any value of t we don't make any trick with neddupdate and
-	// nextimeupdate to avoid any unnecessary moving voundary data memory transfert.
 	switch (i) {
 		// Paddle
 		case 0:
 			{
 			MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-			theta = mbpaddledata.amplitude;
+			float theta = mbpaddledata.amplitude;
 			if (t >= mbpaddledata.tstart && t < mbpaddledata.tend) {
 				theta = mbpaddledata.amplitude*cos(mbpaddledata.omega*(t - mbpaddledata.tstart));
 				}

@@ -106,10 +106,6 @@ void DamBreakGate::release_memory(void)
 
 MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i)
 {
-	// In this exemple we have only a moving boundary that need to upload
-	// data to the GPU only for t>=tsart && t <=tend. It's worth to correctly
-	// use the needupdate/nexttimeupdate flags to prevent any unnecessary
-	// data transfert.
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
 	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {
 		mbgatedata.vel = make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart));

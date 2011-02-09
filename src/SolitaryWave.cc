@@ -50,11 +50,11 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
+	m_simparams.shepardfreq = 20;
 	m_simparams.mlsfreq = 0;
-	m_simparams.visctype = ARTVISC;
+	//m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = KINEMATICVISC;
-	//m_simparams.visctype = SPSVISC;
+	m_simparams.visctype = SPSVISC;
 	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
 
@@ -148,8 +148,6 @@ void SolitaryWave::release_memory(void)
 
 MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i)
 {
-	// In this example the piston is not moving durong the entire simlulation, so
-	// it's worth to set correctly needupdate to avoid unnecessary data transfert.
 	switch (i) {
 		// Piston
 		case 0:
