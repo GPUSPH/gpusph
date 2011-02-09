@@ -54,7 +54,8 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentVelRead(0),
 	m_currentVelWrite(1),
 	m_currentInfoRead(0),
-	m_currentInfoWrite(1)
+	m_currentInfoWrite(1),
+	m_CUDPPscanplan(0)
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
@@ -289,7 +290,6 @@ ParticleSystem::allocate(uint numParticles)
 		config.algorithm = CUDPP_SCAN;
 		config.options = CUDPP_OPTION_BACKWARD | CUDPP_OPTION_INCLUSIVE;
 
-		m_CUDPPscanplan = 0;
 		CUDPPResult result = cudppPlan(&m_CUDPPscanplan, config, m_numPartsFmax, 1, 0);
 
 		if (CUDPP_SUCCESS != result) {
@@ -316,6 +316,7 @@ ParticleSystem::allocate(uint numParticles)
 	fflush(stdout);
 }
 
+
 void
 ParticleSystem::allocate_planes(uint numPlanes)
 {
@@ -338,6 +339,7 @@ ParticleSystem::allocate_planes(uint numPlanes)
 	printf("CPU memory used : %.2f MB\n", memory/(1024.0*1024.0));
 	fflush(stdout);
 }
+
 
 void
 ParticleSystem::setPhysParams(void)
@@ -415,6 +417,7 @@ ParticleSystem::setPhysParams(void)
 		// partsurf = (6.0 - M_PI)*m_physparams.r0*m_physparams.r0/4;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_partsurf", &partsurf, sizeof(float)));
 }
+
 
 void
 ParticleSystem::getPhysParams(void)
@@ -630,9 +633,11 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams.dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempFmax));
-		CUDPPResult result = cudppDestroyPlan(m_CUDPPscanplan);
-		if (CUDPP_SUCCESS != result) {
-			printf("Error destroying CUDPPPlan\n");
+		if (m_CUDPPscanplan) {
+			CUDPPResult result = cudppDestroyPlan(m_CUDPPscanplan);
+			if (CUDPP_SUCCESS != result) {
+				printf("Error destroying CUDPPPlan\n");
+				}
 			}
 		}
 
