@@ -33,10 +33,8 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Velocity",
 	"Info",
 	"Vorticity",
-	"Viscosity",
 	"Force",
 	"Force norm",
-	"Viscosity CFL",
 	"Neighbor list",
 	"Hash",
 	"Particle Index",
@@ -271,13 +269,9 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
 	memory += neibslistSize;
 
-	int numBlocks = 0;
-	int numThreads = 0;
 	if (m_simparams.dtadapt) {
 		m_numPartsFmax = (int) ceil(numParticles / (float) min(BLOCK_SIZE_FORCES, numParticles));
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
-
-		printf("fmaxTableSize = %d\n", fmaxTableSize);
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
@@ -483,7 +477,6 @@ ParticleSystem::printPhysParams(FILE *summary)
 	fprintf(summary, "gravity = (%g, %g, %g) [%g]\n", g.x, g.y, g.z, length(g));
 #undef g
 
-
 	fprintf(summary, "%s boundary parameters:\n", BoundaryName[m_simparams.boundarytype]);
 	switch (m_simparams.boundarytype) {
 		case LJ_BOUNDARY:
@@ -518,10 +511,12 @@ ParticleSystem::printPhysParams(FILE *summary)
 			break;
 
 		case SPSVISC:
-			fprintf(summary, "\tSPS + inematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
+			fprintf(summary, "\tSPS + kinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
 					m_physparams.artvisccoeff, visccoeff);
+			fprintf(summary, "\tSmagFactor = %g\n", m_physparams.smagfactor);
+			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams.kspsfactor);
 			break;
-	}
+		}
 	fprintf(summary, "espartvisc = %g\n", m_physparams.epsartvisc);
 	fprintf(summary, "epsxsph = %g\n", m_physparams.epsxsph);
 	if (m_simparams.periodicbound) {
@@ -529,14 +524,12 @@ ParticleSystem::printPhysParams(FILE *summary)
 		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams.dispvect.x, m_physparams.dispvect.y, m_physparams.dispvect.z);
 		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams.minlimit.x, m_physparams.minlimit.y, m_physparams.minlimit.z);
 		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams.maxlimit.x, m_physparams.maxlimit.y, m_physparams.maxlimit.z);
-	}
+		}
 	if (m_simparams.usedem) {
 		fprintf(summary, "DEM resolution ew = %g, ns = %g\n", m_physparams.ewres, m_physparams.nsres);
 		fprintf(summary, "Displacement for normal computing dx = %g, dy = %g\n", m_physparams.demdx, m_physparams.demdy);
 		fprintf(summary, "DEM zmin = %g\n", m_physparams.demzmin);
-	}
-	fprintf(summary, "SmagFactor = %g\n", m_physparams.smagfactor);
-	fprintf(summary, "kSPSFactor = %g\n", m_physparams.kspsfactor);
+		}
 
 }
 
@@ -561,6 +554,8 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "SPH formulation = %d\n", m_simparams.sph_formulation);
 	fprintf(summary, "viscosity type = %d (%s)\n", m_simparams.visctype, ViscosityName[m_simparams.visctype]);
 	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams.mbcallback);
+	if (m_simparams.mbcallback)
+		fprintf(summary, "\tnumber of moving boundaries = %d\n", m_problem->m_mbnumber);
 	fprintf(summary, "periodic boundary = %s\n", m_simparams.periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams.usedem);
 }
@@ -672,12 +667,6 @@ ParticleSystem::getArray(ParticleArray array)
 			ddata = (void*) m_dInfo[m_currentInfoRead];
 			break;
 
-		case VISCOSITY:
-			size = m_numParticles*sizeof(float);
-			hdata = (void*) m_hVisc;
-			ddata = (void*) m_dVisc;
-			break;
-
 		case VORTICITY:
 			size = m_numParticles*sizeof(float3);
 			hdata = (void*) m_hVort;
@@ -774,6 +763,7 @@ ParticleSystem::setArray(ParticleArray array)
 	CUDA_SAFE_CALL(cudaMemcpy((char *) ddata, hdata, size, cudaMemcpyHostToDevice));
 }
 
+
 void
 ParticleSystem::setPlanes(void)
 {
@@ -866,8 +856,6 @@ ParticleSystem::drawParts(bool show_boundary, int view_mode)
 }
 
 
-/* DEBUG INFO MOVED TO END OF THIS MODULE */
-
 TimingInfo
 ParticleSystem::PredcorrTimeStep(bool timing)
 {
@@ -891,7 +879,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			cudaEventRecord(start_neibslist, 0);
 			}
 
-		// calculate hash
+		// compute hash
 		calcHash(m_dPos[m_currentPosRead],
 				 m_dParticleHash,
 				 m_dParticleIndex,
@@ -899,13 +887,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				 cellSize,
 				 worldOrigin,
 				 m_numParticles);
-		//savehash();
 
-		// sort particles based on hash
-		//RadixSort((KeyValuePair *) m_dParticleHash[0], (KeyValuePair *) m_dParticleHash[1], m_numParticles, 32);
-		// sort particles based on hash
+		// hash based particle sort
 		m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
-		//saveindex();
 
 		reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 									m_dCellEnd,		// output: cell end index
@@ -923,8 +907,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		std::swap(m_currentPosRead, m_currentPosWrite);
 		std::swap(m_currentVelRead, m_currentVelWrite);
 		std::swap(m_currentInfoRead, m_currentInfoWrite);
-		//savesorted();
-		//savecellstartend();
 
 		m_timingInfo.numInteractions = 0;
 		m_timingInfo.maxNeibs = 0;
@@ -966,10 +948,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_timingInfo.meanTimeNeibsList = (m_timingInfo.meanTimeNeibsList*(iter - 1) + m_timingInfo.timeNeibsList)/iter;
 			}
 	}
-
-	// DEBUG
-	//saveneibs();
-	//return m_timingInfo;
 
 	if (m_simparams.shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams.shepardfreq == 0)) {
 		shepard(m_dPos[m_currentPosRead],
@@ -1014,13 +992,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// setting moving boundaries data if necessary
 	if (m_simparams.mbcallback) {
 		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0);
-		if (hMbData) {
+		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdata", hMbData, m_mbDataSize));
-//			cout << "mbdata[0]=(" << hMbData[0].x << " " << hMbData[0].y << " "
-//					<< hMbData[0].z << " " << hMbData[0].w << ")" << endl;
-//			cout << "mbdata[1]=(" << hMbData[1].x << " " << hMbData[1].y << " "
-//					<< hMbData[1].z << " " << hMbData[1].w << ")" << endl;
-			}
 		}
 
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
@@ -1043,7 +1016,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dTempFmax,
 					m_numPartsFmax,
 					m_CUDPPscanplan,
-					m_dVisc,
 					m_dTau,
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
@@ -1067,7 +1039,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
 			m_dInfo[m_currentInfoRead], //particleInfo(n)
-			m_dForces,				  // f(n)
+			m_dForces,					// f(n)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1/2) = pos(n) + vel(n)*dt/2
 			m_dVel[m_currentVelWrite],  // vel(n+1/2) = vel(n) + f(n)*dt/2
@@ -1121,7 +1093,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dTempFmax,
 					m_numPartsFmax,
 					m_CUDPPscanplan,
-					m_dVisc,
 					m_dTau,
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
@@ -1171,7 +1142,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	return m_timingInfo;
 }
 
-// DEBUG
+// Utility function privided for debug purpose
 /****************************************************************************************************/
 void
 ParticleSystem::saveneibs()

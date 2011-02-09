@@ -19,10 +19,8 @@ class ParticleSystem
 			VELOCITY,
 			INFO,
 			VORTICITY,
-			VISCOSITY,
 			FORCE,
 			FORCENORM,
-			VISCCFL,
 			NEIBSLIST,
 			HASH,
 			PARTINDEX,
@@ -129,7 +127,6 @@ class ParticleSystem
 		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE and rounded to power of 2
 		float*		m_dCfl;					// cfl for each block
 		float*		m_dTempFmax;			// auxiliary array used for max computing
-		float*		m_dVisc;				// viscosity array for power law fluids
 		float2*		m_dTau[3];				// SPS stress tensor
 
 		uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
@@ -151,10 +148,7 @@ class ParticleSystem
 		// CUDPP scanplan for parallel max
 		CUDPPHandle			m_CUDPPscanplan;
 
-		// Sorter
-		// old (3.0) radix sort
-		//RadixSort	*m_sorter;
-		// new (3.2) radix sort
+		// Sorter from 3.2 SDK
 		nvRadixSort::RadixSort	*m_sorter;
 
 		// File writer

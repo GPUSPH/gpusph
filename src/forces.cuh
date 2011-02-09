@@ -33,10 +33,9 @@ forces(	float4*			pos,
 		float*			tempfmax,
 		uint			numPartsFmax,
 		CUDPPHandle		scanplan,
-		float*			visc,
 		float2*			tau[],
 		bool			periodicbound,
-		SPHFormulation		sph_formulation,
+		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
 		bool			usedem);
 
