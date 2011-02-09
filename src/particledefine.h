@@ -119,7 +119,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define MAX_FLUID_TYPES      4
 
 enum ParticleType {
-    GATEPART,
+    GATEPART = -4,
   	PADDLEPART,
   	PISTONPART,
   	BOUNDPART,
@@ -191,7 +191,6 @@ typedef struct PhysParams {
 	float	kspsfactor;		// 2/3*Ci*∆^2
 	int     numFluids;      // number of fluids in simulation
 	PhysParams(void) :
-//		mbtstart(make_float3(0)),
 		partsurf(0),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
