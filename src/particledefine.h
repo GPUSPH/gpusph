@@ -225,8 +225,6 @@ typedef struct MbCallBack {
 	float			omega;
 	float			amplitude;
 	float			phase;
-	bool			needupdate;
-	bool			nexttimeupdate;
 } MbCallBack;
 
 

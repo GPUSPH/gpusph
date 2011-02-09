@@ -31,8 +31,8 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    icyl = 1; // icyl = 0 means no cylinders
-	icone = 0; // icone = 0 means no cone
+    icyl = 1;	// icyl = 0 means no cylinders
+	icone = 0;	// icone = 0 means no cone
 	// If presents, cylinders and cone are moving alltogether with
 	// the same velocity
 	if (icyl || icone)
@@ -101,7 +101,9 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));
 	mbpaddledata.omega = 2.0*M_PI;		// period T = 1.0 s
-	mb_callback(0.0, 0.0, 0);			// now sincostheta is initailized
+	// Call mb_callback for paddle a first time to initialise
+	// values set by the call back function
+	mb_callback(0.0, 0.0, 0);
 
 	// Moving boundary initialisation data for cylinders and cone
 	// used only if needed(cyl = 1 or cone = 1)
@@ -109,7 +111,9 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	mbcyldata.type = GATEPART;
 	mbcyldata.tstart = 0.0f;
 	mbcyldata.tend =  1.0f;
-	mb_callback(0.0, 0.0, 1);	// now mbv is initailized
+	// Call mb_callback  for cylindres and cone a first time to initialise
+	// values set by the call back function
+	mb_callback(0.0, 0.0, 0);
 	
 	// Scales for drawing
 	m_maxrho = density(H,0);
@@ -162,7 +166,6 @@ MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 				}
 			mbpaddledata.sintheta = sin(theta);
 			mbpaddledata.costheta = cos(theta);
-			mbpaddledata.needupdate = true;
 			}
 			break;
 
@@ -170,12 +173,12 @@ MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 		case 1:
 			{
 			MbCallBack& mbcyldata = m_mbcallbackdata[1];
-			if (t >= mbcyldata.tstart && t < mbcyldata.tend)
+			if (t >= mbcyldata.tstart && t < mbcyldata.tend) {
 				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.5f);
+				mbcyldata.disp += mbcyldata.vel*dt;
+				}
 			else
 				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.0f);
-			mbcyldata.disp += mbcyldata.vel*dt;
-			mbcyldata.needupdate = true;
 			}
 			break;
 

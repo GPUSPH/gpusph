@@ -10,99 +10,6 @@
 #include "vector_math.h"
 
 
-/* NOT NEEDED NOW
-
-void
-Problem::skipComment(ifstream &fin) {
-	while (!fin.eof() && (fin.get() != '\n'));
-	return;
-}
-
-
-int
-Problem::read_init(char* fname)
-{
-	ifstream finit(fname);
-	if (!finit) {
-			cout << "File not found\n";
-			return -1;
-			}
-
-	string s;
-	s.reserve(256);
-
-	int nl = 0;
-	float temp = 0;
-	float H;
-	bool err = false;
-	for (int i = 1;i <= 31; i++) {
-		finit >> s;
-		if (s.find("originx:") != string::npos) { finit >> m_origin.x; skipComment(finit); nl++; }
-		else if (s.find("originy:") != string::npos) { finit >> m_origin.y; skipComment(finit); nl++; }
-		else if (s.find("sizex:") != string::npos) { finit >> m_size.x; skipComment(finit); nl++; }
-		else if (s.find("sizey:") != string::npos) { finit >> m_size.y; skipComment(finit); nl++; }
-		else if (s.find("deltap:") != string::npos) { finit >> m_deltap; skipComment(finit); nl++; }
-		else if (s.find("slength_factor:") != string::npos) {
-			finit >> temp;
-			m_simparams.slength = temp*m_deltap;
-			skipComment(finit);
-			nl++;
-			}
-
-		// else if (s.find("kerneltype:") != string::npos) { finit >> m_simparams.kerneltype; skipComment(finit); nl++; }
-		else if (s.find("xsph:") != string::npos) { finit >> m_simparams.xsph; skipComment(finit); nl++; }
-		else if (s.find("epsxsph:") != string::npos) { finit >> m_physparams.epsxsph; skipComment(finit); nl++; }
-		else if (s.find("dt:") != string::npos) { finit >> m_simparams.dt; skipComment(finit); nl++; }
-		else if (s.find("dtadapt:") != string::npos) { finit >> m_simparams.dtadapt; skipComment(finit); nl++; }
-		else if (s.find("buildneibsfreq:") != string::npos) { finit >> m_simparams.buildneibsfreq; skipComment(finit); nl++; }
-		else if (s.find("shepardfreq:") != string::npos) { finit >> m_simparams.shepardfreq; skipComment(finit); nl++; }
-	//	else if (s.find("rho:") != string::npos) { finit >> m_physparams.rho0; skipComment(finit); nl++; }
-		//else if (s.find("gravity:") != string::npos) { finit >> m_physparams.gravity; skipComment(finit); nl++; }
-		else if (s.find("H:") != string::npos) { finit >> H; skipComment(finit); nl++; }
-		else if (s.find("gamma:") != string::npos) { finit >> m_physparams.gammacoeff; skipComment(finit); nl++; }
-		else if (s.find("p1:") != string::npos) { finit >> m_physparams.p1coeff; skipComment(finit); nl++; }
-		else if (s.find("p2:") != string::npos) { finit >> m_physparams.p2coeff; skipComment(finit); nl++; }
-
-		// else if (s.find("visctype:") != string::npos) { finit >> m_simparams.visctype; skipComment(finit); nl++; }
-		else if (s.find("alpha:") != string::npos) { finit >> m_physparams.visccoeff; skipComment(finit); nl++; }
-		else if (s.find("mboriginx:") != string::npos) { finit >> m_physparams.mborigin.x; skipComment(finit); nl++; }
-		else if (s.find("mboriginy:") != string::npos) { finit >> m_physparams.mborigin.y; skipComment(finit); nl++; }
-		else if (s.find("mbvx:") != string::npos) { finit >> m_physparams.mbv.x; skipComment(finit); nl++; }
-		else if (s.find("mbvy:") != string::npos) { finit >> m_physparams.mbv.y; skipComment(finit); nl++; }
-		else if (s.find("mbamplitude:") != string::npos) { finit >> m_physparams.mbamplitude; skipComment(finit); nl++; }
-		else if (s.find("mbomega:") != string::npos) { finit >> m_physparams.mbomega; skipComment(finit); nl++; }
-		else if (s.find("minvel:") != string::npos) { finit >> m_minvel; skipComment(finit); nl++; }
-		else if (s.find("maxvel:") != string::npos) { finit >> m_maxvel; skipComment(finit); nl++; }
-		else if (s.find("minrho:") != string::npos) { finit >> m_minrho; skipComment(finit); nl++; }
-		else if (s.find("maxrho:") != string::npos) { finit >> m_maxrho; skipComment(finit); nl++; }
-		else err = true;
-		}
-	if (nl != 31) err = true;
-
-	finit.close();
-
-	if (err) {
-		cout << "Bad file format\n";
-		return -1;
-		}
-
-	if (m_simparams.kerneltype == QUINTICSPLINE)
-		m_simparams.kernelradius = 3.0f;
-	else
-		m_simparams.kernelradius = 2.0f;
-
-	if (m_simparams.visctype == KINEMATICVISC)
-		m_physparams.visccoeff *= 4.0f;
-
-   // m_physparams.bcoeff = 200.0f*m_physparams.rho0*m_physparams.gravity*H/m_physparams.gammacoeff;
-//	m_physparams.sscoeff = sqrt(m_physparams.bcoeff*m_physparams.gammacoeff/m_physparams.rho0);
-//	m_physparams.sspowercoeff = (m_physparams.gammacoeff - 1)/2.0f;
-   // m_physparams.dcoeff = 5.0f*m_physparams.gravity*H;
-
-	return 0;
-}
-*/
-
 float
 Problem::density(float h, int i)
 {
@@ -116,11 +23,13 @@ Problem::density(float h, int i)
 	return density;
 }
 
+
 float
 Problem::soundspeed(float rho, int i)
 {
 	return m_physparams.sscoeff[i]*pow(rho/m_physparams.rho0[i], m_physparams.sspowercoeff[i]);
 }
+
 
 float
 Problem::pressure(float rho, int i) const
@@ -206,6 +115,7 @@ uint Problem::fill_planes(void)
 	return 0;
 }
 
+
 // Copy planes for upload
 void Problem::copy_planes(float4*, float*)
 {
@@ -213,15 +123,13 @@ void Problem::copy_planes(float4*, float*)
 }
 
 
-float4* Problem::get_mbdata(const float t, const float dt)
+float4* Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
 
 	for (int i=0; i < m_mbnumber; i++) {
 		MbCallBack& mbcallbackdata = mb_callback(t, dt, i);
 		float4 data = make_float4(0.0f);
-		if (mbcallbackdata.needupdate)
-			needupdate = true;
 
 		switch(mbcallbackdata.type) {
 			case PISTONPART:
@@ -241,10 +149,14 @@ float4* Problem::get_mbdata(const float t, const float dt)
 				data.z = mbcallbackdata.vel.z;
 				break;
 		}
-		m_mbdata[i] = data;
+		if (m_mbdata[i].x != data.x || m_mbdata[i].y != data.y ||
+			m_mbdata[i].z != data.z ||m_mbdata[i].w != data.w) {
+			m_mbdata[i] = data;
+			needupdate = true;
+			}
 	}
 
-	if (needupdate)
+	if (needupdate || forceupdate)
 		return m_mbdata;
 
 	return NULL;

@@ -67,10 +67,10 @@ class Problem {
 			m_last_write_time = 0.0;
 			m_last_screenshot_time = 0.0;
 			m_mbnumber = 0;
+			memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 		};
 
 		~Problem(void) {};
-
 
 		Options get_options(void)
 		{
@@ -132,8 +132,6 @@ class Problem {
 			return physparams;
 		};
 
-//		void skipComment(ifstream &);
-//		int read_init(char *fname);
 
 		string create_problem_dir();
 		bool need_display(float);
@@ -149,6 +147,6 @@ class Problem {
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);
-		virtual float4* get_mbdata(const float, const float);
+		virtual float4* get_mbdata(const float, const float, const bool);
 };
 #endif

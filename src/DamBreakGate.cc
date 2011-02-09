@@ -79,8 +79,9 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	mbgatedata.type = GATEPART;
 	mbgatedata.tstart = 0.1f;
 	mbgatedata.tend = 0.5f;
-	mbgatedata.nexttimeupdate = true;
 	mbgatedata.vel = make_float3(0.0, 0.0, 0.0);
+	// Call mb_callback a first time to initialise values set by the call back function
+	mb_callback(0.0, 0.0, 0);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
@@ -112,15 +113,10 @@ MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
 	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {
 		mbgatedata.vel = make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart));
-		mbgatedata.needupdate = true;
-		mbgatedata.nexttimeupdate = true;
 		mbgatedata.disp += mbgatedata.vel*dt;
 		}
-	else {
+	else
 		mbgatedata.vel = make_float3(0.0f);
-		mbgatedata.needupdate = mbgatedata.nexttimeupdate;
-		mbgatedata.nexttimeupdate = false;
-		}
 
 	return m_mbcallbackdata[0];
 }

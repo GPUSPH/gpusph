@@ -31,8 +31,8 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    icyl = 0; // icyl = 0 means no cylinders
-	icone = 0; // icone = 0 means no cone
+    icyl = 1;	// icyl = 0 means no cylinders
+	icone = 0;	// icone = 0 means no cone
 	// If presents, cylinders and cone are moving alltogether with
 	// the same velocity
 	if (icyl || icone)
@@ -99,7 +99,9 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 //	std::cout << "m_tau: " << m_tau << "\n";
 	mbpistondata.tstart = 0.2f;
 	mbpistondata.tend = m_tau;
-	mb_callback(0.0, 0.0, 0);			// now sincostheta is initailized
+	// Call mb_callback for piston a first time to initialise
+	// values set by the call back function
+	mb_callback(0.0, 0.0, 0);
 
 	// Moving boundary initialisation data for cylinders and cone
 	// used only if needed(cyl = 1 or cone = 1)
@@ -107,7 +109,9 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	mbcyldata.type = GATEPART;
 	mbcyldata.tstart = 0.0f;
 	mbcyldata.tend =  1.0f;
-	mb_callback(0.0, 0.0, 1);	// now mbv is initailized
+	// Call mb_callback  for cylindres and cone a first time to initialise
+	// values set by the call back function
+	mb_callback(0.0, 0.0, 0);
 
 	// Scales for drawing
 	m_maxrho = density(H,0);
@@ -157,10 +161,6 @@ MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i
 				float arg = 2.0*((3.8 + m_Hoh)*((t - mbpistondata.tstart)/m_tau - 0.5)
 							- 2.0*m_Hoh*((posx/m_S) - 0.5));
 				mbpistondata.disp.x = m_S*(1.0 + tanh(arg))/2.0;
-				mbpistondata.needupdate = true;
-				}
-			else {
-				mbpistondata.needupdate = true;
 				}
 			}
 			break;
@@ -172,15 +172,11 @@ MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i
 			if (t >= mbcyldata.tstart && t < mbcyldata.tend) {
 				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.5f);
 				mbcyldata.disp += mbcyldata.vel*dt;
-				mbcyldata.needupdate = true;
 				}
-			else {
+			else
 				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.0f);
-				mbcyldata.needupdate = mbcyldata.nexttimeupdate;
-				mbcyldata.needupdate = true;
-				}
-			}
 			break;
+			}
 
 		default:
 			throw runtime_error("Incorrect moving boundary object number");

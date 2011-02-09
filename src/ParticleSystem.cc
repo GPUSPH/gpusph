@@ -991,7 +991,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// setting moving boundaries data if necessary
 	if (m_simparams.mbcallback) {
-		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0);
+		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0, m_iter == 0);
 		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdata", hMbData, m_mbDataSize));
 		}
@@ -1068,7 +1068,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// setting moving boundaries data if necessary
 	if (m_simparams.mbcallback) {
-		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0);
+		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0, m_iter == 0);
 		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdata", hMbData, m_mbDataSize));
 		}
