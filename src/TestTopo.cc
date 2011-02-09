@@ -1,12 +1,12 @@
 #include <math.h>
+#include <fstream>
+#include <string>
+#include <iostream>
 #ifdef __APPLE__
 #include <OpenGl/gl.h>
 #else
 #include <GL/gl.h>
 #endif
-#include <string>
-#include <iostream>
-#include <stdlib.h>
 
 #include "TestTopo.h"
 #include "Cube.h"

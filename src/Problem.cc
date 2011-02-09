@@ -52,7 +52,6 @@ bool Problem::need_display(float t)
 std::string Problem::create_problem_dir(void)
 {
 	time_t  rawtime;
-	// tm	  *timeinfo;
 	char	time_str[32];
 
 	time(&rawtime);

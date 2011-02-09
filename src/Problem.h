@@ -8,9 +8,7 @@
 #ifndef _PROBLEM_H
 #define	_PROBLEM_H
 
-#include <iostream>
-#include <fstream>
-#include <string>
+#include <string.h>
 
 #include "Options.h"
 #include "particledefine.h"

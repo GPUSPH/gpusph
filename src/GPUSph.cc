@@ -30,7 +30,7 @@
  * This document was generated with Doxygen.\n
  *
  */
-
+#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
