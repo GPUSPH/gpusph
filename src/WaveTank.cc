@@ -5,6 +5,7 @@
 #else
 #include <GL/gl.h>
 #endif
+#include <stdexcept>
 
 #include "WaveTank.h"
 #include "particledefine.h"
@@ -23,11 +24,21 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	slope_length = 8.5f;
 	h_length = 0.5f;
 	height = .63f;
-	beta = 4.2364*3.14116/180.0;
+	beta = 4.2364*M_PI/180.0;
 
-    wmakertype = 1; // 0 for paddle, 1 for solitary wave
-    icyl = 0; // icyl= 0 means no cylinders
+	// We have at least 1 moving boundary, the paddle
+	m_mbnumber = 1;
+	m_simparams.mbcallback = true;
+
+	// Add objects to the tank
+    icyl = 1; // icyl = 0 means no cylinders
 	icone = 0; // icone = 0 means no cone
+	// If presents, cylinders and cone are moving alltogether with
+	// the same velocity
+	if (icyl || icone)
+		m_mbnumber++;
+
+	// use a plane for the bottom
 	i_use_bottom_plane = 0; // 1 for real plane instead of boundary parts
 
 	// SPH parameters
@@ -40,10 +51,10 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 20;
-	m_simparams.mlsfreq = 0;
+	m_simparams.shepardfreq = 0;
+	m_simparams.mlsfreq = 20;
 	//m_simparams.visctype = ARTVISC;
-	// m_simparams.visctype = KINEMATICVISC;
+	//m_simparams.visctype = KINEMATICVISC;
 	m_simparams.visctype = SPSVISC;
 	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
@@ -62,6 +73,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_physparams.r0 = r0;
 
 	m_physparams.kinematicvisc =  1.0e-6f;
+	m_physparams.artvisccoeff =  0.3f;
 	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
@@ -75,49 +87,30 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 
-     if (wmakertype == 0 ){
-	    m_physparams.mborigin = make_float3(0.13f, r0, -0.1344);
-		m_mbtstart = 0;
-		m_mbtend = m_simparams.tend;
-        m_simparams.mbcallback = true;
-		// The stroke value is given at free surface level H
-		float stroke = 0.1;
-		// m_mbamplitude is the maximal angular value par paddle angle
-		// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
-		m_mbamplitude = atan(stroke/(2.0*(H - m_physparams.mborigin.z)));
-		m_mbomega = 2.0*M_PI;
-       }
-	 else {
-	    m_simparams.mbcallback = true;
-	    m_physparams.mborigin = make_float3(r0, 0.0, 0.0);
-	    // Parameter for solitary wave generator
-		// TODO: make some comments
-	    float amplitude = 0.2f;
-	    m_Hoh = amplitude/H;
-	    float kappa = sqrt((3*m_Hoh)/(4.0*H*H));
-	    float cel = sqrt(g*(H + amplitude));
-	    m_S = sqrt(16.0*amplitude*H/3.0);
-	//  std::cout << "cel:  " << cel << "\n";
-	//  std::cout << "kappa:  " << kappa << "\n";
-	 // std::cout << "m_Hoh:  " << m_Hoh << "\n";
-	//  std::cout << "m_S:  " << m_S << "\n";
-	    m_tau = 2.0*(3.8 + m_Hoh)/(kappa*cel);
-	    std::cout << "m_tau: " << m_tau << "\n";
-	 // m_tau=2.5f;
-		m_mbtstart = 0.0;
-		m_mbtend = m_tau;
-		m_mbnextimeupdate = true;
-		m_mbposx = r0;
+	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
+	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
+	paddle_length = 1.0f;
+	paddle_width = m_size.y - 2*r0;
+	mbpaddledata.type = PADDLEPART;
+	mbpaddledata.origin = make_float3(0.13f, r0, -0.1344);
+	mbpaddledata.tstart = 0.2f;
+	mbpaddledata.tend = m_simparams.tend;
+	// The stroke value is given at free surface level H
+	float stroke = 0.1;
+	// m_mbamplitude is the maximal angular value par paddle angle
+	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
+	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));
+	mbpaddledata.omega = 2.0*M_PI;		// period T = 1.0 s
+	mb_callback(0.0, 0.0, 0);			// now sincostheta is initailized
 
-//		m_physparams.mbv = make_float3(0.0f, 0.0f, .5f);
-//	    m_physparams.mbtstart = make_float3(0.0,0.0,0.0);  //piston, paddlepart, gatepart
-//	    m_physparams.mbtend = make_float3(m_tau,0.0,fabs(2.5*H/m_physparams.mbv.z));
-//			std::cout << "mbv.z = " << m_physparams.mbv.z <<endl;
-//	    m_physparams.mbphase = 0.0f;
-//	    m_physparams.mbomega = 0.0f;
-//        m_physparams.mbamplitude = m_deltap; // In this example mbamplitude is position of the piston
-      }
-
+	// Moving boundary initialisation data for cylinders and cone
+	// used only if needed(cyl = 1 or cone = 1)
+	MbCallBack& mbcyldata = m_mbcallbackdata[1];
+	mbcyldata.type = GATEPART;
+	mbcyldata.tstart = 0.0f;
+	mbcyldata.tend =  1.0f;
+	mb_callback(0.0, 0.0, 1);	// now mbv is initailized
+	
 	// Scales for drawing
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
@@ -126,18 +119,14 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_maxvel = 0.4f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 10;
+	m_displayinterval = 0.01f;
+	m_writefreq = 100;
 	m_screenshotfreq = 0;
-
-	// Call the callback function with t = 0;
-	mb_callback(0.0, 0.0);
-
+	
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
 	create_problem_dir();
 }
-
 
 
 WaveTank::~WaveTank(void)
@@ -150,90 +139,79 @@ void WaveTank::release_memory(void)
 {
 	parts.clear();
 	paddle_parts.clear();
-	boundary_parts.clear();
 	gate_parts.clear();
-	piston_parts.clear();
+	boundary_parts.clear();
 }
 
-MbCallBack& WaveTank::mb_callback(const float t, const float dt)
+
+MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 {
-	// Paddle
-	if (wmakertype == 0) {
-		float theta = m_mbamplitude*cos(m_mbomega*t);
-		m_mbcallback.mbsincostheta.x = sin(theta);
-		m_mbcallback.mbsincostheta.y = cos(theta);
-		m_mbcallback.needupdate = true;
-		m_mbcallback.type = PADDLEPART;
-		}
-	// Solitary wave
-	else {
-		m_mbcallback.type = PISTONPART;
-		if (t >= m_mbtstart && t < m_mbtend) {
-			float arg = 2.0*((3.8 + m_Hoh)*(t/m_tau - 0.5) - 2.0*m_Hoh*((m_mbposx/m_S) - 0.5));
-			m_mbposx = m_S*(1.0 + tanh(arg))/2.0;
-			m_mbcallback.mbdisp = m_mbposx;
-			m_mbcallback.needupdate = true;
-			m_mbnextimeupdate = true;
+	float	theta = 0;
+
+	// In this example since one of the two moving boundary is moving for
+	// almost any value of t we don't make any trick with neddupdate and
+	// nextimeupdate to avoid any unnecessary moving voundary data memory transfert.
+	switch (i) {
+		// Paddle
+		case 0:
+			{
+			MbCallBack& mbpaddledata = m_mbcallbackdata[0];
+			theta = mbpaddledata.amplitude;
+			if (t >= mbpaddledata.tstart && t < mbpaddledata.tend) {
+				theta = mbpaddledata.amplitude*cos(mbpaddledata.omega*(t - mbpaddledata.tstart));
+				}
+			mbpaddledata.sintheta = sin(theta);
+			mbpaddledata.costheta = cos(theta);
+			mbpaddledata.needupdate = true;
 			}
-		else {
-			m_mbcallback.needupdate = m_mbnextimeupdate;
-			m_mbnextimeupdate = false;
+			break;
+
+		// Cylinders and cone
+		case 1:
+			{
+			MbCallBack& mbcyldata = m_mbcallbackdata[1];
+			if (t >= mbcyldata.tstart && t < mbcyldata.tend)
+				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.5f);
+			else
+				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.0f);
+			mbcyldata.disp += mbcyldata.vel*dt;
+			mbcyldata.needupdate = true;
 			}
+			break;
+
+		default:
+			throw runtime_error("Incorrect moving boundary object number");
+			break;
 		}
-	return m_mbcallback;
+        
+	return m_mbcallbackdata[i];
 }
 
 
 int WaveTank::fill_parts()
 {
-	float r0 = m_physparams.r0;
-	float width = m_size.y;
-//	float l = h_length + slope_length;
-//    w = width;
-//    h = height;
-    //float wd = m_deltap/2;
-
-	float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
-
+	const float r0 = m_physparams.r0;
+	const float width = m_size.y;
+	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
     experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
 						Vector(0, width, 0), Vector(0, 0, height));
 
-    paddle_length = 1.0f;
-	paddle_width = width - 2*r0;
-	paddle_origin(0) = m_physparams.mborigin.x;
-	paddle_origin(1) = m_physparams.mborigin.y;
-	paddle_origin(2) = m_physparams.mborigin.z;
-	paddle_width = width - 2*r0;
-//	paddle = Rect(paddle_origin, Vector(0, paddle_width, 0),
-//			Vector(0, 0, paddle_length));
-	paddle = Rect(paddle_origin, Vector(0, paddle_width, 0),
-				Vector(paddle_length*m_mbcallback.mbsincostheta.x, 0,
-					paddle_length*m_mbcallback.mbsincostheta.y));
-
-//	Cube fluid = Cube(Point(wd+paddle_origin(0), wd, wd), Vector(l-2*wd-paddle_origin(0), 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
-//	fluid.SetPartMass(m_deltap, m_physparams.rho0);
-//	fluid.InnerFill(parts, m_deltap);
+	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
+	Rect paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
+				Vector(paddle_length*mbpaddledata.sintheta, 0,
+						paddle_length*mbpaddledata.costheta));
 
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
-	gate_parts.reserve(2000);
-	piston_parts.reserve(500);
-
-    if (wmakertype == 0) {
-	   paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	   paddle.Fill(paddle_parts, br, true);
-	}
-	else {
-	   experiment_box6 = Rect(Point(paddle_origin(0), 0, 0), Vector(0, width, 0),
-			Vector(0, 0, height)); //origin end wall and moving piston
-	   experiment_box6.SetPartMass(m_deltap, m_physparams.rho0[0]);    //  moving boundary
-	   experiment_box6.Fill(piston_parts, br, true);
-     }
+   
+	paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
+	paddle.Fill(paddle_parts, br, true);
 
 	if (i_use_bottom_plane == 0) {
-	   experiment_box1 = Rect(Point(h_length,0,0  ), Vector(0,width,0 ), Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
+	   experiment_box1 = Rect(Point(h_length,0,0  ), Vector(0, width, 0),
+			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
 	   experiment_box1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	   experiment_box1.Fill(boundary_parts,br,true);
 	   std::cout << "bottom rectangle defined" <<"\n";
@@ -282,42 +260,31 @@ int WaveTank::fill_parts()
 		cyl10 = Cylinder(p10,Vector(.025, 0, 0),Vector(0,0,height));
 		cyl10.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		cyl10.FillBorder(gate_parts, br, false, false);
-		/*     cyl11= Cylinder(Point(h_length+4*slope_length/(cos(beta)*10), width/2, H+4*r0),
-			   Vector(0.2,0,0), Vector(0,0,height));
-			   cyl1.SetPartMass(m_deltap, m_physparams.rho0[0]);
-			   cyl11.FillBorder(gate_parts, br, true,true);
-
-		 */
 	}
 	if (icone == 1) {
-		 Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
-	     cone = Cone(p1,Vector(width/4,0.0,0.0), Vector(width/10,0.,0.), Vector(0,0,height));
-		 cone.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		 cone.FillBorder(gate_parts, br, false,true);
+		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
+		cone = Cone(p1,Vector(width/4,0.0,0.0), Vector(width/10,0.,0.), Vector(0,0,height));
+		cone.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		cone.FillBorder(gate_parts, br, false, true);
     }
 
 
 	Rect fluid;
 	float z = 0;
 	int n = 0;
-//	std::cout << "m_deltap: " << m_deltap << "\n";
-//	std::cout << "m_physparams.rho0: " << m_physparams.rho0 << "\n";
+	const float amplitude = mbpaddledata.amplitude;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
-		float x = paddle_origin(0) + (z - paddle_origin(2))*tan(m_mbamplitude)  + 1.0*r0/cos(m_mbamplitude);
-		//float x = paddle_origin(0) + (z - paddle_origin(2))*tan(m_physparams.mbamplitude) + 0.25*r0;
+		float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  r0, z),
 				Vector(0, width-2.0*r0, 0), Vector(l, 0, 0));
-		//float l = h_length - x + (z-br)/tan(beta);
-		//fluid = Rect(Point(x, 0, z),
-		//	Vector(0, width, 0), Vector(l, 0, 0));
 		fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	 }
 
-    return parts.size() + boundary_parts.size() + paddle_parts.size() +gate_parts.size() + piston_parts.size();
+    return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size();
 
 	}
 
@@ -336,8 +303,8 @@ uint WaveTank::fill_planes()
 
 void WaveTank::copy_planes(float4 *planes, float *planediv)
 {
-	float w = m_size.y;
-	float l = h_length + slope_length;
+	const float w = m_size.y;
+	const float l = h_length + slope_length;
 
 	//  plane is defined as a x + by +c z + d= 0
 	planes[0] = make_float4(0, 0, 1.0, 0);   //bottom, where the first three numbers are the normal, and the last is d.
@@ -359,34 +326,22 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 
 void WaveTank::draw_boundary(float t)
 {
-	float displace;
 	glColor3f(0.0, 1.0, 0.0);
 	experiment_box.GLDraw();
+ 	if (i_use_bottom_plane == 1)
+		experiment_box1.GLDraw();
 
+	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	glColor3f(1.0, 0.0, 0.0);
+	Rect actual_paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
+				Vector(paddle_length*mbpaddledata.sintheta, 0,
+						paddle_length*mbpaddledata.costheta));
 
-	// Paddle
-	if (wmakertype == 0) {;
-		Rect actual_paddle = Rect(paddle_origin, Vector(0, paddle_width, 0),
-				Vector(paddle_length*m_mbcallback.mbsincostheta.x, 0,
-						paddle_length*m_mbcallback.mbsincostheta.y));
-		actual_paddle.GLDraw();
-		glColor3f(0.5, 0.5, 1.0);
-	}
-	// Solitary wave
-	else {
-		Rect actual_gate = Rect(Point(m_physparams.mborigin.x + m_mbposx, 0, 0),
-				Vector(0, paddle_width, 0),Vector(0, 0, paddle_length));
-		actual_gate.GLDraw();
-   	}
+	actual_paddle.GLDraw();
 
-//	if (t < m_physparams.mbtend.z) {
-//		  displace = m_physparams.mbv.z*t;}
-//	else {
-//		  displace = m_physparams.mbv.z*m_physparams.mbtend.z;
-//		  }
-
-	float width = m_size.y;
+	glColor3f(0.5, 0.5, 1.0);
+	const float displace = m_mbcallbackdata[1].disp.z;
+	const float width = m_size.y;
 	if (icyl ==1) {
 		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2,    -height + displace);
 	    Point p2 = Point(h_length + slope_length/(cos(beta)*10), width/6,    -height + displace);
@@ -400,7 +355,7 @@ void WaveTank::draw_boundary(float t)
 	    Point p10 = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6,-height + displace);
         Point p11 = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2,  -height + displace);
 
-	    cyl1 = Cylinder(p1,Vector(.025,0,0),Vector(0,0,height));
+	    cyl1 = Cylinder(p1,Vector(.05,0,0),Vector(0,0,height));
 	    cyl1.GLDraw();
 		cyl2 = Cylinder(p2,Vector(.025,0,0),Vector(0,0,height));
 		cyl2.GLDraw();
@@ -442,6 +397,14 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
+	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
+	// those rules:
+	//		1. object id must be unique (you cannot have a PADDLE with object id 0 and a GATEPART with same id)
+	//		2. particle of the same type having the object id move in the same way
+	// In this exemple we have 2 type of moving boudaries PADDLE, and GATE for 11 moving boundaries and 2
+	// different movements. There is one PADDLE moving boundary with a rotational movement and 10 GATES (actually
+	// the cylinders) sharing the same translational movement. So in this case PADDLEPARTS have objectid = 0 and
+	// GATEPARTS have object id = 1.
 	std::cout << "\nPaddle parts: " << paddle_parts.size() << "\n";
 		std::cout << "      "<< j  <<"--"<< j+ paddle_parts.size() << "\n";
 	for (uint i = j; i < j + paddle_parts.size(); i++) {
@@ -452,35 +415,21 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	j += paddle_parts.size();
 	std::cout << "Paddle part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "\nPiston parts: " << piston_parts.size() << "\n";
-	std::cout << "     " << j << "--" << j + piston_parts.size() << "\n";
-	for (uint i = j; i < j + piston_parts.size(); i++) {
-		pos[i] = make_float4(piston_parts[i-j]);
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(PISTONPART, 0, i);
-	}
-	j += piston_parts.size();
-	std::cout << "Piston part mass:" << pos[j-1].w << "\n";
-
-	std::cout << "\nGate parts: " << gate_parts.size() << "\n";
+	std::cout << "\nCylinders and/or cone parts: " << gate_parts.size() << "\n";
 	std::cout << "       " << j << "--" << j+gate_parts.size() <<"\n";
 	for (uint i = j; i < j + gate_parts.size(); i++) {
 		pos[i] = make_float4(gate_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(GATEPART, 0, i);
+		info[i] = make_particleinfo(GATEPART, 1, i);
 	}
 	j += gate_parts.size();
-	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
-
+	std::cout << "Cylinders and/or cone part mass:" << pos[j-1].w << "\n";
 
 	float g = length(m_physparams.gravity);
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		pos[i] = make_float4(parts[i-j]);
-		// initializing density
-		//       float rho = m_physparams.rho0*pow(1.+g*(H-pos[i].z)/m_physparams.bcoeff,1/m_physparams.gammacoeff);
-		//        vel[i] = make_float4(0, 0, 0, rho);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 	    info[i]= make_particleinfo(FLUIDPART,0,i);
 

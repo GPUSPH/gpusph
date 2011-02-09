@@ -195,9 +195,9 @@ bool Problem::finished(float t)
 }
 
 
-MbCallBack& Problem::mb_callback(const float t, const float dt)
+MbCallBack& Problem::mb_callback(const float t, const float dt, const int i)
 {
-	return m_mbcallback;
+	return m_mbcallbackdata[i];
 };
 
 // Number of planes
@@ -217,28 +217,28 @@ float4* Problem::get_mbdata(const float t, const float dt)
 {
 	bool needupdate = false;
 
-	for (int i=1; i <= m_mbnumber; i++) {
-		mb_callback(t, dt);
+	for (int i=0; i < m_mbnumber; i++) {
+		MbCallBack& mbcallbackdata = mb_callback(t, dt, i);
 		float4 data = make_float4(0.0f);
-		if (m_mbcallback.needupdate)
+		if (mbcallbackdata.needupdate)
 			needupdate = true;
 
-		switch(m_mbcallback.type) {
+		switch(mbcallbackdata.type) {
 			case PISTONPART:
-				data.x = m_mbcallback.mborigin.x + m_mbcallback.mbdisp;
+				data.x = mbcallbackdata.origin.x + mbcallbackdata.disp.x;
 				break;
 
 			case PADDLEPART:
-				data.x = m_mbcallback.mborigin.x;
-				data.y = m_mbcallback.mborigin.z;
-				data.z = m_mbcallback.mbsincostheta.x;
-				data.w = m_mbcallback.mborigin.y;
+				data.x = mbcallbackdata.origin.x;
+				data.y = mbcallbackdata.origin.z;
+				data.z = mbcallbackdata.sintheta;
+				data.w = mbcallbackdata.costheta;
 				break;
 
 			case GATEPART:
-				data.x = m_mbcallback.mbv.x;
-				data.y = m_mbcallback.mbv.y;
-				data.z = m_mbcallback.mbv.z;
+				data.x = mbcallbackdata.vel.x;
+				data.y = mbcallbackdata.vel.y;
+				data.z = mbcallbackdata.vel.z;
 				break;
 		}
 		m_mbdata[i] = data;

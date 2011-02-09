@@ -20,7 +20,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.025f);
+	set_deltap(0.015f);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -30,13 +30,15 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 10;
+	m_simparams.mlsfreq = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
-	m_simparams.mbcallback = false;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f;
-     
+
+	// We have no moving boundary
+	m_simparams.mbcallback = false;
+
 	// Physical parameters
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
@@ -66,7 +68,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_maxvel = 3.0f;
 	
 	// Drawing and saving times
-	m_displayinterval = 0.015f;
+	m_displayinterval = 0.05f;
 	m_writefreq = 1;
 	m_screenshotfreq = 0;
 	

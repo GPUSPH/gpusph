@@ -132,6 +132,7 @@ class ParticleSystem
 		float*		m_dVisc;				// viscosity array for power law fluids
 		float2*		m_dTau[3];				// SPS stress tensor
 
+		uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
 		float4*		m_dMbData;				// device side moving boundary data
 
 		uint*		m_dParticleHash;		// hash table for sorting

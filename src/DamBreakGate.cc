@@ -71,13 +71,16 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_writefreq = 10;
 	m_screenshotfreq = 0;
         
-	//Set up callback function
-	m_mbnextimeupdate = true;
-	m_mbtstart = 0.1f;
-	m_mbtend =  0.5f;
-	m_mbcallback.type = GATEPART;
-	m_mbcallback.mbv = make_float3(0.0, 0.0, 0.0);
-	m_gateorigin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
+	// Set up callback function
+	m_simparams.mbcallback = true;
+	MbCallBack& mbgatedata = m_mbcallbackdata[0];
+	m_mbnumber = 1;
+	mbgatedata.origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
+	mbgatedata.type = GATEPART;
+	mbgatedata.tstart = 0.1f;
+	mbgatedata.tend = 0.5f;
+	mbgatedata.nexttimeupdate = true;
+	mbgatedata.vel = make_float3(0.0, 0.0, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
@@ -100,21 +103,26 @@ void DamBreakGate::release_memory(void)
 }
 
 
-MbCallBack& DamBreakGate::mb_callback(const float t, const float dt)
+MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i)
 {
-	if (t >= m_mbtstart && t < m_mbtend) {
-		m_mbcallback.mbv = make_float3(0.0, 0.0, 4.*sqrt(t - m_mbtstart));
-		m_mbcallback.needupdate = true;
-		m_mbnextimeupdate = true;
-		m_gateorigin += m_mbcallback.mbv*dt;
+	// In this exemple we have only a moving boundary that need to upload
+	// data to the GPU only for t>=tsart && t <=tend. It's worth to correctly
+	// use the needupdate/nexttimeupdate flags to prevent any unnecessary
+	// data transfert.
+	MbCallBack& mbgatedata = m_mbcallbackdata[0];
+	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {
+		mbgatedata.vel = make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart));
+		mbgatedata.needupdate = true;
+		mbgatedata.nexttimeupdate = true;
+		mbgatedata.disp += mbgatedata.vel*dt;
 		}
 	else {
-		m_mbcallback.mbv = make_float3(0.0f);
-		m_mbcallback.needupdate = m_mbnextimeupdate;
-		m_mbnextimeupdate = false;
+		mbgatedata.vel = make_float3(0.0f);
+		mbgatedata.needupdate = mbgatedata.nexttimeupdate;
+		mbgatedata.nexttimeupdate = false;
 		}
 
-	return m_mbcallback;
+	return m_mbcallbackdata[0];
 }
 
 
@@ -127,7 +135,8 @@ int DamBreakGate::fill_parts()
 	experiment_box = Cube(Point(0, 0, 0), Vector(1.6, 0, 0),
 						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
 
-	gate = Rect (Point(m_gateorigin), Vector(0, 0.67, 0),
+	MbCallBack& mbgatedata = m_mbcallbackdata[0];
+	Rect gate = Rect (Point(mbgatedata.origin), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
 	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
@@ -185,11 +194,12 @@ int DamBreakGate::fill_parts()
 void DamBreakGate::draw_boundary(float t)
 {
 	glColor3f(0.0, 1.0, 0.0);
-	float r0 = m_physparams.r0;
 	experiment_box.GLDraw();
 
 	glColor3f(1.0, 0.0, 0.0);
-	actual_gate = Rect(Point(m_gateorigin), Vector(0, 0.67, 0), Vector(0, 0, 0.4));
+	MbCallBack& mbgatedata = m_mbcallbackdata[0];
+	Rect actual_gate = Rect(Point(mbgatedata.origin + mbgatedata.disp),
+						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
 	actual_gate.GLDraw();
 
 	obstacle.GLDraw();

@@ -20,16 +20,12 @@ class WaveTank: public Problem {
 	private:
 		int			icyl, icone, wmakertype;
 		Cube		experiment_box;
-		Rect        experiment_box1, experiment_box6;
+		Rect        experiment_box1;
 		int			i_use_bottom_plane;
-		Rect		paddle;
-		Point		paddle_origin;
 		Point		p1,p2;
 		PointVect	parts;
 		PointVect	boundary_parts;
-		PointVect	piston_parts;
-		PointVect	paddle_parts;
-		PointVect	gate_parts;
+		PointVect	paddle_parts, gate_parts;
 
 		Cylinder	cyl1, cyl2, cyl3, cyl4;
 		Cylinder	cyl5, cyl6, cyl7;
@@ -42,13 +38,6 @@ class WaveTank: public Problem {
 	    float		H;		// still water level
 		float		Hbox;	// height of experiment box
 
-		// Moving boundary data
-		float		m_S, m_Hoh, m_tau;
-		float		m_mbposx;
-		float		m_mbomega;
-		float		m_mbamplitude;
-		bool		m_mbnextimeupdate;
-		float		m_mbtstart, m_mbtend;
 
 	public:
 		WaveTank(const Options &);
@@ -59,7 +48,7 @@ class WaveTank: public Problem {
 
 		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
-	    MbCallBack& mb_callback(const float, const float);
+		MbCallBack& mb_callback(const float, const float, const int);
 
 		void release_memory(void);
 };

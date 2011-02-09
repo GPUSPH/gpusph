@@ -9,13 +9,11 @@
 #include "textures.cuh"
 
 __constant__ float	d_epsxsph;
-__constant__ float3	d_mborigin;
-__constant__ float3	d_mbv;
-__constant__ float	d_mbdisp;
-__constant__ float2 d_mbsincostheta;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
 __constant__ float3 d_dispvect3;
+__constant__ float4	d_mbdata[MAXMOVINGBOUND];
+
 
 /*
  * Device code.
