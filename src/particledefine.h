@@ -128,8 +128,8 @@ enum ParticleType {
 
 // SAME AS TWO-D code, but have to use ParticleInfo for f as in FLUID(info[i])
 
-#define NOT_FLUID(f) ((f).x != FLUIDPART)
-#define FLUID(f) ((f).x == FLUIDPART)
+#define NOT_FLUID(f) ((f).x < FLUIDPART)
+#define FLUID(f) ((f).x >= FLUIDPART)
 
 
 /* Periodic neighborhood warping */
