@@ -245,6 +245,7 @@ typedef struct SimParams {
 	int				savedatafreq;		// simulation data saving frequence (in displayfreq)
 	int				saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
+	bool			gcallback;			// true if using a variable gravity in problem
 	bool			periodicbound;		// type of periodic boundary used
 	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
@@ -263,6 +264,7 @@ typedef struct SimParams {
 		mlsfreq(15),
 		visctype(ARTVISC),
 		mbcallback(false),
+		gcallback(false),
 		periodicbound(false),
 		nlexpansionfactor(1.0),
 		usedem(false),
