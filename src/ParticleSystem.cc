@@ -559,6 +559,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams.mbcallback);
 	if (m_simparams.mbcallback)
 		fprintf(summary, "\tnumber of moving boundaries = %d\n", m_problem->m_mbnumber);
+	fprintf(summary, "variable gravity callback function = %d\n",m_simparams.gcallback);
 	fprintf(summary, "periodic boundary = %s\n", m_simparams.periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams.usedem);
 }

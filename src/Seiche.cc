@@ -14,9 +14,9 @@
 
 Seiche::Seiche(const Options &options) : Problem(options)
 {
-	set_deltap(0.0425f);
-	H = m_deltap*16;
-	l = sqrt(2)*H; w = l/2; h = 1.1*H;
+	set_deltap(0.015f);
+	H = .5f;
+	l = sqrt(2)*H; w = l/2; h = 1.5*H;
 	std::cout << "length= " << l<<"\n";
 	std::cout << "width= " << w <<"\n";
 	std::cout << "h = " << h <<"\n";
@@ -88,9 +88,9 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	m_maxvel = 0.5f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 0;
-	m_screenshotfreq = 0;
+	m_displayinterval = 0.01f;
+	m_writefreq = 10;
+	m_screenshotfreq = 5;
 
 	// Name of problem used for directory creation
 	m_name = "Seiche";
@@ -113,7 +113,9 @@ void Seiche::release_memory(void)
 float3 Seiche::g_callback(const float t)
 {
 	if(t > m_gtstart && t < m_gtend)
-		m_physparams.gravity=make_float3(3.*sin(12*(t-m_gtstart)), 0.0, -9.81f);
+		m_physparams.gravity=make_float3(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);
+	else
+		m_physparams.gravity=make_float3(0.,0.,-9.81f);
 	return m_physparams.gravity;
 }
 

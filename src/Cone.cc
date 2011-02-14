@@ -18,7 +18,7 @@ Cone::Cone(const Point &c, const Vector &rb, const Vector &rt, const Vector &h)
 	center = c;
 	radiusb = rb;
 	radiust = rt;
-	height = 5;
+	height = h;
 }
 
 double
