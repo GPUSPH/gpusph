@@ -559,6 +559,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams.mbcallback);
 	if (m_simparams.mbcallback)
 		fprintf(summary, "\tnumber of moving boundaries = %d\n", m_problem->m_mbnumber);
+	fprintf(summary, "variable gravity callback function = %d\n",m_simparams.gcallback);
 	fprintf(summary, "periodic boundary = %s\n", m_simparams.periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams.usedem);
 }
@@ -1000,6 +1001,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdata", hMbData, m_mbDataSize));
 		}
+	if (m_simparams.gcallback) {
+		m_physparams.gravity = m_problem->g_callback(m_simTime);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
+	}
 
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
@@ -1077,7 +1082,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_mbdata", hMbData, m_mbDataSize));
 		}
-
+	if (m_simparams.gcallback) {
+		m_physparams.gravity = m_problem->g_callback(m_simTime);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
+	}
+	
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)

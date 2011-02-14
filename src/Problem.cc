@@ -108,6 +108,13 @@ MbCallBack& Problem::mb_callback(const float t, const float dt, const int i)
 	return m_mbcallbackdata[i];
 };
 
+
+float3 Problem::g_callback(const float t)
+{
+	return make_float3(0.0);
+}
+
+
 // Number of planes
 uint Problem::fill_planes(void)
 {
