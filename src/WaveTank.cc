@@ -253,7 +253,7 @@ int WaveTank::fill_parts()
 		Point p10 = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6, -height);
 		Point p11 = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2, -height*.75);
 
-	    cyl1 = Cylinder(p1,Vector(.05, 0, 0),Vector(0,0,height));
+	    cyl1 = Cylinder(p1,Vector(.025, 0, 0),Vector(0,0,height));
 	    cyl1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	    cyl1.FillBorder(gate_parts, br, true, true);
 		cyl2 = Cylinder(p2,Vector(.025, 0, 0),Vector(0,0,height));
