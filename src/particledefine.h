@@ -353,7 +353,17 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	particleinfo v;
 	v.x = type;
 	v.y = obj;
-	*(uint*)&v.z = id;   // id is in the location of two shorts.
+	// id is in the location of two shorts.
+	/* The following line does not work with optimization if the C99
+	   standard for strict aliasing holds. Rather than forcing
+	   -fno-strict-aliasing (which is GCC only) we resort to
+	   memcpy which is the only `portable' way of doing this stuff,
+	   allegedly. Note that even this is risky because it might fail
+	   in cases of different endianness. So I'll mark this
+	   FIXME endianness
+	 */
+	// *(uint*)&v.z = id;
+	memcpy((void *)&v.z, (void *)&id, 4);
 	return v;
 }
 

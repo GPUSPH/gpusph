@@ -931,6 +931,10 @@ void initMenus()
 int
 main( int argc, char** argv)
 {
+	if (sizeof(uint) != 2*sizeof(short)) {
+		printf("Fatal: this architecture does not have uint = 2 short\n");
+		exit(1);
+	}
 	signal(SIGINT, quit);
 	signal(SIGUSR1, show_timing);
 
