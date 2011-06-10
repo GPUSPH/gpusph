@@ -221,19 +221,19 @@ typedef struct PhysParams {
 		epsxsph(0.5f),
 		numFluids(1)
 	{};
-    /*! Set density parameters
-        @param i         index in the array of materials
-        @param rho       base density
-        @param gamma     gamma coefficient
-        @param ssmul     sound speed multiplier: sscoeff will be sqrt(ssmul*gravity)
-     */
-    void set_density(uint i, float rho, float gamma, float ssmul) {
-        rho0[i] = rho;
-        gammacoeff[i] = gamma;
-        bcoeff[i] = rho*ssmul/gamma;
-        sscoeff[i] = sqrt(ssmul*length(gravity));
-        sspowercoeff[i] = (gamma - 1)/2;
-    }
+	/*! Set density parameters
+	  @param i	index in the array of materials
+	  @param rho	base density
+	  @param gamma	gamma coefficient
+	  @param c0	sound speed for density at rest
+	 */
+	void set_density(uint i, float rho, float gamma, float c0) {
+		rho0[i] = rho;
+		gammacoeff[i] = gamma;
+		bcoeff[i] = rho*c0*c0/gamma;
+		sscoeff[i] = c0;
+		sspowercoeff[i] = (gamma - 1)/2;
+	}
 } PhysParams;
 
 
