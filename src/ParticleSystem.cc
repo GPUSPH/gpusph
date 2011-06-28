@@ -1173,9 +1173,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
 	//Testpoints
-	nodes(	m_dPos[m_currentPosRead],
+	testpoints(	m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
-				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
 				m_dNeibsList,
 				m_numParticles,
@@ -1183,8 +1182,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_simparams.kerneltype,
 				m_influenceRadius,
 				m_simparams.periodicbound);
-	std::swap(m_currentVelRead, m_currentVelWrite);
-	//
 
 	m_simTime += m_dt;
 	m_iter++;

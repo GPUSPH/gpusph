@@ -146,7 +146,7 @@ cudaArray*  dDem = NULL;
 //Testpoints
 #define NODES_CHECK(kernel, periodic) \
 	case kernel: \
-		calcVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
+		calcTestpointsVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
 				(newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
@@ -445,23 +445,22 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-nodes(float4*		pos,
-	float4*		oldVel,
-	float4*		newVel,
-	particleinfo	*info,
-	uint*		neibsList,
-	uint		numParticles,
-	float		slength,
-	int			kerneltype,
-	float		influenceradius,
-	bool		periodicbound)
+testpoints( float4*		pos,
+			float4*		newVel,
+			particleinfo	*info,
+			uint*		neibsList,
+			uint		numParticles,
+			float		slength,
+			int			kerneltype,
+			float		influenceradius,
+			bool		periodicbound)
 {
 	// thread per particle
 	int numThreads = min(BLOCK_SIZE_CALCNODES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel

@@ -236,39 +236,37 @@ neibsInCell(int3	gridPos,
 		//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
     	particleinfo info = tex1Dfetch(infoTex, neib_index);
         if (!TESTPOINTS (info)) {
-        
+			if (neib_index != index) {			  // check not interacting with self
+				float3 neibPos = make_float3(tex1Dfetch(posTex, neib_index));
+				float3 relPos = pos - neibPos;
 
-		if (neib_index != index) {			  // check not interacting with self
-			float3 neibPos = make_float3(tex1Dfetch(posTex, neib_index));
-			float3 relPos = pos - neibPos;
+				if (periodicbound)
+					relPos += periodic*d_dispvect1;
 
-			if (periodicbound)
-				relPos += periodic*d_dispvect1;
+				uint mod_index = neib_index;
+				if (length(relPos) < influenceradius) {
+					if (periodicbound) {
+						if (periodic.x == 1)
+							mod_index |= WARPXPLUS;
+						else if (periodic.x == -1)
+							mod_index |= WARPXMINUS;
+						if (periodic.y == 1)
+							mod_index |= WARPYPLUS;
+						else if (periodic.y == -1)
+							mod_index |= WARPYMINUS;
+						if (periodic.z == 1)
+							mod_index |= WARPZPLUS;
+						else if (periodic.z == -1)
+							mod_index |= WARPZMINUS;
+					}
 
-			uint mod_index = neib_index;
-			if (length(relPos) < influenceradius) {
-				if (periodicbound) {
-					if (periodic.x == 1)
-						mod_index |= WARPXPLUS;
-					else if (periodic.x == -1)
-						mod_index |= WARPXMINUS;
-					if (periodic.y == 1)
-						mod_index |= WARPYPLUS;
-					else if (periodic.y == -1)
-						mod_index |= WARPYMINUS;
-					if (periodic.z == 1)
-						mod_index |= WARPZPLUS;
-					else if (periodic.z == -1)
-						mod_index |= WARPZMINUS;
+					if (*neibs_num < MAXNEIBSNUM)
+						neibsList[MAXNEIBSNUM*index + *neibs_num] = mod_index;
+					(*neibs_num)++;
 				}
 
-				if (*neibs_num < MAXNEIBSNUM)
-					neibsList[MAXNEIBSNUM*index + *neibs_num] = mod_index;
-				(*neibs_num)++;
 			}
-
-		}
-	} //If  not Testpoints
+		} //If  not Testpoints
 	}
 
 	return;

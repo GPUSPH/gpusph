@@ -1002,7 +1002,7 @@ calcVortDevice(	float3*	vorticity,
 // This kernel compute the velocity at testpoints
 template<KernelType kerneltype, bool periodicbound >
 __global__ void
-calcVelocityDevice(	float4*	newVel,
+calcTestpointsVelocityDevice(	float4*	newVel,
 				uint*	neibsList,
 				uint	numParticles,
 				float	slength,
@@ -1015,20 +1015,13 @@ calcVelocityDevice(	float4*	newVel,
 
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
+
+	if((type(info) != TESTPOINTSPART))
+		return;
+
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
-
-	if((type(info) != TESTPOINTSPART)){
-	newVel[index] = vel;
-	}
-
-	else {
-	float temp1 = 0.0f;
-    float temp2 = 0.0f;
-    float temp3 = 0.0f;
-
-
-
+	float3 temp = make_float3(0.0f, 0.0f,0.0f);
 
 	// loop over all the neighbors
 	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
@@ -1041,32 +1034,22 @@ calcVelocityDevice(	float4*	newVel,
 		float r;
 
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float neib_rho = tex1Dfetch(velTex, neib_index).w;
-        float neib_velx = tex1Dfetch(velTex, neib_index).x;
-        float neib_vely = tex1Dfetch(velTex, neib_index).y;
-        float neib_velz = tex1Dfetch(velTex, neib_index).z;
-        float neib_mass = tex1Dfetch(posTex, neib_index).w;
-
+		float4 neib_vel = tex1Dfetch(velTex, neib_index);
 
         particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
-			float w = W<kerneltype>(r, slength)*neib_mass/neib_rho;	// Wij*Vj
-			temp1 += w*neib_velx;
-            temp2 += w*neib_vely;
-            temp3 += w*neib_velz;
+			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// Wij*Vj
+			temp += w*make_float3(neib_vel);
 
 		}
 	}
 
-	vel.x = temp1;
-    vel.y = temp2;
-    vel.z = temp3;
+	vel.x = temp.x;
+    vel.y = temp.y;
+    vel.z = temp.z;
 
 	newVel[index] = vel;
-	}
-
-
 }
 /************************************************************************************************************/
 

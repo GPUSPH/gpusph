@@ -116,16 +116,15 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-nodes(float4*		pos,
-	float4*		oldVel,
-	float4*		newVel,
-	particleinfo*	info,
-	uint*		neibsList,
-	uint		numParticles,
-	float		slength,
-	int			kerneltype,
-	float		influenceradius,
-	bool		periodicbound);
+testpoints(	float4*		pos,
+			float4*		newVel,
+			particleinfo*	info,
+			uint*		neibsList,
+			uint		numParticles,
+			float		slength,
+			int			kerneltype,
+			float		influenceradius,
+			bool		periodicbound);
 
 
 void
