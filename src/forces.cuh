@@ -29,6 +29,7 @@
 #include "cudpp/cudpp.h"
 
 #define BLOCK_SIZE_CALCVORT		128
+#define BLOCK_SIZE_CALCNODES	128
 #define BLOCK_SIZE_SHEPARD		128
 #define BLOCK_SIZE_MLS			128
 #define BLOCK_SIZE_XSPH			128
@@ -112,6 +113,20 @@ vorticity(	float4*		pos,
 			int			kerneltype,
 			float		influenceradius,
 			bool		periodicbound);
+
+//Testpoints
+void
+nodes(float4*		pos,
+	float4*		oldVel,
+	float4*		newVel,
+	particleinfo*	info,
+	uint*		neibsList,
+	uint		numParticles,
+	float		slength,
+	int			kerneltype,
+	float		influenceradius,
+	bool		periodicbound);
+
 
 void
 setDemTexture(float *hDem, int width, int height);

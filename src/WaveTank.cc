@@ -43,7 +43,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_size = make_float3(9.0f, 0.4f, 1.0f);
 	m_origin = make_float3(0.0f, 0.0f,0.0f);
 
-	m_writerType = VTKWRITER;
+	m_writerType = TEXTWRITER;
 
 	// Data for problem setup
 	slope_length = 8.5f;
@@ -56,7 +56,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    icyl = 1;	// icyl = 0 means no cylinders
+    icyl = 0;	// icyl = 0 means no cylinders
 	icone = 0;	// icone = 0 means no cone
 	// If presents, cylinders and cone are moving alltogether with
 	// the same velocity
@@ -149,7 +149,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 100;
+	m_writefreq = 10;
 	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
@@ -307,7 +307,12 @@ int WaveTank::fill_parts()
 		n++;
 	 }
 
-    return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size();
+	//Testpoints
+	int numTestpoints=3;
+
+    //return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size();
+	return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size()+numTestpoints;
+    
 
 	}
 
@@ -410,15 +415,46 @@ void WaveTank::draw_boundary(float t)
 
 void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
+
+	//Testpoints
+	int numTestpoints=3;
+	std::cout << "\nTestpoints parts: " << numTestpoints << "\n";
+		std::cout << "      "<< 0  <<"--"<< numTestpoints << "\n";
+
+		pos[0] = make_float4(0.364,0.16,0.04,-4000);
+		pos[1] = make_float4(0.36,0.16,0.042,-4000);
+        pos[2] = make_float4(1.5748,0.2799,0.2564,-4000);
+
+
+		for (uint i = 0; i < numTestpoints; i++) {
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
+		}
+
+	int j =numTestpoints;
+	std::cout << "Testpoints part mass:" << pos[j-1].w << "\n";
+
+
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
+	for (uint i = j; i < j+boundary_parts.size(); i++) {
 		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
 	}
-	int j = boundary_parts.size();
+    j += boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	//
+
+//	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
+//		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
+//	for (uint i = 0; i < boundary_parts.size(); i++) {
+//		pos[i] = make_float4(boundary_parts[i]);
+//		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+//		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+//	}
+//	int j = boundary_parts.size();
+//	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
 	// those rules:

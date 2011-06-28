@@ -919,8 +919,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				 worldOrigin,
 				 m_numParticles);
 
+		
+
 		// hash based particle sort
 		m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
+
 
 		reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 									m_dCellEnd,		// output: cell end index
@@ -938,6 +941,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		std::swap(m_currentPosRead, m_currentPosWrite);
 		std::swap(m_currentVelRead, m_currentVelWrite);
 		std::swap(m_currentInfoRead, m_currentInfoWrite);
+
+		
+		
 
 		m_timingInfo.numInteractions = 0;
 		m_timingInfo.maxNeibs = 0;
@@ -980,6 +986,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			}
 	}
 
+	
+
 	if (m_simparams.shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams.shepardfreq == 0)) {
 		shepard(m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
@@ -1009,6 +1017,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
+
 
 	m_dtprev = m_dt;
 	float dt1 = 0.0f, dt2 = 0.0f;
@@ -1162,6 +1171,20 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
+
+	//Testpoints
+	nodes(	m_dPos[m_currentPosRead],
+				m_dVel[m_currentVelRead],
+				m_dVel[m_currentVelWrite],
+				m_dInfo[m_currentInfoRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams.slength,
+				m_simparams.kerneltype,
+				m_influenceRadius,
+				m_simparams.periodicbound);
+	std::swap(m_currentVelRead, m_currentVelWrite);
+	//
 
 	m_simTime += m_dt;
 	m_iter++;

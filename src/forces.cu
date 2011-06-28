@@ -143,6 +143,14 @@ cudaArray*  dDem = NULL;
 				 (vort, neibsList, numParticles, slength, influenceradius); \
 	break
 
+//Testpoints
+#define NODES_CHECK(kernel, periodic) \
+	case kernel: \
+		calcVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
+				(newVel, neibsList, numParticles, slength, influenceradius); \
+	break
+
+
 extern "C"
 {
 
@@ -435,6 +443,51 @@ vorticity(	float4*		pos,
 	CUT_CHECK_ERROR("Shepard kernel execution failed");
 }
 
+//Testpoints
+void
+nodes(float4*		pos,
+	float4*		oldVel,
+	float4*		newVel,
+	particleinfo	*info,
+	uint*		neibsList,
+	uint		numParticles,
+	float		slength,
+	int			kerneltype,
+	float		influenceradius,
+	bool		periodicbound)
+{
+	// thread per particle
+	int numThreads = min(BLOCK_SIZE_CALCNODES, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// execute the kernel
+	if (periodicbound) {
+		switch (kerneltype) {
+			NODES_CHECK(CUBICSPLINE, true);
+			NODES_CHECK(QUADRATIC, true);
+			NODES_CHECK(WENDLAND, true);
+		}
+	} else {
+		switch (kerneltype) {
+			NODES_CHECK(CUBICSPLINE, false);
+			NODES_CHECK(QUADRATIC, false);
+			NODES_CHECK(WENDLAND, false);
+		}
+	}
+
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("nodes kernel execution failed");
+}
+
 
 void setDemTexture(float *hDem, int width, int height)
 {
@@ -469,6 +522,8 @@ void releaseDemTexture()
 #undef MLS_CHECK
 #undef SPS_CHECK
 #undef VORT_CHECK
+//Testpoints
+#undef NODES_CHECK
 
 /* These were defined in forces_kernel.cu */
 #undef _FORCES_KERNEL_NAME

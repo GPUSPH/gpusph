@@ -140,10 +140,15 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
  */
 
 
-#define MAX_FLUID_TYPES      4
+// Testpoints
+//#define MAX_FLUID_TYPES      4
+#define MAX_FLUID_TYPES      5
 
 enum ParticleType {
-    GATEPART = -4,
+	// Testpoints
+	TESTPOINTSPART= -5,
+    //GATEPART = -4,
+	GATEPART,
   	PADDLEPART,
   	PISTONPART,
   	BOUNDPART,
@@ -154,6 +159,9 @@ enum ParticleType {
 
 #define NOT_FLUID(f) ((f).x < FLUIDPART)
 #define FLUID(f) ((f).x >= FLUIDPART)
+// Testpoints
+#define TESTPOINTS(f)((f).x == TESTPOINTSPART)
+
 
 
 /* Periodic neighborhood warping */

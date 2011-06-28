@@ -56,8 +56,11 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 					const particleinfo *info, const float3 *vort, float t)
 {
 	string filename, full_filename;
+	//Testpoints
+	string filenum = next_filenum();
+	//filename = "PART_" + next_filenum() + ".txt";
+	filename = "PART_" + filenum + ".txt";
 
-	filename = "PART_" + next_filenum() + ".txt";
 	full_filename = m_dirname + "/" + filename;
 
 	FILE *fid = fopen(full_filename.c_str(), "w");
@@ -74,7 +77,10 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
 												, pos[i].x, pos[i].y, pos[i].z);
 		// velocity
-		if (FLUID(info[i]))
+		  
+		//Testpoints
+		//if (FLUID(info[i]))
+		if (FLUID(info[i])||TESTPOINTS(info[i]))
 			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
 		else
 			fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
@@ -107,6 +113,34 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 
 	fclose(fid);
+
+	//Testpoints
+	filename = "PARTTESTPOINTS_" + filenum + ".txt";
+	full_filename = m_dirname + "/" + filename;
+
+	FILE *fid1 = fopen(full_filename.c_str(), "w");
+
+	// Writing datas
+	for (int i=0; i < numParts; i++) {
+		if (TESTPOINTS(info[i])){
+		// position
+		fprintf(fid1,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
+				, pos[i].x, pos[i].y, pos[i].z);
+
+		// velocity
+
+			fprintf(fid1,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
+
+
+			fprintf(fid1,"\n");
+		}
+
+
+	}
+
+	fclose(fid1);
+
+	//
 
 	//Writing time to VTUinp.pvd file
 	if (m_timefile != NULL) {

@@ -998,4 +998,77 @@ calcVortDevice(	float3*	vorticity,
 }
 /************************************************************************************************************/
 
+//Testpoints
+// This kernel compute the velocity at testpoints
+template<KernelType kerneltype, bool periodicbound >
+__global__ void
+calcVelocityDevice(	float4*	newVel,
+				uint*	neibsList,
+				uint	numParticles,
+				float	slength,
+				float	influenceradius)
+{
+	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	particleinfo info = tex1Dfetch(infoTex, index);
+	float4 pos = tex1Dfetch(posTex, index);
+	float4 vel = tex1Dfetch(velTex, index);
+
+	if((type(info) != TESTPOINTSPART)){
+	newVel[index] = vel;
+	}
+
+	else {
+	float temp1 = 0.0f;
+    float temp2 = 0.0f;
+    float temp3 = 0.0f;
+
+
+
+
+	// loop over all the neighbors
+	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		uint neib_index = neibsList[i];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		float neib_rho = tex1Dfetch(velTex, neib_index).w;
+        float neib_velx = tex1Dfetch(velTex, neib_index).x;
+        float neib_vely = tex1Dfetch(velTex, neib_index).y;
+        float neib_velz = tex1Dfetch(velTex, neib_index).z;
+        float neib_mass = tex1Dfetch(posTex, neib_index).w;
+
+
+        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (r < influenceradius && FLUID(neib_info)) {
+			float w = W<kerneltype>(r, slength)*neib_mass/neib_rho;	// Wij*Vj
+			temp1 += w*neib_velx;
+            temp2 += w*neib_vely;
+            temp3 += w*neib_velz;
+
+		}
+	}
+
+	vel.x = temp1;
+    vel.y = temp2;
+    vel.z = temp3;
+
+	newVel[index] = vel;
+	}
+
+
+}
+/************************************************************************************************************/
+
+
 #endif

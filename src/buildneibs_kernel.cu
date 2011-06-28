@@ -232,6 +232,12 @@ neibsInCell(int3	gridPos,
 	// iterate over particles in this cell
 	uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
+
+		//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
+    	particleinfo info = tex1Dfetch(infoTex, neib_index);
+        if (!TESTPOINTS (info)) {
+        
+
 		if (neib_index != index) {			  // check not interacting with self
 			float3 neibPos = make_float3(tex1Dfetch(posTex, neib_index));
 			float3 relPos = pos - neibPos;
@@ -262,6 +268,7 @@ neibsInCell(int3	gridPos,
 			}
 
 		}
+	} //If  not Testpoints
 	}
 
 	return;
@@ -292,7 +299,11 @@ buildNeibsListDevice(   uint*	neibsList,
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
-		if (FLUID(info)) {
+
+		//Testpoints (Neibouring list is calculated for testpoints as well)
+		//if (FLUID(info)) {
+		if (FLUID(info)|| TESTPOINTS (info)) {
+			
 			// read particle position from texture
 			float3 pos = make_float3(tex1Dfetch(posTex, index));
 
