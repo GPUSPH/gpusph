@@ -26,6 +26,7 @@
 #include <stdexcept>
 
 #include "TextWriter.h"
+#include "Problem.h"
 
 using namespace std;
 
@@ -35,6 +36,7 @@ TextWriter::TextWriter(const Problem *problem)
 	string time_filename = m_dirname + "/time.txt";
     m_timefile = NULL;
     m_timefile = fopen(time_filename.c_str(), "w");
+
 
 	if (m_timefile == NULL) {
 		stringstream ss;
@@ -53,10 +55,9 @@ TextWriter::~TextWriter()
 }
 
 void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
-					const particleinfo *info, const float3 *vort, float t)
+					const particleinfo *info, const float3 *vort, float t, bool testpoints)
 {
 	string filename, full_filename;
-	//Testpoints
 	string filenum = next_filenum();
 	//filename = "PART_" + next_filenum() + ".txt";
 	filename = "PART_" + filenum + ".txt";
@@ -115,6 +116,7 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fclose(fid);
 
 	//Testpoints
+	if (testpoints){
 	filename = "PARTTESTPOINTS_" + filenum + ".txt";
 	full_filename = m_dirname + "/" + filename;
 
@@ -139,6 +141,7 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	}
 
 	fclose(fid1);
+	}
 
 	//
 

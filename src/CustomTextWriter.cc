@@ -54,7 +54,7 @@ CustomTextWriter::~CustomTextWriter()
 }
 
 void CustomTextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
-					const particleinfo *info, const float3 *vort, float t)
+					const particleinfo *info, const float3 *vort, float t, bool testpoints)
 {
 	string filename, full_filename;
 

@@ -48,8 +48,9 @@ public:
 	Writer(const Problem *problem);
 	virtual ~Writer();
 
+	
 	virtual void write(uint numParts, const float4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t) = 0;
+			const particleinfo *info, const float3 *vort, float t, bool testpoints) = 0;
 
 protected:
 	string			m_dirname;

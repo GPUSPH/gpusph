@@ -85,6 +85,11 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.tend = 10.0;
 
 	m_simparams.vorticity = true;
+	//Testpoints
+	m_simparams.testpoints = false;
+	if (m_simparams.testpoints)
+	numTestpoints = 3;
+
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
     // Physical parameters
@@ -308,10 +313,11 @@ int WaveTank::fill_parts()
 	 }
 
 	//Testpoints
-	int numTestpoints=3;
-
-    //return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size();
-	return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size()+numTestpoints;
+	if (m_simparams.testpoints)
+		return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size()+numTestpoints;
+	else
+    return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size();
+	
     
 
 	}
@@ -416,14 +422,16 @@ void WaveTank::draw_boundary(float t)
 void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
 
+	
 	//Testpoints
-	int numTestpoints=3;
-	std::cout << "\nTestpoints parts: " << numTestpoints << "\n";
+	int j;
+	if (m_simparams.testpoints ) {
+	    std::cout << "\nTestpoints parts: " << numTestpoints << "\n";
 		std::cout << "      "<< 0  <<"--"<< numTestpoints << "\n";
 
-		pos[0] = make_float4(0.364,0.16,0.04,-4000);
-		pos[1] = make_float4(0.36,0.16,0.042,-4000);
-        pos[2] = make_float4(1.5748,0.2799,0.2564,-4000);
+		pos[0] = make_float4(0.364,0.16,0.04,0.0);
+		pos[1] = make_float4(0.37,0.17,0.04,0.0);
+        pos[2] = make_float4(1.5748,0.2799,0.2564,0.0);
 
 
 		for (uint i = 0; i < numTestpoints; i++) {
@@ -431,8 +439,13 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 		info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
 		}
 
-	int j =numTestpoints;
+    j =numTestpoints;
 	std::cout << "Testpoints part mass:" << pos[j-1].w << "\n";
+	}
+	
+	else
+		 j=0;
+
 
 
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";

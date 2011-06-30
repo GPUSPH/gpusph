@@ -284,6 +284,8 @@ typedef struct SimParams {
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;
+	//Testpoints
+	bool            testpoints;         // If we want to find velocity at testpoints
 	SimParams(void) :
 		kernelradius(2.0),
 		dt(0.00013),

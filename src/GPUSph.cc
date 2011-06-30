@@ -445,12 +445,12 @@ void display()
 	bool need_write = problem->need_write(timingInfo.t) || finished;
 	if (need_display || need_write)
 	{
-		psystem->getArray(ParticleSystem::POSITION);
-		psystem->getArray(ParticleSystem::VELOCITY);
-	    psystem->getArray(ParticleSystem::INFO);
+		psystem->getArray(ParticleSystem::POSITION, need_write);
+		psystem->getArray(ParticleSystem::VELOCITY, need_write);
+	    psystem->getArray(ParticleSystem::INFO, need_write);
 		if (need_write) {
 			if (problem->m_simparams.vorticity)
-				psystem->getArray(ParticleSystem::VORTICITY);
+				psystem->getArray(ParticleSystem::VORTICITY, need_write);
 			psystem->writeToFile();
 			#define ti timingInfo
 			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
@@ -548,12 +548,12 @@ void console_loop(void)
 
 		if (need_write)
 		{
-			psystem->getArray(ParticleSystem::POSITION);
-			psystem->getArray(ParticleSystem::VELOCITY);
-			psystem->getArray(ParticleSystem::INFO);
+			psystem->getArray(ParticleSystem::POSITION, need_write);
+			psystem->getArray(ParticleSystem::VELOCITY, need_write);
+			psystem->getArray(ParticleSystem::INFO, need_write);
 
 			if (problem->m_simparams.vorticity)
-				psystem->getArray(ParticleSystem::VORTICITY);
+				psystem->getArray(ParticleSystem::VORTICITY, need_write);
 
 			psystem->writeToFile();
 			#define ti timingInfo

@@ -75,7 +75,7 @@ class ParticleSystem
 
 		TimingInfo	PredcorrTimeStep(bool);
 
-		void*	getArray(ParticleArray);
+		void*	getArray(ParticleArray, bool);
 		void	setArray(ParticleArray);
 		void	setPlanes();
 		void	drawParts(bool , int);

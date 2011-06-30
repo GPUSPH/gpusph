@@ -46,11 +46,15 @@
 #include "CustomTextWriter.h"
 #include "VTKWriter.h"
 #include "VTKLegacyWriter.h"
+#include "Problem.h"
+/* Include only the problem selected at compile time */
+#include "problem_select.opt"
 
 #include "cudautil.cuh"
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
+
 
 
 static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] = {
@@ -672,7 +676,7 @@ ParticleSystem::~ParticleSystem()
 
 
 void*
-ParticleSystem::getArray(ParticleArray array)
+ParticleSystem::getArray(ParticleArray array, bool need_write)
 {
 	void*   hdata = 0;
 	void*   ddata = 0;
@@ -687,9 +691,24 @@ ParticleSystem::getArray(ParticleArray array)
 			break;
 
 		case VELOCITY:
+			{
+			//Testpoints
+			if (need_write && m_simparams.testpoints) {
+				testpoints(	m_dPos[m_currentPosRead],
+							m_dVel[m_currentVelRead],
+							m_dInfo[m_currentInfoRead],
+							m_dNeibsList,
+							m_numParticles,
+							m_simparams.slength,
+							m_simparams.kerneltype,
+							m_influenceRadius,
+							m_simparams.periodicbound);
+				} // if need_write && m_simparams.testpoints
+
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hVel;
 			ddata = (void*) m_dVel[m_currentVelRead];
+			}
 			break;
 
 		case INFO:
@@ -808,7 +827,9 @@ ParticleSystem::setPlanes(void)
 void
 ParticleSystem::writeToFile()
 {
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime);
+	//Testpoints
+//	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime);
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints);
 }
 
 
@@ -1172,17 +1193,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
-	//Testpoints
-	testpoints(	m_dPos[m_currentPosRead],
-				m_dVel[m_currentVelRead],
-				m_dInfo[m_currentInfoRead],
-				m_dNeibsList,
-				m_numParticles,
-				m_simparams.slength,
-				m_simparams.kerneltype,
-				m_influenceRadius,
-				m_simparams.periodicbound);
-
 	m_simTime += m_dt;
 	m_iter++;
 	if (m_simparams.dtadapt) {
@@ -1206,8 +1216,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 void
 ParticleSystem::saveneibs()
 {
-	getArray(POSITION);
-	getArray(NEIBSLIST);
+	getArray(POSITION, false);
+	getArray(NEIBSLIST, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/neibs.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1264,8 +1274,8 @@ ParticleSystem::saveneibs()
 void
 ParticleSystem::savehash()
 {
-	getArray(POSITION);
-	getArray(HASH);
+	getArray(POSITION, false);
+	getArray(HASH, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/hash.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1294,8 +1304,8 @@ ParticleSystem::savehash()
 void
 ParticleSystem::saveindex()
 {
-	getArray(POSITION);
-	getArray(PARTINDEX);
+	getArray(POSITION, false);
+	getArray(PARTINDEX, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedindex.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1324,8 +1334,8 @@ ParticleSystem::saveindex()
 void
 ParticleSystem::savesorted()
 {
-	getArray(POSITION);
-	getArray(PARTINDEX);
+	getArray(POSITION, false);
+	getArray(PARTINDEX, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedparts.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1354,9 +1364,9 @@ ParticleSystem::savesorted()
 void
 ParticleSystem::savecellstartend()
 {
-	getArray(POSITION);
-	getArray(CELLSTART);
-	getArray(CELLEND);
+	getArray(POSITION, false);
+	getArray(CELLSTART, false);
+	getArray(CELLEND, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/cellstartend.txt";
 	FILE *fp = fopen(fname.c_str(),"w");

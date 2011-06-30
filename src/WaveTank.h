@@ -43,7 +43,8 @@
 
 class WaveTank: public Problem {
 	private:
-		int			icyl, icone, wmakertype;
+		//Testpoints
+		int			icyl, icone, wmakertype, numTestpoints;
 		Cube		experiment_box;
 		Rect        experiment_box1;
 		int			i_use_bottom_plane;
