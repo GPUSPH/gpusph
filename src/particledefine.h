@@ -140,28 +140,46 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
  */
 
 
+#define MAX_FLUID_TYPES      4
+
+
+/* The particle type is a short integer organized this way:
+   * lowest 4 bits: fluid number (for multifluid)
+   * next 4 bits: non-fluid code (boundary, piston, etc)
+   * high 8 bits: flags
+*/
+
+#define MAX_FLUID_BITS       4
+
+/* this can be increased to up to (1<<MAX_FLUID_BITS) */
+#define MAX_FLUID_TYPES      4
+
+/* compile-time consistency check */
+#if MAX_FLUID_TYPES > (1<<MAX_FLUID_BITS)
+#error "Too many fluids"
+#endif
+
+#define FLUIDPART 0
+
+/* non-fluid types start at (1<<MAX_FLUID_BITS) */
+#define BOUNDPART  (1<<MAX_FLUID_BITS)
+#define PISTONPART (2<<MAX_FLUID_BITS)
+#define PADDLEPART (3<<MAX_FLUID_BITS)
+#define GATEPART   (4<<MAX_FLUID_BITS)
+#define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
+
+/* A particle is NOT fluid if it has the high bits of the lowest byte set */
+#define NOT_FLUID(f) ((f).x & 0xf0)
+/* otherwise it's fluid */
+#define FLUID(f) (!(NOT_FLUID(f)))
 // Testpoints
-//#define MAX_FLUID_TYPES      4
-#define MAX_FLUID_TYPES      5
+#define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
 
-enum ParticleType {
-	// Testpoints
-	TESTPOINTSPART= -5,
-    //GATEPART = -4,
-	GATEPART,
-  	PADDLEPART,
-  	PISTONPART,
-  	BOUNDPART,
-  	FLUIDPART
-};
-
-// SAME AS TWO-D code, but have to use ParticleInfo for f as in FLUID(info[i])
-
-#define NOT_FLUID(f) ((f).x < FLUIDPART)
-#define FLUID(f) ((f).x >= FLUIDPART)
-// Testpoints
-#define TESTPOINTS(f)((f).x == TESTPOINTSPART)
-
+/* compile-time consistency check:
+   definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
+#if MAX_FLUID_BITS != 4
+#error "Adjust NOT_FLUID() macro"
+#endif
 
 
 /* Periodic neighborhood warping */
@@ -246,7 +264,7 @@ typedef struct PhysParams {
 
 
 typedef struct MbCallBack {
-	ParticleType	type;
+	short			type;
 	float			tstart;
 	float			tend;
 	float3			origin;
