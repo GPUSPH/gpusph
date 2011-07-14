@@ -714,8 +714,9 @@ xsphDevice(	float4*	xsph,
 
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 		float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		particleinfo neib_info = tex1Dfetch(infoTex, index);
 
-		if (r < influenceradius && FLUID(neib_pos)) {
+		if (r < influenceradius && FLUID(neib_info)) {
 			float3 relVel;
 			relVel.x = vel.x - neib_vel.x;
 			relVel.y = vel.y - neib_vel.y;
