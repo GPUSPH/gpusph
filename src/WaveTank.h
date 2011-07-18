@@ -52,6 +52,7 @@ class WaveTank: public Problem {
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	paddle_parts, gate_parts;
+		PointVect	test_points;
 
 		Cylinder	cyl1, cyl2, cyl3, cyl4;
 		Cylinder	cyl5, cyl6, cyl7;
