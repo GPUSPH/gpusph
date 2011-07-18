@@ -93,6 +93,10 @@ __constant__ float	d_plane_div[MAXPLANES];
 __constant__ float	d_smagfactor;
 __constant__ float	d_kspsfactor;
 
+// Free surface detection
+__constant__ float	d_cosconeangle;
+
+
 typedef struct sym33mat {
 	float a11;
 	float a12;
@@ -1051,6 +1055,99 @@ calcTestpointsVelocityDevice(	float4*	newVel,
     vel.z = temp.z;
 
 	newVel[index] = vel;
+}
+/************************************************************************************************************/
+// Free surface detection
+// This kernel detects the surface particles
+template<KernelType kerneltype, bool periodicbound, bool savenormals>
+__global__ void
+calcSurfaceparticleDevice(float4*	normals,
+				particleinfo* newInfo,
+                uint*	neibsList,
+				uint	numParticles,
+				float	slength,
+				float	influenceradius)
+{
+	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	particleinfo info = tex1Dfetch(infoTex, index);
+
+	if (!FLUID(info)) {
+		newInfo [index] = info;
+		float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+		normals [index] = normal;
+		return;
+		}
+
+	info.x &= ~SURFACE_PARTICLE_FLAG;
+
+	float4 pos = tex1Dfetch(posTex, index);
+	float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
+
+	// loop over all the neighbors (First loop)
+	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		uint neib_index = neibsList[i];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		float neib_density = tex1Dfetch(velTex, neib_index).w;
+
+			if (r < influenceradius) {
+			float f = F<kerneltype>(r, slength)* neib_pos.w /neib_density; // 1/r ∂Wij/∂r Vj
+			normal.x -= f * relPos.x;
+			normal.y -= f * relPos.y;
+			normal.z -= f * relPos.z;
+			normal.w += W<kerneltype>(r, slength)*neib_pos.w;	// Wij*mj ;
+
+		}
+	}
+
+
+	float normal_length = length(as_float3(normal));
+
+	// loop over all the neighbors (Second loop)
+	int nc = 0;
+	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		uint neib_index = neibsList[i];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+
+		if (r < influenceradius) {
+			float criteria = -(normal.x * relPos.x + normal.y * relPos.y + normal.z * relPos.z);
+			if (criteria > r*normal_length*d_cosconeangle)
+				nc++;
+		}
+
+	}
+
+	if (!nc)
+		info.x |= SURFACE_PARTICLE_FLAG;
+
+	newInfo[index] = info;
+
+	if (savenormals) {
+		normal.x /= normal_length;
+		normal.y /= normal_length;
+		normal.z /= normal_length;
+		normals[index] = normal;
+		}
+
 }
 /************************************************************************************************************/
 

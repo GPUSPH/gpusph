@@ -150,6 +150,13 @@ cudaArray*  dDem = NULL;
 				(newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
+// Free surface detection
+#define SURFACE_CHECK(kernel, periodic, savenormals) \
+	case kernel: \
+		calcSurfaceparticleDevice<kernel, periodic, savenormals><<< numBlocks, numThreads >>> \
+				(normals, newInfo, neibsList, numParticles, slength, influenceradius); \
+	break
+
 
 extern "C"
 {
@@ -487,6 +494,69 @@ testpoints( float4*		pos,
 	CUT_CHECK_ERROR("nodes kernel execution failed");
 }
 
+// Free surface detection
+void
+surfaceparticle( float4*		pos,
+		    float4*     vel,
+			float4*		normals,
+			particleinfo	*info,
+			particleinfo	*newInfo,
+			uint*		neibsList,
+			uint		numParticles,
+			float		slength,
+			int			kerneltype,
+			float		influenceradius,
+			bool		periodicbound,
+		    bool        savenormals)
+{
+	// thread per particle
+	int numThreads = min(BLOCK_SIZE_CALCNODES, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// execute the kernel
+	if (savenormals){
+		if (periodicbound) {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, true, true);
+				SURFACE_CHECK(QUADRATIC, true, true);
+				SURFACE_CHECK(WENDLAND, true, true);
+			}
+		} else {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, false, true);
+				SURFACE_CHECK(QUADRATIC, false, true);
+				SURFACE_CHECK(WENDLAND, false, true);
+			}
+		}
+	} else {
+		if (periodicbound) {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, true, false);
+				SURFACE_CHECK(QUADRATIC, true, false);
+				SURFACE_CHECK(WENDLAND, true, false);
+			}
+		} else {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, false, false);
+				SURFACE_CHECK(QUADRATIC, false, false);
+				SURFACE_CHECK(WENDLAND, false, false);
+			}
+		}
+	}
+
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("surface kernel execution failed");
+}
+
 
 void setDemTexture(float *hDem, int width, int height)
 {
@@ -521,8 +591,8 @@ void releaseDemTexture()
 #undef MLS_CHECK
 #undef SPS_CHECK
 #undef VORT_CHECK
-//Testpoints
 #undef NODES_CHECK
+#undef SURFACE_CHECK
 
 /* These were defined in forces_kernel.cu */
 #undef _FORCES_KERNEL_NAME

@@ -211,7 +211,7 @@ ParticleSystem::allocate(uint numParticles)
 		}
 
 
-#ifdef _DEBUG_
+//#ifdef _DEBUG_
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
@@ -235,7 +235,16 @@ ParticleSystem::allocate(uint numParticles)
 	m_hNeibsList = new uint[MAXNEIBSNUM*m_numParticles];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
-#endif
+
+	// Free surface detection (Debug)
+	m_hNormals = new float4[m_numParticles];
+	memset(m_hNormals, 0, memSize4);
+	memory += memSize4;
+	
+
+//#endif
+
+	
 
 	printf("\nCPU memory allocated\n");
 	printf("Number of particles : %d\n", m_numParticles);
@@ -267,6 +276,10 @@ ParticleSystem::allocate(uint numParticles)
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
 	memory += infoSize;
+
+	// Free surface detection
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
+	memory += memSize4;
 
 	if (m_simparams.vorticity) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, memSize3));
@@ -445,6 +458,9 @@ ParticleSystem::setPhysParams(void)
 		partsurf = m_physparams.r0*m_physparams.r0;
 		// partsurf = (6.0 - M_PI)*m_physparams.r0*m_physparams.r0/4;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_partsurf", &partsurf, sizeof(float)));
+
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeangle", &m_physparams.cosconeangle, sizeof(float)));
 }
 
 
@@ -618,14 +634,16 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hVort;
 		}
 
-#ifdef _DEBUG_
+//#ifdef _DEBUG_
 	delete [] m_hForces;
 	delete [] m_hNeibsList;
 	delete [] m_hParticleHash;
 	delete [] m_hParticleIndex;
 	delete [] m_hCellStart;
 	delete [] m_hCellEnd;
-#endif
+	// Free surface detection (Debug)
+	delete [] m_hNormals;
+//#endif
 
 	delete m_writer;
 
@@ -648,6 +666,9 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dVel[1]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[0]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
+
+	// Free surface detection
+	CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
 	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
@@ -712,6 +733,23 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case INFO:
+			// Free surface detection
+			if (need_write && m_simparams.surfaceparticle) {
+				surfaceparticle( m_dPos[m_currentPosRead],
+								 m_dVel[m_currentVelRead],
+						         m_dNormals,
+								 m_dInfo[m_currentInfoRead],
+								 m_dInfo[m_currentInfoWrite],
+								 m_dNeibsList,
+								 m_numParticles,
+								 m_simparams.slength,
+								 m_simparams.kerneltype,
+								 m_influenceRadius,
+								 m_simparams.periodicbound,
+								 m_simparams.savenormals);
+				std::swap(m_currentInfoRead, m_currentInfoWrite);
+				} // if need_write && m_simparams.surfaceparticle
+
 			size = m_numParticles*sizeof(particleinfo);
 			hdata = (void*) m_hInfo;
 			ddata = (void*) m_dInfo[m_currentInfoRead];
@@ -772,6 +810,12 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			ddata = (void*) m_dCellEnd;
 			break;
 #endif
+			// Free surface detection (Debug)
+		case NORMALS:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hNormals;
+			ddata = (void*) m_dNormals;
+			break;
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -829,7 +873,7 @@ ParticleSystem::writeToFile()
 {
 	//Testpoints
 //	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime);
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints);
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
 }
 
 
@@ -1193,6 +1237,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
+	// Free surface detection (Debug)
+	//savenormals();
+
 	m_simTime += m_dt;
 	m_iter++;
 	if (m_simparams.dtadapt) {
@@ -1377,6 +1424,23 @@ ParticleSystem::savecellstartend()
 		fprintf(fp, "%d\t%d\t%d\n", index, cstart, cend);
 		}
 	fclose(fp);
+}
+
+// Free surface detection
+void
+ParticleSystem::savenormals()
+{
+	getArray(NORMALS, false);
+	std::string fname;
+	fname = m_problem->get_dirname() + "/normals.txt";
+	FILE *fp = fopen(fname.c_str(),"w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 normal = m_hNormals[index];
+
+		fprintf(fp, "%d\t%f\t%f\t%f\t%f\n", index, normal.x, normal.y, normal.z, normal.w);
+		}
+	fclose(fp);
+
 
 }
 /****************************************************************************************************/

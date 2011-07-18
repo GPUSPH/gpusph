@@ -60,7 +60,8 @@ VTKWriter::~VTKWriter()
 }
 
 void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
-				const particleinfo *info, const float3 *vort, float t, bool testpoints)
+				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
+				const float4 *normals)
 {
 	string filename, full_filename;
 
@@ -150,6 +151,27 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 				fprintf(fid,"%f\t%f\t%f\t",vort[i].x, vort[i].y, vort[i].z);
 			else
 				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+	}
+
+		// Writing vorticity
+	if (normals) {
+		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Normals\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++)
+			if (FLUID(info[i]))
+				fprintf(fid,"%f\t%f\t%f\t",normals[i].x, normals[i].y, normals[i].z);
+			else
+				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+
+		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Criteria\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++)
+			if (FLUID(info[i]))
+				fprintf(fid,"%f\t", normals[i].w);
+			else
+				fprintf(fid,"%f\t", 0.0);
 		fprintf(fid,"\r\n");
 		fprintf(fid,"	</DataArray>\r\n");
 	}

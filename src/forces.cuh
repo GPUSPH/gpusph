@@ -126,6 +126,21 @@ testpoints(	float4*		pos,
 			float		influenceradius,
 			bool		periodicbound);
 
+// Free surface detection
+void
+surfaceparticle(	float4*		pos,
+			float4*		vel,
+		    float4*     normals,
+			particleinfo*	info,
+			particleinfo*  newInfo,
+			uint*		neibsList,
+			uint		numParticles,
+			float		slength,
+			int			kerneltype,
+			float		influenceradius,
+			bool		periodicbound,
+			bool        savenormals);
+
 
 void
 setDemTexture(float *hDem, int width, int height);

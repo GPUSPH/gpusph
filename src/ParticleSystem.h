@@ -51,6 +51,8 @@ class ParticleSystem
 			PARTINDEX,
 			CELLSTART,
 			CELLEND,
+			// Free surface detection (Debug)
+			NORMALS,
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -94,6 +96,9 @@ class ParticleSystem
 		void saveindex();
 		void savesorted();
 		void savecellstartend();
+
+		// Free surface detection (Debug)
+		void savenormals();
 
 	public:
 		Problem		*m_problem;				// pointer to problem object
@@ -141,6 +146,8 @@ class ParticleSystem
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
+		// Free surface detection (Debug)
+		float4*     m_hNormals;
 
 		// GPU arrays
 		float4*		m_dForces;				// forces array
@@ -148,6 +155,8 @@ class ParticleSystem
 		float4*		m_dPos[2];				// position array
 		float4*		m_dVel[2];				// velocity array
 		particleinfo*	m_dInfo[2];			// particle info array
+		// Free surface detection
+		float4*     m_dNormals;
 		float3*		m_dVort;				// vorticity
 		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE and rounded to power of 2
 		float*		m_dCfl;					// cfl for each block

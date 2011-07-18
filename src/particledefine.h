@@ -168,12 +168,19 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define GATEPART   (4<<MAX_FLUID_BITS)
 #define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
 
+/* particle flags */
+#define PARTICLE_FLAG_START (1<<8)
+
+#define SURFACE_PARTICLE_FLAG (PARTICLE_FLAG_START<<0)
+
 /* A particle is NOT fluid if it has the high bits of the lowest byte set */
 #define NOT_FLUID(f) ((f).x & 0xf0)
 /* otherwise it's fluid */
 #define FLUID(f) (!(NOT_FLUID(f)))
 // Testpoints
 #define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
+// Free surface detection
+#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG)
 
 /* compile-time consistency check:
    definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
@@ -240,12 +247,14 @@ typedef struct PhysParams {
 	float	smagfactor;		// Cs*∆p^2
 	float	kspsfactor;		// 2/3*Ci*∆^2
 	int     numFluids;      // number of fluids in simulation
+	float	cosconeangle;	// cos of cone angle for free surface detection
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
-		numFluids(1)
+		numFluids(1),
+		cosconeangle(0.86)
 	{};
 	/*! Set density parameters
 	  @param i	index in the array of materials
@@ -297,13 +306,15 @@ typedef struct SimParams {
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
 	bool			periodicbound;		// type of periodic boundary used
+	// Free surface detection
+	bool            savenormals;        //true if we want to save the normals
 	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;
-	//Testpoints
-	bool            testpoints;         // If we want to find velocity at testpoints
+	bool            testpoints;         // true if we want to find velocity at testpoints
+	bool            surfaceparticle;    // true if we want to find surface particles
 	SimParams(void) :
 		kernelradius(2.0),
 		dt(0.00013),
@@ -318,11 +329,15 @@ typedef struct SimParams {
 		mbcallback(false),
 		gcallback(false),
 		periodicbound(false),
+		// Free surface detection
+		savenormals(false),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
-		vorticity(false)
+		vorticity(false),
+		testpoints(false),
+		surfaceparticle(false)
 	{};
 } SimParams;
 

@@ -42,7 +42,6 @@
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
-
 template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, bool usedem,
 		 SPHFormulation sph_formulation>
 __global__ void
@@ -144,6 +143,7 @@ FORCES_CUDA_KERNEL
 					float DvDt = 0.0f;
 
 					if (FLUID(neib_info)) {
+
 #						ifdef VISC_SPS
 						sym33mat neib_tau;
 						temp = tex1Dfetch(tau0Tex, neib_index);
@@ -164,6 +164,7 @@ FORCES_CUDA_KERNEL
 
 						float vel_dot_pos = dot(relVel, relPos);	// x.u
 						float f = F<kerneltype>(r, slength);		// 1/r dW/dr
+
 
 						// density derivative
 						float DrDt = neib_pos.w*vel_dot_pos*f;

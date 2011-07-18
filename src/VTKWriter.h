@@ -37,7 +37,8 @@ public:
 	~VTKWriter();
 
 	void write(uint numParts, const float4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t, bool testpoints);
+			const particleinfo *info, const float3 *vort, float t, bool testpoints,
+			const float4 *normals);
 };
 
 #endif	/* _VTKWRITER_H */
