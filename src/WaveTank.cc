@@ -128,7 +128,8 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	mbpaddledata.tstart = 0.2f;
 	mbpaddledata.tend = m_simparams.tend;
 	// The stroke value is given at free surface level H
-	float stroke = 0.1;
+//	float stroke = 0.1;
+	float stroke = 0.5;
 	// m_mbamplitude is the maximal angular value par paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));

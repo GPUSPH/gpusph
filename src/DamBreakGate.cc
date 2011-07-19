@@ -63,6 +63,10 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_simparams.usedem= false;
 	m_simparams.tend = 10.f;
 
+	// Free surface detection
+	m_simparams.surfaceparticle = true;
+	m_simparams.savenormals =true;
+
 	// Physical parameters
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);

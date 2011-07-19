@@ -247,14 +247,17 @@ typedef struct PhysParams {
 	float	smagfactor;		// Cs*∆p^2
 	float	kspsfactor;		// 2/3*Ci*∆^2
 	int     numFluids;      // number of fluids in simulation
-	float	cosconeangle;	// cos of cone angle for free surface detection
+	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
+	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid)
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
 		numFluids(1),
-		cosconeangle(0.86)
+		cosconeanglefluid(0.86),
+		cosconeanglenonfluid (0.5)
+
 	{};
 	/*! Set density parameters
 	  @param i	index in the array of materials

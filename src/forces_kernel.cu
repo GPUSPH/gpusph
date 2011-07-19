@@ -94,7 +94,8 @@ __constant__ float	d_smagfactor;
 __constant__ float	d_kspsfactor;
 
 // Free surface detection
-__constant__ float	d_cosconeangle;
+__constant__ float	d_cosconeanglefluid;
+__constant__ float	d_cosconeanglenonfluid;
 
 
 typedef struct sym33mat {
@@ -1112,8 +1113,16 @@ calcSurfaceparticleDevice(float4*	normals,
 		}
 	}
 
-
 	float normal_length = length(as_float3(normal));
+
+	//Checking the planes
+	for (uint i = 0; i < d_numPlanes; ++i) {
+		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
+		if (r < influenceradius) {
+			as_float3(normal) += as_float3(d_planes[i])* normal_length;
+			normal_length = length(as_float3(normal));
+		}
+	}
 
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
@@ -1126,11 +1135,19 @@ calcSurfaceparticleDevice(float4*	normals,
 		float3 relPos;
 		float r;
 
+		float cosconeangle;
+
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius) {
 			float criteria = -(normal.x * relPos.x + normal.y * relPos.y + normal.z * relPos.z);
-			if (criteria > r*normal_length*d_cosconeangle)
+			if (FLUID(neib_info))
+				cosconeangle = d_cosconeanglefluid;
+			else
+				cosconeangle = d_cosconeanglenonfluid;
+
+			if (criteria > r*normal_length*cosconeangle)
 				nc++;
 		}
 

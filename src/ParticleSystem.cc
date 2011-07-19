@@ -460,7 +460,8 @@ ParticleSystem::setPhysParams(void)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_partsurf", &partsurf, sizeof(float)));
 
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeangle", &m_physparams.cosconeangle, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
 }
 
 

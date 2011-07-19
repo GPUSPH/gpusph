@@ -81,6 +81,10 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
 	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
 
+	// Free surface detection
+	m_simparams.surfaceparticle = true;
+	m_simparams.savenormals =true;
+
 	// Scales for drawing
 	m_maxrho = density(h,0);
 	m_minrho = m_physparams.rho0[0];
@@ -89,7 +93,7 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 100;
+	m_writefreq = 10;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
