@@ -144,7 +144,7 @@ cudaArray*  dDem = NULL;
 	break
 
 //Testpoints
-#define NODES_CHECK(kernel, periodic) \
+#define TEST_CHECK(kernel, periodic) \
 	case kernel: \
 		calcTestpointsVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
 				(newVel, neibsList, numParticles, slength, influenceradius); \
@@ -463,7 +463,7 @@ testpoints( float4*		pos,
 			bool		periodicbound)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_CALCNODES, numParticles);
+	int numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -473,15 +473,15 @@ testpoints( float4*		pos,
 	// execute the kernel
 	if (periodicbound) {
 		switch (kerneltype) {
-			NODES_CHECK(CUBICSPLINE, true);
-			NODES_CHECK(QUADRATIC, true);
-			NODES_CHECK(WENDLAND, true);
+			TEST_CHECK(CUBICSPLINE, true);
+			TEST_CHECK(QUADRATIC, true);
+			TEST_CHECK(WENDLAND, true);
 		}
 	} else {
 		switch (kerneltype) {
-			NODES_CHECK(CUBICSPLINE, false);
-			NODES_CHECK(QUADRATIC, false);
-			NODES_CHECK(WENDLAND, false);
+			TEST_CHECK(CUBICSPLINE, false);
+			TEST_CHECK(QUADRATIC, false);
+			TEST_CHECK(WENDLAND, false);
 		}
 	}
 
@@ -491,7 +491,7 @@ testpoints( float4*		pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("nodes kernel execution failed");
+	CUT_CHECK_ERROR("test kernel execution failed");
 }
 
 // Free surface detection
@@ -510,7 +510,7 @@ surfaceparticle( float4*		pos,
 		    bool        savenormals)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_CALCNODES, numParticles);
+	int numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -591,7 +591,7 @@ void releaseDemTexture()
 #undef MLS_CHECK
 #undef SPS_CHECK
 #undef VORT_CHECK
-#undef NODES_CHECK
+#undef TEST_CHECK
 #undef SURFACE_CHECK
 
 /* These were defined in forces_kernel.cu */

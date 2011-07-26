@@ -128,8 +128,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	mbpaddledata.tstart = 0.2f;
 	mbpaddledata.tend = m_simparams.tend;
 	// The stroke value is given at free surface level H
-//	float stroke = 0.1;
-	float stroke = 0.5;
+	float stroke = 0.1;
 	// m_mbamplitude is the maximal angular value par paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));
@@ -316,9 +315,9 @@ int WaveTank::fill_parts()
 	 }
 	
 	if (m_simparams.testpoints) {
-		Point pos = Point(0.364,0.16,0.04,0.0);
+		Point pos = Point(0.5748,0.1799,0.2564,0.0);
 		test_points.push_back(pos);
-		pos = Point(0.37,0.17,0.04,0.0);
+		pos = Point(0.5748,0.2799,0.2564,0.0);
 		test_points.push_back(pos);
 		pos = Point(1.5748,0.2799,0.2564,0.0);
 		test_points.push_back(pos);

@@ -89,6 +89,8 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	for (int i=0; i < numParts; i++)
 		if (FLUID(info[i]))
 			fprintf(fid,"%f\t",m_problem->pressure(vel[i].w, object(info[i])));
+		else if (TESTPOINTS(info[i]))
+			fprintf(fid,"%f\t",vel[i].w);
 		else
 			fprintf(fid,"%f\t", 0.0);
 	fprintf(fid,"\r\n");
@@ -136,7 +138,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	// Writing velocity
 	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Velocity\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
 	for (int i=0; i < numParts; i++)
-		if (FLUID(info[i]))
+		if (FLUID(info[i])|| TESTPOINTS(info[i]))
 			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
 		else
 			fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);

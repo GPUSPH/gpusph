@@ -1008,7 +1008,7 @@ calcVortDevice(	float3*	vorticity,
 // This kernel compute the velocity at testpoints
 template<KernelType kerneltype, bool periodicbound >
 __global__ void
-calcTestpointsVelocityDevice(	float4*	newVel,
+calcTestpointsVelocityDevice(float4*	newVel,
 				uint*	neibsList,
 				uint	numParticles,
 				float	slength,
@@ -1027,7 +1027,7 @@ calcTestpointsVelocityDevice(	float4*	newVel,
 
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
-	float3 temp = make_float3(0.0f, 0.0f,0.0f);
+	float4 temp = make_float4(0.0f, 0.0f,0.0f, 0.0f);
 
 	// loop over all the neighbors
 	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
@@ -1045,15 +1045,17 @@ calcTestpointsVelocityDevice(	float4*	newVel,
         particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
-			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// Wij*Vj
-			temp += w*make_float3(neib_vel);
+			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// Wij*mj
+			temp.x += w*neib_vel.x;
+			temp.y += w*neib_vel.y;
+			temp.z += w*neib_vel.z;
+			//Pressure
+			temp.w += w*P(neib_vel.w,object(neib_info));
 
 		}
 	}
 
-	vel.x = temp.x;
-    vel.y = temp.y;
-    vel.z = temp.z;
+	vel = temp;
 
 	newVel[index] = vel;
 }

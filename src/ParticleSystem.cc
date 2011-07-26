@@ -873,7 +873,6 @@ void
 ParticleSystem::writeToFile()
 {
 	//Testpoints
-//	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime);
 	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
 }
 

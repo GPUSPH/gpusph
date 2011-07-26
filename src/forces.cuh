@@ -29,7 +29,7 @@
 #include "cudpp/cudpp.h"
 
 #define BLOCK_SIZE_CALCVORT		128
-#define BLOCK_SIZE_CALCNODES	128
+#define BLOCK_SIZE_CALCTEST		128
 #define BLOCK_SIZE_SHEPARD		128
 #define BLOCK_SIZE_MLS			128
 #define BLOCK_SIZE_XSPH			128

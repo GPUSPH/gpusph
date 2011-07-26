@@ -80,7 +80,6 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		// velocity
 		  
 		//Testpoints
-		//if (FLUID(info[i]))
 		if (FLUID(info[i])||TESTPOINTS(info[i]))
 			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
 		else
@@ -98,6 +97,8 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		// pressure
 		if (FLUID(info[i]))
 			fprintf(fid,"%f\t",m_problem->pressure(vel[i].w, object(info[i])));  //Tony
+		else if (TESTPOINTS (info[i]))
+			fprintf(fid,"%f\t",vel[i].w);
 		else
 			fprintf(fid,"%f\t", 0.0);
 
@@ -131,9 +132,7 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 
 		// velocity
 
-			fprintf(fid1,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
-
-
+			fprintf(fid1,"%f\t%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z, vel[i].w);
 			fprintf(fid1,"\n");
 		}
 
