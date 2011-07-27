@@ -77,12 +77,10 @@ bool Problem::need_display(float t)
 std::string Problem::create_problem_dir(void)
 {
 	time_t  rawtime;
-	char	time_str[32];
+	char	time_str[17];
 
 	time(&rawtime);
-	// timeinfo = localtime(&rawtime);
-	ctime_r(&rawtime, time_str);
-	time_str[13]='h';
+	strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
 	time_str[16] = '\0';
 	// if "./tests/" doesn't exist yet...
 	mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
