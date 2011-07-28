@@ -235,7 +235,7 @@ typedef struct PhysParams {
 	float	visccoeff;
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
-	float3	dispvect;
+	float3	dispvect;		// offset vector for periodic boundaries
 	float3	maxlimit;
 	float3	minlimit;
 	float	ewres;			// DEM east-west resolution
@@ -308,15 +308,14 @@ typedef struct SimParams {
 	int				saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
-	bool			periodicbound;		// type of periodic boundary used
-	// Free surface detection
-	bool            savenormals;        //true if we want to save the normals
+	bool			periodicbound;		// true in case of periodic boundary
 	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
-	bool			vorticity;
+	bool			vorticity;			// true if we want to save vorticity
 	bool            testpoints;         // true if we want to find velocity at testpoints
+	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
 	SimParams(void) :
 		kernelradius(2.0),
@@ -332,14 +331,13 @@ typedef struct SimParams {
 		mbcallback(false),
 		gcallback(false),
 		periodicbound(false),
-		// Free surface detection
-		savenormals(false),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
 		vorticity(false),
 		testpoints(false),
+		savenormals(false),
 		surfaceparticle(false)
 	{};
 } SimParams;
