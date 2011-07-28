@@ -71,7 +71,7 @@ Cylinder::Fill(PointVect& points, double dx)
 	for (int i = 0; i <= nr; i++) {
 		double r = i*dx;
 		int nc = (int) (2.0*M_PI*r/dx);
-		#define THETARAND 2*M_PI/RAND_MAX
+		#define THETARAND 2.0*M_PI/RAND_MAX
 		double theta0 = THETARAND*rand();
 		#undef THETARAND
 		for (int j = 0; j < nc; j++) {
