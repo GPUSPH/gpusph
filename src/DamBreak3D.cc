@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <math.h>
 #include <iostream>
 #ifdef __APPLE__
@@ -37,6 +62,10 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f;
 
+	// Free surface detection
+	m_simparams.surfaceparticle = true;
+	m_simparams.savenormals =true;
+
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
 
@@ -44,7 +73,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 300.0f*H);
+	m_physparams.set_density(0,1000.0, 7.0f, sqrtf(300.0f*g*H));
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;

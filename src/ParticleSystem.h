@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef __PARTICLESYSTEM_H__
 #define __PARTICLESYSTEM_H__
 
@@ -26,6 +51,8 @@ class ParticleSystem
 			PARTINDEX,
 			CELLSTART,
 			CELLEND,
+			// Free surface detection (Debug)
+			NORMALS,
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -50,7 +77,7 @@ class ParticleSystem
 
 		TimingInfo	PredcorrTimeStep(bool);
 
-		void*	getArray(ParticleArray);
+		void*	getArray(ParticleArray, bool);
 		void	setArray(ParticleArray);
 		void	setPlanes();
 		void	drawParts(bool , int);
@@ -69,6 +96,9 @@ class ParticleSystem
 		void saveindex();
 		void savesorted();
 		void savecellstartend();
+
+		// Free surface detection (Debug)
+		void savenormals();
 
 	public:
 		Problem		*m_problem;				// pointer to problem object
@@ -116,6 +146,8 @@ class ParticleSystem
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
+		// Free surface detection (Debug)
+		float4*     m_hNormals;
 
 		// GPU arrays
 		float4*		m_dForces;				// forces array
@@ -123,6 +155,8 @@ class ParticleSystem
 		float4*		m_dPos[2];				// position array
 		float4*		m_dVel[2];				// velocity array
 		particleinfo*	m_dInfo[2];			// particle info array
+		// Free surface detection
+		float4*     m_dNormals;
 		float3*		m_dVort;				// vorticity
 		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE and rounded to power of 2
 		float*		m_dCfl;					// cfl for each block

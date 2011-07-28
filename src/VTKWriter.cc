@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <sstream>
 #include <stdexcept>
 
@@ -35,7 +60,8 @@ VTKWriter::~VTKWriter()
 }
 
 void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
-				const particleinfo *info, const float3 *vort, float t)
+				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
+				const float4 *normals)
 {
 	string filename, full_filename;
 
@@ -63,6 +89,8 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	for (int i=0; i < numParts; i++)
 		if (FLUID(info[i]))
 			fprintf(fid,"%f\t",m_problem->pressure(vel[i].w, object(info[i])));
+		else if (TESTPOINTS(info[i]))
+			fprintf(fid,"%f\t",vel[i].w);
 		else
 			fprintf(fid,"%f\t", 0.0);
 	fprintf(fid,"\r\n");
@@ -110,7 +138,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	// Writing velocity
 	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Velocity\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
 	for (int i=0; i < numParts; i++)
-		if (FLUID(info[i]))
+		if (FLUID(info[i])|| TESTPOINTS(info[i]))
 			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
 		else
 			fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
@@ -125,6 +153,27 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 				fprintf(fid,"%f\t%f\t%f\t",vort[i].x, vort[i].y, vort[i].z);
 			else
 				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+	}
+
+		// Writing vorticity
+	if (normals) {
+		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Normals\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++)
+			if (FLUID(info[i]))
+				fprintf(fid,"%f\t%f\t%f\t",normals[i].x, normals[i].y, normals[i].z);
+			else
+				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+
+		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Criteria\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++)
+			if (FLUID(info[i]))
+				fprintf(fid,"%f\t", normals[i].w);
+			else
+				fprintf(fid,"%f\t", 0.0);
 		fprintf(fid,"\r\n");
 		fprintf(fid,"	</DataArray>\r\n");
 	}

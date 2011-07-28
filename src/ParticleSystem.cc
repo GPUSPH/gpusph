@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <math.h>
 #include <memory.h>
 #include <cstdio>
@@ -21,11 +46,15 @@
 #include "CustomTextWriter.h"
 #include "VTKWriter.h"
 #include "VTKLegacyWriter.h"
+#include "Problem.h"
+/* Include only the problem selected at compile time */
+#include "problem_select.opt"
 
 #include "cudautil.cuh"
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
+
 
 
 static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] = {
@@ -182,7 +211,7 @@ ParticleSystem::allocate(uint numParticles)
 		}
 
 
-#ifdef _DEBUG_
+//#ifdef _DEBUG_
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
@@ -206,7 +235,16 @@ ParticleSystem::allocate(uint numParticles)
 	m_hNeibsList = new uint[MAXNEIBSNUM*m_numParticles];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
-#endif
+
+	// Free surface detection (Debug)
+	m_hNormals = new float4[m_numParticles];
+	memset(m_hNormals, 0, memSize4);
+	memory += memSize4;
+	
+
+//#endif
+
+	
 
 	printf("\nCPU memory allocated\n");
 	printf("Number of particles : %d\n", m_numParticles);
@@ -238,6 +276,10 @@ ParticleSystem::allocate(uint numParticles)
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
 	memory += infoSize;
+
+	// Free surface detection
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
+	memory += memSize4;
 
 	if (m_simparams.vorticity) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, memSize3));
@@ -416,6 +458,10 @@ ParticleSystem::setPhysParams(void)
 		partsurf = m_physparams.r0*m_physparams.r0;
 		// partsurf = (6.0 - M_PI)*m_physparams.r0*m_physparams.r0/4;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_partsurf", &partsurf, sizeof(float)));
+
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
 }
 
 
@@ -589,14 +635,16 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hVort;
 		}
 
-#ifdef _DEBUG_
+//#ifdef _DEBUG_
 	delete [] m_hForces;
 	delete [] m_hNeibsList;
 	delete [] m_hParticleHash;
 	delete [] m_hParticleIndex;
 	delete [] m_hCellStart;
 	delete [] m_hCellEnd;
-#endif
+	// Free surface detection (Debug)
+	delete [] m_hNormals;
+//#endif
 
 	delete m_writer;
 
@@ -619,6 +667,9 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dVel[1]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[0]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
+
+	// Free surface detection
+	CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
 	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
@@ -647,7 +698,7 @@ ParticleSystem::~ParticleSystem()
 
 
 void*
-ParticleSystem::getArray(ParticleArray array)
+ParticleSystem::getArray(ParticleArray array, bool need_write)
 {
 	void*   hdata = 0;
 	void*   ddata = 0;
@@ -662,12 +713,44 @@ ParticleSystem::getArray(ParticleArray array)
 			break;
 
 		case VELOCITY:
+			{
+			//Testpoints
+			if (need_write && m_simparams.testpoints) {
+				testpoints(	m_dPos[m_currentPosRead],
+							m_dVel[m_currentVelRead],
+							m_dInfo[m_currentInfoRead],
+							m_dNeibsList,
+							m_numParticles,
+							m_simparams.slength,
+							m_simparams.kerneltype,
+							m_influenceRadius,
+							m_simparams.periodicbound);
+				} // if need_write && m_simparams.testpoints
+
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hVel;
 			ddata = (void*) m_dVel[m_currentVelRead];
+			}
 			break;
 
 		case INFO:
+			// Free surface detection
+			if (need_write && m_simparams.surfaceparticle) {
+				surfaceparticle( m_dPos[m_currentPosRead],
+								 m_dVel[m_currentVelRead],
+						         m_dNormals,
+								 m_dInfo[m_currentInfoRead],
+								 m_dInfo[m_currentInfoWrite],
+								 m_dNeibsList,
+								 m_numParticles,
+								 m_simparams.slength,
+								 m_simparams.kerneltype,
+								 m_influenceRadius,
+								 m_simparams.periodicbound,
+								 m_simparams.savenormals);
+				std::swap(m_currentInfoRead, m_currentInfoWrite);
+				} // if need_write && m_simparams.surfaceparticle
+
 			size = m_numParticles*sizeof(particleinfo);
 			hdata = (void*) m_hInfo;
 			ddata = (void*) m_dInfo[m_currentInfoRead];
@@ -728,6 +811,12 @@ ParticleSystem::getArray(ParticleArray array)
 			ddata = (void*) m_dCellEnd;
 			break;
 #endif
+			// Free surface detection (Debug)
+		case NORMALS:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hNormals;
+			ddata = (void*) m_dNormals;
+			break;
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -783,7 +872,8 @@ ParticleSystem::setPlanes(void)
 void
 ParticleSystem::writeToFile()
 {
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime);
+	//Testpoints
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
 }
 
 
@@ -894,8 +984,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				 worldOrigin,
 				 m_numParticles);
 
+		
+
 		// hash based particle sort
 		m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
+
 
 		reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 									m_dCellEnd,		// output: cell end index
@@ -913,6 +1006,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		std::swap(m_currentPosRead, m_currentPosWrite);
 		std::swap(m_currentVelRead, m_currentVelWrite);
 		std::swap(m_currentInfoRead, m_currentInfoWrite);
+
+		
+		
 
 		m_timingInfo.numInteractions = 0;
 		m_timingInfo.maxNeibs = 0;
@@ -955,6 +1051,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			}
 	}
 
+	
+
 	if (m_simparams.shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams.shepardfreq == 0)) {
 		shepard(m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
@@ -984,6 +1082,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
+
 
 	m_dtprev = m_dt;
 	float dt1 = 0.0f, dt2 = 0.0f;
@@ -1138,6 +1237,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
+	// Free surface detection (Debug)
+	//savenormals();
+
 	m_simTime += m_dt;
 	m_iter++;
 	if (m_simparams.dtadapt) {
@@ -1161,8 +1263,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 void
 ParticleSystem::saveneibs()
 {
-	getArray(POSITION);
-	getArray(NEIBSLIST);
+	getArray(POSITION, false);
+	getArray(NEIBSLIST, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/neibs.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1219,8 +1321,8 @@ ParticleSystem::saveneibs()
 void
 ParticleSystem::savehash()
 {
-	getArray(POSITION);
-	getArray(HASH);
+	getArray(POSITION, false);
+	getArray(HASH, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/hash.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1249,8 +1351,8 @@ ParticleSystem::savehash()
 void
 ParticleSystem::saveindex()
 {
-	getArray(POSITION);
-	getArray(PARTINDEX);
+	getArray(POSITION, false);
+	getArray(PARTINDEX, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedindex.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1279,8 +1381,8 @@ ParticleSystem::saveindex()
 void
 ParticleSystem::savesorted()
 {
-	getArray(POSITION);
-	getArray(PARTINDEX);
+	getArray(POSITION, false);
+	getArray(PARTINDEX, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedparts.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1309,9 +1411,9 @@ ParticleSystem::savesorted()
 void
 ParticleSystem::savecellstartend()
 {
-	getArray(POSITION);
-	getArray(CELLSTART);
-	getArray(CELLEND);
+	getArray(POSITION, false);
+	getArray(CELLSTART, false);
+	getArray(CELLEND, false);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/cellstartend.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1322,6 +1424,23 @@ ParticleSystem::savecellstartend()
 		fprintf(fp, "%d\t%d\t%d\n", index, cstart, cend);
 		}
 	fclose(fp);
+}
+
+// Free surface detection
+void
+ParticleSystem::savenormals()
+{
+	getArray(NORMALS, false);
+	std::string fname;
+	fname = m_problem->get_dirname() + "/normals.txt";
+	FILE *fp = fopen(fname.c_str(),"w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 normal = m_hNormals[index];
+
+		fprintf(fp, "%d\t%f\t%f\t%f\t%f\n", index, normal.x, normal.y, normal.z, normal.w);
+		}
+	fclose(fp);
+
 
 }
 /****************************************************************************************************/

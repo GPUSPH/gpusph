@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 /*
  * Device code.
  */
@@ -207,36 +232,41 @@ neibsInCell(int3	gridPos,
 	// iterate over particles in this cell
 	uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
-		if (neib_index != index) {			  // check not interacting with self
-			float3 neibPos = make_float3(tex1Dfetch(posTex, neib_index));
-			float3 relPos = pos - neibPos;
 
-			if (periodicbound)
-				relPos += periodic*d_dispvect1;
+		//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
+    	particleinfo info = tex1Dfetch(infoTex, neib_index);
+        if (!TESTPOINTS (info)) {
+			if (neib_index != index) {			  // check not interacting with self
+				float3 neibPos = make_float3(tex1Dfetch(posTex, neib_index));
+				float3 relPos = pos - neibPos;
 
-			uint mod_index = neib_index;
-			if (length(relPos) < influenceradius) {
-				if (periodicbound) {
-					if (periodic.x == 1)
-						mod_index |= WARPXPLUS;
-					else if (periodic.x == -1)
-						mod_index |= WARPXMINUS;
-					if (periodic.y == 1)
-						mod_index |= WARPYPLUS;
-					else if (periodic.y == -1)
-						mod_index |= WARPYMINUS;
-					if (periodic.z == 1)
-						mod_index |= WARPZPLUS;
-					else if (periodic.z == -1)
-						mod_index |= WARPZMINUS;
+				if (periodicbound)
+					relPos += periodic*d_dispvect1;
+
+				uint mod_index = neib_index;
+				if (length(relPos) < influenceradius) {
+					if (periodicbound) {
+						if (periodic.x == 1)
+							mod_index |= WARPXPLUS;
+						else if (periodic.x == -1)
+							mod_index |= WARPXMINUS;
+						if (periodic.y == 1)
+							mod_index |= WARPYPLUS;
+						else if (periodic.y == -1)
+							mod_index |= WARPYMINUS;
+						if (periodic.z == 1)
+							mod_index |= WARPZPLUS;
+						else if (periodic.z == -1)
+							mod_index |= WARPZMINUS;
+					}
+
+					if (*neibs_num < MAXNEIBSNUM)
+						neibsList[MAXNEIBSNUM*index + *neibs_num] = mod_index;
+					(*neibs_num)++;
 				}
 
-				if (*neibs_num < MAXNEIBSNUM)
-					neibsList[MAXNEIBSNUM*index + *neibs_num] = mod_index;
-				(*neibs_num)++;
 			}
-
-		}
+		} //If  not Testpoints
 	}
 
 	return;
@@ -267,7 +297,11 @@ buildNeibsListDevice(   uint*	neibsList,
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
-		if (FLUID(info)) {
+
+		//Testpoints (Neibouring list is calculated for testpoints as well)
+		//if (FLUID(info)) {
+		if (FLUID(info)|| TESTPOINTS (info)) {
+			
 			// read particle position from texture
 			float3 pos = make_float3(tex1Dfetch(posTex, index));
 

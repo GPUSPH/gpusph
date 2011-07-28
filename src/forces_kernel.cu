@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 /*
  * Device code.
  */
@@ -67,6 +92,11 @@ __constant__ float	d_plane_div[MAXPLANES];
 // Sub-Particle Scale (SPS) Turbulence parameters
 __constant__ float	d_smagfactor;
 __constant__ float	d_kspsfactor;
+
+// Free surface detection
+__constant__ float	d_cosconeanglefluid;
+__constant__ float	d_cosconeanglenonfluid;
+
 
 typedef struct sym33mat {
 	float a11;
@@ -689,8 +719,9 @@ xsphDevice(	float4*	xsph,
 
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 		float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		particleinfo neib_info = tex1Dfetch(infoTex, index);
 
-		if (r < influenceradius && FLUID(neib_pos)) {
+		if (r < influenceradius && FLUID(neib_info)) {
 			float3 relVel;
 			relVel.x = vel.x - neib_vel.x;
 			relVel.y = vel.y - neib_vel.y;
@@ -972,5 +1003,172 @@ calcVortDevice(	float3*	vorticity,
 	vorticity[index] = vort;
 }
 /************************************************************************************************************/
+
+//Testpoints
+// This kernel compute the velocity at testpoints
+template<KernelType kerneltype, bool periodicbound >
+__global__ void
+calcTestpointsVelocityDevice(float4*	newVel,
+				uint*	neibsList,
+				uint	numParticles,
+				float	slength,
+				float	influenceradius)
+{
+	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	particleinfo info = tex1Dfetch(infoTex, index);
+
+	if((type(info) != TESTPOINTSPART))
+		return;
+
+	float4 pos = tex1Dfetch(posTex, index);
+	float4 vel = tex1Dfetch(velTex, index);
+	float4 temp = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+
+	// loop over all the neighbors
+	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		uint neib_index = neibsList[i];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		float4 neib_vel = tex1Dfetch(velTex, neib_index);
+
+        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (r < influenceradius && FLUID(neib_info)) {
+			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// Wij*mj
+			temp.x += w*neib_vel.x;
+			temp.y += w*neib_vel.y;
+			temp.z += w*neib_vel.z;
+			//Pressure
+			temp.w += w*P(neib_vel.w,object(neib_info));
+
+		}
+	}
+
+	vel = temp;
+
+	newVel[index] = vel;
+}
+/************************************************************************************************************/
+// Free surface detection
+// This kernel detects the surface particles
+template<KernelType kerneltype, bool periodicbound, bool savenormals>
+__global__ void
+calcSurfaceparticleDevice(float4*	normals,
+				particleinfo* newInfo,
+                uint*	neibsList,
+				uint	numParticles,
+				float	slength,
+				float	influenceradius)
+{
+	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	particleinfo info = tex1Dfetch(infoTex, index);
+
+	if (!FLUID(info)) {
+		newInfo [index] = info;
+		float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+		normals [index] = normal;
+		return;
+		}
+
+	info.x &= ~SURFACE_PARTICLE_FLAG;
+
+	float4 pos = tex1Dfetch(posTex, index);
+	float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
+
+	// loop over all the neighbors (First loop)
+	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		uint neib_index = neibsList[i];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		float neib_density = tex1Dfetch(velTex, neib_index).w;
+
+			if (r < influenceradius) {
+			float f = F<kerneltype>(r, slength)* neib_pos.w /neib_density; // 1/r ∂Wij/∂r Vj
+			normal.x -= f * relPos.x;
+			normal.y -= f * relPos.y;
+			normal.z -= f * relPos.z;
+			normal.w += W<kerneltype>(r, slength)*neib_pos.w;	// Wij*mj ;
+
+		}
+	}
+
+	float normal_length = length(as_float3(normal));
+
+	//Checking the planes
+	for (uint i = 0; i < d_numPlanes; ++i) {
+		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
+		if (r < influenceradius) {
+			as_float3(normal) += as_float3(d_planes[i])* normal_length;
+			normal_length = length(as_float3(normal));
+		}
+	}
+
+	// loop over all the neighbors (Second loop)
+	int nc = 0;
+	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		uint neib_index = neibsList[i];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		float cosconeangle;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (r < influenceradius) {
+			float criteria = -(normal.x * relPos.x + normal.y * relPos.y + normal.z * relPos.z);
+			if (FLUID(neib_info))
+				cosconeangle = d_cosconeanglefluid;
+			else
+				cosconeangle = d_cosconeanglenonfluid;
+
+			if (criteria > r*normal_length*cosconeangle)
+				nc++;
+		}
+
+	}
+
+	if (!nc)
+		info.x |= SURFACE_PARTICLE_FLAG;
+
+	newInfo[index] = info;
+
+	if (savenormals) {
+		normal.x /= normal_length;
+		normal.y /= normal_length;
+		normal.z /= normal_length;
+		normals[index] = normal;
+		}
+
+}
+/************************************************************************************************************/
+
 
 #endif

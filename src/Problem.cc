@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -52,12 +77,10 @@ bool Problem::need_display(float t)
 std::string Problem::create_problem_dir(void)
 {
 	time_t  rawtime;
-	char	time_str[32];
+	char	time_str[17];
 
 	time(&rawtime);
-	// timeinfo = localtime(&rawtime);
-	ctime_r(&rawtime, time_str);
-	time_str[13]='h';
+	strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
 	time_str[16] = '\0';
 	// if "./tests/" doesn't exist yet...
 	mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);

@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <stdio.h>
 #include "cudpp/cudpp.h"
 
@@ -117,6 +142,21 @@ cudaArray*  dDem = NULL;
 		calcVortDevice<kernel, periodic><<< numBlocks, numThreads >>> \
 				 (vort, neibsList, numParticles, slength, influenceradius); \
 	break
+
+//Testpoints
+#define TEST_CHECK(kernel, periodic) \
+	case kernel: \
+		calcTestpointsVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
+				(newVel, neibsList, numParticles, slength, influenceradius); \
+	break
+
+// Free surface detection
+#define SURFACE_CHECK(kernel, periodic, savenormals) \
+	case kernel: \
+		calcSurfaceparticleDevice<kernel, periodic, savenormals><<< numBlocks, numThreads >>> \
+				(normals, newInfo, neibsList, numParticles, slength, influenceradius); \
+	break
+
 
 extern "C"
 {
@@ -410,6 +450,113 @@ vorticity(	float4*		pos,
 	CUT_CHECK_ERROR("Shepard kernel execution failed");
 }
 
+//Testpoints
+void
+testpoints( float4*		pos,
+			float4*		newVel,
+			particleinfo	*info,
+			uint*		neibsList,
+			uint		numParticles,
+			float		slength,
+			int			kerneltype,
+			float		influenceradius,
+			bool		periodicbound)
+{
+	// thread per particle
+	int numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// execute the kernel
+	if (periodicbound) {
+		switch (kerneltype) {
+			TEST_CHECK(CUBICSPLINE, true);
+			TEST_CHECK(QUADRATIC, true);
+			TEST_CHECK(WENDLAND, true);
+		}
+	} else {
+		switch (kerneltype) {
+			TEST_CHECK(CUBICSPLINE, false);
+			TEST_CHECK(QUADRATIC, false);
+			TEST_CHECK(WENDLAND, false);
+		}
+	}
+
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("test kernel execution failed");
+}
+
+// Free surface detection
+void
+surfaceparticle( float4*		pos,
+		    float4*     vel,
+			float4*		normals,
+			particleinfo	*info,
+			particleinfo	*newInfo,
+			uint*		neibsList,
+			uint		numParticles,
+			float		slength,
+			int			kerneltype,
+			float		influenceradius,
+			bool		periodicbound,
+		    bool        savenormals)
+{
+	// thread per particle
+	int numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// execute the kernel
+	if (savenormals){
+		if (periodicbound) {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, true, true);
+				SURFACE_CHECK(QUADRATIC, true, true);
+				SURFACE_CHECK(WENDLAND, true, true);
+			}
+		} else {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, false, true);
+				SURFACE_CHECK(QUADRATIC, false, true);
+				SURFACE_CHECK(WENDLAND, false, true);
+			}
+		}
+	} else {
+		if (periodicbound) {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, true, false);
+				SURFACE_CHECK(QUADRATIC, true, false);
+				SURFACE_CHECK(WENDLAND, true, false);
+			}
+		} else {
+			switch (kerneltype) {
+				SURFACE_CHECK(CUBICSPLINE, false, false);
+				SURFACE_CHECK(QUADRATIC, false, false);
+				SURFACE_CHECK(WENDLAND, false, false);
+			}
+		}
+	}
+
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("surface kernel execution failed");
+}
+
 
 void setDemTexture(float *hDem, int width, int height)
 {
@@ -444,6 +591,8 @@ void releaseDemTexture()
 #undef MLS_CHECK
 #undef SPS_CHECK
 #undef VORT_CHECK
+#undef TEST_CHECK
+#undef SURFACE_CHECK
 
 /* These were defined in forces_kernel.cu */
 #undef _FORCES_KERNEL_NAME

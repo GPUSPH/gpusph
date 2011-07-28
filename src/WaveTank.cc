@@ -1,3 +1,28 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <math.h>
 #include <iostream>
 #include <stdexcept>
@@ -31,7 +56,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    icyl = 1;	// icyl = 0 means no cylinders
+    icyl = 0;	// icyl = 0 means no cylinders
 	icone = 0;	// icone = 0 means no cone
 	// If presents, cylinders and cone are moving alltogether with
 	// the same velocity
@@ -60,6 +85,13 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.tend = 10.0;
 
 	m_simparams.vorticity = true;
+	//Testpoints
+	m_simparams.testpoints = true;
+
+	// Free surface detection
+	m_simparams.surfaceparticle = true;
+	m_simparams.savenormals = true;
+
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
     // Physical parameters
@@ -124,7 +156,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 100;
+	m_writefreq = 1;
 	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
@@ -145,6 +177,7 @@ void WaveTank::release_memory(void)
 	paddle_parts.clear();
 	gate_parts.clear();
 	boundary_parts.clear();
+	test_points.clear();
 }
 
 
@@ -228,7 +261,7 @@ int WaveTank::fill_parts()
 		Point p10 = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6, -height);
 		Point p11 = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2, -height*.75);
 
-	    cyl1 = Cylinder(p1,Vector(.05, 0, 0),Vector(0,0,height));
+	    cyl1 = Cylinder(p1,Vector(.025, 0, 0),Vector(0,0,height));
 	    cyl1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	    cyl1.FillBorder(gate_parts, br, true, true);
 		cyl2 = Cylinder(p2,Vector(.025, 0, 0),Vector(0,0,height));
@@ -266,7 +299,6 @@ int WaveTank::fill_parts()
 		cone.FillBorder(gate_parts, br, false, true);
     }
 
-
 	Rect fluid;
 	float z = 0;
 	int n = 0;
@@ -281,10 +313,19 @@ int WaveTank::fill_parts()
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	 }
-
-    return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size();
-
+	
+	if (m_simparams.testpoints) {
+		Point pos = Point(0.5748,0.1799,0.2564,0.0);
+		test_points.push_back(pos);
+		pos = Point(0.5748,0.2799,0.2564,0.0);
+		test_points.push_back(pos);
+		pos = Point(1.5748,0.2799,0.2564,0.0);
+		test_points.push_back(pos);
 	}
+	
+	return parts.size() + boundary_parts.size() + paddle_parts.size() + gate_parts.size() +
+			test_points.size();
+}
 
 
 uint WaveTank::fill_planes()
@@ -385,14 +426,27 @@ void WaveTank::draw_boundary(float t)
 
 void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
+	//Testpoints
+	std::cout << "\nTest points: " << test_points.size() << "\n";
+		std::cout << "      " << 0  << "--" << test_points.size() << "\n";
+	for (uint i = 0; i < test_points.size(); i++) {
+		pos[i] = make_float4(test_points[i]);
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
+	}
+    int j = test_points.size();
+	if (test_points.size())
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+
+
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+	for (uint i = j; i < j + boundary_parts.size(); i++) {
+		pos[i] = make_float4(boundary_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
 	}
-	int j = boundary_parts.size();
+    j += boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	// The object id of moving boundaries parts must be coherent with mb_callback function and follow

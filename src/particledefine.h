@@ -1,3 +1,27 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
 /*
  * File:   particleTypes.h
  * Author: alexis
@@ -118,18 +142,51 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 #define MAX_FLUID_TYPES      4
 
-enum ParticleType {
-    GATEPART = -4,
-  	PADDLEPART,
-  	PISTONPART,
-  	BOUNDPART,
-  	FLUIDPART
-};
 
-// SAME AS TWO-D code, but have to use ParticleInfo for f as in FLUID(info[i])
+/* The particle type is a short integer organized this way:
+   * lowest 4 bits: fluid number (for multifluid)
+   * next 4 bits: non-fluid code (boundary, piston, etc)
+   * high 8 bits: flags
+*/
 
-#define NOT_FLUID(f) ((f).x < FLUIDPART)
-#define FLUID(f) ((f).x >= FLUIDPART)
+#define MAX_FLUID_BITS       4
+
+/* this can be increased to up to (1<<MAX_FLUID_BITS) */
+#define MAX_FLUID_TYPES      4
+
+/* compile-time consistency check */
+#if MAX_FLUID_TYPES > (1<<MAX_FLUID_BITS)
+#error "Too many fluids"
+#endif
+
+#define FLUIDPART 0
+
+/* non-fluid types start at (1<<MAX_FLUID_BITS) */
+#define BOUNDPART  (1<<MAX_FLUID_BITS)
+#define PISTONPART (2<<MAX_FLUID_BITS)
+#define PADDLEPART (3<<MAX_FLUID_BITS)
+#define GATEPART   (4<<MAX_FLUID_BITS)
+#define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
+
+/* particle flags */
+#define PARTICLE_FLAG_START (1<<8)
+
+#define SURFACE_PARTICLE_FLAG (PARTICLE_FLAG_START<<0)
+
+/* A particle is NOT fluid if it has the high bits of the lowest byte set */
+#define NOT_FLUID(f) ((f).x & 0xf0)
+/* otherwise it's fluid */
+#define FLUID(f) (!(NOT_FLUID(f)))
+// Testpoints
+#define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
+// Free surface detection
+#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG)
+
+/* compile-time consistency check:
+   definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
+#if MAX_FLUID_BITS != 4
+#error "Adjust NOT_FLUID() macro"
+#endif
 
 
 /* Periodic neighborhood warping */
@@ -190,31 +247,36 @@ typedef struct PhysParams {
 	float	smagfactor;		// Cs*∆p^2
 	float	kspsfactor;		// 2/3*Ci*∆^2
 	int     numFluids;      // number of fluids in simulation
+	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
+	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid)
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
-		numFluids(1)
+		numFluids(1),
+		cosconeanglefluid(0.86),
+		cosconeanglenonfluid (0.5)
+
 	{};
-    /*! Set density parameters
-        @param i         index in the array of materials
-        @param rho       base density
-        @param gamma     gamma coefficient
-        @param ssmul     sound speed multiplier: sscoeff will be sqrt(ssmul*gravity)
-     */
-    void set_density(uint i, float rho, float gamma, float ssmul) {
-        rho0[i] = rho;
-        gammacoeff[i] = gamma;
-        bcoeff[i] = rho*ssmul/gamma;
-        sscoeff[i] = sqrt(ssmul*length(gravity));
-        sspowercoeff[i] = (gamma - 1)/2;
-    }
+	/*! Set density parameters
+	  @param i	index in the array of materials
+	  @param rho	base density
+	  @param gamma	gamma coefficient
+	  @param c0	sound speed for density at rest
+	 */
+	void set_density(uint i, float rho, float gamma, float c0) {
+		rho0[i] = rho;
+		gammacoeff[i] = gamma;
+		bcoeff[i] = rho*c0*c0/gamma;
+		sscoeff[i] = c0;
+		sspowercoeff[i] = (gamma - 1)/2;
+	}
 } PhysParams;
 
 
 typedef struct MbCallBack {
-	ParticleType	type;
+	short			type;
 	float			tstart;
 	float			tend;
 	float3			origin;
@@ -247,11 +309,15 @@ typedef struct SimParams {
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
 	bool			periodicbound;		// type of periodic boundary used
+	// Free surface detection
+	bool            savenormals;        //true if we want to save the normals
 	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;
+	bool            testpoints;         // true if we want to find velocity at testpoints
+	bool            surfaceparticle;    // true if we want to find surface particles
 	SimParams(void) :
 		kernelradius(2.0),
 		dt(0.00013),
@@ -266,11 +332,15 @@ typedef struct SimParams {
 		mbcallback(false),
 		gcallback(false),
 		periodicbound(false),
+		// Free surface detection
+		savenormals(false),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
-		vorticity(false)
+		vorticity(false),
+		testpoints(false),
+		surfaceparticle(false)
 	{};
 } SimParams;
 
@@ -329,7 +399,17 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	particleinfo v;
 	v.x = type;
 	v.y = obj;
-	*(uint*)&v.z = id;   // id is in the location of two shorts.
+	// id is in the location of two shorts.
+	/* The following line does not work with optimization if the C99
+	   standard for strict aliasing holds. Rather than forcing
+	   -fno-strict-aliasing (which is GCC only) we resort to
+	   memcpy which is the only `portable' way of doing this stuff,
+	   allegedly. Note that even this is risky because it might fail
+	   in cases of different endianness. So I'll mark this
+	   FIXME endianness
+	 */
+	// *(uint*)&v.z = id;
+	memcpy((void *)&v.z, (void *)&id, 4);
 	return v;
 }
 

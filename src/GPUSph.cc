@@ -1,3 +1,27 @@
+/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Istituto de Nazionale di Geofisica e Vulcanologia
+          Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
 //
 // File:   particles.cc
 // Author: alexis
@@ -421,12 +445,15 @@ void display()
 	bool need_write = problem->need_write(timingInfo.t) || finished;
 	if (need_display || need_write)
 	{
-		psystem->getArray(ParticleSystem::POSITION);
-		psystem->getArray(ParticleSystem::VELOCITY);
-	    psystem->getArray(ParticleSystem::INFO);
+		psystem->getArray(ParticleSystem::POSITION, need_write);
+		psystem->getArray(ParticleSystem::VELOCITY, need_write);
+	    psystem->getArray(ParticleSystem::INFO, need_write);
 		if (need_write) {
 			if (problem->m_simparams.vorticity)
-				psystem->getArray(ParticleSystem::VORTICITY);
+				psystem->getArray(ParticleSystem::VORTICITY, need_write);
+			// DEBUG
+			psystem->getArray(ParticleSystem::NORMALS, need_write);
+
 			psystem->writeToFile();
 			#define ti timingInfo
 			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
@@ -524,12 +551,12 @@ void console_loop(void)
 
 		if (need_write)
 		{
-			psystem->getArray(ParticleSystem::POSITION);
-			psystem->getArray(ParticleSystem::VELOCITY);
-			psystem->getArray(ParticleSystem::INFO);
+			psystem->getArray(ParticleSystem::POSITION, need_write);
+			psystem->getArray(ParticleSystem::VELOCITY, need_write);
+			psystem->getArray(ParticleSystem::INFO, need_write);
 
 			if (problem->m_simparams.vorticity)
-				psystem->getArray(ParticleSystem::VORTICITY);
+				psystem->getArray(ParticleSystem::VORTICITY, need_write);
 
 			psystem->writeToFile();
 			#define ti timingInfo
@@ -907,6 +934,10 @@ void initMenus()
 int
 main( int argc, char** argv)
 {
+	if (sizeof(uint) != 2*sizeof(short)) {
+		printf("Fatal: this architecture does not have uint = 2 short\n");
+		exit(1);
+	}
 	signal(SIGINT, quit);
 	signal(SIGUSR1, show_timing);
 
