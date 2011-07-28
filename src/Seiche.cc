@@ -10,8 +10,6 @@
 #include "particledefine.h"
 
 
-
-
 Seiche::Seiche(const Options &options) : Problem(options)
 {
 	set_deltap(0.015f);
@@ -45,9 +43,6 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	m_simparams.tend=10.0f;
 	m_simparams.vorticity = false;
 	//m_simparams.boundarytype=LJ_BOUNDARY;
-
-
-	
 
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f); //must be set first
