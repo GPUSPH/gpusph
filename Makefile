@@ -65,7 +65,7 @@ ifeq ($(platform), Linux)
 	CUDA_SDK_PATH=/usr/local/cudasdk
 else ifeq ($(platform), Darwin)
 	CUDA_INSTALL_PATH=/usr/local/cuda
-	CUDA_SDK_PATH=/Developer/Cuda
+	CUDA_SDK_PATH="/Developer/GPU Computing"
 endif
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
