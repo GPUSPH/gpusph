@@ -68,7 +68,7 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(9.81f*sin(3.14159/20.0), 0.0, -9.81f*cos(3.14159/20.0));
 	float g = length(m_physparams.gravity);
 
-	m_physparams.set_density(0, 2650.0f, 2.0f, sqrtf(200*g*H));
+	m_physparams.set_density(0, 2650.0f, 2.0f, 20.f);
 	m_physparams.dcoeff = 5.0f*g*H;
 
 	m_physparams.r0 = m_deltap;
@@ -92,9 +92,9 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	m_maxvel = 0.03f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.01f;
-	m_writefreq = 10;
-	m_screenshotfreq = 0;
+	m_displayinterval = 0.001f;
+	m_writefreq = 100;
+	m_screenshotfreq = 10;
 
 	// Name of problem used for directory creation
 	m_name = "OpenChannel";
