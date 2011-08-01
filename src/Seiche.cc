@@ -74,7 +74,7 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f); //must be set first
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 300.0f*H);
+	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
 	m_physparams.numFluids = 1;
    
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
