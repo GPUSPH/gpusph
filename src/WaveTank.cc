@@ -99,7 +99,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0f, 0.0f, -9.81f);
 	float g = length(m_physparams.gravity);
 
-	m_physparams.set_density(0, 1000.0f, 7.0f, 300*H);
+	m_physparams.set_density(0, 1000.0f, 7.0f, 20.f);
 	m_physparams.numFluids = 1;
 	float r0 = m_deltap;
 	m_physparams.r0 = r0;
