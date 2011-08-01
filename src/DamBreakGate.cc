@@ -46,7 +46,7 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.025f);
+	set_deltap(0.015f);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -71,7 +71,7 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, sqrtf(300.0f*g*H));
+	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
 	m_physparams.numFluids = 1;
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
@@ -97,9 +97,9 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_maxvel = 3.0f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.015f;
-	m_writefreq = 10;
-	m_screenshotfreq = 0;
+	m_displayinterval = 0.002f;
+	m_writefreq = 100;
+	m_screenshotfreq =100;
         
 	// Set up callback function
 	m_simparams.mbcallback = true;
@@ -107,8 +107,8 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_mbnumber = 1;
 	mbgatedata.origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
 	mbgatedata.type = GATEPART;
-	mbgatedata.tstart = 0.1f;
-	mbgatedata.tend = 0.5f;
+	mbgatedata.tstart = 0.2f;
+	mbgatedata.tend = 0.6f;
 	mbgatedata.vel = make_float3(0.0, 0.0, 0.0);
 	// Call mb_callback a first time to initialise values set by the call back function
 	mb_callback(0.0, 0.0, 0);

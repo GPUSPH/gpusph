@@ -73,7 +73,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, sqrtf(300.0f*g*H));
+	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
@@ -98,9 +98,9 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_maxvel = 3.0f;
 	
 	// Drawing and saving times
-	m_displayinterval = 0.05f;
-	m_writefreq = 1;
-	m_screenshotfreq = 0;
+	m_displayinterval = 0.002f;
+	m_writefreq = 100;
+	m_screenshotfreq = 100;
 	
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
