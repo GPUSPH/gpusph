@@ -43,7 +43,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_size = make_float3(9.0f, 0.4f, 1.0f);
 	m_origin = make_float3(0.0f, 0.0f,0.0f);
 
-	m_writerType = VTKWRITER;
+	m_writerType = TEXTWRITER;
 
 	// Data for problem setup
 	slope_length = 8.5f;
@@ -67,7 +67,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	i_use_bottom_plane = 0; // 1 for real plane instead of boundary parts
 
 	// SPH parameters
-	set_deltap(0.04f);  //0.005f;
+	set_deltap(0.0333f);  //0.005f;
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -76,11 +76,11 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 20;
+	m_simparams.shepardfreq = 20;
+	m_simparams.mlsfreq = 0;
 	//m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = KINEMATICVISC;
-	m_simparams.visctype = SPSVISC;
+	 m_simparams.visctype = KINEMATICVISC;
+	//m_simparams.visctype = SPSVISC;
 	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
 
@@ -128,11 +128,11 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	mbpaddledata.tstart = 0.2f;
 	mbpaddledata.tend = m_simparams.tend;
 	// The stroke value is given at free surface level H
-	float stroke = 0.1;
+	float stroke = 0.18;
 	// m_mbamplitude is the maximal angular value par paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));
-	mbpaddledata.omega = 2.0*M_PI;		// period T = 1.0 s
+	mbpaddledata.omega = 2.0*M_PI/0.7;		// period T = 0.8 s
 	// Call mb_callback for paddle a first time to initialise
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
@@ -155,9 +155,9 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_maxvel = 0.4f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.01f;
-	m_writefreq = 1;
-	m_screenshotfreq = 0;
+	m_displayinterval = 0.001f;
+	m_writefreq = 100;
+	m_screenshotfreq = 100;
 	
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
