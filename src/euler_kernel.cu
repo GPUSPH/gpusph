@@ -39,6 +39,10 @@ __constant__ float3	d_minlimit;
 __constant__ float3 d_dispvect3;
 __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 
+__constant__ float3 d_rb_cg2[MAXBODIES];
+__constant__ float3 d_rb_trans[MAXBODIES];
+__constant__ float	d_rb_steprot[MAXBODIES];
+
 
 /*
  * Device code.

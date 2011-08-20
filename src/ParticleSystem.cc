@@ -897,12 +897,15 @@ ParticleSystem::drawParts(bool show_boundary, int view_mode)
 	glBegin(GL_POINTS);
 	{
 		for (uint i = 0; i < m_numParticles; i++) {
-			if (NOT_FLUID(info[i]) && show_boundary) {
+			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
 				glColor3f(0.0, 1.0, 0.0);
 				glVertex3fv((float*)&pos[i]);
 			}
-			else if (FLUID(info[i]))
-			   {
+			else if (OBJECT(info[i])) {
+				glColor3f(1.0, 0.0, 0.0);
+				glVertex3fv((float*)&pos[i]);
+			}
+			else if (FLUID(info[i])) {
 				float v; unsigned int t;
 				float ssvel = m_problem->soundspeed(vel[i].w,object(info[i]));
 				switch (view_mode) {
@@ -985,7 +988,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				 m_numParticles);
 
 		
-
 		// hash based particle sort
 		m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
 
@@ -1008,8 +1010,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		std::swap(m_currentInfoRead, m_currentInfoWrite);
 
 		
-		
-
 		m_timingInfo.numInteractions = 0;
 		m_timingInfo.maxNeibs = 0;
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
@@ -1145,6 +1145,31 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_euler, 0);
 		}
 
+	float3 *cg;
+	float3 *trans;
+	float *rot;
+
+	if (m_simparams.numbodies) {
+		float3 force = make_float3(0.0f);
+		float3 torque = make_float3(0.0f);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_force", &force, sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_torque", &torque, sizeof(float3)));
+		cg = m_problem->get_rigidbodies_cg();
+		objectforces(	m_dPos[m_currentPosRead],
+						m_dInfo[m_currentInfoRead],
+						m_dForces,
+						m_numParticles,
+						cg[0]);
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&force, "d_force", sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&torque, "d_torque", sizeof(float3)));
+		if (m_iter % 100) {
+			printf("force(%g, %g, %g)\n", force.x, force.y, force.z);
+			printf("torque(%g, %g, %g)\n", torque.x, torque.y, torque.z);
+		}
+		m_problem->rigidbodies_timestep(&force, &torque, 1, m_dt, cg, trans, rot);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rb_trans", trans, m_simparams.numbodies*sizeof(float3)));
+		}
+
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
 			m_dInfo[m_currentInfoRead], //particleInfo(n)
@@ -1185,7 +1210,24 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
-	
+
+	if (m_simparams.numbodies) {
+		float3 force = make_float3(0.0f);
+		float3 torque = make_float3(0.0f);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_force", &force, sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_torque", &torque, sizeof(float3)));
+		cg = m_problem->get_rigidbodies_cg();
+		objectforces(	m_dPos[m_currentPosRead],
+						m_dInfo[m_currentInfoRead],
+						m_dForces,
+						m_numParticles,
+						cg[0]);
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&force, "d_force", sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&torque, "d_torque", sizeof(float3)));
+		m_problem->rigidbodies_timestep(&force, &torque, 2, m_dt, cg, trans, rot);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rb_trans", trans, m_simparams.numbodies*sizeof(float3)));
+	}
+
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)

@@ -131,6 +131,12 @@ EULER_KERNEL_NAME(
 			pos.y += d_mbdata[i].y*dt;
 			pos.z += d_mbdata[i].z*dt;
 		}
+		// TODO: multi objects and rotations
+		else if (type(pinfo) == OBJECTPART) {
+			pos.x += d_rb_trans[0].x;
+			pos.y += d_rb_trans[0].y;
+			pos.z += d_rb_trans[0].z;
+		}
 
 		if (periodicbound) {
 			if (d_dispvect3.x) {

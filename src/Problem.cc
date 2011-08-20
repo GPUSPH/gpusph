@@ -138,6 +138,50 @@ float3 Problem::g_callback(const float t)
 }
 
 
+void Problem::allocate_bodies(const int i)
+{
+	m_simparams.numbodies = i;
+	m_bodies = new RigidBody [i];
+}
+
+
+RigidBody& Problem::get_body(const int i)
+{
+	return m_bodies[i];
+}
+
+void Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
+{
+	cg = m_bodies_cg;
+	steprot = m_bodies_steprot;
+}
+
+
+float3* Problem::get_rigidbodies_cg(void)
+{
+	return m_bodies_cg;
+}
+
+
+float* Problem::get_rigidbodies_steprot(void)
+{
+	return m_bodies_steprot;
+}
+
+
+void Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
+									const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+{
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		m_bodies[i].TimeStep(force[i], m_physparams.gravity, torque[i], step, dt,
+				m_bodies_cg + i, m_bodies_trans + i, m_bodies_steprot + 9*i);
+		}
+	cg = m_bodies_cg;
+	steprot = m_bodies_steprot;
+	trans = m_bodies_trans;
+}
+
+
 // Number of planes
 uint Problem::fill_planes(void)
 {

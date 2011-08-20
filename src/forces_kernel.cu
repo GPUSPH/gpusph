@@ -97,6 +97,9 @@ __constant__ float	d_kspsfactor;
 __constant__ float	d_cosconeanglefluid;
 __constant__ float	d_cosconeanglenonfluid;
 
+// Rigid body data (test version)
+__device__ float3	d_force;
+__device__ float3	d_torque;
 
 typedef struct sym33mat {
 	float a11;
@@ -1002,9 +1005,9 @@ calcVortDevice(	float3*	vorticity,
 
 	vorticity[index] = vort;
 }
-/************************************************************************************************************/
 
-//Testpoints
+
+// Testpoints
 // This kernel compute the velocity at testpoints
 template<KernelType kerneltype, bool periodicbound >
 __global__ void
@@ -1059,7 +1062,8 @@ calcTestpointsVelocityDevice(float4*	newVel,
 
 	newVel[index] = vel;
 }
-/************************************************************************************************************/
+
+
 // Free surface detection
 // This kernel detects the surface particles
 template<KernelType kerneltype, bool periodicbound, bool savenormals>
@@ -1171,4 +1175,37 @@ calcSurfaceparticleDevice(float4*	normals,
 /************************************************************************************************************/
 
 
+
+
+/************************************************************************************************************/
+/*					   Computing forces on an object (test version)										    */
+/************************************************************************************************************/
+
+// Compute force and torque on the first object
+// Note: work only with one object
+// TODO: OPTIMIZE with modified segmented scan
+__global__ void calcObjectForcesDevice(
+		uint			numParticles,
+		const float4	*pos,
+		const float4	*forces,
+		const float3	cg)
+{
+	float3 total_force = make_float3(0.0f);
+	float3 torque = make_float3(0.0f);
+
+	for (uint i=0; i < numParticles; i++) {
+		particleinfo pinfo = tex1Dfetch(infoTex, i);
+
+		if (OBJECT(pinfo)) {
+			float3 force = as_float3(forces[i]);
+			total_force += force;
+			float3 relPos = as_float3(pos[i]) - cg;
+			torque += cross(relPos, force);
+		}
+	}
+
+	d_force = total_force;
+	d_torque = torque;
+}
+/************************************************************************************************************/
 #endif

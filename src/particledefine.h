@@ -167,6 +167,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define PADDLEPART (3<<MAX_FLUID_BITS)
 #define GATEPART   (4<<MAX_FLUID_BITS)
 #define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
+#define OBJECTPART (6<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PARTICLE_FLAG_START (1<<8)
@@ -179,6 +180,8 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define FLUID(f) (!(NOT_FLUID(f)))
 // Testpoints
 #define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
+// Particle belonging to an object
+#define OBJECT(f) ((f).x == OBJECTPART)
 // Free surface detection
 #define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG)
 
@@ -198,6 +201,11 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define WARPXPLUS				(1U<<26)
 #define MAXPARTICLES			WARPXPLUS
 #define NOWARP					~(WARPXPLUS|WARPXMINUS|WARPYPLUS|WARPYMINUS|WARPZPLUS|WARPZMINUS)
+
+
+/* Maximum number of floating bodies*/
+#define	MAXBODIES				10
+
 
 /* GPU warp size */
 #define WARPSIZE				32
@@ -317,6 +325,7 @@ typedef struct SimParams {
 	bool            testpoints;         // true if we want to find velocity at testpoints
 	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
+	int				numbodies;			// number of floating bodies
 	SimParams(void) :
 		kernelradius(2.0),
 		dt(0.00013),
@@ -338,7 +347,8 @@ typedef struct SimParams {
 		vorticity(false),
 		testpoints(false),
 		savenormals(false),
-		surfaceparticle(false)
+		surfaceparticle(false),
+		numbodies(0)
 	{};
 } SimParams;
 

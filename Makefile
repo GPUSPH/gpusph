@@ -168,7 +168,13 @@ endif
 CFLAGS_GPU = -gencode arch=compute_$(COMPUTE),code=sm_$(COMPUTE) --use_fast_math
 
 # Default CFLAGS (see notes below)
-CFLAGS_STANDARD = -O2
+ifeq ($(platform), Darwin)
+	CFLAGS_STANDARD =
+else # Linux
+	CFLAGS_STANDARD = -O3
+endif
+# For some strange reason, when compiled with optmisation, the CPU side code
+# crashes in libstdc++ when acessing a file.
 # Default debug CFLAGS: no -O optimizations, debug (-g) option
 # Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
 # include to every source, the _DEBUG_ macro is still passed through g++

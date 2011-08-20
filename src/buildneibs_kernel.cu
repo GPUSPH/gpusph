@@ -298,9 +298,8 @@ buildNeibsListDevice(   uint*	neibsList,
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
 
-		//Testpoints (Neibouring list is calculated for testpoints as well)
-		//if (FLUID(info)) {
-		if (FLUID(info)|| TESTPOINTS (info)) {
+		// Neibouring list is calculated for testpoints and object points)
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info)) {
 			
 			// read particle position from texture
 			float3 pos = make_float3(tex1Dfetch(posTex, index));

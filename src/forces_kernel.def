@@ -299,6 +299,36 @@ FORCES_CUDA_KERNEL
 
 			forces[index] = force;
 		}	// if (FLUID(info))
+		else if (OBJECT(info)) {
+			float4 force = make_float4(0.0f);
+
+			// read other particle data from textures
+			float4 pos = tex1Dfetch(posTex, index);
+
+			// loop over all neighbors
+			for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+				uint neib_index = neibsList[i];
+
+				if (neib_index == 0xffffffff) break;
+
+				float4 neib_pos;
+				float3 relPos;
+				float r;
+
+				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+				// TODO: multi objects
+				if (r < influenceradius && !OBJECT(neib_info)) {
+					float DvDt = neib_pos.w*LJForce(r);
+					force.x += DvDt*relPos.x;
+					force.y += DvDt*relPos.y;
+					force.z += DvDt*relPos.z;
+				}
+			}
+
+			forces[index] = force;
+		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 
 #	ifdef DT_KERNEL
