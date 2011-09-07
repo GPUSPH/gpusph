@@ -184,11 +184,13 @@ class Problem {
 		virtual float3 g_callback(const float);
 
 		void allocate_bodies(const int);
-		RigidBody& get_body(const int);
+		RigidBody* get_body(const int);
 		void get_rigidbodies_data(float3 * &, float * &);
 		float3* get_rigidbodies_cg(void);
 		float* get_rigidbodies_steprot(void);
 		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
 									const double, float3 * &, float3 * &, float * &);
+		int	get_bodies_numparts(void);
+		int	get_body_numparts(const int);
 };
 #endif

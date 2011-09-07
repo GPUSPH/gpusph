@@ -100,6 +100,8 @@ __constant__ float	d_cosconeanglenonfluid;
 // Rigid body data (test version)
 __device__ float3	d_force;
 __device__ float3	d_torque;
+__constant__ float3 d_rbcg1[MAXBODIES];
+__constant__ uint	d_rbstartindex[MAXBODIES];
 
 typedef struct sym33mat {
 	float a11;
@@ -1188,7 +1190,8 @@ __global__ void calcObjectForcesDevice(
 		uint			numParticles,
 		const float4	*pos,
 		const float4	*forces,
-		const float3	cg)
+		const float3	cg,
+		const uint		obj_num)
 {
 	float3 total_force = make_float3(0.0f);
 	float3 torque = make_float3(0.0f);
@@ -1196,11 +1199,10 @@ __global__ void calcObjectForcesDevice(
 	for (uint i=0; i < numParticles; i++) {
 		particleinfo pinfo = tex1Dfetch(infoTex, i);
 
-		if (OBJECT(pinfo)) {
+		if (OBJECT(pinfo) && object(pinfo) == obj_num) {
 			float3 force = as_float3(forces[i]);
 			total_force += force;
-			float3 relPos = as_float3(pos[i]) - cg;
-			torque += cross(relPos, force);
+			torque += cross(as_float3(pos[i]) - d_rbcg1[object(pinfo)], force);
 		}
 	}
 

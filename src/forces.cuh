@@ -27,6 +27,7 @@
 #define _FORCES_CUH_
 
 #include "cudpp/cudpp.h"
+#include <thrust/device_ptr.h>
 
 #define BLOCK_SIZE_CALCVORT		128
 #define BLOCK_SIZE_CALCTEST		128
@@ -42,6 +43,8 @@ float
 forces(	float4*			pos,
 		float4*			vel,
 		float4*			forces,
+		float4*			rbforces,
+		float4*			rbtorques,
 		float4*			xsph,
 		particleinfo*	info,
 		uint*			neibsList,
@@ -147,12 +150,23 @@ void objectforces(	float4*			pos,
 					particleinfo*	info,
 					float4*			forces,
 					uint			numParticles,
-					float3			cg);
+					float3			cg,
+					uint			i);
 
 void
 setDemTexture(float *hDem, int width, int height);
 
 void
 releaseDemTexture();
+
+void
+reduceRbForces(	float4*		forces,
+				float4*		torques,
+				uint*		rbnum,
+				uint*		lastindex,
+				float3*		totalforce,
+				float3*		totaltorque,
+				uint		numbodies,
+				uint		numBodiesParticles);
 }
 #endif

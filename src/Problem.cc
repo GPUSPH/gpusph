@@ -141,14 +141,35 @@ float3 Problem::g_callback(const float t)
 void Problem::allocate_bodies(const int i)
 {
 	m_simparams.numbodies = i;
-	m_bodies = new RigidBody [i];
+	m_bodies = new RigidBody[i];
 }
 
 
-RigidBody& Problem::get_body(const int i)
+RigidBody* Problem::get_body(const int i)
 {
-	return m_bodies[i];
+	return &m_bodies[i];
 }
+
+
+int Problem::get_body_numparts(const int i)
+{
+	if (!m_simparams.numbodies)
+		return 0;
+
+	return m_bodies[i].GetParts().size();
+}
+
+
+int Problem::get_bodies_numparts(void)
+{
+	int total_parts = 0;
+	for (int i = 0; i < m_simparams.numbodies; i++) {
+		total_parts += m_bodies[i].GetParts().size();
+	}
+
+	return total_parts;
+}
+
 
 void Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
 {
@@ -159,6 +180,10 @@ void Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
 
 float3* Problem::get_rigidbodies_cg(void)
 {
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		m_bodies[i].GetCG(m_bodies_cg[i]);
+	}
+	
 	return m_bodies_cg;
 }
 

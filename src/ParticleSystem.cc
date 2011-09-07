@@ -55,7 +55,9 @@
 #include "forces.cuh"
 #include "euler.cuh"
 
-
+#include <thrust/device_vector.h>
+#include <thrust/scan.h>
+#include <thrust/functional.h>
 
 static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] = {
 	"Position",
@@ -240,11 +242,8 @@ ParticleSystem::allocate(uint numParticles)
 	m_hNormals = new float4[m_numParticles];
 	memset(m_hNormals, 0, memSize4);
 	memory += memSize4;
-	
-
 //#endif
 
-	
 
 	printf("\nCPU memory allocated\n");
 	printf("Number of particles : %d\n", m_numParticles);
@@ -311,6 +310,47 @@ ParticleSystem::allocate(uint numParticles)
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
 	memory += neibslistSize;
+
+	// Allocate storage for rigid bodies froces and torque computation
+	if (m_simparams.numbodies) {
+		m_numBodiesParticles = m_problem->get_bodies_numparts();
+		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
+		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
+		int memSizeRbNum = m_numBodiesParticles*sizeof(uint);
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbTorques, memSizeRbForces));
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbForces, memSizeRbForces));
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbNum, memSizeRbNum));
+		memory += 2*memSizeRbForces + memSizeRbNum;
+	
+		// DEBUG
+		m_hRbForces = new float4[m_numBodiesParticles];
+		m_hRbTorques = new float4[m_numBodiesParticles];
+		
+		uint rbfirstindex[MAXBODIES];
+		uint* rbnum = new uint[m_numBodiesParticles];
+		m_hRbLastIndex = new uint[m_simparams.numbodies];
+		m_hRbTotalForce = new float3[m_simparams.numbodies];
+		m_hRbTotalTorque = new float3[m_simparams.numbodies];
+
+		rbfirstindex[0] = 0;
+		for (int i = 1; i < m_simparams.numbodies; i++) {
+			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_body_numparts(i - 1);
+		}
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbstartindex", rbfirstindex, m_simparams.numbodies*sizeof(uint)));
+
+		int offset = 0;
+		for (int i = 0; i < m_simparams.numbodies; i++) {
+			m_hRbLastIndex[i] = m_problem->get_body_numparts(i) - 1 + offset;
+			for (int j = 0; j < m_problem->get_body_numparts(i); j++) {
+				rbnum[offset + j] = i;
+			}
+			offset += m_problem->get_body_numparts(i);
+		}
+		size_t  size = m_numBodiesParticles*sizeof(uint);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
+		
+		delete[] rbnum;
+	}
 
 	if (m_simparams.dtadapt) {
 		m_numPartsFmax = (int) ceil(numParticles / (float) min(BLOCK_SIZE_FORCES, numParticles));
@@ -458,7 +498,6 @@ ParticleSystem::setPhysParams(void)
 		partsurf = m_physparams.r0*m_physparams.r0;
 		// partsurf = (6.0 - M_PI)*m_physparams.r0*m_physparams.r0/4;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_partsurf", &partsurf, sizeof(float)));
-
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
@@ -608,6 +647,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "variable gravity callback function = %d\n",m_simparams.gcallback);
 	fprintf(summary, "periodic boundary = %s\n", m_simparams.periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams.usedem);
+	fprintf(summary, "number of rigid bodies = %d\n", m_simparams.numbodies);
 }
 
 
@@ -625,7 +665,7 @@ ParticleSystem::writeSummary(void)
 	fclose(summary);
 }
 
-
+// TODO: restore DEBUG define and do some cleaning on TestParticle and SaveNormals
 ParticleSystem::~ParticleSystem()
 {
 	delete [] m_hPos;
@@ -671,6 +711,19 @@ ParticleSystem::~ParticleSystem()
 	// Free surface detection
 	CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
+	if (m_simparams.numbodies) {
+		delete [] m_hRbLastIndex;
+		delete [] m_hRbTotalForce;
+		delete [] m_hRbTotalTorque;
+		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
+		CUDA_SAFE_CALL(cudaFree(m_dRbForces));
+		CUDA_SAFE_CALL(cudaFree(m_dRbNum));
+		
+		// DEBUG		
+		delete [] m_hRbForces;
+		delete [] m_hRbTorques;
+		}
+
 	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
@@ -697,6 +750,7 @@ ParticleSystem::~ParticleSystem()
 }
 
 
+// TODO: DEBUG, testpoints, freesurface and size_t
 void*
 ParticleSystem::getArray(ParticleArray array, bool need_write)
 {
@@ -824,6 +878,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 }
 
 
+// TODO: size_t, char *
 void
 ParticleSystem::setArray(ParticleArray array)
 {
@@ -869,6 +924,7 @@ ParticleSystem::setPlanes(void)
 }
 
 
+// TODO: check writer for testpoints
 void
 ParticleSystem::writeToFile()
 {
@@ -1105,9 +1161,34 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
 
+	float3 *cg;
+	float3 *trans;
+	float *rot;
+
+	// Copying floating bodies centers of gravity for torque computation in forces (needed only at first 
+	// setp)
+	if (m_simparams.numbodies && m_iter == 0) {
+		cg = m_problem->get_rigidbodies_cg();
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbcg1", cg, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbcg2", cg, m_simparams.numbodies*sizeof(float3)));
+		
+//		// Debug
+//		for (int i=0; i < m_simparams.numbodies; i++) {
+//			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
+//			}
+//		
+//		uint rbfirstindex[MAXBODIES];
+//		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams.numbodies*sizeof(uint)));
+//		for (int i=0; i < m_simparams.numbodies; i++) {
+//			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
+//			}
+		}
+
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
+					m_dRbForces,
+					m_dRbTorques,
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
@@ -1144,31 +1225,51 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventCreate(&stop_euler);
 		cudaEventRecord(start_euler, 0);
 		}
-
-	float3 *cg;
-	float3 *trans;
-	float *rot;
-
+	
 	if (m_simparams.numbodies) {
-		float3 force = make_float3(0.0f);
-		float3 torque = make_float3(0.0f);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_force", &force, sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_torque", &torque, sizeof(float3)));
-		cg = m_problem->get_rigidbodies_cg();
-		objectforces(	m_dPos[m_currentPosRead],
-						m_dInfo[m_currentInfoRead],
-						m_dForces,
-						m_numParticles,
-						cg[0]);
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&force, "d_force", sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&torque, "d_torque", sizeof(float3)));
-		if (m_iter % 100) {
-			printf("force(%g, %g, %g)\n", force.x, force.y, force.z);
-			printf("torque(%g, %g, %g)\n", torque.x, torque.y, torque.z);
-		}
-		m_problem->rigidbodies_timestep(&force, &torque, 1, m_dt, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rb_trans", trans, m_simparams.numbodies*sizeof(float3)));
-		}
+//		if (m_iter % 500 == 0) {		
+//			reducerbforces();
+//			
+//			float3 forces[MAXBODIES];
+//			float3 torques[MAXBODIES];
+//			reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, forces, 
+//				torques, m_simparams.numbodies, m_numBodiesParticles);	
+//			
+//			for (int i = 0; i < m_simparams.numbodies; i++) {
+//				printf("Body %d step 1: F(%g, %g, %g) M(%g, %g, %g)\n", i, forces[i].x, forces[i].y, 
+//					forces[i].z, torques[i].x, torques[i].y, torques[i].z);
+//		
+//				printf("Body %d step 1: F(%g, %g, %g) M(%g, %g, %g) (local reduce)\n", i, m_hRbTotalForce[i].x, m_hRbTotalForce[i].y, 
+//					m_hRbTotalForce[i].z, m_hRbTotalTorque[i].x, m_hRbTotalTorque[i].y, m_hRbTotalTorque[i].z);
+//			}
+//			
+//		}
+//		else
+			reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce, 
+				m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
+		
+//		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_numBodiesParticles);
+//
+//		if (m_iter % 200 == 0) {
+//			float4 temp_force;
+//			float4 temp_torque;
+//			size_t size = sizeof(float4);
+//			for (int i = 0; i < m_simparams.numbodies; i++) {
+//				void * ddata = (void *) (m_dRbForces + m_hRbLastIndex[i]);
+//				CUDA_SAFE_CALL(cudaMemcpy((void *) &temp_force, ddata, size, cudaMemcpyDeviceToHost));
+//				ddata = (void *) (m_dRbTorques + m_hRbLastIndex[i]);		
+//				CUDA_SAFE_CALL(cudaMemcpy((void *) &temp_torque, ddata, size, cudaMemcpyDeviceToHost));
+//				printf("Body %d step 1: F(%g, %g, %g) M(%g, %g, %g)\n", i, m_hRbTotalForce[i].x, m_hRbTotalForce[i].y, 
+//					m_hRbTotalForce[i].z, m_hRbTotalTorque[i].x, m_hRbTotalTorque[i].y, m_hRbTotalTorque[i].z);
+//				printf("Body %d step 1: F(%g, %g, %g) M(%g, %g, %g) from segmenetd scan\n", i, temp_force.x, 
+//						temp_force.y, temp_force.z, temp_torque.x, temp_torque.y, temp_torque.z);
+//			}
+//		}
+
+		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
+	}
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
@@ -1190,7 +1291,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dForces = f(n)
 	//  m_dPos[m_currentPosWrite] = pos(n+1/2) = pos(n) + vel(n)*dt/2
 	//  m_dVel[m_currentVelWrite] =  vel(n+1/2) = vel(n) + f(n)*dt/2
-
+	
 	if (timing) {
 		cudaEventRecord(stop_euler, 0);
 		cudaEventSynchronize(stop_euler);
@@ -1200,6 +1301,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventDestroy(stop_euler);
 		}
 
+	// euler need the previous center of gravity but forces the new, so we copy to GPU
+	// here instead before call to euler
+	if (m_simparams.numbodies) {
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbcg1", cg, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbcg2", cg, m_simparams.numbodies*sizeof(float3)));
+	}
+	
 	// setting moving boundaries data if necessary
 	if (m_simparams.mbcallback) {
 		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0, m_iter == 0);
@@ -1211,26 +1319,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
 
-	if (m_simparams.numbodies) {
-		float3 force = make_float3(0.0f);
-		float3 torque = make_float3(0.0f);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_force", &force, sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_torque", &torque, sizeof(float3)));
-		cg = m_problem->get_rigidbodies_cg();
-		objectforces(	m_dPos[m_currentPosRead],
-						m_dInfo[m_currentInfoRead],
-						m_dForces,
-						m_numParticles,
-						cg[0]);
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&force, "d_force", sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&torque, "d_torque", sizeof(float3)));
-		m_problem->rigidbodies_timestep(&force, &torque, 2, m_dt, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rb_trans", trans, m_simparams.numbodies*sizeof(float3)));
-	}
-
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
+					m_dRbForces,
+					m_dRbTorques,
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
@@ -1254,7 +1347,67 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.boundarytype,
 					m_simparams.usedem);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
+	
+	if (m_simparams.numbodies) {
+//		if (m_iter % 500 == 0) {		
+//			reducerbforces();
+//			
+//			float3 forces[MAXBODIES];
+//			float3 torques[MAXBODIES];
+//			reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, forces, 
+//				torques, m_simparams.numbodies, m_numBodiesParticles);	
+//			
+//			for (int i = 0; i < m_simparams.numbodies; i++) {
+//				printf("Body %d step 2: F(%g, %g, %g) M(%g, %g, %g)\n", i, forces[i].x, forces[i].y, 
+//					forces[i].z, torques[i].x, torques[i].y, torques[i].z);
+//		
+//				printf("Body %d step 2: F(%g, %g, %g) M(%g, %g, %g) (local reduce)\n", i, m_hRbTotalForce[i].x, m_hRbTotalForce[i].y, 
+//					m_hRbTotalForce[i].z, m_hRbTotalTorque[i].x, m_hRbTotalTorque[i].y, m_hRbTotalTorque[i].z);
+//			}
+//			
+//		}
+//		else
+			reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce, 
+				m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
+		
+//			float3 force = make_float3(0.0f);
+//			float3 torque = make_float3(0.0f);
+//			for (int i = 0; i < m_simparams.numbodies; i++) {
+//				objectforces(	m_dPos[m_currentPosRead],
+//								m_dInfo[m_currentInfoRead],
+//								m_dForces,
+//								m_numParticles,
+//								cg[i],
+//								i);
+//
+//				CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&force, "d_force", sizeof(float3)));
+//				CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&torque, "d_torque", sizeof(float3)));
+//
+//				m_hRbTotalForce[i] = force;
+//				m_hRbTotalTorque[i] = torque;
+//		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_numBodiesParticles);
+//
+//		if (m_iter % 200 == 0) {
+//			float4 temp_force;
+//			float4 temp_torque;
+//			size_t size = sizeof(float4);
+//			for (int i = 0; i < m_simparams.numbodies; i++) {
+//				void * ddata = (void *) (m_dRbForces + m_hRbLastIndex[i]);
+//				CUDA_SAFE_CALL(cudaMemcpy((void *) &temp_force, ddata, size, cudaMemcpyDeviceToHost));
+//				ddata = (void *) (m_dRbTorques + m_hRbLastIndex[i]);		
+//				CUDA_SAFE_CALL(cudaMemcpy((void *) &temp_torque, ddata, size, cudaMemcpyDeviceToHost));
+//				printf("Body %d step 2: F(%g, %g, %g) M(%g, %g, %g)\n", i, m_hRbTotalForce[i].x, m_hRbTotalForce[i].y, 
+//					m_hRbTotalForce[i].z, m_hRbTotalTorque[i].x, m_hRbTotalTorque[i].y, m_hRbTotalTorque[i].z);
+//				printf("Body %d step 2: F(%g, %g, %g) M(%g, %g, %g) from segmenetd scan\n", i, temp_force.x, 
+//						temp_force.y, temp_force.z, temp_torque.x, temp_torque.y, temp_torque.z);
+//			}
+//		}
 
+		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
+	}
+	
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
 			m_dInfo[m_currentInfoRead], //particleInfo
@@ -1276,6 +1429,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dPos[m_currentPosWrite] = pos(n+1) = pos(n) + velc(n+1/2)*dt
 	//  m_dVel[m_currentVelWrite] =  vel(n+1) = vel(n) + f(n+1/2)*dt
 
+	// euler need the previous center of gravity but forces the new, so we copy to GPU
+	// here instead before call to euler
+	if (m_simparams.numbodies) {
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbcg1", cg, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_rbcg2", cg, m_simparams.numbodies*sizeof(float3)));
+	}
+	
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
@@ -1300,6 +1460,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	return m_timingInfo;
 }
 
+
+/****************************************************************************************************/
 // Utility function privided for debug purpose
 /****************************************************************************************************/
 void
@@ -1484,5 +1646,33 @@ ParticleSystem::savenormals()
 	fclose(fp);
 
 
+}
+
+void
+ParticleSystem::reducerbforces(void)
+{
+	CUDA_SAFE_CALL(cudaMemcpy((void *) m_hRbForces, (void *) m_dRbForces, 
+		m_numBodiesParticles*sizeof(float4), cudaMemcpyDeviceToHost));	
+	CUDA_SAFE_CALL(cudaMemcpy((void *) m_hRbTorques, (void *) m_dRbTorques, 
+		m_numBodiesParticles*sizeof(float4), cudaMemcpyDeviceToHost));
+	
+	int firstindex = 0;
+	int lastindex = 0;
+	for (int i = 0; i < m_simparams.numbodies; i++) {
+		lastindex = m_hRbLastIndex[i];
+		float4 force = make_float4(0.0f);
+		float4 torque = make_float4(0.0f);
+		for (int j = firstindex; j <= lastindex; j++) {
+			force += m_hRbForces[j];
+			torque += m_hRbTorques[j];
+		}
+		m_hRbTotalForce[i] = as_float3(force);
+		m_hRbTotalTorque[i] = as_float3(torque);
+		
+		firstindex = lastindex + 1;
+	}
+	
+//	for (int i = 0; i < m_numBodiesParticles; i++)
+//		printf("Idx: %d, F(%g,%g,%g) %g\n", i, m_hRbForces[i].x, m_hRbForces[i].y, m_hRbForces[i].z,  m_hRbForces[i].w);
 }
 /****************************************************************************************************/

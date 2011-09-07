@@ -23,6 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <vector_types.h>
+
+
 /* vi:set ft=cuda: */
 
 #ifdef XSPH_KERNEL
@@ -54,7 +57,9 @@ FORCES_CUDA_KERNEL
 	uint*	neibsList,
 	uint	numParticles,
 	float	slength,
-	float	influenceradius
+	float	influenceradius,
+	float4* rbforces,
+	float4*	rbtorques
 #	ifdef DT_KERNEL
 	,
 	float*	cfl
@@ -321,13 +326,26 @@ FORCES_CUDA_KERNEL
 				// TODO: multi objects
 				if (r < influenceradius && !OBJECT(neib_info)) {
 					float DvDt = neib_pos.w*LJForce(r);
+					// The code below is notr workink, why ???
+//					if (FLUID(neib_info))
+//						DvDt = neib_pos.w*LJForce(r);
+//					else if (OBJECT(neib_info) && (object(info) != object(neib_info)))
+//						DvDt = LJForce(r);		// TODO: apply friction between objects
+//					else if (BOUNDARY(neib_info))
+//						DvDt = LJForce(r);		// TODO: choose a better ceofficient ?
+//					else
+//						break;
 					force.x += DvDt*relPos.x;
 					force.y += DvDt*relPos.y;
 					force.z += DvDt*relPos.z;
 				}
 			}
 
-			forces[index] = force;
+			uint rbindex = id(info) + d_rbstartindex[object(info)];
+			rbforces[rbindex] = force;
+			rbtorques[rbindex] = make_float4(cross(as_float3(pos) - d_rbcg1[object(info)], as_float3(force)));;
+
+			//forces[index] = force;
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 

@@ -133,15 +133,14 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define MAXMOVINGBOUND		16
 #define MAXNEIBSNUM			128
 
+
 /*
    Particle types. Non-fluid parts are negative.
    When adding new ones make sure they are added before the first,
    increasing the (negative) index so that FLUIDPART always ends at 0
  */
 
-
 #define MAX_FLUID_TYPES      4
-
 
 /* The particle type is a short integer organized this way:
    * lowest 4 bits: fluid number (for multifluid)
@@ -183,7 +182,9 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 // Particle belonging to an object
 #define OBJECT(f) ((f).x == OBJECTPART)
 // Free surface detection
-#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG)
+#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
+// Boundary particle
+#define BOUNDARY(f) ((f).x == BOUNDPART)
 
 /* compile-time consistency check:
    definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
@@ -213,6 +214,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define BLOCK_SIZE_FORCES		64
 
 typedef unsigned int uint;
+
 
 typedef struct PhysParams {
 	float	rho0[MAX_FLUID_TYPES]; // density of various particles
@@ -376,6 +378,7 @@ struct SavingInfo {
 	uint	writedatafreq;		// unit displayfreq
 };
 
+
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
@@ -390,7 +393,6 @@ struct SavingInfo {
 */
 
 typedef short4 particleinfo;
-
 
 inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const short &z, const short &w)
 {

@@ -39,14 +39,31 @@ __constant__ float3	d_minlimit;
 __constant__ float3 d_dispvect3;
 __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 
-__constant__ float3 d_rb_cg2[MAXBODIES];
-__constant__ float3 d_rb_trans[MAXBODIES];
-__constant__ float	d_rb_steprot[MAXBODIES];
+__constant__ float3 d_rbcg2[MAXBODIES];
+__constant__ float3 d_rbtrans[MAXBODIES];
+__constant__ float	d_rbsteprot[9*MAXBODIES];
 
 
 /*
  * Device code.
  */
+
+__device__ void
+applyrot(float* rot, float4 & pos, const float3 & cg)
+{
+	float3 relpos = as_float3(pos) - cg;
+	float3 new_relpos;
+	
+	// Applying rotation
+	new_relpos.x = rot[0]*relpos.x + rot[1]*relpos.y + rot[2]*relpos.z;
+	new_relpos.y = rot[3]*relpos.x + rot[4]*relpos.y + rot[5]*relpos.z;
+	new_relpos.z = rot[6]*relpos.x + rot[7]*relpos.y + rot[8]*relpos.z;
+	
+	pos.x = new_relpos.x + cg.x;	
+	pos.y = new_relpos.y + cg.y;	
+	pos.z = new_relpos.z + cg.z;
+}
+
 
 #undef XSPH_KERNEL
 #define EULER_KERNEL_NAME eulerDevice

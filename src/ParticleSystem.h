@@ -26,13 +26,14 @@
 #ifndef __PARTICLESYSTEM_H__
 #define __PARTICLESYSTEM_H__
 
-#include "cudpp/cudpp.h"
+#include <cudpp/cudpp.h>
 
 #include "particledefine.h"
 #include "Problem.h"
 #include "Writer.h"
 
 #include "radixsort.h"
+#include <thrust/device_ptr.h>
 
 // ParticleSystem : class used to call CUDA kernels
 class ParticleSystem
@@ -96,6 +97,7 @@ class ParticleSystem
 		void saveindex();
 		void savesorted();
 		void savecellstartend();
+		void reducerbforces();
 
 		// Free surface detection (Debug)
 		void savenormals();
@@ -146,6 +148,8 @@ class ParticleSystem
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
+		float4*		m_hRbForces;
+		float4*		m_hRbTorques;
 		// Free surface detection (Debug)
 		float4*     m_hNormals;
 
@@ -162,6 +166,15 @@ class ParticleSystem
 		float*		m_dCfl;					// cfl for each block
 		float*		m_dTempFmax;			// auxiliary array used for max computing
 		float2*		m_dTau[3];				// SPS stress tensor
+		
+		// TODO: profile with float3
+		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
+		float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies
+		float4*		m_dRbTorques;			// Torques on particles belonging to rigid bodies
+		uint*		m_dRbNum;				// Key used in segmented scan
+		uint*		m_hRbLastIndex;			// Indexes of last particles belonging to rigid bodies
+		float3*		m_hRbTotalForce;		// Total force acting on each rigid body
+		float3*		m_hRbTotalTorque;		// Total torque acting on each rigid body
 
 		uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
 		float4*		m_dMbData;				// device side moving boundary data

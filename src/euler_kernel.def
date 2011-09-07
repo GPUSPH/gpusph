@@ -131,11 +131,17 @@ EULER_KERNEL_NAME(
 			pos.y += d_mbdata[i].y*dt;
 			pos.z += d_mbdata[i].z*dt;
 		}
-		// TODO: multi objects and rotations
+		// TODO: test rotations
 		else if (type(pinfo) == OBJECTPART) {
-			pos.x += d_rb_trans[0].x;
-			pos.y += d_rb_trans[0].y;
-			pos.z += d_rb_trans[0].z;
+			const int i = object(pinfo);
+			
+			// Applying rotation around center of gravity
+			applyrot(&d_rbsteprot[9*i], pos, d_rbcg2[i]);
+			
+			// Applying center of gravity translation
+			pos.x += d_rbtrans[i].x;
+			pos.y += d_rbtrans[i].y;
+			pos.z += d_rbtrans[i].z;
 		}
 
 		if (periodicbound) {

@@ -25,6 +25,9 @@
 
 #include <stdio.h>
 #include "cudpp/cudpp.h"
+#include <thrust/device_vector.h>
+#include <thrust/scan.h>
+#include <thrust/functional.h>
 
 #include "textures.cuh"
 #include "forces.cuh"
@@ -49,16 +52,16 @@ cudaArray*  dDem = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(forces, neibsList, numParticles, slength, influenceradius); \
+						(forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(forces, xsph, neibsList, numParticles, slength, influenceradius); \
+						(forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(forces, neibsList, numParticles, slength, influenceradius, cfl); \
+						(forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		else if (dtadapt && xsphcorr) \
 				FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(forces, xsph, neibsList, numParticles, slength, influenceradius, cfl); \
+						(forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -165,6 +168,8 @@ float
 forces(	float4*			pos,
 		float4*			vel,
 		float4*			forces,
+		float4*			rbforces,
+		float4*			rbtorques,
 		float4*			xsph,
 		particleinfo	*info,
 		uint*			neibsList,
@@ -563,11 +568,12 @@ void objectforces(	float4*			pos,
 					particleinfo*	info,
 					float4*			forces,
 					uint			numParticles,
-					float3			cg)
+					float3			cg,
+					uint			i)
 {
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	calcObjectForcesDevice<<< 1, 1 >>>(numParticles, pos, forces, cg);
+	calcObjectForcesDevice<<< 1, 1 >>>(numParticles, pos, forces, cg, i);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
@@ -593,6 +599,39 @@ void setDemTexture(float *hDem, int width, int height)
 void releaseDemTexture()
 {
 	CUDA_SAFE_CALL(cudaFreeArray(dDem));
+}
+
+
+void reduceRbForces(float4*		forces,
+					float4*		torques,
+					uint*		rbnum,
+					uint*		lastindex,
+					float3*		totalforce,
+					float3*		totaltorque,
+					uint		numbodies,
+					uint		numBodiesParticles)
+{
+	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
+	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
+	thrust::device_ptr<uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
+	thrust::equal_to<uint> binary_pred;
+	thrust::plus<float4> binary_op;
+
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
+				forces_devptr, forces_devptr, binary_pred, binary_op);
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
+				torques_devptr, torques_devptr, binary_pred, binary_op);
+	
+	for (int i = 0; i < numbodies; i++) {
+		float4 temp;
+		void * ddata = (void *) (forces + lastindex[i]);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
+		totalforce[i] = as_float3(temp);
+		
+		ddata = (void *) (torques + lastindex[i]);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
+		totaltorque[i] = as_float3(temp);
+		}
 }
 
 } // extern "C"
