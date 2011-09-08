@@ -22,7 +22,8 @@ class Object {
 		virtual void FillBorder(PointVect& , double) = 0;
 		virtual void Fill(PointVect& , double) = 0;
 
+		void GLDrawQuad(const Point&, const Point&, const Point&, const Point&);
 		virtual void GLDraw(void) = 0;
 };
-#endif	/* OBJCET_H */
+#endif	/* OBJECT_H */
 

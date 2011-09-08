@@ -65,7 +65,6 @@ class Rect: public Object {
 			Fill(points, dx, true);
 		}
 				
-		void GLDrawQuad(const Point& p1, const Point& p2, const Point& p3, const Point& p4);
 		void GLDraw(void);
 };
 #endif	/* _RECT_H */

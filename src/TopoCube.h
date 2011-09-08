@@ -74,7 +74,6 @@ class TopoCube: public Object {
 			Fill(points, m_H, dx, false);
 		}
 		
-		void GLDrawQuad(const Point& p1, const Point& p2, const Point& p3, const Point& p4);
 		void GLDraw(void);
 };
 

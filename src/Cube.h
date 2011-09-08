@@ -65,7 +65,6 @@ class Cube: public Object {
 		
 		void InnerFill(PointVect& points, double dx);
 		
-		void GLDrawQuad(const Point& p1, const Point& p2, const Point& p3, const Point& p4);
 		void GLDraw(void);
 };
 
