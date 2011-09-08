@@ -33,7 +33,6 @@
 #include "Circle.h"
 #include "Object.h"
 
-#define PI 3.14159265358979323846
 
 // TODO: the Cone object is broken, fix it
 

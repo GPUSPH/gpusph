@@ -39,6 +39,7 @@ Cone::Cone(void)
 	height = Vector(0,0,1);
 }
 
+
 Cone::Cone(const Point &c, const Vector &rb, const Vector &rt, const Vector &h)
 {
 	center = c;
@@ -46,6 +47,7 @@ Cone::Cone(const Point &c, const Vector &rb, const Vector &rt, const Vector &h)
 	radiust = rt;
 	height = h;
 }
+
 
 double
 Cone::SetPartMass(double dx, double rho)
@@ -60,6 +62,7 @@ Cone::SetPartMass(double dx, double rho)
 	center(3) = mass;
 	return mass;
 }
+
 
 void
 Cone::SetPartMass(double mass)
@@ -91,6 +94,7 @@ Cone::FillBorder(PointVect& points, double dx, bool bottom, bool top)
 	}
 }
 
+
 void
 Cone::Fill(PointVect& points, double dx)
 {
@@ -104,6 +108,7 @@ Cone::Fill(PointVect& points, double dx)
 		c.Fill(points, dx, true);
 	}
 }
+
 
 void
 Cone::GLDraw(void)

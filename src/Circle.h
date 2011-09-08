@@ -30,7 +30,6 @@
 #include "Vector.h"
 #include "Object.h"
 
-#define PI 3.14159265358979323846
 
 class Circle: public Object {
 	private:

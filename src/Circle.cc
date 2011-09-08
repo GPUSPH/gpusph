@@ -33,6 +33,7 @@
 #include "Circle.h"
 #include "Rect.h"
 
+
 Circle::Circle(void)
 {
 	center = Point();
@@ -40,12 +41,14 @@ Circle::Circle(void)
 	normal = Vector(0,0,1);
 }
 
+
 Circle::Circle(const Point &p, const Vector &r, const Vector &u)
 {
 	center = p;
 	radius = r;
 	normal = u;
 }
+
 
 double
 Circle::SetPartMass(double dx, double rho)
@@ -56,28 +59,33 @@ Circle::SetPartMass(double dx, double rho)
 	return mass;
 }
 
+
 void
 Circle::SetPartMass(double mass)
 {
 	center(3) = mass;
 }
 
+
+// TODO: imp;ement without rotated (too slow)
 void
 Circle::FillBorder(PointVect& points, double dx)
 {
-	int np = round(2*PI*radius.norm()/dx);
+	int np = round(2*M_PI*radius.norm()/dx);
 	for (int i = 0; i < np; ++i) {
-		Point pt = center + radius.rotated((double)(2*i*PI)/np, normal);
+		Point pt = center + radius.rotated((double)(2*i*M_PI)/np, normal);
 		points.push_back(pt);
 	}
 }
 
+
+// TODO: to be fixed
 void
 Circle::Fill(PointVect& points, double dx, bool fill_edge)
 {
 	PointVect rectpts;
 	Vector rad1(radius);
-	Vector rad2(radius.rotated(PI/2, normal));
+	Vector rad2(radius.rotated(M_PI/2, normal));
     Rect rect(center - rad1 - rad2, 2*rad1, 2*rad2);
 	rect.SetPartMass(center(3));
 	rect.Fill(rectpts, dx, true);
@@ -93,15 +101,16 @@ Circle::Fill(PointVect& points, double dx, bool fill_edge)
 
 }
 
+
 void
 Circle::GLDraw(void)
 {
 	glBegin(GL_LINES);
-#define CIRCLE_LINES 360
+	#define CIRCLE_LINES 360
 	for (int i=0; i < CIRCLE_LINES; ++i) {
-		Point pt = center + radius.rotated((double)(2*i*PI)/CIRCLE_LINES, normal);
+		Point pt = center + radius.rotated((double)(2*i*M_PI)/CIRCLE_LINES, normal);
 		glVertex3f(pt(0), pt(1), pt(2));
 	}
-#undef CIRCLE_LINES
+	#undef CIRCLE_LINES
 	glEnd();
 }
