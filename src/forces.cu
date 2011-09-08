@@ -563,22 +563,6 @@ surfaceparticle( float4*		pos,
 }
 
 
-// Computing forces on an object (test version)
-void objectforces(	float4*			pos,
-					particleinfo*	info,
-					float4*			forces,
-					uint			numParticles,
-					float3			cg,
-					uint			i)
-{
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
-	calcObjectForcesDevice<<< 1, 1 >>>(numParticles, pos, forces, cg, i);
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-}
-
-
 void setDemTexture(float *hDem, int width, int height)
 {
 	// Allocating, reading and copying DEM

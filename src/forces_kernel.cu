@@ -1175,39 +1175,4 @@ calcSurfaceparticleDevice(float4*	normals,
 
 }
 /************************************************************************************************************/
-
-
-
-
-/************************************************************************************************************/
-/*					   Computing forces on an object (test version)										    */
-/************************************************************************************************************/
-
-// Compute force and torque on the first object
-// Note: work only with one object
-// TODO: OPTIMIZE with modified segmented scan
-__global__ void calcObjectForcesDevice(
-		uint			numParticles,
-		const float4	*pos,
-		const float4	*forces,
-		const float3	cg,
-		const uint		obj_num)
-{
-	float3 total_force = make_float3(0.0f);
-	float3 torque = make_float3(0.0f);
-
-	for (uint i=0; i < numParticles; i++) {
-		particleinfo pinfo = tex1Dfetch(infoTex, i);
-
-		if (OBJECT(pinfo) && object(pinfo) == obj_num) {
-			float3 force = as_float3(forces[i]);
-			total_force += force;
-			torque += cross(as_float3(pos[i]) - d_rbcg1[object(pinfo)], force);
-		}
-	}
-
-	d_force = total_force;
-	d_torque = torque;
-}
-/************************************************************************************************************/
 #endif

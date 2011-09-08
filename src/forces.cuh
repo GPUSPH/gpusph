@@ -144,15 +144,6 @@ surfaceparticle(	float4*		pos,
 			bool		periodicbound,
 			bool        savenormals);
 
-
-// Computing forces on an object (test version)
-void objectforces(	float4*			pos,
-					particleinfo*	info,
-					float4*			forces,
-					uint			numParticles,
-					float3			cg,
-					uint			i);
-
 void
 setDemTexture(float *hDem, int width, int height);
 

@@ -344,8 +344,6 @@ FORCES_CUDA_KERNEL
 			uint rbindex = id(info) + d_rbstartindex[object(info)];
 			rbforces[rbindex] = force;
 			rbtorques[rbindex] = make_float4(cross(as_float3(pos) - d_rbcg1[object(info)], as_float3(force)));;
-
-			forces[index] = force;
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 
