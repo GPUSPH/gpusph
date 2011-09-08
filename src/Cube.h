@@ -35,8 +35,9 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
-class Cube {
+class Cube: public Object {
 	private:
 		Point	origin;
 		Vector	vx, vy, vz;
@@ -48,10 +49,22 @@ class Cube {
 
 		double SetPartMass(double dx, double rho);
 		void SetPartMass(double mass);
+		
 		void FillBorder(PointVect& points, double dx, int face_num, bool* edges_to_fill);
 		void FillBorder(PointVect& points, double dx, bool fill_top_face);
+		void FillBorder(PointVect& points, double dx)
+		{
+			FillBorder(points, dx, true);
+		}
+		
 		void Fill(PointVect& points, double dx, bool fill_faces);
+		void Fill(PointVect& points, double dx)
+		{
+			Fill(points, dx, true);
+		}
+		
 		void InnerFill(PointVect& points, double dx);
+		
 		void GLDrawQuad(const Point& p1, const Point& p2, const Point& p3, const Point& p4);
 		void GLDraw(void);
 };

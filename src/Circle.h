@@ -28,10 +28,11 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
 #define PI 3.14159265358979323846
 
-class Circle {
+class Circle: public Object {
 	private:
 		Point	center;
 		Vector	radius;
@@ -44,8 +45,15 @@ class Circle {
 
 		double SetPartMass(double dx, double rho);
 		void SetPartMass(double mass);
+		
 		void FillBorder(PointVect& points, double dx);
-		void Fill(PointVect& points, double dx, bool fill_edge=true);
+		
+		void Fill(PointVect& points, double dx, bool fill_edge);
+		void Fill(PointVect& points, double dx)
+		{
+			Fill(points, dx, true);
+		}
+		
 		void GLDraw(void);
 
 };

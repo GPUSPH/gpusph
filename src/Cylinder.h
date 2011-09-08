@@ -28,8 +28,9 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
-class Cylinder {
+class Cylinder: public Object {
 	private:
 		Point	center;
 		Vector	radius, height;
@@ -43,6 +44,11 @@ class Cylinder {
 		void SetPartMass(double mass);
 
 		void FillBorder(PointVect& points, double dx, bool bottom, bool top);
+		void FillBorder(PointVect& points, double dx) 
+		{
+			FillBorder(points, dx, true, true);
+		}
+		
 		void Fill(PointVect& points, double dx);
 
 		void GLDraw(void);

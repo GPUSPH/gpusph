@@ -28,8 +28,9 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
-class Sphere {
+class Sphere: public Object {
 	private:
 		Point	center;
 		Vector	radius, height;
@@ -43,6 +44,7 @@ class Sphere {
 		void SetPartMass(double mass);
 
 		void FillBorder(PointVect& points, double dx);
+		
 		void Fill(PointVect& points, double dx);
 
 		void GLDraw(void);

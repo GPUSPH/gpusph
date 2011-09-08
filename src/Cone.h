@@ -31,12 +31,13 @@
 #include "Point.h"
 #include "Vector.h"
 #include "Circle.h"
+#include "Object.h"
 
 #define PI 3.14159265358979323846
 
 // TODO: the Cone object is broken, fix it
 
-class Cone {
+class Cone: public Object {
 	private:
 		Point	center;
 		Vector	radiust, radiusb, height;
@@ -50,6 +51,11 @@ class Cone {
 		void SetPartMass(double mass);
 
 		void FillBorder(PointVect& points, double dx, bool bottom, bool top);
+		void FillBorder(PointVect& points, double dx)
+		{
+			FillBorder(points, dx, true, true);
+		}
+		
 		void Fill(PointVect& points, double dx);
 
 		void GLDraw(void);

@@ -35,8 +35,9 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
-class Rect {
+class Rect: public Object {
 	private:
 		Point   origin;
 		Vector  vx, vy;
@@ -48,11 +49,22 @@ class Rect {
 
 		double SetPartMass(double dx, double rho);
 		void SetPartMass(double mass);
-		void FillBorder(PointVect& points, double dx, bool fill_top = true);
+		
+		void FillBorder(PointVect& points, double dx, bool fill_top);
 		void FillBorder(PointVect& points, double dx, bool populate_first,
 				bool populate_last, int edge_num);
+		void FillBorder(PointVect& points, double dx)
+		{
+			FillBorder(points, dx, true);
+		}
+		
 		void Fill(PointVect& points, double dx, bool fill_edges);
 		void Fill(PointVect& points, double dx, bool* edges_to_fill);
+		void Fill(PointVect& points, double dx)
+		{
+			Fill(points, dx, true);
+		}
+				
 		void GLDrawQuad(const Point& p1, const Point& p2, const Point& p3, const Point& p4);
 		void GLDraw(void);
 };

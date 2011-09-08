@@ -140,6 +140,7 @@ TopoCube::FillBorder(PointVect& points, double dx, int face_num, bool fill_edges
 		}
 }
 
+
 void
 TopoCube::FillDem(PointVect& points, double dx)
 {

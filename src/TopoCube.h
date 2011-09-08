@@ -34,8 +34,9 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
-class TopoCube {
+class TopoCube: public Object {
 	private:
 		Point	origin;
 		Vector	vx, vy, vz;
@@ -53,12 +54,26 @@ class TopoCube {
 
 		double SetPartMass(double dx, double rho);
 		void SetPartMass(double mass);
+		
 		void FillBorder(PointVect& points, double dx, int face_num, bool fill_edges);
-		void FillBorder(PointVect& points, double dx, bool fill_top_face);
+		void FillBorder(PointVect& points, double dx)
+		{
+			FillBorder(points, dx, 0, true);
+			FillBorder(points, dx, 1, false);
+			FillBorder(points, dx, 2, true);
+			FillBorder(points, dx, 3, false);
+		}
+		
 		void FillDem(PointVect& points, double dx);
 		float DemInterpol(float x, float y);
 		float DemDist(float x, float y, float z, float dx);
+		
 		void Fill(PointVect& points, double H, double dx, bool faces_filled);
+		void Fill(PointVect& points, double dx)
+		{
+			Fill(points, m_H, dx, false);
+		}
+		
 		void GLDrawQuad(const Point& p1, const Point& p2, const Point& p3, const Point& p4);
 		void GLDraw(void);
 };
