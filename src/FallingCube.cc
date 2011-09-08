@@ -113,12 +113,6 @@ FallingCube::FallingCube(const Options &options) : Problem(options)
 
 	particleinfo pinfo = make_particleinfo(OBJECTPART,0,0);
 	printf("Is object: %d\nIs fluid: %d\n", OBJECT(pinfo), FLUID(pinfo));
-//	EulerParameters ep1 ,ep2;
-//	ep1 = EulerParameters(M_PI/3.0, -M_PI/4.0, M_PI/7.0);
-//	double z0Angle, xAngle, z1Angle;
-//	ep1.ExtractEulerZXZ(z0Angle, xAngle, z1Angle);
-//	printf("%g %g %g\n", M_PI/3.0, -M_PI/4.0, M_PI/7.0);
-//	printf("%g %g %g\n", z0Angle, xAngle, z1Angle);
 }
 
 
