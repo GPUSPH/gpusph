@@ -88,22 +88,9 @@ class Problem {
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 
-		Problem(const Options &options = Options())
-		{
-			m_options = options;
-			m_last_display_time = 0.0;
-			m_last_write_time = 0.0;
-			m_last_screenshot_time = 0.0;
-			m_mbnumber = 0;
-			memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
-			m_bodies = NULL;
-		};
+		Problem(const Options &options = Options());
 
-		~Problem(void)
-		{
-			if (m_simparams.numbodies)
-				delete [] m_bodies;
-		};
+		~Problem(void);
 
 		Options get_options(void)
 		{
@@ -176,6 +163,7 @@ class Problem {
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
 		virtual void draw_boundary(float) = 0;
+		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;

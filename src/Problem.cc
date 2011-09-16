@@ -30,11 +30,35 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef __APPLE__
+#include <OpenGl/gl.h>
+#else
+#include <GL/gl.h>
+#endif
 
 #include "Problem.h"
 #include "vector_math.h"
 
 
+Problem::Problem(const Options &options)
+{
+	m_options = options;
+	m_last_display_time = 0.0;
+	m_last_write_time = 0.0;
+	m_last_screenshot_time = 0.0;
+	m_mbnumber = 0;
+	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
+	m_bodies = NULL;
+}
+
+
+Problem::~Problem(void)
+{
+	if (m_simparams.numbodies)
+		delete [] m_bodies;
+}
+
+		
 float
 Problem::density(float h, int i)
 {
@@ -63,7 +87,8 @@ Problem::pressure(float rho, int i) const
 }
 
 
-bool Problem::need_display(float t)
+bool 
+Problem::need_display(float t)
 {
 	if (t - m_last_display_time >= m_displayinterval) {
 		m_last_display_time = t;
@@ -74,7 +99,8 @@ bool Problem::need_display(float t)
 }
 
 
-std::string Problem::create_problem_dir(void)
+std::string 
+Problem::create_problem_dir(void)
 {
 	time_t  rawtime;
 	char	time_str[17];
@@ -91,7 +117,8 @@ std::string Problem::create_problem_dir(void)
 }
 
 
-bool Problem::need_write(float t)
+bool 
+Problem::need_write(float t)
 {
 	if (m_writefreq == 0)
 		return false;
@@ -105,7 +132,8 @@ bool Problem::need_write(float t)
 }
 
 
-bool Problem::need_screenshot(float t)
+bool 
+Problem::need_screenshot(float t)
 {
 	if (m_screenshotfreq == 0)
 		return false;
@@ -118,40 +146,47 @@ bool Problem::need_screenshot(float t)
 	return false;
 }
 
+
 // is the simulation finished at the given time?
-bool Problem::finished(float t)
+bool 
+Problem::finished(float t)
 {
 	float tend(m_simparams.tend);
 	return tend && (t > tend);
 }
 
 
-MbCallBack& Problem::mb_callback(const float t, const float dt, const int i)
+MbCallBack& 
+Problem::mb_callback(const float t, const float dt, const int i)
 {
 	return m_mbcallbackdata[i];
 };
 
 
-float3 Problem::g_callback(const float t)
+float3 
+Problem::g_callback(const float t)
 {
 	return make_float3(0.0);
 }
 
 
-void Problem::allocate_bodies(const int i)
+void 
+Problem::allocate_bodies(const int i)
 {
 	m_simparams.numbodies = i;
 	m_bodies = new RigidBody[i];
 }
 
 
-RigidBody* Problem::get_body(const int i)
+RigidBody* 
+Problem::get_body(const int i)
 {
 	return &m_bodies[i];
 }
 
 
-int Problem::get_body_numparts(const int i)
+int 
+Problem::get_body_numparts(const int i)
 {
 	if (!m_simparams.numbodies)
 		return 0;
@@ -160,7 +195,8 @@ int Problem::get_body_numparts(const int i)
 }
 
 
-int Problem::get_bodies_numparts(void)
+int 
+Problem::get_bodies_numparts(void)
 {
 	int total_parts = 0;
 	for (int i = 0; i < m_simparams.numbodies; i++) {
@@ -171,14 +207,16 @@ int Problem::get_bodies_numparts(void)
 }
 
 
-void Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
+void 
+Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
 {
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 }
 
 
-float3* Problem::get_rigidbodies_cg(void)
+float3* 
+Problem::get_rigidbodies_cg(void)
 {
 	for (int i = 0; i < m_simparams.numbodies; i++)  {
 		m_bodies[i].GetCG(m_bodies_cg[i]);
@@ -188,13 +226,15 @@ float3* Problem::get_rigidbodies_cg(void)
 }
 
 
-float* Problem::get_rigidbodies_steprot(void)
+float* 
+Problem::get_rigidbodies_steprot(void)
 {
 	return m_bodies_steprot;
 }
 
 
-void Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
+void 
+Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
 									const double dt, float3 * & cg, float3 * & trans, float * & steprot)
 {
 	for (int i = 0; i < m_simparams.numbodies; i++)  {
@@ -208,20 +248,23 @@ void Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, co
 
 
 // Number of planes
-uint Problem::fill_planes(void)
+uint 
+Problem::fill_planes(void)
 {
 	return 0;
 }
 
 
 // Copy planes for upload
-void Problem::copy_planes(float4*, float*)
+void 
+Problem::copy_planes(float4*, float*)
 {
 	return;
 }
 
 
-float4* Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
+float4* 
+Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
 
@@ -258,4 +301,33 @@ float4* Problem::get_mbdata(const float t, const float dt, const bool forceupdat
 		return m_mbdata;
 
 	return NULL;
+}
+
+
+void
+Problem::draw_axis()
+{	
+	float3 axis_center = m_origin + 0.5*m_size;
+	float axis_length = std::max(std::max(m_size.x, m_size.y), m_size.z)/4.0;
+	
+	/* X axis in green */
+	glColor3f(0.0f, 0.8f, 0.0f);
+	glBegin(GL_LINES);
+	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
+	glVertex3f(axis_center.x + axis_length, axis_center.y, axis_center.z);
+	glEnd();
+	
+	/* Y axis in red */
+	glColor3f(0.8f, 0.0f, 0.0f);
+	glBegin(GL_LINES);
+	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
+	glVertex3f(axis_center.x, axis_center.y  + axis_length, axis_center.z);
+	glEnd();
+	
+	/* Z axis in blu */
+	glColor3f(0.0f, 0.0f, 0.8f);
+	glBegin(GL_LINES);
+	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
+	glVertex3f(axis_center.x, axis_center.y, axis_center.z + axis_length);
+	glEnd();
 }

@@ -472,6 +472,7 @@ void display()
 		psystem->drawParts(show_boundary, view_field);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
+		problem->draw_axis();
 		glutSwapBuffers();
 	}
 
@@ -972,7 +973,7 @@ main( int argc, char** argv)
 		glutKeyboardFunc(key);
 		glutIdleFunc(idle);
 
-		glutMainLoop();
+ 		glutMainLoop();
 	}
 
 	quit(0);
