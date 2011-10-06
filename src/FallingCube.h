@@ -11,7 +11,7 @@
 #include "Problem.h"
 #include "Point.h"
 #include "Cube.h"
-#include "RigidBody.h"
+
 
 class FallingCube: public Problem {
 	private:

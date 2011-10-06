@@ -27,9 +27,9 @@
 #define	RIGIDBODY_H
 
 #include "EulerParameters.h"
-#include "Matrix33.h"
 #include "Point.h"
 #include "Vector.h"
+#include "Object.h"
 
 /// Rigid body class
 /*! Rigid body class provide:
@@ -43,14 +43,16 @@ class RigidBody {
 		int					m_body_number;		///< Number of body
 		double				m_mass;				///< Mass of the body
 		double				m_inertia[3];		///< Prinipal moments of inertia
-
 		PointVect			m_parts;			///< Particles belonging to the rigid body
-		
-		EulerParameters		*m_ep;				///< Euler parameters
-		double				*m_cg;				///< Center of gravity
-		double				*m_current_cg;
-		double				*m_vel;				///< Velovity of center of gravity
-		double				*m_omega;			///< Angular velocity
+		EulerParameters*	m_ep;				///< Euler parameters
+		double*				m_cg;				///< Center of gravity
+//		double*				m_current_cg;		///< Current position of center of gravity
+//		EulerParameters*	m_current_ep;		///< Current value of Euler parameters 
+		double*				m_vel;				///< Velovity of center of gravity
+		double*				m_omega;			///< Angular velocity
+		Object*				m_object;			///< Pointer to object (used if rigid body is attached to an object)
+		Point				m_current_cg;
+		EulerParameters*	m_current_ep;
 
 
 	public:
@@ -58,28 +60,32 @@ class RigidBody {
 		~RigidBody(void);
 
 		/*! Adding particles to rigid body */
-		void AddParts(const PointVect &);
+		void AddParts(const PointVect&);
 		/*! Translate rigid body points */
-		void Translate(const Vector &);
+		void Translate(const Vector&);
 		/*! Rotate parts around a givent point */
-		void Rotate(const Point &, const EulerParameters &);
-		void Rotate(const Point &, const Matrix33 &);
-		void Rotate(const Point &, const double, const double , const double);
+		void Rotate(const Point&, const EulerParameters&);
 
 		/* Setting inertia frame data */
-		void SetInertialFrameData(const Point &, const double *, const double, const EulerParameters &);
+		void SetInertialFrameData(const Point&, const double*, const double, const EulerParameters&);
+		void AttachObject(Object*);
 		
 		/*! Setting initial values for integration */
-		void SetInitialValues(const Vector &, const Vector &);
+		void SetInitialValues(const Vector&, const Vector&);
 
 		/*! Return a reference to parts vect*/
-		PointVect & GetParts(void);
+		PointVect& GetParts(void);
 
-		/*! Return a pointer to center of gravity */
-		void GetCG(float3 &);
+		/*! Return center of gravity */
+		void GetCG(float3&) const;
+		const Point& GetCG(void) const;
+		const EulerParameters& GetEulerParameters(void) const;
+		
 
 		/*! Perform an integration time step */
-		void TimeStep(const float3 &, const float3 &, const float3 &, const int, const double, float3 *, float3 *, float *);
+		void TimeStep(const float3&, const float3&, const float3&, const int, const double, float3*, float3*, float*);
+		
+		void GLDraw(void) const;
 };
 
 #endif	/* RIGIDBODY_H */

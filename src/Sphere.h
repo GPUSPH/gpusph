@@ -26,28 +26,31 @@
 #ifndef _SPHERE_H
 #define	_SPHERE_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
-#include "Object.h"
+
 
 class Sphere: public Object {
 	private:
-		Point	center;
-		Vector	radius, height;
+		double	m_r;
 
 	public:
 		Sphere(void);
-		Sphere(const Point &center, const Vector &radius, const Vector &height);
+		Sphere(const Point &, const double);
 		~Sphere(void) {};
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
-
-		void FillBorder(PointVect& points, double dx);
+		double Volume(const double) const;
+		void Inertia(const double);
 		
-		void Fill(PointVect& points, double dx);
+		void FillBorder(PointVect&, const double);
+		
+		int Fill(PointVect&, const double, const bool fill = true);
 
-		void GLDraw(void);
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 
 #endif	/* _SPHERE_H */

@@ -102,6 +102,9 @@ __device__ float3	d_force;
 __device__ float3	d_torque;
 __constant__ float3 d_rbcg1[MAXBODIES];
 __constant__ uint	d_rbstartindex[MAXBODIES];
+__constant__ float d_objectobjectdf;
+__constant__ float d_objectboundarydf;
+
 
 typedef struct sym33mat {
 	float a11;

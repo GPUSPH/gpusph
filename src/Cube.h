@@ -33,39 +33,45 @@
 #ifndef _CUBE_H
 #define	_CUBE_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
-#include "Object.h"
+
 
 class Cube: public Object {
 	private:
-		Point	origin;
-		Vector	vx, vy, vz;
+		Point	m_origin;
+		Vector	m_vx, m_vy, m_vz;
+		double	m_lx, m_ly, m_lz;
 
 	public:
 		Cube(void);
-		Cube(const Point& p, const Vector& v1, const Vector& v2, const Vector& v3);
+		Cube(const Point&, const double, const double, const double, const EulerParameters&);
+		Cube(const Point&, const Vector&, const Vector&, const Vector&);
 		~Cube(void) {};
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
+		double Volume(const double) const;
+		void Inertia(const double);
 		
-		void FillBorder(PointVect& points, double dx, int face_num, bool* edges_to_fill);
-		void FillBorder(PointVect& points, double dx, bool fill_top_face);
-		void FillBorder(PointVect& points, double dx)
+		void FillBorder(PointVect&, const double, const int, const bool*);
+		void FillBorder(PointVect&, const double, const bool);
+		void FillBorder(PointVect& points, const double dx)
 		{
 			FillBorder(points, dx, true);
 		}
 		
-		void Fill(PointVect& points, double dx, bool fill_faces);
-		void Fill(PointVect& points, double dx)
+		int Fill(PointVect&, const double, const bool, const bool);
+		int Fill(PointVect& points, const double dx, const bool fill = true)
 		{
-			Fill(points, dx, true);
+			return Fill(points, dx, true, fill);
 		}
 		
-		void InnerFill(PointVect& points, double dx);
+		void InnerFill(PointVect&, const double);
 		
-		void GLDraw(void);
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 
 #endif	/* _CUBE_H */

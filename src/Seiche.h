@@ -60,7 +60,5 @@ class Seiche: public Problem {
 
 		void release_memory(void);
 };
-
-
 #endif	/* SEICHE_H */
 

@@ -27,7 +27,7 @@
 #include "EulerParameters.h"
 #include <math.h>
 
-/// Constructor
+
 EulerParameters::EulerParameters(void)
 {
 	m_ep[0] = 1;
@@ -36,8 +36,7 @@ EulerParameters::EulerParameters(void)
 }
 
 
-/// Constructor
-/*! Constructor from values array
+/*! Constructor from array of values
 	\param val : array containing the values of Euler parameters
 */
 EulerParameters::EulerParameters(const double * ep)
@@ -47,7 +46,6 @@ EulerParameters::EulerParameters(const double * ep)
 }
 
 
-/// Constructor
 /*!	Copy constructor
 	\param source : source data
 */
@@ -60,7 +58,6 @@ EulerParameters::EulerParameters(const EulerParameters &source)
 }
 
 
-/// Constructor
 /*! Constructor from Euler angles (theta, phi, psi) in zxz convention
 	\param theta : theta
 	\param phi : phi
@@ -78,8 +75,7 @@ EulerParameters::EulerParameters(const double z0Angle, const double xAngle, cons
 }
 
 
-/// Constructor
-/*! Constructor from vector an rotation angle
+/*! Constructor from vector and rotation angle
 	\param dir : direction of the vector
 	\param angle : angle of rotation around dir
 */
@@ -87,27 +83,47 @@ EulerParameters::EulerParameters(const Vector & dir, const double angle)
 {
 	double angle_over2 = angle/2.0;
 	m_ep[0] = cos(angle_over2);
-	float temp = sin(angle_over2);
-	m_ep[1] = dir(0)*temp;
-	m_ep[2] = dir(1)*temp;
-	m_ep[3] = dir(2)*temp;
+	double temp = sin(angle_over2);
+	double dnorm = dir.norm();
+	if (dnorm) {
+		m_ep[1] = dir(0)*temp/dnorm;
+		m_ep[2] = dir(1)*temp/dnorm;
+		m_ep[3] = dir(2)*temp/dnorm;
+	}
+	else {
+		m_ep[0] = 1.0;
+		m_ep[1] = m_ep[2] = m_ep[3] = 0.0;
+	}
+	
+	Normalize();
 }
 
 
-/// Assignement operator
-EulerParameters& EulerParameters::operator= (const EulerParameters& source)
+//! Assignment operator
+/*! \param source : value 
+	\return this = value
+*/
+EulerParameters& 
+EulerParameters::operator= (const EulerParameters& source)
 {
 	m_ep[0] = source.m_ep[0];
 	m_ep[1] = source.m_ep[1];
 	m_ep[2] = source.m_ep[2];
 	m_ep[3] = source.m_ep[3];
 	
+	for (int i = 0; i < 9; i++)
+		m_rot[i] = source.m_rot[i];
+	
 	return *this;
 }
 
 
 /// Normalization function
-void EulerParameters::Normalize(void)
+/*! Divide the Euler parameter by the norm of the associated quaternion:
+		\f$\sqrt{q^2_0 + q^2_1 + q^2_2 + q^2_3}\f$
+*/
+void 
+EulerParameters::Normalize(void)
 {
 	double rnorm = 1.0/sqrt(m_ep[0]*m_ep[0] + m_ep[1]*m_ep[1] + m_ep[2]*m_ep[2] + m_ep[3]*m_ep[3]);
 
@@ -118,83 +134,94 @@ void EulerParameters::Normalize(void)
 }
 
 
-/// Compute Euler angles from Euler parameters
-void EulerParameters::ExtractEulerZXZ(double &z0Angle, double &xAngle, double &z1Angle)
-{
-	xAngle = acos(2.0*(m_ep[0]*m_ep[0] + m_ep[3]*m_ep[3]) - 1.0);
-	z0Angle = atan2(m_ep[1]*m_ep[3] + m_ep[0]*m_ep[2], m_ep[0]*m_ep[1] - m_ep[2]*m_ep[3]);
-	z1Angle = atan2(m_ep[1]*m_ep[3] - m_ep[0]*m_ep[2], m_ep[2]*m_ep[3] + m_ep[0]*m_ep[1]);
-}
-
-
-/// Compute rotation matrix
-void EulerParameters::ComputeRot(void)
-{
-	float temp = 2.0*m_ep[2]*m_ep[2];	// 2.0*p2^2
-	m_rot[0] = 1.0 - temp;			// r11 = 1 - 2 p2^2
-	m_rot[8] = 1 - temp;			// r33 = 1 - 2 p2^2
-	temp = 2.0*m_ep[3]*m_ep[3];			// 2.0*p3^2
-	m_rot[0] -= temp;				// r11 = 1 - 2 (p2^2 + p3^2)
-	m_rot[4] = 1 - temp;			// r22 = 1 - 2 p3^2
-	temp = 2.0*m_ep[1]*m_ep[1];			// 2.0*p1^2
-	m_rot[4] -= temp;				// r22 = 1 - 2(p1^2 + p3^2)
-	m_rot[8] -= temp;				// r33 = 1 - 2 (p1^2+ p2^2)
-
-	temp = 2.0*m_ep[0]*m_ep[1];			// 2.0*p0p1
-	m_rot[5] = - temp;				// r23 =  - 2p0p1
-	m_rot[7] = temp;				// r32 = 2p0p1
-	temp = 2.0*m_ep[0]*m_ep[2];			// 2.0*p0p2
-	m_rot[2] = temp;				// r13 = 2 p0p2
-	m_rot[6] = -temp;				// r31 = - 2 p0p2
-	temp = 2.0*m_ep[0]*m_ep[3];			// 2.0*p0p3
-	m_rot[1] = - temp;				// r12 = - 2 p0p3
-	m_rot[3] = temp;				// r21 = 2 p0p3
-	temp = 2.0*m_ep[1]*m_ep[2];			// 2.0*p1p2
-	m_rot[1] += temp;				// r12 =2(p1p2 - p0p3)
-	m_rot[3] += temp;				// r21 = 2(p1p2 + p0p3)
-	temp = 2.0*m_ep[1]*m_ep[3];			// 2.0*p1p3
-	m_rot[2] += temp;				// r13 = 2(p1p3 + p0p2)
-	m_rot[6] += temp;				// r31 = 2(p1p3 - p0p2)
-	temp = 2.0*m_ep[2]*m_ep[3];			// 2.0*p2p3
-	m_rot[5] += temp;				// r23 =  2(p2p3 - p0p1)
-	m_rot[7] += temp;				// r32 = 2(p2p3 + p0p1)
-}
-
-
-/// Return a refrence to parameters i
-/*!	\param i : parameter number
-	\return reference to parameter
+/// Euler angles computation
+/*! Compute Euler angles (theta, phi, psi) in zxz convention from Euler parameters
+	\param theta : theta
+	\param phi : phi
+	\param psi : psi
 */
-double & EulerParameters::operator()(int i)
+void 
+EulerParameters::ExtractEulerZXZ(double &theta, double &phi, double &psi) const
 {
-	return m_ep[i];
+	phi = acos(2.0*(m_ep[0]*m_ep[0] + m_ep[3]*m_ep[3]) - 1.0);
+	theta = atan2(m_ep[1]*m_ep[3] + m_ep[0]*m_ep[2], m_ep[0]*m_ep[1] - m_ep[2]*m_ep[3]);
+	psi = atan2(m_ep[1]*m_ep[3] - m_ep[0]*m_ep[2], m_ep[2]*m_ep[3] + m_ep[0]*m_ep[1]);
 }
 
 
-/// Return the value of parameters i
-/*!	\param i : parameter number
-	\return value of parameter
+/// Rotation matrix computation
+/*! The rotation matrix is computed according to:
+ * 
+ *	\f$ R(q)=\begin{pmatrix}
+ *  q^2_0 + q^2_1 - q^2_2 - q^2_3 & 2q_1q_0 - 2q_0q_3 & 2q_0q_2 + 2q_1q_3 \\ 
+ *	2q_1q_0 - 2q_0q_3 & q^2_0 - q^2_1 + q^2_2 - q^2_3 & 2q_2q_3 - 2q_0q_1 \\
+ *	2q_1q_3 - 2q_0q_2 & 2q_2q_3 - 2q_0q_1 & q^2_0 - q^2_1 - q^2_2 + q^2_3
+ *	\end{pmatrix}\f$
+ * 
+ *	and store it in m_rot array.
+ * 
+ *	This function should be called before using Rot() or TransposeRot()
 */
-double EulerParameters::operator()(int i) const
+void
+EulerParameters::ComputeRot(void)
 {
-	return m_ep[i];
+	/* For a normalized quaternion (q0, q1, q2, q3) the associated rotation 
+	 matrix R is :
+		[0] q0^2+q1^-q2^2-q3^2		[1] 2q1q2-2q0q3			[2] 2q0q2+2q1q3
+		[3] 2q0q3+2q1q2			[4] q0^2-q1^2+q2^2-q3^2		[5] 2q2q3-2q0q1
+		[6] 2q1q3-2q0q2				[7] 2q0q1+2q2q3		[8] q0^2-q1^2-q2^2+q3^2
+	 
+	 According to q0^2+q1^2+q2^2+q3^2=1 we can rewrite the diagonal terms:
+		r11 = 1 - 2(q2^2 + q3^2)
+		r22 = 1 - 2(q1^2 + q3^2)
+		r33 = 1 - 2(q1^2 + q2^2)
+ */
+	float temp = 2.0*m_ep[2]*m_ep[2];	// 2.0*q2^2
+	m_rot[0] = 1.0 - temp;				// r0 = 1 - 2q2^2
+	m_rot[8] = 1.0 - temp;				// r8 = 1 - 2q2^2
+	temp = 2.0*m_ep[3]*m_ep[3];			// 2.0*q3^2
+	m_rot[0] -= temp;					// r0 = 1 - 2(q2^2 + q3^2)
+	m_rot[4] = 1.0 - temp;				// r4 = 1 - 2 q3^2
+	temp = 2.0*m_ep[1]*m_ep[1];			// 2.0*q1^2
+	m_rot[4] -= temp;					// r4 = 1 - 2(q1^2 + q3^2)
+	m_rot[8] -= temp;					// r8 = 1 - 2(q1^2 + q2^2)
+
+	temp = 2.0*m_ep[0]*m_ep[1];			// 2.0*q0q1
+	m_rot[5] = - temp;					// r5 = - 2q0q1
+	m_rot[7] = temp;					// r7 = 2p0p1
+	temp = 2.0*m_ep[0]*m_ep[2];			// 2.0*q0q2
+	m_rot[2] = temp;					// r2 = 2q0q2
+	m_rot[6] = -temp;					// r6 = - 2q0q2
+	temp = 2.0*m_ep[0]*m_ep[3];			// 2.0*q0q3
+	m_rot[1] = - temp;					// r1 = - 2q0q3
+	m_rot[3] = temp;					// r3 = 2q0q3
+	temp = 2.0*m_ep[1]*m_ep[2];			// 2.0*q1q2
+	m_rot[1] += temp;					// r1 =2q1q2 - 2q0q3
+	m_rot[3] += temp;					// r3 = 2q0q3 + 2q1q2
+	temp = 2.0*m_ep[1]*m_ep[3];			// 2.0*q1q3
+	m_rot[2] += temp;					// r2 = 2q0q2 + 2q1q3
+	m_rot[6] += temp;					// r6 = 2q1q3 - 2q0q2
+	temp = 2.0*m_ep[2]*m_ep[3];			// 2.0*q2q3
+	m_rot[5] += temp;					// r5 =  2q2q3 - 2q0q1
+	m_rot[7] += temp;					// r7 = 2q2q3 + 2q0q1
 }
 
 
-/// Define the EulerParameters *= EulerParmeters operator
-/*!	This operation corresponds to a rotation composition
-	Beware this operation is not commutative
-	\param val : EulerParameters
-	\return this = this * val
+/// Define the *= operator for Euler parameters
+/*!	\param val : EulerParameters
+ *	\return this = this * val
+ * 
+ *	For the mathematical definition see operator*()
+ * 
+ *	Beware this operation is not commutative.
 */
 EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 {
 	double temp[4];
-	temp[0] = m_ep[3]*val.m_ep[0] + m_ep[0]*val.m_ep[3] + m_ep[1]*val.m_ep[2] - m_ep[2]*val.m_ep[1];	// (Q1 * Q2).x = w1x2 + x1w2 + y1z2 - z1y2
-	temp[1] = m_ep[3]*val.m_ep[1] - m_ep[0]*val.m_ep[2] + m_ep[1]*val.m_ep[3] + m_ep[2]*val.m_ep[0];	// (Q1 * Q2).y = w1y2 - x1z2 + y1w2 + z1x2
-	temp[2] = m_ep[3]*val.m_ep[2] + m_ep[0]*val.m_ep[1] - m_ep[1]*val.m_ep[0] + m_ep[2]*val.m_ep[3];	// (Q1 * Q2).z = w1z2 + x1y2 - y1x2 + z1w2
-	temp[3] = m_ep[3]*val.m_ep[3] - m_ep[0]*val.m_ep[0] - m_ep[1]*val.m_ep[1] - m_ep[2]*val.m_ep[2];	// (Q1 * Q2).w = w1w2 - x1x2 - y1y2 - z1z2
-
+	temp[0] = m_ep[0]*val.m_ep[0] - m_ep[1]*val.m_ep[1] - m_ep[2]*val.m_ep[2] - m_ep[3]*val.m_ep[3];
+	temp[1] = m_ep[1]*val.m_ep[0] + m_ep[0]*val.m_ep[1] - m_ep[3]*val.m_ep[2] + m_ep[2]*val.m_ep[3];
+	temp[2] = m_ep[2]*val.m_ep[0] + m_ep[3]*val.m_ep[1] + m_ep[0]*val.m_ep[2] - m_ep[1]*val.m_ep[3];
+	temp[3] = m_ep[3]*val.m_ep[0] - m_ep[2]*val.m_ep[1] + m_ep[1]*val.m_ep[2] + m_ep[0]*val.m_ep[3];
 	for (int i=0; i < 4; i++)
 		m_ep[i] = temp[i];
 
@@ -204,11 +231,19 @@ EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 }
 
 
-/// Define the EulerParameters*EulerParameters operation (composition of rotations)
-/*!	Beware this operation is not commutative
-	\param ep1 : EulerParamters
-	\param ep2 : EulerParamters
-	\return ep1*ep2
+/*!	Define the * operation for EulerParmeters.
+ *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ and \f$ q'=(q'_0, q'_1, q'_2, q'_3)\f$ two set of Euler parameters
+ *	we have :
+ * 
+ *  \f{align*}{ q*q' =& (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
+ *	&q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
+ * 
+ *	This operation corresponds to a rotation composition.
+ *	\param ep1 : Euler parameters
+ *	\param ep2 : Euler parameters
+ *	\return ep1*ep2
+ * 
+ *	Beware this operation is not commutative
 */
 EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2)
 {
@@ -221,7 +256,7 @@ EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2
 	// a2 b0 + a3 b1 + a0 b2 - a1 b3
 	temp[2] = ep1.m_ep[2]*ep2.m_ep[0] + ep1.m_ep[3]*ep2.m_ep[1] + ep1.m_ep[0]*ep2.m_ep[2] - ep1.m_ep[1]*ep2.m_ep[3];
 	// a3 b0 - a2 b1 + a1 b2 + a0 b3
-	temp[3] = ep1.m_ep[3]*ep2.m_ep[0] - ep1.m_ep[2]*ep2.m_ep[1] + ep1.m_ep[1]*ep2.m_ep[2] + ep1.m_ep[0]*ep2.m_ep[2];
+	temp[3] = ep1.m_ep[3]*ep2.m_ep[0] - ep1.m_ep[2]*ep2.m_ep[1] + ep1.m_ep[1]*ep2.m_ep[2] + ep1.m_ep[0]*ep2.m_ep[3];
 
 	EulerParameters res(temp);
 
@@ -229,6 +264,7 @@ EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2
 
 	return res;
 }
+
 
 EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep2)
 {
@@ -236,7 +272,7 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 	temp[0] = ep1->m_ep[0]*ep2.m_ep[0] - ep1->m_ep[1]*ep2.m_ep[1] - ep1->m_ep[2]*ep2.m_ep[2] - ep1->m_ep[3]*ep2.m_ep[3];
 	temp[1] = ep1->m_ep[1]*ep2.m_ep[0] + ep1->m_ep[0]*ep2.m_ep[1] - ep1->m_ep[3]*ep2.m_ep[2] + ep1->m_ep[2]*ep2.m_ep[3];
 	temp[2] = ep1->m_ep[2]*ep2.m_ep[0] + ep1->m_ep[3]*ep2.m_ep[1] + ep1->m_ep[0]*ep2.m_ep[2] - ep1->m_ep[1]*ep2.m_ep[3];
-	temp[3] = ep1->m_ep[3]*ep2.m_ep[0] - ep1->m_ep[2]*ep2.m_ep[1] + ep1->m_ep[1]*ep2.m_ep[2] + ep1->m_ep[0]*ep2.m_ep[2];
+	temp[3] = ep1->m_ep[3]*ep2.m_ep[0] - ep1->m_ep[2]*ep2.m_ep[1] + ep1->m_ep[1]*ep2.m_ep[2] + ep1->m_ep[0]*ep2.m_ep[3];
 
 	EulerParameters res(temp);
 
@@ -246,13 +282,12 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 }
 
 
-/// Compute rotation matriw between current value of Euler parameters and previous value
-/*!	Beware this operation is not commutative
-	\param previous : previous EulerParameters
-	\param res : pointer to rotation matrix
-	\return R(actual)*R(previous)^T
+/*!	Compute rotation matrix between the current object and another Euler paramters.
+ *  The rsult \f$R(q).R(previous)^t\f$ is stored in the array pointed by res 
+ *	\param previous : previous EulerParameters
+ *	\param res : pointer to rotation matrix
 */
-void EulerParameters::StepRotation(const EulerParameters * previous, float *res)
+void EulerParameters::StepRotation(const EulerParameters *previous, float *res) const
 {
 	double temp_ep[4];
 
@@ -302,7 +337,8 @@ void EulerParameters::StepRotation(const EulerParameters * previous, float *res)
 }
 
 
-void EulerParameters::StepRotation(const EulerParameters & previous, float *res)
+
+void EulerParameters::StepRotation(const EulerParameters & previous, float *res) const
 {
 	double temp_ep[4];
 
@@ -345,12 +381,96 @@ void EulerParameters::StepRotation(const EulerParameters & previous, float *res)
 }
 
 
-float3 EulerParameters::TransposeRot(const float3 &vec)
+/*!	Apply the inverse of rotation defined by the Euler parameters to input data.
+ *	\param data : input data
+ *	\return : \f$R(q)^t*data\f$
+ */
+float3 EulerParameters::TransposeRot(const float3 &data) const
 {
 	float3 res;
-	res.x = (float) (m_rot[0]*vec.x + m_rot[3]*vec.y + m_rot[6]*vec.z);
-	res.y = (float) (m_rot[1]*vec.x + m_rot[4]*vec.y + m_rot[7]*vec.z);
-	res.z = (float) (m_rot[2]*vec.x + m_rot[5]*vec.y + m_rot[8]*vec.z);
+	res.x = (float) (m_rot[0]*data.x + m_rot[3]*data.y + m_rot[6]*data.z);
+	res.y = (float) (m_rot[1]*data.x + m_rot[4]*data.y + m_rot[7]*data.z);
+	res.z = (float) (m_rot[2]*data.x + m_rot[5]*data.y + m_rot[8]*data.z);
 
 	return res;
+}
+
+
+Vector EulerParameters::TransposeRot(const Vector &data) const
+{
+	Vector res;
+	res(0) = m_rot[0]*data(0) + m_rot[3]*data(1) + m_rot[6]*data(2);
+	res(1) = m_rot[1]*data(0) + m_rot[4]*data(1) + m_rot[7]*data(2);
+	res(2) = m_rot[2]*data(0) + m_rot[5]*data(1) + m_rot[8]*data(2);
+
+	return res;
+}
+
+
+Point EulerParameters::TransposeRot(const Point &data) const
+{
+	double x, y, z;
+	x = m_rot[0]*data(0) + m_rot[3]*data(1) + m_rot[6]*data(2);
+	y = m_rot[1]*data(0) + m_rot[4]*data(1) + m_rot[7]*data(2);
+	z = m_rot[2]*data(0) + m_rot[5]*data(1) + m_rot[8]*data(2);
+
+	return Point(x, y, z);
+}
+
+
+/*!	Apply the rotation defined by the Euler parameters to input data.
+ *	\param data : input data
+ *	\return : \f$R(q)*data\f$
+*/
+float3 EulerParameters::Rot(const float3 &data) const
+{
+	float3 res;
+	res.x = (float) (m_rot[0]*data.x + m_rot[1]*data.y + m_rot[2]*data.z);
+	res.y = (float) (m_rot[3]*data.x + m_rot[4]*data.y + m_rot[5]*data.z);
+	res.z = (float) (m_rot[6]*data.x + m_rot[7]*data.y + m_rot[8]*data.z);
+
+	return res;
+}
+
+
+Vector EulerParameters::Rot(const Vector &data) const
+{
+	Vector res;
+	res(0) = m_rot[0]*data(0) + m_rot[1]*data(1) + m_rot[2]*data(2);
+	res(1) = m_rot[3]*data(0) + m_rot[4]*data(1) + m_rot[5]*data(2);
+	res(2) = m_rot[6]*data(0) + m_rot[7]*data(1) + m_rot[8]*data(2);
+
+	return res;
+}
+
+
+Point EulerParameters::Rot(const Point &data) const
+{
+	double x, y, z;
+	x = m_rot[0]*data(0) + m_rot[1]*data(1) + m_rot[2]*data(2);
+	y = m_rot[3]*data(0) + m_rot[4]*data(1) + m_rot[5]*data(2);
+	z = m_rot[6]*data(0) + m_rot[7]*data(1) + m_rot[8]*data(2);
+
+	return Point(x, y, z);
+}
+
+
+// DEBUG
+#include <iostream>
+void EulerParameters::print(void) const
+{
+	std::cout << "Ep (" << m_ep[0] << ", " << m_ep[1] << ", " << m_ep[2] <<", " << m_ep[3] << ")\n";
+	return;
+}
+
+void EulerParameters::printrot(void) const
+{
+	std::cout << "Rotation matrix\n";
+	for (int i = 0; i < 3; i++) {
+		std::cout << "\t";
+		for (int j = 0; j < 3; j ++)
+			std::cout << m_rot[i*3 + j] << "\t";
+		std::cout << "\n";
+	}
+	return;
 }

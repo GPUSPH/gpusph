@@ -22,48 +22,42 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
+/*
+ * File:   DamBreak3D.h
+ * Author: alexis
+ *
+ * Created on 28 janvier 2009, 00:44
+ */
 
-// Created by Andrew 12/2009
+#ifndef _DAMBREAKOBJECTS_H
+#define	_DAMBREAKOBJECTS_H
 
-#ifndef _CONE_H
-#define	_CONE_H
-
-#include "Object.h"
+#include "Problem.h"
 #include "Point.h"
-#include "Vector.h"
+#include "Cube.h"
 
 
-class Cone: public Object {
+class DamBreakObjects: public Problem {
 	private:
-		Point	m_origin;
-		double	m_rt;
-		double	m_rb;
-		double	m_h;
-		double	m_hg;
-		double	m_halfaperture;
+		Cube		experiment_box;
+		Cube		obstacle, object1, object2;
+		PointVect	parts;
+		PointVect	boundary_parts;
+		PointVect	obstacle_parts;
+		float		H;				// still water level
+		float		lx, ly, lz;		// dimension of experiment box
+		bool		wet;			// set wet to true have a wet bed experiment
+		
 
 	public:
-		Cone(void);
-		Cone(const Point&, const double, const double, const Vector&);
-		Cone(const Point&, const double, const double, const double, const EulerParameters&);
-		Cone(const Point&, const Vector&, const Vector&, const Vector&);
-		~Cone(void) {};
+		DamBreakObjects(const Options &);
+		~DamBreakObjects(void);
 
-		double Volume(const double) const;
-		void Inertia(const double);
-		
-		void FillBorder(PointVect& points, const double, const bool, const bool);
-		void FillBorder(PointVect& points, double dx)
-		{
-			FillBorder(points, dx, true, true);
-		}
-		
-		int Fill(PointVect& points, const double, const bool fill = true);
+		int fill_parts(void);
+		void draw_boundary(float);
+		void copy_to_array(float4 *, float4 *, particleinfo *);
 
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		
-		bool IsInside(const Point&, const double) const;
+		void release_memory(void);
 };
+#endif	/* _DAMBREAK3D_H */
 
-#endif	/* _CONE_H */

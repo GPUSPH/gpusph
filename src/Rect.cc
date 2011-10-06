@@ -23,101 +23,227 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+
+#include <iostream>
 
 #include "Rect.h"
-#include "Point.h"
-#include "Segment.h"
-#include "Vector.h"
+
 
 Rect::Rect(void)
 {
-	origin = Point(0, 0, 0);
-	vx = Vector(0, 0, 0);
-	vy = Vector(0, 0, 0);
+	m_origin = Point(0, 0, 0);
+	m_vx = Vector(0, 0, 0);
+	m_vy = Vector(0, 0, 0);
 }
 
-Rect::Rect(const Point &p, const Vector& v1, const Vector& v2)
+
+Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
-	origin = p;
-	vx = v1;
-	vy = v2;
+	if (abs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
+		std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
+		exit(1);
+	}
+	
+	m_origin = origin;
+	m_vx = vx;
+	m_vy = vy;
+	m_lx = vx.norm();
+	m_ly = vy.norm();
+	m_center = m_origin + 0.5*m_vx + 0.5*m_vy;
+	
+	Vector vz = m_vx.cross(m_vy);
+	vz.normalize();
+	
+	Vector axis;
+	double mat[8];
+	mat[0] = m_vx(0)/m_lx;
+	mat[3] = m_vx(1)/m_lx;
+	mat[6] = m_vx(2)/m_lx;
+	mat[1] = m_vy(0)/m_ly;
+	mat[4] = m_vy(1)/m_ly;
+	mat[7] = m_vy(2)/m_ly;
+	mat[2] = vz(0);
+	mat[5] = vz(1);
+	mat[8] = vz(2);
+	
+	double trace = mat[0] + mat[4] + mat[8];
+	double cs = 0.5*(trace - 1.0);
+	double angle = acos(cs);  // in [0,PI]
+
+	if (angle > 0.0)
+	{
+		if (angle < M_PI)
+		{
+			axis(0) = mat[7] - mat[5];
+			axis(1) = mat[2] - mat[6];
+			axis(2) = mat[3] - mat[1];
+			axis /= axis.norm();
+		}
+		else
+		{
+			// angle is PI
+			double halfInverse;
+			if (mat[0] >= mat[4])
+			{
+				// r00 >= r11
+				if (mat[0] >= mat[8])
+				{
+					// r00 is maximum diagonal term
+					axis(0) = 0.5*sqrt(1.0 + mat[0] - mat[4] - mat[8]);
+					halfInverse = 0.5/axis(0);
+					axis(1) = halfInverse*mat[1];
+					axis(2) = halfInverse*mat[2];
+				}
+				else
+				{
+					// r22 is maximum diagonal term
+					axis(2) = 0.5*sqrt(1.0 + mat[8] - mat[0] - mat[4]);
+					halfInverse = 0.5/axis(2);
+					axis(0) = halfInverse*mat[2];
+					axis(1) = halfInverse*mat[5];
+				}
+			}
+			else
+			{
+				// r11 > r00
+				if (mat[4] >= mat[8])
+				{
+					// r11 is maximum diagonal term
+					axis(1) = 0.5*sqrt(1.0 + + mat[4] - mat[0] - mat[8]);
+					halfInverse  = 0.5/axis(1);
+					axis(0) = halfInverse*mat[1];
+					axis(2) = halfInverse*mat[5];
+				}
+				else
+				{
+					// r22 is maximum diagonal term
+					axis(2) = 0.5*sqrt(1.0 + mat[8] - mat[0] - mat[4]);
+					halfInverse = 0.5/axis(2);
+					axis(0) = halfInverse*mat[2];
+					axis(1) = halfInverse*mat[5];
+				}
+			}
+		}
+	}
+	else
+	{
+		// The angle is 0 and the matrix is the identity.  Any axis will
+		// work, so just use the x-axis.
+		axis(0) = 1.0;
+		axis(1) = 0.0;
+		axis(2) = 0.0;
+	}
+	
+	m_ep = EulerParameters(axis, angle);
+	m_ep.ComputeRot();
+}
+
+
+Rect::Rect(const Point &origin, const double lx, const double ly, const EulerParameters &ep)
+{
+	m_origin = origin;
+	
+	m_ep = ep;
+	m_ep.ComputeRot();
+	m_lx = lx;
+	m_ly = ly;
+	
+	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
+	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
+	
+	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
+	m_origin.print();
+	m_center.print();
 }
 
 
 double
-Rect::SetPartMass(double dx, double rho)
+Rect::Volume(const double dx) const
 {
-	int nx = (int) (vx.norm()/dx);
-	double deltax = vx.norm()/((double) nx);
-	int ny = (int) (vy.norm()/dx);
-	double deltay = vy.norm()/((double) ny);
-	double mass = dx*deltax*deltay*rho;
-
-	origin(3) = mass;
-	return mass;
+	const double lx = m_lx + dx;
+	const double ly = m_ly + dx;
+	const double volume = lx*ly*dx;
+	return volume;
 }
 
 
 void
-Rect::SetPartMass(double mass)
+Rect::Inertia(const double dx)
 {
-	origin(3) = mass;
+	const double lx = m_lx + dx;
+	const double ly = m_ly + dx;
+	const double lz = dx;
+	m_inertia[0] = m_mass/12.0*(ly*ly + lz*lz);
+	m_inertia[1] = m_mass/12.0*(lx*lx + lz*lz);
+	m_inertia[2] = m_mass/12.0*(lx*lx + ly*ly);
 }
 
 
 void
-Rect::FillBorder(PointVect& points, double dx,
-		bool populate_first, bool populate_last, int edge_num)
+Rect::FillBorder(PointVect& points, const double dx,
+		const bool populate_first, const bool populate_last, const int edge_num)
 {
-	Segment   seg;
-	Point   start;
-	Point   end;
+	Point		origin;
+	Vector		dir;
 
+	m_origin(3) = m_center(3);
 	switch(edge_num){
 		case 0:
-			start = origin;
-			end = start + vx;
+			origin = m_origin;
+			dir = m_vx;
 			break;
 		case 1:
-			start = origin + vx;
-			end = start + vy;
+			origin = m_origin + m_vx;
+			dir = m_vy;
 			break;
 		case 2:
-			start = origin + vx + vy;
-			end = start - vx;
+			origin = m_origin + m_vx + m_vy;
+			dir = - m_vx;
 			break;
 		case 3:
-			start = origin + vy;
-			end = start - vy;
+			origin = m_origin + m_vy;
+			dir = - m_vy;
 			break;
 	}
 
-	seg = Segment(start, end);
-	seg.FillBorder(points, dx, populate_first, populate_last);
+	int nx = (int) (dir.norm()/dx);
+	int startx = 0;
+	int endx = nx;
+
+	if (!populate_first){
+		startx++;
+	}
+	
+	if (!populate_last){
+		endx--;
+	}
+
+	for (int i = startx; i <= endx; i++) {
+		Point p = origin + i*dir/nx;
+		points.push_back(p);
+	}
 }
 
 
 void
-Rect::FillBorder(PointVect& points, double dx, bool fill_top)
+Rect::FillBorder(PointVect& points, const double dx)
 {
+	m_origin(3) = m_center(3);
 	FillBorder(points, dx, false, false, 0);
 	FillBorder(points, dx, true, true, 1);
-	if (fill_top)
-		FillBorder(points, dx, false, false, 2);
+	FillBorder(points, dx, false, false, 2);
 	FillBorder(points, dx, true, true, 3);
 }
 
 
-void
-Rect::Fill(PointVect& points, double dx, bool fill_egdes)
+int
+Rect::Fill(PointVect& points, const double dx, const bool fill_egdes, const bool fill)
 {
-	int nx = (int) (vx.norm()/dx);
-	int ny = (int) (vy.norm()/dx);
+	m_origin(3) = m_center(3);
+	int nparts = 0;
+	
+	int nx = (int) (m_lx/dx);
+	int ny = (int) (m_ly/dx);
 	int startx = 0;
 	int starty = 0;
 	int endx = nx;
@@ -132,18 +258,29 @@ Rect::Fill(PointVect& points, double dx, bool fill_egdes)
 
 	for (int i = startx; i <= endx; i++)
 		for (int j = starty; j <= endy; j++) {
-			Point p = origin + i*vx/nx + j*vy/ny;
-			points.push_back(p);
+			Point p = m_origin + i*m_vx/nx + j*m_vy/ny;
+			if (fill)
+				points.push_back(p);
+			nparts++;
 		}
 
-	return;
+	return nparts;
+}
+
+
+int
+Rect::Fill(PointVect& points, const double dx, const bool fill)
+{
+	return Fill(points, dx, true, fill);
 }
 
 
 void
-Rect::Fill(PointVect& points, double dx, bool *edges_to_fill)
+Rect::Fill(PointVect& points, const double dx, const bool* edges_to_fill)
 {
-	Fill(points, dx, false);
+	m_origin(3) = m_center(3);
+	
+	Fill(points, dx, false, true);
 
 	for (int border_num = 0; border_num < 4; border_num++) {
 		if (edges_to_fill[border_num])
@@ -154,17 +291,37 @@ Rect::Fill(PointVect& points, double dx, bool *edges_to_fill)
 }
 
 
+bool
+Rect::IsInside(const Point& p, const double dx) const
+{	
+	Point lp = m_ep.TransposeRot(p - m_origin);
+	const double lx = m_lx + dx;
+	const double ly = m_ly + dx;
+	bool inside = false;
+	if (lp(0) > -dx && lp(0) < lx && lp(1) > -dx && lp(1) < ly &&
+		lp(2) > -dx && lp(2) < dx)
+		inside = true;
+	
+	return inside;
+}
+
+
 void
-Rect::GLDraw(void)
+Rect::GLDraw(const EulerParameters& ep, const Point &cg) const
 {
+	Point origin = cg - ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
+	
 	Point p1, p2, p3, p4;
-	glBegin(GL_QUADS);
-	{
-		p1 = origin;
-		p2 = p1 + vx;
-		p3 = p2 + vy;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-	}
-	glEnd();
+	p1 = Point(0, 0, 0);
+	p2 = Point(m_lx, 0, 0);
+	p3 = Point(m_lx, m_ly, 0);
+	p4 = Point(0, m_ly, 0);
+	GLDrawQuad(ep, p1, p2, p3, p4, origin);
+}
+
+
+void
+Rect::GLDraw(void) const
+{
+	GLDraw(m_ep, m_center);
 }

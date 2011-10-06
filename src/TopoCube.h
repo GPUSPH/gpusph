@@ -32,31 +32,41 @@
 #ifndef _TOPOCUBE_H
 #define	_TOPOCUBE_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
-#include "Object.h"
+
 
 class TopoCube: public Object {
 	private:
-		Point	origin;
-		Vector	vx, vy, vz;
+		Point	m_origin;
+		Vector	m_vx, m_vy, m_vz;
 		float*	m_dem;
 		int		m_ncols, m_nrows;
-		float	m_nsres, m_ewres;
+		double	m_nsres, m_ewres;
 		bool	m_interpol;
-		float	m_H;
+		double	m_H;
 
 	public:
 		TopoCube(void);
 		~TopoCube(void);
 
-		void SetCubeDem(float H, float *dem, int ncols, int nrows, float nsres, float ewres, bool interpol);
+		void SetCubeDem(const double, const float*, const int, const int, const double, const double, const bool);
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
+		double SetPartMass(const double, const double);
+		double Volume(const double dx) const
+		{
+			return 0.0;
+		}
+		void Inertia(const double dx)
+		{
+			m_inertia[0] = 0.0;
+			m_inertia[1] = 0.0;
+			m_inertia[2] = 0.0;
+		}
 		
-		void FillBorder(PointVect& points, double dx, int face_num, bool fill_edges);
-		void FillBorder(PointVect& points, double dx)
+		void FillBorder(PointVect&, const double, const int, const bool);
+		void FillBorder(PointVect& points, const double dx)
 		{
 			FillBorder(points, dx, 0, true);
 			FillBorder(points, dx, 1, false);
@@ -64,17 +74,24 @@ class TopoCube: public Object {
 			FillBorder(points, dx, 3, false);
 		}
 		
-		void FillDem(PointVect& points, double dx);
-		float DemInterpol(float x, float y);
-		float DemDist(float x, float y, float z, float dx);
+		void FillDem(PointVect&, const double);
+		double DemInterpol(const double, const double);
+		double DemDist(const double, const double, const double, const double);
 		
-		void Fill(PointVect& points, double H, double dx, bool faces_filled);
-		void Fill(PointVect& points, double dx)
+		int Fill(PointVect&, const double, const double, const bool, const bool);
+		int Fill(PointVect& points, const double H, const double dx, const bool faces_filled)
 		{
-			Fill(points, m_H, dx, false);
+			return Fill(points, H, dx, faces_filled, true);
+		}
+		int Fill(PointVect& points, const double dx, const bool fill = true)
+		{
+			return Fill(points, m_H, dx, false, fill);
 		}
 		
-		void GLDraw(void);
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 
 #endif	/* _CUBE_H */

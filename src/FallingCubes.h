@@ -11,11 +11,12 @@
 #include "Problem.h"
 #include "Point.h"
 #include "Cube.h"
-#include "RigidBody.h"
+
 
 class FallingCubes: public Problem {
 	private:
 		Cube		experiment_box;
+		Cube		cube[3];
 		PointVect	parts;
 		PointVect	boundary_parts;
 		float		H;  // still water level

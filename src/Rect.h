@@ -33,38 +33,37 @@
 #ifndef _RECT_H
 #define	_RECT_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
-#include "Object.h"
+
 
 class Rect: public Object {
 	private:
-		Point   origin;
-		Vector  vx, vy;
+		Point   m_origin;
+		double	m_lx, m_ly;
+		Vector  m_vx, m_vy;
 
 	public:
 		Rect(void);
-		Rect(const Point& p, const Vector& v1, const Vector& v2);
+		Rect(const Point&, const double, const double, const EulerParameters &);
+		Rect(const Point&, const Vector&, const Vector&);
 		~Rect(void) {};
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
+		double Volume(const double) const;
+		void Inertia(const double);
 		
-		void FillBorder(PointVect& points, double dx, bool fill_top);
-		void FillBorder(PointVect& points, double dx, bool populate_first,
-				bool populate_last, int edge_num);
-		void FillBorder(PointVect& points, double dx)
-		{
-			FillBorder(points, dx, true);
-		}
+		void FillBorder(PointVect&, const double);
+		void FillBorder(PointVect&, const double, const bool,
+				const bool, const int);
 		
-		void Fill(PointVect& points, double dx, bool fill_edges);
-		void Fill(PointVect& points, double dx, bool* edges_to_fill);
-		void Fill(PointVect& points, double dx)
-		{
-			Fill(points, dx, true);
-		}
-				
-		void GLDraw(void);
+		void Fill(PointVect&, const double, const bool*);	
+		int Fill(PointVect&, const double, const bool, const bool);
+		int Fill(PointVect&, const double, const bool fill = true);
+		
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 #endif	/* _RECT_H */

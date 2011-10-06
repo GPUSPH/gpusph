@@ -22,12 +22,7 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-//
-// File:   particles.cc
-// Author: alexis
-//
-// Created on 28 avril 2008, 02:59
-//
+
 
 /*! \mainpage GPUSPH Developer's documentation
  *
@@ -100,6 +95,7 @@ int mode = 0;
 bool displayEnabled = true;
 bool bPause = true;
 bool show_boundary = false;
+bool show_floating = false;
 
 enum { M_VIEW = 0, M_MOVE};
 int view_field = ParticleSystem::VM_NORMAL;
@@ -275,36 +271,6 @@ void parse_options(int argc, char **argv)
 
 void init(const char *arg)
 {
-/*#define CHECK(string) \
-	if (!strcasecmp(arg, #string)) \
-	problem = new string(clOptions)
-#define CHECK3D(string) \
-	if (!strcasecmp(arg, #string)) \
-		problem = new string##3D(clOptions); \
-	else CHECK(string##3D)
-#define CHECKTEST(string) \
-	if (!strcasecmp(arg, #string)) \
-		problem = new string##Test(clOptions); \
-	else CHECK(string##Test)
-#define CHECKTEST3D(string) \
-	if (!strcasecmp(arg, #string)) \
-		problem = new string##Test3D(clOptions); \
-	else CHECK3D(string##Test)
-
-	CHECK3D(DamBreak);
-	else CHECK(OpenChannel);
-	else CHECK(TestTopo);
-	else CHECK(WaveTank);
-	else {
-		cerr << "unknown problem " << arg << endl;
-		problem_list();
-		exit(1);
-	}
-#undef CHECK
-#undef CHECK3D
-#undef CHECKTEST
-#undef CHECKTEST3D*/
-
 	problem = new PROBLEM(clOptions);
 
 	/* TODO do it this way for all options? */
@@ -339,7 +305,6 @@ void init(const char *arg)
 		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
 		psystem->setPlanes();
 	}
-
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
@@ -469,7 +434,7 @@ void display()
 
 	if (displayEnabled)
 	{
-		psystem->drawParts(show_boundary, view_field);
+		psystem->drawParts(show_boundary, show_floating, view_field);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
 		problem->draw_axis();
@@ -680,6 +645,7 @@ void rotate(float x, float y, float dx, float dy)
 	look();
 }
 
+
 void motion(int x, int y)
 {
 	float dx, dy;
@@ -701,6 +667,7 @@ void motion(int x, int y)
 
 	glutPostRedisplay();
 }
+
 
 void mouse(int button, int state, int x, int y)
 {
@@ -766,6 +733,12 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 
 	case 'b':
 		show_boundary = !show_boundary;
+		printf("%showing boundaries\n",
+				show_boundary ? "S" : "Not s");
+		break;	
+	
+	case 'f':
+		show_floating = !show_floating;
 		printf("%showing boundaries\n",
 				show_boundary ? "S" : "Not s");
 		break;

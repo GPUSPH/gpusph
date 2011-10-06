@@ -36,7 +36,6 @@
 #include "Point.h"
 #include "Vector.h"
 #include "RigidBody.h"
-
 #include "EulerParameters.h"
 
 FallingCubes::FallingCubes(const Options &options) : Problem(options)
@@ -96,7 +95,7 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	allocate_bodies(3);
 
 	// Scales for drawing
-	m_maxrho = density(H,0);
+	m_maxrho = density(H, 0);
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
 	//m_maxvel = sqrt(m_physparams.gravity*H);
@@ -150,7 +149,7 @@ int FallingCubes::fill_parts()
 	// Rigid body #1
 	Point rb_cg = Point(0.4, 0.4, 0.55);
 	double l = 0.1, w = 0.1, h = 0.1;
-	Cube cube = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
+	cube[0] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
 	l += m_deltap/2.0;
 	w += m_deltap/2.0;
@@ -161,7 +160,7 @@ int FallingCubes::fill_parts()
 
 	RigidBody * rigid_body = get_body(0);
 	PointVect & rbparts1 = rigid_body->GetParts();
-	cube.FillBorder(rbparts1, r0, true);
+	cube[0].FillBorder(rbparts1, r0, true);
 
 	// Setting inertial frame data
 	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
@@ -170,7 +169,7 @@ int FallingCubes::fill_parts()
 	// Rigid body #2
 	rb_cg = Point(0.7, 0.4, 0.55);
 	l = 0.1, w = 0.2, h = 0.1;
-	cube = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
+	cube[1] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
 	l += m_deltap/2.0;
 	w += m_deltap/2.0;
@@ -183,7 +182,7 @@ int FallingCubes::fill_parts()
 
 	rigid_body = get_body(1);
 	PointVect & rbparts2 = rigid_body->GetParts();
-	cube.FillBorder(rbparts2, r0, true);
+	cube[1].FillBorder(rbparts2, r0, true);
 
 	// Setting inertial frame data
 	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
@@ -192,7 +191,7 @@ int FallingCubes::fill_parts()
 	// Rigid body #3
 	rb_cg = Point(1.3, 0.2, 0.55);
 	l = 0.1, w = 0.1, h = 0.2;
-	cube = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
+	cube[2] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
 	l += m_deltap/2.0;
 	w += m_deltap/2.0;
@@ -206,7 +205,7 @@ int FallingCubes::fill_parts()
 
 	rigid_body = get_body(2);
 	PointVect & rbparts3 = rigid_body->GetParts();
-	cube.FillBorder(rbparts3, r0, true);
+	cube[2].FillBorder(rbparts3, r0, true);
 
 	// Setting inertial frame data
 	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
@@ -233,19 +232,18 @@ void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 		info[i]= make_particleinfo(BOUNDPART, 0, i);
 	}
 	int j = boundary_parts.size();
+	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 	for (int k = 0; k < m_simparams.numbodies; k++) {
 		PointVect & rbparts = get_body(k)->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles \n";
+		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
 			pos[i] = make_float4(rbparts[i - j]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(OBJECTPART, k, i - j);
-			// DEBUG
-			//printf("Rb part num: %d, from info: %d\n", i-j, id(info[i]));
 		}
 		j += rbparts.size();
+		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {

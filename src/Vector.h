@@ -58,13 +58,15 @@ class Vector {
 
 		/*! Return the norm of vector */
 		double norm(void) const;
+		void normalize(void);
 		double normSquared(void) const;
 		/*! Return a normal vector of vector */
-		Vector Normal(void);
+		Vector Normal(void) const;
 		/*! Return the vector rotated by the given angle (in radians)
 			around the given vector.
 		 */
 		Vector rotated(const double &angle, const Vector &normal) const;
+		Vector cross(const Vector &) const;
 
 		/*! \name
 			Overloaded operators

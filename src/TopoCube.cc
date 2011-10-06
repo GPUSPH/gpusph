@@ -23,14 +23,13 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
-#include <iostream>
-#include <math.h>
 #ifdef __APPLE__
 #include <OpenGl/gl.h>
 #else
 #include <GL/gl.h>
 #endif
+#include <math.h>
+#include <iostream>
 
 #include "TopoCube.h"
 #include "Point.h"
@@ -40,10 +39,10 @@
 
 TopoCube::TopoCube(void)
 {
-	origin = Point(0, 0, 0);
-	vx = Vector(0, 0, 0);
-	vy = Vector(0, 0, 0);
-	vz = Vector(0, 0, 0);
+	m_origin = Point(0, 0, 0);
+	m_vx = Vector(0, 0, 0);
+	m_vy = Vector(0, 0, 0);
+	m_vz = Vector(0, 0, 0);
 }
 
 
@@ -53,8 +52,8 @@ TopoCube::~TopoCube(void)
 }
 
 
-void TopoCube::SetCubeDem(float H, float *dem, int ncols, int nrows,
-							float nsres, float ewres, bool interpol)
+void TopoCube::SetCubeDem(const double H, const float *dem, const int ncols, const int nrows,
+							const double nsres, const double ewres, const bool interpol)
 {
 	m_ncols = ncols;
 	m_nrows = nrows;
@@ -62,10 +61,10 @@ void TopoCube::SetCubeDem(float H, float *dem, int ncols, int nrows,
 	m_ewres = ewres;
 	m_interpol = interpol;
 	m_H = H;
-	origin = Point(0.0, 0.0, 0.0, 0.0);
-	vx = Vector(((float) m_ncols - 1)*m_ewres, 0.0, 0.0);
-	vy = Vector(0.0, ((float) m_nrows - 1)*m_nsres,0.0);
-	vz = Vector(0.0, 0.0, H);
+	m_origin = Point(0.0, 0.0, 0.0, 0.0);
+	m_vx = Vector(((float) m_ncols - 1)*m_ewres, 0.0, 0.0);
+	m_vy = Vector(0.0, ((float) m_nrows - 1)*m_nsres,0.0);
+	m_vz = Vector(0.0, 0.0, H);
 	m_dem = new float[m_ncols*m_nrows];
 
 	for (int i = 0; i < ncols*nrows; i++) {
@@ -75,53 +74,43 @@ void TopoCube::SetCubeDem(float H, float *dem, int ncols, int nrows,
 
 
 double
-TopoCube::SetPartMass(double dx, double rho)
+TopoCube::SetPartMass(const double dx, const double rho)
 {
-	int nx = (int) (vx.norm()/dx);
-	double deltax = vx.norm()/((double) nx);
-	int ny = (int) (vy.norm()/dx);
-	double deltay = vy.norm()/((double) ny);
-	double mass = deltax*deltay*dx*rho;
+	const double mass = dx*dx*dx*rho;
 
-	origin(3) = mass;
+	m_center(3) = mass;
 	return mass;
 }
 
 
 void
-TopoCube::SetPartMass(double mass)
-{
-	origin(3) = mass;
-}
-
-
-void
-TopoCube::FillBorder(PointVect& points, double dx, int face_num, bool fill_edges)
+TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, const bool fill_edges)
 {
 	Point   rorigin;
 	Vector  v;
 
+	m_origin(3) = m_center(3);
 	switch(face_num){
 		case 0:
-			rorigin = origin;
-			v = vx;
+			rorigin = m_origin;
+			v = m_vx;
 			break;
 		case 1:
-			rorigin = origin + vx;
-			v = vy;
+			rorigin = m_origin + m_vx;
+			v = m_vy;
 			break;
 		case 2:
-			rorigin = origin + vx + vy;
-			v = -vx;
+			rorigin = m_origin + m_vx + m_vy;
+			v = -m_vx;
 			break;
 		case 3:
-			rorigin = origin + vy;
-			v = -vy;
+			rorigin = m_origin + m_vy;
+			v = -m_vy;
 			break;
 	}
 
-	int n = (int) (v.norm()/dx);
-	double delta = v.norm()/((double) n);
+	const int n = (int) (v.norm()/dx);
+	const double delta = v.norm()/((double) n);
 	int nstart = 0;
 	int nend = n;
 	if (!fill_edges) {
@@ -129,12 +118,12 @@ TopoCube::FillBorder(PointVect& points, double dx, int face_num, bool fill_edges
 		nend--;
 	}
 	for (int i = nstart; i <= nend; i++) {
-		float x = rorigin(0) + (float) i/((float) n)*v(0);
-		float y = rorigin(1) + (float) i/((float) n)*v(1);
-		float z = DemInterpol(x, y);
+		const double x = rorigin(0) + (double) i/((double) n)*v(0);
+		const double y = rorigin(1) + (double) i/((double) n)*v(1);
+		double z = DemInterpol(x, y);
 		while (z < m_H - dx) {
 			z += dx;
-			Point p(x, y, z, origin(3));
+			Point p(x, y, z, m_origin(3));
 			points.push_back(p);
 			}
 		}
@@ -144,33 +133,33 @@ TopoCube::FillBorder(PointVect& points, double dx, int face_num, bool fill_edges
 void
 TopoCube::FillDem(PointVect& points, double dx)
 {
-	int nx = (int) (vx.norm()/dx);
-	double deltax = vx.norm()/((double) nx);
-	int ny = (int) (vy.norm()/dx);
-	double deltay = vy.norm()/((double) ny);
+	int nx = (int) (m_vx.norm()/dx);
+	double deltax = m_vx.norm()/((double) nx);
+	int ny = (int) (m_vy.norm()/dx);
+	double deltay = m_vy.norm()/((double) ny);
 
 	for (int i = 0; i <= nx; i++) {
 		for (int j = 0; j <= ny; j++) {
-			float x = origin(0) + (float) i/((float) nx)*vx(0) + (float) j/((float) ny)*vy(0);
-			float y = origin(1) + (float) i/((float) nx)*vx(1) + (float) j/((float) ny)*vy(1);
-			float z = DemInterpol(x, y);
-			Point p(x, y, z, origin(3));
+			const double x = m_origin(0) + (double) i/((double) nx)*m_vx(0) + (double) j/((double) ny)*m_vy(0);
+			const double y = m_origin(1) + (double) i/((double) nx)*m_vx(1) + (double) j/((double) ny)*m_vy(1);
+			const double z = DemInterpol(x, y);
+			Point p(x, y, z, m_origin(3));
 			points.push_back(p);
 			}
 		}
 }
 
 
-float
-TopoCube::DemInterpol(float x, float y)  // x and y ranging in [0, ncols/ewres]x[0, nrows/nsres]
+double
+TopoCube::DemInterpol(const double x, const double y)  // x and y ranging in [0, ncols/ewres]x[0, nrows/nsres]
 {
-	float xb = x/m_ewres;
-	float yb = y/m_nsres;
+	const double xb = x/m_ewres;
+	const double yb = y/m_nsres;
 	int i = floor(xb);
 	int j = floor(yb);
-	float a = xb - (float) i;
-	float b = yb - (float) j;
-	float z = (1 - a)*(1 - b)*m_dem[i + j*m_ncols];
+	const double a = xb - (float) i;
+	const double b = yb - (float) j;
+	double z = (1 - a)*(1 - b)*m_dem[i + j*m_ncols];
 	if (i < m_ncols - 1)
 		z +=  a*(1 - b)*m_dem[i + 1 + j*m_ncols];
 	if (j < m_nrows - 1)
@@ -182,38 +171,40 @@ TopoCube::DemInterpol(float x, float y)  // x and y ranging in [0, ncols/ewres]x
 
 
 
-float
-TopoCube::DemDist(float x, float y, float z, float dx)
+double
+TopoCube::DemDist(const double x, const double y, const double z, double dx)
 {
 	if (dx > 0.5*std::min(m_nsres, m_ewres))
 		dx = 0.5*std::min(m_nsres, m_ewres);
-	float z0 = DemInterpol(x/m_ewres, y/m_nsres);
-	float z1 = DemInterpol((x + dx)/m_ewres, y/m_nsres);
-	float z2 = DemInterpol(x/m_ewres, (y + dx)/m_nsres);
+	const double z0 = DemInterpol(x/m_ewres, y/m_nsres);
+	const double z1 = DemInterpol((x + dx)/m_ewres, y/m_nsres);
+	const double z2 = DemInterpol(x/m_ewres, (y + dx)/m_nsres);
 	// A(x, y, z0) B(x + h, y, z1) C(x, y + h, z2)
 	// AB(h, 0, z1 - z0) AC(0, h, z2 - z0)
 	// AB^AC = ( -h*(z1 - z0), -h*(z2 - z0), h*h)
-	float a = dx*(z0 - z1);
-	float b = dx*(z0 - z2);
-	float c = dx*dx;
-	float d = - a*x - b*y - c*z0;
-	float l = sqrt(a*a + b*b + c*c);
+	const double a = dx*(z0 - z1);
+	const double b = dx*(z0 - z2);
+	const double c = dx*dx;
+	const double d = - a*x - b*y - c*z0;
+	const double l = sqrt(a*a + b*b + c*c);
 
 	// Getting distance along the normal
-	float r = fabs(a*x + b*y + c*z + d)/l;
+	double r = fabs(a*x + b*y + c*z + d)/l;
 	if (z <= z0)
 		r = 0;
 	return r;
 }
 
 
-void
-TopoCube::Fill(PointVect& points, double H, double dx, bool faces_filled)
+int
+TopoCube::Fill(PointVect& points, const double H, const double dx, const bool faces_filled, const bool fill)
 {
-	int nx = (int) (vx.norm()/dx);
-	double deltax = vx.norm()/((double) nx);
-	int ny = (int) (vy.norm()/dx);
-	double deltay = vy.norm()/((double) ny);
+	int nparts;
+	
+	const int nx = (int) (m_vx.norm()/dx);
+	const double deltax = m_vx.norm()/((double) nx);
+	const int ny = (int) (m_vy.norm()/dx);
+	const double deltay = m_vy.norm()/((double) ny);
 
 	int startx = 0;
 	int starty = 0;
@@ -228,58 +219,65 @@ TopoCube::Fill(PointVect& points, double H, double dx, bool faces_filled)
 
 	for (int i = startx; i <= endx; i++) {
 		for (int j = starty; j <= endy; j++) {
-			float x = origin(0) + (float) i/((float) nx)*vx(0) + (float) j/((float) ny)*vy(0);
-			float y = origin(1) + (float) i/((float) nx)*vx(1) + (float) j/((float) ny)*vy(1);
+			float x = m_origin(0) + (float) i/((float) nx)*m_vx(0) + (float) j/((float) ny)*m_vy(0);
+			float y = m_origin(1) + (float) i/((float) nx)*m_vx(1) + (float) j/((float) ny)*m_vy(1);
 			float z = DemInterpol(x, y);
 			while (z < H - dx) {
 				z += dx;
-				Point p(x, y, z, origin(3));
-				points.push_back(p);
+				Point p(x, y, z, m_origin(3));
+				nparts ++;
+				if (fill)
+					points.push_back(p);
 				}
 			}
 		}
-	return;
+	
+	return nparts;
+}
+
+
+// TODO:: FIXME
+bool 
+TopoCube::IsInside(const Point&, const double) const
+{
+	return false;
 }
 
 
 void
-TopoCube::GLDraw(void)
+TopoCube::GLDraw(void) const
 {
 	Point p1, p2, p3, p4;
-	glBegin(GL_QUADS);
-	{
-		p1 = origin;
-		p2 = p1 + vx;
-		p3 = p2 + vz;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin + vy;
-		p2 = p1 + vx;
-		p3 = p2 + vz;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin;
-		p2 = p1 + vy;
-		p3 = p2 + vz;
-		p4 = p3 - vy;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin + vx;
-		p2 = p1 + vy;
-		p3 = p2 + vz;
-		p4 = p3 - vy;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin;
-		p2 = p1 + vx;
-		p3 = p2 + vy;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin + vz;
-		p2 = p1 + vx;
-		p3 = p2 + vy;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-	}
-	glEnd();
+	p1 = m_origin;
+	p2 = p1 + m_vx;
+	p3 = p2 + m_vz;
+	p4 = p3 - m_vx;
+	GLDrawQuad(p1, p2, p3, p4);
+	p1 = m_origin + m_vy;
+	p2 = p1 + m_vx;
+	p3 = p2 + m_vz;
+	p4 = p3 - m_vx;
+	GLDrawQuad(p1, p2, p3, p4);
+	p1 = m_origin;
+	p2 = p1 + m_vy;
+	p3 = p2 + m_vz;
+	p4 = p3 - m_vy;
+	GLDrawQuad(p1, p2, p3, p4);
+	p1 = m_origin + m_vx;
+	p2 = p1 + m_vy;
+	p3 = p2 + m_vz;
+	p4 = p3 - m_vy;
+	GLDrawQuad(p1, p2, p3, p4);
+	p1 = m_origin;
+	p2 = p1 + m_vx;
+	p3 = p2 + m_vy;
+	p4 = p3 - m_vx;
+	GLDrawQuad(p1, p2, p3, p4);
+	p1 = m_origin + m_vz;
+	p2 = p1 + m_vx;
+	p3 = p2 + m_vy;
+	p4 = p3 - m_vx;
+	GLDrawQuad(p1, p2, p3, p4);
 
 	for (int y = 0; y < m_nrows - 1; y++) {
 		for (int x = 0; x < m_ncols -1; x++) {
@@ -307,3 +305,11 @@ TopoCube::GLDraw(void)
 		}
 	}
 }
+
+
+void
+TopoCube::GLDraw(const EulerParameters& ep, const Point& cg) const
+{
+	GLDraw();
+}
+	

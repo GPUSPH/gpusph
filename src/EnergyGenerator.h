@@ -23,9 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-#ifndef _WAVETANK_H
-#define	_WAVETANK_H
+#ifndef ENERGYGENERATOR_H
+#define	ENERGYGENERATOR_H
 
 #include "Problem.h"
 #include "Point.h"
@@ -34,35 +33,40 @@
 #include "Cylinder.h"
 #include "Vector.h"
 #include "Cone.h"
+#include "Torus.h"
+#include "Circle.h"
+#include "Sphere.h"
+#include "Cone.h"
 
-class WaveTank: public Problem {
+class EnergyGenerator: public Problem {
 	private:
 		//Testpoints
-		int			icyl, icone, wmakertype, numTestpoints;
+		int			wmakertype;
 		Cube		experiment_box;
 		Rect        experiment_box1;
 		int			i_use_bottom_plane;
-		Point		p1,p2;
+		
 		PointVect	parts;
 		PointVect	boundary_parts;
-		PointVect	paddle_parts, gate_parts;
-		PointVect	test_points;
+		PointVect	paddle_parts;
 
-		Cylinder	cyl1, cyl2, cyl3, cyl4;
-		Cylinder	cyl5, cyl6, cyl7;
-		Cylinder	cyl8, cyl9, cyl10;
-		Cylinder	cyl11;
-		Cone 		cone;
+		Cylinder	cyl1, cyl2;
+		Torus		torus;
+		Circle		circle;
+		Sphere		sphere;
+		Cone		cone;
+		Cube		cube1, cube2;
+
 		float		paddle_length;
 		float		paddle_width;
 		float		h_length, height, slope_length, beta;
 	    float		H;		// still water level
 		float		Hbox;	// height of experiment box
 
-
 	public:
-		WaveTank(const Options &);
-		~WaveTank(void);
+		EnergyGenerator(const Options &);
+		~EnergyGenerator(void);
+		
 		int fill_parts(void);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
@@ -73,5 +77,5 @@ class WaveTank: public Problem {
 
 		void release_memory(void);
 };
-#endif	/* _WAVETANK_H */
+#endif	/* ENERGYGENERATOR_H */
 

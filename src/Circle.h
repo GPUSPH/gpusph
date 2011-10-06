@@ -26,35 +26,33 @@
 #ifndef _CIRCLE_H
 #define	_CIRCLE_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
-#include "Object.h"
 
 
 class Circle: public Object {
 	private:
-		Point	center;
-		Vector	radius;
-		Vector	normal;
+		double	m_r;
 
 	public:
 		Circle(void);
-		Circle(const Point &p, const Vector &r, const Vector &u);
+		Circle(const Point&, const double, const Vector&);
+		Circle(const Point&, const double, const EulerParameters&);
+		Circle(const Point&, const Vector&, const Vector &);
 		~Circle(void) {};
-
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
 		
-		void FillBorder(PointVect& points, double dx);
+		double Volume(const double) const;
+		void Inertia(const double);
 		
-		void Fill(PointVect& points, double dx, bool fill_edge);
-		void Fill(PointVect& points, double dx)
-		{
-			Fill(points, dx, true);
-		}
+		void FillBorder(PointVect&, const double);
 		
-		void GLDraw(void);
-
+		int Fill(PointVect&, const double, const bool fill = true);
+		
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 #endif	/* _CIRCLE_H */
 

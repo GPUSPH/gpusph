@@ -24,113 +24,165 @@
 */
 
 #include <math.h>
-#include <stdlib.h>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+#include <iostream>
 
 #include "Cylinder.h"
-#include "Circle.h"
+
 
 Cylinder::Cylinder(void)
 {
-	center = Point(0,0,0);
-	radius = Vector(0,0,0);
-	height = Vector(0,0,1);
+	m_center = Point(0,0,0);
+	m_h = 1;
+	m_r = 1;
 }
 
-Cylinder::Cylinder(const Point &c, const Vector &r, const Vector &h)
+
+Cylinder::Cylinder(const Point& origin, const double radius, const Vector& height)
 {
-	center = c;
-	radius = r;
-	height = h;
+	m_origin = origin;
+	m_center = m_origin + 0.5*height;
+	m_r = radius;
+	m_h = height.norm();
+	
+	Vector v(0, 0, 1);
+	const double angle = acos(height*v/m_h);
+	Vector rotdir = height.cross(v);
+	if (rotdir.norm() == 0)
+		rotdir = Vector(0, 1, 0);
+	m_ep = EulerParameters(rotdir, angle);
+	m_ep.ComputeRot();
 }
+
+
+Cylinder::Cylinder(const Point& origin, const double radius, const double height, const EulerParameters& ep)
+{
+	m_origin = origin;
+	m_h = height;
+	m_r = radius;
+	
+	m_ep = ep;
+	m_ep.ComputeRot();
+	
+	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
+	m_origin.print();
+	m_center.print();
+}
+
+
+Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& height)
+{	
+	if (abs(radius*height) > 1e-8*radius.norm()*height.norm()) {
+		std::cout << "Trying to construct a cylinder with non perpendicular radius and axis\n";
+		exit(1);
+	}
+	m_origin = origin;
+	m_center = m_origin + 0.5*height;
+	m_r = radius.norm();
+	m_h = height.norm();
+	
+	Vector v(0, 0, 1);
+	const double angle = acos(height*v/m_h);
+	Vector rotdir = height.cross(v);
+	if (rotdir.norm() == 0)
+		rotdir = Vector(0, 1, 0);
+	m_ep = EulerParameters(rotdir, angle);
+	m_ep.ComputeRot();
+}
+
 
 double
-Cylinder::SetPartMass(double dx, double rho)
+Cylinder::Volume(const double dx) const
 {
-	// FIXME
-	int nc = round(height.norm()/dx);
-	double dh = height.norm()/nc;
-	double mass = dh*dx*dx*rho;
-	center(3) = mass;
-	return mass;
+	const double r = m_r + dx/2.0;
+	const double h = m_h + dx;
+	const double volume = M_PI*r*r*h;
+	return volume;
 }
 
+
 void
-Cylinder::SetPartMass(double mass)
-{
-	center(3) = mass;
+Cylinder::Inertia(const double dx)
+{	
+	const double r = m_r + dx/2.0;
+	const double h = m_h + dx;
+	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
+	m_inertia[1] = m_inertia[0];
+	m_inertia[2] = m_mass/2.0*r*r;
 }
 
-void
-Cylinder::FillBorder(PointVect& points, double dx, bool bottom, bool top)
-{
-	/* stagger circles */
-	double angle = dx/radius.norm();
-	angle /= 2;
 
-	int nc = round(height.norm()/dx);
-	if (bottom) {
-		Circle c(center, radius, height);
-		c.Fill(points, dx, true);
-	}
-	for (int i = 1; i < nc; ++i) {
-		Vector offset = i*height/nc;
-		Circle c(center + offset, radius.rotated(i*angle, height), height);
-		c.FillBorder(points, dx);
-	}
-	if (top) {
-		Circle c(center + height, radius.rotated(nc*angle, height), height);
-		c.Fill(points, dx, true);
-	}
+void
+Cylinder::FillBorder(PointVect& points, const double dx, const bool bottom, const bool top)
+{
+	m_origin(3) = m_center(3);
+	const int nz = (int) ceil(m_h/dx);
+	const double dz = m_h/nz;
+	for (int i = 0; i <= nz; i++)
+		FillCircleBorder(points, m_ep, m_origin, m_r, i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+	if (bottom)
+		FillCircle(points, m_ep, m_origin, m_r - dx, 0.0, dx, 0.0);
+	if (top)
+		FillCircle(points, m_ep, m_origin, m_r - dx, nz*dz, dx, 0.0);
 }
 
-void
-Cylinder::Fill(PointVect& points, double dx)
+
+int
+Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 {
+	m_origin(3) = m_center(3);
 	int nparts = 0;
-	int nr = (int) ceil(radius.norm()/dx);
-	for (int i = 0; i <= nr; i++) {
-		double r = i*dx;
-		int nc = (int) (2.0*M_PI*r/dx);
-		#define THETARAND 2.0*M_PI/RAND_MAX
-		double theta0 = THETARAND*rand();
-		#undef THETARAND
-		for (int j = 0; j < nc; j++) {
-			double theta = theta0 + 2.0*M_PI*j/nc;
-			Point p = center;
-			p(0) += r*cos(theta);
-			p(1) += r*sin(theta);
-			p(3) = center(3);
-
-			float z = center(2);
-			float heightn = height.norm();
-			while (z <= heightn ) {
-				p(2) = z;
-				points.push_back(p);
-				nparts++;
-				z += dx;
-				}
-		}
-	  }
+	const int nz = (int) ceil(m_h/dx);
+	const double dz = m_h/nz;
+	for (int i = 0; i <= nz; i++)
+		nparts += FillCircle(points, m_ep, m_origin, m_r, i*dz, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+	
+	return nparts;
 }
 
-void
-Cylinder::GLDraw(void)
-{
-	Circle(center, radius, height).GLDraw();
-	Circle(center+height, radius, height).GLDraw();
 
-	// FIXME this is horrible
-	for (int i = 0; i < 10; i++) {
-		glBegin(GL_LINES);
-		Point pt = center + radius.rotated(i*2*M_PI/10.0, height);
-		glVertex3f(pt(0), pt(1), pt(2));
-		pt += height;
-		glVertex3f(pt(0), pt(1), pt(2));
-		glEnd();
+bool
+Cylinder::IsInside(const Point& p, const double dx) const
+{
+	Point lp = m_ep.TransposeRot(p - m_origin);
+	const double r = m_r + dx;
+	const double h = m_h + dx;
+	bool inside = false;
+	if (lp(0)*lp(0) + lp(1)*lp(1) < r*r && lp(2) > - dx && lp(2) < h)
+		inside = true;
+	
+	return inside;
+}
+
+
+void
+Cylinder::GLDraw(const EulerParameters& ep, const Point& cg) const
+{
+	Point origin = cg - 0.5*m_h*ep.Rot(Vector(0, 0, 1));
+	
+	#define CIRCLES_NUM 6
+	#define LINES_NUM	10
+	const double dz = m_h/CIRCLES_NUM;
+	for (int i = 0; i <= CIRCLES_NUM; ++i) {
+		GLDrawCircle(ep, origin, m_r, i*dz);
 	}
+	
+	const double angle2 = 2.0*M_PI/LINES_NUM;
+	for (int i = 0; i < LINES_NUM; i++) {
+		double u = i*angle2;
+		Point p1 = ep.Rot(Point(m_r*cos(u), m_r*sin(u), 0.0));
+		p1 += origin;
+		Point p2 = ep.Rot(Point(m_r*cos(u), m_r*sin(u), m_h));
+		p2 += origin;
+		GLDrawLine(p1, p2);
+	}
+	
+	#undef CIRCLES_NUM
+	#undef LINES_NUM
+}
+
+
+void
+Cylinder::GLDraw(void) const
+{
+	GLDraw(m_ep, m_center);
 }

@@ -26,20 +26,29 @@
 #ifndef EULERPARAMETERS_H
 #define	EULERPARAMETERS_H
 
-#include "Matrix33.h"
+#include "Point.h"
 #include "Vector.h"
 
-/// Euler parameters class
-/*! Euler parameters class provide:
-	- basic operations with Eulers parameters
-	- rotation matrix (and inverse rotation) from Euler parameters
-	- access to parameters values
+//! Euler parameters class
+/*! 
+ *	Euler parameters class provide:
+ *		- basic operations with Euler parameters
+ *		- rotation matrix (and inverse rotation) from Euler parameters
+ *		- access to parameters values
+ *
+ *	Euler parameters are normalized quaternions and then can represent any 
+ *	arbitrary rotation in space.
+ * 
+ *	In the following documentation \f$ q=(q_0, q_1, q_2, q_3)\f$ will denotes 
+ *	a set of Euler parameters (i.e. with \f$ q^2_0 + q^2_1 + q^2_2 + q^2_3 = 1\f$).
 */
+
+
 class EulerParameters {
 	private:
-		double		m_ep[4];			///< Euler parameters
-		double		m_rot[9];			///< Rotation matrix
-
+		double		m_ep[4];			///< Values of Euler parameters 
+		double		m_rot[9];			///< Associated rotation matrix
+		
 	public:
 		EulerParameters(void);
 		EulerParameters(const double *);
@@ -48,42 +57,74 @@ class EulerParameters {
 		EulerParameters(const EulerParameters &);
 		~EulerParameters(void) {};
 
-		/*! Assignment operator */
-		EulerParameters& operator= (const EulerParameters& ep);
+		EulerParameters& operator = (const EulerParameters&);
 
-		/*! Normalize Euler parameters */
 		void Normalize(void);
-		/* Compute and return rotation matrix */
-		//const float * GetRotation(void) const;
 
-		/* Compute EUler angles from parameters */
-		void ExtractEulerZXZ(double &, double &, double &);
-
-		/*! Compute roation between actual and previous parameters */
-		void StepRotation(const EulerParameters *, float *);
-		void StepRotation(const EulerParameters &, float *);
-
-		float3 TransposeRot(const float3 &);
-
-		/*! \name
-			Overloaded operators
-		*/
-		//\{
-		double & operator()(int);
-		double operator()(int) const;
-		
-		EulerParameters &operator*=(const EulerParameters &);
-		//\}
-
-		/*! \name
-			Overloaded friend operators
-		*/
-		//\{
-		friend inline EulerParameters operator*(const EulerParameters &, const EulerParameters &);
-		friend inline EulerParameters operator*(const EulerParameters *, const EulerParameters &);
-		//\}
+		void ExtractEulerZXZ(double &, double &, double &) const;
 
 		void ComputeRot(void);
-};
-#endif	/* EULERPARAMETERS_H */
+		
+		/// \name Rotation 
+		//@{
+		float3 Rot(const float3 &) const;
+		Point Rot(const Point &) const;
+		Vector Rot(const Vector &) const;
+		//@}
+		
+		/// \name Inverse rotation
+		//@{
+		float3 TransposeRot(const float3 &) const;
+		Vector TransposeRot(const Vector &) const;
+		Point TransposeRot(const Point &) const;
+		//@}
+		
+		/// \name Rotation matrix between two Euler parameters
+		//@{
+		void StepRotation(const EulerParameters *, float *) const;
+		void StepRotation(const EulerParameters &, float *) const;
+		//@}
+		
+		/** \name Access operators */
+		//@{
+		double & operator()(int);
+		double operator()(int) const;
+		//@}
 
+		EulerParameters &operator*=(const EulerParameters &);
+		
+		/** \name Overloaded friends operators */
+		//@{
+		friend EulerParameters operator*(const EulerParameters &, const EulerParameters &);
+		friend EulerParameters operator*(const EulerParameters *, const EulerParameters &);
+		//@}
+		
+		/** \name Printing functions */
+		//@{
+		void print(void) const;
+		void printrot(void) const;
+		//@}
+};
+
+
+/// Return a refrence to parameter i
+/*!	\param i : parameter number
+ *	\return reference to parameter i
+*/ 
+inline double & 
+EulerParameters::operator()(int i)
+{
+	return m_ep[i];
+}
+
+
+/// Return the value of parameter i
+/*!	\param i : parameter number
+ *	\return value of parameter i
+*/
+inline double 
+EulerParameters::operator()(int i) const
+{
+	return m_ep[i];
+}
+#endif	/* EULERPARAMETERS_H */

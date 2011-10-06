@@ -501,6 +501,9 @@ ParticleSystem::setPhysParams(void)
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
+	
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_objectobjectdf", &m_physparams.objectobjectdf, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_objectboundarydf", &m_physparams.objectboundarydf, sizeof(float)));
 }
 
 
@@ -934,7 +937,7 @@ ParticleSystem::writeToFile()
 
 
 void
-ParticleSystem::drawParts(bool show_boundary, int view_mode)
+ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 {
 	float minrho = m_problem->get_minrho();
 	float maxrho = m_problem->get_maxrho();
@@ -957,11 +960,11 @@ ParticleSystem::drawParts(bool show_boundary, int view_mode)
 				glColor3f(0.0, 1.0, 0.0);
 				glVertex3fv((float*)&pos[i]);
 			}
-			else if (OBJECT(info[i])) {
+			if (OBJECT(info[i]) && show_floating) {
 				glColor3f(1.0, 0.0, 0.0);
 				glVertex3fv((float*)&pos[i]);
 			}
-			else if (FLUID(info[i])) {
+			if (FLUID(info[i])) {
 				float v; unsigned int t;
 				float ssvel = m_problem->soundspeed(vel[i].w,object(info[i]));
 				switch (view_mode) {

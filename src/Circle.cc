@@ -24,93 +24,124 @@
 */
 
 #include <math.h>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+#include <iostream>
 
 #include "Circle.h"
-#include "Rect.h"
 
 
 Circle::Circle(void)
 {
-	center = Point();
-	radius = Vector();
-	normal = Vector(0,0,1);
+	m_center = Point();
+	m_r = 0.0;
 }
 
 
-Circle::Circle(const Point &p, const Vector &r, const Vector &u)
+Circle::Circle(const Point& center, double radius, const Vector& normaldir)
 {
-	center = p;
-	radius = r;
-	normal = u;
+	m_center = center;
+	m_r = radius;
+	Vector axisdir = normaldir;
+	axisdir.normalize();
+	
+	Vector v(0, 0, 1);
+	const double angle = acos(axisdir*v);
+	Vector rotdir = axisdir.cross(v);
+	if (rotdir.norm() == 0)
+		rotdir = Vector(0, 1, 0);
+	m_ep = EulerParameters(rotdir, angle);
+	m_ep.ComputeRot();
+}
+
+
+Circle::Circle(const Point& center, double radius, const EulerParameters& ep)
+{
+	m_center = center;
+	m_r = radius;
+	
+	m_ep = ep;
+	m_ep.ComputeRot();
+}
+
+
+Circle::Circle(const Point& center, const Vector& radius, const Vector& normaldir)
+{
+	if (radius*normaldir > 1.e-8*radius.norm()*normaldir.norm()) {
+		std::cout << "Trying to construct a disk with non perpendicular radius and normal direction\n";
+		exit(1);
+	}
+	
+	m_center = center;
+	m_r = radius.norm();
+	
+	Vector axisdir = normaldir;
+	axisdir.normalize();
+	
+	Vector v(0, 0, 1);
+	const double angle = acos(axisdir*v);
+	Vector rotdir = axisdir.cross(v);
+	if (rotdir.norm() == 0)
+		rotdir = Vector(0, 1, 0);
+	m_ep = EulerParameters(rotdir, angle);
+	m_ep.ComputeRot();
 }
 
 
 double
-Circle::SetPartMass(double dx, double rho)
+Circle::Volume(const double dx) const
 {
-	// FIXME
-	double mass = dx*dx*dx*rho;
-	center(3) = mass;
-	return mass;
+	const double r = m_r + dx/2.0;
+	const double volume = M_PI*r*r*dx;
+	return volume;
 }
 
 
 void
-Circle::SetPartMass(double mass)
-{
-	center(3) = mass;
+Circle::Inertia(const double dx)
+{	
+	const double r = m_r + dx/2.0;
+	const double h = dx;
+	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
+	m_inertia[1] = m_inertia[0];
+	m_inertia[2] = m_mass/2.0*r*r;
 }
-
-
-// TODO: imp;ement without rotated (too slow)
-void
-Circle::FillBorder(PointVect& points, double dx)
-{
-	int np = round(2*M_PI*radius.norm()/dx);
-	for (int i = 0; i < np; ++i) {
-		Point pt = center + radius.rotated((double)(2*i*M_PI)/np, normal);
-		points.push_back(pt);
-	}
-}
-
-
-// TODO: to be fixed
-void
-Circle::Fill(PointVect& points, double dx, bool fill_edge)
-{
-	PointVect rectpts;
-	Vector rad1(radius);
-	Vector rad2(radius.rotated(M_PI/2, normal));
-    Rect rect(center - rad1 - rad2, 2*rad1, 2*rad2);
-	rect.SetPartMass(center(3));
-	rect.Fill(rectpts, dx, true);
-
-
-	double r = radius.normSquared();
-	for (unsigned int i=0; i < rectpts.size(); ++i) {
-		Point pt(rectpts[i]);
-		if (center.DistSquared(pt) <= 1.01*r) {
-			points.push_back(pt);
-		}
-	}
-
-}
-
 
 void
-Circle::GLDraw(void)
+Circle::FillBorder(PointVect& points, const double dx)
 {
-	glBegin(GL_LINES);
-	#define CIRCLE_LINES 360
-	for (int i=0; i < CIRCLE_LINES; ++i) {
-		Point pt = center + radius.rotated((double)(2*i*M_PI)/CIRCLE_LINES, normal);
-		glVertex3f(pt(0), pt(1), pt(2));
-	}
-	#undef CIRCLE_LINES
-	glEnd();
+	FillCircleBorder(points, m_ep, m_center, m_r, 0.0, dx, 0.0);
 }
+
+
+int
+Circle::Fill(PointVect& points, const double dx, const bool fill)
+{
+	return FillCircle(points, m_ep, m_center, m_r, 0.0, dx, 0.0, fill);
+}
+
+
+bool
+Circle::IsInside(const Point& p, const double dx) const
+{
+	Point lp = m_ep.TransposeRot(p - m_center);
+	const double r = m_r + dx;
+	bool inside = false;
+	if (lp(0)*lp(0) + lp(1)*lp(1) < r*r && lp(2) > -dx && lp(2) < dx)
+		inside = true;
+	
+	return inside;
+}
+
+
+void 
+Circle::GLDraw(const EulerParameters& ep, const Point& cg) const
+{
+	GLDrawCircle(ep, cg, m_r, 0.0);
+}
+
+
+void
+Circle::GLDraw(void) const
+{
+	GLDraw(m_ep, m_center);
+}
+

@@ -23,98 +23,200 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//Created by Andrew 12/2009
-//To set to a cone,  let radiust be a really small number, but not zero; otherwise, use for a frustum
-
 #include <math.h>
+#include <iostream>
+
 #include "Cone.h"
 #include "Circle.h"
 
 
 Cone::Cone(void)
 {
-	center = Point();
-	radiust = Vector();
-	radiusb = Vector();
-	height = Vector(0,0,1);
+	m_origin = Point(0, 0, 0);
+	m_rt = 0.0;
+	m_rb = 0.0;
+	m_h = 0.0;
+	m_hg = 0.0;
+	m_halfaperture = 0;
 }
 
 
-Cone::Cone(const Point &c, const Vector &rb, const Vector &rt, const Vector &h)
+Cone::Cone(const Point& center, const double radiusbottom, const double radiustop, const Vector& height)
 {
-	center = c;
-	radiusb = rb;
-	radiust = rt;
-	height = h;
+	m_origin = center;
+	m_rb = radiusbottom;
+	m_rt = radiustop;
+	m_h = height.norm();
+	
+	m_halfaperture = atan((m_rb - m_rt)/m_h);
+	
+	Vector v(0, 0, 1);
+	const double angle = acos(height*v/m_h);
+	Vector rotdir = height.cross(v);
+	if (rotdir.norm() == 0)
+		rotdir = Vector(0, 1, 0);
+	m_ep = EulerParameters(rotdir, angle);
+	m_ep.ComputeRot();
+	
+	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
+					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
+	
+	m_center = m_origin + m_ep.Rot(m_hg*v);
+}
+
+
+Cone::Cone(const Point& center, const double radiusbottom, const double radiustop, const double height, const EulerParameters&  ep)
+{
+	m_origin = center;
+	m_rb = radiusbottom;
+	m_rt = radiustop;
+	m_h = height;
+	
+	m_halfaperture = atan((m_rb - m_rt)/m_h);
+	
+	m_ep = ep;
+	m_ep.ComputeRot();
+	
+	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
+					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
+	
+	m_center = m_origin + m_ep.Rot(m_hg*Vector(0, 0, 1));
+}
+
+
+Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radiustop, const Vector& height)
+{
+	if (abs(radiusbottom*height) > 1e-8*radiusbottom.norm()*height.norm() 
+		|| abs(radiustop*height) > 1e-8*radiustop.norm()*height.norm()) {
+		std::cout << "Trying to construct a cone with non perpendicular radius and axis\n";
+		exit(1);
+	}
+	
+	m_origin = center;
+	m_rb = radiusbottom.norm();
+	m_rt = radiustop.norm();
+	m_h = height.norm();
+	
+	Vector radiusdir = height.Normal();
+	Vector generatrix(m_origin + m_rb*radiusdir, m_origin + height + m_rt*radiusdir);
+	m_halfaperture = acos(height*generatrix/(height.norm()*generatrix.norm()));
+	
+	Vector v(0, 0, 1);
+	const double angle = acos(height*v/m_h);
+	m_ep = EulerParameters(height.cross(v), angle);
+	m_ep.ComputeRot();
+	
+	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
+					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
+	
+	m_center = m_origin + m_hg*height;
+	
 }
 
 
 double
-Cone::SetPartMass(double dx, double rho)
+Cone::Volume(const double dx) const
 {
-	int nc = round(height.norm()/dx);
-	int nb = round(radiusb.norm()/dx);
-	int nt = round(radiust.norm()/dx);
-	double dh = height.norm()/nc;
-	double rb = radiusb.norm()/nb;
-	double rt = radiust.norm()/nt;
-	double mass = dh*((rb*rb)+(rt*rt)+(rt*rb))*rho;
-	center(3) = mass;
-	return mass;
+	const double h = m_h + dx;
+	const double rb = m_rb + dx/2.0;
+	const double rt = m_rt + dx/2.0;
+	
+	const double volume = M_PI*h/3.0*(rb*rb + rb*rt + rt*rt);
+	return volume;
 }
 
 
 void
-Cone::SetPartMass(double mass)
+Cone::Inertia(const double dx)
 {
-	center(3) = mass;
-}
+	const double h = m_h + dx;
+	const double rb = m_rb + dx/2.0;
+	const double rt = m_rt + dx/2.0;
+	
+	const double d = 20.0*M_PI*(rb*rt + rb*rb + rt*rt);
+	const double n = 3.0*m_mass*(rb*rb*rb*rt + rb*rb*rt*rt + rb*rt*rt*rt + rb*rb*rb*rb + rt*rt*rt*rt);
+	
+	m_inertia[0] = 2.0*h*h*n/d;
+	m_inertia[1] = m_inertia[0];
+	m_inertia[2] = 2.0*n/d;
 
-void
-
-Cone::FillBorder(PointVect& points, double dx, bool bottom, bool top)
-{
-
-
-  int nc = round(height.norm()/dx)*10;  //number of circles
-	if (bottom) {
-		Circle c(center, radiusb, height);
-		c.Fill(points, dx, true);
-	}
-	for (int i = 1; i < nc; ++i) {
-	  double alpha = dx/(2*radiusb.norm());
-	  double eta = dx/(2*radiust.norm());
-	  Vector offset = i*height/nc;
-	  Circle c(center + offset, radiusb.rotated(i*alpha, height) - (i*(radiusb.rotated(i*alpha, height)-radiust.rotated(i*eta, height)))/nc, height);
-		c.FillBorder(points, dx);
-	}
-	if (top) {
-	  Circle c(center + height, radiust, height);
-	  c.Fill(points, dx, true);
-	}
 }
 
 
 void
-Cone::Fill(PointVect& points, double dx)
+Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bool top)
 {
+	m_origin(3) = m_center(3);
+	const int nz = (int) ceil(m_h/dx);
+	const double dz = m_h/nz;
+	for (int i = 0; i <= nz; i++)
+		FillCircleBorder(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+	if (bottom)
+		FillCircle(points, m_ep, m_origin, m_rb - dx, 0.0, dx, 0.0);
+	if (top)
+		FillCircle(points, m_ep, m_origin, m_rt - dx, nz*dz, dx, 0.0);
+}
 
-  int nc = round(height.norm()/dx)*10;
-	for (int i = 0; i < nc; ++i) {
-	    double alpha = dx/(2*(radiusb.norm()-(i*(radiusb.norm()-radiust.norm()))/nc));
-	    double eta = dx/(2*radiust.norm());
-	    Vector offset = i*height/nc;
-	    Circle c(center + offset, radiusb.rotated(i*alpha, height) - (i*(radiusb.rotated(i*alpha, height)-radiust.rotated(i*eta, height)))/nc, height);
-		c.Fill(points, dx, true);
+
+int
+Cone::Fill(PointVect& points, const double dx, const bool fill)
+{
+	m_origin(3) = m_center(3);
+	int nparts = 0;
+	const int nz = (int) ceil(m_h/dx);
+	const double dz = m_h/nz;
+	for (int i = 0; i <= nz; i++)
+		nparts += FillCircle(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+	
+	return nparts;
+}
+
+
+bool
+Cone::IsInside(const Point& p, const double dx) const
+{	
+	Point lp = m_ep.TransposeRot(p - m_origin);
+	const double h = m_h + dx;
+	bool inside = false;
+	const double z = lp(2);
+	if (z > -dx && z < h) {
+		const double r = m_rb - z*sin(m_halfaperture) + dx;
+		if (lp(0)*lp(0) + lp(1)*lp(1) < r*r)
+			inside = true;
 	}
+	
+	return inside;
 }
 
 
 void
-Cone::GLDraw(void)
+Cone::GLDraw(const EulerParameters& ep, const Point &cg) const
 {
-	Circle(center + height, radiust, height).GLDraw();
-	Circle(center, radiusb, height).GLDraw();
+	Point origin = cg - ep.Rot(m_hg*Vector(0, 0, 1));
+	
+	#define CIRCLES_NUM 6
+	#define LINES_NUM	10
+	const double dz = m_h/CIRCLES_NUM;
+	for (int i = 0; i <= CIRCLES_NUM; ++i) {
+		GLDrawCircle(ep, origin, m_rb - i*dz*sin(m_halfaperture), i*dz);
+	}
+	
+	const double angle2 = 2.0*M_PI/LINES_NUM;
+	for (int i = 0; i < LINES_NUM; i++) {
+		double u = i*angle2;
+		Point p1 = ep.Rot(Point(m_rb*cos(u), m_rb*sin(u), 0.0));
+		p1 += origin;
+		Point p2 = ep.Rot(Point(m_rt*cos(u), m_rt*sin(u), m_h));
+		p2 += origin;
+		GLDrawLine(p1, p2);
+	}
+	#undef CIRCLES_NUM
+	#undef LINES_NUM
 }
 
 
+void
+Cone::GLDraw(void) const
+{
+	GLDraw(m_ep, m_center);
+}

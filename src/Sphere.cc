@@ -23,76 +23,140 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
 #ifdef __APPLE__
 #include <OpenGl/gl.h>
 #else
 #include <GL/gl.h>
 #endif
+#include <math.h>
 
 #include "Sphere.h"
-#include "Circle.h"
 
 
 Sphere::Sphere(void)
 {
-  	center = Point(0,0,0);
-  	radius = Vector(1,0,0); // equatorial direction
-  	height = Vector(0,0,1); //this is the polar direction
-  	//  note: norm of radius and height must be equal for a sphere
+  	m_center = Point(0,0,0);
+	m_r = 1.0;
 }
 
-Sphere::Sphere(const Point &c, const Vector &r, const Vector &h)
+
+Sphere::Sphere(const Point& center, const double radius)
 {
- 	center = c;
- 	radius = r;
- 	height = h;
+ 	m_center = center;
+ 	m_r = radius;
+	const double ep[4] = {1.0, 0.0, 0.0, 0.0};
+	m_ep = EulerParameters(ep);
+	m_ep.ComputeRot();
 }
+	
 
 double
-Sphere::SetPartMass(double dx, double rho)
+Sphere::Volume(const double dx) const
 {
-  double mass = dx*dx*dx*rho;
-  center(3) = mass;
-  return mass;
+	const double r = m_r + dx/2.0;
+	const double volume = 4.0/3.0*M_PI*r*r*r;
+	return volume;
 }
 
+
 void
-Sphere::SetPartMass(double mass)
+Sphere::Inertia(const double dx)
 {
-	center(3) = mass;
+	const double r = m_r + dx/2.0;
+	m_inertia[0] = 2.0*m_mass/5.0*r*r;
+	m_inertia[1] = m_inertia[0];
+	m_inertia[2] = m_inertia[0];
 }
 
-void
-Sphere::FillBorder(PointVect& points, double dx)
-{
-  	double angle = dx/radius.norm();
-    angle /= 2;
-  	int nc = round(3.1415927/angle); //number of layers
 
-  	for (int i = 1; i < (nc); ++i) {
-  	 	Circle c(center -height*cos(i*angle),radius.rotated(i*angle,height)*sin(i*angle), height);
-  	 	c.FillBorder(points, dx);
+void
+Sphere::FillBorder(PointVect& points, const double dx)
+{
+  	const double angle = dx/m_r;
+  	const int nc = (int) ceil(M_PI/angle); //number of layers
+	const double dtheta = M_PI/nc;
+
+  	for (int i = - nc; i <= nc; ++i) {
+		FillCircleBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
   	 }
 }
 
-void
-Sphere::Fill(PointVect& points, double dx)
+
+int
+Sphere::Fill(PointVect& points, const double dx, const bool fill)
 {
-   	double angle = dx/radius.norm();
+	int nparts = 0;
+	const double angle = dx/m_r;
+  	const int nc = (int) ceil(M_PI/angle); //number of layers
+	const double dtheta = M_PI/nc;
 
-   	int nc = round(3.1415927/angle) ;//number of layers
+  	for (int i = - nc; i <= nc; ++i) {
+		nparts += FillCircle(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+  	 }
+	
+	return nparts;
+}
 
-   	for (int i=0; i < (nc); ++i) {
-   	      Circle c(center-height*cos(i*angle), radius.rotated(i*angle,height)*sin(i*angle), height);
-   	      c.Fill(points,dx,true);
-   	}
+
+bool
+Sphere::IsInside(const Point& p, const double dx) const
+{
+	Point lp = p - m_center;
+	const double r = m_r + dx;
+	bool inside = false;
+	if (lp(0)*lp(0) + lp(1)*lp(1) + lp(2)*lp(2) < r*r)
+		inside = true;
+	
+	return inside;
+}
+
+
+void
+Sphere::GLDraw(const EulerParameters& ep, const Point& cg) const
+{
+	/* The parametric equation of the the sphere centered in (0, 0, 0),
+	   of radius R is :
+		x(u,v) = R cos(v) cos(u)
+		y(u,v) = R cos(v) sin(u)
+		z(u,v) = R sin(v)
+	*/
+	
+	#define SPHERE_CIRCLES 9
+	#define CIRCLE_LINES 36
+	double angle1 = 2.0*M_PI/SPHERE_CIRCLES;
+	double angle2 = 2.0*M_PI/CIRCLE_LINES;
+	for (int i = 0; i <= SPHERE_CIRCLES; ++i) {
+		const double v = i*angle1;
+		const double z = m_r*sin(v);
+		glBegin(GL_POLYGON);
+		for (int j = 0; j < CIRCLE_LINES; ++j) {
+			double u = j*angle2;
+			Point p = ep.Rot(Point(m_r*cos(v)*cos(u), m_r*cos(v)*sin(u), z));
+			p += cg;
+			glVertex3f(p(0), p(1), p(2));
+		}
+		glEnd();
+	}
+	
+	for (int i = 0; i < SPHERE_CIRCLES/2; i ++) {
+		const double u = i*angle1;
+		const double cosu = cos(u);
+		const double sinu = sin(u);
+		glBegin(GL_POLYGON);
+		for (int j = 0; j < CIRCLE_LINES; ++j) {
+			double v = j*angle2;
+			Point p(m_r*cos(v)*cos(u), m_r*cos(v)*sin(u), m_r*sin(v));
+			p += cg;
+			glVertex3f(p(0), p(1), p(2));
+		}
+		glEnd();
+	}
+	#undef TORUS_CIRCLES
+	#undef CIRCLE_LINES
 }
 
 void
-Sphere::GLDraw(void)
+Sphere::GLDraw(void) const
 {
-	Circle(center, radius, height).GLDraw();
-	Circle(center, height, radius).GLDraw();
-
+	GLDraw(m_ep, m_center);
 }

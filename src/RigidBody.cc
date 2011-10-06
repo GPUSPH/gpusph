@@ -1,4 +1,3 @@
-
 /*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
 	Istituto de Nazionale di Geofisica e Vulcanologia
@@ -40,8 +39,11 @@ RigidBody::RigidBody(void)
 	m_cg = new double[6];
 	m_vel = new double[6];
 	m_omega = new double[6];
-
+	
 	m_parts.reserve(1000);
+	m_object = NULL;
+	
+	m_current_ep = &m_ep[0];
 }
 
 
@@ -59,7 +61,8 @@ RigidBody::~RigidBody(void)
 
 /// Add new particles to the rigid body
 /*! /param new_points : points to be added */
-void RigidBody::AddParts(const PointVect & parts)
+void 
+RigidBody::AddParts(const PointVect & parts)
 {
 	for (int i=0; i < parts.size(); i++)
 		m_parts.push_back(parts[i]);
@@ -67,14 +70,14 @@ void RigidBody::AddParts(const PointVect & parts)
 
 
 /*! Setting inertial frame data  */
-void RigidBody::SetInertialFrameData(const Point & cg, const double *inertia,
-									const double mass, const EulerParameters & ep)
+void RigidBody::SetInertialFrameData(const Point& cg, const double* inertia,
+									const double mass, const EulerParameters& ep)
 {
 	m_cg[0] = cg(0);
 	m_cg[1] = cg(1);
 	m_cg[2] = cg(2);
 
-	m_current_cg = m_cg;
+	m_current_cg = cg;
 	
 	for (int i = 0; i < 3; i++)
 		m_inertia[i] = inertia[i];
@@ -82,11 +85,24 @@ void RigidBody::SetInertialFrameData(const Point & cg, const double *inertia,
 	m_mass = mass;
 
 	m_ep[0] = ep;
+	m_current_ep = &m_ep[0];
+}
+
+
+/*! Setting inertial frame data  */
+void 
+RigidBody::AttachObject(Object* object)
+{
+	m_object = object;
+	object->GetInertialFrameData(&m_cg[0], m_mass, &m_inertia[0], m_ep[0]);
+	m_current_cg.SetCoord(&m_cg[0]);
+	m_current_ep = &m_ep[0];
 }
 
 
 /*! Translate rigid body particles */
-void RigidBody::Translate(const Vector &v)
+void 
+RigidBody::Translate(const Vector &v)
 {
 	for (int i=0; i < m_parts.size(); i++)
 		m_parts[i] += v;
@@ -94,33 +110,16 @@ void RigidBody::Translate(const Vector &v)
 
 
 /*! Rotate rigid body particles */
-void RigidBody::Rotate(const Point &center, const EulerParameters & rot)
+void 
+RigidBody::Rotate(const Point &center, const EulerParameters & rot)
 {
-	Matrix33 mat = Matrix33(Vector(rot(1), rot(2), rot(3)), 2.0*acos(rot(0)));
-	Rotate(center, mat);
-}
-
-
-void RigidBody::Rotate(const Point &center, const double z0Angle, const double xAngle, const double z1Angle)
-{
-	Matrix33 mat;
-	mat.MakeEulerZXZ(z0Angle, xAngle, z1Angle);
-	
-	Rotate(center, mat);
-}
-
-
-void RigidBody::Rotate(const Point &center, const Matrix33& mat)
-{
-	for (int i=0; i < m_parts.size(); i++) {
-		Vector v = Vector(center, m_parts[i]);
-		m_parts[i] = center + mat*v;
-	}
+	// TODO
 }
 
 
 /*! Setting initial values for integration */
-void RigidBody::SetInitialValues(const Vector &init_vel, const Vector &init_omega)
+void 
+RigidBody::SetInitialValues(const Vector &init_vel, const Vector &init_omega)
 {
 	m_vel[0] = init_vel(0);
 	m_vel[1] = init_vel(1);
@@ -132,20 +131,22 @@ void RigidBody::SetInitialValues(const Vector &init_vel, const Vector &init_omeg
 }
 
 
-PointVect &RigidBody::GetParts(void)
+PointVect&
+RigidBody::GetParts(void)
 {
 	return m_parts;
 }
 
 
-void RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &global_torque, const int step,
+void 
+RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &global_torque, const int step,
 						const double dt, float3 * cg, float3 * trans, float * steprot)
 {
 	if (step == 1) {
 		double dt2 = dt/2.0;
 		double dt4 = dt/4.0;
-		EulerParameters & ep = m_ep[0];
-		EulerParameters & ep_pred = m_ep[1];
+		EulerParameters& ep = m_ep[0];
+		EulerParameters& ep_pred = m_ep[1];
 
 		ep.ComputeRot();
 		float3 torque = ep.TransposeRot(global_torque);
@@ -181,12 +182,13 @@ void RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float
 		trans->y = (float) vydt;
 		trans->z = (float) vzdt;
 
-		m_current_cg = m_cg + 3;
+		m_current_cg.SetCoord(&m_cg[3]);
+		m_current_ep = &ep_pred;
 	}
 	else if (step == 2) {
 		double dt2 = dt/2.0;
-		EulerParameters & ep = m_ep[0];
-		EulerParameters & ep_pred = m_ep[1];
+		EulerParameters& ep = m_ep[0];
+		EulerParameters& ep_pred = m_ep[1];
 
 		ep_pred.ComputeRot();
 		float3 torque = ep_pred.TransposeRot(global_torque);
@@ -222,15 +224,39 @@ void RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float
 		trans->y = (float) (vydt);
 		trans->z = (float) (vzdt);
 
-		m_current_cg = m_cg;
+		m_current_cg.SetCoord(&m_cg[0]);
+		m_current_ep = &ep;
 	}
 
 }
 
 
-void RigidBody::GetCG(float3 & cg)
+void 
+RigidBody::GetCG(float3& cg) const
 {
-	cg.x = (float) m_current_cg[0];
-	cg.y = (float) m_current_cg[1];
-	cg.z = (float) m_current_cg[2];
+	cg.x = (float) m_current_cg(0);
+	cg.y = (float) m_current_cg(1);
+	cg.z = (float) m_current_cg(2);
+}
+
+
+const Point& 
+RigidBody::GetCG(void) const
+{
+	return m_current_cg;
+}
+
+
+const EulerParameters& 
+RigidBody::GetEulerParameters(void) const
+{
+	return *m_current_ep;
+}
+
+
+void 
+RigidBody::GLDraw(void) const
+{
+	if (m_object)
+		m_object->GLDraw(*m_current_ep, m_current_cg);
 }

@@ -181,6 +181,10 @@ Problem::allocate_bodies(const int i)
 RigidBody* 
 Problem::get_body(const int i)
 {
+	if (i >= m_simparams.numbodies) {
+		cout << "get_body: body number " << i << " >= numbodies";
+		exit(1);
+	}
 	return &m_bodies[i];
 }
 

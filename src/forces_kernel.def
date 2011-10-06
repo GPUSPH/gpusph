@@ -324,17 +324,16 @@ FORCES_CUDA_KERNEL
     	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				// TODO: multi objects
-				if (r < influenceradius && !OBJECT(neib_info)) {
-					float DvDt = neib_pos.w*LJForce(r);
-					// The code below is notr workink, why ???
-//					if (FLUID(neib_info))
-//						DvDt = neib_pos.w*LJForce(r);
-//					else if (OBJECT(neib_info) && (object(info) != object(neib_info)))
-//						DvDt = LJForce(r);		// TODO: apply friction between objects
-//					else if (BOUNDARY(neib_info))
-//						DvDt = LJForce(r);		// TODO: choose a better ceofficient ?
-//					else
-//						break;
+				if (r < influenceradius) {
+					float DvDt = 0.0;
+
+					if (FLUID(neib_info) && !OBJECT(neib_info))
+						DvDt = neib_pos.w*LJForce(r);
+					if (OBJECT(neib_info) && (object(info) != object(neib_info)))
+						DvDt = d_objectobjectdf*LJForce(r);		// TODO: apply friction between objects
+					if (BOUNDARY(neib_info))
+						DvDt = d_objectboundarydf*LJForce(r);		// TODO: choose a better ceofficient ?
+
 					force.x += DvDt*relPos.x;
 					force.y += DvDt*relPos.y;
 					force.z += DvDt*relPos.z;

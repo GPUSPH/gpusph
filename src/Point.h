@@ -60,6 +60,8 @@ class Point {
 		Point(double *);
 		~Point(void) {};
 
+		void SetCoord(double *);
+		
 		/*! \name
 			Distance calculation
 		*/
@@ -80,7 +82,7 @@ class Point {
 		Point   &operator+=(const Point &);
 		Point   &operator+=(const Vector &);
 		Point   &operator-=(const Point &);
-		Point &operator-=(const Vector &);
+		Point	&operator-=(const Vector &);
 		Point	&operator*=(double);
 		Point	&operator/=(double);
 		double  &operator()(int);
