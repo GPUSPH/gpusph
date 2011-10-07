@@ -35,17 +35,19 @@
 #include "Problem.h"
 #include "Point.h"
 #include "Cube.h"
+#include "Sphere.h"
 
 
 class DamBreakObjects: public Problem {
 	private:
 		Cube		experiment_box;
 		Cube		obstacle, object1, object2;
+		Sphere		object3;
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	obstacle_parts;
-		float		H;				// still water level
-		float		lx, ly, lz;		// dimension of experiment box
+		double		H;				// still water level
+		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
 		
 

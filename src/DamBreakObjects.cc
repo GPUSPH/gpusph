@@ -45,14 +45,14 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	H = 0.4;
 	
 	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_origin = make_float3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
+	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
@@ -64,7 +64,7 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f;
+	m_simparams.tend = 1.5;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = true;
@@ -74,12 +74,12 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Physical parameters
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, sqrtf(300.0f*g*H));
+	m_physparams.set_density(0, 1000.0, 7.0, sqrtf(300.0*g*H));
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0f*g*H;
+	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
 	
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
@@ -89,12 +89,12 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
 	
-	m_physparams.kinematicvisc = 1.0e-6f;
-	m_physparams.artvisccoeff = 0.3f;
+	m_physparams.kinematicvisc = 1.0e-6;
+	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	
 	// Allocate data for floating bodies
-	allocate_bodies(2);
+	allocate_bodies(3);
 	
 	// Scales for drawing
 	m_maxrho = density(H,0);
@@ -168,18 +168,25 @@ int DamBreakObjects::fill_parts()
 	// Rigid body #1
 	Point rb_cg = Point(0.2, 0.335, 0.4);
 	double l = 0.1, w = 0.1, h = 0.1;
-	object1 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters(0.0, 0.0, 0.0));
+	object1 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
 	object1.SetPartMass(r0, m_physparams.rho0[0]*0.7);
 	object1.SetMass(r0, m_physparams.rho0[0]*0.7);
 	object1.Inertia(r0);
 	object1.Unfill(parts, r0);
 	
 	rb_cg = Point(0.7, 0.335, h/2 + 2*r0);
-	object2 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters(0.0, 0.0, 0.0));
+	object2 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
 	object2.SetPartMass(r0, m_physparams.rho0[0]*0.3);
 	object2.SetMass(r0, m_physparams.rho0[0]*0.3);
 	object2.Inertia(r0);
 	object2.Unfill(parts, r0);
+	
+	rb_cg = Point(0.6, 0.1, 0.05 + r0);
+	object3 = Sphere(rb_cg, 0.05);
+	object3.SetPartMass(r0, m_physparams.rho0[0]*0.6);
+	object3.SetMass(r0, m_physparams.rho0[0]*0.6);
+	object3.Inertia(r0);
+	object3.Unfill(parts, r0);
 	
 	RigidBody* rigid_body = get_body(0);
 	rigid_body->AttachObject(&object1);
@@ -189,6 +196,11 @@ int DamBreakObjects::fill_parts()
 	rigid_body = get_body(1);
 	rigid_body->AttachObject(&object2);
 	object2.FillBorder(rigid_body->GetParts(), r0, true);
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
+	
+	rigid_body = get_body(2);
+	rigid_body->AttachObject(&object3);
+	object3.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
 	
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
