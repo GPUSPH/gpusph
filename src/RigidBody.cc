@@ -86,6 +86,7 @@ void RigidBody::SetInertialFrameData(const Point& cg, const double* inertia,
 
 	m_ep[0] = ep;
 	m_current_ep = &m_ep[0];
+	m_ep[0].ComputeRot();
 }
 
 
@@ -97,6 +98,7 @@ RigidBody::AttachObject(Object* object)
 	object->GetInertialFrameData(&m_cg[0], m_mass, &m_inertia[0], m_ep[0]);
 	m_current_cg.SetCoord(&m_cg[0]);
 	m_current_ep = &m_ep[0];
+	m_ep[0].ComputeRot();
 }
 
 
@@ -148,7 +150,7 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		EulerParameters& ep = m_ep[0];
 		EulerParameters& ep_pred = m_ep[1];
 
-		ep.ComputeRot();
+		// ep.ComputeRot() is computed at step 2 or before start
 		float3 torque = ep.TransposeRot(global_torque);
 
 		m_omega[3] = m_omega[0] + ((double) torque.x - (m_inertia[2] - m_inertia[1])*m_omega[2]*m_omega[1])*dt2/m_inertia[0];
@@ -160,6 +162,8 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		ep_pred(2) = ep(2) + (ep(3)*m_omega[0] + ep(0)*m_omega[1] + ep(1)*m_omega[2])*dt4;
 		ep_pred(3) = ep(3) + (-ep(2)*m_omega[0] + ep(1)*m_omega[1] + ep(0)*m_omega[2])*dt4;
 
+		ep_pred.Normalize();
+		ep_pred.ComputeRot();
 		ep_pred.StepRotation(ep, steprot);
 				
 		m_vel[3] = m_vel[0] + (force.x/m_mass + gravity.x)*dt2;
@@ -190,7 +194,7 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		EulerParameters& ep = m_ep[0];
 		EulerParameters& ep_pred = m_ep[1];
 
-		ep_pred.ComputeRot();
+		// ep_pred.ComputeRot() is computed at step 1
 		float3 torque = ep_pred.TransposeRot(global_torque);
 
 		m_omega[0] = m_omega[0] + ((double) torque.x - (m_inertia[2] - m_inertia[1])*m_omega[5]*m_omega[4])*dt/m_inertia[0];
@@ -202,6 +206,8 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		ep(2) = ep(2) + (ep_pred(3)*m_omega[0] + ep_pred(0)*m_omega[1] + ep_pred(1)*m_omega[2])*dt2;
 		ep(3) = ep(3) + (-ep_pred(2)*m_omega[0] + ep_pred(1)*m_omega[1] + ep_pred(0)*m_omega[2])*dt2;
 
+		ep.Normalize();
+		ep.ComputeRot();
 		ep.StepRotation(ep_pred, steprot);
 
 		m_vel[0] = m_vel[0] + (force.x/m_mass + gravity.x)*dt;
