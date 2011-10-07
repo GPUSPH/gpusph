@@ -141,10 +141,10 @@ int DamBreakObjects::fill_parts()
 					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
 
 	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
-				Vector(0, ly - 2*r0, 0), Vector(0, 0, 0.4 - r0));
+				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 	
 	if (wet) {
-		fluid1 = Cube(Point(0.4 + m_deltap + r0 , r0, r0), Vector(lx - 0.4 - m_deltap - 2*r0, 0, 0),
+		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
 	}
 
@@ -166,7 +166,7 @@ int DamBreakObjects::fill_parts()
 	}
 
 	// Rigid body #1
-	Point rb_cg = Point(0.2, 0.335, 0.4);
+	Point rb_cg = Point(0.2, 0.335, H);
 	double l = 0.1, w = 0.1, h = 0.1;
 	object1 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
 	object1.SetPartMass(r0, m_physparams.rho0[0]*0.7);
