@@ -283,101 +283,31 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 
 
 /*!	Compute rotation matrix between the current object and another Euler paramters.
- *  The rsult \f$R(q).R(previous)^t\f$ is stored in the array pointed by res 
+ *  The result \f$R(q).R(previous)^t\f$ is stored in the array pointed by res 
  *	\param previous : previous EulerParameters
  *	\param res : pointer to rotation matrix
+ * 
+ *  Beware: this method use the rotation matrix associated with each Euler parameters.
+ *  Those matrix should be computed before calling the method.
 */
-void EulerParameters::StepRotation(const EulerParameters *previous, float *res) const
-{
-	double temp_ep[4];
-
-	// First we compute ep*(-previous)
-	// note: -previous = (ep0, -ep1, -ep2, -ep3)
-
-	// Assuming that: ep={a0, a1, a2, a3} and -previous={b0, -b1, -b2, -b3} we have
-	// temp_ep[0] = a0 b0 + a1 b1 + a2 b2 + a3 b3
-	temp_ep[0] = m_ep[0]*previous->m_ep[0] + m_ep[1]*previous->m_ep[1] + m_ep[2]*previous->m_ep[2] + m_ep[3]*previous->m_ep[3];
-	// temp_ep[1] = a1 b0 - a0 b1 + a3 b2 - a2 b3
-	temp_ep[1] = m_ep[1]*previous->m_ep[0] - m_ep[0]*previous->m_ep[1] + m_ep[3]*previous->m_ep[2] - m_ep[2]*previous->m_ep[3];	
-	// temp_ep[2] = a2 b0 - a3 b1 - a0 b2 + a1 b3
-	temp_ep[2] = m_ep[2]*previous->m_ep[0] - m_ep[3]*previous->m_ep[1] - m_ep[0]*previous->m_ep[2] + m_ep[1]*previous->m_ep[3];
-	// temp_ep[3] = a3 b0 + a2 b1 - a1 b2 - a0 b3	
-	temp_ep[3] = m_ep[3]*previous->m_ep[0] + m_ep[2]*previous->m_ep[1] - m_ep[1]*previous->m_ep[2] - m_ep[0]*previous->m_ep[3];
-
-	
-	// Then we compute the associated rotation matrix
-	double temp = 2.0*temp_ep[2]*temp_ep[2];		// 2.0*p2^2
-	res[0] = (float) (1.0 - temp);					// r00 = 1 - 2 p2^2
-	res[8] = (float) (1 - temp);					// r33 = 1 - 2 p2^2
-	temp = 2.0*temp_ep[3]*temp_ep[3];				// 2.0*p3^2
-	res[0] -= (float) temp;							// r11 = 1 - 2 (p2^2 + p3^2)
-	res[4] = (float) (1 - temp);					// r22 = 1 - 2 p3^2
-	temp = 2.0*temp_ep[1]*temp_ep[1];				// 2.0*p1^2
-	res[4] -= (float) temp;							// r22 = 1 - 2(p1^2 + p3^2)
-	res[8] -= (float) temp;							// r33 = 1 - 2 (p1^2+ p2^2)
-
-	temp = 2.0*temp_ep[0]*temp_ep[1];			// 2.0*p0p1
-	res[5] = (float) (- temp);							// r23 =  - 2p0p1
-	res[7] = (float) temp;								// r32 = 2p0p1
-	temp = 2.0*temp_ep[0]*temp_ep[2];			// 2.0*p0p2
-	res[2] = (float) temp;								// r13 = 2 p0p2
-	res[6] = (float) (- temp);								// r31 = - 2 p0p2
-	temp = 2.0*temp_ep[0]*temp_ep[3];			// 2.0*p0p3
-	res[1] = (float) (- temp);							// r12 = - 2 p0p3
-	res[3] = (float) temp;								// r21 = 2 p0p3
-	temp = 2.0*temp_ep[1]*temp_ep[2];			// 2.0*p1p2
-	res[1] += (float) temp;								// r12 =2(p1p2 - p0p3)
-	res[3] += (float) temp;								// r21 = 2(p1p2 + p0p3)
-	temp = 2.0*temp_ep[1]*temp_ep[3];			// 2.0*p1p3
-	res[2] += (float) temp;								// r13 = 2(p1p3 + p0p2)
-	res[6] += (float) temp;								// r31 = 2(p1p3 - p0p2)
-	temp = 2.0*temp_ep[2]*temp_ep[3];			// 2.0*p2p3
-	res[5] += (float) temp;								// r23 =  2(p2p3 - p0p1)
-	res[7] += (float) temp;								// r32 = 2(p2p3 + p0p1)
-}
-
-
-
 void EulerParameters::StepRotation(const EulerParameters & previous, float *res) const
 {
-	double temp_ep[4];
-
-	// First we compute ep*(-previous)
-	// note: -previous = (ep0, -ep1, -ep2, -ep3)
-	temp_ep[0] = m_ep[0]*previous.m_ep[0] + m_ep[1]*previous.m_ep[1] + m_ep[2]*previous.m_ep[2] + m_ep[3]*previous.m_ep[3];
-	temp_ep[1] = m_ep[1]*previous.m_ep[0] - m_ep[0]*previous.m_ep[1] + m_ep[3]*previous.m_ep[2] - m_ep[2]*previous.m_ep[3];	
-	temp_ep[2] = m_ep[2]*previous.m_ep[0] - m_ep[3]*previous.m_ep[1] - m_ep[0]*previous.m_ep[2] + m_ep[1]*previous.m_ep[3];
-	temp_ep[3] = m_ep[3]*previous.m_ep[0] + m_ep[2]*previous.m_ep[1] - m_ep[1]*previous.m_ep[2] - m_ep[0]*previous.m_ep[3];
+	/*
+	 | 0 1 2 | | 0 1 2 |t  | 0 1 2 | | 0 3 6 |
+	 | 3 4 5 | | 3 4 5 | = | 3 4 5 | | 1 4 7 |
+	 | 6 7 8 | | 6 7 8 |   | 6 7 8 | | 2 5 8 |
+	 */
+	res[0] = (float) (m_rot[0]*previous.m_rot[0] + m_rot[1]*previous.m_rot[1] + m_rot[2]*previous.m_rot[2]);
+	res[1] = (float) (m_rot[0]*previous.m_rot[3] + m_rot[1]*previous.m_rot[4] + m_rot[2]*previous.m_rot[5]);
+	res[2] = (float) (m_rot[0]*previous.m_rot[6] + m_rot[1]*previous.m_rot[7] + m_rot[2]*previous.m_rot[8]);
 	
-	// Then we compute the associated rotation matrix
-	double temp = 2.0*temp_ep[2]*temp_ep[2];		// 2.0*p2^2
-	res[0] = (float) (1.0 - temp);					// r11 = 1 - 2 p2^2
-	res[8] = (float) (1 - temp);					// r33 = 1 - 2 p2^2
-	temp = 2.0*temp_ep[3]*temp_ep[3];				// 2.0*p3^2
-	res[0] -= (float) temp;							// r11 = 1 - 2 (p2^2 + p3^2)
-	res[4] = (float) (1 - temp);					// r22 = 1 - 2 p3^2
-	temp = 2.0*temp_ep[1]*temp_ep[1];				// 2.0*p1^2
-	res[4] -= (float) temp;							// r22 = 1 - 2(p1^2 + p3^2)
-	res[8] -= (float) temp;							// r33 = 1 - 2 (p1^2+ p2^2)
-
-	temp = 2.0*temp_ep[0]*temp_ep[1];				// 2.0*p0p1
-	res[5] = (float) (- temp);						// r23 =  - 2p0p1
-	res[7] = (float) temp;							// r32 = 2p0p1
-	temp = 2.0*temp_ep[0]*temp_ep[2];				// 2.0*p0p2
-	res[2] = (float) temp;							// r13 = 2 p0p2
-	res[6] = (float) (- temp);						// r31 = - 2 p0p2
-	temp = 2.0*temp_ep[0]*temp_ep[3];				// 2.0*p0p3
-	res[1] = (float) (- temp);						// r12 = - 2 p0p3
-	res[3] = (float) temp;							// r21 = 2 p0p3
-	temp = 2.0*temp_ep[1]*temp_ep[2];				// 2.0*p1p2
-	res[1] += (float) temp;							// r12 =2(p1p2 - p0p3)
-	res[3] += (float) temp;							// r21 = 2(p1p2 + p0p3)
-	temp = 2.0*temp_ep[1]*temp_ep[3];				// 2.0*p1p3
-	res[2] += (float) temp;							// r13 = 2(p1p3 + p0p2)
-	res[6] += (float) temp;							// r31 = 2(p1p3 - p0p2)
-	temp = 2.0*temp_ep[2]*temp_ep[3];				// 2.0*p2p3
-	res[5] += (float) temp;							// r23 =  2(p2p3 - p0p1)
-	res[7] += (float) temp;							// r32 = 2(p2p3 + p0p1)
+	res[3] = (float) (m_rot[3]*previous.m_rot[0] + m_rot[4]*previous.m_rot[1] + m_rot[5]*previous.m_rot[2]);
+	res[4] = (float) (m_rot[3]*previous.m_rot[3] + m_rot[4]*previous.m_rot[4] + m_rot[5]*previous.m_rot[5]);
+	res[5] = (float) (m_rot[3]*previous.m_rot[6] + m_rot[4]*previous.m_rot[7] + m_rot[5]*previous.m_rot[8]);
+	
+	res[6] = (float) (m_rot[6]*previous.m_rot[0] + m_rot[7]*previous.m_rot[1] + m_rot[8]*previous.m_rot[2]);
+	res[7] = (float) (m_rot[6]*previous.m_rot[3] + m_rot[7]*previous.m_rot[4] + m_rot[8]*previous.m_rot[5]);
+	res[8] = (float) (m_rot[6]*previous.m_rot[6] + m_rot[7]*previous.m_rot[7] + m_rot[8]*previous.m_rot[8]);
 }
 
 

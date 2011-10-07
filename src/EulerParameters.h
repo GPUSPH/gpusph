@@ -81,7 +81,6 @@ class EulerParameters {
 		
 		/// \name Rotation matrix between two Euler parameters
 		//@{
-		void StepRotation(const EulerParameters *, float *) const;
 		void StepRotation(const EulerParameters &, float *) const;
 		//@}
 		
