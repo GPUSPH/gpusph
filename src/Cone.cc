@@ -80,7 +80,7 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
 					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
 	
-	m_center = m_origin + m_ep.Rot(m_hg*Vector(0, 0, 1));
+	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
 }
 
 
@@ -103,13 +103,16 @@ Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radius
 	
 	Vector v(0, 0, 1);
 	const double angle = acos(height*v/m_h);
-	m_ep = EulerParameters(height.cross(v), angle);
+	Vector rotdir = height.cross(v);
+	if (rotdir.norm() == 0)
+		rotdir = Vector(0, 1, 0);
+	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
 	
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
 					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
 	
-	m_center = m_origin + m_hg*height;
+	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
 	
 }
 
@@ -192,7 +195,7 @@ Cone::IsInside(const Point& p, const double dx) const
 void
 Cone::GLDraw(const EulerParameters& ep, const Point &cg) const
 {
-	Point origin = cg - ep.Rot(m_hg*Vector(0, 0, 1));
+	Point origin = cg - m_hg*ep.Rot(Vector(0, 0, 1));
 	
 	#define CIRCLES_NUM 6
 	#define LINES_NUM	10
