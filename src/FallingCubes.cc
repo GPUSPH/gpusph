@@ -38,10 +38,16 @@
 #include "RigidBody.h"
 #include "EulerParameters.h"
 
+
 FallingCubes::FallingCubes(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(1.6f, 0.67f, 2.0f);
+	lx = 1.6;
+	ly = 0.67;
+	lz = 0.6;	
+	H = 0.4;
+	
+	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0f, 0.0f, 0.0f);
 
 	m_writerType = VTKWRITER;
@@ -71,13 +77,12 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Physical parameters
-	H = 0.4f;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0f, 30.0f);
+	m_physparams.set_density(0, 1000.0, 7.0, 30.0);
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0f*g*H;
+	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
@@ -87,8 +92,8 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc = 1.0e-6f;
-	m_physparams.artvisccoeff = 0.3f;
+	m_physparams.kinematicvisc = 1.0e-6;
+	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Allocate data for floating bodies
@@ -102,7 +107,7 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	m_maxvel = 1.0f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.01f;
+	m_displayinterval = 0.01;
 	m_writefreq = 50;
 	m_screenshotfreq = 0;
 
@@ -131,11 +136,11 @@ int FallingCubes::fill_parts()
 
 	Cube fluid;
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(1.6, 0, 0),
-						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
+	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
+						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	fluid = Cube(Point(r0, r0, r0), Vector(1.6 - 2*r0, 0, 0),
-				Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.4 - r0));
+	fluid = Cube(Point(r0, r0, r0), Vector(lx - 2*r0, 0, 0),
+				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
@@ -147,14 +152,14 @@ int FallingCubes::fill_parts()
 	fluid.Fill(parts, m_deltap, true);
 
 	// Rigid body #1
-	Point rb_cg = Point(0.4, 0.4, 0.55);
+	Point rb_cg = Point(0.4, 0.4, H + 0.15);
 	double l = 0.1, w = 0.1, h = 0.1;
 	cube[0] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
 	l += m_deltap/2.0;
 	w += m_deltap/2.0;
 	h += m_deltap/2.0;
-	double rb_density = 1000;
+	double rb_density = m_physparams.rho0[0];
 	double rb_mass = l*w*h*rb_density;
 	double SetInertia[3] = {rb_mass*(w*w + h*h)/12.0, rb_mass*(l*l + h*h)/12.0, rb_mass*(w*w + l*l)/12.0};
 
@@ -167,59 +172,46 @@ int FallingCubes::fill_parts()
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, -2.0), Vector(0.0, 0.0, 0.0));
 	
 	// Rigid body #2
-	rb_cg = Point(0.7, 0.4, 0.55);
+	rb_cg = Point(0.7, 0.4, H + 0.15);
 	l = 0.1, w = 0.2, h = 0.1;
 	cube[1] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
-	l += m_deltap/2.0;
-	w += m_deltap/2.0;
-	h += m_deltap/2.0;
-	rb_density = 1050;
-	rb_mass = l*w*h*rb_density;
-	SetInertia[0] = rb_mass*(w*w + h*h)/12.0;
-	SetInertia[1] = rb_mass*(l*l + h*h)/12.0;
-	SetInertia[2] = rb_mass*(w*w + l*l)/12.0;
+	cube[1].SetPartMass(r0, m_physparams.rho0[0]*0.9);
+	cube[1].SetMass(r0, m_physparams.rho0[0]*0.9);
+	cube[1].SetInertia(r0);
 
 	rigid_body = get_body(1);
-	PointVect & rbparts2 = rigid_body->GetParts();
-	cube[1].FillBorder(rbparts2, r0, true);
-
-	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, SetInertia, rb_mass, EulerParameters());
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, -1.0), Vector(0.0, 0.0, 0.0));
+	rigid_body->AttachObject(&cube[1]);
+	cube[1].FillBorder(rigid_body->GetParts(), r0, true);
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.2, 1.0, -2.5));
 
 	// Rigid body #3
-	rb_cg = Point(1.3, 0.2, 0.55);
 	l = 0.1, w = 0.1, h = 0.2;
+	rb_cg = Point(1.3, 0.2, H + 0.15);
 	cube[2] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
-	l += m_deltap/2.0;
-	w += m_deltap/2.0;
-	h += m_deltap/2.0;
-	rb_density = 950;
-	rb_mass = l*w*h*rb_density;
-	
-	SetInertia[0] = rb_mass*(w*w + h*h)/12.0;
-	SetInertia[1] = rb_mass*(l*l + h*h)/12.0;
-	SetInertia[2] = rb_mass*(w*w + l*l)/12.0;
+	cube[2].SetPartMass(r0, m_physparams.rho0[0]*0.2);
+	cube[2].SetMass(r0, m_physparams.rho0[0]*0.2);
+	cube[2].SetInertia(r0);
+	cube[2].Unfill(parts, r0);
 
 	rigid_body = get_body(2);
-	PointVect & rbparts3 = rigid_body->GetParts();
-	cube[2].FillBorder(rbparts3, r0, true);
+	rigid_body->AttachObject(&cube[2]);
+	cube[2].FillBorder(rigid_body->GetParts(), r0, true);
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
 
-	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, SetInertia, rb_mass, EulerParameters());
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, -3.0), Vector(0.0, 0.0, 0.0));
-
-
-	return parts.size() + boundary_parts.size() + rbparts1.size() + rbparts2.size() + rbparts3.size();
+	return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
 
 void FallingCubes::draw_boundary(float t)
 {
 	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
+	experiment_box.GLDraw();	
+	glColor3f(1.0, 0.0, 0.0);
+	cube[0].GLDraw();
+	for (int i = 0; i < m_simparams.numbodies; i++)
+		get_body(i)->GLDraw();
 }
 
 

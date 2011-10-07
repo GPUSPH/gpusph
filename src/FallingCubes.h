@@ -20,6 +20,7 @@ class FallingCubes: public Problem {
 		PointVect	parts;
 		PointVect	boundary_parts;
 		float		H;  // still water level
+		double		lx, ly, lz;		// dimension of experiment box
 
 	public:
 		FallingCubes(const Options &);
