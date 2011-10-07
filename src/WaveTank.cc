@@ -25,7 +25,6 @@
 
 #include <math.h>
 #include <iostream>
-#include <stdexcept>
 #ifdef __APPLE__
 #include <OpenGl/gl.h>
 #else
@@ -34,6 +33,7 @@
 
 #include "WaveTank.h"
 #include "particledefine.h"
+
 
 #define MK_par 2
 
@@ -195,8 +195,7 @@ int WaveTank::fill_parts()
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	Rect paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*mbpaddledata.sintheta, 0,
-						paddle_length*mbpaddledata.costheta));
+				Vector(paddle_length*mbpaddledata.sintheta, 0, paddle_length*mbpaddledata.costheta));
 
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
@@ -272,7 +271,6 @@ int WaveTank::fill_parts()
 
 uint WaveTank::fill_planes()
 {
-
     if (use_bottom_plane) {
 		return 5;
 		}
