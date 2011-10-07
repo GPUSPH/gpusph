@@ -27,7 +27,6 @@
 #include <iostream>
 
 #include "Cone.h"
-#include "Circle.h"
 
 
 Cone::Cone(void)
@@ -153,11 +152,11 @@ Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bo
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
-		FillCircleBorder(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+		FillDiskBorder(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
 	if (bottom)
-		FillCircle(points, m_ep, m_origin, m_rb - dx, 0.0, dx, 0.0);
+		FillDisk(points, m_ep, m_origin, m_rb - dx, 0.0, dx, 0.0);
 	if (top)
-		FillCircle(points, m_ep, m_origin, m_rt - dx, nz*dz, dx, 0.0);
+		FillDisk(points, m_ep, m_origin, m_rt - dx, nz*dz, dx, 0.0);
 }
 
 
@@ -169,7 +168,7 @@ Cone::Fill(PointVect& points, const double dx, const bool fill)
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
-		nparts += FillCircle(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
 	
 	return nparts;
 }

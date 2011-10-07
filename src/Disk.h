@@ -23,24 +23,24 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _CIRCLE_H
-#define	_CIRCLE_H
+#ifndef _DISK_H
+#define	_DISK_H
 
 #include "Object.h"
 #include "Point.h"
 #include "Vector.h"
 
 
-class Circle: public Object {
+class Disk: public Object {
 	private:
 		double	m_r;
 
 	public:
-		Circle(void);
-		Circle(const Point&, const double, const Vector&);
-		Circle(const Point&, const double, const EulerParameters&);
-		Circle(const Point&, const Vector&, const Vector &);
-		~Circle(void) {};
+		Disk(void);
+		Disk(const Point&, const double, const Vector&);
+		Disk(const Point&, const double, const EulerParameters&);
+		Disk(const Point&, const Vector&, const Vector &);
+		~Disk(void) {};
 		
 		double Volume(const double) const;
 		void Inertia(const double);

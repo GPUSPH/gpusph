@@ -82,10 +82,10 @@ Torus::FillBorder(PointVect& points, const double dx)
 	const double dz = m_r/nz;
 	
 	for (int i = - nz; i <= nz; i++) {
-		FillCircleBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+		FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
   	 }
 	for (int i = - nz + 1; i < nz; i++) {
-		FillCircleBorder(points, m_ep, m_center, m_R - sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+		FillDiskBorder(points, m_ep, m_center, m_R - sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
   	 }
 }
 
@@ -97,10 +97,10 @@ Torus::Fill(PointVect& points, const double dx, const bool fill)
 	const int nz = (int) ceil(m_r/dx);
 	const double dz = m_r/nz;
 	
-	FillCircleBorder(points, m_ep, m_center, m_R, -nz*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
-	FillCircleBorder(points, m_ep, m_center, m_R, nz*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+	FillDiskBorder(points, m_ep, m_center, m_R, -nz*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+	FillDiskBorder(points, m_ep, m_center, m_R, nz*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
 	for (int i = - nz + 1; i < nz; i++) {
-		nparts += FillCircle(points, m_ep, m_center, m_R - sqrt(m_r*m_r - i*dz*i*dz), 
+		nparts += FillDisk(points, m_ep, m_center, m_R - sqrt(m_r*m_r - i*dz*i*dz), 
 					m_R + sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, fill);
   	 }
 	

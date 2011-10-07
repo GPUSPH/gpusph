@@ -269,14 +269,14 @@ Object::Fill(PointVect& points, const double dx)
  *	\return number of particles needed to fill the object
  */
 int
-Object::FillCircle(PointVect& points, const EulerParameters& ep, const Point& center, 
+Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& center, 
 		const double r, const double z, const double dx, const bool fill) const
 {
 	const int nr = (int) ceil(r/dx);
 	const double dr = r/nr;
 	int nparts = 0;
 	for (int i = 0; i <= nr; i++)
-		nparts += FillCircleBorder(points, ep, center, i*dr, z, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+		nparts += FillDiskBorder(points, ep, center, i*dr, z, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
 	
 	return nparts;
 }
@@ -299,14 +299,14 @@ Object::FillCircle(PointVect& points, const EulerParameters& ep, const Point& ce
  *	\return number of particles needed to fill the object
  */
 int
-Object::FillCircle(PointVect& points, const EulerParameters& ep, const Point& center, const double rmin, 
+Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& center, const double rmin, 
 		const double rmax, const double z, const double dx, const bool fill) const
 {
 	const int nr = (int) ceil((rmax - rmin)/dx);
 	const double dr = (rmax - rmin)/nr;
 	int nparts = 0;
 	for (int i = 0; i <= nr; i++)
-		nparts += FillCircleBorder(points, ep, center, rmin + i*dr, z, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+		nparts += FillDiskBorder(points, ep, center, rmin + i*dr, z, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
 	
 	return nparts;
 }
@@ -331,7 +331,7 @@ Object::FillCircle(PointVect& points, const EulerParameters& ep, const Point& ce
  *	\return number of particles needed to fill the object
  */
 int
-Object::FillCircleBorder(PointVect& points, const EulerParameters& ep, const Point& center, 
+Object::FillDiskBorder(PointVect& points, const EulerParameters& ep, const Point& center, 
 		const double r, const double z, const double dx, const double theta0, const bool fill) const
 {
 	const int np = (int) ceil(2.0*M_PI*r/dx);

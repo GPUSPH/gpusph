@@ -34,7 +34,7 @@
 #include "Vector.h"
 #include "Cone.h"
 #include "Torus.h"
-#include "Circle.h"
+#include "Disk.h"
 #include "Sphere.h"
 #include "Cone.h"
 
@@ -52,7 +52,7 @@ class EnergyGenerator: public Problem {
 
 		Cylinder	cyl1, cyl2;
 		Torus		torus;
-		Circle		circle;
+		Disk		disk;
 		Sphere		sphere;
 		Cone		cone;
 		Cube		cube1, cube2;

@@ -77,7 +77,7 @@ Sphere::FillBorder(PointVect& points, const double dx)
 	const double dtheta = M_PI/nc;
 
   	for (int i = - nc; i <= nc; ++i) {
-		FillCircleBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
+		FillDiskBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
   	 }
 }
 
@@ -91,7 +91,7 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 	const double dtheta = M_PI/nc;
 
   	for (int i = - nc; i <= nc; ++i) {
-		nparts += FillCircle(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+		nparts += FillDisk(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX, fill);
   	 }
 	
 	return nparts;

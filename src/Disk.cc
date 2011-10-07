@@ -26,17 +26,17 @@
 #include <math.h>
 #include <iostream>
 
-#include "Circle.h"
+#include "Disk.h"
 
 
-Circle::Circle(void)
+Disk::Disk(void)
 {
 	m_center = Point();
 	m_r = 0.0;
 }
 
 
-Circle::Circle(const Point& center, double radius, const Vector& normaldir)
+Disk::Disk(const Point& center, double radius, const Vector& normaldir)
 {
 	m_center = center;
 	m_r = radius;
@@ -53,7 +53,7 @@ Circle::Circle(const Point& center, double radius, const Vector& normaldir)
 }
 
 
-Circle::Circle(const Point& center, double radius, const EulerParameters& ep)
+Disk::Disk(const Point& center, double radius, const EulerParameters& ep)
 {
 	m_center = center;
 	m_r = radius;
@@ -63,7 +63,7 @@ Circle::Circle(const Point& center, double radius, const EulerParameters& ep)
 }
 
 
-Circle::Circle(const Point& center, const Vector& radius, const Vector& normaldir)
+Disk::Disk(const Point& center, const Vector& radius, const Vector& normaldir)
 {
 	if (radius*normaldir > 1.e-8*radius.norm()*normaldir.norm()) {
 		std::cout << "Trying to construct a disk with non perpendicular radius and normal direction\n";
@@ -87,7 +87,7 @@ Circle::Circle(const Point& center, const Vector& radius, const Vector& normaldi
 
 
 double
-Circle::Volume(const double dx) const
+Disk::Volume(const double dx) const
 {
 	const double r = m_r + dx/2.0;
 	const double volume = M_PI*r*r*dx;
@@ -96,7 +96,7 @@ Circle::Volume(const double dx) const
 
 
 void
-Circle::Inertia(const double dx)
+Disk::Inertia(const double dx)
 {	
 	const double r = m_r + dx/2.0;
 	const double h = dx;
@@ -106,21 +106,21 @@ Circle::Inertia(const double dx)
 }
 
 void
-Circle::FillBorder(PointVect& points, const double dx)
+Disk::FillBorder(PointVect& points, const double dx)
 {
-	FillCircleBorder(points, m_ep, m_center, m_r, 0.0, dx, 0.0);
+	FillDiskBorder(points, m_ep, m_center, m_r, 0.0, dx, 0.0);
 }
 
 
 int
-Circle::Fill(PointVect& points, const double dx, const bool fill)
+Disk::Fill(PointVect& points, const double dx, const bool fill)
 {
-	return FillCircle(points, m_ep, m_center, m_r, 0.0, dx, 0.0, fill);
+	return FillDisk(points, m_ep, m_center, m_r, 0.0, dx, 0.0, fill);
 }
 
 
 bool
-Circle::IsInside(const Point& p, const double dx) const
+Disk::IsInside(const Point& p, const double dx) const
 {
 	Point lp = m_ep.TransposeRot(p - m_center);
 	const double r = m_r + dx;
@@ -133,14 +133,14 @@ Circle::IsInside(const Point& p, const double dx) const
 
 
 void 
-Circle::GLDraw(const EulerParameters& ep, const Point& cg) const
+Disk::GLDraw(const EulerParameters& ep, const Point& cg) const
 {
 	GLDrawCircle(ep, cg, m_r, 0.0);
 }
 
 
 void
-Circle::GLDraw(void) const
+Disk::GLDraw(void) const
 {
 	GLDraw(m_ep, m_center);
 }

@@ -231,10 +231,10 @@ int EnergyGenerator::fill_parts()
 	torus.FillBorder(boundary_parts, br);
 	//torus.Fill(boundary_parts, br);
 
-	circle = Circle(p1 + Vector(1.5, 0, height + 0.2), 0.3, Vector(1, 1, 0));
+	disk = Disk(p1 + Vector(1.5, 0, height + 0.2), 0.3, Vector(1, 1, 0));
 	//circle = Circle(p1 + Vector(0, 0, height + 0.2), Vector(0, 0, 0.3), Vector(1, 1, 0));
 	//circle.FillBorder(boundary_parts, br);	
-	circle.Fill(boundary_parts, br);
+	disk.Fill(boundary_parts, br);
 
 	sphere = Sphere(p1 + Vector(5.5, 0, height + 0.2), 0.3);
 	//sphere.FillBorder(boundary_parts, br);
@@ -335,7 +335,7 @@ void EnergyGenerator::draw_boundary(float t)
 	cyl1.GLDraw();
 	cyl2.GLDraw();
 	torus.GLDraw();
-	circle.GLDraw();
+	disk.GLDraw();
 	sphere.GLDraw();
 	cone.GLDraw();
 	cube1.GLDraw();

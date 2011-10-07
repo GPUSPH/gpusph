@@ -119,11 +119,11 @@ class Object {
 		
 		/// \name Filling functions 
 		//@{
-		int FillCircle(PointVect&, const EulerParameters&, const Point&, const double, 
+		int FillDisk(PointVect&, const EulerParameters&, const Point&, const double, 
 					const double, const double, const bool fill = true) const;		
-		int FillCircle(PointVect&, const EulerParameters&, const Point&, const double, 
+		int FillDisk(PointVect&, const EulerParameters&, const Point&, const double, 
 					const double, const double, const double, const bool fill = true) const;		
-		int FillCircleBorder(PointVect&, const EulerParameters&, const Point&, const double, 
+		int FillDiskBorder(PointVect&, const EulerParameters&, const Point&, const double, 
 					const double, const double, const double, const bool fill = true) const;
 		/// Fill object surface with particles
 		/*!	Fill the object surface with particle at a given particle spacing and add 
