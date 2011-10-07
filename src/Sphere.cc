@@ -145,7 +145,7 @@ Sphere::GLDraw(const EulerParameters& ep, const Point& cg) const
 		glBegin(GL_POLYGON);
 		for (int j = 0; j < CIRCLE_LINES; ++j) {
 			double v = j*angle2;
-			Point p(m_r*cos(v)*cos(u), m_r*cos(v)*sin(u), m_r*sin(v));
+			Point p = ep.Rot(Point(m_r*cos(v)*cos(u), m_r*cos(v)*sin(u), m_r*sin(v)));
 			p += cg;
 			glVertex3f(p(0), p(1), p(2));
 		}
