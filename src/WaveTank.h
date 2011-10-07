@@ -38,26 +38,22 @@
 class WaveTank: public Problem {
 	private:
 		//Testpoints
-		int			icyl, icone, wmakertype, numTestpoints;
+		bool		use_cyl, use_cone, use_bottom_plane;
 		Cube		experiment_box;
-		Rect        experiment_box1;
-		int			i_use_bottom_plane;
-		Point		p1,p2;
+		Rect        bottom_rect;
 		PointVect	parts;
 		PointVect	boundary_parts;
-		PointVect	paddle_parts, gate_parts;
+		PointVect	paddle_parts;
 		PointVect	test_points;
 
-		Cylinder	cyl1, cyl2, cyl3, cyl4;
-		Cylinder	cyl5, cyl6, cyl7;
-		Cylinder	cyl8, cyl9, cyl10;
-		Cylinder	cyl11;
+		Cylinder	cyl[11];
 		Cone 		cone;
-		float		paddle_length;
-		float		paddle_width;
-		float		h_length, height, slope_length, beta;
-	    float		H;		// still water level
-		float		Hbox;	// height of experiment box
+		double		paddle_length;
+		double		paddle_width;
+		double		h_length, height, slope_length, beta;
+	    double		H;		// still water level
+		double		lx, ly, lz;		// dimension of experiment box
+
 
 
 	public:
