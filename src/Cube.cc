@@ -52,7 +52,7 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
 	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
 	
-	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.5*m_lz));
+	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
 	m_origin.print();
 	m_center.print();
 }
@@ -331,7 +331,7 @@ Cube::IsInside(const Point& p, const double dx) const
 void
 Cube::GLDraw(const EulerParameters& ep, const Point& cg) const
 {
-	Point origin = cg - ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.5*m_lz));
+	Point origin = cg - 0.5*ep.Rot(Vector(m_lx, m_ly, m_lz));
 	
 	Point p1, p2, p3, p4;
 	p1 = Point(0, 0, 0);
