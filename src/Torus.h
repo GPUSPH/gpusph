@@ -25,7 +25,7 @@ class Torus: public Object {
 		~Torus();
 		
 		double Volume(const double) const;
-		void Inertia(const double);
+		void SetInertia(const double);
 		
 		void FillBorder(PointVect&, const double);
 		

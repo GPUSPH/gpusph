@@ -70,7 +70,7 @@ RigidBody::AddParts(const PointVect & parts)
 
 
 /*! Setting inertial frame data  */
-void RigidBody::SetInertialFrameData(const Point& cg, const double* inertia,
+void RigidBody::SetInertialFrameData(const Point& cg, const double* SetInertia,
 									const double mass, const EulerParameters& ep)
 {
 	m_cg[0] = cg(0);
@@ -80,7 +80,7 @@ void RigidBody::SetInertialFrameData(const Point& cg, const double* inertia,
 	m_current_cg = cg;
 	
 	for (int i = 0; i < 3; i++)
-		m_inertia[i] = inertia[i];
+		m_inertia[i] = SetInertia[i];
 
 	m_mass = mass;
 

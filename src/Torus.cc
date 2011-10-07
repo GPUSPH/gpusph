@@ -66,7 +66,7 @@ Torus::Volume(const double dx) const
 
 
 void
-Torus::Inertia(const double dx)
+Torus::SetInertia(const double dx)
 {
 	const double r = m_r + dx/2.0;
 	m_inertia[0] = m_mass*(5.0/8.0*m_R*m_R + 1.0/2.0*r*r);

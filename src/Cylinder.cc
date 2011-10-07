@@ -101,7 +101,7 @@ Cylinder::Volume(const double dx) const
 
 
 void
-Cylinder::Inertia(const double dx)
+Cylinder::SetInertia(const double dx)
 {	
 	const double r = m_r + dx/2.0;
 	const double h = m_h + dx;

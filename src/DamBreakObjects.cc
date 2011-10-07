@@ -171,21 +171,21 @@ int DamBreakObjects::fill_parts()
 	object1 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
 	object1.SetPartMass(r0, m_physparams.rho0[0]*0.7);
 	object1.SetMass(r0, m_physparams.rho0[0]*0.7);
-	object1.Inertia(r0);
+	object1.SetInertia(r0);
 	object1.Unfill(parts, r0);
 	
 	rb_cg = Point(0.7, 0.335, h/2 + 2*r0);
 	object2 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
 	object2.SetPartMass(r0, m_physparams.rho0[0]*0.3);
 	object2.SetMass(r0, m_physparams.rho0[0]*0.3);
-	object2.Inertia(r0);
+	object2.SetInertia(r0);
 	object2.Unfill(parts, r0);
 	
 	rb_cg = Point(0.6, 0.1, 0.05 + r0);
 	object3 = Sphere(rb_cg, 0.05);
 	object3.SetPartMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetMass(r0, m_physparams.rho0[0]*0.6);
-	object3.Inertia(r0);
+	object3.SetInertia(r0);
 	object3.Unfill(parts, r0);
 	
 	RigidBody* rigid_body = get_body(0);

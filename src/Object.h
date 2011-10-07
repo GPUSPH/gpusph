@@ -86,7 +86,7 @@ class Object {
 		 * 
 		 *  This function is pure virtual and then as to be defined at child level
 		 */
-		virtual void Inertia(const double dx) = 0;
+		virtual void SetInertia(const double dx) = 0;
 		virtual void SetInertia(const double*);
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}

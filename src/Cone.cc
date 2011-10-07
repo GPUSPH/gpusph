@@ -129,7 +129,7 @@ Cone::Volume(const double dx) const
 
 
 void
-Cone::Inertia(const double dx)
+Cone::SetInertia(const double dx)
 {
 	const double h = m_h + dx;
 	const double rb = m_rb + dx/2.0;

@@ -58,7 +58,7 @@ class TopoCube: public Object {
 		{
 			return 0.0;
 		}
-		void Inertia(const double dx)
+		void SetInertia(const double dx)
 		{
 			m_inertia[0] = 0.0;
 			m_inertia[1] = 0.0;

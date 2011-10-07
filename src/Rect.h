@@ -51,7 +51,7 @@ class Rect: public Object {
 		~Rect(void) {};
 
 		double Volume(const double) const;
-		void Inertia(const double);
+		void SetInertia(const double);
 		
 		void FillBorder(PointVect&, const double);
 		void FillBorder(PointVect&, const double, const bool,

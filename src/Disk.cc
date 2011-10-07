@@ -96,7 +96,7 @@ Disk::Volume(const double dx) const
 
 
 void
-Disk::Inertia(const double dx)
+Disk::SetInertia(const double dx)
 {	
 	const double r = m_r + dx/2.0;
 	const double h = dx;

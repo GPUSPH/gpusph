@@ -41,7 +41,7 @@ class Sphere: public Object {
 		~Sphere(void) {};
 
 		double Volume(const double) const;
-		void Inertia(const double);
+		void SetInertia(const double);
 		
 		void FillBorder(PointVect&, const double);
 		

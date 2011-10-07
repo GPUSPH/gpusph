@@ -60,7 +60,7 @@ Sphere::Volume(const double dx) const
 
 
 void
-Sphere::Inertia(const double dx)
+Sphere::SetInertia(const double dx)
 {
 	const double r = m_r + dx/2.0;
 	m_inertia[0] = 2.0*m_mass/5.0*r*r;

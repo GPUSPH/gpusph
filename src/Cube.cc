@@ -172,7 +172,7 @@ Cube::Volume(const double dx) const
 
 
 void
-Cube::Inertia(const double dx)
+Cube::SetInertia(const double dx)
 {
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;

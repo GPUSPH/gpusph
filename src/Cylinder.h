@@ -45,7 +45,7 @@ class Cylinder: public Object {
 		~Cylinder(void) {};
 		
 		double Volume(const double) const;
-		void Inertia(const double);
+		void SetInertia(const double);
 
 		void FillBorder(PointVect&, const double, const bool, const bool);
 		void FillBorder(PointVect& points, const double dx) 

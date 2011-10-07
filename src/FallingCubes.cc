@@ -156,14 +156,14 @@ int FallingCubes::fill_parts()
 	h += m_deltap/2.0;
 	double rb_density = 1000;
 	double rb_mass = l*w*h*rb_density;
-	double inertia[3] = {rb_mass*(w*w + h*h)/12.0, rb_mass*(l*l + h*h)/12.0, rb_mass*(w*w + l*l)/12.0};
+	double SetInertia[3] = {rb_mass*(w*w + h*h)/12.0, rb_mass*(l*l + h*h)/12.0, rb_mass*(w*w + l*l)/12.0};
 
 	RigidBody * rigid_body = get_body(0);
 	PointVect & rbparts1 = rigid_body->GetParts();
 	cube[0].FillBorder(rbparts1, r0, true);
 
 	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
+	rigid_body->SetInertialFrameData(rb_cg, SetInertia, rb_mass, EulerParameters());
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, -2.0), Vector(0.0, 0.0, 0.0));
 	
 	// Rigid body #2
@@ -176,16 +176,16 @@ int FallingCubes::fill_parts()
 	h += m_deltap/2.0;
 	rb_density = 1050;
 	rb_mass = l*w*h*rb_density;
-	inertia[0] = rb_mass*(w*w + h*h)/12.0;
-	inertia[1] = rb_mass*(l*l + h*h)/12.0;
-	inertia[2] = rb_mass*(w*w + l*l)/12.0;
+	SetInertia[0] = rb_mass*(w*w + h*h)/12.0;
+	SetInertia[1] = rb_mass*(l*l + h*h)/12.0;
+	SetInertia[2] = rb_mass*(w*w + l*l)/12.0;
 
 	rigid_body = get_body(1);
 	PointVect & rbparts2 = rigid_body->GetParts();
 	cube[1].FillBorder(rbparts2, r0, true);
 
 	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
+	rigid_body->SetInertialFrameData(rb_cg, SetInertia, rb_mass, EulerParameters());
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, -1.0), Vector(0.0, 0.0, 0.0));
 
 	// Rigid body #3
@@ -199,16 +199,16 @@ int FallingCubes::fill_parts()
 	rb_density = 950;
 	rb_mass = l*w*h*rb_density;
 	
-	inertia[0] = rb_mass*(w*w + h*h)/12.0;
-	inertia[1] = rb_mass*(l*l + h*h)/12.0;
-	inertia[2] = rb_mass*(w*w + l*l)/12.0;
+	SetInertia[0] = rb_mass*(w*w + h*h)/12.0;
+	SetInertia[1] = rb_mass*(l*l + h*h)/12.0;
+	SetInertia[2] = rb_mass*(w*w + l*l)/12.0;
 
 	rigid_body = get_body(2);
 	PointVect & rbparts3 = rigid_body->GetParts();
 	cube[2].FillBorder(rbparts3, r0, true);
 
 	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
+	rigid_body->SetInertialFrameData(rb_cg, SetInertia, rb_mass, EulerParameters());
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, -3.0), Vector(0.0, 0.0, 0.0));
 
 

@@ -168,7 +168,7 @@ Rect::Volume(const double dx) const
 
 
 void
-Rect::Inertia(const double dx)
+Rect::SetInertia(const double dx)
 {
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;

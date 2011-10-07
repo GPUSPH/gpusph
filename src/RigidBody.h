@@ -42,7 +42,7 @@ class RigidBody {
 		static int			m_bodies_number;	///< Total number of bodies
 		int					m_body_number;		///< Number of body
 		double				m_mass;				///< Mass of the body
-		double				m_inertia[3];		///< Prinipal moments of inertia
+		double				m_inertia[3];		///< Prinipal moments of SetInertia
 		PointVect			m_parts;			///< Particles belonging to the rigid body
 		EulerParameters*	m_ep;				///< Euler parameters
 		double*				m_cg;				///< Center of gravity
@@ -66,7 +66,7 @@ class RigidBody {
 		/*! Rotate parts around a givent point */
 		void Rotate(const Point&, const EulerParameters&);
 
-		/* Setting inertia frame data */
+		/* Setting SetInertia frame data */
 		void SetInertialFrameData(const Point&, const double*, const double, const EulerParameters&);
 		void AttachObject(Object*);
 		
