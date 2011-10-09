@@ -26,10 +26,13 @@
 #ifndef RIGIDBODY_H
 #define	RIGIDBODY_H
 
+#include <cstdio>
+
 #include "EulerParameters.h"
 #include "Point.h"
 #include "Vector.h"
 #include "Object.h"
+
 
 /// Rigid body class
 /*! Rigid body class provide:
@@ -86,6 +89,8 @@ class RigidBody {
 		void TimeStep(const float3&, const float3&, const float3&, const int, const double, float3*, float3*, float*);
 		
 		void GLDraw(void) const;
+		
+		void Write(const float, FILE*) const;
 };
 
 #endif	/* RIGIDBODY_H */
