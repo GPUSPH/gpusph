@@ -108,6 +108,7 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01;
+	m_rbdata_writeinterval = 0.01;
 	m_writefreq = 50;
 	m_screenshotfreq = 0;
 
@@ -183,7 +184,7 @@ int FallingCubes::fill_parts()
 	rigid_body = get_body(1);
 	rigid_body->AttachObject(&cube[1]);
 	cube[1].FillBorder(rigid_body->GetParts(), r0, true);
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.2, 1.0, -2.5));
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(5.0, -3.0, 4.0));
 
 	// Rigid body #3
 	l = 0.1, w = 0.1, h = 0.2;
@@ -198,7 +199,7 @@ int FallingCubes::fill_parts()
 	rigid_body = get_body(2);
 	rigid_body->AttachObject(&cube[2]);
 	cube[2].FillBorder(rigid_body->GetParts(), r0, true);
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, -1.0), Vector(0.0, 0.0, 3.0));
 
 	return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
