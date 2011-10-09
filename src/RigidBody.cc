@@ -201,6 +201,8 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		m_omega[1] = m_omega[1] + ((double) torque.y - (m_inertia[0] - m_inertia[2])*m_omega[3]*m_omega[5])*dt/m_inertia[1];
 		m_omega[2] = m_omega[2] + ((double) torque.z - (m_inertia[1] - m_inertia[0])*m_omega[3]*m_omega[4])*dt/m_inertia[2];
 
+		EulerParameters ep0 = ep;
+		
 		ep(0) = ep(0) + (-ep_pred(1)*m_omega[0] - ep_pred(2)*m_omega[1] - ep_pred(3)*m_omega[2])*dt2;
 		ep(1) = ep(1) + (ep_pred(0)*m_omega[0] - ep_pred(3)*m_omega[1] + ep_pred(2)*m_omega[2])*dt2;
 		ep(2) = ep(2) + (ep_pred(3)*m_omega[0] + ep_pred(0)*m_omega[1] + ep_pred(1)*m_omega[2])*dt2;
@@ -208,7 +210,7 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 
 		ep.Normalize();
 		ep.ComputeRot();
-		ep.StepRotation(ep_pred, steprot);
+		ep.StepRotation(ep0, steprot);
 
 		m_vel[0] = m_vel[0] + (force.x/m_mass + gravity.x)*dt;
 		m_vel[1] = m_vel[1] + (force.y/m_mass + gravity.y)*dt;
@@ -265,4 +267,13 @@ RigidBody::GLDraw(void) const
 {
 	if (m_object)
 		m_object->GLDraw(*m_current_ep, m_current_cg);
+}
+
+
+void 
+RigidBody::Write(const float t, FILE* fid) const
+{
+	EulerParameters &ep = *m_current_ep;
+	fprintf(fid, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", m_body_number, t, m_current_cg(0), 
+			m_current_cg(1), m_current_cg(2), ep(0), ep(1), ep(2), ep(3));
 }
