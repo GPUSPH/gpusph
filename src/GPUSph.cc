@@ -408,6 +408,7 @@ void display()
 
 	bool need_display = displayEnabled && problem->need_display(timingInfo.t);
 	bool need_write = problem->need_write(timingInfo.t) || finished;
+	problem->write_rbdata(timingInfo.t);
 	if (need_display || need_write)
 	{
 		psystem->getArray(ParticleSystem::POSITION, need_write);

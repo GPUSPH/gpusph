@@ -32,11 +32,13 @@
 #ifndef _PROBLEM_H
 #define	_PROBLEM_H
 
-#include <string.h>
+#include <string>
+#include <cstdio>
 
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
+
 
 using namespace std;
 
@@ -44,6 +46,7 @@ class Problem {
 	private:
 		float	m_last_display_time;
 		float	m_last_write_time;
+		float	m_last_rbdata_write_time;
 		float	m_last_screenshot_time;
 		string	m_problem_dir;
 
@@ -66,10 +69,12 @@ class Problem {
 		float	m_maxvel;
 		float	m_minvel;
 
-		float	m_displayinterval;
-		int		m_writefreq;
-		int		m_screenshotfreq;
+		float		m_displayinterval;		
+		float		m_rbdata_writeinterval;
+		int			m_writefreq;
+		int			m_screenshotfreq;
 		WriterType	m_writerType;
+		FILE*		m_rbdatafile;
 
 		float*	m_dem;
 		int		m_ncols, m_nrows;
@@ -156,6 +161,8 @@ class Problem {
 		string create_problem_dir();
 		bool need_display(float);
 		bool need_write(float);
+		bool need_write_rbdata(float);
+		void write_rbdata(float);
 		bool need_screenshot(float);
 		// is the simulation running at the given time?
 		bool finished(float);

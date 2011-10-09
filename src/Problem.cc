@@ -23,8 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <iostream>
-#include <fstream>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <math.h>
 #include <time.h>
@@ -47,6 +47,7 @@ Problem::Problem(const Options &options)
 	m_last_write_time = 0.0;
 	m_last_screenshot_time = 0.0;
 	m_mbnumber = 0;
+	m_rbdatafile = NULL;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_bodies = NULL;
 }
@@ -56,6 +57,9 @@ Problem::~Problem(void)
 {
 	if (m_simparams.numbodies)
 		delete [] m_bodies;
+	if (m_rbdatafile != NULL) {
+        fclose(m_rbdatafile);
+    }
 }
 
 		
@@ -113,6 +117,16 @@ Problem::create_problem_dir(void)
 	m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
+	if (m_rbdata_writeinterval) {
+		string rbdata_filename = m_problem_dir + "/rbdata.txt";
+		m_rbdatafile = fopen(rbdata_filename.c_str(), "w");
+
+		if (m_rbdatafile == NULL) {
+			stringstream ss;
+			ss << "Cannot open rigid bodies data file " << rbdata_filename;
+			throw runtime_error(ss.str());
+			}
+	}
 	return m_problem_dir;
 }
 
@@ -131,6 +145,33 @@ Problem::need_write(float t)
 	return false;
 }
 
+
+bool 
+Problem::need_write_rbdata(float t)
+{
+	if (m_rbdata_writeinterval == 0)
+		return false;
+
+	if (t - m_last_rbdata_write_time >= m_rbdata_writeinterval) {
+		m_last_rbdata_write_time = t;
+		return true;
+	}
+
+	return false;
+}
+
+
+void
+Problem::write_rbdata(float t)
+{
+	if (m_simparams.numbodies) {
+		if (need_write_rbdata(t)) {
+			for (int i = 0; i < m_simparams.numbodies; i++) {
+				m_bodies[i].Write(t, m_rbdatafile);
+			}
+		}
+	}
+}
 
 bool 
 Problem::need_screenshot(float t)
@@ -182,8 +223,9 @@ RigidBody*
 Problem::get_body(const int i)
 {
 	if (i >= m_simparams.numbodies) {
-		cout << "get_body: body number " << i << " >= numbodies";
-		exit(1);
+		stringstream ss;
+		ss << "get_body: body number " << i << " >= numbodies";
+		throw runtime_error(ss.str());
 	}
 	return &m_bodies[i];
 }
