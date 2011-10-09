@@ -55,6 +55,9 @@ EulerParameters::EulerParameters(const EulerParameters &source)
 	m_ep[1] = source.m_ep[1];
 	m_ep[2] = source.m_ep[2];
 	m_ep[3] = source.m_ep[3];
+	
+	for (int i = 0; i < 9; i++)
+		m_rot[i] = source.m_rot[i];
 }
 
 
@@ -339,12 +342,12 @@ Vector EulerParameters::TransposeRot(const Vector &data) const
 
 Point EulerParameters::TransposeRot(const Point &data) const
 {
-	double x, y, z;
-	x = m_rot[0]*data(0) + m_rot[3]*data(1) + m_rot[6]*data(2);
-	y = m_rot[1]*data(0) + m_rot[4]*data(1) + m_rot[7]*data(2);
-	z = m_rot[2]*data(0) + m_rot[5]*data(1) + m_rot[8]*data(2);
+	Point res;
+	res(0) = m_rot[0]*data(0) + m_rot[3]*data(1) + m_rot[6]*data(2);
+	res(1) = m_rot[1]*data(0) + m_rot[4]*data(1) + m_rot[7]*data(2);
+	res(2) = m_rot[2]*data(0) + m_rot[5]*data(1) + m_rot[8]*data(2);
 
-	return Point(x, y, z);
+	return res;
 }
 
 
@@ -376,12 +379,12 @@ Vector EulerParameters::Rot(const Vector &data) const
 
 Point EulerParameters::Rot(const Point &data) const
 {
-	double x, y, z;
-	x = m_rot[0]*data(0) + m_rot[1]*data(1) + m_rot[2]*data(2);
-	y = m_rot[3]*data(0) + m_rot[4]*data(1) + m_rot[5]*data(2);
-	z = m_rot[6]*data(0) + m_rot[7]*data(1) + m_rot[8]*data(2);
+	Point res;
+	res(0) = m_rot[0]*data(0) + m_rot[1]*data(1) + m_rot[2]*data(2);
+	res(1) = m_rot[3]*data(0) + m_rot[4]*data(1) + m_rot[5]*data(2);
+	res(2) = m_rot[6]*data(0) + m_rot[7]*data(1) + m_rot[8]*data(2);
 
-	return Point(x, y, z);
+	return res;
 }
 
 
