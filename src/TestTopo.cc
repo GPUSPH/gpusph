@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
+#include <cmath>
 #include <fstream>
 #include <string>
 #include <iostream>

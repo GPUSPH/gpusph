@@ -36,6 +36,8 @@
 #ifndef _PARTICLEDEFINE_H
 #define	_PARTICLEDEFINE_H
 
+#include <cstring>
+
 #include "vector_math.h"
 #include "cuda_call.h"
 

@@ -26,7 +26,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <math.h>
+#include <cmath>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>

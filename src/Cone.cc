@@ -23,7 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 
 #include "Cone.h"
@@ -88,7 +90,7 @@ Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radius
 	if (abs(radiusbottom*height) > 1e-8*radiusbottom.norm()*height.norm() 
 		|| abs(radiustop*height) > 1e-8*radiustop.norm()*height.norm()) {
 		std::cout << "Trying to construct a cone with non perpendicular radius and axis\n";
-		exit(1);
+		std::exit(1);
 	}
 	
 	m_origin = center;

@@ -25,7 +25,7 @@
 */
 
 #include "EulerParameters.h"
-#include <math.h>
+#include <cmath>
 
 
 EulerParameters::EulerParameters(void)

@@ -28,7 +28,7 @@
 #else
 #include <GL/gl.h>
 #endif
-#include <math.h>
+#include <cmath>
 #include <iostream>
 
 #include "TopoCube.h"

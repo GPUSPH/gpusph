@@ -24,7 +24,7 @@
 */
 
 
-#include <math.h>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #ifdef __APPLE__

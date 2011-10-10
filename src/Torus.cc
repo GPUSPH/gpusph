@@ -10,7 +10,8 @@
 #else
 #include <GL/gl.h>
 #endif
-#include <math.h>
+#include <cmath>
+#include <cstdlib>
 
 #include "Torus.h"
 
