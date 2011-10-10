@@ -43,6 +43,7 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	ly = 0.67;
 	lz = 0.6;	
 	H = 0.4;
+	wet = false;
 	
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
@@ -132,7 +133,7 @@ int DamBreakObjects::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
-	Cube fluid, fluid1, fluid2, fluid3, fluid4;
+	Cube fluid, fluid1;
 
 	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
