@@ -48,7 +48,7 @@ __constant__ float	d_rbsteprot[9*MAXBODIES];
  * Device code.
  */
 
-__device__ void
+__device__ __forceinline__ void
 applyrot(float* rot, float4 & pos, const float3 & cg)
 {
 	float3 relpos = as_float3(pos) - cg;

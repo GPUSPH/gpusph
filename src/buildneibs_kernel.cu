@@ -46,7 +46,7 @@ __device__ int d_maxNeibs;
 __constant__ float3 d_dispvect1;
 
 // calculate position in uniform grid
-__device__ int3
+__device__ __forceinline__ int3
 calcGridPos(float3	pos,
 			float3	worldOrigin,
 			float3	cellSize)
@@ -61,7 +61,7 @@ calcGridPos(float3	pos,
 
 
 // calculate address in grid from position (clamping to edges)
-__device__ uint
+__device__ __forceinline__ uint
 calcGridHash(int3	gridPos,
 			 uint3	gridSize)
 {
@@ -162,7 +162,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 
 template <bool periodicbound>
-__device__ void
+__device__ __forceinline__ void
 neibsInCell(int3	gridPos,
 			uint	index,
 			float3	pos,
@@ -308,8 +308,11 @@ buildNeibsListDevice(   uint*	neibsList,
 			int3 gridPos = calcGridPos(pos, worldOrigin, cellSize);
 
 			// examine only neighbouring cells
+			#pragma unroll
 			for(int z=-1; z<=1; z++) {
+				#pragma unroll
 				for(int y=-1; y<=1; y++) {
+					#pragma unroll
 					for(int x=-1; x<=1; x++)
 					neibsInCell<periodicbound>(gridPos + make_int3(x, y, z), index, pos,
 							gridSize, numParticles, influenceradius, neibsList, &sm_neibs_num[tid]);

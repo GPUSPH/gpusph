@@ -123,7 +123,7 @@ typedef struct sym33mat {
 /********************************************* SPH kernels **************************************************/
 // Return kernel value at distance r, for a given smoothing length
 template<KernelType kerneltype>
-__device__ float
+__device__ __forceinline__ float
 W(float r, float slength);
 
 
@@ -148,7 +148,7 @@ W<CUBICSPLINE>(float r, float slength)
 
 // Qudratic kernel
 template<>
-__device__ float
+__device__ __forceinline__ float
 W<QUADRATIC>(float r, float slength)
 {
 	float val = 0.0f;
@@ -163,7 +163,7 @@ W<QUADRATIC>(float r, float slength)
 
 // Wendland kernel
 template<>
-__device__ float
+__device__ __forceinline__ float
 W<WENDLAND>(float r, float slength)
 {
 	float R = r/slength;
@@ -179,12 +179,12 @@ W<WENDLAND>(float r, float slength)
 
 // Return 1/r dW/dr at distance r, for a given smoothing length
 template<KernelType kerneltype>
-__device__ float
+__device__ __forceinline__ float
 F(float r, float slength);
 
 
 template<>
-__device__ float
+__device__ __forceinline__ float
 F<CUBICSPLINE>(float r, float slength)
 {
 	float val = 0.0f;
@@ -201,7 +201,7 @@ F<CUBICSPLINE>(float r, float slength)
 
 
 template<>
-__device__ float
+__device__ __forceinline__ float
 F<QUADRATIC>(float r, float slength)
 {
 	float R = r/slength;
@@ -213,7 +213,7 @@ F<QUADRATIC>(float r, float slength)
 }
 
 
-template<> __device__ float
+template<> __device__ __forceinline__ float
 F<WENDLAND>(float r, float slength)
 {
 	float qm2 = r/slength - 2.0f;	// val = (-2 + R)^3
@@ -225,7 +225,7 @@ F<WENDLAND>(float r, float slength)
 
 /********************** Equation of state, speed of sound, repulsive force **********************************/
 // Equation of state: pressure from density, where i is the fluid kind, not particle_id
-__device__ float
+__device__ __forceinline__ float
 P(float rho, uint i)
 {
 	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1);
@@ -233,7 +233,7 @@ P(float rho, uint i)
 
 
 // Sound speed computed from density
-__device__ float
+__device__ __forceinline__ float
 soundSpeed(float rho, uint i)
 {
 	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
@@ -241,7 +241,7 @@ soundSpeed(float rho, uint i)
 
 
 // Lennard-Jones boundary repulsion force
-__device__ float
+__device__ __forceinline__ float
 LJForce(float r)
 {
 	float force = 0.0f;
@@ -257,7 +257,7 @@ LJForce(float r)
 // we allow the fluid particle mass mass_f to be different from the
 // boundary particle mass mass_b even though they are typically the same
 // (except for multi-phase fluids)
-__device__ float
+__device__ __forceinline__ float
 MKForce(const float &r, const float &slength,
 		const float &mass_f, const float &mass_b)
 {
@@ -283,7 +283,7 @@ MKForce(const float &r, const float &slength,
 /***************************************** Viscosities *******************************************************/
 // Artificial viscosity scalar part when the projection
 // of the velocity (hx.u/r) is not precomputed
-__device__ float
+__device__ __forceinline__ float
 artvisc(	float	vel_dot_pos,
 			float	rho,
 			float	neib_rho,
@@ -300,7 +300,7 @@ artvisc(	float	vel_dot_pos,
 // Artificial viscosity scalar part when the projection
 // of the relative velocity (hx.u/r) is needed for the
 // adaptaive time step control and so precomputed
-__device__ float
+__device__ __forceinline__ float
 artviscdt(	float	prelvel_by_slength,
 			float	rho,
 			float	neib_rho,
@@ -317,7 +317,7 @@ artviscdt(	float	prelvel_by_slength,
 // expression 21 p218 when all particles have the same viscosity
 // in this case d_visccoeff = 4 nu
 // returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
-__device__ float
+__device__ __forceinline__ float
 laminarvisc_kinematic(	float	rho,
 						float	neib_rho,
 						float	neib_mass,
@@ -330,7 +330,7 @@ laminarvisc_kinematic(	float	rho,
 // Same behaviour as laminarvisc but for particle
 // dependent viscosity.
 // returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
-__device__ float
+__device__ __forceinline__ float
 laminarvisc_dynamic(float	rho,
 					float	neib_rho,
 					float	neib_mass,
@@ -346,7 +346,7 @@ laminarvisc_dynamic(float	rho,
 /*********************************** Adptative time stepping ************************************************/
 // Function called at the end of the forces or powerlawVisc function doing
 // a per block maximum reduction
-__device__ void
+__device__ __forceinline__ void
 dtadaptBlockReduce(	float	*s_cfl,
 					float	*cfl)
 {
@@ -375,7 +375,7 @@ dtadaptBlockReduce(	float	*s_cfl,
 /********************************* Periodic boundary management *********************************************/
 // Function returning the neigbor index, position, relative distance and velocity
 template<bool periodicbound>
-__device__ void
+__device__ __forceinline__ void
 getNeibData(float4	pos,
 			uint*	neibsList,
 			float	influenceradius,
@@ -388,7 +388,7 @@ getNeibData(float4	pos,
 // In case of periodic boundaries we add the displacement
 // vector when needed
 template<>
-__device__ void
+__device__ __forceinline__ void
 getNeibData<true>(	float4	pos,
 					uint*	neibsList,
 					float	influenceradius,
@@ -429,7 +429,7 @@ getNeibData<true>(	float4	pos,
 
 
 template<>
-__device__ void
+__device__ __forceinline__ void
 getNeibData<false>(	float4	pos,
 					uint*	neibsList,
 					float	influenceradius,
@@ -452,7 +452,7 @@ getNeibData<false>(	float4	pos,
 // TODO: check for the maximum timestep
 
 // Normal and viscous force wrt to solid boundary
-__device__ float
+__device__ __forceinline__ float
 PlaneForce(	float4	pos,
 			float4	plane,
 			float	l,
@@ -505,7 +505,7 @@ PlaneForce(	float4	pos,
 	return 0.0f;
 }
 
-__device__ float
+__device__ __forceinline__ float
 GeometryForce(	float4	pos,
 				float3	vel,
 				float	dynvisc,
@@ -525,14 +525,14 @@ GeometryForce(	float4	pos,
 }
 
 
-__device__ float
+__device__ __forceinline__ float
 DemInterpol(const texture<float, 2, cudaReadModeElementType> texref, float x, float y)
 {
 	return tex2D(texref, x/d_ewres + 0.5f, y/d_nsres + 0.5f);
 }
 
 
-__device__ float
+__device__ __forceinline__ float
 DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 			float4	pos,
 			float3	vel,
