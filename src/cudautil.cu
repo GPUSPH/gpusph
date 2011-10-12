@@ -28,6 +28,7 @@ void checkCUDA(const Options &options)
 
 	printf("Using device %d: %s\n", dev, deviceProp.name );
 	CUDA_SAFE_CALL(cudaSetDevice(dev));
+	CUDA_SAFE_CALL(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 }
 
 
