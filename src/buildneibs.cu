@@ -42,10 +42,6 @@ calcHash(float4*	pos,
 	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	// Setting 48KB cache for Fermi
-	// Note: contrary as stated in the CUDA documentation this setting is program wide
-    CUDA_SAFE_CALL(cudaFuncSetCacheConfig(calcHashDevice, cudaFuncCachePreferL1));
-
 	calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 										   gridSize, cellSize, worldOrigin, numParticles);
 
