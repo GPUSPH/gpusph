@@ -23,7 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
 #ifndef _WAVETANK_H
 #define	_WAVETANK_H
 
@@ -35,9 +34,9 @@
 #include "Vector.h"
 #include "Cone.h"
 
+
 class WaveTank: public Problem {
 	private:
-		//Testpoints
 		bool		use_cyl, use_cone, use_bottom_plane;
 		Cube		experiment_box;
 		Rect        bottom_rect;
@@ -53,8 +52,6 @@ class WaveTank: public Problem {
 		double		h_length, height, slope_length, beta;
 	    double		H;		// still water level
 		double		lx, ly, lz;		// dimension of experiment box
-
-
 
 	public:
 		WaveTank(const Options &);

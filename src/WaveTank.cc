@@ -32,7 +32,6 @@
 #endif
 
 #include "WaveTank.h"
-#include "particledefine.h"
 
 
 #define MK_par 2
@@ -99,7 +98,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
 
-	m_physparams.set_density(0, 1000.0, 7.0, 300*H);
+	m_physparams.set_density(0, 1000.0, 7.0, 50);
 	m_physparams.numFluids = 1;
 	float r0 = m_deltap;
 	m_physparams.r0 = r0;
@@ -271,7 +270,7 @@ int WaveTank::fill_parts()
 
 uint WaveTank::fill_planes()
 {
-    if (use_bottom_plane) {
+    if (!use_bottom_plane) {
 		return 5;
 		}
 	else {
