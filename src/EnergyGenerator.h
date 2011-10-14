@@ -28,40 +28,30 @@
 
 #include "Problem.h"
 #include "Point.h"
+#include "Vector.h"
 #include "Cube.h"
 #include "Rect.h"
 #include "Cylinder.h"
-#include "Vector.h"
-#include "Cone.h"
 #include "Torus.h"
-#include "Disk.h"
 #include "Sphere.h"
-#include "Cone.h"
+
 
 class EnergyGenerator: public Problem {
 	private:
-		//Testpoints
-		int			wmakertype;
+		bool		use_bottom_plane;
 		Cube		experiment_box;
-		Rect        experiment_box1;
-		int			i_use_bottom_plane;
-		
+		Rect        bottom_rect;
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	paddle_parts;
 
-		Cylinder	cyl1, cyl2;
-		Torus		torus;
-		Disk		disk;
-		Sphere		sphere;
-		Cone		cone;
-		Cube		cube1, cube2;
-
-		float		paddle_length;
-		float		paddle_width;
-		float		h_length, height, slope_length, beta;
-	    float		H;		// still water level
-		float		Hbox;	// height of experiment box
+		Cylinder	cyl;
+		Sphere 		torus;
+		double		paddle_length;
+		double		paddle_width;
+		double		h_length, height, slope_length, beta;
+	    double		H;		// still water level
+		double		lx, ly, lz;		// dimension of experiment box
 
 	public:
 		EnergyGenerator(const Options &);
