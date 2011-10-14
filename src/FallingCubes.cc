@@ -162,15 +162,15 @@ int FallingCubes::fill_parts()
 	h += m_deltap/2.0;
 	double rb_density = m_physparams.rho0[0];
 	double rb_mass = l*w*h*rb_density;
-	double SetInertia[3] = {rb_mass*(w*w + h*h)/12.0, rb_mass*(l*l + h*h)/12.0, rb_mass*(w*w + l*l)/12.0};
+	double inertia[3] = {rb_mass*(w*w + h*h)/12.0, rb_mass*(l*l + h*h)/12.0, rb_mass*(w*w + l*l)/12.0};
 
 	RigidBody * rigid_body = get_body(0);
 	PointVect & rbparts1 = rigid_body->GetParts();
 	cube[0].FillBorder(rbparts1, r0, true);
 
 	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, SetInertia, rb_mass, EulerParameters());
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, -2.0), Vector(0.0, 0.0, 0.0));
+	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, -8.0), Vector(0.0, 0.0, 0.0));
 	
 	// Rigid body #2
 	rb_cg = Point(0.7, 0.4, H + 0.15);
