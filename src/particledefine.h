@@ -180,13 +180,13 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* otherwise it's fluid */
 #define FLUID(f) (!(NOT_FLUID(f)))
 // Testpoints
-#define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
+#define TESTPOINTS(f) ((f).x & TESTPOINTSPART)
 // Particle belonging to an object
-#define OBJECT(f) ((f).x == OBJECTPART)
+#define OBJECT(f) ((f).x & OBJECTPART)
 // Free surface detection
 #define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
 // Boundary particle
-#define BOUNDARY(f) ((f).x == BOUNDPART)
+#define BOUNDARY(f) ((f).x & BOUNDPART)
 
 /* compile-time consistency check:
    definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
