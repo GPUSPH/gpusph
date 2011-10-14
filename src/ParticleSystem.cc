@@ -85,8 +85,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentVelRead(0),
 	m_currentVelWrite(1),
 	m_currentInfoRead(0),
-	m_currentInfoWrite(1),
-	m_CUDPPscanplan(0)
+	m_currentInfoWrite(1)
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
@@ -359,27 +358,6 @@ ParticleSystem::allocate(uint numParticles)
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
 		memory += fmaxTableSize;
-
-		// local_cudpp change:
-		CUDA_SAFE_CALL(cudaMalloc((void**) &m_dTempFmax, fmaxTableSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dTempFmax, 0, fmaxTableSize));
-		memory += fmaxTableSize;
-
-		// Setup CUDPP config and scanplan for parallel max
-		CUDPPConfiguration config;
-		config.op = CUDPP_MAX;
-		config.datatype = CUDPP_FLOAT;
-		config.algorithm = CUDPP_SCAN;
-		config.options = CUDPP_OPTION_BACKWARD | CUDPP_OPTION_INCLUSIVE;
-
-		CUDPPResult result = cudppPlan(&m_CUDPPscanplan, config, m_numPartsFmax, 1, 0);
-
-		if (CUDPP_SUCCESS != result) {
-			printf("Error creating CUDPPPlan\n");
-			exit(-1);
-			}
-
-		printf("CUDPPPlan allocated\n");
 		}
 
 	// Allocating, reading and copying DEM
@@ -392,9 +370,6 @@ ParticleSystem::allocate(uint numParticles)
     printf("GPU memory allocated\n");
 	printf("GPU memory used : %.2f MB\n", memory/(1024.0*1024.0));
 
-	// Initialize (new) RadixSort object
-	m_sorter = new nvRadixSort::RadixSort(m_numParticles);
-	printf("RadixSort object allocated\n");
 	fflush(stdout);
 }
 
@@ -733,20 +708,11 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
 
-	delete m_sorter;
-
 	if (m_simparams.usedem)
 		releaseDemTexture();
 
 	if (m_simparams.dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
-		CUDA_SAFE_CALL(cudaFree(m_dTempFmax));
-		if (m_CUDPPscanplan) {
-			CUDPPResult result = cudppDestroyPlan(m_CUDPPscanplan);
-			if (CUDPP_SUCCESS != result) {
-				printf("Error destroying CUDPPPlan\n");
-				}
-			}
 		}
 
 	printf("GPU and CPU memory released\n\n");
@@ -1048,7 +1014,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 		
 		// hash based particle sort
-		m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
+		sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
 
 
 		reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
@@ -1206,9 +1172,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.visctype,
 					m_physparams.visccoeff,
 					m_dCfl,
-					m_dTempFmax,
 					m_numPartsFmax,
-					m_CUDPPscanplan,
 					m_dTau,
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
@@ -1305,9 +1269,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.visctype,
 					m_physparams.visccoeff,
 					m_dCfl,
-					m_dTempFmax,
 					m_numPartsFmax,
-					m_CUDPPscanplan,
 					m_dTau,
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,

@@ -72,5 +72,11 @@ buildNeibsList( uint*			neibsList,
 				uint			gridCells,
 				float			influenceradius,
 				bool			periodicbound);
+
+void
+sort(	uint*	particleHash,
+		uint*	particleIndex,
+		uint	numParticles
+		);
 }
 #endif

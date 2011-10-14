@@ -26,14 +26,10 @@
 #ifndef __PARTICLESYSTEM_H__
 #define __PARTICLESYSTEM_H__
 
-#include <cudpp/cudpp.h>
-
 #include "particledefine.h"
 #include "Problem.h"
 #include "Writer.h"
 
-#include "radixsort.h"
-#include <thrust/device_ptr.h>
 
 // ParticleSystem : class used to call CUDA kernels
 class ParticleSystem
@@ -162,9 +158,8 @@ class ParticleSystem
 		// Free surface detection
 		float4*     m_dNormals;
 		float3*		m_dVort;				// vorticity
-		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE and rounded to power of 2
+		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
-		float*		m_dTempFmax;			// auxiliary array used for max computing
 		float2*		m_dTau[3];				// SPS stress tensor
 		
 		// TODO: profile with float3
@@ -191,12 +186,6 @@ class ParticleSystem
 		uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
 		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
-
-		// CUDPP scanplan for parallel max
-		CUDPPHandle			m_CUDPPscanplan;
-
-		// Sorter from 3.2 SDK
-		nvRadixSort::RadixSort	*m_sorter;
 
 		// File writer
 		Problem::WriterType m_writerType;

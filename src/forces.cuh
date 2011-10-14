@@ -26,9 +26,6 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
-#include "cudpp/cudpp.h"
-#include <thrust/device_ptr.h>
-
 #define BLOCK_SIZE_CALCVORT		128
 #define BLOCK_SIZE_CALCTEST		128
 #define BLOCK_SIZE_SHEPARD		128
@@ -59,9 +56,7 @@ forces(	float4*			pos,
 		ViscosityType	visctype,
 		float			visccoeff,
 		float*			cfl,
-		float*			tempfmax,
 		uint			numPartsFmax,
-		CUDPPHandle		scanplan,
 		float2*			tau[],
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,

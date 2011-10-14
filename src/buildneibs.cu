@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <stdio.h>
+
+#include <thrust/sort.h>
+#include <thrust/device_vector.h>
+
 #include "textures.cuh"
 #include "buildneibs.cuh"
 #include "buildneibs_kernel.cu"
@@ -124,5 +128,15 @@ buildNeibsList(	uint*			neibsList,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Kernel execution failed");
+}
+
+void
+sort(uint*	particleHash, uint*	particleIndex, uint	numParticles)
+{
+	thrust::device_ptr<uint> particleHash_devptr = thrust::device_pointer_cast(particleHash);
+	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
+	
+	 thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+
 }
 }

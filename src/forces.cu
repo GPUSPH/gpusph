@@ -24,7 +24,6 @@
 */
 
 #include <stdio.h>
-#include "cudpp/cudpp.h"
 #include <thrust/device_vector.h>
 #include <thrust/scan.h>
 #include <thrust/functional.h>
@@ -184,9 +183,7 @@ forces(	float4*			pos,
 		ViscosityType	visctype,
 		float			visccoeff,
 		float*			cfl,
-		float*			tempfmax,
 		uint			numPartsFmax,
-		CUDPPHandle		scanplan,
 		float2*			tau[],
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
@@ -252,10 +249,12 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (dtadapt) {
-		cudppScan(scanplan, tempfmax, cfl, numPartsFmax);
 		float maxcfl = 0;
-		CUDA_SAFE_CALL(cudaMemcpy((void*)(&maxcfl), tempfmax, sizeof(float), cudaMemcpyDeviceToHost));
 		
+		thrust::device_ptr<float> cfl_devptr = thrust::device_pointer_cast(cfl);
+	
+		maxcfl = thrust::reduce(cfl_devptr, cfl_devptr + numPartsFmax, maxcfl, thrust::maximum<float>());
+
 		dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 		if (visctype != ARTVISC) {
