@@ -115,6 +115,31 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 
 	// Writing particle info
 	if (info) {
+		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part condensed type\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++) {
+			short ptype;
+			if (FLUID(info[i]))
+				ptype = 0;
+			else if (OBJECT(info[i]))
+				ptype = 1;
+			else if (BOUNDARY(info[i]))
+				ptype = 2;			
+			else if (TESTPOINTS(info[i]))
+				ptype = 3;
+			else if (SURFACE_PARTICLE(info[i]))
+				ptype = 4;			
+			else if (type(info[i]) & PISTONPART)
+				ptype = 5;			
+			else if (type(info[i]) & PADDLEPART)
+				ptype = 6;			
+			else if (type(info[i]) & GATEPART)
+				ptype = 7;			
+			fprintf(fid,"%d\t", ptype);
+		}
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+		
+		
 		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part type\" format=\"ascii\">\r\n");
 		for (int i=0; i < numParts; i++)
 			fprintf(fid,"%d\t", type(info[i]));
