@@ -79,14 +79,18 @@ Torus::SetInertia(const double dx)
 void
 Torus::FillBorder(PointVect& points, const double dx)
 {
-	const int nz = (int) ceil(m_r/dx);
-	const double dz = m_r/nz;
+	const int ntheta = (int) ceil(M_PI*m_r/dx);
+	const double dtheta = M_PI/ntheta;
 	
-	for (int i = - nz; i <= nz; i++) {
-		FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+	for (int i = 0; i <= ntheta; i++) {
+		const double theta = i*dtheta;
+		const double z = m_r*cos(theta);
+		FillDiskBorder(points, m_ep, m_center, m_R + sqrt(m_r*m_r - z*z), z, dx, 2.0*M_PI*rand()/RAND_MAX);
   	 }
-	for (int i = - nz + 1; i < nz; i++) {
-		FillDiskBorder(points, m_ep, m_center, m_R - sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+	for (int i = 1; i < ntheta; i++) {
+		const double theta = i*dtheta;
+		const double z = m_r*cos(theta);
+		FillDiskBorder(points, m_ep, m_center, m_R - sqrt(m_r*m_r - z*z), z, dx, 2.0*M_PI*rand()/RAND_MAX);
   	 }
 }
 
@@ -95,16 +99,16 @@ int
 Torus::Fill(PointVect& points, const double dx, const bool fill)
 {
 	int nparts = 0;
-	const int nz = (int) ceil(m_r/dx);
-	const double dz = m_r/nz;
+	const int ntheta = (int) ceil(M_PI*m_r/dx);
+	const double dtheta = M_PI/ntheta;
 	
-	FillDiskBorder(points, m_ep, m_center, m_R, -nz*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
-	FillDiskBorder(points, m_ep, m_center, m_R, nz*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
-	for (int i = - nz + 1; i < nz; i++) {
-		nparts += FillDisk(points, m_ep, m_center, m_R - sqrt(m_r*m_r - i*dz*i*dz), 
-					m_R + sqrt(m_r*m_r - i*dz*i*dz), i*dz, dx, fill);
+	for (int i = 0; i <= ntheta; i++) {
+		const double theta = i*dtheta;
+		const double z = m_r*cos(theta);
+		nparts += FillDisk(points, m_ep, m_center, m_R - sqrt(m_r*m_r - z*z), 
+					m_R + sqrt(m_r*m_r - z*z), z, dx, fill);
   	 }
-	
+
 	return nparts;
 }
 
@@ -114,13 +118,16 @@ Torus::IsInside(const Point& p, const double dx) const
 {	
 	Point lp = m_ep.TransposeRot(p - m_center);
 	const double h = m_r + dx;
-	bool inside = false;
+	bool isinside = false;
 	const double z = lp(2);
 	if (z > -h && z < h) {
-		inside = true;
+		const double rmin2 = (m_R - sqrt(m_r*m_r - z*z) - dx)*(m_R - sqrt(m_r*m_r - z*z) - dx);
+		const double rmax2 = (m_R + sqrt(m_r*m_r - z*z) + dx)*(m_R + sqrt(m_r*m_r - z*z) + dx);
+		if (lp(0)*lp(0) + lp(1)*lp(1) < rmax2 && lp(0)*lp(0) + lp(1)*lp(1) > rmin2)
+			isinside = true;
 	}
 	
-	return inside;
+	return isinside;
 }
 
 
