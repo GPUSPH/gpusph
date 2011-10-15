@@ -106,7 +106,7 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 0;
+	m_writefreq = 5;
 	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
@@ -184,19 +184,21 @@ int DamBreakObjects::fill_parts()
 	
 	rb_cg = Point(0.6, 0.1, 0.05 + r0);
 	object3 = Sphere(rb_cg, 0.05);
-	object3.SetPartMass(r0, m_physparams.rho0[0]*0.6);
+	
+	std::cout << "Sphere part mass" << object3.SetPartMass(r0, m_physparams.rho0[0]*0.6) << "\n";
+
 	object3.SetMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetInertia(r0);
 	object3.Unfill(parts, r0);
 	
 	RigidBody* rigid_body = get_body(0);
 	rigid_body->AttachObject(&object1);
-	object1.FillBorder(rigid_body->GetParts(), r0, true);
+	object1.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
 	
 	rigid_body = get_body(1);
 	rigid_body->AttachObject(&object2);
-	object2.FillBorder(rigid_body->GetParts(), r0, true);
+	object2.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
 	
 	rigid_body = get_body(2);
@@ -225,7 +227,7 @@ void DamBreakObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,0,i);
+		info[i]= make_particleinfo(BOUNDPART, 0, i);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
@@ -237,17 +239,17 @@ void DamBreakObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info
 			pos[i] = make_float4(rbparts[i - j]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(OBJECTPART, k, i - j);
+		std::cout << ", part mass: " << pos[i].w << "\n";
 		}
 		j += rbparts.size();
-		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		//std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-	
 	
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		pos[i] = make_float4(obstacle_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,1,i);
+		info[i]= make_particleinfo(BOUNDPART, 1, i);
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
@@ -256,7 +258,7 @@ void DamBreakObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info
 	for (uint i = j; i < j + parts.size(); i++) {
 		pos[i] = make_float4(parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(FLUIDPART,0,i);
+		info[i]= make_particleinfo(FLUIDPART, 0, i);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

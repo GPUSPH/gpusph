@@ -1114,7 +1114,7 @@ calcSurfaceparticleDevice(float4*	normals,
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 		float neib_density = tex1Dfetch(velTex, neib_index).w;
 
-			if (r < influenceradius) {
+		if (r < influenceradius) {
 			float f = F<kerneltype>(r, slength)* neib_pos.w /neib_density; // 1/r ∂Wij/∂r Vj
 			normal.x -= f * relPos.x;
 			normal.y -= f * relPos.y;

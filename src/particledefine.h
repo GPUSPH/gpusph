@@ -187,6 +187,12 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
 // Boundary particle
 #define BOUNDARY(f) ((f).x == BOUNDPART)
+// Extract particle type
+#define PART_TYPE(f) (((f).x >> MAX_FLUID_BITS) & 0xf)
+// Extract particle flag
+#define PART_FLAG(f) ((f).x >> 8)
+// Extract particle fluid number
+#define PART_FLUID_NUM(f) ((f).x & 0xf)
 
 /* compile-time consistency check:
    definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
