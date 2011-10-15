@@ -116,18 +116,18 @@ FORCES_CUDA_KERNEL
 				/* when using SPH formulation 1
 				   we precompute p/rho^2 for the current particle */
 				case SPH_F1:
-					p_precalc = P(vel.w, object(info))/(vel.w*vel.w);                      //
+					p_precalc = P(vel.w, PART_FLUID_NUM(info))/(vel.w*vel.w);                      //
 					break;
 				/* when using SPH formulation 2
 				   we precompute the pressure for the current particle */
 				case SPH_F2:
-					p_precalc = P(vel.w, object(info));                                    //
+					p_precalc = P(vel.w, PART_FLUID_NUM(info));                                    //
 					break;
 			}
 
 #			if defined(DT_KERNEL) || defined(VISC_ARTVISC)
 			/* sound speed sspeed is computed only once for the given particle */
-			float sspeed = soundSpeed(vel.w, object(info));
+			float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
 #			endif
 
 			// loop over all neighbors
@@ -181,10 +181,10 @@ FORCES_CUDA_KERNEL
 						// pressure part of acceleration (to be multiplied by neib_mass*f)
 						switch (sph_formulation) {
 							case SPH_F1:
-								DvDt = -(p_precalc + P(neib_vel.w, object(neib_info))/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
+								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info))/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
 								break;
 							case SPH_F2:
-								DvDt = -(p_precalc + P(neib_vel.w, object(neib_info)))/(vel.w*neib_vel.w);
+								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info)))/(vel.w*neib_vel.w);
 								break;
 						}
 
@@ -224,10 +224,10 @@ FORCES_CUDA_KERNEL
 #							ifdef DT_KERNEL
 							maxprelvel = fmaxf(maxprelvel, -prelvel_by_slength);
 							DvDt += artviscdt(prelvel_by_slength, vel.w, neib_vel.w, sspeed, 
-											soundSpeed(neib_vel.w, object(neib_info)));
+											soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)));
 #							else // DT_KERNEL
 							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
-											soundSpeed(neib_vel.w, object(neib_info)), r, slength);
+											soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
 #							endif // DT_KERNEL
 						}
 #					else
