@@ -932,14 +932,14 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 			}
 			if (FLUID(info[i])) {
 				float v; unsigned int t;
-				float ssvel = m_problem->soundspeed(vel[i].w,object(info[i]));
+				float ssvel = m_problem->soundspeed(vel[i].w, PART_FLUID_NUM(info[i]));
 				switch (view_mode) {
 					case VM_NORMAL:
 					    glColor3f(0.0,0.0,1.0);
-					    if (m_physparams.numFluids >1 ) {
-					       v= (float) object(info[i]);
-	                       v/= (m_physparams.numFluids -1) ;
-						   glColor3f(v, 0.0, 1.0-v);
+					    if (m_physparams.numFluids > 1) {
+					       v = (float) PART_FLUID_NUM(info[i]);
+	                       v /= (m_physparams.numFluids - 1);
+						   glColor3f(v, 0.0, 1.0 - v);
 						   }
 						break;
 
@@ -962,7 +962,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 						break;
 
 					case VM_PRESSURE:
-						v = m_problem->pressure(vel[i].w,object(info[i]));
+						v = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
 						glColor3f((v - minp)/(maxp - minp),
 								1 - (v - minp)/(maxp - minp),0.0);
 						break;
