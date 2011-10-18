@@ -60,7 +60,7 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 	m_ep.ComputeRot();
 	
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
-					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
+				(4.0*(m_rb *m_rb + m_rb*m_rt + m_rt*m_rt));
 	
 	m_center = m_origin + m_ep.Rot(m_hg*v);
 }
@@ -79,7 +79,7 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 	m_ep.ComputeRot();
 	
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
-					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
+				(4.0*(m_rb *m_rb + m_rb*m_rt + m_rt*m_rt));
 	
 	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
 }
@@ -111,7 +111,7 @@ Cone::Cone(const Point& center, const Vector& radiusbottom, const Vector& radius
 	m_ep.ComputeRot();
 	
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
-					(M_PI*m_h*(m_rb *m_rb + m_rb*m_rt +m_rt*m_rt));
+				(4.0*(m_rb *m_rb + m_rb*m_rt + m_rt*m_rt));
 	
 	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
 	
@@ -138,11 +138,14 @@ Cone::SetInertia(const double dx)
 	const double rt = m_rt + dx/2.0;
 	
 	const double d = 20.0*M_PI*(rb*rt + rb*rb + rt*rt);
-	const double n = 3.0*m_mass*(rb*rb*rb*rt + rb*rb*rt*rt + rb*rt*rt*rt + rb*rb*rb*rb + rt*rt*rt*rt);
+	const double n1 = 2.0*h*h*(rb*rb + 3.0*rb*rt + 6.0*rt*rt);
+	const double n2 = 3.0*(rb*rb*rb*rt + rb*rb*rt*rt + rb*rt*rt*rt + rb*rb*rb*rb + rt*rt*rt*rt);
 	
-	m_inertia[0] = 2.0*h*h*n/d;
+	m_inertia[0] = m_mass*(n1 + n2)/d;
 	m_inertia[1] = m_inertia[0];
-	m_inertia[2] = 2.0*n/d;
+	m_inertia[2] = 2.0*n2*m_mass/d;
+	
+	std::cout << "Inertia: " << m_inertia[0] << " " << m_inertia[1] << " " << m_inertia[2] << "\n";
 
 }
 
@@ -156,9 +159,9 @@ Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bo
 	for (int i = 0; i <= nz; i++)
 		FillDiskBorder(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
 	if (bottom)
-		FillDisk(points, m_ep, m_origin, m_rb - dx, 0.0, dx, 0.0);
+		FillDisk(points, m_ep, m_origin, m_rb - dx, 0.0, dx);
 	if (top)
-		FillDisk(points, m_ep, m_origin, m_rt - dx, nz*dz, dx, 0.0);
+		FillDisk(points, m_ep, m_origin, m_rt - dx, nz*dz, dx);
 }
 
 
@@ -170,7 +173,7 @@ Cone::Fill(PointVect& points, const double dx, const bool fill)
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_rb - i*dz*sin(m_halfaperture), i*dz, dx, fill);
 	
 	return nparts;
 }
