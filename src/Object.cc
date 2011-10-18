@@ -259,12 +259,11 @@ Object::Fill(PointVect& points, const double dx)
  * 
  *  If the fill parameter is set to false the function just count the number of
  *  particles needed otherwise the particles are added to the particle vector.
-	
  * 
  *	\param ep : orientation
  *	\param center : translation to apply
  *	\param r : radius
- *  \param z : offset 
+ *  \param z : offset along z axis
  *	\param dx : particle spacing
  *  \param fill : fill flag
  *	\return number of particles needed to fill the object
@@ -294,7 +293,7 @@ Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& cent
  *	\param center : translation to apply
  *	\param rmin : minimum radius
  *	\param rmax : maximum radius
- *  \param z : offset 
+ *  \param z : offset along z axis
  *	\param dx : particle spacing
  *  \param fill : fill flag
  *	\return number of particles needed to fill the object
@@ -342,115 +341,23 @@ Object::FillDiskBorder(PointVect& points, const EulerParameters& ep, const Point
 		const double theta = theta0 + angle*i;
 		nparts++;
 		if (fill) {
-			Point p(r*cos(theta), r*sin(theta), z, center(3));
-			points.push_back(ep.Rot(p) + center);
+			Point p = ep.Rot(Point(r*cos(theta), r*sin(theta), z)) + center;
+			p(3) = center(3);
+			points.push_back(p);
 		}
 	}
 	if (np == 0) {
 		nparts++;
 		if (fill) {
-			Point p(0.0, 0.0, z, center(3));
-			points.push_back(ep.Rot(p) + center);
+			Point p = ep.Rot(Point(0, 0, z)) + center;
+			p(3) = center(3);
+			points.push_back(p);
 		}
 	}
 	
 	return nparts;
 }
 
-
-//void Object::GetBoundingBox(const PointVect& points, const double dx, 
-//							float3 & min, float3 & max)
-//{
-//	int size = points.size();
-//	
-//	if (size == 0)
-//		return;
-//	
-//	min = make_float3(points[0]);
-//	max = make_float3(points[0]);
-//	
-//	for (int i = 1; i < size; i++) {
-//		const Point & p = points[i];
-//		min.x = p(0) < min.x ? p(0) : min.x;
-//		min.y = p(1) < min.y ? p(1) : min.y;
-//		min.z = p(2) < min.z ? p(2) : min.z;
-//		
-//		max.x = p(0) > max.x ? p(0) : max.x;
-//		max.y = p(1) > max.y ? p(1) : max.y;
-//		max.z = p(2) > max.z ? p(2) : max.z;
-//	}
-//	
-//	min.x -= dx;
-//	min.y -= dx;
-//	min.z -= dx;
-//	
-//	max.x += dx;
-//	max.y += dx;
-//	max.z += dx;
-//}
-
-
-//bool Object::IsInside(const Point& p, const float3& min, const float3& max)
-//{
-//	bool isinside = false;
-//	
-//	if (p(0) >= min.x && p(0) <= max.x)
-//		isinside = true;
-//	
-//	if (p(1) >= min.y && p(1) <= max.y)
-//		isinside = true;
-//	
-//	if (p(2) >= min.z && p(2) <= max.z)
-//		isinside = true;
-//	
-//	return isinside;
-//}
-
-
-//bool Object::IsInside(const Point& p, const double dx)
-//{
-//	return false;
-//}
-
-
-//void Object::Unfill(PointVect& points, const double dx)
-//{
-//	PointVect obj_points;
-//	obj_points.reserve(1000);
-//	this->Fill(obj_points, dx);
-//	
-//	PointVect new_points;
-//	new_points.reserve(points.size());
-//	
-//	float3 min, max;
-//	GetBoundingBox(obj_points, dx, min, max);
-//	
-//	for (int i = 0; i < points.size(); i++) {
-//		const Point & p = points[i];
-//		bool pushback = true;
-//		
-//		if (IsInside(p, min, max)) {
-//			pushback = false;
-//			
-//			double mindist  = dx;
-//			for (int j = 0; j < obj_points.size(); j++) {
-//				double dist = p.Dist(obj_points[j]);
-//				mindist = dist < mindist ? dist : mindist;
-//			}
-//			
-//			if (mindist >= dx)
-//				pushback = true;
-//		}
-//		
-//		if (pushback)
-//			new_points.push_back(p);
-//	}
-//	
-//	obj_points.clear();
-//	points.clear();
-//	
-//	points = new_points;
-//}
 
 /// Remove particles from particle vector 
 /*! Remove the particles of particles vector lying inside the object.
