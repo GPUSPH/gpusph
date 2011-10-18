@@ -77,7 +77,7 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0, sqrtf(300.0*g*H));
+	m_physparams.set_density(0, 1000.0, 7.0, 30);
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
@@ -184,9 +184,7 @@ int DamBreakObjects::fill_parts()
 	
 	rb_cg = Point(0.6, 0.1, 0.05 + r0);
 	object3 = Sphere(rb_cg, 0.05);
-	
-	std::cout << "Sphere part mass" << object3.SetPartMass(r0, m_physparams.rho0[0]*0.6) << "\n";
-
+	object3.SetPartMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetInertia(r0);
 	object3.Unfill(parts, r0);
@@ -239,10 +237,9 @@ void DamBreakObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info
 			pos[i] = make_float4(rbparts[i - j]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(OBJECTPART, k, i - j);
-		std::cout << ", part mass: " << pos[i].w << "\n";
 		}
 		j += rbparts.size();
-		//std::cout << ", part mass: " << pos[j-1].w << "\n";
+		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 	
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
