@@ -112,22 +112,22 @@ Torus::Fill(PointVect& points, const double dx, const bool fill)
 	return nparts;
 }
 
-// TODO: FIXME
+
 bool
 Torus::IsInside(const Point& p, const double dx) const
 {	
 	Point lp = m_ep.TransposeRot(p - m_center);
-	const double h = m_r + dx;
-	bool isinside = false;
-	const double z = lp(2);
-	if (z > -h && z < h) {
-		const double rmin2 = (m_R - sqrt(m_r*m_r - z*z) - dx)*(m_R - sqrt(m_r*m_r - z*z) - dx);
-		const double rmax2 = (m_R + sqrt(m_r*m_r - z*z) + dx)*(m_R + sqrt(m_r*m_r - z*z) + dx);
-		if (lp(0)*lp(0) + lp(1)*lp(1) < rmax2 && lp(0)*lp(0) + lp(1)*lp(1) > rmin2)
-			isinside = true;
-	}
+
+	const double Rmin = m_R - m_r - dx;
+	const double Rmax = m_R + m_r + dx;
+	const double rxy = sqrt(lp(0)*lp(0) + lp(1)*lp(1));
+	const double radsq = (rxy - m_R)*(rxy - m_R) + lp(2)*lp(2);
+	if (radsq < Rmin*Rmin) 
+		return false;
+	if (radsq > Rmax*Rmax) 
+		return false;
 	
-	return isinside;
+	return true;
 }
 
 
