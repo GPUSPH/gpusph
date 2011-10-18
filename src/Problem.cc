@@ -44,7 +44,7 @@ Problem::Problem(const Options &options)
 {
 	m_options = options;
 	m_last_display_time = 0.0;
-	m_last_write_time = 0.0;
+	m_last_write_time = -1.0;
 	m_last_screenshot_time = 0.0;
 	m_mbnumber = 0;
 	m_rbdatafile = NULL;
@@ -137,7 +137,7 @@ Problem::need_write(float t)
 	if (m_writefreq == 0)
 		return false;
 
-	if (t - m_last_write_time >= m_displayinterval*m_writefreq) {
+	if (t - m_last_write_time >= m_displayinterval*m_writefreq || (t == 0.0 && m_last_write_time != 0.0)) {
 		m_last_write_time = t;
 		return true;
 	}
