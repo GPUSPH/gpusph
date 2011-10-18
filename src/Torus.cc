@@ -70,9 +70,9 @@ void
 Torus::SetInertia(const double dx)
 {
 	const double r = m_r + dx/2.0;
-	m_inertia[0] = m_mass*(5.0/8.0*m_R*m_R + 1.0/2.0*r*r);
+	m_inertia[0] = m_mass*(5.0/8.0*r*r + 1.0/2.0*m_R*m_R);
 	m_inertia[1] = m_inertia[0];
-	m_inertia[0] = m_mass*(3.0/4.0*m_R*m_R + r*r);
+	m_inertia[2] = m_mass*(3.0/4.0*m_r*m_r + m_R*m_R);
 }
 
 
@@ -166,7 +166,7 @@ Torus::GLDraw(const EulerParameters& ep, const Point& cg) const
 		for (int j=0; j < CIRCLE_LINES; ++j) {
 			double v = j*angle2;
 			Point p = m_ep.Rot(Point((m_R + m_r*cos(v))*cosu, (m_R + m_r*cos(v))*sinu, m_r*sin(v)));
-			p += m_center;
+			p += cg;
 			glVertex3f(p(0), p(1), p(2));
 		}
 		glEnd();
