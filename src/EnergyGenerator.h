@@ -46,7 +46,7 @@ class EnergyGenerator: public Problem {
 		PointVect	paddle_parts;
 
 		Cylinder	cyl;
-		Sphere 		torus;
+		Torus 		torus;
 		double		paddle_length;
 		double		paddle_width;
 		double		h_length, height, slope_length, beta;

@@ -42,7 +42,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	// Size and origin of the simulation domain
 	lx = 9.0;
 	ly = 2.0;
-	lz = 1.0;
+	lz = 1.5;
 	
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
@@ -63,7 +63,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	use_bottom_plane = true;
 	
 	// SPH parameters
-	set_deltap(0.04f);  //0.005f;
+	set_deltap(0.06f);  //0.005f;
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -72,11 +72,11 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 20;
-	//m_simparams.visctype = ARTVISC;
+	m_simparams.shepardfreq = 17;
+	//m_simparams.mlsfreq = 20;
+	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = KINEMATICVISC;
-	m_simparams.visctype = SPSVISC;
+	//m_simparams.visctype = SPSVISC;
 	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
 
@@ -89,7 +89,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
 
-	m_physparams.set_density(0, 1000.0, 7.0, 50);
+	m_physparams.set_density(0, 1000.0, 7.0, 20);
 	m_physparams.numFluids = 1;
 	float r0 = m_deltap;
 	m_physparams.r0 = r0;
@@ -114,18 +114,18 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	paddle_length = 1.0f;
+	paddle_length = 1.4f;
 	paddle_width = m_size.y - 2*r0;
 	mbpaddledata.type = PADDLEPART;
 	mbpaddledata.origin = make_float3(0.13f, r0, -0.1344);
-	mbpaddledata.tstart = 0.05f;
+	mbpaddledata.tstart = 0.1f;
 	mbpaddledata.tend = m_simparams.tend;
 	// The stroke value is given at free surface level H
-	float stroke = 0.2;
+	float stroke = 0.6;
 	// m_mbamplitude is the maximal angular value par paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
 	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));
-	mbpaddledata.omega = 4.0*M_PI;		// period T = 1.0 s
+	mbpaddledata.omega = 0.5*M_PI;		// period T = 1.0 s
 	// Call mb_callback for paddle a first time to initialise
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
@@ -145,7 +145,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
 	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4f;
+	m_maxvel = 1.4f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
@@ -239,16 +239,14 @@ int EnergyGenerator::fill_parts()
 		n++;
 	 }
 	
-	Point p = Point(0.5, 1.0, 0.0);
-	cyl = Cylinder(p, 0.05, H + 0.3, EulerParameters());
+	Point p = Point(2.0, 1.0, 0.0);
+	cyl = Cylinder(p, 0.12, lz, EulerParameters());
 	cyl.SetPartMass(m_deltap, m_physparams.rho0[0]);
-//	cyl.FillBorder(boundary_parts, br);
-//	cyl.Unfill(parts, br);
+	cyl.FillBorder(boundary_parts, br);
+	cyl.Unfill(parts, br);
 
-	//torus = Torus(p + Vector(0, 0, H), 0.2, 0.125, EulerParameters());	
-	torus = Sphere(p + Vector(0, 0, H), 0.1);
+	torus = Torus(p + Vector(0, 0, H + 0.2 + 2*br), 0.4, 0.2, EulerParameters());
 	torus.SetPartMass(br, m_physparams.rho0[0]*0.2);
-	torus.SetMass(br, m_physparams.rho0[0]*0.2);
 	torus.SetInertia(br);
 	torus.Unfill(parts, 2*br);
 	
@@ -311,7 +309,7 @@ void EnergyGenerator::draw_boundary(float t)
 	actual_paddle.GLDraw();
 
 	glColor3f(0.5, 0.5, 1.0);
-//	cyl.GLDraw();
+	cyl.GLDraw();
 	glColor3f(1.0, 0, 0.0);
 	for (int i = 0; i < m_simparams.numbodies; i++)
 		get_body(i)->GLDraw();
