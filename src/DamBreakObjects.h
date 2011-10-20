@@ -36,13 +36,18 @@
 #include "Point.h"
 #include "Cube.h"
 #include "Sphere.h"
+#include "Cone.h"
+#include "Torus.h"
 
 
 class DamBreakObjects: public Problem {
 	private:
 		Cube		experiment_box;
-		Cube		obstacle, object1, object2;
+		Cube		obstacle;
+		Cone		object1;
+		Cube		object2;
 		Sphere		object3;
+		Torus		object4;
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	obstacle_parts;

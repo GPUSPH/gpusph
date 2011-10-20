@@ -77,7 +77,7 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0, 30);
+	m_physparams.set_density(0, 1000.0, 7.0, 10);
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
@@ -95,7 +95,7 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	
 	// Allocate data for floating bodies
-	allocate_bodies(3);
+	allocate_bodies(4);
 	
 	// Scales for drawing
 	m_maxrho = density(H,0);
@@ -167,27 +167,35 @@ int DamBreakObjects::fill_parts()
 	}
 
 	// Rigid body #1
-	Point rb_cg = Point(0.2, 0.335, H);
-	double l = 0.1, w = 0.1, h = 0.1;
-	object1 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
+	double h_cone = 0.2;
+	Point rb_origin = Point(0.2, 0.18*ly, H - h_cone/2.0);
+	object1 = Cone(rb_origin, 0.08, 0.02, h_cone, EulerParameters());
 	object1.SetPartMass(r0, m_physparams.rho0[0]*0.7);
 	object1.SetMass(r0, m_physparams.rho0[0]*0.7);
 	object1.SetInertia(r0);
 	object1.Unfill(parts, r0);
 	
-	rb_cg = Point(0.7, 0.335, h/2 + 2*r0);
+	double l = 0.1, w = 0.1, h = 0.1;
+	Point rb_cg = Point(0.7, 0.5*ly, h/2 + 2*r0);
 	object2 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
 	object2.SetPartMass(r0, m_physparams.rho0[0]*0.3);
 	object2.SetMass(r0, m_physparams.rho0[0]*0.3);
 	object2.SetInertia(r0);
 	object2.Unfill(parts, r0);
 	
-	rb_cg = Point(0.6, 0.1, 0.05 + r0);
+	rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
 	object3 = Sphere(rb_cg, 0.05);
 	object3.SetPartMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetInertia(r0);
 	object3.Unfill(parts, r0);
+	
+	rb_cg = Point(0.2, 0.6*ly, H);
+	object4 = Torus(rb_cg, 0.05, 0.03, EulerParameters(0.0, 0.0, 0.0));
+	object4.SetPartMass(r0, m_physparams.rho0[0]*0.6);
+	object4.SetMass(r0, m_physparams.rho0[0]*0.6);
+	object4.SetInertia(r0);
+	object4.Unfill(parts, r0);
 	
 	RigidBody* rigid_body = get_body(0);
 	rigid_body->AttachObject(&object1);
@@ -202,6 +210,11 @@ int DamBreakObjects::fill_parts()
 	rigid_body = get_body(2);
 	rigid_body->AttachObject(&object3);
 	object3.FillBorder(rigid_body->GetParts(), r0);
+	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
+	
+	rigid_body = get_body(3);
+	rigid_body->AttachObject(&object4);
+	object4.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
 	
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
