@@ -292,9 +292,6 @@ endif
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
 INCPATH+= -I$(SRCDIR) -I$(OPTSDIR)
 
-# if NOT using local cudpp
-LIBS+= -lcudpp$(CUDPP_ARCH_SFX)$(CUDPP_DBG_SFX)
-
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)
 	CFLAGS += --ptxas-options=-v
