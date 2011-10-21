@@ -74,19 +74,25 @@ EULER_KERNEL_NAME(
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
 	// copying pos and vel in the new arrays
-	particleinfo pinfo = info[index];
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 
 	/* Since we never use the last two components of pinfo, the compiler is
-	   ‘smart’ enough to not load them at all. This kills coalescence,
-	   because each thread reads 32 bits, with a 32-bit gap between one
-	   thread and the next.
-	   We can work around this by forcing the use of the id() component of
-	   pinfo with a useless read, which is a horrible hack but speeds up
-	   the euler kernel by 20%. */
-	if (id(pinfo) >= (uint)-1)
-		return;
+	   ‘smart’ enough to not load them at all. This kills coalescence on
+	   older hardware, because each thread reads 32 bits, with a 32-bit gap
+	   between one thread and the next.
+	   We can work around this by forcing the compiler to code a read for
+	   a 64-bit word by reading a long int at our interested address,
+	   and then casting the result to particleinfo.
+	   This speeds up the euler kernel by 20% on 1.1 devices, and by
+	   only doing it for older hardware we spare ourselves the very small
+	   performance loss that we'd find on 2.0 devices with the hack. */
+#if __GPU_ARCH__ < 200
+	long int hack = *reinterpret_cast<long int*>(info + index);
+	particleinfo pinfo = *reinterpret_cast<particleinfo*>(&hack);
+#else
+	particleinfo pinfo = info[index];
+#endif
 
 	if(type(pinfo) != BOUNDPART) {
 		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
