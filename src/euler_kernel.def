@@ -78,6 +78,16 @@ EULER_KERNEL_NAME(
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 
+	/* Since we never use the last two components of pinfo, the compiler is
+	   ‘smart’ enough to not load them at all. This kills coalescence,
+	   because each thread reads 32 bits, with a 32-bit gap between one
+	   thread and the next.
+	   We can work around this by forcing the use of the id() component of
+	   pinfo with a useless read, which is a horrible hack but speeds up
+	   the euler kernel by 20%. */
+	if (id(pinfo) >= (uint)-1)
+		return;
+
 	if(type(pinfo) != BOUNDPART) {
 		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 #		ifdef XSPH_KERNEL
