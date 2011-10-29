@@ -26,9 +26,21 @@
 #ifndef _BUILDNEIBS_CUH_
 #define _BUILDNEIBS_CUH_
 
-#define BLOCK_SIZE_CALCHASH		256
-#define BLOCK_SIZE_REORDERDATA	256
-#define BLOCK_SIZE_BUILDNEIBS	256
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		6
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	6
+	#define BLOCK_SIZE_BUILDNEIBS	288
+	#define MIN_BLOCKS_BUILDNEIBS	4
+#else
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		1
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	1
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	1
+#endif
 
 #include "vector_math.h"
 
@@ -59,19 +71,19 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							uint			numGridCells);
 
 void
-buildNeibsList( uint*			neibsList,
-				float4*			pos,
-				particleinfo*	info,
-				uint*			particleHash,
-				uint*			cellStart,
-				uint*			cellEnd,
-				uint3			gridSize,
-				float3			cellSize,
-				float3			worldOrigin,
-				uint			numParticles,
-				uint			gridCells,
-				float			influenceradius,
-				bool			periodicbound);
+buildNeibsList( uint*				neibsList,
+				const float4*		pos,
+				const particleinfo*	info,
+				const uint*			particleHash,
+				const uint*			cellStart,
+				const uint*			cellEnd,
+				const uint3			gridSize,
+				const float3		cellSize,
+				const float3		worldOrigin,
+				const uint			numParticles,
+				const uint			gridCells,
+				const float			sqinfluenceradius,
+				const bool			periodicbound);
 
 void
 sort(	uint*	particleHash,

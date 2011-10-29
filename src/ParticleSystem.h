@@ -105,7 +105,8 @@ class ParticleSystem
 		PhysParams	m_physparams;
 		SimParams	m_simparams;
 		float		m_influenceRadius;		// slength*kernelRadius
-		float		m_nlInfluenceRadius;	// influence radius for neib listt construction
+		float		m_nlInfluenceRadius;	// influence radius for neib list construction
+		float		m_nlSqInfluenceRadius;	// square influence radius for neib list construction
 		float		m_dtprev;				// DEBUG: dt at previous iter
 
 		// Informations for timing

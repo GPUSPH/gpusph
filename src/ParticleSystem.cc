@@ -93,6 +93,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 
 	m_influenceRadius = m_simparams.kernelradius*m_simparams.slength;
 	m_nlInfluenceRadius = m_influenceRadius*m_simparams.nlexpansionfactor;
+	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
 
 	m_gridSize.x = (uint) (m_worldSize.x / m_influenceRadius);
 	m_gridSize.y = (uint) (m_worldSize.y / m_influenceRadius);
@@ -1052,7 +1053,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						worldOrigin,
 						m_numParticles,
 						m_nGridCells,
-						m_nlInfluenceRadius,
+						m_nlSqInfluenceRadius,
 						m_simparams.periodicbound);
 
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "d_numInteractions", sizeof(int), 0));

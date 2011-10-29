@@ -69,7 +69,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 {
 	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-
+	
 	CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
@@ -79,56 +79,65 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
 													newVel, newInfo, particleHash, particleIndex, numParticles);
-
+	
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("Kernel execution failed");
+	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Kernel execution failed");
 }
 
 
 void
-buildNeibsList(	uint*			neibsList,
-				float4*			pos,
-				particleinfo*	info,
-				uint*			particleHash,
-				uint*			cellStart,
-				uint*			cellEnd,
-				uint3			gridSize,
-				float3			cellSize,
-				float3			worldOrigin,
-				uint			numParticles,
-				uint			gridCells,
-				float			influenceradius,
-				bool			periodicbound)
+buildNeibsList(	uint*				neibsList,
+				const float4*		pos,
+				const particleinfo*	info,
+				const uint*			particleHash,
+				const uint*			cellStart,
+				const uint*			cellEnd,
+				const uint3			gridSize,
+				const float3		cellSize,
+				const float3		worldOrigin,
+				const uint			numParticles,
+				const uint			gridCells,
+				const float			sqinfluenceradius,
+				const bool			periodicbound)
 {
-	int numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
+	const int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	CUDA_SAFE_CALL(cudaMemset(neibsList, 0xffffffff, numParticles*MAXNEIBSNUM*sizeof(uint)));
-
+#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
-
+	
 	if (periodicbound)
-		buildNeibsListDevice<true><<< numBlocks, numThreads >>>(neibsList, gridSize,
-				cellSize, worldOrigin, numParticles, influenceradius);
+		buildNeibsListDevice<true><<< numBlocks, numThreads >>>(
+#if (__COMPUTE__ >= 20)			
+			pos, 
+#endif
+			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
 	else
-		buildNeibsListDevice<false><<< numBlocks, numThreads >>>(neibsList, gridSize,
-				cellSize, worldOrigin, numParticles, influenceradius);
-
+		buildNeibsListDevice<false><<< numBlocks, numThreads >>>(
+#if (__COMPUTE__ >= 20)			
+			pos, 
+#endif
+			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
+		
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("Kernel execution failed");
+	
+#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Kernel execution failed");
 }
+
 
 void
 sort(uint*	particleHash, uint*	particleIndex, uint	numParticles)

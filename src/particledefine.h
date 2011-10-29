@@ -219,7 +219,17 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* GPU warp size */
 #define WARPSIZE				32
 
-#define BLOCK_SIZE_FORCES		64
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_FORCES		32
+#else
+	#define BLOCK_SIZE_FORCES		64
+#endif
+
+#if (__COMPUTE__ >= 20)
+	#define INTMUL(x,y) x*y
+#else
+	#define INTMUL(x,y) _mul24(x,y)
+#endif
 
 typedef unsigned int uint;
 
