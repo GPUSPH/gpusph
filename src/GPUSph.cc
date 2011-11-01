@@ -514,7 +514,7 @@ void console_loop(void)
 
 		bool finished = problem->finished(timingInfo.t);
 		if (finished)
-			elapsed_sec = (clock() - start_time)/CLOCKS_PER_SEC;
+			elapsed_sec = (clock() - start_time)/(double) CLOCKS_PER_SEC;
 
 		bool need_write = problem->need_write(timingInfo.t) || finished;
 
