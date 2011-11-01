@@ -190,7 +190,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*MAXNEIBSNUM*m_numParticles;
+	const uint neibslistSize = sizeof(uint)*MAXNEIBSNUM*(m_numParticles/WARPSIZE + 1)*WARPSIZE;
 
 	uint memory = 0;
 
@@ -234,7 +234,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[MAXNEIBSNUM*m_numParticles];
+	m_hNeibsList = new uint[MAXNEIBSNUM*(m_numParticles/WARPSIZE + 1)*WARPSIZE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 
@@ -1041,7 +1041,21 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_maxNeibs", &m_timingInfo.maxNeibs, sizeof(int)));
 
-		// Build the neibghours list
+//		// Build the neibghours list
+//		buildNeibsList4(m_dNeibsList,
+//						m_dPos[m_currentPosRead],
+//						m_dInfo[m_currentInfoRead],
+//						m_dParticleHash,
+//						m_dCellStart,
+//						m_dCellEnd,
+//						gridSize,
+//						cellSize,
+//						worldOrigin,
+//						m_numParticles,
+//						m_nGridCells,
+//						m_nlSqInfluenceRadius,
+//						m_simparams.periodicbound);
+//		
 		buildNeibsList(	m_dNeibsList,
 						m_dPos[m_currentPosRead],
 						m_dInfo[m_currentInfoRead],
@@ -1055,9 +1069,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						m_nGridCells,
 						m_nlSqInfluenceRadius,
 						m_simparams.periodicbound);
-
+		
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "d_numInteractions", sizeof(int), 0));
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "d_maxNeibs", sizeof(int), 0));
+//		printf("numinteract %d, maxneibs %d\n", m_timingInfo.numInteractions,m_timingInfo.maxNeibs);
 		if (m_timingInfo.maxNeibs > MAXNEIBSNUM) {
 			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, MAXNEIBSNUM);
 			fflush(stdout);

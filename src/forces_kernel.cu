@@ -580,14 +580,16 @@ SPSstressMatrixDevice(	float2*	tau0,
 						float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// compute SPS matrix only for fluid particles
 	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	if (NOT_FLUID(info))
 		return;
 
 	// read particle data from sorted arrays
@@ -609,8 +611,8 @@ SPSstressMatrixDevice(	float2*	tau0,
 	float3 dvz = make_float3(0.0f);
 
 	// first loop over all the neighbors for the Velocity Gradients
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -698,14 +700,16 @@ xsphDevice(	float4*	xsph,
 			float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// normalize kernel only if the given particle is a fluid one
 	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	if (NOT_FLUID(info))
 		return;
 
 	// read particle data from sorted arrays
@@ -716,8 +720,8 @@ xsphDevice(	float4*	xsph,
 	float3 mean_vel = make_float3(0.0f);
 
 	// loop over all neighbors
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -753,14 +757,16 @@ shepardDevice(	float4*	newVel,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// normalize kernel only if the given particle is a fluid one
 	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	if (NOT_FLUID(info))
 		return;
 
 	float4 pos = tex1Dfetch(posTex, index);
@@ -771,8 +777,8 @@ shepardDevice(	float4*	newVel,
 	float temp2 = temp1/vel.w ;
 
 	// loop over all the neighbors
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -806,14 +812,16 @@ MlsDevice(	float4*	newVel,
 			float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// computing MLS matrix only for fluid particles
 	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	if (NOT_FLUID(info))
 		return;
 
 	float4 pos = tex1Dfetch(posTex, index);
@@ -832,8 +840,8 @@ MlsDevice(	float4*	newVel,
 	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// first loop over all the neighbors for the MLS matrix
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -892,8 +900,8 @@ MlsDevice(	float4*	newVel,
 		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
 
 		// second loop over all the neighbors for correction
-		for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-			uint neib_index = neibsList[i];
+		for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+			uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 			if (neib_index == 0xffffffff) break;
 
@@ -913,37 +921,37 @@ MlsDevice(	float4*	newVel,
 			}
 		}  // end of second loop trough neighbors
 	} else {
-			// Resort to Shepard filter in absence of invertible matrix
-			// see also shepardDevice. TODO: share the code
-			// we use a11 and a12 for temp1, temp2
-			a11 = pos.w*W<kerneltype>(0, slength);
-			a12 = a11/vel.w;
+		// Resort to Shepard filter in absence of invertible matrix
+		// see also shepardDevice. TODO: share the code
+		// we use a11 and a12 for temp1, temp2
+		a11 = pos.w*W<kerneltype>(0, slength);
+		a12 = a11/vel.w;
 
 			// loop over all neighbors
-			for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-					uint neib_index = neibsList[i];
+		for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+			uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
-					if (neib_index == 0xffffffff) break;
+				if (neib_index == 0xffffffff) break;
 
-					float4 neib_pos;
-					float3 relPos;
-					float r;
+				float4 neib_pos;
+				float3 relPos;
+				float r;
 
-					getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-					float neib_rho = tex1Dfetch(velTex, neib_index).w;
-					particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				float neib_rho = tex1Dfetch(velTex, neib_index).w;
+				particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-					// interaction between two particles
-					if (r < influenceradius && FLUID(neib_info)) {
-							// ρj*Wij*Vj = mj*Wij
-							float w = W<kerneltype>(r, slength)*neib_pos.w;
-							// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
-							a11 += w;
-							a12 +=w/neib_rho;
-					}
-			}  // end of second loop through neighbors
+				// interaction between two particles
+				if (r < influenceradius && FLUID(neib_info)) {
+						// ρj*Wij*Vj = mj*Wij
+						float w = W<kerneltype>(r, slength)*neib_pos.w;
+						// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
+						a11 += w;
+						a12 +=w/neib_rho;
+				}
+		}  // end of second loop through neighbors
 
-			vel.w = a11/a12;
+		vel.w = a11/a12;
 	}
 
 	newVel[index] = vel;
@@ -964,49 +972,51 @@ calcVortDevice(	float3*	vorticity,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
+	// computing vorticity only for fluid particles
+	particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
+		return;
+
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
-	particleinfo info = tex1Dfetch(infoTex, index);
 
 	// MLS matrix elements
 	float3 vort = make_float3(0.0f);
 
-	// computing vorticity only for fluid particles
-	if (FLUID(info)) {
+	// loop over all the neighbors
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
-		// loop over all the neighbors
-		for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-			uint neib_index = neibsList[i];
+		if (neib_index == 0xffffffff) break;
 
-			if (neib_index == 0xffffffff) break;
+		float4 neib_pos;
+		float3 relPos;
+		float r;
 
-			float4 neib_pos;
-			float3 relPos;
-			float r;
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-			float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
-				float3 relVel;
-				relVel.x = vel.x - neib_vel.x;
-				relVel.y = vel.y - neib_vel.y;
-				relVel.z = vel.z - neib_vel.z;
-				float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// ∂Wij/∂r*Vj
-				// vxij = vxi - vxj and same for vyij and vzij
-				vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
-				vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
-				vort.z += f*(relVel.x*relPos.y - relVel.y*relPos.x);		// vort.x = ∑(vxij(yi - yj) - vyij*(xi - xj))*∂Wij/∂r*Vj
-			}
-		} // end of loop trough neighbors
-	} // if fluid part
+		// interaction between two particles
+		if (r < influenceradius && FLUID(neib_info)) {
+			float3 relVel;
+			relVel.x = vel.x - neib_vel.x;
+			relVel.y = vel.y - neib_vel.y;
+			relVel.z = vel.z - neib_vel.z;
+			float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// ∂Wij/∂r*Vj
+			// vxij = vxi - vxj and same for vyij and vzij
+			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
+			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
+			vort.z += f*(relVel.x*relPos.y - relVel.y*relPos.x);		// vort.x = ∑(vxij(yi - yj) - vyij*(xi - xj))*∂Wij/∂r*Vj
+		}
+	} // end of loop trough neighbors
 
 	vorticity[index] = vort;
 }
@@ -1023,23 +1033,25 @@ calcTestpointsVelocityDevice(float4*	newVel,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
-
 	if((type(info) != TESTPOINTSPART))
 		return;
-
+	
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
-	float4 temp = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+	
+	float4 temp = make_float4(0.0f);
 
 	// loop over all the neighbors
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1081,29 +1093,27 @@ calcSurfaceparticleDevice(float4*	normals,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
 
-	if (!FLUID(info)) {
-		newInfo [index] = info;
-		float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
-		normals [index] = normal;
+	if (NOT_FLUID(info))
 		return;
-		}
-
-	info.x &= ~SURFACE_PARTICLE_FLAG;
 
 	float4 pos = tex1Dfetch(posTex, index);
-	float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+	float4 normal = make_float4(0.0f);
+	
+	info.x &= ~SURFACE_PARTICLE_FLAG;
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// loop over all the neighbors (First loop)
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1137,9 +1147,9 @@ calcSurfaceparticleDevice(float4*	normals,
 
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
-
+	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+		
 		if (neib_index == 0xffffffff) break;
 
 		float4 neib_pos;

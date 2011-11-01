@@ -424,9 +424,11 @@ void display()
 			#define ti timingInfo
 			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
 					"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
+					" mean neib list in %es \n"
 					"mean integration in %es \n",
 					ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 					ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
+					ti.meanTimeNeibsList,
 					ti.meanTimeEuler);
 			#undef ti
 		}
@@ -529,9 +531,11 @@ void console_loop(void)
 			#define ti timingInfo
 			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
 					"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
+					"mean neib list in %es \n"
 					"mean integration in %es \n",
 					ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 					ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
+					ti.meanTimeNeibsList,
 					ti.meanTimeEuler);
 			#undef ti
 		}

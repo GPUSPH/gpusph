@@ -67,7 +67,9 @@ FORCES_CUDA_KERNEL
 )
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;   //particle number
-
+	const uint lane = index/WARPSIZE;
+	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	
 #	ifdef DT_KERNEL
 	__shared__ float s_cfl[BLOCK_SIZE_FORCES];
 	s_cfl[threadIdx.x] = 0.0f;
@@ -131,8 +133,8 @@ FORCES_CUDA_KERNEL
 #			endif
 
 			// loop over all neighbors
-			for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-				uint neib_index = neibsList[i];
+			for(uint i = 0; i < MAXNEIBSNUM*BLOCK_SIZE_FORCES ; i += BLOCK_SIZE_FORCES) {
+				uint neib_index = neibsList[MAXNEIBSNUM*BLOCK_SIZE_FORCES*lane + i + offset];
 
 				if (neib_index == 0xffffffff) break;
 
@@ -311,8 +313,8 @@ FORCES_CUDA_KERNEL
 			float4 pos = tex1Dfetch(posTex, index);
 
 			// loop over all neighbors
-			for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-				uint neib_index = neibsList[i];
+			for(uint i = 0; i < MAXNEIBSNUM*BLOCK_SIZE_FORCES ; i += BLOCK_SIZE_FORCES) {
+				uint neib_index = neibsList[MAXNEIBSNUM*BLOCK_SIZE_FORCES*lane + i + offset];
 
 				if (neib_index == 0xffffffff) break;
 
