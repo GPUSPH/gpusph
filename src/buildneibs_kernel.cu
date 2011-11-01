@@ -270,7 +270,7 @@ neibsInCell(
 					}
 
 					if (neibs_num < MAXNEIBSNUM)
-						neibsList[MAXNEIBSNUM*WARPSIZE*lane + neibs_num*WARPSIZE + offset] = mod_index;
+						neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = mod_index;
 					neibs_num++;
 				}
 
@@ -298,8 +298,8 @@ buildNeibsListDevice(
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	const uint tid = threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = tid & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = tid & (NEIBINDEX_INTERLEAVE - 1);
 	
 	// total number of neibs for this particle
 	__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
@@ -342,7 +342,7 @@ buildNeibsListDevice(
 		}
 		
 		if (neibs_num < MAXNEIBSNUM)
-			neibsList[MAXNEIBSNUM*WARPSIZE*lane + neibs_num*WARPSIZE + offset] = 0xffffffff;
+			neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffffffff;
 	}
 	
 	// Shared memory reduction of per block maximum number of neighbors

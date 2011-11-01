@@ -133,7 +133,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
-#define MAXNEIBSNUM			128
+#define MAXNEIBSNUM			160
 
 
 /*
@@ -220,10 +220,11 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define WARPSIZE				32
 
 #if (__COMPUTE__ >= 20)
-	#define BLOCK_SIZE_FORCES		32
+	#define BLOCK_SIZE_FORCES		128
 #else
 	#define BLOCK_SIZE_FORCES		64
 #endif
+#define NEIBINDEX_INTERLEAVE		32
 
 #if (__COMPUTE__ >= 20)
 	#define INTMUL(x,y) x*y

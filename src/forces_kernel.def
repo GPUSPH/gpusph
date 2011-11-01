@@ -49,7 +49,10 @@ template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, b
 		 SPHFormulation sph_formulation>
 __global__ void
 FORCES_CUDA_KERNEL
-(
+(	
+	float4* posArray,
+	float4* velArray,
+	particleinfo* infoArray,
 	float4*	forces,
 #	ifdef XSPH_KERNEL
 	float4*	xsph,
@@ -67,8 +70,8 @@ FORCES_CUDA_KERNEL
 )
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;   //particle number
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 #	ifdef DT_KERNEL
 	__shared__ float s_cfl[BLOCK_SIZE_FORCES];
@@ -78,13 +81,16 @@ FORCES_CUDA_KERNEL
 	if (index < numParticles) {
 		// read particle info from texture
     	particleinfo info = tex1Dfetch(infoTex, index);
+    	//particleinfo info = infoArray[index];
 
 		// compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
 			// read other particle data from textures
-			float4 pos = tex1Dfetch(posTex, index);
+			//float4 pos = tex1Dfetch(posTex, index);
+			float4 pos = posArray[index];
 			float4 vel = tex1Dfetch(velTex, index);
+			//float4 vel = velArray[index];
 
 #			ifdef VISC_SPS
 			// read particle SPS matrix
@@ -133,8 +139,8 @@ FORCES_CUDA_KERNEL
 #			endif
 
 			// loop over all neighbors
-			for(uint i = 0; i < MAXNEIBSNUM*BLOCK_SIZE_FORCES ; i += BLOCK_SIZE_FORCES) {
-				uint neib_index = neibsList[MAXNEIBSNUM*BLOCK_SIZE_FORCES*lane + i + offset];
+			for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+				uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 				if (neib_index == 0xffffffff) break;
 
@@ -142,9 +148,11 @@ FORCES_CUDA_KERNEL
 				float3 relPos;
 				float r;
 
-				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 				float4 neib_vel = tex1Dfetch(velTex, neib_index);
-    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);				
+				//float4 neib_vel = velArray[neib_index];
+    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+    	        //particleinfo neib_info = infoArray[neib_index];				
 
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
@@ -171,7 +179,6 @@ FORCES_CUDA_KERNEL
 
 						float vel_dot_pos = dot(relVel, relPos);	// x.u
 						float f = F<kerneltype>(r, slength);		// 1/r dW/dr
-
 
 						// density derivative
 						float DrDt = neib_pos.w*vel_dot_pos*f;
@@ -313,8 +320,8 @@ FORCES_CUDA_KERNEL
 			float4 pos = tex1Dfetch(posTex, index);
 
 			// loop over all neighbors
-			for(uint i = 0; i < MAXNEIBSNUM*BLOCK_SIZE_FORCES ; i += BLOCK_SIZE_FORCES) {
-				uint neib_index = neibsList[MAXNEIBSNUM*BLOCK_SIZE_FORCES*lane + i + offset];
+			for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
+				uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
 
 				if (neib_index == 0xffffffff) break;
 
@@ -322,7 +329,7 @@ FORCES_CUDA_KERNEL
 				float3 relPos;
 				float r;
 
-				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
     	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				// TODO: multi objects

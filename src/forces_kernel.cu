@@ -445,6 +445,81 @@ getNeibData<false>(	float4	pos,
 		relPos.z = pos.z - neib_pos.z;
 		r = length(relPos);
 }
+
+template<bool periodicbound>
+__device__ __forceinline__ void
+getNeibData(float4	pos,
+			float4*	posArray,
+			uint*	neibsList,
+			float	influenceradius,
+			uint&	neib_index,
+			float4&	neib_pos,
+			float3&	relPos,
+			float&	r);
+
+
+// In case of periodic boundaries we add the displacement
+// vector when needed
+template<>
+__device__ __forceinline__ void
+getNeibData<true>(	float4	pos,
+					float4*	posArray,
+					uint*	neibsList,
+					float	influenceradius,
+					uint&	neib_index,
+					float4&	neib_pos,
+					float3&	relPos,
+					float&	r)
+{
+	int3 periodic = make_int3(0);
+	if (neib_index & WARPXPLUS)
+		periodic.x = 1;
+	else if (neib_index & WARPXMINUS)
+		periodic.x = -1;
+	if (neib_index & WARPYPLUS)
+		periodic.y = 1;
+	else if (neib_index & WARPYMINUS)
+		periodic.y = -1;
+	if (neib_index & WARPZPLUS)
+		periodic.z = 1;
+	else if (neib_index & WARPZMINUS)
+		periodic.z = -1;
+
+	neib_index &= NOWARP;
+
+	neib_pos = posArray[neib_index];
+
+	relPos.x = pos.x - neib_pos.x;
+	relPos.y = pos.y - neib_pos.y;
+	relPos.z = pos.z - neib_pos.z;
+	r = length(relPos);
+	if (periodic.x || periodic.y || periodic.z) {
+		if (r > influenceradius) {
+			relPos += periodic*d_dispvect2;
+			r = length(relPos);
+		}
+	}
+}
+
+
+template<>
+__device__ __forceinline__ void
+getNeibData<false>(	float4	pos,
+					float4*	posArray,
+					uint*	neibsList,
+					float	influenceradius,
+					uint&	neib_index,
+					float4&	neib_pos,
+					float3&	relPos,
+					float&	r)
+{
+		neib_pos = posArray[neib_index];
+
+		relPos.x = pos.x - neib_pos.x;
+		relPos.y = pos.y - neib_pos.y;
+		relPos.z = pos.z - neib_pos.z;
+		r = length(relPos);
+}
 /************************************************************************************************************/
 
 
@@ -580,8 +655,8 @@ SPSstressMatrixDevice(	float2*	tau0,
 						float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -611,8 +686,8 @@ SPSstressMatrixDevice(	float2*	tau0,
 	float3 dvz = make_float3(0.0f);
 
 	// first loop over all the neighbors for the Velocity Gradients
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -700,8 +775,8 @@ xsphDevice(	float4*	xsph,
 			float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -720,8 +795,8 @@ xsphDevice(	float4*	xsph,
 	float3 mean_vel = make_float3(0.0f);
 
 	// loop over all neighbors
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -757,8 +832,8 @@ shepardDevice(	float4*	newVel,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -777,8 +852,8 @@ shepardDevice(	float4*	newVel,
 	float temp2 = temp1/vel.w ;
 
 	// loop over all the neighbors
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -812,8 +887,8 @@ MlsDevice(	float4*	newVel,
 			float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -840,8 +915,8 @@ MlsDevice(	float4*	newVel,
 	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// first loop over all the neighbors for the MLS matrix
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -900,8 +975,8 @@ MlsDevice(	float4*	newVel,
 		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
 
 		// second loop over all the neighbors for correction
-		for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-			uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+		for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+			uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 			if (neib_index == 0xffffffff) break;
 
@@ -928,8 +1003,8 @@ MlsDevice(	float4*	newVel,
 		a12 = a11/vel.w;
 
 			// loop over all neighbors
-		for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-			uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+		for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+			uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 				if (neib_index == 0xffffffff) break;
 
@@ -972,8 +1047,8 @@ calcVortDevice(	float3*	vorticity,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -991,8 +1066,8 @@ calcVortDevice(	float3*	vorticity,
 	float3 vort = make_float3(0.0f);
 
 	// loop over all the neighbors
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1033,8 +1108,8 @@ calcTestpointsVelocityDevice(float4*	newVel,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -1050,8 +1125,8 @@ calcTestpointsVelocityDevice(float4*	newVel,
 	float4 temp = make_float4(0.0f);
 
 	// loop over all the neighbors
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1093,8 +1168,8 @@ calcSurfaceparticleDevice(float4*	normals,
 				float	influenceradius)
 {
 	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/WARPSIZE;
-	const uint offset = threadIdx.x & (WARPSIZE - 1);
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -1112,8 +1187,8 @@ calcSurfaceparticleDevice(float4*	normals,
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// loop over all the neighbors (First loop)
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1147,8 +1222,8 @@ calcSurfaceparticleDevice(float4*	normals,
 
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
-	for(uint i = 0; i < MAXNEIBSNUM*WARPSIZE ; i += WARPSIZE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*WARPSIZE*lane + i + offset];
+	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
 		
 		if (neib_index == 0xffffffff) break;
 

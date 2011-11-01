@@ -48,7 +48,7 @@ calcHash(float4*	pos,
 
 	calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 										   gridSize, cellSize, worldOrigin, numParticles);
-
+	
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Kernel execution failed");
 }
@@ -170,6 +170,7 @@ buildNeibsList4(uint*				neibsList,
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
 }
+
 
 void
 buildNeibsList2(uint*			neibsList,

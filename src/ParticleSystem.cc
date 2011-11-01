@@ -190,7 +190,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*MAXNEIBSNUM*(m_numParticles/WARPSIZE + 1)*WARPSIZE;
+	const uint neibslistSize = sizeof(uint)*MAXNEIBSNUM*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
 	uint memory = 0;
 
@@ -234,7 +234,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[MAXNEIBSNUM*(m_numParticles/WARPSIZE + 1)*WARPSIZE];
+	m_hNeibsList = new uint[MAXNEIBSNUM*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 
