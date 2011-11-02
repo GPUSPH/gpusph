@@ -1177,8 +1177,10 @@ calcSurfaceparticleDevice(float4*	normals,
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
 
-	if (NOT_FLUID(info))
+	if (NOT_FLUID(info)) {
+		newInfo[index] = info;		
 		return;
+	}
 
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 normal = make_float4(0.0f);
