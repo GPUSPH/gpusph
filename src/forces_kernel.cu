@@ -765,73 +765,18 @@ SPSstressMatrixDevice(	float2*	tau0,
 /*					   Kernels for XSPH, Shepard and MLS corrections									   */
 /************************************************************************************************************/
 
-// This kernel computes only the XSPH correction
-template<KernelType kernel_type, bool periodicbound>
-__global__ void
-xsphDevice(	float4*	xsph,
-			uint*	neibsList,
-			uint	numParticles,
-			float	slength,
-			float	influenceradius)
-{
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-	
-	if (index >= numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	// normalize kernel only if the given particle is a fluid one
-	particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
-		return;
-
-	// read particle data from sorted arrays
-	float4 pos = tex1Dfetch(posTex, index);
-	float4 vel = tex1Dfetch(velTex, index);
-
-	// force and density derivative
-	float3 mean_vel = make_float3(0.0f);
-
-	// loop over all neighbors
-	for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
-		uint neib_index = neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + i + offset];
-
-		if (neib_index == 0xffffffff) break;
-
-		float4 neib_pos;
-		float3 relPos;
-		float r;
-
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float4 neib_vel = tex1Dfetch(velTex, neib_index);
-		particleinfo neib_info = tex1Dfetch(infoTex, index);
-
-		if (r < influenceradius && FLUID(neib_info)) {
-			float3 relVel;
-			relVel.x = vel.x - neib_vel.x;
-			relVel.y = vel.y - neib_vel.y;
-			relVel.z = vel.z - neib_vel.z;
-
-			mean_vel -= 2.0f*neib_pos.w*W<kernel_type>(r, slength)*relVel/(vel.w + neib_vel.w);
-		}
-	}
-
-	xsph[index] = make_float4(mean_vel, 0.0f);
-}
-
-
 // This kernel computes the Shepard correction
 template<KernelType kerneltype, bool periodicbound >
 __global__ void
-shepardDevice(	float4*	newVel,
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+shepardDevice(	float4*	posArray,
+				float4*	newVel,
 				uint*	neibsList,
 				uint	numParticles,
 				float	slength,
 				float	influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+	int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
@@ -844,7 +789,11 @@ shepardDevice(	float4*	newVel,
 	if (NOT_FLUID(info))
 		return;
 
+	#if( __COMPUTE__ >= 20)
+	float4 pos = posArray[index];
+	#else
 	float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// taking into account self contribution in summation
@@ -861,7 +810,11 @@ shepardDevice(	float4*	newVel,
 		float3 relPos;
 		float r;
 
+		#if( __COMPUTE__ >= 20)							
+		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#endif
 		float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -880,13 +833,15 @@ shepardDevice(	float4*	newVel,
 // This kernel computes the MLS correction
 template<KernelType kerneltype, bool periodicbound>
 __global__ void
-MlsDevice(	float4*	newVel,
+__launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
+MlsDevice(	float4*	posArray,
+			float4*	newVel,
 			uint*	neibsList,
 			uint	numParticles,
 			float	slength,
 			float	influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+	int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
@@ -899,7 +854,11 @@ MlsDevice(	float4*	newVel,
 	if (NOT_FLUID(info))
 		return;
 
+	#if( __COMPUTE__ >= 20)
+	float4 pos = posArray[index];
+	#else
 	float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// MLS matrix elements
@@ -924,7 +883,11 @@ MlsDevice(	float4*	newVel,
 		float3 relPos;
 		float r;
 
+		#if( __COMPUTE__ >= 20)							
+		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#endif
 		float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -984,7 +947,11 @@ MlsDevice(	float4*	newVel,
 			float3 relPos;
 			float r;
 
+			#if( __COMPUTE__ >= 20)							
+			getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			#else
 			getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			#endif
 			float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1012,7 +979,11 @@ MlsDevice(	float4*	newVel,
 				float3 relPos;
 				float r;
 
+				#if( __COMPUTE__ >= 20)							
+				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				#else
 				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				#endif
 				float neib_rho = tex1Dfetch(velTex, neib_index).w;
 				particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 

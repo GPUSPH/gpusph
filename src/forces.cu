@@ -51,16 +51,16 @@ cudaArray*  dDem = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(pos, vel, info, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(pos, vel, info, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(pos, vel, info, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		else if (dtadapt && xsphcorr) \
 				FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(pos, vel, info, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -121,22 +121,16 @@ cudaArray*  dDem = NULL;
 				(tau[0], tau[1], tau[2], neibsList, numParticles, slength, influenceradius); \
 		break
 
-#define XSPH_CHECK(kernel, periodic) \
-	case kernel: \
-		xsphDevice<kernel, periodic><<< numBlocks, numThreads >>> \
-				(xsph, neibsList, numParticles, slength, influenceradius); \
-	break
-
 #define SHEPARD_CHECK(kernel, periodic) \
 	case kernel: \
 		shepardDevice<kernel, periodic><<< numBlocks, numThreads >>> \
-				 (newVel, neibsList, numParticles, slength, influenceradius); \
+				 (pos, newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
 #define MLS_CHECK(kernel, periodic) \
 	case kernel: \
 		MlsDevice<kernel, periodic><<< numBlocks, numThreads >>> \
-				(newVel, neibsList, numParticles, slength, influenceradius); \
+				(pos, newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
 #define VORT_CHECK(kernel, periodic) \
@@ -194,7 +188,9 @@ forces(	float4*			pos,
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	//CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -244,7 +240,9 @@ forces(	float4*			pos,
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
 	}
 
-	//CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
@@ -281,49 +279,6 @@ forces(	float4*			pos,
 
 
 void
-xsph(	float4*		pos,
-		float4*		vel,
-		float4*		forces,
-		float4*		xsph,
-		particleinfo	*info,
-		uint*		neibsList,
-		uint		numParticles,
-		float		slength,
-		int			kerneltype,
-		float		influenceradius,
-		bool		periodicbound)
-{
-	// thread per particle
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-
-	// execute the kernel
-	if (periodicbound) {
-		switch (kerneltype) {
-			XSPH_CHECK(CUBICSPLINE, true);
-			XSPH_CHECK(QUADRATIC, true);
-			XSPH_CHECK(WENDLAND, true);
-		}
-	} else {
-		switch (kerneltype) {
-			XSPH_CHECK(CUBICSPLINE, false);
-			XSPH_CHECK(QUADRATIC, false);
-			XSPH_CHECK(WENDLAND, false);
-		}
-	}
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Xsph kernel execution failed");
-}
-
-
-void
 shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
@@ -339,7 +294,9 @@ shepard(float4*		pos,
 	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -358,12 +315,15 @@ shepard(float4*		pos,
 		}
 	}
 
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("Shepard kernel execution failed");
+	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Shepard kernel execution failed");
 }
 
 
@@ -488,7 +448,6 @@ testpoints( float4*		pos,
 			TEST_CHECK(WENDLAND, false);
 		}
 	}
-
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));

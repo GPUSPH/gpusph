@@ -26,11 +26,27 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
-#define BLOCK_SIZE_CALCVORT		128
-#define BLOCK_SIZE_CALCTEST		128
-#define BLOCK_SIZE_SHEPARD		128
-#define BLOCK_SIZE_MLS			128
-#define BLOCK_SIZE_XSPH			128
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		6
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		6
+	#define BLOCK_SIZE_SHEPARD		128
+	#define MIN_BLOCKS_SHEPARD		8
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			6
+#else
+
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		1
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		1
+	#define BLOCK_SIZE_SHEPARD		224
+	#define MIN_BLOCKS_SHEPARD		1
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			1
+#endif
+
 
 
 extern "C"
@@ -63,18 +79,6 @@ forces(	float4*			pos,
 		BoundaryType	boundarytype,
 		bool			usedem);
 
-void
-xsph(	float4*		pos,
-		float4*		vel,
-		float4*		forces,
-		float4*		xsph,
-		particleinfo*	info,
-		uint*		neibsList,
-		uint		numParticles,
-		float		slength,
-		int			kerneltype,
-		float		influenceradius,
-		bool		periodicbound);
 
 void
 shepard(float4*		pos,
