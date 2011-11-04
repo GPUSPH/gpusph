@@ -57,10 +57,10 @@ cudaArray*  dDem = NULL;
 						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cfltest); \
 		else if (dtadapt && xsphcorr) \
 				FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cfltest); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -182,7 +182,8 @@ forces(	float4*			pos,
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
-		bool			usedem)
+		bool			usedem,
+		float*			cfltest)
 {
 	// thread per particle
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
@@ -248,11 +249,13 @@ forces(	float4*			pos,
 
 	if (dtadapt) {
 		float maxcfl = 0;
-		
 		thrust::device_ptr<float> cfl_devptr = thrust::device_pointer_cast(cfl);
-	
 		maxcfl = thrust::reduce(cfl_devptr, cfl_devptr + numPartsFmax, maxcfl, thrust::maximum<float>());
 
+		float maxcfltest = 0;
+		thrust::device_ptr<float> cfltest_devptr = thrust::device_pointer_cast(cfltest);
+		maxcfltest = thrust::reduce(cfltest_devptr, cfltest_devptr + numParticles, maxcfltest, thrust::maximum<float>());
+		printf ("cfl block = %e, cfl global = %e (diff = %e)\n", maxcfl, maxcfltest, maxcfltest - maxcfl);
 		dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 		if (visctype != ARTVISC) {

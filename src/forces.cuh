@@ -77,7 +77,8 @@ forces(	float4*			pos,
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
-		bool			usedem);
+		bool			usedem,
+		float*			cfl2);
 
 
 void

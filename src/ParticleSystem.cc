@@ -358,6 +358,9 @@ ParticleSystem::allocate(uint numParticles)
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
+		
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl2, memSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dCfl2, 0, memSize));
 		memory += fmaxTableSize;
 		}
 
@@ -1193,7 +1196,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
 					m_simparams.boundarytype,
-					m_simparams.usedem);
+					m_simparams.usedem,
+					m_dCfl2);
 	// At this point forces = f(pos(n), vel(n))
 
 	if (timing) {
@@ -1290,7 +1294,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
 					m_simparams.boundarytype,
-					m_simparams.usedem);
+					m_simparams.usedem,
+					m_dCfl2);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
 	
 	if (m_simparams.numbodies) {

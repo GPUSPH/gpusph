@@ -50,46 +50,46 @@ template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, b
 __global__ void
 FORCES_CUDA_KERNEL
 (	
-	float4* posArray,
-	float4*	forces,
+	float4*		posArray,
+	float4*		forces,
 #	ifdef XSPH_KERNEL
-	float4*	xsph,
+	float4*		xsph,
 #	endif
-	uint*	neibsList,
-	uint	numParticles,
-	float	slength,
-	float	influenceradius,
-	float4* rbforces,
-	float4*	rbtorques
+	const uint*	neibsList,
+	const uint	numParticles,
+	const float	slength,
+	const float	influenceradius,
+	float4*		rbforces,
+	float4*		rbtorques
 #	ifdef DT_KERNEL
 	,
-	float*	cfl
+	float*		cfl,
+	float*		cfltest
 #	endif
 )
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;   //particle number
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;   //particle number
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 #	ifdef DT_KERNEL
-	__shared__ float s_cfl[BLOCK_SIZE_FORCES];
-	s_cfl[threadIdx.x] = 0.0f;
+	float block_cfl = 0.0f;
 #	endif
 
 	if (index < numParticles) {
 		// read particle info from texture
-    	particleinfo info = tex1Dfetch(infoTex, index);
+    	const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
 			// read other particle data from textures or global mem
 			#if( __COMPUTE__ >= 20)
-			float4 pos = posArray[index];
+			const float4 pos = posArray[index];
 			#else
-			float4 pos = tex1Dfetch(posTex, index);
+			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
-			float4 vel = tex1Dfetch(velTex, index);
+			const float4 vel = tex1Dfetch(velTex, index);
 
 #			ifdef VISC_SPS
 			// read particle SPS matrix
@@ -134,7 +134,7 @@ FORCES_CUDA_KERNEL
 
 #			if defined(DT_KERNEL) || defined(VISC_ARTVISC)
 			/* sound speed sspeed is computed only once for the given particle */
-			float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
+			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
 #			endif
 
 			// loop over all neighbors
@@ -153,8 +153,8 @@ FORCES_CUDA_KERNEL
 				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 
-				float4 neib_vel = tex1Dfetch(velTex, neib_index);
-    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
+				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
 
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
@@ -179,8 +179,8 @@ FORCES_CUDA_KERNEL
 						relVel.y = vel.y - neib_vel.y;
 						relVel.z = vel.z - neib_vel.z;
 
-						float vel_dot_pos = dot(relVel, relPos);	// x.u
-						float f = F<kerneltype>(r, slength);		// 1/r dW/dr
+						const float vel_dot_pos = dot(relVel, relPos);	// x.u
+						const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
 
 						// density derivative
 						float DrDt = neib_pos.w*vel_dot_pos*f;
@@ -212,12 +212,12 @@ FORCES_CUDA_KERNEL
 #						endif
 
 #						if defined(VISC_DYNAMIC)
-						float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
+						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
 										d_visccoeff*neib_vel.w);
 #						elif defined(VISC_KINEMATIC)
-						float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
+						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
 #						elif defined(VISC_SPS)
-						float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
+						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
 						force.x += neib_pos.w*f*((tau.a11 + neib_tau.a11)*relPos.x + (tau.a12 + neib_tau.a12)*relPos.y +
 										(tau.a13 + neib_tau.a13)*relPos.z);
 						force.y += neib_pos.w*f*((tau.a12 + neib_tau.a12)*relPos.x + (tau.a22 + neib_tau.a22)*relPos.y +
@@ -269,11 +269,11 @@ FORCES_CUDA_KERNEL
 			} // end of loop over neighbors
 
 #			ifdef VISC_DYNAMIC
-			float dynvisc = d_visccoeff*vel.w;
+			const float dynvisc = d_visccoeff*vel.w;
 #			elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
-			float dynvisc = d_visccoeff*vel.w/4.0f;
+			const float dynvisc = d_visccoeff*vel.w/4.0f;				// FXME: check????????
 #			elif defined(VISC_ARTVISC)
-			float dynvisc = 0.0;
+			const float dynvisc = 0.0;
 #			else
 #				error Unknown viscosity!
 #			endif
@@ -291,7 +291,7 @@ FORCES_CUDA_KERNEL
 			if (usedem) {
 				switch (boundarytype) {
 					case LJ_BOUNDARY:
-						geom_coeff = DemLJForce(demTex, pos, make_float3(vel), dynvisc, slength, influenceradius, force);
+						geom_coeff = DemLJForce(demTex, pos, make_float3(vel), dynvisc, force);
 						break;
 					default:
 						break;
@@ -300,12 +300,12 @@ FORCES_CUDA_KERNEL
 
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numPlanes) {
-				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, slength, influenceradius, force));
+				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, force));
 			}
 			
 #			ifdef DT_KERNEL
 			// storing data for cfl conditon in shared memory
-			s_cfl[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)),
+			block_cfl = max(length(make_float3(force.x, force.y, force.z)),
 									(sspeed + maxprelvel)*(sspeed + maxprelvel)/slength);
 #			endif
 
@@ -320,9 +320,9 @@ FORCES_CUDA_KERNEL
 
 			// read other particle data from textures or global mem
 			#if( __COMPUTE__ >= 20)
-			float4 pos = posArray[index];
+			const float4 pos = posArray[index];
 			#else
-			float4 pos = tex1Dfetch(posTex, index);
+			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
 
 			// loop over all neighbors
@@ -341,9 +341,9 @@ FORCES_CUDA_KERNEL
 				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 
-    	        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-				// TODO: multi objects
+				// TODO: improve multi objects
 				if (r < influenceradius) {
 					float DvDt = 0.0;
 
@@ -367,7 +367,10 @@ FORCES_CUDA_KERNEL
 	}	// if index < numParticles)
 
 #	ifdef DT_KERNEL
-	dtadaptBlockReduce(s_cfl, cfl);
+	cfltest[index] = block_cfl;
+	dtadaptBlockReduce_modern(block_cfl, threadIdx.x);
+	if (!threadIdx.x)
+		cfl[blockIdx.x] = block_cfl;
 #	endif
 }
 /************************************************************************************************************/
