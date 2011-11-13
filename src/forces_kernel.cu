@@ -129,7 +129,7 @@ W(const float r, const float slength);
 
 // Cubic Spline kernel
 template<>
-__device__ float
+__device__ __forceinline__ float
 W<CUBICSPLINE>(const float r, const float slength)
 {
 	float val = 0.0f;
@@ -168,10 +168,10 @@ W<WENDLAND>(float r, float slength)
 {
 	const float R = r/slength;
 
-	float val = 1 - 0.5f*R;
+	float val = 1.0f - 0.5f*R;
 	val *= val;
 	val *= val;						// val = (1 - R/2)^4
-	val *= 1 + 2.0f*R;				// val = (2R + 1)(1 - R/2)^4*
+	val *= 1.0f + 2.0f*R;			// val = (2R + 1)(1 - R/2)^4*
 	val *= d_wcoeff_wendland;		// coeff = 21/(16 Pi h^3)
 	return val;
 }
@@ -213,7 +213,8 @@ F<QUADRATIC>(const float r, const float slength)
 }
 
 
-template<> __device__ __forceinline__ float
+template<> 
+__device__ __forceinline__ float
 F<WENDLAND>(const float r, const float slength)
 {
 	const float qm2 = r/slength - 2.0f;	// val = (-2 + R)^3
@@ -262,14 +263,14 @@ MKForce(const float r, const float slength,
 		const float mass_f, const float mass_b)
 {
 	// MK always uses the 1D cubic or quintic Wendland spline
-	float w = 0;
+	float w = 0.0f;
 
-	float force = 0;
+	float force = 0.0f;
 
 	// Wendland has radius 2
-	if (r <= 2*slength) {
+	if (r <= 2*slength) {	//TODO: fixme use influenceradius
 		float qq = r/slength;
-		w = 1.8f * __powf(1.0f - 0.5f*qq, 4.0f) * (2.0f*qq + 1.0f);
+		w = 1.8f * __powf(1.0f - 0.5f*qq, 4.0f) * (2.0f*qq + 1.0f);  //TODO: optimize
 		// float dist = r - d_MK_d;
 		float dist = max(d_epsartvisc, r - d_MK_d);
 		force = d_MK_K*w*2*mass_b/(d_MK_beta * dist * r * (mass_f+mass_b));
@@ -281,8 +282,7 @@ MKForce(const float r, const float slength,
 
 
 /***************************************** Viscosities *******************************************************/
-// Artificial viscosity scalar part when the projection
-// of the velocity (hx.u/r) is not precomputed
+// Artificial viscosity s
 __device__ __forceinline__ float
 artvisc(	const float	vel_dot_pos,
 			const float	rho,
@@ -296,19 +296,6 @@ artvisc(	const float	vel_dot_pos,
 									((r*r + d_epsartvisc)*(rho + neib_rho));
 }
 
-
-// Artificial viscosity scalar part when the projection
-// of the relative velocity (hx.u/r) is needed for the
-// adaptaive time step control and so precomputed
-__device__ __forceinline__ float
-artviscdt(	const float	prelvel_by_slength,
-			const float	rho,
-			const float	neib_rho,
-			const float	sspeed,
-			const float	neib_sspeed)
-{
-	return prelvel_by_slength*d_visccoeff*(sspeed + neib_sspeed)/(rho + neib_rho);
-}
 
 // ATTENTION: for all non artificial viscosity
 // µ is the dynamic viscosity (ρν)
@@ -350,7 +337,7 @@ __device__ __forceinline__ void
 dtadaptBlockReduce_old(	float		&cfl,
 						const uint	tid)
 {
-	__shared__ volatile float sm_cfl[BLOCK_SIZE_FORCES];
+	__shared__ float sm_cfl[BLOCK_SIZE_FORCES];
 	sm_cfl[tid] = cfl;
 	__syncthreads();
 	
@@ -373,96 +360,81 @@ dtadaptBlockReduce_old(	float		&cfl,
 }
 
 __device__ __forceinline__ void
-dtadaptBlockReduce(	float		&cfl,
-					const uint	tid)
+dtadaptBlockReduce(	float*	sm_max,
+					float*	cfl)
 {
-	__shared__ volatile float sm_cfl[BLOCK_SIZE_FORCES];
-	sm_cfl[tid] = cfl;
-	
-	__syncthreads();
-	
-	uint i = blockDim.x/2;
-	while (i != 0) {
-		if (tid < i) {
-			const float temp = sm_cfl[tid];
-			const float temp2 = sm_cfl[tid + 1];
-			if (temp2 > temp)
-				sm_cfl[tid] = temp2;
+	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1) 
+	{
+		if (threadIdx.x < s) 
+		{
+			sm_max[threadIdx.x] = max(sm_max[threadIdx.x + s], sm_max[threadIdx.x]);
 		}
 		__syncthreads();
-		i /= 2;
 	}
-	
-	cfl = sm_cfl[0];
+
+	// write result for this block to global mem
+	if (!threadIdx.x)
+		cfl[blockIdx.x] = sm_max[0];
 }
 
-#define WARP_SIZE 32
-#define LOG_WARP_SIZE 5
 
-#define NUM_THREADS 128
-#define NUM_WARPS (NUM_THREADS / WARP_SIZE)
-
-#define LOG_NUM_WARPS 2
-
-
+#define SCAN_STRIDE (WARPSIZE + WARPSIZE / 2 + 1)
 __device__ __forceinline__
 void dtadaptBlockReduce_modern(float& x, int tid) {
 
-	uint warp = tid / WARP_SIZE;
-	uint lane = (WARP_SIZE - 1) & tid;
+	const uint warp = tid / WARPSIZE;
+	const uint lane = (WARPSIZE - 1) & tid;
 
-	const int Size = 49 * NUM_WARPS;
+	__shared__ volatile float sm_max[SCAN_STRIDE*NUM_WARPS_FORCES];
 
-	__shared__ volatile float sharedX[Size];
-
-	volatile float* threadX = sharedX + 49 * warp + 16 + lane;
+	volatile float* sm_max_thread = sm_max + SCAN_STRIDE * warp + WARPSIZE/2 + lane;
 
 	// Zero out the preceding slots so we don't have to use conditionals.
-	threadX[-16] = 0.0f;
+	sm_max_thread[-16] = 0.0f;
 
-	// Store x and index into shared memory.
-	threadX[0] = x;
+	// Store x into shared memory.
+	sm_max_thread[0] = x;
 	
 	// Ripped almost line-for-line from the globalscan tutorial.
 	#pragma unroll
-	for(int i = 0; i < LOG_WARP_SIZE; ++i) {
+	for(int i = 0; i < LOG_WARPSIZE; ++i) {
 		// Use same scan indices as you would when finding the prefix sum.
-		int offset = 1<< i;
-		float y = threadX[-offset];
+		int offset = 1 << i;
+		float y = sm_max_thread[-offset];
 		if(y > x) {
 			x = y;
 			}
-		threadX[0] = x;
+		sm_max_thread[0] = x;
 	}
 
 	// Synchronize and prepare for a inter-warp reduction.
 	__syncthreads();
 
-	if(tid < NUM_WARPS) {
+	if(tid < NUM_WARPS_FORCES) {
 		// Get the warp totals for warp tid.
-		int warpIndex = 49 * tid + 16 + 31;
-		x = sharedX[warpIndex];
+		x = sm_max[SCAN_STRIDE*tid + WARPSIZE/2 + WARPSIZE - 1];
 
-		sharedX[tid] = x;
+		sm_max[tid] = x;
 
 		#pragma unroll
-		for(int i = 0; i < LOG_NUM_WARPS; ++i) {
-			int offset = 1<< i;
+		for(int i = 0; i < LOG_NUM_WARPS_FORCES; ++i) {
+			int offset = 1 << i;
 			if(tid >= offset) {
-			float y = sharedX[tid - offset];
-			if(y > x) {
-				x = y;
+				float y = sm_max[tid - offset];
+				if(y > x) {
+					x = y;
+				}
 			}
-		}
-		sharedX[tid] = x;
+			sm_max[tid] = x;
 		}
 	}
 	__syncthreads();
 
 	// Pull the final values from the reduction array. Do not perform the
 	// downsweep phase
-	x = sharedX[NUM_WARPS - 1];
+	x = sm_max[NUM_WARPS_FORCES - 1];
 }
+#undef SCAN_STRIDE
 /************************************************************************************************************/
 
 
@@ -734,7 +706,9 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (4) return SPS tensor matrix (tau) divided by rho^2
 template<KernelType kerneltype, bool periodicbound>
 __global__ void
-SPSstressMatrixDevice(	float2*		tau0,
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+SPSstressMatrixDevice(	const float4* posArray,
+						float2*		tau0,
 						float2*		tau1,
 						float2*		tau2,
 						const uint*	neibsList,
@@ -756,17 +730,21 @@ SPSstressMatrixDevice(	float2*		tau0,
 		return;
 
 	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
 	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	const float4 vel = tex1Dfetch(velTex, index);
 
 	// SPS stress matrix elements
 	sym33mat tau;
-	tau.a11 = 0.0f;   // tau11 = tau_xx
-	tau.a12 = 0.0f;   // tau12 = tau_xy
-	tau.a13 = 0.0f;   // tau13 = tau_xz
-	tau.a22 = 0.0f;   // tau22 = tau_yy
-	tau.a23 = 0.0f;   // tau23 = tau_yz
-	tau.a33 = 0.0f;   // tau33 = tau_zz
+//	tau.a11 = 0.0f;   // tau11 = tau_xx
+//	tau.a12 = 0.0f;   // tau12 = tau_xy
+//	tau.a13 = 0.0f;   // tau13 = tau_xz
+//	tau.a22 = 0.0f;   // tau22 = tau_yy
+//	tau.a23 = 0.0f;   // tau23 = tau_yz
+//	tau.a33 = 0.0f;   // tau33 = tau_zz
 
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
@@ -783,7 +761,11 @@ SPSstressMatrixDevice(	float2*		tau0,
 		float3 relPos;
 		float r;
 
+		#if( __COMPUTE__ >= 20)							
+		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#endif
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -836,8 +818,6 @@ SPSstressMatrixDevice(	float2*		tau0,
 	tau2[index] = make_float2(tau.a23, tau.a33);
 }
 /************************************************************************************************************/
-
-
 
 /************************************************************************************************************/
 /*					   Kernels for computing acceleration without gradient correction					 */
@@ -1096,7 +1076,65 @@ MlsDevice(	const float4*	posArray,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
-/*					   Auxiliary kernels used for post processing										 */
+/*					   CFL max kernel																		*/
+/************************************************************************************************************/
+template <unsigned int blockSize>
+__global__ void
+fmaxDevice(float *g_idata, float *g_odata, const uint n)
+{
+	extern __shared__ float sdata[];
+
+	// perform first level of reduction,
+	// reading from global memory, writing to shared memory
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x*blockSize*2 + threadIdx.x;
+	unsigned int gridSize = blockSize*2*gridDim.x;
+
+	float myMax = 0;
+
+	// we reduce multiple elements per thread.  The number is determined by the 
+	// number of active thread blocks (via gridDim).  More blocks will result
+	// in a larger gridSize and therefore fewer elements per thread
+	while (i < n)
+	{         
+		myMax = max(myMax, g_idata[i]);
+		// ensure we don't read out of bounds
+		if (i + blockSize < n) 
+			myMax = max(myMax, g_idata[i + blockSize]);
+		i += gridSize;
+	} 
+
+	// each thread puts its local sum into shared memory 
+	sdata[tid] = myMax;
+	__syncthreads();
+
+	// do reduction in shared mem
+	if (blockSize >= 512) { if (tid < 256) { sdata[tid] = myMax = max(myMax,sdata[tid + 256]); } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { sdata[tid] = myMax = max(myMax,sdata[tid + 128]); } __syncthreads(); }
+	if (blockSize >= 128) { if (tid <  64) { sdata[tid] = myMax = max(myMax,sdata[tid +  64]); } __syncthreads(); }
+
+	// now that we are using warp-synchronous programming (below)
+	// we need to declare our shared memory volatile so that the compiler
+	// doesn't reorder stores to it and induce incorrect behavior.
+	if (tid < 32)
+	{
+		volatile float* smem = sdata;
+		if (blockSize >=  64) { smem[tid] = myMax = max(myMax, smem[tid + 32]); }
+		if (blockSize >=  32) { smem[tid] = myMax = max(myMax, smem[tid + 16]); }
+		if (blockSize >=  16) { smem[tid] = myMax = max(myMax, smem[tid +  8]); }
+		if (blockSize >=   8) { smem[tid] = myMax = max(myMax, smem[tid +  4]); }
+		if (blockSize >=   4) { smem[tid] = myMax = max(myMax, smem[tid +  2]); }
+		if (blockSize >=   2) { smem[tid] = myMax = max(myMax, smem[tid +  1]); }
+	}
+
+	// write result for this block to global mem 
+	if (tid == 0) 
+        g_odata[blockIdx.x] = sdata[0];
+}
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*					   Auxiliary kernels used for post processing										    */
 /************************************************************************************************************/
 
 // This kernel compute the vorticity field

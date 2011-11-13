@@ -48,33 +48,35 @@
 template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, bool usedem,
 		 SPHFormulation sph_formulation>
 __global__ void
+__launch_bounds__(BLOCK_SIZE_FORCES, MIN_BLOCKS_FORCES)
 FORCES_CUDA_KERNEL
 (	
 	float4*		posArray,
 	float4*		forces,
-#	ifdef XSPH_KERNEL
+	# ifdef XSPH_KERNEL
 	float4*		xsph,
-#	endif
+	# endif
 	const uint*	neibsList,
 	const uint	numParticles,
 	const float	slength,
 	const float	influenceradius,
 	float4*		rbforces,
 	float4*		rbtorques
-#	ifdef DT_KERNEL
+	# ifdef DT_KERNEL
 	,
 	float*		cfl,
 	float*		cfltest
-#	endif
+	# endif
 )
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;   //particle number
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-	
-#	ifdef DT_KERNEL
-	float block_cfl = 0.0f;
-#	endif
+
+	# ifdef DT_KERNEL
+	__shared__ float sm_max[BLOCK_SIZE_FORCES];
+	sm_max[threadIdx.x] = 0.0f;
+	# endif
 
 	if (index < numParticles) {
 		// read particle info from texture
@@ -91,7 +93,7 @@ FORCES_CUDA_KERNEL
 			#endif
 			const float4 vel = tex1Dfetch(velTex, index);
 
-#			ifdef VISC_SPS
+			# ifdef VISC_SPS
 			// read particle SPS matrix
 			sym33mat tau;
 			float2 temp = tex1Dfetch(tau0Tex, index);
@@ -103,19 +105,14 @@ FORCES_CUDA_KERNEL
 			temp = tex1Dfetch(tau2Tex, index);
 			tau.a23 = temp.x;
 			tau.a33 = temp.y;
-#			endif
+			# endif
 			// force and density derivative
 			float4 force = make_float4(0.0f);
 
-#			ifdef XSPH_KERNEL
+			# ifdef XSPH_KERNEL
 			// XSPH correction
 			float3 mean_vel = make_float3(0.0f);
-#			endif
-
-#			ifdef DT_KERNEL
-			// maximum value of h x.v/r over the neighbors
-			float maxprelvel = 0.0f;
-#			endif
+			# endif
 
 			/* Precomputed component of DvDt */
 			float p_precalc = 0;
@@ -132,10 +129,10 @@ FORCES_CUDA_KERNEL
 					break;
 			}
 
-#			if defined(DT_KERNEL) || defined(VISC_ARTVISC)
+			# if defined(DT_KERNEL) || defined(VISC_ARTVISC)
 			/* sound speed sspeed is computed only once for the given particle */
 			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
-#			endif
+			# endif
 
 			// loop over all neighbors
 			for(uint i = 0; i < MAXNEIBSNUM*NEIBINDEX_INTERLEAVE ; i += NEIBINDEX_INTERLEAVE) {
@@ -161,7 +158,7 @@ FORCES_CUDA_KERNEL
 
 					if (FLUID(neib_info)) {
 
-#						ifdef VISC_SPS
+						# ifdef VISC_SPS
 						sym33mat neib_tau;
 						temp = tex1Dfetch(tau0Tex, neib_index);
 						neib_tau.a11 = temp.x;
@@ -172,7 +169,7 @@ FORCES_CUDA_KERNEL
 						temp = tex1Dfetch(tau2Tex, neib_index);
 						neib_tau.a23 = temp.x;
 						neib_tau.a33 = temp.y;
-#						endif
+						# endif
 
 						float3 relVel;
 						relVel.x = vel.x - neib_vel.x;
@@ -199,24 +196,14 @@ FORCES_CUDA_KERNEL
 								break;
 						}
 
-#						ifdef DT_KERNEL
-						// computing hx.u/r used for artificial viscosity and time step control
-						float prelvel_by_slength = vel_dot_pos*slength/(r*r + d_epsartvisc);
-#						endif
-
 						/* Viscous forces */
-#						if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS)
-#						ifdef DT_KERNEL
-						// computing hx.u/r used for artificial viscosity and time step control
-						maxprelvel = fmaxf(maxprelvel, fabsf(prelvel_by_slength));
-#						endif
-
-#						if defined(VISC_DYNAMIC)
+						# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS)
+						# if defined(VISC_DYNAMIC)
 						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
 										d_visccoeff*neib_vel.w);
-#						elif defined(VISC_KINEMATIC)
+						# elif defined(VISC_KINEMATIC)
 						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
-#						elif defined(VISC_SPS)
+						# elif defined(VISC_SPS)
 						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
 						force.x += neib_pos.w*f*((tau.a11 + neib_tau.a11)*relPos.x + (tau.a12 + neib_tau.a12)*relPos.y +
 										(tau.a13 + neib_tau.a13)*relPos.z);
@@ -224,30 +211,23 @@ FORCES_CUDA_KERNEL
 										(tau.a23 + neib_tau.a23)*relPos.z);
 						force.z += neib_pos.w*f*((tau.a13 + neib_tau.a13)*relPos.x + (tau.a23 + neib_tau.a23)*relPos.y +
 										(tau.a33 + neib_tau.a33)*relPos.z);
-#						endif // VISC_DYNAMIC + elif*
+						# endif // VISC_DYNAMIC + elif*
 
 						force.x += visc*relVel.x;
 						force.y += visc*relVel.y;
 						force.z += visc*relVel.z;
 
-#					elif defined(VISC_ARTVISC)
-						if (vel_dot_pos < 0.0f) {
-#							ifdef DT_KERNEL
-							maxprelvel = fmaxf(maxprelvel, -prelvel_by_slength);
-							DvDt += artviscdt(prelvel_by_slength, vel.w, neib_vel.w, sspeed, 
-											soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)));
-#							else // DT_KERNEL
+						# elif defined(VISC_ARTVISC)
+						if (vel_dot_pos < 0.0f)
 							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
-											soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
-#							endif // DT_KERNEL
-						}
-#					else
-#					error Unknown viscosity!
-#					endif // VISC_*
+										soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
+						# else
+						# error Unknown viscosity!
+						# endif // VISC_*
 
-#						ifdef XSPH_KERNEL
+						# ifdef XSPH_KERNEL
 						mean_vel -= neib_pos.w*W<kerneltype>(r, slength)*relVel/(vel.w + neib_vel.w);
-#						endif
+						# endif
 
 						DvDt *= neib_pos.w*f;
 					} else
@@ -268,22 +248,22 @@ FORCES_CUDA_KERNEL
 				} // r < influenceradius
 			} // end of loop over neighbors
 
-#			ifdef VISC_DYNAMIC
+			# ifdef VISC_DYNAMIC
 			const float dynvisc = d_visccoeff*vel.w;
-#			elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
+			# elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
 			const float dynvisc = d_visccoeff*vel.w/4.0f;				// FXME: check????????
-#			elif defined(VISC_ARTVISC)
+			# elif defined(VISC_ARTVISC)
 			const float dynvisc = 0.0;
-#			else
-#				error Unknown viscosity!
-#			endif
+			# else
+			# error Unknown viscosity!
+			# endif
 
 			// gravity
 			force.x += d_gravity.x;
 			force.y += d_gravity.y;
 			force.z += d_gravity.z;
 
-			// TODO: check for time step limitation in case of goemetrical boundaries (DEM or planes)
+			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
 			float geom_coeff = 0.0f;
 
@@ -303,15 +283,14 @@ FORCES_CUDA_KERNEL
 				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, force));
 			}
 			
-#			ifdef DT_KERNEL
-			// storing data for cfl conditon in shared memory
-			block_cfl = max(length(make_float3(force.x, force.y, force.z)),
-									(sspeed + maxprelvel)*(sspeed + maxprelvel)/slength);
-#			endif
+			# ifdef DT_KERNEL
+			// storing data for cfl condition in shared memory			
+			sm_max[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)), sspeed*sspeed/slength);		
+			# endif
 
-#			ifdef XSPH_KERNEL
+			# ifdef XSPH_KERNEL
 			xsph[index] = make_float4(2.0f*mean_vel, 0.0f);
-#			endif
+			# endif
 
 			forces[index] = force;
 		}	// if (FLUID(info))
@@ -366,12 +345,9 @@ FORCES_CUDA_KERNEL
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 
-#	ifdef DT_KERNEL
-	cfltest[index] = block_cfl;
-	dtadaptBlockReduce_modern(block_cfl, threadIdx.x);
-	if (!threadIdx.x)
-		cfl[blockIdx.x] = block_cfl;
-#	endif
+	# ifdef DT_KERNEL
+	dtadaptBlockReduce(sm_max, cfl);
+	# endif
 }
 /************************************************************************************************************/
 

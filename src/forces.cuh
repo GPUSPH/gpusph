@@ -32,11 +32,15 @@
 	#define BLOCK_SIZE_CALCTEST		128
 	#define MIN_BLOCKS_CALCTEST		6
 	#define BLOCK_SIZE_SHEPARD		128
-	#define MIN_BLOCKS_SHEPARD		8
+	#define MIN_BLOCKS_SHEPARD		6
 	#define BLOCK_SIZE_MLS			128
 	#define MIN_BLOCKS_MLS			6
+	#define BLOCK_SIZE_SPS			128
+	#define MIN_BLOCKS_SPS			6
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
 #else
-
+	#define MIN_BLOCKS_FORCES		6
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		1
 	#define BLOCK_SIZE_CALCTEST		128
@@ -45,8 +49,11 @@
 	#define MIN_BLOCKS_SHEPARD		1
 	#define BLOCK_SIZE_MLS			128
 	#define MIN_BLOCKS_MLS			1
+	#define BLOCK_SIZE_SPS			128
+	#define MIN_BLOCKS_SPS			1
+	#define MAX_THREADS_FMAX		256
+	#define MAX_BLOCKS_FMAX			64
 #endif
-
 
 
 extern "C"
@@ -72,6 +79,7 @@ forces(	float4*			pos,
 		ViscosityType	visctype,
 		float			visccoeff,
 		float*			cfl,
+		float*			tempCfl,
 		uint			numPartsFmax,
 		float2*			tau[],
 		bool			periodicbound,
@@ -159,5 +167,13 @@ reduceRbForces(	float4*		forces,
 				float3*		totaltorque,
 				uint		numbodies,
 				uint		numBodiesParticles);
+
+uint
+getFmaxTempStorageSize(const uint n);
+
+float
+cflmax( const uint	n,
+		float*		cfl,
+		float*		tempCfl);
 }
 #endif
