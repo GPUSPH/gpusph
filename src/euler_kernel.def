@@ -87,18 +87,18 @@ EULER_KERNEL_NAME(
 	   This speeds up the euler kernel by 20% on 1.1 devices, and by
 	   only doing it for older hardware we spare ourselves the very small
 	   performance loss that we'd find on 2.0 devices with the hack. */
-#if __GPU_ARCH__ < 200
+	#if __GPU_ARCH__ < 200
 	long int hack = *reinterpret_cast<long int*>(info + index);
 	particleinfo pinfo = *reinterpret_cast<particleinfo*>(&hack);
-#else
+	#else
 	particleinfo pinfo = info[index];
-#endif
+	#endif
 
 	if(type(pinfo) != BOUNDPART) {
 		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
-#		ifdef XSPH_KERNEL
+		# ifdef XSPH_KERNEL
 		float4 mean_vel = xsph[index];
-#		endif
+		# endif
 		/*
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
@@ -107,15 +107,15 @@ EULER_KERNEL_NAME(
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
-#			ifdef XSPH_KERNEL
+			# ifdef XSPH_KERNEL
 			pos.x +=  (velc.x + d_epsxsph*mean_vel.x)*dt;
 			pos.y +=  (velc.y + d_epsxsph*mean_vel.y)*dt;
 			pos.z +=  (velc.z + d_epsxsph*mean_vel.z)*dt;
-#			else
+			# else
 			pos.x +=  velc.x*dt;
 			pos.y +=  velc.y*dt;
 			pos.z +=  velc.z*dt;
-#			endif
+			# endif
 
 			// Updating particle velocity
 			// For step 1:
