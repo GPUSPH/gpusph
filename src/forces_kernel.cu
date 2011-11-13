@@ -334,32 +334,6 @@ laminarvisc_dynamic(const float	rho,
 // Function called at the end of the forces or powerlawVisc function doing
 // a per block maximum reduction
 __device__ __forceinline__ void
-dtadaptBlockReduce_old(	float		&cfl,
-						const uint	tid)
-{
-	__shared__ float sm_cfl[BLOCK_SIZE_FORCES];
-	sm_cfl[tid] = cfl;
-	__syncthreads();
-	
-   if (tid % WARPSIZE == 0) {
-		int offset = tid/WARPSIZE;
-		for (int i = 1; i < WARPSIZE; i++) {
-			if (sm_cfl[i + offset*WARPSIZE] > sm_cfl[offset*WARPSIZE])
-				sm_cfl[offset*WARPSIZE] = sm_cfl[i + offset*WARPSIZE];
-		}
-	}
-	__syncthreads();
-	
-	if(tid == 0) {
-		for (int i = 1; i < BLOCK_SIZE_FORCES/WARPSIZE; i++) {
-			if (sm_cfl[i*WARPSIZE] > sm_cfl[0])
-				sm_cfl[0] = sm_cfl[i*WARPSIZE];
-		}
-		cfl = sm_cfl[0];
-	}
-}
-
-__device__ __forceinline__ void
 dtadaptBlockReduce(	float*	sm_max,
 					float*	cfl)
 {
@@ -376,65 +350,6 @@ dtadaptBlockReduce(	float*	sm_max,
 	if (!threadIdx.x)
 		cfl[blockIdx.x] = sm_max[0];
 }
-
-
-#define SCAN_STRIDE (WARPSIZE + WARPSIZE / 2 + 1)
-__device__ __forceinline__
-void dtadaptBlockReduce_modern(float& x, int tid) {
-
-	const uint warp = tid / WARPSIZE;
-	const uint lane = (WARPSIZE - 1) & tid;
-
-	__shared__ volatile float sm_max[SCAN_STRIDE*NUM_WARPS_FORCES];
-
-	volatile float* sm_max_thread = sm_max + SCAN_STRIDE * warp + WARPSIZE/2 + lane;
-
-	// Zero out the preceding slots so we don't have to use conditionals.
-	sm_max_thread[-16] = 0.0f;
-
-	// Store x into shared memory.
-	sm_max_thread[0] = x;
-	
-	// Ripped almost line-for-line from the globalscan tutorial.
-	#pragma unroll
-	for(int i = 0; i < LOG_WARPSIZE; ++i) {
-		// Use same scan indices as you would when finding the prefix sum.
-		int offset = 1 << i;
-		float y = sm_max_thread[-offset];
-		if(y > x) {
-			x = y;
-			}
-		sm_max_thread[0] = x;
-	}
-
-	// Synchronize and prepare for a inter-warp reduction.
-	__syncthreads();
-
-	if(tid < NUM_WARPS_FORCES) {
-		// Get the warp totals for warp tid.
-		x = sm_max[SCAN_STRIDE*tid + WARPSIZE/2 + WARPSIZE - 1];
-
-		sm_max[tid] = x;
-
-		#pragma unroll
-		for(int i = 0; i < LOG_NUM_WARPS_FORCES; ++i) {
-			int offset = 1 << i;
-			if(tid >= offset) {
-				float y = sm_max[tid - offset];
-				if(y > x) {
-					x = y;
-				}
-			}
-			sm_max[tid] = x;
-		}
-	}
-	__syncthreads();
-
-	// Pull the final values from the reduction array. Do not perform the
-	// downsweep phase
-	x = sm_max[NUM_WARPS_FORCES - 1];
-}
-#undef SCAN_STRIDE
 /************************************************************************************************************/
 
 

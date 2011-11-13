@@ -85,9 +85,7 @@ forces(	float4*			pos,
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
-		bool			usedem,
-		float*			cfl2);
-
+		bool			usedem);
 
 void
 shepard(float4*		pos,

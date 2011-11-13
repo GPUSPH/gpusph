@@ -57,10 +57,10 @@ cudaArray*  dDem = NULL;
 						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cfltest); \
+						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		else if (dtadapt && xsphcorr) \
 				FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cfltest); \
+						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -182,8 +182,7 @@ forces(	float4*			pos,
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
-		bool			usedem,
-		float*			cfltest)
+		bool			usedem)
 {
 	int dummy_shared = 0;
 	#if (__COMPUTE__ < 20)
@@ -259,18 +258,7 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (dtadapt) {
-		float maxcfl = 0;
-	//	float maxcfltest = 0;
-		maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
-//		thrust::device_ptr<float> cfl_devptr = thrust::device_pointer_cast(cfl);
-//		maxcfltest = thrust::reduce(cfl_devptr, cfl_devptr + numPartsFmax, maxcfltest, thrust::maximum<float>());
-//		printf ("cfl = %e, cfl thrust = %e (diff = %e)\n", maxcfl, maxcfltest, maxcfltest - maxcfl);
-
-//		
-////		thrust::device_ptr<float> cfltest_devptr = thrust::device_pointer_cast(cfltest);
-////		maxcfltest = thrust::reduce(cfltest_devptr, cfltest_devptr + numParticles, maxcfltest, thrust::maximum<float>());
-		//printf ("cfl block = %e, cfl global = %e (diff = %e)\n", maxcfl, maxcfltest, maxcfltest - maxcfl);
-		
+		float maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
 		dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 		if (visctype != ARTVISC) {

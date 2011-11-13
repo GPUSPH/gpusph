@@ -64,8 +64,7 @@ FORCES_CUDA_KERNEL
 	float4*		rbtorques
 	# ifdef DT_KERNEL
 	,
-	float*		cfl,
-	float*		cfltest
+	float*		cfl
 	# endif
 )
 {

@@ -213,7 +213,7 @@ ParticleSystem::allocate(uint numParticles)
 		}
 
 
-//#ifdef _DEBUG_
+#ifdef PSYSTEM_DEBUG
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
@@ -237,13 +237,14 @@ ParticleSystem::allocate(uint numParticles)
 	m_hNeibsList = new uint[MAXNEIBSNUM*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
-
-	// Free surface detection (Debug)
-	m_hNormals = new float4[m_numParticles];
-	memset(m_hNormals, 0, memSize4);
-	memory += memSize4;
-//#endif
-
+#endif
+	
+	// Free surface detection
+	if (m_simparams.savenormals) {
+		m_hNormals = new float4[m_numParticles];
+		memset(m_hNormals, 0, memSize4);
+		memory += memSize4;
+	}
 
 	printf("\nCPU memory allocated\n");
 	printf("Number of particles : %d\n", m_numParticles);
@@ -277,8 +278,10 @@ ParticleSystem::allocate(uint numParticles)
 	memory += infoSize;
 
 	// Free surface detection
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
-	memory += memSize4;
+	if (m_simparams.savenormals) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
+		memory += memSize4;
+	}
 
 	if (m_simparams.vorticity) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, memSize3));
@@ -363,8 +366,6 @@ ParticleSystem::allocate(uint numParticles)
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
 		
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl2, memSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dCfl2, 0, memSize));
 		memory += fmaxTableSize;
 		}
 
@@ -661,16 +662,16 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hVort;
 		}
 
-//#ifdef _DEBUG_
+#ifdef PSYSTEM_DEBUG
 	delete [] m_hForces;
 	delete [] m_hNeibsList;
 	delete [] m_hParticleHash;
 	delete [] m_hParticleIndex;
 	delete [] m_hCellStart;
 	delete [] m_hCellEnd;
-	// Free surface detection (Debug)
-	delete [] m_hNormals;
-//#endif
+#endif
+	if (m_simparams.savenormals)
+		delete [] m_hNormals;
 
 	delete m_writer;
 
@@ -695,7 +696,8 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
 
 	// Free surface detection
-	CUDA_SAFE_CALL(cudaFree(m_dNormals));
+	if (m_simparams.savenormals)
+		CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
 	if (m_simparams.numbodies) {
 		delete [] m_hRbLastIndex;
@@ -721,6 +723,7 @@ ParticleSystem::~ParticleSystem()
 
 	if (m_simparams.dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
+		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
 		}
 
 	printf("GPU and CPU memory released\n\n");
@@ -1048,21 +1051,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_maxNeibs", &m_timingInfo.maxNeibs, sizeof(int)));
 
-//		// Build the neibghours list
-//		buildNeibsList4(m_dNeibsList,
-//						m_dPos[m_currentPosRead],
-//						m_dInfo[m_currentInfoRead],
-//						m_dParticleHash,
-//						m_dCellStart,
-//						m_dCellEnd,
-//						gridSize,
-//						cellSize,
-//						worldOrigin,
-//						m_numParticles,
-//						m_nGridCells,
-//						m_nlSqInfluenceRadius,
-//						m_simparams.periodicbound);
-//		
+		// Build the neibghours list	
 		buildNeibsList(	m_dNeibsList,
 						m_dPos[m_currentPosRead],
 						m_dInfo[m_currentInfoRead],
@@ -1079,7 +1068,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "d_numInteractions", sizeof(int), 0));
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "d_maxNeibs", sizeof(int), 0));
-//		printf("numinteract %d, maxneibs %d\n", m_timingInfo.numInteractions,m_timingInfo.maxNeibs);
 		if (m_timingInfo.maxNeibs > MAXNEIBSNUM) {
 			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, MAXNEIBSNUM);
 			fflush(stdout);
@@ -1201,8 +1189,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
 					m_simparams.boundarytype,
-					m_simparams.usedem,
-					m_dCfl2);
+					m_simparams.usedem);
 	// At this point forces = f(pos(n), vel(n))
 
 	if (timing) {
@@ -1300,8 +1287,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
 					m_simparams.boundarytype,
-					m_simparams.usedem,
-					m_dCfl2);
+					m_simparams.usedem);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
 	
 	if (m_simparams.numbodies) {
