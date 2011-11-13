@@ -282,7 +282,7 @@ neibsInCell(
 }
 
 
-template<bool periodicbound>
+template<bool periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
 buildNeibsListDevice(   
@@ -300,10 +300,6 @@ buildNeibsListDevice(
 	const uint tid = threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = tid & (NEIBINDEX_INTERLEAVE - 1);
-	
-	// total number of neibs for this particle
-	__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-	__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS];
 
 	uint neibs_num = 0;
 
@@ -345,37 +341,33 @@ buildNeibsListDevice(
 			neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffffffff;
 	}
 	
-	// Shared memory reduction of per block maximum number of neighbors
-	sm_neibs_num[tid] = neibs_num;	
-	sm_neibs_max[tid] = neibs_num;
-	__syncthreads();
-	
-	uint i = blockDim.x/2;
-	while (i != 0) {
-		if (tid < i) {
-			sm_neibs_num[tid] += sm_neibs_num[tid + 1];
-	  		sm_neibs_max[tid] = (sm_neibs_max[tid] > sm_neibs_max[tid + 1]) ? sm_neibs_max[tid] : sm_neibs_max[tid + 1];
-		}
+	if (neibcount) {
+		// Shared memory reduction of per block maximum number of neighbors
+		__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
+		__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS];
+
+		sm_neibs_num[tid] = neibs_num;	
+		sm_neibs_max[tid] = neibs_num;
 		__syncthreads();
-		i /= 2;
+
+		uint i = blockDim.x/2;
+		while (i != 0) {
+			if (tid < i) {
+				sm_neibs_num[tid] += sm_neibs_num[tid + i];
+				const float n1 = sm_neibs_max[tid];
+				const float n2 = sm_neibs_max[tid + i];
+				if (n2 > n1)
+					sm_neibs_max[tid] = n2;
+			}
+			__syncthreads();
+			i /= 2;
+		}
+
+		if (!tid) {
+			atomicAdd(&d_numInteractions, sm_neibs_num[0]);
+			atomicMax(&d_maxNeibs, sm_neibs_max[0]);
+		}
 	}
-	
-	if (tid == 0) {
-		atomicAdd(&d_numInteractions, sm_neibs_num[0]);
-		atomicMax(&d_maxNeibs, sm_neibs_max[0]);
-	}
-	
-//	if (tid == 0) {
-//	  	uint num_interactions = 0;
-//	  	uint max = 0;
-//	  	for(int i=0; i< BLOCK_SIZE_BUILDNEIBS; i++) {
-//	  		num_interactions += sm_neibs_num[i];
-//	  		max = (max > sm_neibs_num[i]) ? max : sm_neibs_num[i];
-//	  	}
-//
-//		atomicAdd(&d_numInteractions, num_interactions);
-//		atomicMax(&d_maxNeibs, max);
-//	}
 	return;
 }
 

@@ -107,32 +107,32 @@ buildNeibsList(	uint*				neibsList,
 	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
 	const int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-#if (__COMPUTE__ < 20)
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-#endif
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
 	
 	if (periodicbound)
-		buildNeibsListDevice<true><<< numBlocks, numThreads >>>(
-#if (__COMPUTE__ >= 20)			
+		buildNeibsListDevice<true, true><<< numBlocks, numThreads >>>(
+			#if (__COMPUTE__ >= 20)			
 			pos, 
-#endif
+			#endif
 			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
 	else
-		buildNeibsListDevice<false><<< numBlocks, numThreads >>>(
-#if (__COMPUTE__ >= 20)			
+		buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
+			#if (__COMPUTE__ >= 20)			
 			pos, 
-#endif
+			# endif
 			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
 		
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Kernel execution failed");
 	
-#if (__COMPUTE__ < 20)
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-#endif
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
