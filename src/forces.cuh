@@ -40,7 +40,6 @@
 	#define BLOCK_SIZE_FMAX			256
 	#define MAX_BLOCKS_FMAX			64
 #else
-	#define MIN_BLOCKS_FORCES		6
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		1
 	#define BLOCK_SIZE_CALCTEST		128
@@ -51,7 +50,7 @@
 	#define MIN_BLOCKS_MLS			1
 	#define BLOCK_SIZE_SPS			128
 	#define MIN_BLOCKS_SPS			1
-	#define MAX_THREADS_FMAX		256
+	#define BLOCK_SIZE_FMAX			256
 	#define MAX_BLOCKS_FMAX			64
 #endif
 

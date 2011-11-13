@@ -41,7 +41,11 @@
 
 #define VISC_TYPE DYNAMICVISC
 #define VISC_DYNAMIC
+#if (_COMPUTE_ >= 20)
 #define MIN_BLOCKS_FORCES 6
+#else
+#define MIN_BLOCKS_FORCES 1
+#endif
 #include "forces_kernel.def"
 #undef MIN_BLOCKS_FORCES
 #undef VISC_TYPE
@@ -49,7 +53,11 @@
 
 #define VISC_TYPE KINEMATICVISC
 #define VISC_KINEMATIC
+#if (_COMPUTE_ >= 20)
 #define MIN_BLOCKS_FORCES 6
+#else
+#define MIN_BLOCKS_FORCES 1
+#endif
 #include "forces_kernel.def"
 #undef MIN_BLOCKS_FORCES
 #undef VISC_TYPE
@@ -57,7 +65,11 @@
 
 #define VISC_TYPE SPSVISC
 #define VISC_SPS
+#if (_COMPUTE_ >= 20)
 #define MIN_BLOCKS_FORCES 4
+#else
+#define MIN_BLOCKS_FORCES 1
+#endif
 #include "forces_kernel.def"
 #undef MIN_BLOCKS_FORCES
 #undef VISC_TYPE
