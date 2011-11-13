@@ -134,6 +134,7 @@ class ParticleSystem
 		particleinfo*	m_hInfo;			// info array
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
+		float4*     m_hNormals;				// normals at free surface
 
 		// CPU arrays for geometry
 		float4*		m_hPlanes;
@@ -147,8 +148,6 @@ class ParticleSystem
 		uint*		m_hParticleIndex;
 		float4*		m_hRbForces;
 		float4*		m_hRbTorques;
-		// Free surface detection (Debug)
-		float4*     m_hNormals;
 
 		// GPU arrays
 		float4*		m_dForces;				// forces array
@@ -156,11 +155,11 @@ class ParticleSystem
 		float4*		m_dPos[2];				// position array
 		float4*		m_dVel[2];				// velocity array
 		particleinfo*	m_dInfo[2];			// particle info array
-		// Free surface detection
-		float4*     m_dNormals;
+		float4*     m_dNormals;				// normal at free surface
 		float3*		m_dVort;				// vorticity
 		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
+		float*		m_dTempCfl;				// temporary storage for cfl computation
 		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
 		

@@ -359,6 +359,10 @@ ParticleSystem::allocate(uint numParticles)
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
 		
+		const uint tempCflSize = getFmaxTempStorageSize(m_numPartsFmax);
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
+		
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl2, memSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl2, 0, memSize));
 		memory += fmaxTableSize;
@@ -1191,6 +1195,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.visctype,
 					m_physparams.visccoeff,
 					m_dCfl,
+					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
 					m_simparams.periodicbound,
@@ -1289,6 +1294,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.visctype,
 					m_physparams.visccoeff,
 					m_dCfl,
+					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
 					m_simparams.periodicbound,
