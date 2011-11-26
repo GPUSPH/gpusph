@@ -40,6 +40,8 @@
 #include "textures.cuh"
 
 namespace cuneibs {
+__constant__ uint d_maxneibsnum;
+__constant__ uint d_maxneibsnum_time_neibindexinterleave;
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
 __constant__ float3 d_dispvect;
@@ -269,8 +271,8 @@ neibsInCell(
 							mod_index |= WARPZMINUS;
 					}
 
-					if (neibs_num < MAXNEIBSNUM)
-						neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = mod_index;
+					if (neibs_num < d_maxneibsnum)
+						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = mod_index;
 					neibs_num++;
 				}
 
@@ -337,8 +339,8 @@ buildNeibsListDevice(
 			}
 		}
 		
-		if (neibs_num < MAXNEIBSNUM)
-			neibsList[MAXNEIBSNUM*NEIBINDEX_INTERLEAVE*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffffffff;
+		if (neibs_num < d_maxneibsnum)
+			neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffffffff;
 	}
 	
 	if (neibcount) {
