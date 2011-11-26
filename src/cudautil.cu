@@ -6,7 +6,7 @@
 void checkCUDA(const Options &options)
 {
 	int deviceCount;
-	CUDA_SAFE_CALL_NO_SYNC(cudaGetDeviceCount(&deviceCount));
+	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
 	if (deviceCount == 0) {
 		fprintf(stderr, "no CUDA device found!\n");
 		exit(1);
@@ -19,7 +19,7 @@ void checkCUDA(const Options &options)
 		dev = deviceCount - 1;
 
 	cudaDeviceProp deviceProp;
-	CUDA_SAFE_CALL_NO_SYNC(cudaGetDeviceProperties(&deviceProp, dev));
+	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceProperties(&deviceProp, dev));
 
 	if (deviceProp.major < 1) {
 		fprintf(stderr, "device %d does not support CUDA!\n", dev);
