@@ -26,7 +26,14 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
+/* Important notes on block sizes:
+	- all kernels accessing the neighbor list MUST HAVE A BLOCK
+	MULTIPLE OF NEIBINDEX_INTERLEAVE
+	- a parallel reduction for adaptive dt is done inside forces, block
+	size for forces MUST BE A POWER OF 2
+ */
 #if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_FORCES		128
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		6
 	#define BLOCK_SIZE_CALCTEST		128
@@ -40,7 +47,7 @@
 	#define BLOCK_SIZE_FMAX			256
 	#define MAX_BLOCKS_FMAX			64
 #else
-	#define MIN_BLOCKS_FORCES		6
+	#define BLOCK_SIZE_FORCES		64
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		1
 	#define BLOCK_SIZE_CALCTEST		128
@@ -165,6 +172,9 @@ reduceRbForces(	float4*		forces,
 				float3*		totaltorque,
 				uint		numbodies,
 				uint		numBodiesParticles);
+
+uint
+getNumPartsFmax(const uint n);
 
 uint
 getFmaxTempStorageSize(const uint n);

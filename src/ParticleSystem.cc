@@ -179,6 +179,12 @@ ParticleSystem::allocate(uint numParticles)
 				numParticles, MAXPARTICLES);
 		exit(1);
 	}
+	
+	if (m_simparams.maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
+		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
+				m_simparams.maxneibsnum, NEIBINDEX_INTERLEAVE);
+		exit(1);
+	}
 	m_numParticles = numParticles;
 	m_timingInfo.numParticles = numParticles;
 
@@ -190,7 +196,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*MAXNEIBSNUM*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint neibslistSize = sizeof(uint)*m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
 	uint memory = 0;
 
@@ -234,7 +240,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[MAXNEIBSNUM*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
+	m_hNeibsList = new uint[m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 #endif
@@ -314,7 +320,7 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
 	memory += neibslistSize;
 
-	// Allocate storage for rigid bodies froces and torque computation
+	// Allocate storage for rigid bodies forces and torque computation
 	if (m_simparams.numbodies) {
 		m_numBodiesParticles = m_problem->get_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
@@ -356,7 +362,7 @@ ParticleSystem::allocate(uint numParticles)
 	}
 
 	if (m_simparams.dtadapt) {
-		m_numPartsFmax = (int) ceil(numParticles / (float) min(BLOCK_SIZE_FORCES, numParticles));
+		m_numPartsFmax = getNumPartsFmax(numParticles);
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
@@ -488,6 +494,11 @@ ParticleSystem::setPhysParams(void)
 	
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectobjectdf", &m_physparams.objectobjectdf, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectboundarydf", &m_physparams.objectboundarydf, sizeof(float)));
+	
+	uint maxneibs_time_neibinterleave = m_simparams.maxneibsnum*NEIBINDEX_INTERLEAVE;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_maxneibsnum_time_neibindexinterleave", &maxneibs_time_neibinterleave, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum", &m_simparams.maxneibsnum, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum_time_neibindexinterleave", &maxneibs_time_neibinterleave, sizeof(uint)));
 }
 
 
@@ -1068,8 +1079,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "cuneibs::d_numInteractions", sizeof(int), 0));
 		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "cuneibs::d_maxNeibs", sizeof(int), 0));
-		if (m_timingInfo.maxNeibs > MAXNEIBSNUM) {
-			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, MAXNEIBSNUM);
+		if (m_timingInfo.maxNeibs > m_simparams.maxneibsnum) {
+			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
 			fflush(stdout);
 			}
 
@@ -1369,7 +1380,8 @@ ParticleSystem::saveneibs()
 		pos.y = m_hPos[index].y;
 		pos.z = m_hPos[index].z;
 
-		for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
+		// TODO: fix it for neib index interleave
+		for(uint i = index*m_simparams.maxneibsnum; i < index*m_simparams.maxneibsnum + m_simparams.maxneibsnum; i++) {
 			uint neib_index = m_hNeibsList[i];
 
 			if (neib_index == 0xffffffff) break;

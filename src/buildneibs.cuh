@@ -26,6 +26,12 @@
 #ifndef _BUILDNEIBS_CUH_
 #define _BUILDNEIBS_CUH_
 
+/* Important notes on block sizes:
+	- all kernels accessing the neighbor list MUST HAVE A BLOCK
+	MULTIPLE OF NEIBINDEX_INTERLEAVE
+	- a parallel reduction for max neibs number is done inside neiblist, block
+	size for neiblist MUST BE A POWER OF 2
+ */
 #if (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
@@ -41,9 +47,6 @@
 	#define BLOCK_SIZE_BUILDNEIBS	256
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
-
-#define BLOCK_SIZE_BUILDNEIBS2	32
-#define BLOCK_SIZE_BUILDNEIBS4	64
 
 #include "vector_math.h"
 

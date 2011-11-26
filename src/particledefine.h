@@ -215,15 +215,6 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define	MAXBODIES				10
 
 
-/* GPU warp size */
-#define WARPSIZE				32
-
-#if (__COMPUTE__ >= 20)
-	#define BLOCK_SIZE_FORCES		128
-#else
-	#define BLOCK_SIZE_FORCES		64
-#endif
-
 #define NEIBINDEX_INTERLEAVE		32
 
 #if (__COMPUTE__ >= 20)
@@ -351,7 +342,7 @@ typedef struct SimParams {
 	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
 	int				numbodies;			// number of floating bodies
-	int				maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
 		kernelradius(2.0),
 		dt(0.00013),

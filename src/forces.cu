@@ -651,6 +651,13 @@ void getNumBlocksAndThreads(const uint	n,
 
 
 uint
+getNumPartsFmax(const uint n)
+{
+	return (int) ceil(n / (float) min(BLOCK_SIZE_FORCES, n));
+}
+	
+
+uint
 getFmaxTempStorageSize(const uint n)
 {
 	uint numBlocks, numThreads;
