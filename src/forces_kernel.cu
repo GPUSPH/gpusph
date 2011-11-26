@@ -35,6 +35,7 @@
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
+namespace cuforces {
 __constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
 __constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
 __constant__ float	d_wcoeff_wendland;				// coeff = 21/(16 Pi h^3)
@@ -43,7 +44,7 @@ __constant__ float	d_fcoeff_cubicspline;			// coeff = 3/(4Pi h^4)
 __constant__ float	d_fcoeff_quadratic;				// coeff = 15/(32Pi h^4)
 __constant__ float	d_fcoeff_wendland;				// coeff = 105/(128Pi h^5)
 
-__constant__ int    d_numFluids;					// number of different fluids
+__constant__ int    d_numfluids;					// number of different fluids
 
 __constant__ float	d_rho0[MAX_FLUID_TYPES];		// rest density of fluids
 
@@ -72,7 +73,7 @@ __constant__ float	d_MK_beta;
 __constant__ float	d_visccoeff;
 __constant__ float	d_epsartvisc;
 
-__constant__ float3	d_dispvect2;					// displacment vector for periodic boundaries
+__constant__ float3	d_dispvect;					// displacment vector for periodic boundaries
 
 // Constants used for DEM
 __constant__ float	d_ewres;
@@ -85,7 +86,7 @@ __constant__ float	d_demzmin;
 __constant__ float	d_partsurf;						// particle surface
 
 // Definition of planes for geometrical boundaries
-__constant__ uint	d_numPlanes;
+__constant__ uint	d_numplanes;
 __constant__ float4	d_planes[MAXPLANES];
 __constant__ float	d_plane_div[MAXPLANES];
 
@@ -100,7 +101,7 @@ __constant__ float	d_cosconeanglenonfluid;
 // Rigid body data (test version)
 __device__ float3	d_force;
 __device__ float3	d_torque;
-__constant__ float3 d_rbcg1[MAXBODIES];
+__constant__ float3 d_rbcg[MAXBODIES];
 __constant__ uint	d_rbstartindex[MAXBODIES];
 __constant__ float d_objectobjectdf;
 __constant__ float d_objectboundarydf;
@@ -402,7 +403,7 @@ getNeibData<true>(	const float4	pos,
 	r = length(relPos);
 	if (periodic.x || periodic.y || periodic.z) {
 		if (r > influenceradius) {
-			relPos += periodic*d_dispvect2;
+			relPos += periodic*d_dispvect;
 			r = length(relPos);
 		}
 	}
@@ -476,7 +477,7 @@ getNeibData<true>(	const float4	pos,
 	r = length(relPos);
 	if (periodic.x || periodic.y || periodic.z) {
 		if (r > influenceradius) {
-			relPos += periodic*d_dispvect2;
+			relPos += periodic*d_dispvect;
 			r = length(relPos);
 		}
 	}
@@ -566,7 +567,7 @@ GeometryForce(	const float4	pos,
 				float4&			force)
 {
 	float coeff_max = 0.0f;
-	for (uint i = 0; i < d_numPlanes; ++i) {
+	for (uint i = 0; i < d_numplanes; ++i) {
 		float coeff = PlaneForce(pos, d_planes[i], d_plane_div[i], vel, dynvisc, force);
 		if (coeff > coeff_max)
 			coeff_max = coeff;
@@ -1228,7 +1229,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 	float normal_length = length(as_float3(normal));
 
 	//Checking the planes
-	for (uint i = 0; i < d_numPlanes; ++i) {
+	for (uint i = 0; i < d_numplanes; ++i) {
 		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
 		if (r < influenceradius) {
 			as_float3(normal) += as_float3(d_planes[i])* normal_length;
@@ -1279,4 +1280,5 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 }
 /************************************************************************************************************/
+}
 #endif

@@ -46,11 +46,11 @@ calcHash(float4*	pos,
 	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 										   gridSize, cellSize, worldOrigin, numParticles);
 	
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Kernel execution failed");
+	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
 
 
@@ -77,11 +77,11 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
-	reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
+	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
 													newVel, newInfo, particleHash, particleIndex, numParticles);
 	
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Kernel execution failed");
+	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
 	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -115,20 +115,20 @@ buildNeibsList(	uint*				neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
 	
 	if (periodicbound)
-		buildNeibsListDevice<true, true><<< numBlocks, numThreads >>>(
+		cuneibs::buildNeibsListDevice<true, true><<< numBlocks, numThreads >>>(
 			#if (__COMPUTE__ >= 20)			
 			pos, 
 			#endif
 			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
 	else
-		buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
+		cuneibs::buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
 			#if (__COMPUTE__ >= 20)			
 			pos, 
 			# endif
 			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
 		
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Kernel execution failed");
+	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
 	
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));

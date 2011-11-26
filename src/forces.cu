@@ -50,16 +50,16 @@ cudaArray*  dDem = NULL;
 #define KERNEL_CHECK(kernel, boundarytype, periodic, formulation, visc, dem) \
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
-				FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
 						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
-				FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
 						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
-				FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
 						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		else if (dtadapt && xsphcorr) \
-				FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
 						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		break
 
@@ -116,39 +116,39 @@ cudaArray*  dDem = NULL;
 
 #define SPS_CHECK(kernel, periodic) \
 	case kernel: \
-		SPSstressMatrixDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
+		cuforces::SPSstressMatrixDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
 				(pos, tau[0], tau[1], tau[2], neibsList, numParticles, slength, influenceradius); \
 		break
 
 #define SHEPARD_CHECK(kernel, periodic) \
 	case kernel: \
-		shepardDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
+		cuforces::shepardDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
 				 (pos, newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
 #define MLS_CHECK(kernel, periodic) \
 	case kernel: \
-		MlsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
+		cuforces::MlsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
 				(pos, newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
 #define VORT_CHECK(kernel, periodic) \
 	case kernel: \
-		calcVortDevice<kernel, periodic><<< numBlocks, numThreads >>> \
+		cuforces::calcVortDevice<kernel, periodic><<< numBlocks, numThreads >>> \
 				 (vort, neibsList, numParticles, slength, influenceradius); \
 	break
 
 //Testpoints
 #define TEST_CHECK(kernel, periodic) \
 	case kernel: \
-		calcTestpointsVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
+		cuforces::calcTestpointsVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
 				(newVel, neibsList, numParticles, slength, influenceradius); \
 	break
 
 // Free surface detection
 #define SURFACE_CHECK(kernel, periodic, savenormals) \
 	case kernel: \
-		calcSurfaceparticleDevice<kernel, periodic, savenormals><<< numBlocks, numThreads >>> \
+		cuforces::calcSurfaceparticleDevice<kernel, periodic, savenormals><<< numBlocks, numThreads >>> \
 				(normals, newInfo, neibsList, numParticles, slength, influenceradius); \
 	break
 
@@ -204,17 +204,16 @@ forces(	float4*			pos,
 				SPS_CHECK(QUADRATIC, true);
 				SPS_CHECK(WENDLAND, true);
 			}
-			// check if kernel invocation generated an error
-			CUT_CHECK_ERROR("SPS kernel execution failed");
 		} else {
 			switch (kerneltype) {
 				SPS_CHECK(CUBICSPLINE, false);
 				SPS_CHECK(QUADRATIC, false);
 				SPS_CHECK(WENDLAND, false);
 			}
-			// check if kernel invocation generated an error
-			CUT_CHECK_ERROR("SPS visc kernel execution failed");
 		}
+		// check if kernel invocation generated an error
+		CUT_CHECK_ERROR("SPS kernel execution failed");
+		
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
@@ -375,14 +374,13 @@ mls(float4*		pos,
 			MLS_CHECK(WENDLAND, false);
 		}
 	}
-
+	
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("Mls kernel execution failed");
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Mls kernel execution failed");
 }
 
 void
@@ -419,13 +417,12 @@ vorticity(	float4*		pos,
 			VORT_CHECK(WENDLAND, false);
 		}
 	}
-
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("Shepard kernel execution failed");
+	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Shepard kernel execution failed");
 }
 
 //Testpoints
@@ -462,13 +459,12 @@ testpoints( float4*		pos,
 			TEST_CHECK(WENDLAND, false);
 		}
 	}
-
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("test kernel execution failed");
+	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("test kernel execution failed");
 }
 
 // Free surface detection
@@ -524,13 +520,12 @@ surfaceparticle(	float4*		pos,
 			}
 		}
 	}
-
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("surface kernel execution failed");
+	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("surface kernel execution failed");
 }
 
 
@@ -607,25 +602,25 @@ reducefmax(	const int	size,
 	switch (threads)
 	{
 		case 512:
-			fmaxDevice<512><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<512><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case 256:
-			fmaxDevice<256><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<256><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case 128:
-			fmaxDevice<128><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<128><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case 64:
-			fmaxDevice<64><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<64><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case 32:
-			fmaxDevice<32><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<32><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case 16:
-			fmaxDevice<16><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<16><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case  8:
-			fmaxDevice<8><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<8><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case  4:
-			fmaxDevice<4><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<4><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case  2:
-			fmaxDevice<2><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<2><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 		case  1:
-			fmaxDevice<1><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+			cuforces::fmaxDevice<1><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
 	}
 }
 

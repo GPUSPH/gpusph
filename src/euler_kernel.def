@@ -152,7 +152,7 @@ EULER_KERNEL_NAME(
 			const int i = object(pinfo);
 			
 			// Applying rotation around center of gravity
-			applyrot(&d_rbsteprot[9*i], pos, d_rbcg2[i]);
+			applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
 			
 			// Applying center of gravity translation
 			pos.x += d_rbtrans[i].x;
@@ -161,23 +161,23 @@ EULER_KERNEL_NAME(
 		}
 
 		if (periodicbound) {
-			if (d_dispvect3.x) {
+			if (d_dispvect.x) {
 				if (pos.x >= d_maxlimit.x)
-					pos.x -= d_dispvect3.x;
+					pos.x -= d_dispvect.x;
 				else if (pos.x < d_minlimit.x)
-					pos.x += d_dispvect3.x;
+					pos.x += d_dispvect.x;
 			}
-			if (d_dispvect3.y) {
+			if (d_dispvect.y) {
 				if (pos.y >= d_maxlimit.y)
-					pos.y -= d_dispvect3.y;
+					pos.y -= d_dispvect.y;
 				else if (pos.y < d_minlimit.y)
-					pos.y += d_dispvect3.y;
+					pos.y += d_dispvect.y;
 			}
-			if (d_dispvect3.z) {
+			if (d_dispvect.z) {
 				if (pos.z >= d_maxlimit.z)
-					pos.z -= d_dispvect3.z;
+					pos.z -= d_dispvect.z;
 				else if (pos.z < d_minlimit.z)
-					pos.z += d_dispvect3.z;
+					pos.z += d_dispvect.z;
 			}
 		}
 	}

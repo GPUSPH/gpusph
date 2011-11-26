@@ -39,10 +39,10 @@
 #include "particledefine.h"
 #include "textures.cuh"
 
+namespace cuneibs {
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
-__constant__ float3 d_dispvect1;
-__constant__ int d_cellofsets[27];
+__constant__ float3 d_dispvect;
 
 // calculate position in uniform grid
 __device__ __forceinline__ int3
@@ -182,39 +182,39 @@ neibsInCell(
 	int3 periodic = make_int3(0);
 	if (periodicbound) {
 		if (gridPos.x < 0) {
-			if (d_dispvect1.x) {
+			if (d_dispvect.x) {
 				gridPos.x = gridSize.x;
 				periodic.x = 1;
 			} else
 				return;
 		} else if (gridPos.x >= gridSize.x) {
-			if (d_dispvect1.x) {
+			if (d_dispvect.x) {
 				gridPos.x = 0;
 				periodic.x = -1;
 			} else
 				return;
 		}
 		if (gridPos.y < 0) {
-			if (d_dispvect1.y) {
+			if (d_dispvect.y) {
 				gridPos.y = gridSize.y;
 				periodic.y = 1;
 			} else
 				return;
 		} else if (gridPos.y >= gridSize.y) {
-			if (d_dispvect1.y) {
+			if (d_dispvect.y) {
 				gridPos.y = 0;
 				periodic.y = -1;
 			} else
 				return;
 		}
 		if (gridPos.z < 0) {
-			if (d_dispvect1.z) {
+			if (d_dispvect.z) {
 				gridPos.z = gridSize.z;
 				periodic.z = 1;
 			} else
 				return;
 		} else if (gridPos.z >= gridSize.z) {
-			if (d_dispvect1.z) {
+			if (d_dispvect.z) {
 				gridPos.z = 0;
 				periodic.z = -1;
 			} else
@@ -250,7 +250,7 @@ neibsInCell(
 				float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
 				#endif
 				if (periodicbound)
-					relPos += periodic*d_dispvect1;
+					relPos += periodic*d_dispvect;
 
 				uint mod_index = neib_index;
 				if (sqlength(relPos) < sqinfluenceradius) {
@@ -369,5 +369,6 @@ buildNeibsListDevice(
 		}
 	}
 	return;
+}
 }
 #endif

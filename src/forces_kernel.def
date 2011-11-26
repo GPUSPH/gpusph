@@ -278,7 +278,7 @@ FORCES_CUDA_KERNEL
 			}
 
 			// Adding repulsive force computed from geometric boundaries
-			if (d_numPlanes) {
+			if (d_numplanes) {
 				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, force));
 			}
 			
@@ -340,7 +340,7 @@ FORCES_CUDA_KERNEL
 
 			uint rbindex = id(info) + d_rbstartindex[object(info)];
 			rbforces[rbindex] = force;
-			rbtorques[rbindex] = make_float4(cross(as_float3(pos) - d_rbcg1[object(info)], as_float3(force)));;
+			rbtorques[rbindex] = make_float4(cross(as_float3(pos) - d_rbcg[object(info)], as_float3(force)));;
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 

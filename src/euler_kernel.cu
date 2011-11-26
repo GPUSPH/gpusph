@@ -33,13 +33,14 @@
 #include "particledefine.h"
 #include "textures.cuh"
 
+namespace cueuler {
 __constant__ float	d_epsxsph;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
-__constant__ float3 d_dispvect3;
+__constant__ float3 d_dispvect;
 __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 
-__constant__ float3 d_rbcg2[MAXBODIES];
+__constant__ float3 d_rbcg[MAXBODIES];
 __constant__ float3 d_rbtrans[MAXBODIES];
 __constant__ float	d_rbsteprot[9*MAXBODIES];
 
@@ -75,5 +76,5 @@ applyrot(float* rot, float4 & pos, const float3 & cg)
 #include "euler_kernel.def"
 #undef XPSH_KERNEL
 #undef EULER_KERNEL_NAME
-
+}
 #endif
