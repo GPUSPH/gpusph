@@ -165,7 +165,7 @@ endif
 # -------------------------- CFLAGS section -------------------------- #
 
 # nvcc-specific CFLAGS
-CFLAGS_GPU = -gencode arch=compute_$(COMPUTE),code=sm_$(COMPUTE) --use_fast_math
+CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE)
 
 # Default CFLAGS (see notes below)
 ifeq ($(platform), Darwin)
