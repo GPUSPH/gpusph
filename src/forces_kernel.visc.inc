@@ -62,7 +62,6 @@
 #else
 	#define MIN_BLOCKS_FORCES 1
 #endif
-#endif
 #include "forces_kernel.def"
 #undef MIN_BLOCKS_FORCES
 #undef VISC_TYPE
