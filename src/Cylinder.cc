@@ -48,7 +48,8 @@ Cylinder::Cylinder(const Point& origin, const double radius, const Vector& heigh
 	
 	Vector v(0, 0, 1);
 	const double angle = acos(height*v/m_h);
-	Vector rotdir = height.cross(v);
+	Vector rotdir = -height.cross(v);
+	std::cout << " angle " << angle << "\n";
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
 	m_ep = EulerParameters(rotdir, angle);
@@ -136,7 +137,7 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	const int nz = (int) ceil(m_h/dx);
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
-		nparts += FillDisk(points, m_ep, m_origin, m_r, i*dz, dx, 2.0*M_PI*rand()/RAND_MAX, fill);
+		nparts += FillDisk(points, m_ep, m_origin, m_r, i*dz, dx, fill);
 	
 	return nparts;
 }

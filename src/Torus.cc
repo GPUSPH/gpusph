@@ -33,7 +33,7 @@ Torus::Torus(const Point& center, const Vector& axis, const double R, const doub
 	
 	Vector v(0, 0, 1);
 	const double angle = acos(axisdir*v);
-	Vector rotdir = axisdir.cross(v);
+	Vector rotdir = -axisdir.cross(v);
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
 	m_ep = EulerParameters(rotdir, angle);

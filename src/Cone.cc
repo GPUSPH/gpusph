@@ -53,7 +53,7 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 	
 	Vector v(0, 0, 1);
 	const double angle = acos(height*v/m_h);
-	Vector rotdir = height.cross(v);
+	Vector rotdir = -height.cross(v);
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
 	m_ep = EulerParameters(rotdir, angle);
