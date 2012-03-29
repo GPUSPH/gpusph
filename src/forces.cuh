@@ -26,13 +26,41 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
-#include "cudpp/cudpp.h"
-
-#define BLOCK_SIZE_CALCVORT		128
-#define BLOCK_SIZE_CALCTEST		128
-#define BLOCK_SIZE_SHEPARD		128
-#define BLOCK_SIZE_MLS			128
-#define BLOCK_SIZE_XSPH			128
+/* Important notes on block sizes:
+	- all kernels accessing the neighbor list MUST HAVE A BLOCK
+	MULTIPLE OF NEIBINDEX_INTERLEAVE
+	- a parallel reduction for adaptive dt is done inside forces, block
+	size for forces MUST BE A POWER OF 2
+ */
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_FORCES		128
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		6
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		6
+	#define BLOCK_SIZE_SHEPARD		128
+	#define MIN_BLOCKS_SHEPARD		6
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			6
+	#define BLOCK_SIZE_SPS			128
+	#define MIN_BLOCKS_SPS			6
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#else
+	#define BLOCK_SIZE_FORCES		64
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		1
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		1
+	#define BLOCK_SIZE_SHEPARD		224
+	#define MIN_BLOCKS_SHEPARD		1
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			1
+	#define BLOCK_SIZE_SPS			128
+	#define MIN_BLOCKS_SPS			1
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#endif
 
 
 extern "C"
@@ -42,6 +70,8 @@ float
 forces(	float4*			pos,
 		float4*			vel,
 		float4*			forces,
+		float4*			rbforces,
+		float4*			rbtorques,
 		float4*			xsph,
 		particleinfo*	info,
 		uint*			neibsList,
@@ -56,27 +86,13 @@ forces(	float4*			pos,
 		ViscosityType	visctype,
 		float			visccoeff,
 		float*			cfl,
-		float*			tempfmax,
+		float*			tempCfl,
 		uint			numPartsFmax,
-		CUDPPHandle		scanplan,
 		float2*			tau[],
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
 		bool			usedem);
-
-void
-xsph(	float4*		pos,
-		float4*		vel,
-		float4*		forces,
-		float4*		xsph,
-		particleinfo*	info,
-		uint*		neibsList,
-		uint		numParticles,
-		float		slength,
-		int			kerneltype,
-		float		influenceradius,
-		bool		periodicbound);
 
 void
 shepard(float4*		pos,
@@ -141,11 +157,31 @@ surfaceparticle(	float4*		pos,
 			bool		periodicbound,
 			bool        savenormals);
 
-
 void
 setDemTexture(float *hDem, int width, int height);
 
 void
 releaseDemTexture();
+
+void
+reduceRbForces(	float4*		forces,
+				float4*		torques,
+				uint*		rbnum,
+				uint*		lastindex,
+				float3*		totalforce,
+				float3*		totaltorque,
+				uint		numbodies,
+				uint		numBodiesParticles);
+
+uint
+getNumPartsFmax(const uint n);
+
+uint
+getFmaxTempStorageSize(const uint n);
+
+float
+cflmax( const uint	n,
+		float*		cfl,
+		float*		tempCfl);
 }
 #endif

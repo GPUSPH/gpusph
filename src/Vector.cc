@@ -23,16 +23,8 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/*
- *  Vector2D.cpp
- *  NNS
- *
- *  Created by Alexis Herault on 27/07/06.
- *  Copyright 2006 __MyCompanyName__. All rights reserved.
- *
- */
 
-#include <math.h>
+#include <cmath>
 #include "Vector.h"
 #include "Point.h"
 
@@ -78,27 +70,62 @@ Vector::Vector(const Vector &source)
 /// Return the norm of the vector
 /*!	\return the norm of vector
 */
-double Vector::norm(void) const
+double 
+Vector::norm(void) const
 {
 	return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
 }
 
-double Vector::normSquared(void) const
+
+/// Normalize the vector
+void 
+Vector::normalize(void)
+{
+	double n = norm();
+	x[0] /= n;
+	x[1] /= n;
+	x[2] /= n;
+}
+
+
+double 
+Vector::normSquared(void) const
 {
 	return x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
 }
 
 
 /// Return a normal vector of the vector
-/*! \return the normal vector of the vector
- A CORRIGER
+/*! \return a normal vector of the vector
 */
-Vector Vector::Normal(void)
+Vector 
+Vector::Normal(void) const
 {
-	return Vector(-x[1], x[0], x[2]);
+	Point p1, p2;
+	Vector v;
+	
+	if (x[2] != 0) {		
+		v = Vector(-1.0, 1.0, -x[1]/x[2] + x[0]/x[2]);
+		v.normalize();
+	}
+	else if (x[2] != 0) {
+		v = Vector(0, 0, 1);
+	}
+	
+	return v;
 }
 
-Vector Vector::rotated(const double &angle, const Vector &normal) const
+
+// cross product
+Vector 
+Vector::cross(const Vector & v) const
+{
+	return Vector(x[1]*v(2) - x[2]*v(1), x[2]*v(0) - x[0]*v(2), x[0]*v(1) - x[1]*v(0));
+}
+
+
+Vector 
+Vector::rotated(const double &angle, const Vector &normal) const
 {
 	double vnorm = normal.norm();
 	double ct = cosf(angle);

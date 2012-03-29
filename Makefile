@@ -165,10 +165,16 @@ endif
 # -------------------------- CFLAGS section -------------------------- #
 
 # nvcc-specific CFLAGS
-CFLAGS_GPU = -gencode arch=compute_$(COMPUTE),code=sm_$(COMPUTE) --use_fast_math
+CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE)
 
 # Default CFLAGS (see notes below)
-CFLAGS_STANDARD = -O2
+ifeq ($(platform), Darwin)
+	CFLAGS_STANDARD =
+else # Linux
+	CFLAGS_STANDARD = -O3
+endif
+# For some strange reason, when compiled with optmisation, the CPU side code
+# crashes in libstdc++ when acessing a file.
 # Default debug CFLAGS: no -O optimizations, debug (-g) option
 # Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
 # include to every source, the _DEBUG_ macro is still passed through g++
@@ -285,9 +291,6 @@ endif
 
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
 INCPATH+= -I$(SRCDIR) -I$(OPTSDIR)
-
-# if NOT using local cudpp
-LIBS+= -lcudpp$(CUDPP_ARCH_SFX)$(CUDPP_DBG_SFX)
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)

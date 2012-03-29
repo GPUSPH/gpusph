@@ -35,6 +35,9 @@
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
+namespace cuforces {
+__constant__ uint d_maxneibsnum_time_neibindexinterleave;
+
 __constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
 __constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
 __constant__ float	d_wcoeff_wendland;				// coeff = 21/(16 Pi h^3)
@@ -43,7 +46,7 @@ __constant__ float	d_fcoeff_cubicspline;			// coeff = 3/(4Pi h^4)
 __constant__ float	d_fcoeff_quadratic;				// coeff = 15/(32Pi h^4)
 __constant__ float	d_fcoeff_wendland;				// coeff = 105/(128Pi h^5)
 
-__constant__ int    d_numFluids;					// number of different fluids
+__constant__ int    d_numfluids;					// number of different fluids
 
 __constant__ float	d_rho0[MAX_FLUID_TYPES];		// rest density of fluids
 
@@ -72,7 +75,7 @@ __constant__ float	d_MK_beta;
 __constant__ float	d_visccoeff;
 __constant__ float	d_epsartvisc;
 
-__constant__ float3	d_dispvect2;					// displacment vector for periodic boundaries
+__constant__ float3	d_dispvect;					// displacment vector for periodic boundaries
 
 // Constants used for DEM
 __constant__ float	d_ewres;
@@ -85,7 +88,7 @@ __constant__ float	d_demzmin;
 __constant__ float	d_partsurf;						// particle surface
 
 // Definition of planes for geometrical boundaries
-__constant__ uint	d_numPlanes;
+__constant__ uint	d_numplanes;
 __constant__ float4	d_planes[MAXPLANES];
 __constant__ float	d_plane_div[MAXPLANES];
 
@@ -96,6 +99,14 @@ __constant__ float	d_kspsfactor;
 // Free surface detection
 __constant__ float	d_cosconeanglefluid;
 __constant__ float	d_cosconeanglenonfluid;
+
+// Rigid body data (test version)
+__device__ float3	d_force;
+__device__ float3	d_torque;
+__constant__ float3 d_rbcg[MAXBODIES];
+__constant__ uint	d_rbstartindex[MAXBODIES];
+__constant__ float d_objectobjectdf;
+__constant__ float d_objectboundarydf;
 
 
 typedef struct sym33mat {
@@ -115,17 +126,17 @@ typedef struct sym33mat {
 /********************************************* SPH kernels **************************************************/
 // Return kernel value at distance r, for a given smoothing length
 template<KernelType kerneltype>
-__device__ float
-W(float r, float slength);
+__device__ __forceinline__ float
+W(const float r, const float slength);
 
 
 // Cubic Spline kernel
 template<>
-__device__ float
-W<CUBICSPLINE>(float r, float slength)
+__device__ __forceinline__ float
+W<CUBICSPLINE>(const float r, const float slength)
 {
 	float val = 0.0f;
-	float R = r/slength;
+	const float R = r/slength;
 
 	if (R < 1)
 		val = 1.0f - 1.5f*R*R + 0.75f*R*R*R;			// val = 1 - 3/2 R^2 + 3/4 R^3
@@ -140,11 +151,11 @@ W<CUBICSPLINE>(float r, float slength)
 
 // Qudratic kernel
 template<>
-__device__ float
-W<QUADRATIC>(float r, float slength)
+__device__ __forceinline__ float
+W<QUADRATIC>(const float r, const float slength)
 {
 	float val = 0.0f;
-	float R = r/slength;
+	const float R = r/slength;
 
 	val = 0.25f*R*R - R + 1.0f;		// val = 1/4 R^2 -  R + 1
 	val *= d_wcoeff_quadratic;		// coeff = 15/(16 Pi h^3)
@@ -155,15 +166,15 @@ W<QUADRATIC>(float r, float slength)
 
 // Wendland kernel
 template<>
-__device__ float
+__device__ __forceinline__ float
 W<WENDLAND>(float r, float slength)
 {
-	float R = r/slength;
+	const float R = r/slength;
 
-	float val = 1 - 0.5f*R;
+	float val = 1.0f - 0.5f*R;
 	val *= val;
 	val *= val;						// val = (1 - R/2)^4
-	val *= 1 + 2.0f*R;				// val = (2R + 1)(1 - R/2)^4*
+	val *= 1.0f + 2.0f*R;			// val = (2R + 1)(1 - R/2)^4*
 	val *= d_wcoeff_wendland;		// coeff = 21/(16 Pi h^3)
 	return val;
 }
@@ -171,16 +182,16 @@ W<WENDLAND>(float r, float slength)
 
 // Return 1/r dW/dr at distance r, for a given smoothing length
 template<KernelType kerneltype>
-__device__ float
-F(float r, float slength);
+__device__ __forceinline__ float
+F(const float r, const float slength);
 
 
 template<>
-__device__ float
-F<CUBICSPLINE>(float r, float slength)
+__device__ __forceinline__ float
+F<CUBICSPLINE>(const float r, const float slength)
 {
 	float val = 0.0f;
-	float R = r/slength;
+	const float R = r/slength;
 
 	if (R < 1.0f)
 		val = (-4.0f + 3.0f*R)/slength;		// val = (-4 + 3R)/h
@@ -193,10 +204,10 @@ F<CUBICSPLINE>(float r, float slength)
 
 
 template<>
-__device__ float
-F<QUADRATIC>(float r, float slength)
+__device__ __forceinline__ float
+F<QUADRATIC>(const float r, const float slength)
 {
-	float R = r/slength;
+	const float R = r/slength;
 
 	float val = (-2.0f + R)/r;		// val = (-2 + R)/r
 	val *= d_fcoeff_quadratic;		// coeff = 15/(32Pi h^4)
@@ -205,10 +216,11 @@ F<QUADRATIC>(float r, float slength)
 }
 
 
-template<> __device__ float
-F<WENDLAND>(float r, float slength)
+template<> 
+__device__ __forceinline__ float
+F<WENDLAND>(const float r, const float slength)
 {
-	float qm2 = r/slength - 2.0f;	// val = (-2 + R)^3
+	const float qm2 = r/slength - 2.0f;	// val = (-2 + R)^3
 	float val = qm2*qm2*qm2*d_fcoeff_wendland;
 	return val;
 }
@@ -217,24 +229,24 @@ F<WENDLAND>(float r, float slength)
 
 /********************** Equation of state, speed of sound, repulsive force **********************************/
 // Equation of state: pressure from density, where i is the fluid kind, not particle_id
-__device__ float
-P(float rho, uint i)
+__device__ __forceinline__ float
+P(const float rho, const uint i)
 {
 	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1);
 }
 
 
 // Sound speed computed from density
-__device__ float
-soundSpeed(float rho, uint i)
+__device__ __forceinline__ float
+soundSpeed(const float rho, const uint i)
 {
 	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
 }
 
 
 // Lennard-Jones boundary repulsion force
-__device__ float
-LJForce(float r)
+__device__ __forceinline__ float
+LJForce(const float r)
 {
 	float force = 0.0f;
 
@@ -249,19 +261,19 @@ LJForce(float r)
 // we allow the fluid particle mass mass_f to be different from the
 // boundary particle mass mass_b even though they are typically the same
 // (except for multi-phase fluids)
-__device__ float
-MKForce(const float &r, const float &slength,
-		const float &mass_f, const float &mass_b)
+__device__ __forceinline__ float
+MKForce(const float r, const float slength,
+		const float mass_f, const float mass_b)
 {
 	// MK always uses the 1D cubic or quintic Wendland spline
-	float w = 0;
+	float w = 0.0f;
 
-	float force = 0;
+	float force = 0.0f;
 
 	// Wendland has radius 2
-	if (r <= 2*slength) {
+	if (r <= 2*slength) {	//TODO: fixme use influenceradius
 		float qq = r/slength;
-		w = 1.8f * __powf(1.0f - 0.5f*qq, 4.0f) * (2.0f*qq + 1.0f);
+		w = 1.8f * __powf(1.0f - 0.5f*qq, 4.0f) * (2.0f*qq + 1.0f);  //TODO: optimize
 		// float dist = r - d_MK_d;
 		float dist = max(d_epsartvisc, r - d_MK_d);
 		force = d_MK_K*w*2*mass_b/(d_MK_beta * dist * r * (mass_f+mass_b));
@@ -273,34 +285,20 @@ MKForce(const float &r, const float &slength,
 
 
 /***************************************** Viscosities *******************************************************/
-// Artificial viscosity scalar part when the projection
-// of the velocity (hx.u/r) is not precomputed
-__device__ float
-artvisc(	float	vel_dot_pos,
-			float	rho,
-			float	neib_rho,
-			float	sspeed,
-			float	neib_sspeed,
-			float	r,
-			float	slength)
+// Artificial viscosity s
+__device__ __forceinline__ float
+artvisc(	const float	vel_dot_pos,
+			const float	rho,
+			const float	neib_rho,
+			const float	sspeed,
+			const float	neib_sspeed,
+			const float	r,
+			const float	slength)
 {
 	return vel_dot_pos*slength*d_visccoeff*(sspeed + neib_sspeed)/
 									((r*r + d_epsartvisc)*(rho + neib_rho));
 }
 
-
-// Artificial viscosity scalar part when the projection
-// of the relative velocity (hx.u/r) is needed for the
-// adaptaive time step control and so precomputed
-__device__ float
-artviscdt(	float	prelvel_by_slength,
-			float	rho,
-			float	neib_rho,
-			float	sspeed,
-			float	neib_sspeed)
-{
-	return prelvel_by_slength*d_visccoeff*(sspeed + neib_sspeed)/(rho + neib_rho);
-}
 
 // ATTENTION: for all non artificial viscosity
 // µ is the dynamic viscosity (ρν)
@@ -309,11 +307,11 @@ artviscdt(	float	prelvel_by_slength,
 // expression 21 p218 when all particles have the same viscosity
 // in this case d_visccoeff = 4 nu
 // returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
-__device__ float
-laminarvisc_kinematic(	float	rho,
-						float	neib_rho,
-						float	neib_mass,
-						float	f)
+__device__ __forceinline__ float
+laminarvisc_kinematic(	const float	rho,
+						const float	neib_rho,
+						const float	neib_mass,
+						const float	f)
 {
 	return neib_mass*d_visccoeff*f/(rho + neib_rho);
 }
@@ -322,13 +320,13 @@ laminarvisc_kinematic(	float	rho,
 // Same behaviour as laminarvisc but for particle
 // dependent viscosity.
 // returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
-__device__ float
-laminarvisc_dynamic(float	rho,
-					float	neib_rho,
-					float	neib_mass,
-					float	f,
-					float	visc,
-					float	neib_visc)
+__device__ __forceinline__ float
+laminarvisc_dynamic(const float	rho,
+					const float	neib_rho,
+					const float	neib_mass,
+					const float	f,
+					const float	visc,
+					const float	neib_visc)
 {
 	return neib_mass*(visc + neib_visc)*f/(rho*neib_rho);
 }
@@ -338,28 +336,22 @@ laminarvisc_dynamic(float	rho,
 /*********************************** Adptative time stepping ************************************************/
 // Function called at the end of the forces or powerlawVisc function doing
 // a per block maximum reduction
-__device__ void
-dtadaptBlockReduce(	float	*s_cfl,
-					float	*cfl)
+__device__ __forceinline__ void
+dtadaptBlockReduce(	float*	sm_max,
+					float*	cfl)
 {
-   __syncthreads();
-
-   if (threadIdx.x % WARPSIZE == 0) {
-		int offset = threadIdx.x/WARPSIZE;
-		for (int i = 1; i < WARPSIZE; i++) {
-			if (s_cfl[i + offset*WARPSIZE] > s_cfl[offset*WARPSIZE])
-				s_cfl[offset*WARPSIZE] = s_cfl[i + offset*WARPSIZE];
+	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1) 
+	{
+		if (threadIdx.x < s) 
+		{
+			sm_max[threadIdx.x] = max(sm_max[threadIdx.x + s], sm_max[threadIdx.x]);
 		}
+		__syncthreads();
 	}
-	__syncthreads();
 
-	if(threadIdx.x == 0) {
-		for (int i = 1; i < BLOCK_SIZE_FORCES/WARPSIZE; i++) {
-			if (s_cfl[i*WARPSIZE] > s_cfl[0])
-				s_cfl[0] = s_cfl[i*WARPSIZE];
-		}
-		cfl[blockIdx.x] = s_cfl[0];
-	}
+	// write result for this block to global mem
+	if (!threadIdx.x)
+		cfl[blockIdx.x] = sm_max[0];
 }
 /************************************************************************************************************/
 
@@ -367,27 +359,27 @@ dtadaptBlockReduce(	float	*s_cfl,
 /********************************* Periodic boundary management *********************************************/
 // Function returning the neigbor index, position, relative distance and velocity
 template<bool periodicbound>
-__device__ void
-getNeibData(float4	pos,
-			uint*	neibsList,
-			float	influenceradius,
-			uint&	neib_index,
-			float4&	neib_pos,
-			float3&	relPos,
-			float&	r);
+__device__ __forceinline__ void
+getNeibData(const float4	pos,
+			const uint*		neibsList,
+			const float		influenceradius,
+			uint&			neib_index,
+			float4&			neib_pos,
+			float3&			relPos,
+			float&			r);
 
 
 // In case of periodic boundaries we add the displacement
 // vector when needed
 template<>
-__device__ void
-getNeibData<true>(	float4	pos,
-					uint*	neibsList,
-					float	influenceradius,
-					uint&	neib_index,
-					float4&	neib_pos,
-					float3&	relPos,
-					float&	r)
+__device__ __forceinline__ void
+getNeibData<true>(	const float4	pos,
+					const uint*		neibsList,
+					const float		influenceradius,
+					uint&			neib_index,
+					float4&			neib_pos,
+					float3&			relPos,
+					float&			r)
 {
 	int3 periodic = make_int3(0);
 	if (neib_index & WARPXPLUS)
@@ -413,7 +405,7 @@ getNeibData<true>(	float4	pos,
 	r = length(relPos);
 	if (periodic.x || periodic.y || periodic.z) {
 		if (r > influenceradius) {
-			relPos += periodic*d_dispvect2;
+			relPos += periodic*d_dispvect;
 			r = length(relPos);
 		}
 	}
@@ -421,21 +413,96 @@ getNeibData<true>(	float4	pos,
 
 
 template<>
-__device__ void
-getNeibData<false>(	float4	pos,
-					uint*	neibsList,
-					float	influenceradius,
-					uint&	neib_index,
-					float4&	neib_pos,
-					float3&	relPos,
-					float&	r)
+__device__ __forceinline__ void
+getNeibData<false>(	const float4	pos,
+					const uint*		neibsList,
+					const float		influenceradius,
+					uint&			neib_index,
+					float4&			neib_pos,
+					float3&			relPos,
+					float&			r)
 {
-		neib_pos = tex1Dfetch(posTex, neib_index);
+	neib_pos = tex1Dfetch(posTex, neib_index);
 
-		relPos.x = pos.x - neib_pos.x;
-		relPos.y = pos.y - neib_pos.y;
-		relPos.z = pos.z - neib_pos.z;
-		r = length(relPos);
+	relPos.x = pos.x - neib_pos.x;
+	relPos.y = pos.y - neib_pos.y;
+	relPos.z = pos.z - neib_pos.z;
+	r = length(relPos);
+}
+
+template<bool periodicbound>
+__device__ __forceinline__ void
+getNeibData(const float4	pos,
+			const float4*	posArray,
+			const uint*		neibsList,
+			const float		influenceradius,
+			uint&			neib_index,
+			float4&			neib_pos,
+			float3&			relPos,
+			float&			r);
+
+
+// In case of periodic boundaries we add the displacement
+// vector when needed
+template<>
+__device__ __forceinline__ void
+getNeibData<true>(	const float4	pos,
+					const float4*	posArray,
+					const uint*		neibsList,
+					const float		influenceradius,
+					uint&			neib_index,
+					float4&			neib_pos,
+					float3&			relPos,
+					float&			r)
+{
+	int3 periodic = make_int3(0);
+	if (neib_index & WARPXPLUS)
+		periodic.x = 1;
+	else if (neib_index & WARPXMINUS)
+		periodic.x = -1;
+	if (neib_index & WARPYPLUS)
+		periodic.y = 1;
+	else if (neib_index & WARPYMINUS)
+		periodic.y = -1;
+	if (neib_index & WARPZPLUS)
+		periodic.z = 1;
+	else if (neib_index & WARPZMINUS)
+		periodic.z = -1;
+
+	neib_index &= NOWARP;
+
+	neib_pos = posArray[neib_index];
+
+	relPos.x = pos.x - neib_pos.x;
+	relPos.y = pos.y - neib_pos.y;
+	relPos.z = pos.z - neib_pos.z;
+	r = length(relPos);
+	if (periodic.x || periodic.y || periodic.z) {
+		if (r > influenceradius) {
+			relPos += periodic*d_dispvect;
+			r = length(relPos);
+		}
+	}
+}
+
+
+template<>
+__device__ __forceinline__ void
+getNeibData<false>(	const float4	pos,
+					const float4*	posArray,
+					const uint*		neibsList,
+					const float		influenceradius,
+					uint&			neib_index,
+					float4&			neib_pos,
+					float3&			relPos,
+					float&			r)
+{
+	neib_pos = posArray[neib_index];
+
+	relPos.x = pos.x - neib_pos.x;
+	relPos.y = pos.y - neib_pos.y;
+	relPos.z = pos.z - neib_pos.z;
+	r = length(relPos);
 }
 /************************************************************************************************************/
 
@@ -444,38 +511,36 @@ getNeibData<false>(	float4	pos,
 // TODO: check for the maximum timestep
 
 // Normal and viscous force wrt to solid boundary
-__device__ float
-PlaneForce(	float4	pos,
-			float4	plane,
-			float	l,
-			float3	vel,
-			float	dynvisc,
-			float	slength,
-			float	influenceradius,
-			float4&	force)
+__device__ __forceinline__ float
+PlaneForce(	const float4	pos,
+			const float4	plane,
+			const float		l,
+			const float3	vel,
+			const float		dynvisc,
+			float4&			force)
 {
-	float r = abs(dot(as_float3(pos), as_float3(plane)) + plane.w)/l;
+	const float r = abs(dot(as_float3(pos), as_float3(plane)) + plane.w)/l;
 	if (r < d_r0) {
-		float DvDt = LJForce(r);
+		const float DvDt = LJForce(r);
 		// Unitary normal vector of the surface
-		float3 relPos = make_float3(plane)*r/l;
+		const float3 relPos = make_float3(plane)*r/l;
 
 		force.x += DvDt*relPos.x;
 		force.y += DvDt*relPos.y;
 		force.z += DvDt*relPos.z;
 
 		// normal velocity component
-		float normal = dot(vel, relPos)/r;
-		float3 v_n = normal*relPos/r;
+		const float normal = dot(vel, relPos)/r;
+		const float3 v_n = normal*relPos/r;
 		// tangential velocity component
-		float3 v_t = vel - v_n;
+		const float3 v_t = vel - v_n;
 
 		// f = -µ u/∆n
 
 		// viscosity
 		// float coeff = -dynvisc*M_PI*(d_r0*d_r0-r*r)/(pos.w*r);
 		// float coeff = -dynvisc*M_PI*(d_r0*d_r0*3/(M_PI*2)-r*r)/(pos.w*r);
-		float coeff = -dynvisc*d_partsurf/(pos.w*r);
+		const float coeff = -dynvisc*d_partsurf/(pos.w*r);
 
 		// coeff should not be higher than needed to nil v_t in the maximum allowed dt
 		// coefficients are negative, so the smallest in absolute value is the biggest
@@ -497,18 +562,15 @@ PlaneForce(	float4	pos,
 	return 0.0f;
 }
 
-__device__ float
-GeometryForce(	float4	pos,
-				float3	vel,
-				float	dynvisc,
-				float	slength,
-				float	influenceradius,
-				float4&	force)
+__device__ __forceinline__ float
+GeometryForce(	const float4	pos,
+				const float3	vel,
+				const float		dynvisc,
+				float4&			force)
 {
 	float coeff_max = 0.0f;
-	for (uint i = 0; i < d_numPlanes; ++i) {
-		float coeff = PlaneForce(pos, d_planes[i], d_plane_div[i], vel, dynvisc,
-				slength, influenceradius, force);
+	for (uint i = 0; i < d_numplanes; ++i) {
+		float coeff = PlaneForce(pos, d_planes[i], d_plane_div[i], vel, dynvisc, force);
 		if (coeff > coeff_max)
 			coeff_max = coeff;
 	}
@@ -517,33 +579,32 @@ GeometryForce(	float4	pos,
 }
 
 
-__device__ float
-DemInterpol(const texture<float, 2, cudaReadModeElementType> texref, float x, float y)
+__device__ __forceinline__ float
+DemInterpol(const texture<float, 2, cudaReadModeElementType> texref, 
+			const float x, 
+			const float y)
 {
 	return tex2D(texref, x/d_ewres + 0.5f, y/d_nsres + 0.5f);
 }
 
 
-__device__ float
+__device__ __forceinline__ float
 DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
-			float4	pos,
-			float3	vel,
-			float	dynvisc,
-			float	slength,
-			float	influenceradius,
-			float4&	force)
+			const float4	pos,
+			const float3	vel,
+			const float		dynvisc,
+			float4&			force)
 {
-	float z0 = DemInterpol(texref, pos.x, pos.y);
+	const float z0 = DemInterpol(texref, pos.x, pos.y);
 	if (pos.z - z0 < d_demzmin) {
-		float z1 = DemInterpol(texref, pos.x + d_demdx, pos.y);
-		float z2 = DemInterpol(texref, pos.x, pos.y + d_demdy);
-		float a = d_demdy*(z0 - z1);
-		float b = d_demdx*(z0 - z2);
-		float c = d_demdxdy;	// demdx*demdy
-		float d = -a*pos.x - b*pos.y - c*z0;
-		float l = sqrt(a*a+b*b+c*c);
-		return PlaneForce(pos, make_float4(a, b, c, d), l, vel, dynvisc,
-				slength, influenceradius, force);
+		const float z1 = DemInterpol(texref, pos.x + d_demdx, pos.y);
+		const float z2 = DemInterpol(texref, pos.x, pos.y + d_demdy);
+		const float a = d_demdy*(z0 - z1);
+		const float b = d_demdx*(z0 - z2);
+		const float c = d_demdxdy;	// demdx*demdy
+		const float d = -a*pos.x - b*pos.y - c*z0;
+		const float l = sqrt(a*a+b*b+c*c);
+		return PlaneForce(pos, make_float4(a, b, c, d), l, vel, dynvisc, force);
 	}
 	return 0;
 }
@@ -563,37 +624,45 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (4) return SPS tensor matrix (tau) divided by rho^2
 template<KernelType kerneltype, bool periodicbound>
 __global__ void
-SPSstressMatrixDevice(	float2*	tau0,
-						float2*	tau1,
-						float2*	tau2,
-						uint*	neibsList,
-						uint	numParticles,
-						float	slength,
-						float	influenceradius)
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+SPSstressMatrixDevice(	const float4* posArray,
+						float2*		tau0,
+						float2*		tau1,
+						float2*		tau2,
+						const uint*	neibsList,
+						const uint	numParticles,
+						const float	slength,
+						const float	influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// compute SPS matrix only for fluid particles
-	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
 		return;
 
 	// read particle data from sorted arrays
-	float4 pos = tex1Dfetch(posTex, index);
-	float4 vel = tex1Dfetch(velTex, index);
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+	const float4 vel = tex1Dfetch(velTex, index);
 
 	// SPS stress matrix elements
 	sym33mat tau;
-	tau.a11 = 0.0f;   // tau11 = tau_xx
-	tau.a12 = 0.0f;   // tau12 = tau_xy
-	tau.a13 = 0.0f;   // tau13 = tau_xz
-	tau.a22 = 0.0f;   // tau22 = tau_yy
-	tau.a23 = 0.0f;   // tau23 = tau_yz
-	tau.a33 = 0.0f;   // tau33 = tau_zz
+//	tau.a11 = 0.0f;   // tau11 = tau_xx
+//	tau.a12 = 0.0f;   // tau12 = tau_xy
+//	tau.a13 = 0.0f;   // tau13 = tau_xz
+//	tau.a22 = 0.0f;   // tau22 = tau_yy
+//	tau.a23 = 0.0f;   // tau23 = tau_yz
+//	tau.a33 = 0.0f;   // tau33 = tau_zz
 
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
@@ -601,8 +670,8 @@ SPSstressMatrixDevice(	float2*	tau0,
 	float3 dvz = make_float3(0.0f);
 
 	// first loop over all the neighbors for the Velocity Gradients
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -610,12 +679,16 @@ SPSstressMatrixDevice(	float2*	tau0,
 		float3 relPos;
 		float r;
 
+		#if( __COMPUTE__ >= 20)							
+		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float4 neib_vel = tex1Dfetch(velTex, neib_index);
-		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		#endif
+		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
-			float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// 1/r ∂Wij/∂r Vj
+			const float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// 1/r ∂Wij/∂r Vj
 
 			float3 relVel;
 			relVel.x = vel.x - neib_vel.x;
@@ -664,8 +737,6 @@ SPSstressMatrixDevice(	float2*	tau0,
 }
 /************************************************************************************************************/
 
-
-
 /************************************************************************************************************/
 /*					   Kernels for computing acceleration without gradient correction					 */
 /************************************************************************************************************/
@@ -680,82 +751,35 @@ SPSstressMatrixDevice(	float2*	tau0,
 /*					   Kernels for XSPH, Shepard and MLS corrections									   */
 /************************************************************************************************************/
 
-// This kernel computes only the XSPH correction
-template<KernelType kernel_type, bool periodicbound>
-__global__ void
-xsphDevice(	float4*	xsph,
-			uint*	neibsList,
-			uint	numParticles,
-			float	slength,
-			float	influenceradius)
-{
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	// normalize kernel only if the given particle is a fluid one
-	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
-		return;
-
-	// read particle data from sorted arrays
-	float4 pos = tex1Dfetch(posTex, index);
-	float4 vel = tex1Dfetch(velTex, index);
-
-	// force and density derivative
-	float3 mean_vel = make_float3(0.0f);
-
-	// loop over all neighbors
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
-
-		if (neib_index == 0xffffffff) break;
-
-		float4 neib_pos;
-		float3 relPos;
-		float r;
-
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float4 neib_vel = tex1Dfetch(velTex, neib_index);
-		particleinfo neib_info = tex1Dfetch(infoTex, index);
-
-		if (r < influenceradius && FLUID(neib_info)) {
-			float3 relVel;
-			relVel.x = vel.x - neib_vel.x;
-			relVel.y = vel.y - neib_vel.y;
-			relVel.z = vel.z - neib_vel.z;
-
-			mean_vel -= 2.0f*neib_pos.w*W<kernel_type>(r, slength)*relVel/(vel.w + neib_vel.w);
-		}
-	}
-
-	xsph[index] = make_float4(mean_vel, 0.0f);
-}
-
-
 // This kernel computes the Shepard correction
 template<KernelType kerneltype, bool periodicbound >
 __global__ void
-shepardDevice(	float4*	newVel,
-				uint*	neibsList,
-				uint	numParticles,
-				float	slength,
-				float	influenceradius)
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+shepardDevice(	const float4*	posArray,
+				float4*			newVel,
+				const uint*		neibsList,
+				const uint		numParticles,
+				const float		slength,
+				const float		influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// normalize kernel only if the given particle is a fluid one
-	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
 		return;
 
-	float4 pos = tex1Dfetch(posTex, index);
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// taking into account self contribution in summation
@@ -763,8 +787,8 @@ shepardDevice(	float4*	newVel,
 	float temp2 = temp1/vel.w ;
 
 	// loop over all the neighbors
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -772,12 +796,17 @@ shepardDevice(	float4*	newVel,
 		float3 relPos;
 		float r;
 
+		#if( __COMPUTE__ >= 20)							
+		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float neib_rho = tex1Dfetch(velTex, neib_index).w;
-		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		#endif
+
+		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
-			float w = W<kerneltype>(r, slength)*neib_pos.w;
+			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
 		}
@@ -791,24 +820,32 @@ shepardDevice(	float4*	newVel,
 // This kernel computes the MLS correction
 template<KernelType kerneltype, bool periodicbound>
 __global__ void
-MlsDevice(	float4*	newVel,
-			uint*	neibsList,
-			uint	numParticles,
-			float	slength,
-			float	influenceradius)
+__launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
+MlsDevice(	const float4*	posArray,
+			float4*			newVel,
+			const uint*		neibsList,
+			const uint		numParticles,
+			const float		slength,
+			const float		influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	// computing MLS matrix only for fluid particles
-	particleinfo info = tex1Dfetch(infoTex, index);
-	if (!FLUID(info))
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
 		return;
 
-	float4 pos = tex1Dfetch(posTex, index);
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// MLS matrix elements
@@ -824,8 +861,8 @@ MlsDevice(	float4*	newVel,
 	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// first loop over all the neighbors for the MLS matrix
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -833,14 +870,19 @@ MlsDevice(	float4*	newVel,
 		float3 relPos;
 		float r;
 
+		#if( __COMPUTE__ >= 20)							
+		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float neib_rho = tex1Dfetch(velTex, neib_index).w;
-		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		#endif
+
+		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// interaction between two particles
 		if (r < influenceradius && FLUID(neib_info)) {
 			neibs_num ++;
-			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
+			const float w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
 			a11 += w;						// a11 = ∑Wij*Vj
 			a12 += relPos.x*w;				// a12 = ∑(xi - xj)*Wij*Vj
 			a13 += relPos.y*w;				// a13 = ∑(yi - yj)*Wij*Vj
@@ -867,25 +909,26 @@ MlsDevice(	float4*	newVel,
 	maxa = fmax(maxa, fabs(a33));
 	maxa = fmax(maxa, fabs(a34));
 	maxa = fmax(maxa, fabs(a44));
-	maxa = __powf(maxa, 4);
+	maxa *= maxa;
+	maxa *= maxa;
 	float det = a11*(a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)
 			  + a12*(a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)
 			  + a13*(a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)
 			  + a14*(a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24);
-	if (det > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {
+	if (det > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
 		// first row of inverse matrix
 		det = 1/det;
-		float b11 = (a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)*det;
-		float b21 = (a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)*det;
-		float b31 = (a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)*det;
-		float b41 = (a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24)*det;
+		const float b11 = (a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)*det;
+		const float b21 = (a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)*det;
+		const float b31 = (a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)*det;
+		const float b41 = (a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24)*det;
 
 		// taking into account self contribution in density summation
 		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
 
 		// second loop over all the neighbors for correction
-		for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-			uint neib_index = neibsList[i];
+		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+			uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
 			if (neib_index == 0xffffffff) break;
 
@@ -893,49 +936,57 @@ MlsDevice(	float4*	newVel,
 			float3 relPos;
 			float r;
 
+			#if( __COMPUTE__ >= 20)							
+			getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			#else
 			getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-			float neib_rho = tex1Dfetch(velTex, neib_index).w;
-			particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			#endif
+			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// interaction between two particles
 			if (r < influenceradius && FLUID(neib_info)) {
-				float w = W<kerneltype>(r, slength)*neib_pos.w;	 // ρj*Wij*Vj = mj*Wij
+				const float w = W<kerneltype>(r, slength)*neib_pos.w;	 // ρj*Wij*Vj = mj*Wij
 				vel.w += (b11 + b21*relPos.x + b31*relPos.y
 							+ b41*relPos.z)*w;	 // ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
 			}
 		}  // end of second loop trough neighbors
 	} else {
-			// Resort to Shepard filter in absence of invertible matrix
-			// see also shepardDevice. TODO: share the code
-			// we use a11 and a12 for temp1, temp2
-			a11 = pos.w*W<kerneltype>(0, slength);
-			a12 = a11/vel.w;
+		// Resort to Shepard filter in absence of invertible matrix
+		// see also shepardDevice. TODO: share the code
+		// we use a11 and a12 for temp1, temp2
+		a11 = pos.w*W<kerneltype>(0, slength);
+		a12 = a11/vel.w;
 
 			// loop over all neighbors
-			for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-					uint neib_index = neibsList[i];
+		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+			uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-					if (neib_index == 0xffffffff) break;
+				if (neib_index == 0xffffffff) break;
 
-					float4 neib_pos;
-					float3 relPos;
-					float r;
+				float4 neib_pos;
+				float3 relPos;
+				float r;
 
-					getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-					float neib_rho = tex1Dfetch(velTex, neib_index).w;
-					particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				#if( __COMPUTE__ >= 20)							
+				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				#else
+				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				#endif
+				const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-					// interaction between two particles
-					if (r < influenceradius && FLUID(neib_info)) {
-							// ρj*Wij*Vj = mj*Wij
-							float w = W<kerneltype>(r, slength)*neib_pos.w;
-							// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
-							a11 += w;
-							a12 +=w/neib_rho;
-					}
-			}  // end of second loop through neighbors
+				// interaction between two particles
+				if (r < influenceradius && FLUID(neib_info)) {
+						// ρj*Wij*Vj = mj*Wij
+						const float w = W<kerneltype>(r, slength)*neib_pos.w;
+						// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
+						a11 += w;
+						a12 +=w/neib_rho;
+				}
+		}  // end of second loop through neighbors
 
-			vel.w = a11/a12;
+		vel.w = a11/a12;
 	}
 
 	newVel[index] = vel;
@@ -943,95 +994,98 @@ MlsDevice(	float4*	newVel,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
-/*					   Auxiliary kernels used for post processing										 */
+/*					   CFL max kernel																		*/
+/************************************************************************************************************/
+template <unsigned int blockSize>
+__global__ void
+fmaxDevice(float *g_idata, float *g_odata, const uint n)
+{
+	extern __shared__ float sdata[];
+
+	// perform first level of reduction,
+	// reading from global memory, writing to shared memory
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x*blockSize*2 + threadIdx.x;
+	unsigned int gridSize = blockSize*2*gridDim.x;
+
+	float myMax = 0;
+
+	// we reduce multiple elements per thread.  The number is determined by the 
+	// number of active thread blocks (via gridDim).  More blocks will result
+	// in a larger gridSize and therefore fewer elements per thread
+	while (i < n)
+	{         
+		myMax = max(myMax, g_idata[i]);
+		// ensure we don't read out of bounds
+		if (i + blockSize < n) 
+			myMax = max(myMax, g_idata[i + blockSize]);
+		i += gridSize;
+	} 
+
+	// each thread puts its local sum into shared memory 
+	sdata[tid] = myMax;
+	__syncthreads();
+
+	// do reduction in shared mem
+	if (blockSize >= 512) { if (tid < 256) { sdata[tid] = myMax = max(myMax,sdata[tid + 256]); } __syncthreads(); }
+	if (blockSize >= 256) { if (tid < 128) { sdata[tid] = myMax = max(myMax,sdata[tid + 128]); } __syncthreads(); }
+	if (blockSize >= 128) { if (tid <  64) { sdata[tid] = myMax = max(myMax,sdata[tid +  64]); } __syncthreads(); }
+
+	// now that we are using warp-synchronous programming (below)
+	// we need to declare our shared memory volatile so that the compiler
+	// doesn't reorder stores to it and induce incorrect behavior.
+	if (tid < 32)
+	{
+		volatile float* smem = sdata;
+		if (blockSize >=  64) { smem[tid] = myMax = max(myMax, smem[tid + 32]); }
+		if (blockSize >=  32) { smem[tid] = myMax = max(myMax, smem[tid + 16]); }
+		if (blockSize >=  16) { smem[tid] = myMax = max(myMax, smem[tid +  8]); }
+		if (blockSize >=   8) { smem[tid] = myMax = max(myMax, smem[tid +  4]); }
+		if (blockSize >=   4) { smem[tid] = myMax = max(myMax, smem[tid +  2]); }
+		if (blockSize >=   2) { smem[tid] = myMax = max(myMax, smem[tid +  1]); }
+	}
+
+	// write result for this block to global mem 
+	if (tid == 0) 
+        g_odata[blockIdx.x] = sdata[0];
+}
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*					   Auxiliary kernels used for post processing										    */
 /************************************************************************************************************/
 
 // This kernel compute the vorticity field
 template<KernelType kerneltype, bool periodicbound>
 __global__ void
-calcVortDevice(	float3*	vorticity,
-				uint*	neibsList,
-				uint	numParticles,
-				float	slength,
-				float	influenceradius)
+calcVortDevice(	float3*		vorticity,
+				const uint*	neibsList,
+				const uint	numParticles,
+				const float	slength,
+				const float	influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
+	// computing vorticity only for fluid particles
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
+		return;
+
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
-	particleinfo info = tex1Dfetch(infoTex, index);
 
 	// MLS matrix elements
 	float3 vort = make_float3(0.0f);
 
-	// computing vorticity only for fluid particles
-	if (FLUID(info)) {
-
-		// loop over all the neighbors
-		for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-			uint neib_index = neibsList[i];
-
-			if (neib_index == 0xffffffff) break;
-
-			float4 neib_pos;
-			float3 relPos;
-			float r;
-
-			getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-			float4 neib_vel = tex1Dfetch(velTex, neib_index);
-			particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
-				float3 relVel;
-				relVel.x = vel.x - neib_vel.x;
-				relVel.y = vel.y - neib_vel.y;
-				relVel.z = vel.z - neib_vel.z;
-				float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// ∂Wij/∂r*Vj
-				// vxij = vxi - vxj and same for vyij and vzij
-				vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
-				vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
-				vort.z += f*(relVel.x*relPos.y - relVel.y*relPos.x);		// vort.x = ∑(vxij(yi - yj) - vyij*(xi - xj))*∂Wij/∂r*Vj
-			}
-		} // end of loop trough neighbors
-	} // if fluid part
-
-	vorticity[index] = vort;
-}
-/************************************************************************************************************/
-
-//Testpoints
-// This kernel compute the velocity at testpoints
-template<KernelType kerneltype, bool periodicbound >
-__global__ void
-calcTestpointsVelocityDevice(float4*	newVel,
-				uint*	neibsList,
-				uint	numParticles,
-				float	slength,
-				float	influenceradius)
-{
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	particleinfo info = tex1Dfetch(infoTex, index);
-
-	if((type(info) != TESTPOINTSPART))
-		return;
-
-	float4 pos = tex1Dfetch(posTex, index);
-	float4 vel = tex1Dfetch(velTex, index);
-	float4 temp = make_float4(0.0f, 0.0f,0.0f, 0.0f);
-
 	// loop over all the neighbors
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1040,17 +1094,75 @@ calcTestpointsVelocityDevice(float4*	newVel,
 		float r;
 
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-        particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		// interaction between two particles
+		if (r < influenceradius && FLUID(neib_info)) {
+			float3 relVel;
+			relVel.x = vel.x - neib_vel.x;
+			relVel.y = vel.y - neib_vel.y;
+			relVel.z = vel.z - neib_vel.z;
+			const float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// ∂Wij/∂r*Vj
+			// vxij = vxi - vxj and same for vyij and vzij
+			vort.x += f*(relVel.y*relPos.z - relVel.z*relPos.y);		// vort.x = ∑(vyij(zi - zj) - vzij*(yi - yj))*∂Wij/∂r*Vj
+			vort.y += f*(relVel.z*relPos.x - relVel.x*relPos.z);		// vort.y = ∑(vzij(xi - xj) - vxij*(zi - zj))*∂Wij/∂r*Vj
+			vort.z += f*(relVel.x*relPos.y - relVel.y*relPos.x);		// vort.x = ∑(vxij(yi - yj) - vyij*(xi - xj))*∂Wij/∂r*Vj
+		}
+	} // end of loop trough neighbors
+
+	vorticity[index] = vort;
+}
+
+
+// Testpoints
+// This kernel compute the velocity at testpoints
+template<KernelType kerneltype, bool periodicbound >
+__global__ void
+calcTestpointsVelocityDevice(	float4*		newVel,
+								const uint*	neibsList,
+								const uint	numParticles,
+								const float	slength,
+								const float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if(type(info) != TESTPOINTSPART)
+		return;
+	
+	float4 pos = tex1Dfetch(posTex, index);
+	float4 vel = tex1Dfetch(velTex, index);
+	
+	float4 temp = make_float4(0.0f);
+
+	// loop over all the neighbors
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
-			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// Wij*mj
+			const float w = W<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// Wij*mj
 			temp.x += w*neib_vel.x;
 			temp.y += w*neib_vel.y;
 			temp.z += w*neib_vel.z;
 			//Pressure
-			temp.w += w*P(neib_vel.w,object(neib_info));
+			temp.w += w*P(neib_vel.w, object(neib_info));
 
 		}
 	}
@@ -1059,42 +1171,43 @@ calcTestpointsVelocityDevice(float4*	newVel,
 
 	newVel[index] = vel;
 }
-/************************************************************************************************************/
+
+
 // Free surface detection
 // This kernel detects the surface particles
 template<KernelType kerneltype, bool periodicbound, bool savenormals>
 __global__ void
-calcSurfaceparticleDevice(float4*	normals,
-				particleinfo* newInfo,
-                uint*	neibsList,
-				uint	numParticles,
-				float	slength,
-				float	influenceradius)
+calcSurfaceparticleDevice(	float4*			normals,
+							particleinfo*	newInfo,
+							const uint*		neibsList,
+							const uint		numParticles,
+							const float		slength,
+							const float		influenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
 	if (index >= numParticles)
 		return;
 
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
 
-	if (!FLUID(info)) {
-		newInfo [index] = info;
-		float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
-		normals [index] = normal;
+	if (NOT_FLUID(info)) {
+		newInfo[index] = info;		
 		return;
-		}
-
-	info.x &= ~SURFACE_PARTICLE_FLAG;
+	}
 
 	float4 pos = tex1Dfetch(posTex, index);
-	float4 normal = make_float4(0.0f, 0.0f,0.0f, 0.0f);
+	float4 normal = make_float4(0.0f);
+	
+	info.x &= ~SURFACE_PARTICLE_FLAG;
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// loop over all the neighbors (First loop)
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
 		if (neib_index == 0xffffffff) break;
 
@@ -1103,10 +1216,10 @@ calcSurfaceparticleDevice(float4*	normals,
 		float r;
 
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		float neib_density = tex1Dfetch(velTex, neib_index).w;
+		const float neib_density = tex1Dfetch(velTex, neib_index).w;
 
-			if (r < influenceradius) {
-			float f = F<kerneltype>(r, slength)* neib_pos.w /neib_density; // 1/r ∂Wij/∂r Vj
+		if (r < influenceradius) {
+			const float f = F<kerneltype>(r, slength)* neib_pos.w /neib_density; // 1/r ∂Wij/∂r Vj
 			normal.x -= f * relPos.x;
 			normal.y -= f * relPos.y;
 			normal.z -= f * relPos.z;
@@ -1118,7 +1231,7 @@ calcSurfaceparticleDevice(float4*	normals,
 	float normal_length = length(as_float3(normal));
 
 	//Checking the planes
-	for (uint i = 0; i < d_numPlanes; ++i) {
+	for (uint i = 0; i < d_numplanes; ++i) {
 		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
 		if (r < influenceradius) {
 			as_float3(normal) += as_float3(d_planes[i])* normal_length;
@@ -1128,9 +1241,9 @@ calcSurfaceparticleDevice(float4*	normals,
 
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
-	for(uint i = index*MAXNEIBSNUM; i < index*MAXNEIBSNUM + MAXNEIBSNUM; i++) {
-		uint neib_index = neibsList[i];
-
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+		
 		if (neib_index == 0xffffffff) break;
 
 		float4 neib_pos;
@@ -1140,7 +1253,7 @@ calcSurfaceparticleDevice(float4*	normals,
 		float cosconeangle;
 
 		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
-		particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius) {
 			float criteria = -(normal.x * relPos.x + normal.y * relPos.y + normal.z * relPos.z);
@@ -1169,6 +1282,5 @@ calcSurfaceparticleDevice(float4*	normals,
 
 }
 /************************************************************************************************************/
-
-
+}
 #endif

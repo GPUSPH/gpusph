@@ -32,7 +32,7 @@
  *
  */
 
-#include <math.h>
+#include <cmath>
 
 #include "Point.h"
 #include "Vector.h"
@@ -46,7 +46,7 @@ Point::Point(double xx, double yy, double zz, double m)
 	x[0] = xx;
 	x[1] = yy;
 	x[2] = zz;
-		x[3] = m;
+	x[3] = m;
 }
 
 
@@ -94,6 +94,14 @@ Point::Point(double *xx)
 	x[1] = xx[1];
 	x[2] = xx[2];
 		x[3] = xx[3];
+}
+
+
+void Point::SetCoord(double *data)
+{
+	x[0] = data[0];
+	x[1] = data[1];
+	x[2] = data[2];
 }
 
 

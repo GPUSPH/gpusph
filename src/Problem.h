@@ -32,10 +32,13 @@
 #ifndef _PROBLEM_H
 #define	_PROBLEM_H
 
-#include <string.h>
+#include <string>
+#include <cstdio>
 
 #include "Options.h"
+#include "RigidBody.h"
 #include "particledefine.h"
+
 
 using namespace std;
 
@@ -43,6 +46,7 @@ class Problem {
 	private:
 		float	m_last_display_time;
 		float	m_last_write_time;
+		float	m_last_rbdata_write_time;
 		float	m_last_screenshot_time;
 		string	m_problem_dir;
 
@@ -65,10 +69,12 @@ class Problem {
 		float	m_maxvel;
 		float	m_minvel;
 
-		float	m_displayinterval;
-		int		m_writefreq;
-		int		m_screenshotfreq;
+		float		m_displayinterval;		
+		float		m_rbdata_writeinterval;
+		int			m_writefreq;
+		int			m_screenshotfreq;
 		WriterType	m_writerType;
+		FILE*		m_rbdatafile;
 
 		float*	m_dem;
 		int		m_ncols, m_nrows;
@@ -80,19 +86,16 @@ class Problem {
 		PhysParams	m_physparams;
 		MbCallBack	m_mbcallbackdata[MAXMOVINGBOUND];	// array of structure for moving boundary data
 		int			m_mbnumber;							// number of moving boundaries
+
+		RigidBody	*m_bodies;							// array of RigidBody objects
 		float4		m_mbdata[MAXMOVINGBOUND];			// mb data to be provided by ParticleSystem to euler
+		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
+		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
+		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 
-		Problem(const Options &options = Options())
-		{
-			m_options = options;
-			m_last_display_time = 0.0;
-			m_last_write_time = 0.0;
-			m_last_screenshot_time = 0.0;
-			m_mbnumber = 0;
-			memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
-		};
+		Problem(const Options &options = Options());
 
-		~Problem(void) {};
+		~Problem(void);
 
 		Options get_options(void)
 		{
@@ -158,6 +161,8 @@ class Problem {
 		string create_problem_dir();
 		bool need_display(float);
 		bool need_write(float);
+		bool need_write_rbdata(float);
+		void write_rbdata(float);
 		bool need_screenshot(float);
 		// is the simulation running at the given time?
 		bool finished(float);
@@ -165,11 +170,22 @@ class Problem {
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
 		virtual void draw_boundary(float) = 0;
+		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
+
+		void allocate_bodies(const int);
+		RigidBody* get_body(const int);
+		void get_rigidbodies_data(float3 * &, float * &);
+		float3* get_rigidbodies_cg(void);
+		float* get_rigidbodies_steprot(void);
+		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
+									const double, float3 * &, float3 * &, float * &);
+		int	get_bodies_numparts(void);
+		int	get_body_numparts(const int);
 };
 #endif

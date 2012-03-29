@@ -27,8 +27,6 @@
  * Device code.
  */
 // TODO :
-// Is not necessary to build a neib list for a repulsive part !
-// Pass partinfo to bluidneibs to do that
 // We can also plan to have separate arrays for boundary parts
 // one for the fixed boundary that is sorted only one time in the simulation
 // an other one for moving boundary that will be sort with fluid particle
@@ -41,15 +39,18 @@
 #include "particledefine.h"
 #include "textures.cuh"
 
+namespace cuneibs {
+__constant__ uint d_maxneibsnum;
+__constant__ uint d_maxneibsnum_time_neibindexinterleave;
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
-__constant__ float3 d_dispvect1;
+__constant__ float3 d_dispvect;
 
 // calculate position in uniform grid
-__device__ int3
-calcGridPos(float3	pos,
-			float3	worldOrigin,
-			float3	cellSize)
+__device__ __forceinline__ int3
+calcGridPos(float3			pos,
+			const float3	worldOrigin,
+			const float3	cellSize)
 {
 	int3 gridPos;
 	gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
@@ -61,37 +62,38 @@ calcGridPos(float3	pos,
 
 
 // calculate address in grid from position (clamping to edges)
-__device__ uint
-calcGridHash(int3	gridPos,
-			 uint3	gridSize)
+__device__ __forceinline__ uint
+calcGridHash(int3			gridPos,
+			 const uint3	gridSize)
 {
 	gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
 	gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
 	gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
-	return __mul24(__mul24(gridPos.z, gridSize.y), gridSize.x) + __mul24(gridPos.y, gridSize.x) + gridPos.x;
+	return INTMUL(INTMUL(gridPos.z, gridSize.y), gridSize.x) + INTMUL(gridPos.y, gridSize.x) + gridPos.x;
 }
 
 
 // calculate grid hash value for each particle
 __global__ void
-calcHashDevice(float4*	pos,
-			   uint*	particleHash,
-			   uint*	particleIndex,
-			   uint3	gridSize,
-			   float3	cellSize,
-			   float3	worldOrigin,
-			   uint		numParticles)
+__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+calcHashDevice(const float4*	posArray,
+			   uint*			particleHash,
+			   uint*			particleIndex,
+			   const uint3		gridSize,
+			   const float3		cellSize,
+			   const float3		worldOrigin,
+			   const uint		numParticles)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
 
-	float4 p = pos[index];
+	const float4 pos = posArray[index];
 
 	// get address in grid
-	int3 gridPos = calcGridPos(make_float3(p.x, p.y, p.z), worldOrigin, cellSize);
-	uint gridHash = calcGridHash(gridPos, gridSize);
+	const int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
+	const uint gridHash = calcGridHash(gridPos, gridSize);
 
 	// store grid hash and particle index
 	particleHash[index] = gridHash;
@@ -100,6 +102,7 @@ calcHashDevice(float4*	pos,
 
 
 __global__
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell start index
 										uint*			cellEnd,		// output: cell end index
 										float4*			sortedPos,		// output: sorted positions
@@ -111,7 +114,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 {
 	extern __shared__ uint sharedHash[];	// blockSize + 1 elements
 
-	uint index = __umul24(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	uint hash;
 	// handle case when no. of particles not multiple of block size
@@ -162,52 +165,58 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 
 template <bool periodicbound>
-__device__ void
-neibsInCell(int3	gridPos,
-			uint	index,
-			float3	pos,
-			uint3	gridSize,
-			uint	numParticles,
-			float	influenceradius,
-			uint	*neibsList,
-			uint	*neibs_num)
+__device__ __forceinline__ void
+neibsInCell(
+			#if (__COMPUTE__ >= 20)			
+			const float4*	posArray,
+			#endif
+			int3			gridPos,
+			const uint		index,
+			const float3	pos,
+			const uint3		gridSize,
+			const uint		numParticles,
+			const float		sqinfluenceradius,
+			uint*			neibsList,
+			uint&			neibs_num,
+			const uint		lane,
+			const uint		offset)
 {
 	int3 periodic = make_int3(0);
 	if (periodicbound) {
 		if (gridPos.x < 0) {
-			if (d_dispvect1.x) {
+			if (d_dispvect.x) {
 				gridPos.x = gridSize.x;
 				periodic.x = 1;
 			} else
 				return;
 		} else if (gridPos.x >= gridSize.x) {
-			if (d_dispvect1.x) {
+			if (d_dispvect.x) {
 				gridPos.x = 0;
 				periodic.x = -1;
 			} else
 				return;
 		}
 		if (gridPos.y < 0) {
-			if (d_dispvect1.y) {
+			if (d_dispvect.y) {
 				gridPos.y = gridSize.y;
 				periodic.y = 1;
 			} else
 				return;
 		} else if (gridPos.y >= gridSize.y) {
-			if (d_dispvect1.y) {
+			if (d_dispvect.y) {
 				gridPos.y = 0;
 				periodic.y = -1;
 			} else
 				return;
 		}
 		if (gridPos.z < 0) {
-			if (d_dispvect1.z) {
+			if (d_dispvect.z) {
 				gridPos.z = gridSize.z;
 				periodic.z = 1;
 			} else
 				return;
 		} else if (gridPos.z >= gridSize.z) {
-			if (d_dispvect1.z) {
+			if (d_dispvect.z) {
 				gridPos.z = 0;
 				periodic.z = -1;
 			} else
@@ -221,30 +230,32 @@ neibsInCell(int3	gridPos,
 	}
 
 	// get hash value of grid position
-	uint gridHash = calcGridHash(gridPos, gridSize);
+	const uint gridHash = calcGridHash(gridPos, gridSize);
 
 	// get start of bucket for this cell
-	uint bucketStart = tex1Dfetch(cellStartTex, gridHash);
+	const uint bucketStart = tex1Dfetch(cellStartTex, gridHash);
 
 	if (bucketStart == 0xffffffff)
 		return;   // cell empty
 
 	// iterate over particles in this cell
-	uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
+	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
 		//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
-    	particleinfo info = tex1Dfetch(infoTex, neib_index);
+    	const particleinfo info = tex1Dfetch(infoTex, neib_index);
         if (!TESTPOINTS (info)) {
 			if (neib_index != index) {			  // check not interacting with self
-				float3 neibPos = make_float3(tex1Dfetch(posTex, neib_index));
-				float3 relPos = pos - neibPos;
-
+				#if (__COMPUTE__ >= 20)			
+				float3 relPos = pos - make_float3(posArray[neib_index]);
+				#else
+				float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
+				#endif
 				if (periodicbound)
-					relPos += periodic*d_dispvect1;
+					relPos += periodic*d_dispvect;
 
 				uint mod_index = neib_index;
-				if (length(relPos) < influenceradius) {
+				if (sqlength(relPos) < sqinfluenceradius) {
 					if (periodicbound) {
 						if (periodic.x == 1)
 							mod_index |= WARPXPLUS;
@@ -260,9 +271,9 @@ neibsInCell(int3	gridPos,
 							mod_index |= WARPZMINUS;
 					}
 
-					if (*neibs_num < MAXNEIBSNUM)
-						neibsList[MAXNEIBSNUM*index + *neibs_num] = mod_index;
-					(*neibs_num)++;
+					if (neibs_num < d_maxneibsnum)
+						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = mod_index;
+					neibs_num++;
 				}
 
 			}
@@ -273,65 +284,93 @@ neibsInCell(int3	gridPos,
 }
 
 
-template<bool periodicbound>
+template<bool periodicbound, bool neibcount>
 __global__ void
-buildNeibsListDevice(   uint*	neibsList,
-						uint3	gridSize,
-						float3	cellSize,
-						float3	worldOrigin,
-						uint	numParticles,
-						float	influenceradius)
+__launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
+buildNeibsListDevice(   
+						#if (__COMPUTE__ >= 20)			
+						const float4*	posArray,
+						#endif
+						uint*			neibsList,
+						const uint3		gridSize,
+						const float3	cellSize,
+						const float3	worldOrigin,
+						const uint		numParticles,
+						const float		sqinfluenceradius)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
-	int tid = threadIdx.x;
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint tid = threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = tid & (NEIBINDEX_INTERLEAVE - 1);
 
-	// total number of neibs for this particle
-	__shared__ uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
-
-	sm_neibs_num[tid] = 0;
+	uint neibs_num = 0;
 
 	if (index < numParticles) {
 		// read particle info from texture
-    	particleinfo info = tex1Dfetch(infoTex, index);
+    	const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
 
-		//Testpoints (Neibouring list is calculated for testpoints as well)
-		//if (FLUID(info)) {
-		if (FLUID(info)|| TESTPOINTS (info)) {
-			
-			// read particle position from texture
-			float3 pos = make_float3(tex1Dfetch(posTex, index));
+		// Neighboring list is calculated for testpoints and object points)
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info)) {
+			// read particle position from global memory or texture according to architecture
+			#if (__COMPUTE__ >= 20)
+			const float3 pos = make_float3(posArray[index]);
+			#else
+			const float3 pos = make_float3(tex1Dfetch(posTex, index));
+			#endif
 
 			// get address in grid
-			int3 gridPos = calcGridPos(pos, worldOrigin, cellSize);
+			const int3 gridPos = calcGridPos(pos, worldOrigin, cellSize);
 
-			// examine only neighbouring cells
+			// examine only neighboring cells
 			for(int z=-1; z<=1; z++) {
 				for(int y=-1; y<=1; y++) {
 					for(int x=-1; x<=1; x++)
-					neibsInCell<periodicbound>(gridPos + make_int3(x, y, z), index, pos,
-							gridSize, numParticles, influenceradius, neibsList, &sm_neibs_num[tid]);
+						neibsInCell<periodicbound>(
+							#if (__COMPUTE__ >= 20)
+							posArray, 
+							#endif
+							gridPos + make_int3(x, y, z), index, pos, gridSize, numParticles, 
+							sqinfluenceradius, neibsList, neibs_num, lane, offset);
 				}
 			}
 		}
+		
+		if (neibs_num < d_maxneibsnum)
+			neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffffffff;
 	}
+	
+	if (neibcount) {
+		// Shared memory reduction of per block maximum number of neighbors
+		__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
+		__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS];
 
-	// Shared memory reduction of per block maximum number of neighbours
-	__syncthreads();
-	if (tid == 0) {
-	  	uint num_interactions = 0;
-	  	uint max = 0;
-	  	for(int i=0; i< BLOCK_SIZE_BUILDNEIBS; i++) {
-	  		num_interactions += sm_neibs_num[i];
-	  		max = (max > sm_neibs_num[i]) ? max : sm_neibs_num[i];
-	  	}
+		sm_neibs_num[tid] = neibs_num;	
+		sm_neibs_max[tid] = neibs_num;
+		__syncthreads();
 
-		atomicAdd(&d_numInteractions, (uint) num_interactions);
-		atomicMax(&d_maxNeibs, (uint) max);
+		uint i = blockDim.x/2;
+		while (i != 0) {
+			if (tid < i) {
+				sm_neibs_num[tid] += sm_neibs_num[tid + i];
+				const float n1 = sm_neibs_max[tid];
+				const float n2 = sm_neibs_max[tid + i];
+				if (n2 > n1)
+					sm_neibs_max[tid] = n2;
+			}
+			__syncthreads();
+			i /= 2;
+		}
+
+		if (!tid) {
+			atomicAdd(&d_numInteractions, sm_neibs_num[0]);
+			atomicMax(&d_maxNeibs, sm_neibs_max[0]);
+		}
 	}
 	return;
+}
 }
 #endif

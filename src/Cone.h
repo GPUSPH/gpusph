@@ -28,31 +28,42 @@
 #ifndef _CONE_H
 #define	_CONE_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
-#include "Circle.h"
 
-#define PI 3.14159265358979323846
 
-// TODO: the Cone object is broken, fix it
-
-class Cone {
+class Cone: public Object {
 	private:
-		Point	center;
-		Vector	radiust, radiusb, height;
+		Point	m_origin;
+		double	m_rt;
+		double	m_rb;
+		double	m_h;
+		double	m_hg;
+		double	m_halfaperture;
 
 	public:
 		Cone(void);
-		Cone(const Point &center, const Vector &radiusb, const Vector &radiust, const Vector &height);
+		Cone(const Point&, const double, const double, const Vector&);
+		Cone(const Point&, const double, const double, const double, const EulerParameters&);
+		Cone(const Point&, const Vector&, const Vector&, const Vector&);
 		~Cone(void) {};
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
+		double Volume(const double) const;
+		void SetInertia(const double);
+		
+		void FillBorder(PointVect& points, const double, const bool, const bool);
+		void FillBorder(PointVect& points, double dx)
+		{
+			FillBorder(points, dx, true, true);
+		}
+		
+		int Fill(PointVect& points, const double, const bool fill = true);
 
-		void FillBorder(PointVect& points, double dx, bool bottom, bool top);
-		void Fill(PointVect& points, double dx);
-
-		void GLDraw(void);
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 
 #endif	/* _CONE_H */

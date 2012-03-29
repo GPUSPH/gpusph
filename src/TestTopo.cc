@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
+#include <cmath>
 #include <fstream>
 #include <string>
 #include <iostream>
@@ -67,14 +67,14 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 			else if (s.find("cols:") != string::npos) fdem >> m_ncols;
 			else if (s.find("rows:") != string::npos) fdem >> m_nrows;
 			}
-	float zmin = 1e6, zmax = 0;
+	double zmin = 1e6, zmax = 0;
 	nsres = (north - south)/(m_nrows - 1);
 	ewres = (east - west)/(m_ncols - 1);
 	m_dem = new float[m_ncols*m_nrows];
 
 	// Reading dem data
 	for (int i = 0; i < m_ncols*m_nrows; i++) {
-		float z;
+		double z;
 		fdem >> z;
 		//z /= 2.0;
 		zmax = std::max(z, zmax);
@@ -173,13 +173,12 @@ int TestTopo::fill_parts()
 	parts.reserve(14000);
 	boundary_parts.reserve(14000);
 
-	experiment_box.SetPartMass(BOUNDPART);
+	experiment_box.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	//experiment_box.FillDem(boundary_parts, m_physparams.r0);
 	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 0, false);
 	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 1, true);
 	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 2, false);
 	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 3, true);
-	experiment_box.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	experiment_box.Fill(parts, 0.8, m_deltap, true);
 
 	return boundary_parts.size() + parts.size();

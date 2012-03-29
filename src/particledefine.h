@@ -36,6 +36,8 @@
 #ifndef _PARTICLEDEFINE_H
 #define	_PARTICLEDEFINE_H
 
+#include <cstring>
+
 #include "vector_math.h"
 #include "cuda_call.h"
 
@@ -131,7 +133,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
-#define MAXNEIBSNUM			128
+
 
 /*
    Particle types. Non-fluid parts are negative.
@@ -139,9 +141,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
    increasing the (negative) index so that FLUIDPART always ends at 0
  */
 
-
 #define MAX_FLUID_TYPES      4
-
 
 /* The particle type is a short integer organized this way:
    * lowest 4 bits: fluid number (for multifluid)
@@ -167,6 +167,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define PADDLEPART (3<<MAX_FLUID_BITS)
 #define GATEPART   (4<<MAX_FLUID_BITS)
 #define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
+#define OBJECTPART (6<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PARTICLE_FLAG_START (1<<8)
@@ -179,8 +180,18 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define FLUID(f) (!(NOT_FLUID(f)))
 // Testpoints
 #define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
+// Particle belonging to an object
+#define OBJECT(f) ((f).x == OBJECTPART)
 // Free surface detection
-#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG)
+#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
+// Boundary particle
+#define BOUNDARY(f) ((f).x == BOUNDPART)
+// Extract particle type
+#define PART_TYPE(f) (((f).x >> MAX_FLUID_BITS) & 0xf)
+// Extract particle flag
+#define PART_FLAG(f) ((f).x >> 8)
+// Extract particle fluid number
+#define PART_FLUID_NUM(f) ((f).x & 0xf)
 
 /* compile-time consistency check:
    definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
@@ -199,12 +210,21 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define MAXPARTICLES			WARPXPLUS
 #define NOWARP					~(WARPXPLUS|WARPXMINUS|WARPYPLUS|WARPYMINUS|WARPZPLUS|WARPZMINUS)
 
-/* GPU warp size */
-#define WARPSIZE				32
 
-#define BLOCK_SIZE_FORCES		64
+/* Maximum number of floating bodies*/
+#define	MAXBODIES				10
+
+
+#define NEIBINDEX_INTERLEAVE		32
+
+#if (__COMPUTE__ >= 20)
+	#define INTMUL(x,y) x*y
+#else
+	#define INTMUL(x,y) __mul24(x,y)
+#endif
 
 typedef unsigned int uint;
+
 
 typedef struct PhysParams {
 	float	rho0[MAX_FLUID_TYPES]; // density of various particles
@@ -235,7 +255,7 @@ typedef struct PhysParams {
 	float	visccoeff;
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
-	float3	dispvect;
+	float3	dispvect;		// offset vector for periodic boundaries
 	float3	maxlimit;
 	float3	minlimit;
 	float	ewres;			// DEM east-west resolution
@@ -248,7 +268,9 @@ typedef struct PhysParams {
 	float	kspsfactor;		// 2/3*Ci*∆^2
 	int     numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
-	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid)
+	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
+	float	objectobjectdf;	// damping factor for object-object interaction 
+	float	objectboundarydf;	// damping factor for object-boundary interaction 
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
@@ -256,7 +278,9 @@ typedef struct PhysParams {
 		epsxsph(0.5f),
 		numFluids(1),
 		cosconeanglefluid(0.86),
-		cosconeanglenonfluid (0.5)
+		cosconeanglenonfluid (0.5),
+		objectobjectdf (1.0),
+		objectboundarydf (1.0)
 
 	{};
 	/*! Set density parameters
@@ -308,16 +332,17 @@ typedef struct SimParams {
 	int				saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
-	bool			periodicbound;		// type of periodic boundary used
-	// Free surface detection
-	bool            savenormals;        //true if we want to save the normals
+	bool			periodicbound;		// true in case of periodic boundary
 	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
-	bool			vorticity;
+	bool			vorticity;			// true if we want to save vorticity
 	bool            testpoints;         // true if we want to find velocity at testpoints
+	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
+	int				numbodies;			// number of floating bodies
+	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
 		kernelradius(2.0),
 		dt(0.00013),
@@ -332,15 +357,16 @@ typedef struct SimParams {
 		mbcallback(false),
 		gcallback(false),
 		periodicbound(false),
-		// Free surface detection
-		savenormals(false),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
 		vorticity(false),
 		testpoints(false),
-		surfaceparticle(false)
+		savenormals(false),
+		surfaceparticle(false),
+		numbodies(0),
+		maxneibsnum(128)
 	{};
 } SimParams;
 
@@ -368,6 +394,7 @@ struct SavingInfo {
 	uint	writedatafreq;		// unit displayfreq
 };
 
+
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
@@ -382,7 +409,6 @@ struct SavingInfo {
 */
 
 typedef short4 particleinfo;
-
 
 inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const short &z, const short &w)
 {

@@ -23,32 +23,37 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _CIRCLE_H
-#define	_CIRCLE_H
 
+#ifndef _CONESPLASHDOWN_H
+#define	_CONESPLASHDOWN_H
+
+#include "Problem.h"
 #include "Point.h"
-#include "Vector.h"
+#include "Cube.h"
+#include "Cone.h"
+#include "Sphere.h"
 
-#define PI 3.14159265358979323846
 
-class Circle {
+class ConeSplashDown: public Problem {
 	private:
-		Point	center;
-		Vector	radius;
-		Vector	normal;
+		Cube		experiment_box;
+		Cone		object1;
+		PointVect	parts;
+		PointVect	boundary_parts;
+	
+		double		H;				// still water level
+		double		lx, ly, lz;		// dimension of experiment box
+		
 
 	public:
-		Circle(void);
-		Circle(const Point &p, const Vector &r, const Vector &u);
-		~Circle(void) {};
+		ConeSplashDown(const Options &);
+		~ConeSplashDown(void);
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
-		void FillBorder(PointVect& points, double dx);
-		void Fill(PointVect& points, double dx, bool fill_edge=true);
-		void GLDraw(void);
+		int fill_parts(void);
+		void draw_boundary(float);
+		void copy_to_array(float4 *, float4 *, particleinfo *);
 
+		void release_memory(void);
 };
-#endif	/* _CIRCLE_H */
-
+#endif	/* _CONESPLASHDOWN */
 

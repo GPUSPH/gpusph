@@ -114,10 +114,22 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fprintf(fid,"	</DataArray>\r\n");
 
 	// Writing particle info
-	if (info) {
+	if (info) {		
 		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part type\" format=\"ascii\">\r\n");
 		for (int i=0; i < numParts; i++)
-			fprintf(fid,"%d\t", type(info[i]));
+			fprintf(fid,"%d\t", PART_TYPE(info[i]));
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+		
+		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part flag\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++)
+			fprintf(fid,"%d\t", PART_FLAG(info[i]));
+		fprintf(fid,"\r\n");
+		fprintf(fid,"	</DataArray>\r\n");
+		
+		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Fluid number\" format=\"ascii\">\r\n");
+		for (int i=0; i < numParts; i++)
+			fprintf(fid,"%d\t", PART_FLUID_NUM(info[i]));
 		fprintf(fid,"\r\n");
 		fprintf(fid,"	</DataArray>\r\n");
 

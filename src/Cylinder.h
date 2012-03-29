@@ -26,26 +26,39 @@
 #ifndef _CYLINDER_H
 #define	_CYLINDER_H
 
+#include "Object.h"
 #include "Point.h"
 #include "Vector.h"
 
-class Cylinder {
+
+class Cylinder: public Object {
 	private:
-		Point	center;
-		Vector	radius, height;
+		Point	m_origin;
+		double	m_r;
+		double	m_h;
 
 	public:
 		Cylinder(void);
-		Cylinder(const Point &center, const Vector &radius, const Vector &height);
+		Cylinder(const Point&, const double, const Vector&);
+		Cylinder(const Point&, const Vector&, const Vector&);
+		Cylinder(const Point&, const double, const double, const EulerParameters&);
 		~Cylinder(void) {};
+		
+		double Volume(const double) const;
+		void SetInertia(const double);
 
-		double SetPartMass(double dx, double rho);
-		void SetPartMass(double mass);
+		void FillBorder(PointVect&, const double, const bool, const bool);
+		void FillBorder(PointVect& points, const double dx) 
+		{
+			FillBorder(points, dx, true, true);
+		}
+		
+		int Fill(PointVect&, const double, const bool fill = true);
 
-		void FillBorder(PointVect& points, double dx, bool bottom, bool top);
-		void Fill(PointVect& points, double dx);
-
-		void GLDraw(void);
+		void GLDraw(void) const;
+		void GLDraw(const EulerParameters&, const Point&) const;
+		
+		bool IsInside(const Point&, const double) const;
 };
 
 #endif	/* _CYLINDER_H */

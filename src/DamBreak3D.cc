@@ -23,13 +23,13 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
-#include <iostream>
 #ifdef __APPLE__
 #include <OpenGl/gl.h>
 #else
 #include <GL/gl.h>
 #endif
+#include <cmath>
+#include <iostream>
 
 #include "DamBreak3D.h"
 #include "Cube.h"
@@ -40,13 +40,19 @@
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(1.6f, 0.67f, 0.4f);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	lx = 1.6;
+	ly = 0.67;
+	lz = 0.6;	
+	H = 0.4;
+	wet = false;
+	
+	m_size = make_float3(lx, ly, lz);
+	m_origin = make_float3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.015f);
+	set_deltap(0.005f);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -126,30 +132,20 @@ int DamBreak3D::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
-	Cube fluid, fluid1, fluid2, fluid3, fluid4;
+	Cube fluid, fluid1;
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(1.6, 0, 0),
-						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
+	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
+						Vector(0, ly, 0), Vector(0, 0, lz));
 
 	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, 0.4 - r0));
+					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
 
 	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
-				Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.4 - r0));
-
-	bool wet = false;	// set wet to true have a wet bed experiment
+				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
+	
 	if (wet) {
-		fluid1 = Cube(Point(0.4 + m_deltap + r0 , r0, r0), Vector(0.5 - m_deltap - 2*r0, 0, 0),
-					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
-
-		fluid2 = Cube(Point(1.02 + r0 , r0, r0), Vector(0.58 - 2*r0, 0, 0),
-					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
-
-		fluid3 = Cube(Point(0.9 , m_deltap , r0), Vector(0.12, 0, 0),
-					Vector(0, 0.24 - 2*r0, 0), Vector(0, 0, 0.03));
-
-		fluid4 = Cube(Point(0.9 , 0.36 + m_deltap , r0), Vector(0.12, 0, 0),
-					Vector(0, 0.31 - 2*r0, 0), Vector(0, 0, 0.03));
+		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
+					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
 	}
 
 	boundary_parts.reserve(2000);
@@ -163,16 +159,10 @@ int DamBreak3D::fill_parts()
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
-
 	if (wet) {
 		fluid1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
-		fluid2.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		fluid2.Fill(parts, m_deltap, true);
-		fluid3.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		fluid3.Fill(parts, m_deltap, true);
-		fluid4.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		fluid4.Fill(parts, m_deltap, true);
+		obstacle.Unfill(parts, r0);
 	}
 
 	return parts.size() + boundary_parts.size() + obstacle_parts.size();

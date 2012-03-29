@@ -24,7 +24,7 @@
 */
 
 
-#include <math.h>
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #ifdef __APPLE__
@@ -34,8 +34,6 @@
 #endif
 #include "Seiche.h"
 #include "particledefine.h"
-
-
 
 
 Seiche::Seiche(const Options &options) : Problem(options)
@@ -69,7 +67,8 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	m_simparams.gcallback = true;
 	m_simparams.usedem=false;
 	m_simparams.tend=10.0f;
-	m_simparams.vorticity = false;	
+	m_simparams.vorticity = false;
+	//m_simparams.boundarytype=LJ_BOUNDARY;
 
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f); //must be set first

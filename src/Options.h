@@ -26,7 +26,7 @@
 #ifndef _OPTIONS_H_
 #define _OPTIONS_H_
 
-#include <math.h>
+#include <cmath>
 #include <string>
 
 using namespace std;

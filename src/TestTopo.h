@@ -43,9 +43,9 @@ class TestTopo: public Problem {
 		PointVect	boundary_parts;
 		PointVect	piston_parts;
 		PointVect	parts;
-		float		H;  // still watr level
-		float		north, south, east, west;
-		float		nsres, ewres;
+		double		H;				// still water level
+		double		north, south, east, west;
+		double		nsres, ewres;
 
 	public:
 		TestTopo(const Options &);

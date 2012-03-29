@@ -45,3 +45,4 @@
 #include "forces_kernel.visc.inc"
 
 #undef DT_KERNEL
+#undef XSPH_KERNEL

@@ -23,94 +23,206 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
 
 #include "Cube.h"
-#include "Point.h"
-#include "Vector.h"
 #include "Rect.h"
+
 
 Cube::Cube(void)
 {
-	origin = Point(0, 0, 0);
-	vx = Vector(0, 0, 0);
-	vy = Vector(0, 0, 0);
-	vz = Vector(0, 0, 0);
+	m_origin = Point(0, 0, 0);
+	m_vx = Vector(0, 0, 0);
+	m_vy = Vector(0, 0, 0);
+	m_vz = Vector(0, 0, 0);
 }
 
 
-Cube::Cube(const Point &p, const Vector& v1, const Vector& v2, const Vector& v3)
+Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const EulerParameters &ep)
 {
-	origin = p;
-	vx = v1;
-	vy = v2;
-	vz = v3;
+	m_origin = origin;
+	
+	m_ep = ep;
+	m_ep.ComputeRot();
+	m_lx = lx;
+	m_ly = ly;
+	m_lz = lz;
+	
+	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
+	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
+	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
+	
+	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	m_origin.print();
+	m_center.print();
+}
+
+
+Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
+{
+	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm() 
+		|| abs(vy*vz) > 1e-8*vy.norm()*vz.norm()) {
+		std::cout << "Trying to construct a cube with non perpendicular vectors\n";
+		exit(1);
+	}
+	
+	m_origin = origin;
+	m_vx = vx;
+	m_lx = m_vx.norm();
+	m_vy = vy;
+	m_ly = m_vy.norm();
+	m_vz = vz;
+	m_lz = m_vz.norm();
+	m_center = m_origin + 0.5*(m_vx + m_vy + m_vz);
+	
+	Vector axis;
+	double mat[8];
+	mat[0] = m_vx(0)/m_lx;
+	mat[3] = m_vx(1)/m_lx;
+	mat[6] = m_vx(2)/m_lx;
+	mat[1] = m_vy(0)/m_ly;
+	mat[4] = m_vy(1)/m_ly;
+	mat[7] = m_vy(2)/m_ly;
+	mat[2] = m_vz(0)/m_lz;
+	mat[5] = m_vz(1)/m_lz;
+	mat[8] = m_vz(2)/m_lz;
+	
+	double trace = mat[0] + mat[4] + mat[8];
+	double cs = 0.5*(trace - 1.0);
+	double angle = acos(cs);  // in [0,PI]
+
+	if (angle > 0.0)
+	{
+		if (angle < M_PI)
+		{
+			axis(0) = mat[7] - mat[5];
+			axis(1) = mat[2] - mat[6];
+			axis(2) = mat[3] - mat[1];
+			axis /= axis.norm();
+		}
+		else
+		{
+			// angle is PI
+			double halfInverse;
+			if (mat[0] >= mat[4])
+			{
+				// r00 >= r11
+				if (mat[0] >= mat[8])
+				{
+					// r00 is maximum diagonal term
+					axis(0) = 0.5*sqrt(1.0 + mat[0] - mat[4] - mat[8]);
+					halfInverse = 0.5/axis(0);
+					axis(1) = halfInverse*mat[1];
+					axis(2) = halfInverse*mat[2];
+				}
+				else
+				{
+					// r22 is maximum diagonal term
+					axis(2) = 0.5*sqrt(1.0 + mat[8] - mat[0] - mat[4]);
+					halfInverse = 0.5/axis(2);
+					axis(0) = halfInverse*mat[2];
+					axis(1) = halfInverse*mat[5];
+				}
+			}
+			else
+			{
+				// r11 > r00
+				if (mat[4] >= mat[8])
+				{
+					// r11 is maximum diagonal term
+					axis(1) = 0.5*sqrt(1.0 + + mat[4] - mat[0] - mat[8]);
+					halfInverse  = 0.5/axis(1);
+					axis(0) = halfInverse*mat[1];
+					axis(2) = halfInverse*mat[5];
+				}
+				else
+				{
+					// r22 is maximum diagonal term
+					axis(2) = 0.5*sqrt(1.0 + mat[8] - mat[0] - mat[4]);
+					halfInverse = 0.5/axis(2);
+					axis(0) = halfInverse*mat[2];
+					axis(1) = halfInverse*mat[5];
+				}
+			}
+		}
+	}
+	else
+	{
+		// The angle is 0 and the matrix is the identity.  Any axis will
+		// work, so just use the x-axis.
+		axis(0) = 1.0;
+		axis(1) = 0.0;
+		axis(2) = 0.0;
+	}
+	
+	m_ep = EulerParameters(axis, angle);
+	m_ep.ComputeRot();
 }
 
 
 double
-Cube::SetPartMass(double dx, double rho)
+Cube::Volume(const double dx) const
 {
-	int nx = (int) (vx.norm()/dx);
-	double deltax = vx.norm()/((double) nx);
-	int ny = (int) (vy.norm()/dx);
-	double deltay = vy.norm()/((double) ny);
-	int nz = (int) (vz.norm()/dx);
-	double deltaz = vz.norm()/((double) nz);
-	double mass = deltax*deltay*deltaz*rho;
-
-	origin(3) = mass;
-	return mass;
+	const double lx = m_lx + dx;
+	const double ly = m_ly + dx;
+	const double lz = m_lz + dx;
+	const double volume = lx*ly*lz;
+	return volume;
 }
 
 
 void
-Cube::SetPartMass(double mass)
+Cube::SetInertia(const double dx)
 {
-	origin(3) = mass;
+	const double lx = m_lx + dx;
+	const double ly = m_ly + dx;
+	const double lz = m_lz + dx;
+	m_inertia[0] = m_mass/12.0*(ly*ly + lz*lz);
+	m_inertia[1] = m_mass/12.0*(lx*lx + lz*lz);
+	m_inertia[2] = m_mass/12.0*(lx*lx + ly*ly);
 }
 
 
 void
-Cube::FillBorder(PointVect& points, double dx, int face_num, bool *edges_to_fill)
+Cube::FillBorder(PointVect& points, const double dx, const int face_num, const bool *edges_to_fill)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
-
+	m_origin(3) = m_center(3);
+	
 	switch(face_num){
 		case 0:
-			rorigin = origin;
-			rvx = vx;
-			rvy = vz;
+			rorigin = m_origin;
+			rvx = m_vx;
+			rvy = m_vz;
 			break;
 		case 1:
-			rorigin = origin + vx;
-			rvx = vy;
-			rvy = vz;
+			rorigin = m_origin + m_vx;
+			rvx = m_vy;
+			rvy = m_vz;
 			break;
 		case 2:
-			rorigin = origin + vx + vy;
-			rvx = -vx;
-			rvy = vz;
+			rorigin = m_origin + m_vx + m_vy;
+			rvx = -m_vx;
+			rvy = m_vz;
 			break;
 		case 3:
-			rorigin = origin + vy;
-			rvx = -vy;
-			rvy = vz;
+			rorigin = m_origin + m_vy;
+			rvx = -m_vy;
+			rvy = m_vz;
 			break;
 		case 4:
-			rorigin = origin;
-			rvx = vx;
-			rvy = vy;
+			rorigin = m_origin;
+			rvx = m_vx;
+			rvy = m_vy;
 			break;
 		case 5:
-			rorigin = origin + vz;
-			rvx = vx;
-			rvy = vy;
+			rorigin = m_origin + m_vz;
+			rvx = m_vx;
+			rvy = m_vy;
 			break;
 	}
 
@@ -120,8 +232,10 @@ Cube::FillBorder(PointVect& points, double dx, int face_num, bool *edges_to_fill
 
 
 void
-Cube::FillBorder(PointVect& points, double dx, bool fill_top_face)
+Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
 {
+	m_origin(3) = m_center(3);
+	
 	bool edges_to_fill[6][4] =
 		{   {true, true, true, true},
 			{true, false, true, false},
@@ -135,19 +249,18 @@ Cube::FillBorder(PointVect& points, double dx, bool fill_top_face)
 		last_face --;
 	for (int face_num = 0; face_num < last_face; face_num++)
 			FillBorder(points, dx, face_num, edges_to_fill[face_num]);
-	//FillBorder(points, dx, 0, edges_to_fill[0]);
-	//FillBorder(points, dx, 1, edges_to_fill[1]);
-	//FillBorder(points, dx, 4, edges_to_fill[4]);
-	//FillBorder(points, dx, 5, edges_to_fill[5]);
 }
 
 
-void
-Cube::Fill(PointVect& points, double dx, bool fill_faces)
+int
+Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool fill)
 {
-	int nx = (int) (vx.norm()/dx);
-	int ny = (int) (vy.norm()/dx);
-	int nz = (int) (vz.norm()/dx);
+	m_origin(3) = m_center(3);
+	int nparts = 0;
+	
+	const int nx = (int) (m_lx/dx);
+	const int ny = (int) (m_ly/dx);
+	const int nz = (int) (m_lz/dx);
 
 	int startx = 0;
 	int starty = 0;
@@ -165,23 +278,25 @@ Cube::Fill(PointVect& points, double dx, bool fill_faces)
 		endz --;
 	}
 
-	int counter = 0;
 	for (int i = startx; i <= endx; i++)
 		for (int j = starty; j <= endy; j++)
 			for (int k = startz; k <= endz; k++) {
-				Point p = origin + i/((double) nx)*vx + j/((double) ny)*vy + k/((double) nz)*vz;
-				points.push_back(p);
-				counter++;
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				if (fill)
+					points.push_back(p);
+				nparts ++;
 			}
-	return;
+	return nparts;
 }
 
+
 void
-Cube::InnerFill(PointVect& points, double dx)
+Cube::InnerFill(PointVect& points, const double dx)
 {
-	int nx = (int) (vx.norm()/dx);
-	int ny = (int) (vy.norm()/dx);
-	int nz = (int) (vz.norm()/dx);
+	m_origin(3) = m_center(3);
+	const int nx = (int) (m_lx/dx);
+	const int ny = (int) (m_ly/dx);
+	const int nz = (int) (m_lz/dx);
 
 	int startx = 0;
 	int starty = 0;
@@ -190,64 +305,66 @@ Cube::InnerFill(PointVect& points, double dx)
 	int endy = ny;
 	int endz = nz;
 
-	int counter = 0;
 	for (int i = startx; i < endx; i++)
 		for (int j = starty; j < endy; j++)
 			for (int k = startz; k < endz; k++) {
-				Point p = origin + (i+0.5)*vx/nx + (j+0.5)*vy/ny + (k+0.5)*vz/nz;
+				Point p = m_origin + (i + 0.5)*m_vx/nx + (j + 0.5)*m_vy/ny + (k + 0.5)*m_vz/nz;
 				points.push_back(p);
-				counter++;
 			}
 	return;
 }
 
-void
-Cube::GLDrawQuad(const Point& p1, const Point& p2,
-		const Point& p3, const Point& p4)
+
+bool
+Cube::IsInside(const Point& p, const double dx) const
 {
-	glVertex3f((float) p1(0), (float) p1(1), (float) p1(2));
-	glVertex3f((float) p2(0), (float) p2(1), (float) p2(2));
-	glVertex3f((float) p3(0), (float) p3(1), (float) p3(2));
-	glVertex3f((float) p4(0), (float) p4(1), (float) p4(2));
+	Point lp = m_ep.TransposeRot(p - m_origin);
+	const double lx = m_lx + dx;
+	const double ly = m_ly + dx;
+	const double lz = m_lz + dx;
+	bool inside = false;
+	if (lp(0) > -dx && lp(0) < lx && lp(1) > -dx && lp(1) < ly &&
+		lp(2) > -dx && lp(2) < lz )
+		inside = true;
+	
+	return inside;
 }
 
 
 void
-Cube::GLDraw(void)
+Cube::GLDraw(const EulerParameters& ep, const Point& cg) const
 {
+	Point origin = cg - 0.5*ep.Rot(Vector(m_lx, m_ly, m_lz));
+	
 	Point p1, p2, p3, p4;
-	glBegin(GL_QUADS);
-	{
-		p1 = origin;
-		p2 = p1 + vx;
-		p3 = p2 + vz;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin + vy;
-		p2 = p1 + vx;
-		p3 = p2 + vz;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin;
-		p2 = p1 + vy;
-		p3 = p2 + vz;
-		p4 = p3 - vy;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin + vx;
-		p2 = p1 + vy;
-		p3 = p2 + vz;
-		p4 = p3 - vy;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin;
-		p2 = p1 + vx;
-		p3 = p2 + vy;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-		p1 = origin + vz;
-		p2 = p1 + vx;
-		p3 = p2 + vy;
-		p4 = p3 - vx;
-		GLDrawQuad(p1, p2, p3, p4);
-	}
-	glEnd();
+	p1 = Point(0, 0, 0);
+	p2 = Point(m_lx, 0, 0);
+	p3 = Point(m_lx, 0, m_lz);
+	p4 = Point(0, 0, m_lz);
+	GLDrawQuad(ep, p1, p2, p3, p4, origin);
+	
+	p1 = Point(0, m_ly, 0);
+	p2 = Point(m_lx, m_ly, 0);
+	p3 = Point(m_lx, m_ly, m_lz);
+	p4 = Point(0, m_ly, m_lz);
+	GLDrawQuad(ep, p1, p2, p3, p4, origin);
+	
+	p1 = Point(0, 0, 0);
+	p2 = Point(0, m_ly, 0);
+	p3 = Point(0, m_ly, m_lz);
+	p4 = Point(0, 0, m_lz);
+	GLDrawQuad(ep, p1, p2, p3, p4, origin);
+		
+	p1 = Point(m_lx, 0, 0);
+	p2 = Point(m_lx, m_ly, 0);
+	p3 = Point(m_lx, m_ly, m_lz);
+	p4 = Point(m_lx, 0, m_lz);
+	GLDrawQuad(ep, p1, p2, p3, p4, origin);
+}
+
+
+void
+Cube::GLDraw(void) const
+{
+	GLDraw(m_ep, m_center);
 }

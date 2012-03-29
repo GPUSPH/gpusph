@@ -26,13 +26,10 @@
 #ifndef __PARTICLESYSTEM_H__
 #define __PARTICLESYSTEM_H__
 
-#include "cudpp/cudpp.h"
-
 #include "particledefine.h"
 #include "Problem.h"
 #include "Writer.h"
 
-#include "radixsort.h"
 
 // ParticleSystem : class used to call CUDA kernels
 class ParticleSystem
@@ -80,7 +77,7 @@ class ParticleSystem
 		void*	getArray(ParticleArray, bool);
 		void	setArray(ParticleArray);
 		void	setPlanes();
-		void	drawParts(bool , int);
+		void	drawParts(bool, bool, int);
 		void	writeSummary(void);
 		void	writeToFile(void);
 
@@ -96,6 +93,7 @@ class ParticleSystem
 		void saveindex();
 		void savesorted();
 		void savecellstartend();
+		void reducerbforces();
 
 		// Free surface detection (Debug)
 		void savenormals();
@@ -107,7 +105,8 @@ class ParticleSystem
 		PhysParams	m_physparams;
 		SimParams	m_simparams;
 		float		m_influenceRadius;		// slength*kernelRadius
-		float		m_nlInfluenceRadius;	// influence radius for neib listt construction
+		float		m_nlInfluenceRadius;	// influence radius for neib list construction
+		float		m_nlSqInfluenceRadius;	// square influence radius for neib list construction
 		float		m_dtprev;				// DEBUG: dt at previous iter
 
 		// Informations for timing
@@ -135,6 +134,7 @@ class ParticleSystem
 		particleinfo*	m_hInfo;			// info array
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
+		float4*     m_hNormals;				// normals at free surface
 
 		// CPU arrays for geometry
 		float4*		m_hPlanes;
@@ -146,8 +146,8 @@ class ParticleSystem
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
-		// Free surface detection (Debug)
-		float4*     m_hNormals;
+		float4*		m_hRbForces;
+		float4*		m_hRbTorques;
 
 		// GPU arrays
 		float4*		m_dForces;				// forces array
@@ -155,13 +155,22 @@ class ParticleSystem
 		float4*		m_dPos[2];				// position array
 		float4*		m_dVel[2];				// velocity array
 		particleinfo*	m_dInfo[2];			// particle info array
-		// Free surface detection
-		float4*     m_dNormals;
+		float4*     m_dNormals;				// normal at free surface
 		float3*		m_dVort;				// vorticity
-		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE and rounded to power of 2
+		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
-		float*		m_dTempFmax;			// auxiliary array used for max computing
+		float*		m_dTempCfl;				// temporary storage for cfl computation
+		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
+		
+		// TODO: profile with float3
+		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
+		float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies
+		float4*		m_dRbTorques;			// Torques on particles belonging to rigid bodies
+		uint*		m_dRbNum;				// Key used in segmented scan
+		uint*		m_hRbLastIndex;			// Indexes of last particles belonging to rigid bodies
+		float3*		m_hRbTotalForce;		// Total force acting on each rigid body
+		float3*		m_hRbTotalTorque;		// Total torque acting on each rigid body
 
 		uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
 		float4*		m_dMbData;				// device side moving boundary data
@@ -178,12 +187,6 @@ class ParticleSystem
 		uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
 		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
-
-		// CUDPP scanplan for parallel max
-		CUDPPHandle			m_CUDPPscanplan;
-
-		// Sorter from 3.2 SDK
-		nvRadixSort::RadixSort	*m_sorter;
 
 		// File writer
 		Problem::WriterType m_writerType;

@@ -26,7 +26,7 @@
 #ifndef _EULER_CUH_
 #define _EULER_CUH_
 
-#define BLOCK_SIZE_INTEGRATE	192
+#define BLOCK_SIZE_INTEGRATE	256
 
 extern "C"
 {

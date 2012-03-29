@@ -74,15 +74,31 @@ EULER_KERNEL_NAME(
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
 	// copying pos and vel in the new arrays
-	particleinfo pinfo = info[index];
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 
+	/* Since we never use the last two components of pinfo, the compiler is
+	   ‘smart’ enough to not load them at all. This kills coalescence on
+	   older hardware, because each thread reads 32 bits, with a 32-bit gap
+	   between one thread and the next.
+	   We can work around this by forcing the compiler to code a read for
+	   a 64-bit word by reading a long int at our interested address,
+	   and then casting the result to particleinfo.
+	   This speeds up the euler kernel by 20% on 1.1 devices, and by
+	   only doing it for older hardware we spare ourselves the very small
+	   performance loss that we'd find on 2.0 devices with the hack. */
+	#if __GPU_ARCH__ < 200
+	long int hack = *reinterpret_cast<long int*>(info + index);
+	particleinfo pinfo = *reinterpret_cast<particleinfo*>(&hack);
+	#else
+	particleinfo pinfo = info[index];
+	#endif
+
 	if(type(pinfo) != BOUNDPART) {
 		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
-#		ifdef XSPH_KERNEL
+		# ifdef XSPH_KERNEL
 		float4 mean_vel = xsph[index];
-#		endif
+		# endif
 		/*
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
@@ -91,15 +107,15 @@ EULER_KERNEL_NAME(
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
-#			ifdef XSPH_KERNEL
+			# ifdef XSPH_KERNEL
 			pos.x +=  (velc.x + d_epsxsph*mean_vel.x)*dt;
 			pos.y +=  (velc.y + d_epsxsph*mean_vel.y)*dt;
 			pos.z +=  (velc.z + d_epsxsph*mean_vel.z)*dt;
-#			else
+			# else
 			pos.x +=  velc.x*dt;
 			pos.y +=  velc.y*dt;
 			pos.z +=  velc.z*dt;
-#			endif
+			# endif
 
 			// Updating particle velocity
 			// For step 1:
@@ -131,25 +147,37 @@ EULER_KERNEL_NAME(
 			pos.y += d_mbdata[i].y*dt;
 			pos.z += d_mbdata[i].z*dt;
 		}
+		// TODO: test rotations
+		else if (type(pinfo) == OBJECTPART) {
+			const int i = object(pinfo);
+			
+			// Applying rotation around center of gravity
+			applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
+			
+			// Applying center of gravity translation
+			pos.x += d_rbtrans[i].x;
+			pos.y += d_rbtrans[i].y;
+			pos.z += d_rbtrans[i].z;
+		}
 
 		if (periodicbound) {
-			if (d_dispvect3.x) {
+			if (d_dispvect.x) {
 				if (pos.x >= d_maxlimit.x)
-					pos.x -= d_dispvect3.x;
+					pos.x -= d_dispvect.x;
 				else if (pos.x < d_minlimit.x)
-					pos.x += d_dispvect3.x;
+					pos.x += d_dispvect.x;
 			}
-			if (d_dispvect3.y) {
+			if (d_dispvect.y) {
 				if (pos.y >= d_maxlimit.y)
-					pos.y -= d_dispvect3.y;
+					pos.y -= d_dispvect.y;
 				else if (pos.y < d_minlimit.y)
-					pos.y += d_dispvect3.y;
+					pos.y += d_dispvect.y;
 			}
-			if (d_dispvect3.z) {
+			if (d_dispvect.z) {
 				if (pos.z >= d_maxlimit.z)
-					pos.z -= d_dispvect3.z;
+					pos.z -= d_dispvect.z;
 				else if (pos.z < d_minlimit.z)
-					pos.z += d_dispvect3.z;
+					pos.z += d_dispvect.z;
 			}
 		}
 	}
