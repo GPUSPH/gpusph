@@ -52,7 +52,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.005f);
+	set_deltap(0.02f);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -104,9 +104,9 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_maxvel = 3.0f;
 	
 	// Drawing and saving times
-	m_displayinterval = 0.002f;
-	m_writefreq = 100;
-	m_screenshotfreq = 100;
+	m_displayinterval = 0.001f;
+	m_writefreq = 20;
+	m_screenshotfreq = 20;
 	
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
