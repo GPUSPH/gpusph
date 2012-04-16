@@ -342,11 +342,11 @@ dtadaptBlockReduce(	float*	sm_max,
 {
 	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1) 
 	{
+		__syncthreads();
 		if (threadIdx.x < s) 
 		{
 			sm_max[threadIdx.x] = max(sm_max[threadIdx.x + s], sm_max[threadIdx.x]);
 		}
-		__syncthreads();
 	}
 
 	// write result for this block to global mem
