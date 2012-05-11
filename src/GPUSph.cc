@@ -372,7 +372,8 @@ void look(bool update=true)
 	far_plane = 1.1*max(
 			max(max(d1, d2), max(d3, d4)),
 			max(max(d5, d6), max(d7, d8)));
-	gluPerspective(view_angle, viewport[2] / viewport[3], near_plane, far_plane);
+
+	gluPerspective(view_angle, GLdouble(viewport[2])/viewport[3], near_plane, far_plane);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
