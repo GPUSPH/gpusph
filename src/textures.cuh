@@ -27,15 +27,18 @@
 
 #include "particledefine.h"
 
-// textures for particle position and velocity
+// textures for particle position, velocity and flags
 texture<float4, 1, cudaReadModeElementType> posTex;		// position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		// velocity and density
-texture<float2, 1, cudaReadModeElementType> tau0Tex;		// velocity and density
-texture<float2, 1, cudaReadModeElementType> tau1Tex;		// velocity and density
-texture<float2, 1, cudaReadModeElementType> tau2Tex;		// velocity and density
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	// info
-texture<float, 1, cudaReadModeElementType> viscTex;		// viscosity for power law rheology
 
+// SPS matrix
+// TODO these should probably be coalesced in a float4 + float2 texture
+texture<float2, 1, cudaReadModeElementType> tau0Tex;
+texture<float2, 1, cudaReadModeElementType> tau1Tex;
+texture<float2, 1, cudaReadModeElementType> tau2Tex;
+
+// neib list management
 texture<uint, 1, cudaReadModeElementType> cellStartTex;		 // first particle index in cell table
-texture<uint, 1, cudaReadModeElementType> cellEndTex;		 // first particle index in cell table
+texture<uint, 1, cudaReadModeElementType> cellEndTex;		 // last particle index in cell table
 #endif
