@@ -392,7 +392,12 @@ void display()
 {
 	if (!bPause)
 	{
-		timingInfo = psystem->PredcorrTimeStep(true);
+		try {
+			timingInfo = psystem->PredcorrTimeStep(true);
+		} catch (TimingException &e) {
+			fprintf(stderr, "[%g]: %s (dt = %g)\n", e.simTime, e.what(), e.dt);
+			quit(1);
+		}
 #ifdef TIMING_LOG
 		fprintf(timing_log,"%9.4e\t%9.4e\t%9.4e\t%9.4e\t%9.4e\n", timingInfo.t, timingInfo.dt,
 				timingInfo.timeInteract, timingInfo.timeEuler, timingInfo.timeNeibsList);
@@ -510,10 +515,18 @@ void console_loop(void)
 
 	double elapsed_sec = 0.0;
 
-	while (true) {
-		timingInfo = psystem->PredcorrTimeStep(true);
+	int error = 0;
+	bool finished = false;
+	while (!finished) {
+		try {
+			timingInfo = psystem->PredcorrTimeStep(true);
+		} catch (TimingException &e) {
+			fprintf(stderr, "[%g] :::ERROR::: %s (dt = %g)\n", e.simTime, e.what(), e.dt);
+			finished = true;
+			error = 1;
+		}
 
-		bool finished = problem->finished(timingInfo.t);
+		finished |= problem->finished(timingInfo.t);
 		if (finished)
 			elapsed_sec = (clock() - start_time)/(double) CLOCKS_PER_SEC;
 
@@ -540,15 +553,12 @@ void console_loop(void)
 					ti.meanTimeEuler);
 			#undef ti
 		}
-
-		if (problem->finished(timingInfo.t))
-			break;
 	}
 
-	if (problem->finished(timingInfo.t)) {
+	if (finished) {
 		printf("\nTotal time %e s\n", elapsed_sec);
-		exit(0);
-		}
+		quit(error);
+	}
 }
 
 

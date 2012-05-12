@@ -31,6 +31,8 @@
 #include <sstream>
 #include <stdexcept>
 
+#include <float.h>
+
 #include <GL/glew.h>
 #ifdef __APPLE__
 #include <GLUT/glut.h>
@@ -1344,10 +1346,22 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// Free surface detection (Debug)
 	//savenormals();
 
+	float oldtime = m_simTime;
 	m_simTime += m_dt;
 	m_iter++;
+
+	if (oldtime == m_simTime) {
+		fprintf(stderr, "[%g] WARNING: timestep %g too small: time is standing still\n",
+				m_simTime, m_dt);
+	}
 	if (m_simparams.dtadapt) {
 		m_dt = min(dt1, dt2);   // next time step value
+		if (!m_dt) {
+			throw DtZeroException(m_simTime, m_dt);
+		} else if (m_dt < FLT_EPSILON) {
+			fprintf(stderr, "[%g] WARNING! new timestep %g too small!\n",
+					m_simTime, m_dt);
+		}
 	}
 
 	if (timing) {
