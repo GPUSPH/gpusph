@@ -183,5 +183,11 @@ float
 cflmax( const uint	n,
 		float*		cfl,
 		float*		tempCfl);
+
+/* Reductions */
+void set_reduction_params(void* buffer, size_t blocks,
+		size_t blocksize_max, size_t shmem_max);
+void unset_reduction_params();
+
 }
 #endif

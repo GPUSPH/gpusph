@@ -140,8 +140,24 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	printf("Cell size : (%f, %f, %f)\n", m_cellSize.x, m_cellSize.y, m_cellSize.z);
 
 	// CUDA init
-	checkCUDA(problem->get_options());
-	printf("\nCuda initialized\n");
+	m_device = checkCUDA(problem->get_options());
+	printf("\nCUDA initialized\n");
+
+#define MEGABYTE (1024.0*1024.0)
+#define GIGABYTE (MEGABYTE*1024)
+
+	printf("\t%u multiprocessors, %u (%g%s) global memory\n",
+			m_device.multiProcessorCount,
+			m_device.totalGlobalMem,
+			m_device.totalGlobalMem > GIGABYTE ?
+			m_device.totalGlobalMem/GIGABYTE :
+			m_device.totalGlobalMem/MEGABYTE,
+			m_device.totalGlobalMem > GIGABYTE ?
+			"GB" : "MB");
+	printf("\t%u threads, %u (%g%s) shared memory per MP\n",
+			m_device.maxThreadsPerMultiProcessor,
+			m_device.sharedMemPerBlock,
+			m_device.sharedMemPerBlock/1024.0, "kB");
 
 	setPhysParams();
 
@@ -377,6 +393,31 @@ ParticleSystem::allocate(uint numParticles)
 
 		memory += fmaxTableSize;
 		}
+
+	// number of blocks to be used in parallel reductions
+	size_t blocks = 6*m_device.multiProcessorCount;
+
+	/*	threads per blocks in a parallel reduction: try to get
+		the largest possible power-of-two blocksize such that
+		two blocks can fit in a single MP */
+	size_t blocksize = 32;
+	while (blocksize*2 < m_device.maxThreadsPerMultiProcessor)
+		blocksize*=2;
+
+	/*	maximum amount of global memory needed in reductions:
+		this value should be kept up to date to fit the largest
+		possible reduction used during the simulation */
+	// presently: one float4 value per fluid type
+	size_t bufsize = sizeof(float4)*blocks*m_physparams.numFluids;
+
+	void *buff = NULL;
+	CUDA_SAFE_CALL(cudaMalloc(&buff, bufsize));
+	memory += bufsize;
+
+	printf("%zuB reserved for reductions\n", bufsize);
+	printf("\treductions will use %zu blocks, %zu threads max each\n",
+		blocks, blocksize);
+	set_reduction_params(buff, blocks, blocksize, m_device.sharedMemPerBlock);
 
 	// Allocating, reading and copying DEM
 	if (m_simparams.usedem) {
@@ -684,6 +725,8 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hNormals;
 
 	delete m_writer;
+
+	unset_reduction_params();
 
 	CUDA_SAFE_CALL(cudaFree(m_dForces));
 	CUDA_SAFE_CALL(cudaFree(m_dXsph));

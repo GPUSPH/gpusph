@@ -215,6 +215,9 @@ class ParticleSystem
 		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
 
+		// CUDA device properties
+		cudaDeviceProp	m_device;
+
 		// File writer
 		Problem::WriterType m_writerType;
 		Writer		*m_writer;

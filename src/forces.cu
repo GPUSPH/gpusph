@@ -34,6 +34,13 @@
 
 cudaArray*  dDem = NULL;
 
+/* Auxiliary data for parallel reductions */
+size_t	reduce_blocks = 0;
+size_t	reduce_blocksize_max = 0;
+size_t	reduce_bs2 = 0;
+size_t	reduce_shmem_max = 0;
+void*	reduce_buffer = NULL;
+
 /* These defines give a shorthand for the kernel with a given correction,
    viscosity, xsph and dt options. They will be used in forces.cu for
    consistency */
@@ -698,6 +705,29 @@ cflmax( const uint	n,
 	CUDA_SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
 	
 	return max;
+}
+
+/* Reductions */
+void set_reduction_params(void* buffer, size_t blocks,
+		size_t blocksize_max, size_t shmem_max)
+{
+	reduce_blocks = blocks;
+	// in the second step of a reduction, a single block is launched, whose size
+	// should be the smallest power of two that covers the number of blocks used
+	// in the previous reduction run
+	reduce_bs2 = 32;
+	while (reduce_bs2 < blocks)
+		reduce_bs2<<=1;
+
+	reduce_blocksize_max = blocksize_max;
+	reduce_shmem_max = shmem_max;
+	reduce_buffer = buffer;
+}
+
+void unset_reduction_params()
+{
+	CUDA_SAFE_CALL(cudaFree(reduce_buffer));
+	reduce_buffer = NULL;
 }
 
 } // extern "C"

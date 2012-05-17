@@ -4,7 +4,7 @@
 #include "Options.h"
 #include "cuda_call.h"
 
-void checkCUDA(const Options&);
+cudaDeviceProp checkCUDA(const Options&);
 
 void allocateArray(void **devPtr, size_t size);
 
