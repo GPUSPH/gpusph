@@ -424,7 +424,8 @@ void display()
 			if (problem->m_simparams.vorticity)
 				psystem->getArray(ParticleSystem::VORTICITY, need_write);
 			// DEBUG
-			psystem->getArray(ParticleSystem::NORMALS, need_write);
+			if (problem->m_simparams.savenormals)
+				psystem->getArray(ParticleSystem::NORMALS, need_write);
 
 			psystem->writeToFile();
 			#define ti timingInfo
