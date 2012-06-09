@@ -388,6 +388,38 @@ void look(bool update=true)
 	reset_target();
 }
 
+/* heads up display code */
+void viewOrtho(int x, int y){ // Set Up An Ortho View
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(0, x , 0, y , -1, 1);
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+}
+
+void viewPerspective() // Set Up A Perspective View
+{
+	glMatrixMode(GL_PROJECTION); // Select Projection
+	glPopMatrix(); // Pop The Matrix
+	glMatrixMode(GL_MODELVIEW); // Select Modelview
+	glPopMatrix(); // Pop The Matrix
+}
+
+void displayTime(char *s) {
+	int len, i;
+	viewOrtho(viewport[2], viewport[3]); //Starting to draw the HUD
+	float3 tank_size = problem->m_size;
+	glRasterPos2i(10, 10);
+	//glRasterPos3f(tank_size.x, tank_size.y, 0.0);
+	len = (int) strlen(s);
+	for (i = 0; i < len; i++) {
+		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, s[i]);
+	}
+	viewPerspective(); //switch back to 3D drawing
+}
+
 void display()
 {
 	if (!bPause)
@@ -448,7 +480,13 @@ void display()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
 		problem->draw_axis();
+
+		char s[1024];
+		sprintf(s, "t=%7.4es", timingInfo.t, timingInfo.dt);
+		displayTime(s);
+
 		glutSwapBuffers();
+
 	}
 
 	// view transform
