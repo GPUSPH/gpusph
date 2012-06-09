@@ -281,7 +281,7 @@ else ifeq ($(platform), Darwin)
 	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/C/common/lib/darwin/ -L$(CUDA_SDK_PATH)/C/lib/ -L/usr/local/cuda/lib
 	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/C/common/lib/darwin/libGLEW.a -lcudart
 	# Netbeans g++ flags: "-fPic -m32 -arch i386 -framework GLUT"
-	LFLAGS=-Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker /usr/local/cuda/lib
+	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker /usr/local/cuda/lib
 	CC=$(NVCC)
 	CXX=$(NVCC)
 	LINKER=$(NVCC)
