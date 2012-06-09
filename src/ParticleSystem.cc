@@ -248,6 +248,7 @@ ParticleSystem::allocate(uint numParticles)
 #endif
 
 	// Free surface detection
+	m_hNormals = NULL;
 	if (m_simparams.savenormals) {
 		m_hNormals = new float4[m_numParticles];
 		memset(m_hNormals, 0, memSize4);
