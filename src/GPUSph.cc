@@ -419,7 +419,7 @@ void display()
 	{
 		psystem->getArray(ParticleSystem::POSITION, need_write);
 		psystem->getArray(ParticleSystem::VELOCITY, need_write);
-	    psystem->getArray(ParticleSystem::INFO, need_write);
+		psystem->getArray(ParticleSystem::INFO, need_write);
 		if (need_write) {
 			if (problem->m_simparams.vorticity)
 				psystem->getArray(ParticleSystem::VORTICITY, need_write);
