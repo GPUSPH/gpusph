@@ -30,6 +30,33 @@
 #include "Problem.h"
 #include "Writer.h"
 
+#include <exception>
+
+class TimingException: public std::exception
+{
+
+public:
+	float simTime, dt;
+
+	TimingException(float _time = nan(""), float _dt = nan("")) :
+		std::exception(), simTime(_time), dt(_dt) {}
+
+	virtual const char *what() const throw() {
+		return "timing error";
+	}
+};
+
+class DtZeroException: public TimingException
+{
+public:
+	DtZeroException(float _time = nan(""), float _dt = 0) :
+		TimingException(_time, _dt) {}
+
+	virtual const char *what() const throw() {
+		return "timestep zeroed!";
+	}
+};
+
 
 // ParticleSystem : class used to call CUDA kernels
 class ParticleSystem

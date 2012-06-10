@@ -25,9 +25,6 @@
 
 #include <vector_types.h>
 
-
-/* vi:set ft=cuda: */
-
 #ifdef XSPH_KERNEL
 #	ifdef DT_KERNEL
 #		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph, Dt)
@@ -351,3 +348,5 @@ FORCES_CUDA_KERNEL
 /************************************************************************************************************/
 
 #undef FORCES_CUDA_KERNEL
+
+/* vi:set ft=cuda: */

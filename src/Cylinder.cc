@@ -123,9 +123,9 @@ Cylinder::FillBorder(PointVect& points, const double dx, const bool bottom, cons
 	for (int i = 0; i <= nz; i++)
 		FillDiskBorder(points, m_ep, m_origin, m_r, i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
 	if (bottom)
-		FillDisk(points, m_ep, m_origin, m_r - dx, 0.0, dx, 0.0);
+		FillDisk(points, m_ep, m_origin, m_r - dx, 0.0, dx, true);
 	if (top)
-		FillDisk(points, m_ep, m_origin, m_r - dx, nz*dz, dx, 0.0);
+		FillDisk(points, m_ep, m_origin, m_r - dx, nz*dz, dx, true);
 }
 
 

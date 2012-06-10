@@ -3,7 +3,6 @@
 #
 # TODO:
 # - Add support for versioning with git
-# - Add switch to use local/shared CUDPP libs
 # - Improve list-problems problem detection
 # - If user overrides CFLAGS, avoid dbg and compute recompile?
 # - Recompile also if target_arch changes (like dbg and compute)
@@ -183,20 +182,16 @@ CFLAGS_DEBUG = -g -D_DEBUG_
 # see above for dbg option description
 ifeq ($(dbg), 1)
 	_CFLAGS = $(CFLAGS_DEBUG)
-	CUDPP_DBG_SFX=D
 else
 	_CFLAGS = $(CFLAGS_STANDARD)
-	CUDPP_DBG_SFX=
 endif
 
 # architecture switch. The *_SFX vars will be used later.
 ifeq ($(arch), x86_64)
 	_CFLAGS_ARCH += -m64
-	CUDPP_ARCH_SFX=_x86_64
 	GLEW_ARCH_SFX=_x86_64
 else # i386 or i686
 	_CFLAGS_ARCH += -m32
-	CUDPP_ARCH_SFX=_i386
 	GLEW_ARCH_SFX=
 endif
 

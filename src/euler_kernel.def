@@ -23,8 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* vi:set ft=cuda: */
-
 /* Euler kernel definitions */
 // Predictor Corrector time integration
 // - for step 1:
@@ -66,7 +64,7 @@ EULER_KERNEL_NAME(
 	float	dt2,
 	float	t)
 {
-	int index = __mul24(blockIdx.x,blockDim.x) + threadIdx.x;
+	int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
@@ -184,3 +182,5 @@ EULER_KERNEL_NAME(
 	newPos[index] = pos;
 	newVel[index] = vel;
 }
+
+/* vi:set ft=cuda: */

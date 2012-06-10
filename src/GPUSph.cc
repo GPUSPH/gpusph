@@ -372,7 +372,8 @@ void look(bool update=true)
 	far_plane = 1.1*max(
 			max(max(d1, d2), max(d3, d4)),
 			max(max(d5, d6), max(d7, d8)));
-	gluPerspective(view_angle, viewport[2] / viewport[3], near_plane, far_plane);
+
+	gluPerspective(view_angle, GLdouble(viewport[2])/viewport[3], near_plane, far_plane);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -387,11 +388,48 @@ void look(bool update=true)
 	reset_target();
 }
 
+/* heads up display code */
+void viewOrtho(int x, int y){ // Set Up An Ortho View
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(0, x , 0, y , -1, 1);
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+}
+
+void viewPerspective() // Set Up A Perspective View
+{
+	glMatrixMode(GL_PROJECTION); // Select Projection
+	glPopMatrix(); // Pop The Matrix
+	glMatrixMode(GL_MODELVIEW); // Select Modelview
+	glPopMatrix(); // Pop The Matrix
+}
+
+void displayTime(char *s) {
+	int len, i;
+	viewOrtho(viewport[2], viewport[3]); //Starting to draw the HUD
+	float3 tank_size = problem->m_size;
+	glRasterPos2i(10, 10);
+	//glRasterPos3f(tank_size.x, tank_size.y, 0.0);
+	len = (int) strlen(s);
+	for (i = 0; i < len; i++) {
+		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, s[i]);
+	}
+	viewPerspective(); //switch back to 3D drawing
+}
+
 void display()
 {
 	if (!bPause)
 	{
-		timingInfo = psystem->PredcorrTimeStep(true);
+		try {
+			timingInfo = psystem->PredcorrTimeStep(true);
+		} catch (TimingException &e) {
+			fprintf(stderr, "[%g]: %s (dt = %g)\n", e.simTime, e.what(), e.dt);
+			quit(1);
+		}
 #ifdef TIMING_LOG
 		fprintf(timing_log,"%9.4e\t%9.4e\t%9.4e\t%9.4e\t%9.4e\n", timingInfo.t, timingInfo.dt,
 				timingInfo.timeInteract, timingInfo.timeEuler, timingInfo.timeNeibsList);
@@ -413,12 +451,13 @@ void display()
 	{
 		psystem->getArray(ParticleSystem::POSITION, need_write);
 		psystem->getArray(ParticleSystem::VELOCITY, need_write);
-	    psystem->getArray(ParticleSystem::INFO, need_write);
+		psystem->getArray(ParticleSystem::INFO, need_write);
 		if (need_write) {
 			if (problem->m_simparams.vorticity)
 				psystem->getArray(ParticleSystem::VORTICITY, need_write);
 			// DEBUG
-			psystem->getArray(ParticleSystem::NORMALS, need_write);
+			if (problem->m_simparams.savenormals)
+				psystem->getArray(ParticleSystem::NORMALS, need_write);
 
 			psystem->writeToFile();
 			#define ti timingInfo
@@ -441,7 +480,13 @@ void display()
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
 		problem->draw_axis();
+
+		char s[1024];
+		sprintf(s, "t=%7.4es", timingInfo.t, timingInfo.dt);
+		displayTime(s);
+
 		glutSwapBuffers();
+
 	}
 
 	// view transform
@@ -509,10 +554,18 @@ void console_loop(void)
 
 	double elapsed_sec = 0.0;
 
-	while (true) {
-		timingInfo = psystem->PredcorrTimeStep(true);
+	int error = 0;
+	bool finished = false;
+	while (!finished) {
+		try {
+			timingInfo = psystem->PredcorrTimeStep(true);
+		} catch (TimingException &e) {
+			fprintf(stderr, "[%g] :::ERROR::: %s (dt = %g)\n", e.simTime, e.what(), e.dt);
+			finished = true;
+			error = 1;
+		}
 
-		bool finished = problem->finished(timingInfo.t);
+		finished |= problem->finished(timingInfo.t);
 		if (finished)
 			elapsed_sec = (clock() - start_time)/(double) CLOCKS_PER_SEC;
 
@@ -539,15 +592,12 @@ void console_loop(void)
 					ti.meanTimeEuler);
 			#undef ti
 		}
-
-		if (problem->finished(timingInfo.t))
-			break;
 	}
 
-	if (problem->finished(timingInfo.t)) {
+	if (finished) {
 		printf("\nTotal time %e s\n", elapsed_sec);
-		exit(0);
-		}
+		quit(error);
+	}
 }
 
 
