@@ -46,7 +46,7 @@ class FluidMix: public Problem {
 
 	public:
 		FluidMix(const Options &);
-		~FluidMix(void);
+		virtual ~FluidMix(void);
 		int fill_parts(void);
 
 		void draw_boundary(float);

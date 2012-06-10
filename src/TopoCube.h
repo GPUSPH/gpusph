@@ -49,7 +49,7 @@ class TopoCube: public Object {
 
 	public:
 		TopoCube(void);
-		~TopoCube(void);
+		virtual ~TopoCube(void);
 
 		void SetCubeDem(const double, const float*, const int, const int, const double, const double, const bool);
 

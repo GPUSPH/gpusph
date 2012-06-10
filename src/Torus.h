@@ -22,7 +22,7 @@ class Torus: public Object {
 		Torus();
 		Torus(const Point&, const Vector&, const double, const double);
 		Torus(const Point&, const double, const double, const EulerParameters&);
-		~Torus();
+		virtual ~Torus();
 		
 		double Volume(const double) const;
 		void SetInertia(const double);

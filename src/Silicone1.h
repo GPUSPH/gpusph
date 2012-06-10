@@ -28,7 +28,7 @@ class Silicone1: public Problem {
 
 	public:
 		Silicone1(const Options &);
-		~Silicone1(void);
+		virtual ~Silicone1(void);
 		int fill_parts(void);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);

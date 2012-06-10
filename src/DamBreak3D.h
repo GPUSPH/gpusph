@@ -49,7 +49,7 @@ class DamBreak3D: public Problem {
 
 	public:
 		DamBreak3D(const Options &);
-		~DamBreak3D(void);
+		virtual ~DamBreak3D(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

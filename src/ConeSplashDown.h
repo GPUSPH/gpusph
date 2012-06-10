@@ -47,7 +47,7 @@ class ConeSplashDown: public Problem {
 
 	public:
 		ConeSplashDown(const Options &);
-		~ConeSplashDown(void);
+		virtual ~ConeSplashDown(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

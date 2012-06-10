@@ -53,7 +53,7 @@ class Object {
 		
 	public:
 		Object(void) {};
-		~Object(void) {};
+		virtual ~Object(void) {};
 
 		/// \name Mass related functions
 		//@{

@@ -51,7 +51,7 @@ class DamBreakGate: public Problem {
 
 	public:
 		DamBreakGate(const Options &);
-		~DamBreakGate(void);
+		virtual ~DamBreakGate(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

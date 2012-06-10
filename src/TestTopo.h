@@ -50,7 +50,7 @@ class TestTopo: public Problem {
 	public:
 		TestTopo(const Options &);
 
-		~TestTopo(void);
+		virtual ~TestTopo(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

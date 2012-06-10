@@ -47,7 +47,7 @@ class Cone: public Object {
 		Cone(const Point&, const double, const double, const Vector&);
 		Cone(const Point&, const double, const double, const double, const EulerParameters&);
 		Cone(const Point&, const Vector&, const Vector&, const Vector&);
-		~Cone(void) {};
+		virtual ~Cone(void) {};
 
 		double Volume(const double) const;
 		void SetInertia(const double);

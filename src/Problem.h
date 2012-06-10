@@ -95,7 +95,7 @@ class Problem {
 
 		Problem(const Options &options = Options());
 
-		~Problem(void);
+		virtual ~Problem(void);
 
 		Options get_options(void)
 		{

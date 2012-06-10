@@ -58,7 +58,7 @@ class DamBreakObjects: public Problem {
 
 	public:
 		DamBreakObjects(const Options &);
-		~DamBreakObjects(void);
+		virtual ~DamBreakObjects(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

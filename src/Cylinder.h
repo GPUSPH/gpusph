@@ -42,7 +42,7 @@ class Cylinder: public Object {
 		Cylinder(const Point&, const double, const Vector&);
 		Cylinder(const Point&, const Vector&, const Vector&);
 		Cylinder(const Point&, const double, const double, const EulerParameters&);
-		~Cylinder(void) {};
+		virtual ~Cylinder(void) {};
 		
 		double Volume(const double) const;
 		void SetInertia(const double);
