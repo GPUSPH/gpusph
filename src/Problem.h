@@ -138,7 +138,7 @@ class Problem {
 
 		float set_deltap(const float dflt)
 		{
-			if (isfinite(m_options.deltap))
+			if (isfinite((double) m_options.deltap))
 				m_deltap = m_options.deltap;
 			else
 				m_deltap = dflt;
