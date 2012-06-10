@@ -299,7 +299,7 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	   FIXME endianness
 	 */
 	// *(uint*)&v.z = id;
-	memcpy((void *)&v.z, (void *)&id, 4);
+	memcpy((void *)&v.z, (const void *)&id, (unsigned int) 4);
 	return v;
 }
 
