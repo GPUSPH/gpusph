@@ -1,0 +1,22 @@
+#!/bin/sh
+
+abort() {
+	echo "$1" > /dev/null 1>&2
+	exit 1
+}
+
+toconvert="$1"
+
+test -z "$toconvert" && abort "please specify a directory to convert"
+
+awkscript="$(readlink -f $0)".awk
+
+{
+cd "$toconvert"
+
+test -e "$awkscript" || abort "can't find awk script needed for conversion"
+
+for file in PART_*.txt ; do
+	awk -f "$awkscript" < $file > ${file%.txt}.vtk
+done
+}
