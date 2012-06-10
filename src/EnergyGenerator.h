@@ -55,7 +55,7 @@ class EnergyGenerator: public Problem {
 
 	public:
 		EnergyGenerator(const Options &);
-		~EnergyGenerator(void);
+		virtual ~EnergyGenerator(void);
 		
 		int fill_parts(void);
 		uint fill_planes(void);

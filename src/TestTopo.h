@@ -48,7 +48,7 @@ class TestTopo: public Problem {
 	public:
 		TestTopo(const Options &);
 
-		~TestTopo(void);
+		virtual ~TestTopo(void);
 
 		int fill_parts(void);
 		uint fill_planes(void);

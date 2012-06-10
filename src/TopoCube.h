@@ -52,7 +52,7 @@ class TopoCube: public Object {
 
 	public:
 		TopoCube(void);
-		~TopoCube(void);
+		virtual ~TopoCube(void);
 
 		void get_planes(float4 *planes, float *planediv);
 
