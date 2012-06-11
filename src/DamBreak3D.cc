@@ -69,8 +69,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.tend = 1.5f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals =true;
+	m_simparams.surfaceparticle = false;
+	m_simparams.savenormals = false;
 
 	// We have no moving boundary
 	m_simparams.mbcallback = false;

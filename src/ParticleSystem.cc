@@ -486,11 +486,7 @@ ParticleSystem::setPhysParams(void)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_smagfactor", &m_physparams.smagfactor, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_kspsfactor", &m_physparams.kspsfactor, sizeof(float)));
 
-	float partsurf = m_physparams.partsurf;
-	if (partsurf == 0.0f)
-		partsurf = m_physparams.r0*m_physparams.r0;
-		// partsurf = (6.0 - M_PI)*m_physparams.r0*m_physparams.r0/4;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_partsurf", &partsurf, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_partsurf", &m_physparams.partsurf, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
