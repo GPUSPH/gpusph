@@ -94,6 +94,7 @@ const float inertia = 0.5;
 int mode = 0;
 bool displayEnabled = true;
 bool bPause = true;
+bool stepping_mode = false;
 bool show_boundary = false;
 bool show_floating = false;
 
@@ -407,7 +408,7 @@ void viewPerspective() // Set Up A Perspective View
 	glPopMatrix(); // Pop The Matrix
 }
 
-void displayTime(char *s) {
+void displayStatus(char *s) {
 	int len, i;
 	viewOrtho(viewport[2], viewport[3]); //Starting to draw the HUD
 	float3 tank_size = problem->m_size;
@@ -447,6 +448,10 @@ void display()
 	bool need_display = displayEnabled && problem->need_display(timingInfo.t);
 	bool need_write = problem->need_write(timingInfo.t) || finished;
 	problem->write_rbdata(timingInfo.t);
+	if (stepping_mode) {
+		need_display = true;
+		bPause = true;
+	}
 	if (need_display || need_write)
 	{
 		psystem->getArray(ParticleSystem::POSITION, need_write);
@@ -482,8 +487,12 @@ void display()
 		problem->draw_axis();
 
 		char s[1024];
-		sprintf(s, "t=%7.4es", timingInfo.t, timingInfo.dt);
-		displayTime(s);
+		size_t len = sprintf(s, "t=%7.4es", timingInfo.t, timingInfo.dt);
+		if (stepping_mode)
+			len += sprintf(s + len, "    (stepping mode)");
+		else if (bPause)
+			len += sprintf(s + len, "    (paused)");
+		displayStatus(s);
 
 		glutSwapBuffers();
 
@@ -777,8 +786,13 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 		break;
 
 	case 13:
-		printf("Stepping\n");
-		psystem->PredcorrTimeStep(true);
+		stepping_mode = !stepping_mode;
+		if (stepping_mode) {
+			printf("Stepping\n");
+		} else {
+			printf("Running\n");
+			bPause = false;
+		}
 		break;
 
 	case '\033':
@@ -790,8 +804,8 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 		show_boundary = !show_boundary;
 		printf("%showing boundaries\n",
 				show_boundary ? "S" : "Not s");
-		break;	
-	
+		break;
+
 	case 'f':
 		show_floating = !show_floating;
 		printf("%showing boundaries\n",
