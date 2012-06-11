@@ -28,6 +28,8 @@
 
 #include "Point.h"
 #include "EulerParameters.h"
+#define dSINGLE
+#include "ode/ode.h"
 
 //! Object container class
 /*! 
@@ -52,6 +54,9 @@ class Object {
 		double				m_mass;			///< Mass of the object
 		
 	public:
+		dBodyID				m_ODEBody;
+		dGeomID				m_ODEGeom;
+
 		Object(void) {};
 		virtual ~Object(void) {};
 

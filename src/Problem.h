@@ -34,12 +34,16 @@
 
 #include <string>
 #include <cstdio>
+#include <iostream>
 
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+
+#define dSINGLE
+#include "ode/ode.h"
 
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
@@ -76,8 +80,17 @@ class Problem {
 			Z_AXIS
 		};
 
+<<<<<<< HEAD
 		float3	m_size;			// Size of computation domain
 		float3	m_origin;		// Origin of computation domain
+=======
+		dWorldID		m_ODEWorld;
+		dSpaceID		m_ODESpace;
+		dJointGroupID	m_ODEJointGroup;
+
+		float3	m_size;			// Size of compuation domain
+		float3	m_origin;		// Origin of compuatation domain
+>>>>>>> 72aa0ef... WIP: added initial ODE support (not connected now with force on objects
 		float	m_deltap;		// Initial particle spacing
 
 		// Min and max values used for display
@@ -86,7 +99,7 @@ class Problem {
 		float	m_maxvel;
 		float	m_minvel;
 
-		float		m_displayinterval;		
+		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
 		int			m_writefreq;
 		int			m_screenshotfreq;
@@ -244,6 +257,18 @@ class Problem {
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
+		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
+		{
+			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
+		}
+		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
+		{
+			Problem* problem = (Problem *) data;
+			problem->ODE_near_callback(data, o1, o2);
+		}
+		virtual void ODE_timestep(float dt)
+		{
+		}
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap(GlobalData* gdata);
@@ -263,7 +288,7 @@ class Problem {
 		void get_rigidbodies_data(float3 * &, float * &);
 		float3* get_rigidbodies_cg(void);
 		float* get_rigidbodies_steprot(void);
-		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
+		void rigidbodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &);
 		int	get_bodies_numparts(void);
 		int	get_body_numparts(const int);

@@ -1304,8 +1304,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
+
 		seteulerrbtrans(trans, m_simparams->numbodies);
 		seteulerrbsteprot(rot, m_simparams->numbodies);
+
+		m_problem->ODE_timestep(m_dt/2.0);
 	}
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
@@ -1393,9 +1396,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
+
 		seteulerrbtrans(trans, m_simparams->numbodies);
 		seteulerrbsteprot(rot, m_simparams->numbodies);
+
+		m_problem->ODE_timestep(m_dt/2.0);
 	}
+
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
