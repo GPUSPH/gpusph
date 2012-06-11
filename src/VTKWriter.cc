@@ -44,19 +44,51 @@ VTKWriter::VTKWriter(const Problem *problem)
 		}
 
 	// Writing header of VTUinp.pvd file
-	fprintf(m_timefile,"<?xml version=\"1.0\"?>\r\n");
-	fprintf(m_timefile," <VTKFile type=\"Collection\" version=\"0.1\">\r\n");
-	fprintf(m_timefile,"  <Collection>\r\n");
+	fprintf(m_timefile,"<?xml version='1.0'?>\n");
+	fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
+	fprintf(m_timefile,"  <Collection>\n");
 }
 
 
 VTKWriter::~VTKWriter()
 {
 	if (m_timefile != NULL) {
-		fprintf(m_timefile,"   </Collection>\r\n");
-		fprintf(m_timefile,"  </VTKFile>\r\n");
+		fprintf(m_timefile,"   </Collection>\n");
+		fprintf(m_timefile,"  </VTKFile>\n");
 		fclose(m_timefile);
 	}
+}
+
+/* Endianness check: (char*)&endian_int reads the first byte of the int,
+ * which is 0 on big-endian machines, and 1 in little-endian machines */
+static int endian_int=1;
+static const char* endianness[2] = { "BigEndian", "LittleEndian" };
+
+static float zeroes[4];
+
+/* auxiliary functions to write data array entrypoints */
+inline void
+scalar_array(FILE *fid, const char *type, const char *name, size_t offset)
+{
+	fprintf(fid, "	<DataArray type='%s' Name='%s' "
+			"format='appended' offset='%zu'/>\n",
+			type, name, offset);
+}
+
+inline void
+vector_array(FILE *fid, const char *type, const char *name, uint dim, size_t offset)
+{
+	fprintf(fid, "	<DataArray type='%s' Name='%s' NumberOfComponents='%u' "
+			"format='appended' offset='%zu'/>\n",
+			type, name, dim, offset);
+}
+
+inline void
+vector_array(FILE *fid, const char *type, uint dim, size_t offset)
+{
+	fprintf(fid, "	<DataArray type='%s' NumberOfComponents='%u' "
+			"format='appended' offset='%zu'/>\n",
+			type, dim, offset);
 }
 
 void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
@@ -77,163 +109,234 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 
 	// Header
-	fprintf(fid,"<?xml version=\"1.0\"?>\r\n");
-	fprintf(fid,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
-	fprintf(fid," <UnstructuredGrid>\r\n");
-	fprintf(fid,"  <Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\r\n", numParts, numParts);
+	fprintf(fid,"<?xml version='1.0'?>\n");
+	fprintf(fid,"<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= '%s'>\n",
+		endianness[*(char*)&endian_int & 1]);
+	fprintf(fid," <UnstructuredGrid>\n");
+	fprintf(fid,"  <Piece NumberOfPoints='%d' NumberOfCells='%d'>\n", numParts, numParts);
 
-	fprintf(fid,"   <PointData Scalars=\"Pressure\" Vectors=\"Velocity\">\r\n");
+	fprintf(fid,"   <PointData Scalars='Pressure' Vectors='Velocity'>\n");
 
-	// Writing pressure
-	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Pressure\" format=\"ascii\">\r\n");
-	for (int i=0; i < numParts; i++)
-		if (FLUID(info[i]))
-			fprintf(fid,"%f\t",m_problem->pressure(vel[i].w, object(info[i])));
-		else if (TESTPOINTS(info[i]))
-			fprintf(fid,"%f\t",vel[i].w);
-		else
-			fprintf(fid,"%f\t", 0.0);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
+	size_t offset = 0;
 
-	// Writing density
-	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Density\" format=\"ascii\">\r\n");
-	for (int i=0; i < numParts; i++)
-		if (FLUID(info[i]))
-			fprintf(fid,"%f\t",vel[i].w);
-		else
-			fprintf(fid,"%f\t", 0.0);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
+	// pressure
+	scalar_array(fid, "Float32", "Pressure", offset);
+	offset += sizeof(float)*numParts+sizeof(int);
 
-	 // Writing mass
-	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Mass\" format=\"ascii\">\r\n");
-	for (int i=0; i < numParts; i++)
-		fprintf(fid,"%f\t",pos[i].w);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
+	// density
+	scalar_array(fid, "Float32", "Density", offset);
+	offset += sizeof(float)*numParts+sizeof(int);
 
-	// Writing particle info
-	if (info) {		
-		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part type\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			fprintf(fid,"%d\t", PART_TYPE(info[i]));
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
-		
-		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part flag\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			fprintf(fid,"%d\t", PART_FLAG(info[i]));
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
-		
-		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Fluid number\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			fprintf(fid,"%d\t", PART_FLUID_NUM(info[i]));
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
+	// mass
+	scalar_array(fid, "Float32", "Mass", offset);
+	offset += sizeof(float)*numParts+sizeof(int);
 
-		fprintf(fid,"	<DataArray type=\"Int16\" Name=\"Part object\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			fprintf(fid,"%d\t", object(info[i]));
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
-
-		fprintf(fid,"	<DataArray type=\"UInt32\" Name=\"Part id\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			fprintf(fid,"%u\t", id(info[i]));
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
-		fprintf(fid, "\n\n");
+	// particle info
+	if (info) {
+		scalar_array(fid, "Int16", "Part type", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "Int16", "Part flag", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "Int16", "Fluid number", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "Int16", "Part object", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "UInt32", "Part id", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
-	// Writing velocity
-	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Velocity\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
-	for (int i=0; i < numParts; i++)
-		if (FLUID(info[i])|| TESTPOINTS(info[i]))
-			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
-		else
-			fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
+	// velocity
+	vector_array(fid, "Float32", "Velocity", 3, offset);
+	offset += sizeof(float)*3*numParts+sizeof(int);
 
-	// Writing vorticity
+	// vorticity
 	if (vort) {
-		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Vorticity\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			if (FLUID(info[i]))
-				fprintf(fid,"%f\t%f\t%f\t",vort[i].x, vort[i].y, vort[i].z);
-			else
-				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
+		vector_array(fid, "Float32", "Vorticity", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
 	}
 
-		// Writing vorticity
+	// normals
 	if (normals) {
-		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Normals\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			if (FLUID(info[i]))
-				fprintf(fid,"%f\t%f\t%f\t",normals[i].x, normals[i].y, normals[i].z);
-			else
-				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
+		vector_array(fid, "Float32", "Normals", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
 
-		fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Criteria\" format=\"ascii\">\r\n");
-		for (int i=0; i < numParts; i++)
-			if (FLUID(info[i]))
-				fprintf(fid,"%f\t", normals[i].w);
-			else
-				fprintf(fid,"%f\t", 0.0);
-		fprintf(fid,"\r\n");
-		fprintf(fid,"	</DataArray>\r\n");
+		scalar_array(fid, "Float32", "Criteria", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
-	fprintf(fid,"   </PointData>\r\n");
+	fprintf(fid,"   </PointData>\n");
 
-	// Writing position
-	fprintf(fid,"   <Points>\r\n");
-	fprintf(fid,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
-	for (int i=0; i < numParts; i++)
-		fprintf(fid,"%f\t%f\t%f\t",pos[i].x, pos[i].y, pos[i].z);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
-	fprintf(fid,"   </Points>\r\n");
+	// position
+	fprintf(fid,"   <Points>\n");
+	vector_array(fid, "Float32", 3, offset);
+	offset += sizeof(float)*3*numParts+sizeof(int);
+	fprintf(fid,"   </Points>\n");
 
 	// Cells data
-	fprintf(fid,"   <Cells>\r\n");
-	fprintf(fid,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
-	for (int i = 0; i < numParts; i++)
-		fprintf(fid,"%d\t", i);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
-	fprintf(fid,"\r\n");
-
-	fprintf(fid,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
-	for (int i = 0; i < numParts; i++)
-		fprintf(fid,"%d\t", i + 1);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
-
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
+	fprintf(fid,"   <Cells>\n");
+	scalar_array(fid, "Int32", "connectivity", offset);
+	offset += sizeof(uint)*numParts+sizeof(int);
+	scalar_array(fid, "Int32", "offsets", offset);
+	offset += sizeof(uint)*numParts+sizeof(int);
+	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
 	for (int i = 0; i < numParts; i++)
 		fprintf(fid,"%d\t", 1);
-	fprintf(fid,"\r\n");
-	fprintf(fid,"	</DataArray>\r\n");
+	fprintf(fid,"\n");
+	fprintf(fid,"	</DataArray>\n");
+	fprintf(fid,"   </Cells>\n");
+	fprintf(fid,"  </Piece>\n");
 
-	fprintf(fid,"   </Cells>\r\n");
+	fprintf(fid," </UnstructuredGrid>\n");
+	fprintf(fid," <AppendedData encoding='raw'>\n_");
 
-	fprintf(fid,"  </Piece>\r\n");
-	fprintf(fid," </UnstructuredGrid>\r\n");
+	int numbytes=sizeof(float)*numParts;
+
+	// pressure
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float value = 0.0;
+		if (FLUID(info[i]))
+			value = m_problem->pressure(vel[i].w, object(info[i]));
+		else if (TESTPOINTS(info[i]))
+			value = vel[i].w;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	// density
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float value = 0.0;
+		if (FLUID(info[i]))
+			value = vel[i].w;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	// mass
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float value = pos[i].w;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	// particle info
+	if (info) {
+		numbytes=sizeof(ushort)*numParts;
+
+		// type
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			ushort value = PART_TYPE(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+
+		// flag
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			ushort value = PART_FLAG(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+
+		// fluid number
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			ushort value = PART_FLUID_NUM(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+
+		// object
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			ushort value = object(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+
+		numbytes=sizeof(uint)*numParts;
+
+		// id
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			uint value = id(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	numbytes=sizeof(float)*3*numParts;
+
+	// velocity
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float *value = zeroes;
+		if (FLUID(info[i]) || TESTPOINTS(info[i])) {
+			value = (float*)(vel + i);
+		}
+		fwrite(value, sizeof(*value), 3, fid);
+	}
+
+	// vorticity
+	if (vort) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float *value = zeroes;
+			if (FLUID(info[i])) {
+				value = (float*)(vort + i);
+			}
+			fwrite(value, sizeof(*value), 3, fid);
+		}
+	}
+
+	// normals
+	if (normals) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float *value = zeroes;
+			if (FLUID(info[i])) {
+				value = (float*)(normals + i);
+			}
+			fwrite(value, sizeof(*value), 3, fid);
+		}
+
+		numbytes=sizeof(float)*numParts;
+		// criteria
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = 0;
+			if (FLUID(info[i]))
+				value = normals[i].w;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	numbytes=sizeof(float)*3*numParts;
+
+	// position
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float *value = (float*)(pos + i);
+		fwrite(value, sizeof(*value), 3, fid);
+	}
+
+	numbytes=sizeof(int)*numParts;
+	// connectivity
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		uint value = i;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+	// offsets
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		uint value = i+1;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	fprintf(fid," </AppendedData>\n");
 	fprintf(fid,"</VTKFile>");
 
 	fclose(fid);
 
 	// Writing time to VTUinp.pvd file
 	if (m_timefile != NULL) {
-		fprintf(m_timefile,"<DataSet timestep=\"%f\" group=\"\" part=\"%d\" file=\"%s\"/>\r\n",
+		fprintf(m_timefile,"<DataSet timestep='%f' group='' part='%d' file='%s'/>\n",
 			t, 0, filename.c_str());
 		}
 }
