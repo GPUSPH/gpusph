@@ -34,11 +34,14 @@
 
 #include <string>
 #include <cstdio>
+#include <iostream>
 
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
 
+#define dSINGLE
+#include "ode/ode.h"
 
 using namespace std;
 
@@ -58,6 +61,10 @@ class Problem {
 			VTKLEGACYWRITER,
 			CUSTOMTEXTWRITER
 		};
+
+		dWorldID		m_ODEWorld;
+		dSpaceID		m_ODESpace;
+		dJointGroupID	m_ODEJointGroup;
 
 		float3	m_size;			// Size of compuation domain
 		float3	m_origin;		// Origin of compuatation domain
@@ -177,6 +184,18 @@ class Problem {
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
+		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
+		{
+			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
+		}
+		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
+		{
+			Problem* problem = (Problem *) data;
+			problem->ODE_near_callback(data, o1, o2);
+		}
+		virtual void ODE_timestep(float dt)
+		{
+		}
 
 		void allocate_bodies(const int);
 		RigidBody* get_body(const int);
