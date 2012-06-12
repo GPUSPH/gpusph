@@ -1201,7 +1201,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		}
 	if (m_simparams.gcallback) {
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
 
 	float3 *cg;
@@ -1322,7 +1322,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		}
 	if (m_simparams.gcallback) {
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
 
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
