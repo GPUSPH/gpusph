@@ -421,6 +421,35 @@ void displayStatus(char *s) {
 	viewPerspective(); //switch back to 3D drawing
 }
 
+void get_arrays(bool need_write)
+{
+	psystem->getArray(ParticleSystem::POSITION, need_write);
+	psystem->getArray(ParticleSystem::VELOCITY, need_write);
+	psystem->getArray(ParticleSystem::INFO, need_write);
+	if (need_write) {
+		if (problem->m_simparams.vorticity)
+			psystem->getArray(ParticleSystem::VORTICITY, need_write);
+
+		if (problem->m_simparams.savenormals)
+			psystem->getArray(ParticleSystem::NORMALS, need_write);
+	}
+}
+
+void do_write()
+{
+	#define ti timingInfo
+	printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
+			"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
+			"mean neib list in %es\n"
+			"mean integration in %es\n",
+			ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
+			ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
+			ti.meanTimeNeibsList,
+			ti.meanTimeEuler);
+	#undef ti
+	psystem->writeToFile();
+}
+
 void display()
 {
 	if (!bPause)
@@ -448,35 +477,17 @@ void display()
 	bool need_display = displayEnabled && problem->need_display(timingInfo.t);
 	bool need_write = problem->need_write(timingInfo.t) || finished;
 	problem->write_rbdata(timingInfo.t);
+
 	if (stepping_mode) {
 		need_display = true;
 		bPause = true;
 	}
+
 	if (need_display || need_write)
 	{
-		psystem->getArray(ParticleSystem::POSITION, need_write);
-		psystem->getArray(ParticleSystem::VELOCITY, need_write);
-		psystem->getArray(ParticleSystem::INFO, need_write);
-		if (need_write) {
-			if (problem->m_simparams.vorticity)
-				psystem->getArray(ParticleSystem::VORTICITY, need_write);
-			// DEBUG
-			if (problem->m_simparams.savenormals)
-				psystem->getArray(ParticleSystem::NORMALS, need_write);
-
-			psystem->writeToFile();
-			#define ti timingInfo
-			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
-					"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
-					" mean neib list in %es \n"
-					"mean integration in %es \n",
-					ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
-					ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
-					ti.meanTimeNeibsList,
-					ti.meanTimeEuler);
-			#undef ti
-		}
-
+		get_arrays(need_write);
+		if (need_write)
+			do_write();
 	}
 
 	if (displayEnabled)
@@ -495,7 +506,6 @@ void display()
 		displayStatus(s);
 
 		glutSwapBuffers();
-
 	}
 
 	// view transform
@@ -582,24 +592,8 @@ void console_loop(void)
 
 		if (need_write)
 		{
-			psystem->getArray(ParticleSystem::POSITION, need_write);
-			psystem->getArray(ParticleSystem::VELOCITY, need_write);
-			psystem->getArray(ParticleSystem::INFO, need_write);
-
-			if (problem->m_simparams.vorticity)
-				psystem->getArray(ParticleSystem::VORTICITY, need_write);
-
-			psystem->writeToFile();
-			#define ti timingInfo
-			printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
-					"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
-					"mean neib list in %es \n"
-					"mean integration in %es \n",
-					ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
-					ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
-					ti.meanTimeNeibsList,
-					ti.meanTimeEuler);
-			#undef ti
+			get_arrays(need_write);
+			do_write();
 		}
 	}
 
