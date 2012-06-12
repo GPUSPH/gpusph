@@ -986,8 +986,9 @@ main( int argc, char** argv)
 
 	parse_options(argc, argv);
 
+	init(clOptions.problem.c_str());
+
 	if (clOptions.console) {
-		init(clOptions.problem.c_str());
 		console_loop();
 	} else {
 		glutInit(&argc, argv);
@@ -1004,7 +1005,6 @@ main( int argc, char** argv)
 #endif
 
 		initGL();
-		init(clOptions.problem.c_str());
 
 		initMenus();
 
