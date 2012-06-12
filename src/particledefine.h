@@ -218,7 +218,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define NEIBINDEX_INTERLEAVE		32
 
 #if (__COMPUTE__ >= 20)
-	#define INTMUL(x,y) x*y
+	#define INTMUL(x,y) (x)*(y)
 #else
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
