@@ -979,6 +979,7 @@ ParticleSystem::writeToFile()
 {
 	//Testpoints
 	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
+	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
 		m_dVel[m_currentVelRead],

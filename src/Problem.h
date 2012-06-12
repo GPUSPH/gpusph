@@ -159,6 +159,7 @@ class Problem {
 		string create_problem_dir();
 		bool need_display(float);
 		bool need_write(float);
+		void mark_written(float t) { m_last_write_time = t; }
 		bool need_write_rbdata(float);
 		void write_rbdata(float);
 		bool need_screenshot(float);

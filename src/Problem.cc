@@ -138,7 +138,6 @@ Problem::need_write(float t)
 		return false;
 
 	if (t - m_last_write_time >= m_displayinterval*m_writefreq || (t == 0.0 && m_last_write_time != 0.0)) {
-		m_last_write_time = t;
 		return true;
 	}
 
