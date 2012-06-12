@@ -78,6 +78,7 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 
 ParticleSystem::ParticleSystem(Problem *problem) :
 	m_problem(problem),
+	m_neiblist_built(false),
 	m_physparams(problem->get_physparams()),
 	m_simparams(problem->get_simparams()),
 	m_simTime(0.0),
@@ -795,6 +796,17 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 	void*   ddata = 0;
 	long	size;
 
+	/* when writing testpoints and/or surface particles on an initial save,
+	 * we have to ensure that the neiblist has been built; this must be done
+	 * before ANY array is retrieved, otherwise the information might be out
+	 * of sync for arrays taken before/after the sort done by the neiblist
+	 * construction */
+
+	if (need_write
+			&& (m_simparams.testpoints || m_simparams.surfaceparticle)
+			&& !m_neiblist_built)
+		buildNeibList(false);
+
 	switch (array) {
 		default:
 		case POSITION:
@@ -1138,6 +1150,8 @@ ParticleSystem::buildNeibList(bool timing)
 		m_timingInfo.meanNumInteractions = (m_timingInfo.meanNumInteractions*(iter - 1) + m_timingInfo.numInteractions)/iter;
 		m_timingInfo.meanTimeNeibsList = (m_timingInfo.meanTimeNeibsList*(iter - 1) + m_timingInfo.timeNeibsList)/iter;
 	}
+
+	m_neiblist_built = true;
 }
 
 

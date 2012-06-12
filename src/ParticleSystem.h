@@ -130,6 +130,8 @@ class ParticleSystem
 	public:
 		Problem		*m_problem;				// pointer to problem object
 
+		bool		m_neiblist_built;	// has the neib list ever been built?
+
 		// Physicals and simulation parameters
 		PhysParams	m_physparams;
 		SimParams	m_simparams;
