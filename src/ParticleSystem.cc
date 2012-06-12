@@ -1054,6 +1054,92 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	glEnd();
 }
 
+void
+ParticleSystem::buildNeibList(bool timing)
+{
+	cudaEvent_t start_neibslist, stop_neibslist;
+
+	uint3 gridSize = m_gridSize;
+	float3 cellSize = m_cellSize;
+	float3 worldOrigin = m_worldOrigin;
+
+	if (timing) {
+		cudaEventCreate(&start_neibslist);
+		cudaEventCreate(&stop_neibslist);
+		cudaEventRecord(start_neibslist, 0);
+	}
+
+	// compute hash
+	calcHash(m_dPos[m_currentPosRead],
+			m_dParticleHash,
+			m_dParticleIndex,
+			gridSize,
+			cellSize,
+			worldOrigin,
+			m_numParticles);
+
+	// hash based particle sort
+	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
+
+	reorderDataAndFindCellStart(
+			m_dCellStart,					// output: cell start index
+			m_dCellEnd,						// output: cell end index
+			m_dPos[m_currentPosWrite],		// output: sorted positions
+			m_dVel[m_currentVelWrite],		// output: sorted velocities
+			m_dInfo[m_currentInfoWrite],	// output: sorted info
+			m_dParticleHash,				// input: sorted grid hashes
+			m_dParticleIndex,				// input: sorted particle indices
+			m_dPos[m_currentPosRead],		// input: sorted position array
+			m_dVel[m_currentVelRead],		// input: sorted velocity array
+			m_dInfo[m_currentInfoRead],		// input: sorted info array
+			m_numParticles,
+			m_nGridCells);
+
+	std::swap(m_currentPosRead, m_currentPosWrite);
+	std::swap(m_currentVelRead, m_currentVelWrite);
+	std::swap(m_currentInfoRead, m_currentInfoWrite);
+
+	m_timingInfo.numInteractions = 0;
+	m_timingInfo.maxNeibs = 0;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxNeibs", &m_timingInfo.maxNeibs, sizeof(int)));
+
+	// Build the neibghours list
+	buildNeibsList(	m_dNeibsList,
+			m_dPos[m_currentPosRead],
+			m_dInfo[m_currentInfoRead],
+			m_dParticleHash,
+			m_dCellStart,
+			m_dCellEnd,
+			gridSize,
+			cellSize,
+			worldOrigin,
+			m_numParticles,
+			m_nGridCells,
+			m_nlSqInfluenceRadius,
+			m_simparams.periodicbound);
+
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "cuneibs::d_numInteractions", sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "cuneibs::d_maxNeibs", sizeof(int), 0));
+	if (m_timingInfo.maxNeibs > m_simparams.maxneibsnum) {
+		printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
+		fflush(stdout);
+	}
+
+	if (timing) {
+		cudaEventRecord(stop_neibslist, 0);
+		cudaEventSynchronize(stop_neibslist);
+		cudaEventElapsedTime(&m_timingInfo.timeNeibsList, start_neibslist, stop_neibslist);
+		m_timingInfo.timeNeibsList *= 1e-3;
+		cudaEventDestroy(start_neibslist);
+		cudaEventDestroy(stop_neibslist);
+
+		int iter = m_iter/m_simparams.buildneibsfreq + 1;
+		m_timingInfo.meanNumInteractions = (m_timingInfo.meanNumInteractions*(iter - 1) + m_timingInfo.numInteractions)/iter;
+		m_timingInfo.meanTimeNeibsList = (m_timingInfo.meanTimeNeibsList*(iter - 1) + m_timingInfo.timeNeibsList)/iter;
+	}
+}
+
 
 TimingInfo
 ParticleSystem::PredcorrTimeStep(bool timing)
@@ -1062,93 +1148,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	if (m_problem->finished(m_simTime))
 		return m_timingInfo;
 
-	cudaEvent_t start_neibslist, stop_neibslist;
 	cudaEvent_t start_interactions, stop_interactions;
 	cudaEvent_t start_euler, stop_euler;
 
 	if (m_iter % m_simparams.buildneibsfreq == 0) {
-
-		uint3 gridSize = m_gridSize;
-		float3 cellSize = m_cellSize;
-		float3 worldOrigin = m_worldOrigin;
-
-		if (timing) {
-			cudaEventCreate(&start_neibslist);
-			cudaEventCreate(&stop_neibslist);
-			cudaEventRecord(start_neibslist, 0);
-			}
-
-		// compute hash
-		calcHash(m_dPos[m_currentPosRead],
-				 m_dParticleHash,
-				 m_dParticleIndex,
-				 gridSize,
-				 cellSize,
-				 worldOrigin,
-				 m_numParticles);
-
-
-		// hash based particle sort
-		sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
-
-
-		reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
-									m_dCellEnd,		// output: cell end index
-									m_dPos[m_currentPosWrite],		 // output: sorted positions
-									m_dVel[m_currentVelWrite],		 // output: sorted velocities
-									m_dInfo[m_currentInfoWrite],		 // output: sorted info
-									m_dParticleHash,   // input: sorted grid hashes
-									m_dParticleIndex,  // input: sorted particle indices
-									m_dPos[m_currentPosRead],		 // input: sorted position array
-									m_dVel[m_currentVelRead],		 // input: sorted velocity array
-									m_dInfo[m_currentInfoRead],		 // input: sorted info array
-									m_numParticles,
-									m_nGridCells);
-
-		std::swap(m_currentPosRead, m_currentPosWrite);
-		std::swap(m_currentVelRead, m_currentVelWrite);
-		std::swap(m_currentInfoRead, m_currentInfoWrite);
-
-		
-		m_timingInfo.numInteractions = 0;
-		m_timingInfo.maxNeibs = 0;
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxNeibs", &m_timingInfo.maxNeibs, sizeof(int)));
-
-		// Build the neibghours list
-		buildNeibsList(	m_dNeibsList,
-						m_dPos[m_currentPosRead],
-						m_dInfo[m_currentInfoRead],
-						m_dParticleHash,
-						m_dCellStart,
-						m_dCellEnd,
-						gridSize,
-						cellSize,
-						worldOrigin,
-						m_numParticles,
-						m_nGridCells,
-						m_nlSqInfluenceRadius,
-						m_simparams.periodicbound);
-
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "cuneibs::d_numInteractions", sizeof(int), 0));
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "cuneibs::d_maxNeibs", sizeof(int), 0));
-		if (m_timingInfo.maxNeibs > m_simparams.maxneibsnum) {
-			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
-			fflush(stdout);
-			}
-
-		if (timing) {
-			cudaEventRecord(stop_neibslist, 0);
-			cudaEventSynchronize(stop_neibslist);
-			cudaEventElapsedTime(&m_timingInfo.timeNeibsList, start_neibslist, stop_neibslist);
-			m_timingInfo.timeNeibsList *= 1e-3;
-			cudaEventDestroy(start_neibslist);
-			cudaEventDestroy(stop_neibslist);
-
-			int iter = m_iter/m_simparams.buildneibsfreq + 1;
-			m_timingInfo.meanNumInteractions = (m_timingInfo.meanNumInteractions*(iter - 1) + m_timingInfo.numInteractions)/iter;
-			m_timingInfo.meanTimeNeibsList = (m_timingInfo.meanTimeNeibsList*(iter - 1) + m_timingInfo.timeNeibsList)/iter;
-			}
+		buildNeibList(timing);
 	}
 
 

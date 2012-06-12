@@ -99,6 +99,8 @@ class ParticleSystem
 		void	printPhysParams(FILE *summary = NULL);
 		void	printSimParams(FILE *summary = NULL);
 
+		void	buildNeibList(bool timing);
+
 		TimingInfo	PredcorrTimeStep(bool);
 
 		void*	getArray(ParticleArray, bool);
