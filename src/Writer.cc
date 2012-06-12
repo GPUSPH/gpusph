@@ -66,7 +66,7 @@ Writer::write_energy(float t, float4 *energy)
 		fprintf(m_energyfile, "\t%g\t%g",
 				energy[fluid].x, energy[fluid].y);
 	fputs("\n", m_energyfile);
-
+	fflush(m_energyfile);
 }
 
 string
