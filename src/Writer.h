@@ -52,10 +52,13 @@ public:
 	virtual void write(uint numParts, const float4 *pos, const float4 *vel,
 			const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals) = 0;
 
+	virtual void write_energy(float t, float4 *energy);
+
 protected:
 	string			m_dirname;
 	uint			m_FileCounter;
 	FILE*			m_timefile;
+	FILE*			m_energyfile;
 	const Problem	*m_problem;
 	string			next_filenum();
 };

@@ -162,6 +162,7 @@ class ParticleSystem
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
 		float4*     m_hNormals;				// normals at free surface
+		float4*		m_hEnergy;				// total fluid(s) energy
 
 		// CPU arrays for geometry
 		float4*		m_hPlanes;

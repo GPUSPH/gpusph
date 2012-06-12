@@ -35,11 +35,38 @@ Writer::Writer(const Problem *problem)
 {
 	m_dirname = problem->get_dirname() + "/data";
 	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+
+	string energy_fn = m_dirname + "/energy.txt";
+	m_energyfile = fopen(energy_fn.c_str(), "w");
+	if (!m_energyfile) {
+		stringstream ss;
+		ss << "Cannot open data file " << energy_fn;
+		throw runtime_error(ss.str());
+	} else {
+		fputs("#\ttime", m_energyfile);
+		uint fluid = 0;
+		for (; fluid < problem->get_physparams().numFluids; ++fluid)
+			fprintf(m_energyfile, "\tkinetic%u\tpotential%u",
+					fluid, fluid);
+		fputs("\n", m_energyfile);
+	}
 }
 
 Writer::~Writer()
 {
 	// hi
+}
+
+void
+Writer::write_energy(float t, float4 *energy)
+{
+	fprintf(m_energyfile, "%g", t);
+	uint fluid = 0;
+	for (; fluid < m_problem->get_physparams().numFluids; ++fluid)
+		fprintf(m_energyfile, "\t%g\t%g",
+				energy[fluid].x, energy[fluid].y);
+	fputs("\n", m_energyfile);
+
 }
 
 string

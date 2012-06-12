@@ -230,6 +230,10 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hInfo, 0, infoSize);
 	memory += infoSize;
 
+	m_hEnergy = new float4[m_physparams.numFluids];
+	memset(m_hInfo, 0, sizeof(float4)*m_physparams.numFluids);
+	memory += sizeof(float4)*m_physparams.numFluids;
+
 	m_hVort = NULL;
 	if (m_simparams.vorticity) {
 		m_hVort = new float3[m_numParticles];
@@ -963,6 +967,13 @@ ParticleSystem::writeToFile()
 {
 	//Testpoints
 	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
+	calc_energy(m_hEnergy,
+		m_dPos[m_currentPosRead],
+		m_dVel[m_currentVelRead],
+		m_dInfo[m_currentInfoRead],
+		m_numParticles,
+		m_physparams.numFluids);
+	m_writer->write_energy(m_simTime, m_hEnergy);
 }
 
 
