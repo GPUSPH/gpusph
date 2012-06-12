@@ -189,5 +189,13 @@ void set_reduction_params(void* buffer, size_t blocks,
 		size_t blocksize_max, size_t shmem_max);
 void unset_reduction_params();
 
+// Compute system energy
+void calc_energy(
+		float4*			output,
+		float4	const*	pos,
+		float4	const*	vel,
+	particleinfo const*	pinfo,
+		uint			numParticles,
+		uint			numFluids);
 }
 #endif

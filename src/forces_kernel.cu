@@ -33,6 +33,10 @@
 #include "particledefine.h"
 #include "textures.cuh"
 
+#define GPU_CODE
+#include "kahan.h"
+#undef GPU_CODE
+
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
@@ -1050,6 +1054,137 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
         g_odata[blockIdx.x] = sdata[0];
 }
 /************************************************************************************************************/
+
+/************************************************************************************************************/
+/*					   Parallel reduction kernels															*/
+/************************************************************************************************************/
+
+extern __shared__ float4 shmem4[];
+
+extern "C" __global__
+void calcEnergies(
+		const float4* pPos,
+		const float4* pVel,
+		const particleinfo* pInfo,
+		uint	numParticles,
+		uint	numFluids,
+		float4* output
+		)
+{
+	// shared memory for this kernel should be sized to
+	// blockDim.x*numFluids*sizeof(float4)*2
+
+	uint gid = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	uint stride = INTMUL(gridDim.x,blockDim.x);
+	// .x kinetic, .y potential, .z internal (not computed here)
+	float4 energy[MAX_FLUID_TYPES], E_k[MAX_FLUID_TYPES];
+
+#pragma unroll
+	for (uint i = 0; i < MAX_FLUID_TYPES; ++i)
+		energy[i] = E_k[i] = make_float4(0.0f);
+
+	while (gid < numParticles) {
+		float4 pos = pPos[gid];
+		float4 vel = pVel[gid];
+		particleinfo pinfo = pInfo[gid];
+		if (FLUID(pinfo)) {
+			uint fluid_num = PART_FLUID_NUM(pinfo);
+			float v2 = kahan_sqlength(as_float3(vel));
+			float gh = kahan_dot(d_gravity, as_float3(pos));
+			kahan_add(energy[fluid_num].x, pos.w*v2/2, E_k[fluid_num].x);
+			kahan_add(energy[fluid_num].y, -pos.w*gh, E_k[fluid_num].y);
+		}
+		gid += stride;
+	}
+
+	uint lid = threadIdx.x;
+	for (uint offset = blockDim.x/2; offset; offset >>= 1) {
+		stride = offset*numFluids; // stride between fields in shmem4 memory
+		if (lid >= offset && lid < 2*offset) {
+			for (uint i = 0; i < numFluids; ++i) {
+				uint idx = lid + offset*i;
+				shmem4[idx] = energy[i];
+				idx += stride;
+				shmem4[idx] = E_k[i];
+			}
+		}
+		__syncthreads();
+		if (lid < offset) {
+			for (uint i = 0; i < numFluids; ++i) {
+				uint idx = lid + offset*(i+1);
+				float4 other = shmem4[idx];
+				idx += stride;
+				float4 oth_k = shmem4[idx];
+				kahan_add(energy[i].x, oth_k.x, E_k[i].x);
+				kahan_add(energy[i].x, other.x, E_k[i].x);
+				kahan_add(energy[i].y, oth_k.y, E_k[i].y);
+				kahan_add(energy[i].y, other.y, E_k[i].y);
+			}
+		}
+	}
+
+	if (lid == 0) {
+		for (uint i = 0; i < numFluids; ++i) {
+			output[blockIdx.x + INTMUL(gridDim.x,i)] = energy[i];
+			output[blockIdx.x + INTMUL(gridDim.x,numFluids+i)] = E_k[i];
+		}
+	}
+}
+
+// final reduction stage
+extern "C" __global__
+void calcEnergies2(
+		float4* buffer,
+		uint	prev_blocks,
+		uint	numFluids)
+{
+	// shared memory for this kernel should be sized to
+	// blockDim.x*numFluids*sizeof(float4)*2
+
+	uint gid = threadIdx.x;
+	float4 energy[MAX_FLUID_TYPES];
+	float4 E_k[MAX_FLUID_TYPES];
+	for (uint i = 0; i < numFluids; ++i) {
+		if (gid < prev_blocks) {
+			energy[i] = buffer[gid + prev_blocks*i];
+			E_k[i] = buffer[gid + prev_blocks*(numFluids+i)];
+		} else {
+			energy[i] = E_k[i] = make_float4(0.0f);
+		}
+	}
+
+	uint stride;
+	for (uint offset = blockDim.x/2; offset; offset >>= 1) {
+		stride = offset*numFluids; // stride between fields in shmem4 memory
+		if (gid >= offset && gid < 2*offset) {
+			for (uint i = 0; i < numFluids; ++i) {
+				uint idx = gid + offset*i;
+				shmem4[idx] = energy[i];
+				idx += stride;
+				shmem4[idx] = E_k[i];
+			}
+		}
+		__syncthreads();
+		if (gid < offset) {
+			for (uint i = 0; i < numFluids; ++i) {
+				uint idx = gid + offset*(i+1);
+				float4 other = shmem4[idx];
+				idx += stride;
+				float4 oth_k = shmem4[idx];
+				kahan_add(energy[i].x, oth_k.x, E_k[i].x);
+				kahan_add(energy[i].x, other.x, E_k[i].x);
+				kahan_add(energy[i].y, oth_k.y, E_k[i].y);
+				kahan_add(energy[i].y, other.y, E_k[i].y);
+			}
+		}
+	}
+
+	if (gid == 0) {
+		for (uint i = 0; i < numFluids; ++i)
+			buffer[i] = energy[i] + E_k[i];
+	}
+}
+
 
 /************************************************************************************************************/
 /*					   Auxiliary kernels used for post processing										    */

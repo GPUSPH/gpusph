@@ -407,8 +407,8 @@ ParticleSystem::allocate(uint numParticles)
 	/*	maximum amount of global memory needed in reductions:
 		this value should be kept up to date to fit the largest
 		possible reduction used during the simulation */
-	// presently: one float4 value per fluid type
-	size_t bufsize = sizeof(float4)*blocks*m_physparams.numFluids;
+	// presently: two float4 value per fluid type (allows Kahan summation)
+	size_t bufsize = 2*sizeof(float4)*blocks*m_physparams.numFluids;
 
 	void *buff = NULL;
 	CUDA_SAFE_CALL(cudaMalloc(&buff, bufsize));
