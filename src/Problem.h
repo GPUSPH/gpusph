@@ -151,12 +151,10 @@ class Problem {
 			return simparams;
 		};
 
-		PhysParams &get_physparams(void)
+		const PhysParams &get_physparams(void) const
 		{
-			PhysParams &physparams = m_physparams;
-			return physparams;
+			return m_physparams;
 		};
-
 
 		string create_problem_dir();
 		bool need_display(float);
