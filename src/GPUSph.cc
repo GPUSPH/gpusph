@@ -148,9 +148,11 @@ void cleanup(void)
 
 void quit(int ret)
 {
-		printf("Quitting\n");
-		cleanup();
-		exit(ret);
+	double elapsed_sec = (clock() - start_time)/CLOCKS_PER_SEC;
+	printf("\nTotal time %es\n", elapsed_sec);
+	printf("Quitting\n");
+	cleanup();
+	exit(ret);
 }
 
 void show_timing(int ret)
@@ -469,10 +471,7 @@ void display()
 	// render
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	double elapsed_sec = 0.0;
 	bool finished = problem->finished(timingInfo.t);
-	if (finished)
-		elapsed_sec = (clock() - start_time)/CLOCKS_PER_SEC;
 
 	bool need_display = displayEnabled && problem->need_display(timingInfo.t);
 	bool need_write = problem->need_write(timingInfo.t) || finished;
@@ -561,18 +560,12 @@ void display()
 		}
 	}
 
-	// Writing to file
-	if (finished) {
-		printf("\nTotal time %e s\n", elapsed_sec);
-		exit(0);
-		}
+	if (finished)
+		quit(0);
 }
 
 void console_loop(void)
 {
-
-	double elapsed_sec = 0.0;
-
 	int error = 0;
 	bool finished = false;
 	while (!finished) {
@@ -585,8 +578,6 @@ void console_loop(void)
 		}
 
 		finished |= problem->finished(timingInfo.t);
-		if (finished)
-			elapsed_sec = (clock() - start_time)/(double) CLOCKS_PER_SEC;
 
 		bool need_write = problem->need_write(timingInfo.t) || finished;
 
@@ -597,10 +588,8 @@ void console_loop(void)
 		}
 	}
 
-	if (finished) {
-		printf("\nTotal time %e s\n", elapsed_sec);
+	if (finished)
 		quit(error);
-	}
 }
 
 
