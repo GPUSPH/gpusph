@@ -971,6 +971,10 @@ main( int argc, char** argv)
 
 	init(clOptions.problem.c_str());
 
+	// do an initial write
+	get_arrays(true);
+	do_write();
+
 	if (clOptions.console) {
 		console_loop();
 	} else {
