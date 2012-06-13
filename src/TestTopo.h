@@ -39,13 +39,11 @@
 
 class TestTopo: public Problem {
 	private:
-		TopoCube	experiment_box;
+		TopoCube	*experiment_box;
 		PointVect	boundary_parts;
 		PointVect	piston_parts;
 		PointVect	parts;
 		double		H;				// still water level
-		double		north, south, east, west;
-		double		nsres, ewres;
 
 	public:
 		TestTopo(const Options &);

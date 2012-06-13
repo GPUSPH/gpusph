@@ -50,6 +50,9 @@ class Problem {
 		float	m_last_screenshot_time;
 		string	m_problem_dir;
 
+		const float*	m_dem;
+		int		m_ncols, m_nrows;
+
 	public:
 		enum WriterType
 		{
@@ -76,8 +79,12 @@ class Problem {
 		WriterType	m_writerType;
 		FILE*		m_rbdatafile;
 
-		float*	m_dem;
-		int		m_ncols, m_nrows;
+		const float*	get_dem() const { return m_dem; }
+		int		get_dem_ncols() { return m_ncols; }
+		int		get_dem_nrows() { return m_nrows; }
+		void	set_dem(const float *dem, int ncols, int nrows) {
+			m_dem = dem; m_ncols = ncols; m_nrows = nrows;
+		}
 
 		string	m_name;
 

@@ -158,7 +158,7 @@ surfaceparticle(	float4*		pos,
 			bool        savenormals);
 
 void
-setDemTexture(float *hDem, int width, int height);
+setDemTexture(const float *hDem, int width, int height);
 
 void
 releaseDemTexture();

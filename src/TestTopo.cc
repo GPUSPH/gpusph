@@ -24,21 +24,21 @@
 */
 
 #include <cmath>
-#include <fstream>
-#include <string>
-#include <iostream>
 #ifdef __APPLE__
 #include <OpenGl/gl.h>
 #else
 #include <GL/gl.h>
 #endif
 
+#include <iostream>
+#include <stdexcept>
+
 #include "TestTopo.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
-#include <cstdlib> // for exit(int)
 
+#define EB experiment_box
 
 TestTopo::TestTopo(const Options &options) : Problem(options)
 {
@@ -48,53 +48,22 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 	else
 		dem_file = options.dem.c_str();
 
-	// Reading DEM
-	ifstream fdem(dem_file);
-	if (!fdem.good())
-	{
-		cerr << "Unable to open " << dem_file << endl;
-		exit(1);
-	}
+	EB = TopoCube::load_ascii_grid(dem_file);
 
-	string s;
+	std::cout << "zmin=" << -EB->get_voff() << "\n";
+	std::cout << "zmax=" << EB->get_H() << "\n";
+	std::cout << "ncols=" << EB->get_ncols() << "\n";
+	std::cout << "nrows=" << EB->get_nrows() << "\n";
+	std::cout << "nsres=" << EB->get_nsres() << "\n";
+	std::cout << "ewres=" << EB->get_ewres() << "\n";
 
-	for (int i = 1; i <= 6; i++) {
-			fdem >> s;
-			if (s.find("north:") != string::npos) fdem >> north;
-			else if (s.find("south:") != string::npos) fdem >> south;
-			else if (s.find("east:") != string::npos) fdem >> east;
-			else if (s.find("west:") != string::npos) fdem >> west;
-			else if (s.find("cols:") != string::npos) fdem >> m_ncols;
-			else if (s.find("rows:") != string::npos) fdem >> m_nrows;
-			}
-	double zmin = 1e6, zmax = 0;
-	nsres = (north - south)/(m_nrows - 1);
-	ewres = (east - west)/(m_ncols - 1);
-	m_dem = new float[m_ncols*m_nrows];
-
-	// Reading dem data
-	for (int i = 0; i < m_ncols*m_nrows; i++) {
-		double z;
-		fdem >> z;
-		//z /= 2.0;
-		zmax = std::max(z, zmax);
-		zmin = std::min(z, zmin);
-		m_dem[i] = z;
-		}
-	fdem.close();
-	for (int i = 0; i < m_ncols*m_nrows; i++) {
-		m_dem[i] -= zmin;
-		}
-	std::cout << "zmin=" << zmin << "\n";
-	std::cout << "zmax=" << zmax << "\n";
-	std::cout << "nsres=" << nsres << "\n";
-	std::cout << "ewres=" << ewres << "\n";
+	set_dem(EB->get_dem(), EB->get_ncols(), EB->get_nrows());
 
 	// Size and origin of the simulation domain
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.2);
+	set_deltap(0.05);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
@@ -112,8 +81,13 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// Physical parameters
 	H = 2.0;
-	//nsres = 1; ewres = 1;
-	m_size = make_float3(ewres*((float) m_ncols), nsres*((float) m_nrows), H);
+
+	EB->SetCubeHeight(H);
+
+	m_size = make_float3(
+			EB->get_vx()(0), // x component of vx
+			EB->get_vy()(1), // y component of vy
+			H);
 	cout << "m_size: " << m_size.x << " " << m_size.y << " " << m_size.z << "\n";
 
 	m_origin = make_float3(0.0f, 0.0f, 0.0f);
@@ -127,13 +101,17 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 	m_physparams.artvisccoeff = 0.05f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
-	m_physparams.ewres = ewres;
-	m_physparams.nsres = nsres;
-	m_physparams.demdx = ewres/5.0;
-	m_physparams.demdy = nsres/5.0;
-	m_physparams.demdx = ewres/5.0;
+
+	m_physparams.ewres = EB->get_ewres();
+	m_physparams.nsres = EB->get_nsres();
+	m_physparams.demdx = EB->get_ewres()/5.0;
+	m_physparams.demdy = EB->get_nsres()/5.0;
+	m_physparams.demdx = EB->get_ewres()/5.0;
 	m_physparams.demdxdy = m_physparams.demdx*m_physparams.demdy;
 	m_physparams.demzmin = 5.0*m_deltap;
+
+#undef EB
+
 	// Scales for drawing
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
@@ -160,7 +138,6 @@ TestTopo::~TestTopo(void)
 
 void TestTopo::release_memory(void)
 {
-	delete [] m_dem;
 	parts.clear();
 	boundary_parts.clear();
 	piston_parts.clear();
@@ -169,17 +146,16 @@ void TestTopo::release_memory(void)
 
 int TestTopo::fill_parts()
 {
-	experiment_box.SetCubeDem(H, m_dem, m_ncols, m_nrows, nsres, ewres, false);
-	parts.reserve(14000);
-	boundary_parts.reserve(14000);
+	parts.reserve(1000);
+	boundary_parts.reserve(1000);
 
-	experiment_box.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	//experiment_box.FillDem(boundary_parts, m_physparams.r0);
-	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 0, false);
-	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 1, true);
-	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 2, false);
-	experiment_box.FillBorder(boundary_parts, m_physparams.r0, 3, true);
-	experiment_box.Fill(parts, 0.8, m_deltap, true);
+	experiment_box->SetPartMass(m_deltap, m_physparams.rho0[0]);
+	//experiment_box->FillDem(boundary_parts, m_physparams.r0);
+	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 0, false);
+	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 1, true);
+	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 2, false);
+	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 3, true);
+	experiment_box->Fill(parts, 0.8, m_deltap, true);
 
 	return boundary_parts.size() + parts.size();
 }
@@ -187,13 +163,12 @@ int TestTopo::fill_parts()
 
 void TestTopo::draw_boundary(float t)
 {
-	experiment_box.GLDraw();
+	experiment_box->GLDraw();
 }
 
 
 void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
-Point  p ;
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		pos[i] = make_float4(boundary_parts[i]);

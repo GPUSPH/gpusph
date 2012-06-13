@@ -44,14 +44,46 @@ class TopoCube: public Object {
 		float*	m_dem;
 		int		m_ncols, m_nrows;
 		double	m_nsres, m_ewres;
-		bool	m_interpol;
 		double	m_H;
+
+		/* Geolocation data (optional) */
+		double	m_north, m_south, m_east, m_west;
+		double	m_voff; // vertical offset
 
 	public:
 		TopoCube(void);
 		~TopoCube(void);
 
-		void SetCubeDem(const double, const float*, const int, const int, const double, const double, const bool);
+		void SetCubeDem(const float *dem,
+				double sizex, double sizey, double H,
+				int ncols, int nrows, double voff = 0);
+
+		/* methods to retrieve the DEM geometry */
+		int get_nrows()	{ return m_nrows; }
+		int get_ncols()	{ return m_ncols; }
+		double get_ewres()	{ return m_ewres; }
+		double get_nsres()	{ return m_nsres; }
+		double get_H()	{ return m_H; }
+		Vector const& get_vx() { return m_vx; }
+		Vector const& get_vy() { return m_vy; }
+		Vector const& get_vz() { return m_vz; }
+
+		/* allows direct read-only access to the DEM data */
+		const float *get_dem() const { return m_dem; }
+
+		void SetCubeHeight(double H);
+
+		/* Geolocation data (optional) */
+		void SetGeoLocation(double north, double south,
+				double east, double west);
+
+		double get_north()	{ return m_north; }
+		double get_south()	{ return m_south; }
+		double get_east()	{ return m_east; }
+		double get_west()	{ return m_west; }
+		double get_voff()	{ return m_voff; }
+
+		static TopoCube* load_ascii_grid(const char *fname);
 
 		double SetPartMass(const double, const double);
 		double Volume(const double dx) const
@@ -64,7 +96,7 @@ class TopoCube: public Object {
 			m_inertia[1] = 0.0;
 			m_inertia[2] = 0.0;
 		}
-		
+
 		void FillBorder(PointVect&, const double, const int, const bool);
 		void FillBorder(PointVect& points, const double dx)
 		{
@@ -73,11 +105,11 @@ class TopoCube: public Object {
 			FillBorder(points, dx, 2, true);
 			FillBorder(points, dx, 3, false);
 		}
-		
+
 		void FillDem(PointVect&, const double);
 		double DemInterpol(const double, const double);
 		double DemDist(const double, const double, const double, const double);
-		
+
 		int Fill(PointVect&, const double, const double, const bool, const bool);
 		int Fill(PointVect& points, const double H, const double dx, const bool faces_filled)
 		{
@@ -87,10 +119,10 @@ class TopoCube: public Object {
 		{
 			return Fill(points, m_H, dx, false, fill);
 		}
-		
+
 		void GLDraw(void) const;
 		void GLDraw(const EulerParameters&, const Point&) const;
-		
+
 		bool IsInside(const Point&, const double) const;
 };
 

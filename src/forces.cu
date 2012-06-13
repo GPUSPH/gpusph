@@ -536,7 +536,7 @@ surfaceparticle(	float4*		pos,
 }
 
 
-void setDemTexture(float *hDem, int width, int height)
+void setDemTexture(const float *hDem, int width, int height)
 {
 	// Allocating, reading and copying DEM
 	unsigned int size = width*height*sizeof(float);

@@ -29,13 +29,20 @@
 #include <GL/gl.h>
 #endif
 #include <cmath>
+#include <cstring> // memcpy
+
 #include <iostream>
+#include <fstream>
+#include <sstream>
+
+#include <stdexcept>
 
 #include "TopoCube.h"
 #include "Point.h"
 #include "Vector.h"
 #include "Rect.h"
 
+using namespace std;
 
 TopoCube::TopoCube(void)
 {
@@ -43,35 +50,140 @@ TopoCube::TopoCube(void)
 	m_vx = Vector(0, 0, 0);
 	m_vy = Vector(0, 0, 0);
 	m_vz = Vector(0, 0, 0);
+
+	m_dem = NULL;
+
+	m_ncols = m_nrows = 0;
+	m_nsres = m_ewres = NAN;
+	m_H = 0;
+
+	m_north = m_south = m_east = m_west = NAN;
+	m_voff = 0;
 }
 
 
 TopoCube::~TopoCube(void)
 {
-	delete[] m_dem;
+	delete [] m_dem;
 }
 
-
-void TopoCube::SetCubeDem(const double H, const float *dem, const int ncols, const int nrows,
-							const double nsres, const double ewres, const bool interpol)
+void TopoCube::SetCubeHeight(double H)
 {
+	m_H = H;
+	m_vz = Vector(0.0, 0.0, H);
+}
+
+void TopoCube::SetGeoLocation(double north, double south,
+		double east, double west)
+{
+	m_north = north;
+	m_south = south;
+	m_east = east;
+	m_west = west;
+}
+
+/* set the cube DEM to have
+ * sizex in the x (east-west) direction,
+ * sizey in the y (north-south) direction,
+ * 'wall' height H,
+ * ncols samples in the x direction,
+ * nrows samples in the y direction,
+ * associated height array dem.
+ *
+ * The array is a linearized 2D array, standard C layout
+ * (row-major) with row 0 holding the southernmost samples
+ * and row nrows-1 hoding the northernmost samples.
+ * Column 0 holds the westernmost samples, column ncols-1
+ * holds the easternmost samples.
+ *
+ * An optional vertical offset to be added to all values
+ * can also be specified (the wall height H is _not_
+ * corrected).
+ */
+
+void TopoCube::SetCubeDem(const float *dem,
+		double sizex, double sizey, double H,
+		int ncols, int nrows, double voff)
+{
+	m_origin = Point(0, 0, 0, 0);
+	m_vx = Vector(sizex, 0.0, 0.0);
+	m_vy = Vector(0.0, sizey,0.0);
+	SetCubeHeight(H);
+
 	m_ncols = ncols;
 	m_nrows = nrows;
-	m_nsres = nsres;
-	m_ewres = ewres;
-	m_interpol = interpol;
-	m_H = H;
-	m_origin = Point(0.0, 0.0, 0.0, 0.0);
-	m_vx = Vector(((float) m_ncols - 1)*m_ewres, 0.0, 0.0);
-	m_vy = Vector(0.0, ((float) m_nrows - 1)*m_nsres,0.0);
-	m_vz = Vector(0.0, 0.0, H);
-	m_dem = new float[m_ncols*m_nrows];
+	m_ewres = sizex/(ncols-1);
+	m_nsres = sizey/(nrows-1);
 
-	for (int i = 0; i < ncols*nrows; i++) {
-		m_dem[i] = dem[i];
+	m_voff = voff;
+
+	size_t numels = ncols*nrows;
+	m_dem = new float[numels];
+
+	if (voff) {
+		for (int i = 0; i < numels; ++i) {
+			m_dem[i] = dem[i] + voff;
 		}
+	} else {
+		/* quicker if no offset must be applied */
+		memcpy(m_dem, dem, sizeof(float)*numels);
+	}
 }
 
+/* Create a TopoCube from a (GRASS) ASCII grid file */
+TopoCube *TopoCube::load_ascii_grid(const char* fname)
+{
+	ifstream fdem(fname);
+	if (!fdem.good()) {
+		stringstream err_msg;
+		err_msg	<< "failed to open DEM " << fname;
+
+		throw runtime_error(err_msg.str());
+	}
+
+	string s;
+
+	double north, south, east, west;
+	int nrows, ncols;
+
+	for (int i = 1; i <= 6; i++) {
+		fdem >> s;
+		if (s.find("north:") != string::npos) fdem >> north;
+		else if (s.find("south:") != string::npos) fdem >> south;
+		else if (s.find("east:") != string::npos) fdem >> east;
+		else if (s.find("west:") != string::npos) fdem >> west;
+		else if (s.find("cols:") != string::npos) fdem >> ncols;
+		else if (s.find("rows:") != string::npos) fdem >> nrows;
+	}
+
+	double zmin = NAN, zmax = NAN;
+
+	float *dem = new float[ncols*nrows];
+
+	double z;
+
+	// DEM data is stored on disk with the north as the first row,
+	// but we want south to be the first array data
+	for (int row = nrows-1; row >= 0; --row) {
+		for (int col = 0; col < ncols; ++col) {
+			fdem >> z;
+			zmax = max(z, zmax);
+			zmin = min(z, zmin);
+			dem[row*ncols+col] = z;
+		}
+	}
+	fdem.close();
+
+	TopoCube *ret = new TopoCube();
+
+	ret->SetCubeDem(dem, east-west, north-south, zmax-zmin,
+		ncols, nrows, -zmin);
+	ret->SetGeoLocation(north, south, east, west);
+
+	delete [] dem;
+
+	return ret;
+}
 
 double
 TopoCube::SetPartMass(const double dx, const double rho)
@@ -174,8 +286,8 @@ TopoCube::DemInterpol(const double x, const double y)  // x and y ranging in [0,
 double
 TopoCube::DemDist(const double x, const double y, const double z, double dx)
 {
-	if (dx > 0.5*std::min(m_nsres, m_ewres))
-		dx = 0.5*std::min(m_nsres, m_ewres);
+	if (dx > 0.5*min(m_nsres, m_ewres))
+		dx = 0.5*min(m_nsres, m_ewres);
 	const double z0 = DemInterpol(x/m_ewres, y/m_nsres);
 	const double z1 = DemInterpol((x + dx)/m_ewres, y/m_nsres);
 	const double z2 = DemInterpol(x/m_ewres, (y + dx)/m_nsres);
@@ -200,7 +312,7 @@ int
 TopoCube::Fill(PointVect& points, const double H, const double dx, const bool faces_filled, const bool fill)
 {
 	int nparts;
-	
+
 	const int nx = (int) (m_vx.norm()/dx);
 	const double deltax = m_vx.norm()/((double) nx);
 	const int ny = (int) (m_vy.norm()/dx);
@@ -231,7 +343,7 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 				}
 			}
 		}
-	
+
 	return nparts;
 }
 
@@ -312,4 +424,4 @@ TopoCube::GLDraw(const EulerParameters& ep, const Point& cg) const
 {
 	GLDraw();
 }
-	
+

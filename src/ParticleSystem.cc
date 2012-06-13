@@ -427,8 +427,11 @@ ParticleSystem::allocate(uint numParticles)
 	// Allocating, reading and copying DEM
 	if (m_simparams.usedem) {
 		printf("Using DEM\n");
-		printf("cols = %d\trows =% d\n", m_problem->m_ncols, m_problem->m_nrows);
-		setDemTexture(m_problem->m_dem, m_problem->m_ncols, m_problem->m_nrows);
+		int2 dem_rc;
+		dem_rc.x = m_problem->get_dem_ncols();
+		dem_rc.y = m_problem->get_dem_nrows();
+		printf("cols = %d\trows =% d\n", dem_rc.x, dem_rc.y);
+		setDemTexture(m_problem->get_dem(), dem_rc.x, dem_rc.y);
 		}
 	printf("Number of fluids: %d\n",m_physparams.numFluids);
 	printf("GPU memory allocated\n");
