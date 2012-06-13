@@ -236,6 +236,7 @@ FORCES_CUDA_KERNEL
 							break;
 						default:
 							DvDt = 1.0/0.0;
+							break;
 					}
 					// interaction between two particles
 					force.x += DvDt*relPos.x;
@@ -324,10 +325,11 @@ FORCES_CUDA_KERNEL
 
 					if (FLUID(neib_info) && !OBJECT(neib_info))
 						DvDt = neib_pos.w*LJForce(r);
-					if (OBJECT(neib_info) && (object(info) != object(neib_info)))
+					// Now object-object and objcet boundary forces are computed with ODE
+					/*if (OBJECT(neib_info) && (object(info) != object(neib_info)))
 						DvDt = d_objectobjectdf*LJForce(r);		// TODO: apply friction between objects
 					if (BOUNDARY(neib_info))
-						DvDt = d_objectboundarydf*LJForce(r);		// TODO: choose a better ceofficient ?
+						DvDt = d_objectboundarydf*LJForce(r);		// TODO: choose a better ceofficient ?*/
 
 					force.x += DvDt*relPos.x;
 					force.y += DvDt*relPos.y;

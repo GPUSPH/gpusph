@@ -95,7 +95,7 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	
 	// Allocate data for floating bodies
-	allocate_bodies(1);
+	allocate_ODE_bodies(2);
 	dInitODE();				// Initialize ODE
 	m_ODEWorld = dWorldCreate();	// Create a dynamic world
 	m_ODESpace = dHashSpaceCreate(0);
@@ -150,10 +150,9 @@ int OdeObjects::fill_parts()
 	planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0.0);
 	planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, -ly);
 
-	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
-	obstacle.m_ODEGeom = dCreateBox(m_ODESpace, 0.12, 0.12, lz);
-	dGeomSetPosition(obstacle.m_ODEGeom, 0.9+0.06, 0.24+0.06, lz/2.0);
+	obstacle = Cube(Point(0.6, 0.24, 2*r0), Vector(0.12, 0, 0),
+					Vector(0, 0.12, 0), Vector(0, 0, 0.7*lz - 2*r0));
+
 
 	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
@@ -169,8 +168,12 @@ int OdeObjects::fill_parts()
 	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	obstacle.SetPartMass(r0, m_physparams.rho0[0]);
-	obstacle.FillBorder(obstacle_parts, r0, true);
+	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
+	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
+	obstacle.FillBorder(obstacle.GetParts(), r0, true);
+	obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
+	obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&obstacle);
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
@@ -186,23 +189,29 @@ int OdeObjects::fill_parts()
 	sphere = Sphere(rb_cg, 0.05);
 	sphere.SetPartMass(r0, m_physparams.rho0[0]*0.6);
 	sphere.SetMass(r0, m_physparams.rho0[0]*0.6);
-	sphere.SetInertia(r0);
 	sphere.Unfill(parts, r0);
-	RigidBody* rigid_body = get_body(0);
-	rigid_body->AttachObject(&sphere);
-	sphere.FillBorder(rigid_body->GetParts(), r0);
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
+	sphere.FillBorder(sphere.GetParts(), r0);
+	sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
+	sphere.ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&sphere);
 
-	sphere.m_ODEBody = dBodyCreate(m_ODEWorld);
-	dMass m1;
-	dMassSetZero(&m1);
-	dMassSetSphereTotal(&m1, 0.1, 0.05);
-	dBodySetMass(sphere.m_ODEBody, &m1);
-	dBodySetPosition(sphere.m_ODEBody, 0.6, 0.65*ly, 0.15);
-	sphere.m_ODEGeom = dCreateSphere(m_ODESpace, 0.05);
-	dGeomSetBody(sphere.m_ODEGeom, sphere.m_ODEBody);
+	/*double l = 0.1, w = 0.1, h = 0.1;
+	rb_cg = Point(0.7, 0.5*ly, h/2 + 2*r0);
+	cube = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
+	cube.SetPartMass(r0, m_physparams.rho0[0]*0.3);
+	cube.SetMass(r0, m_physparams.rho0[0]*0.3);
+	cube.Unfill(parts, r0);
+	cube.FillBorder(cube.GetParts(), r0);
+	cube.ODEBodyCreate(m_ODEWorld, m_deltap);
+	cube.ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&cube);*/
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
+	joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
+	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
+	dJointSetHingeAnchor(joint, 0.7, 0.24, 2*r0);	// Set a joint anchor
+	dJointSetHingeAxis(joint, 0, 1, 0);
+
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_ODE_bodies_numparts();
 }
 
 
@@ -212,7 +221,9 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 	dContact contact[N];
 
 	int n = dCollide(o1, o2, N, &contact[0].geom, sizeof(dContact));
-
+	if ((o1 == cube.m_ODEGeom && o2 == sphere.m_ODEGeom) || (o2 == cube.m_ODEGeom && o1 == sphere.m_ODEGeom)) {
+		cout << "Collision between cube and obstacle " << n << "contact points\n";
+	}
 	for (int i = 0; i < n; i++) {
 		contact[i].surface.mode = dContactBounce;
 		contact[i].surface.mu   = dInfinity;
@@ -223,32 +234,28 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 	}
 }
 
-void OdeObjects::ODE_timestep(float dt)
-{
-	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
-	dWorldStep(m_ODEWorld, dt);
-	dJointGroupEmpty(m_ODEJointGroup);
-}
-
 
 void OdeObjects::draw_boundary(float t)
 {
 	glColor3f(0.0, 1.0, 0.0);
 	experiment_box.GLDraw();
 	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
-	for (int i = 0; i < m_simparams.numbodies; i++)
-		get_body(i)->GLDraw();
+	//obstacle.GLDraw();
 
-	const float *pos,*R;
+	const dReal *pos,*R;
 	pos = dBodyGetPosition(sphere.m_ODEBody);
 	R = dBodyGetRotation(sphere.m_ODEBody);
 	dsDrawSphere(pos, R, 0.05);
 
 	pos = dGeomGetPosition(obstacle.m_ODEGeom);
 	R = dGeomGetRotation(obstacle.m_ODEGeom);
-	const float sides2[3] = {0.12, 0.12, lz};
+	const float sides2[3] = {0.12, 0.12, 0.7*lz - 2*m_deltap};
 	dsDrawBox(pos, R, sides2);
+
+	/*pos = dGeomGetPosition(cube.m_ODEGeom);
+	R = dGeomGetRotation(cube.m_ODEGeom);
+	const float sides1[3] = {0.1, 0.1, 0.1};
+	dsDrawBox(pos, R, sides1);*/
 }
 
 
@@ -264,7 +271,7 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	for (int k = 0; k < m_simparams.numbodies; k++) {
-		PointVect & rbparts = get_body(k)->GetParts();
+		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
 			pos[i] = make_float4(rbparts[i - j]);

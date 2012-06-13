@@ -43,6 +43,9 @@ class Sphere: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 		
+		void ODEBodyCreate(dWorldID, const double);
+		void ODEGeomCreate(dSpaceID, const double);
+
 		void FillBorder(PointVect&, const double);
 		
 		int Fill(PointVect&, const double, const bool fill = true);

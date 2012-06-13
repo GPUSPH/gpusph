@@ -71,6 +71,28 @@ Sphere::SetInertia(const double dx)
 
 
 void
+Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx)
+{
+	m_ODEBody = dBodyCreate(ODEWorld);
+	dMassSetZero(&m_ODEMass);
+	dMassSetSphereTotal(&m_ODEMass, m_mass, m_r + dx/2.0);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	m_is_ODEBody_defined = true;
+}
+
+
+void
+Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
+	m_ODEGeom = dCreateSphere(ODESpace, m_r + dx/2.0);
+	if (m_is_ODEBody_defined)
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+	else
+		dGeomSetPosition(m_ODEGeom,  m_center(0), m_center(1), m_center(2));
+}
+
+
+void
 Sphere::FillBorder(PointVect& points, const double dx)
 {
   	const double angle = dx/m_r;

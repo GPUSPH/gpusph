@@ -53,6 +53,9 @@ class Cube: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 		
+		void ODEBodyCreate(dWorldID, const double);
+		void ODEGeomCreate(dSpaceID, const double);
+
 		void FillBorder(PointVect&, const double, const int, const bool*);
 		void FillBorder(PointVect&, const double, const bool);
 		void FillBorder(PointVect& points, const double dx)

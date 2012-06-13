@@ -263,6 +263,16 @@ inline __host__ __device__ float3 make_float3(const int3 &a)
 	return make_float3(float(a.x), float(a.y), float(a.z));
 }
 
+inline __host__  float3 make_float3(const float *a)
+{
+	return make_float3(a[0], a[1], a[2]);
+}
+
+inline __host__  float3 make_float3(const double *a)
+{
+	return make_float3(float(a[0]), float(a[1]), float(a[2]));
+}
+
 // negate
 inline __host__ __device__ float3 operator-(const float3 &a)
 {

@@ -53,9 +53,10 @@ class RigidBody {
 //		EulerParameters*	m_current_ep;		///< Current value of Euler parameters 
 		double*				m_vel;				///< Velovity of center of gravity
 		double*				m_omega;			///< Angular velocity
-		Object*				m_object;			///< Pointer to object (used if rigid body is attached to an object)
 		Point				m_current_cg;
 		EulerParameters*	m_current_ep;
+	public:
+		Object*				m_object;			///< Pointer to object (used if rigid body is attached to an object)
 
 
 	public:

@@ -39,6 +39,7 @@
 #include "Problem.h"
 #include "vector_math.h"
 
+int Problem::m_total_ODE_bodies = 0;
 
 Problem::Problem(const Options &options)
 {
@@ -219,6 +220,14 @@ Problem::allocate_bodies(const int i)
 }
 
 
+void
+Problem::allocate_ODE_bodies(const int i)
+{
+	m_simparams.numbodies = i;
+	m_ODE_bodies = new Object *[i];
+}
+
+
 RigidBody* 
 Problem::get_body(const int i)
 {
@@ -231,6 +240,30 @@ Problem::get_body(const int i)
 }
 
 
+Object*
+Problem::get_ODE_body(const int i)
+{
+	if (i >= m_simparams.numbodies) {
+		stringstream ss;
+		ss << "get_ODE_body: body number " << i << " >= numbodies";
+		throw runtime_error(ss.str());
+	}
+	return m_ODE_bodies[i];
+}
+
+
+void
+Problem::add_ODE_body(Object* object)
+{
+	if (m_total_ODE_bodies >= m_simparams.numbodies) {
+		stringstream ss;
+		ss << "add_ODE_body: body number " << m_total_ODE_bodies << " >= numbodies";
+		throw runtime_error(ss.str());
+	}
+	m_ODE_bodies[m_total_ODE_bodies] = object;
+	m_total_ODE_bodies++;
+}
+
 int 
 Problem::get_body_numparts(const int i)
 {
@@ -242,6 +275,28 @@ Problem::get_body_numparts(const int i)
 
 
 int 
+Problem::get_ODE_bodies_numparts(void)
+{
+	int total_parts = 0;
+	for (int i = 0; i < m_simparams.numbodies; i++) {
+		total_parts += m_ODE_bodies[i]->GetParts().size();
+	}
+
+	return total_parts;
+}
+
+
+int
+Problem::get_ODE_body_numparts(const int i)
+{
+	if (!m_simparams.numbodies)
+		return 0;
+
+	return m_ODE_bodies[i]->GetParts().size();
+}
+
+
+int
 Problem::get_bodies_numparts(void)
 {
 	int total_parts = 0;
@@ -261,13 +316,37 @@ Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
 }
 
 
-float3* 
+/*float3*
 Problem::get_rigidbodies_cg(void)
 {
 	for (int i = 0; i < m_simparams.numbodies; i++)  {
 		m_bodies[i].GetCG(m_bodies_cg[i]);
 	}
+
+	return m_bodies_cg;
+}*/
+
+
+float3* 
+Problem::get_rigidbodies_cg(void)
+{
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_bodies[i].m_object->m_ODEBody));
+		//cout << "Body n " << i << "\tpos(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
+	}
 	
+	return m_bodies_cg;
+}
+
+
+float3*
+Problem::get_ODE_bodies_cg(void)
+{
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
+		//cout << "Body n " << i << "\tpos(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
+	}
+
 	return m_bodies_cg;
 }
 
@@ -279,19 +358,65 @@ Problem::get_rigidbodies_steprot(void)
 }
 
 
-void 
+/*void
 Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
-									const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
 {
 	for (int i = 0; i < m_simparams.numbodies; i++)  {
 		m_bodies[i].TimeStep(force[i], m_physparams.gravity, torque[i], step, dt,
 				m_bodies_cg + i, m_bodies_trans + i, m_bodies_steprot + 9*i);
-		}
+	}
+	cg = m_bodies_cg;
+	steprot = m_bodies_steprot;
+	trans = m_bodies_trans;
+}*/
+
+
+void
+Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+{
+	dReal prev_quat[MAXBODIES][4];
+	for (int i = 0; i < m_total_ODE_bodies; i++)  {
+		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+		prev_quat[i][0] = quat[0];
+		prev_quat[i][1] = quat[1];
+		prev_quat[i][2] = quat[2];
+		prev_quat[i][3] = quat[3];
+		dBodyAddForce(m_ODE_bodies[i]->m_ODEBody, force[i].x, force[i].y, force[i].z);
+		dBodyAddTorque(m_ODE_bodies[i]->m_ODEBody, torque[i].x, torque[i].y, torque[i].z);
+	}
+
+	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
+	dWorldStep(m_ODEWorld, dt);
+	dJointGroupEmpty(m_ODEJointGroup);
+
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
+		m_bodies_cg[i] = new_cg;
+		//cout << "Body n " << i << "\tcg(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
+		//cout << "Body n " << i << "\ttrans(" << m_bodies_trans[i].x << "," << m_bodies_trans[i].y << "," << m_bodies_trans[i].z << ")\n";
+		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+		dQuaternion step_quat;
+		dMatrix3 R;
+		dQMultiply2 (step_quat, new_quat, prev_quat[i]);
+		dQtoR (step_quat, R);
+		float *base_addr = m_bodies_steprot + 9*i;
+		base_addr[0] = R[0];
+		base_addr[1] = R[1];
+		base_addr[2] = R[2]; // Skipp R[3]
+		base_addr[3] = R[4];
+		base_addr[4] = R[5];
+		base_addr[5] = R[6]; // Skipp R[7]
+		base_addr[6] = R[8];
+		base_addr[7] = R[9];
+		base_addr[8] = R[10];
+	}
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 	trans = m_bodies_trans;
 }
-
 
 // Number of planes
 uint 

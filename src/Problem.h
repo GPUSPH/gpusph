@@ -47,12 +47,12 @@ using namespace std;
 
 class Problem {
 	private:
-		float	m_last_display_time;
-		float	m_last_write_time;
-		float	m_last_rbdata_write_time;
-		float	m_last_screenshot_time;
-		string	m_problem_dir;
-
+		float			m_last_display_time;
+		float			m_last_write_time;
+		float			m_last_rbdata_write_time;
+		float			m_last_screenshot_time;
+		string			m_problem_dir;
+		static int		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
 	public:
 		enum WriterType
 		{
@@ -95,6 +95,7 @@ class Problem {
 		int			m_mbnumber;							// number of moving boundaries
 
 		RigidBody	*m_bodies;							// array of RigidBody objects
+		Object		**m_ODE_bodies;						// array of Objects tat are floating bodies
 		float4		m_mbdata[MAXMOVINGBOUND];			// mb data to be provided by ParticleSystem to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
@@ -188,23 +189,27 @@ class Problem {
 		{
 			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
 		}
+
 		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
 		{
 			Problem* problem = (Problem *) data;
 			problem->ODE_near_callback(data, o1, o2);
 		}
-		virtual void ODE_timestep(float dt)
-		{
-		}
 
 		void allocate_bodies(const int);
+		void allocate_ODE_bodies(const int);
+		void add_ODE_body(Object* object);
+		Object* get_ODE_body(const int);
 		RigidBody* get_body(const int);
 		void get_rigidbodies_data(float3 * &, float * &);
 		float3* get_rigidbodies_cg(void);
+		float3* get_ODE_bodies_cg(void);
 		float* get_rigidbodies_steprot(void);
 		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
 									const double, float3 * &, float3 * &, float * &);
 		int	get_bodies_numparts(void);
 		int	get_body_numparts(const int);
+		int	get_ODE_bodies_numparts(void);
+		int	get_ODE_body_numparts(const int);
 };
 #endif

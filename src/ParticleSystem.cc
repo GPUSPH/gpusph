@@ -325,7 +325,7 @@ ParticleSystem::allocate(uint numParticles)
 
 	// Allocate storage for rigid bodies forces and torque computation
 	if (m_simparams.numbodies) {
-		m_numBodiesParticles = m_problem->get_bodies_numparts();
+		m_numBodiesParticles = m_problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
 		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
 		int memSizeRbNum = m_numBodiesParticles*sizeof(uint);
@@ -346,17 +346,17 @@ ParticleSystem::allocate(uint numParticles)
 
 		rbfirstindex[0] = 0;
 		for (int i = 1; i < m_simparams.numbodies; i++) {
-			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_body_numparts(i - 1);
+			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_ODE_body_numparts(i - 1);
 		}
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbstartindex", rbfirstindex, m_simparams.numbodies*sizeof(uint)));
 
 		int offset = 0;
 		for (int i = 0; i < m_simparams.numbodies; i++) {
-			m_hRbLastIndex[i] = m_problem->get_body_numparts(i) - 1 + offset;
-			for (int j = 0; j < m_problem->get_body_numparts(i); j++) {
+			m_hRbLastIndex[i] = m_problem->get_ODE_body_numparts(i) - 1 + offset;
+			for (int j = 0; j < m_problem->get_ODE_body_numparts(i); j++) {
 				rbnum[offset + j] = i;
 			}
-			offset += m_problem->get_body_numparts(i);
+			offset += m_problem->get_ODE_body_numparts(i);
 		}
 		size_t  size = m_numBodiesParticles*sizeof(uint);
 		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
@@ -830,7 +830,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case NEIBSLIST:
-			size = m_numParticles*MAXNEIBSNUM*sizeof(uint);
+			size = m_numParticles*m_simparams.maxneibsnum*sizeof(uint);
 			hdata = (void*) m_hNeibsList;
 			ddata = (void*) m_dNeibsList;
 			break;
@@ -1161,7 +1161,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// Copying floating bodies centers of gravity for torque computation in forces (needed only at first
 	// setp)
 	if (m_simparams.numbodies && m_iter == 0) {
-		cg = m_problem->get_rigidbodies_cg();
+		cg = m_problem->get_ODE_bodies_cg();
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
 
@@ -1218,16 +1218,16 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_euler, 0);
 		}
 
-	if (m_simparams.numbodies) {
+	/*if (m_simparams.numbodies) {
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
 						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
 
-		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
+		//m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt/2.0, cg, trans, rot);
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
 
-		m_problem->ODE_timestep(m_dt/2.0);
-	}
+		//m_problem->ODE_timestep(m_dt/2.0);
+	}*/
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
@@ -1261,10 +1261,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
-	if (m_simparams.numbodies) {
+	/*if (m_simparams.numbodies) {
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-	}
+	}*/
 
 	// setting moving boundaries data if necessary
 	if (m_simparams.mbcallback) {
@@ -1310,10 +1310,12 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
 
-		m_problem->ODE_timestep(m_dt/2.0);
+		//m_problem->ODE_timestep(m_dt/2.0);
 	}
 
 
@@ -1340,10 +1342,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
-	if (m_simparams.numbodies) {
+	/*if (m_simparams.numbodies) {
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
 		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-	}
+	}*/
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);

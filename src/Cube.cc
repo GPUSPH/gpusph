@@ -187,6 +187,29 @@ Cube::SetInertia(const double dx)
 
 
 void
+Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx)
+{
+	m_ODEBody = dBodyCreate(ODEWorld);
+	dMassSetZero(&m_ODEMass);
+	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_origin(0) + m_lx/2.0, m_origin(1) + m_ly/2.0, m_origin(2) + m_lz/2.0);
+	m_is_ODEBody_defined = true;
+}
+
+
+void
+Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
+	m_ODEGeom = dCreateBox(ODESpace, m_lx + dx, m_ly + dx, m_lz + dx);
+	if (m_is_ODEBody_defined)
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+	else
+		dGeomSetPosition(m_ODEGeom, m_origin(0) + m_lx/2.0, m_origin(1) + m_ly/2.0, m_origin(2) + m_lz/2.0);
+	m_is_ODEGeom_defined = true;
+}
+
+
+void
 Cube::FillBorder(PointVect& points, const double dx, const int face_num, const bool *edges_to_fill)
 {
 	Point   rorigin;
