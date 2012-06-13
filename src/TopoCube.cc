@@ -288,9 +288,9 @@ TopoCube::DemDist(const double x, const double y, const double z, double dx)
 {
 	if (dx > 0.5*min(m_nsres, m_ewres))
 		dx = 0.5*min(m_nsres, m_ewres);
-	const double z0 = DemInterpol(x/m_ewres, y/m_nsres);
-	const double z1 = DemInterpol((x + dx)/m_ewres, y/m_nsres);
-	const double z2 = DemInterpol(x/m_ewres, (y + dx)/m_nsres);
+	const double z0 = DemInterpol(x, y);
+	const double z1 = DemInterpol(x + dx, y);
+	const double z2 = DemInterpol(x, y + dx);
 	// A(x, y, z0) B(x + h, y, z1) C(x, y + h, z2)
 	// AB(h, 0, z1 - z0) AC(0, h, z2 - z0)
 	// AB^AC = ( -h*(z1 - z0), -h*(z2 - z0), h*h)
