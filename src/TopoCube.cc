@@ -333,16 +333,16 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 		for (int j = starty; j <= endy; j++) {
 			float x = m_origin(0) + (float) i/((float) nx)*m_vx(0) + (float) j/((float) ny)*m_vy(0);
 			float y = m_origin(1) + (float) i/((float) nx)*m_vx(1) + (float) j/((float) ny)*m_vy(1);
-			float z = DemInterpol(x, y);
-			while (z < H - dx) {
-				z += dx;
+			float z = H;
+			while (DemDist(x, y, z, dx) > dx) {
 				Point p(x, y, z, m_origin(3));
 				nparts ++;
 				if (fill)
 					points.push_back(p);
-				}
+				z -= dx;
 			}
 		}
+	}
 
 	return nparts;
 }
