@@ -268,16 +268,15 @@ TopoCube::DemInterpol(const double x, const double y)  // x and y ranging in [0,
 	const double xb = x/m_ewres;
 	const double yb = y/m_nsres;
 	int i = floor(xb);
+	int ip1 = i < m_ncols - 1 ? i + 1 : i;
 	int j = floor(yb);
+	int jp1 = j < m_nrows - 1 ? j + 1 : j;
 	const double a = xb - (float) i;
 	const double b = yb - (float) j;
 	double z = (1 - a)*(1 - b)*m_dem[i + j*m_ncols];
-	if (i < m_ncols - 1)
-		z +=  a*(1 - b)*m_dem[i + 1 + j*m_ncols];
-	if (j < m_nrows - 1)
-		z +=  (1 - a)*b*m_dem[i + (j + 1)*m_ncols];
-	if (i < m_ncols - 1 && j < m_nrows - 1)
-		z += a*b*m_dem[i + 1 + (j + 1)*m_ncols];
+	z +=  a*(1 - b)*m_dem[ ip1 + j*m_ncols];
+	z +=  (1 - a)*b*m_dem[i + jp1*m_ncols];
+	z += a*b*m_dem[ip1 + jp1*m_ncols];
 	return z;
 }
 
