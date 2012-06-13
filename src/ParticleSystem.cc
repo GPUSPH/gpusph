@@ -49,6 +49,7 @@
 #include "VTKWriter.h"
 #include "VTKLegacyWriter.h"
 #include "Problem.h"
+#include "Writer.h"
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -1658,4 +1659,96 @@ ParticleSystem::reducerbforces(void)
 		firstindex = lastindex + 1;
 	}
 }
+
+// WaveGage 
+void
+ParticleSystem::writeWaveGage()
+{	
+	float zgage = 0;
+	int kcheck = 0;
+
+
+	for (uint index = 0; index < m_numParticles; index++) {
+
+		if (PART_FLAG(m_hInfo[index]) == 1)
+		{
+			float4 pos = m_hPos[index];
+			
+
+			float uplimitx = m_simparams.xgage+2*m_simparams.slength;
+			float downlimitx = m_simparams.xgage-2*m_simparams.slength;
+			float uplimity = m_simparams.ygage+2*m_simparams.slength;
+			float downlimity = m_simparams.ygage-2*m_simparams.slength;
+
+			//Taking height average between neighbouring surface particles 
+			if ((pos.x > downlimitx) && (pos.x < uplimitx) && (pos.y > downlimity) && (pos.y < uplimity)){
+				kcheck ++;
+				zgage += pos.z;
+			}
+		} //if PART_FLAG
+	}//For loop over particles
+
+	zgage = zgage/kcheck;
+
+	//Writing the result on a VTK file	
+	static int fnum = 0;
+	stringstream ss;
+	
+	ss.width(5);
+	ss.fill('0');
+	ss << m_problem->get_dirname() << "/data/WaveGage_" << fnum << ".vtu";
+	
+	fnum++;
+	
+	FILE *fp = fopen(ss.str().c_str(),"w");
+	
+	
+	// Header
+	fprintf(fp,"<?xml version=\"1.0\"?>\r\n");
+	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
+	fprintf(fp," <UnstructuredGrid>\r\n");
+	fprintf(fp,"  <Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\r\n", 1, 1);
+	
+
+	fprintf(fp,"   <Points>\r\n");
+	fprintf(fp,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+	for (int i=0; i < 1; i++)
+		fprintf(fp,"%f\t%f\t%f\t",m_simparams.xgage, m_simparams.ygage, zgage);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"   </Points>\r\n");
+
+	// Cells data
+	fprintf(fp,"   <Cells>\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
+	for (int i = 0; i < 1; i++)
+		fprintf(fp,"%d\t", i);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"\r\n");
+
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
+	for (int i = 0; i < 1; i++)
+		fprintf(fp,"%d\t", i + 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
+	for (int i = 0; i < 1; i++)
+		fprintf(fp,"%d\t", 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+
+	fprintf(fp,"   </Cells>\r\n");
+
+	fprintf(fp,"  </Piece>\r\n");
+	fprintf(fp," </UnstructuredGrid>\r\n");
+	fprintf(fp,"</VTKFile>");
+
+	fclose(fp);
+
+}
+
+
 /****************************************************************************************************/

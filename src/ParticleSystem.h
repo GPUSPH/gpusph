@@ -124,6 +124,9 @@ class ParticleSystem
 		void savecellstartend();
 		void reducerbforces();
 
+		//WaveGage
+		void writeWaveGage ();
+
 		// Free surface detection (Debug)
 		void savenormals();
 

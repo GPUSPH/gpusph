@@ -341,6 +341,10 @@ typedef struct SimParams {
 	bool            testpoints;         // true if we want to find velocity at testpoints
 	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
+	//WaveGage
+	bool			writeWaveGage;
+	float			xgage;
+	float			ygage;
 	int				numbodies;			// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
@@ -365,6 +369,10 @@ typedef struct SimParams {
 		testpoints(false),
 		savenormals(false),
 		surfaceparticle(false),
+		//WaveGage 
+		writeWaveGage (false),
+		xgage(0),
+		ygage(0),
 		numbodies(0),
 		maxneibsnum(128)
 	{};

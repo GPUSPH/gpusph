@@ -449,6 +449,10 @@ void do_write()
 			ti.meanTimeNeibsList,
 			ti.meanTimeEuler);
 	#undef ti
+	//WaveGage
+	if (problem->m_simparams.writeWaveGage) {
+		psystem->writeWaveGage();
+	}
 	psystem->writeToFile();
 }
 
