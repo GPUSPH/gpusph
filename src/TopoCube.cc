@@ -232,13 +232,13 @@ TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, con
 	for (int i = nstart; i <= nend; i++) {
 		const double x = rorigin(0) + (double) i/((double) n)*v(0);
 		const double y = rorigin(1) + (double) i/((double) n)*v(1);
-		double z = DemInterpol(x, y);
-		while (z < m_H - dx) {
-			z += dx;
+		float z = m_H;
+		while (DemDist(x, y, z, dx) > 0) {
 			Point p(x, y, z, m_origin(3));
 			points.push_back(p);
-			}
+			z -= dx;
 		}
+	}
 }
 
 
