@@ -51,8 +51,11 @@ class TestTopo: public Problem {
 		~TestTopo(void);
 
 		int fill_parts(void);
+		uint fill_planes(void);
+
 		void draw_boundary(float);
 		void copy_to_array(float4*, float4*, particleinfo*);
+		void copy_planes(float4*, float*);
 
 		void release_memory(void);
 };

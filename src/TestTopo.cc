@@ -38,6 +38,9 @@
 #include "Point.h"
 #include "Vector.h"
 
+// set to 0 to use boundary particles, 1 to use boundary planes
+#define USE_PLANES 0
+
 #define EB experiment_box
 
 TestTopo::TestTopo(const Options &options) : Problem(options)
@@ -151,15 +154,46 @@ int TestTopo::fill_parts()
 
 	experiment_box->SetPartMass(m_deltap, m_physparams.rho0[0]);
 	//experiment_box->FillDem(boundary_parts, m_physparams.r0);
+#if !USE_PLANES
 	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 0, false);
 	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 1, true);
 	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 2, false);
 	experiment_box->FillBorder(boundary_parts, m_physparams.r0, 3, true);
+#endif
 	experiment_box->Fill(parts, 0.8, m_deltap, true);
 
 	return boundary_parts.size() + parts.size();
 }
 
+uint TestTopo::fill_planes()
+{
+#if USE_PLANES
+	return 4;
+#else
+	return 0;
+#endif
+}
+
+void TestTopo::copy_planes(float4 *planes, float *planediv)
+{
+	// planes are defined as a x + by +c z + d= 0
+
+	float sizex = experiment_box->get_vx()(0);
+	float sizey = experiment_box->get_vy()(1);
+
+	// north wall
+	planes[0] = make_float4(0, 1.0, 0, 0);
+	planediv[0] = 1.0;
+	// south wall
+	planes[1] = make_float4(0, -1.0, 0, sizey);
+	planediv[1] = 1.0;
+	// west wall
+	planes[2] = make_float4(1.0, 0, 0, 0);
+	planediv[2] = 1.0;
+	// east wall
+	planes[3] = make_float4(-1.0, 0, 0, sizex);
+	planediv[3] = 1.0;
+}
 
 void TestTopo::draw_boundary(float t)
 {
