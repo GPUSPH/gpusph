@@ -54,7 +54,9 @@ class OdeObjects: public Problem {
 		bool		wet;			// set wet to true have a wet bed experiment
 		// ODE and rigid body stuff
 		Sphere		sphere;
+		Cube		cube;
 		dGeomID		planes[5];
+		dJointID	joint;
 		
 
 	public:
@@ -66,7 +68,6 @@ class OdeObjects: public Problem {
 		void copy_to_array(float4 *, float4 *, particleinfo *);
 
 		void ODE_near_callback(void *, dGeomID, dGeomID);
-		void ODE_timestep(float);
 
 		void release_memory(void);
 };

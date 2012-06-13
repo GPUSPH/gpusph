@@ -141,6 +141,16 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 }
 
 
+/// Return the particle vector associated with the object
+/*! Return the particle vector associated with the object
+ *	\return number of particles needed to fill the object
+ */
+PointVect&
+Object::GetParts(void)
+{
+	return m_parts;
+}
+
 /// Draw a pallelogram 
 /*! Draw the parallelogram of summits p1, p2, p3, p4   
  * 

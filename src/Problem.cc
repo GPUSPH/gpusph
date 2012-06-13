@@ -42,6 +42,7 @@
 // here we need the complete definition of the GlobalData struct
 #include "GlobalData.h"
 
+int Problem::m_total_ODE_bodies = 0;
 
 Problem::Problem(const Options &options)
 {
@@ -68,7 +69,7 @@ Problem::~Problem(void)
     }
 }
 
-		
+
 float
 Problem::density(float h, int i)
 {
@@ -214,7 +215,7 @@ Problem::add_inlet(
 
 }
 
-bool 
+bool
 Problem::need_display(float t)
 {
 	if (t - m_last_display_time >= m_displayinterval) {
@@ -226,7 +227,7 @@ Problem::need_display(float t)
 }
 
 
-std::string 
+std::string
 Problem::create_problem_dir(void)
 {
 	// if no custom dir was set, create one based on the name of the problem plus the time
@@ -264,7 +265,7 @@ Problem::create_problem_dir(void)
 }
 
 
-bool 
+bool
 Problem::need_write(float t)
 {
 	if (m_writefreq == 0)
@@ -278,7 +279,7 @@ Problem::need_write(float t)
 }
 
 
-bool 
+bool
 Problem::need_write_rbdata(float t)
 {
 	if (m_rbdata_writeinterval == 0)
@@ -305,7 +306,7 @@ Problem::write_rbdata(float t)
 	}
 }
 
-bool 
+bool
 Problem::need_screenshot(float t)
 {
 	if (m_screenshotfreq == 0)
@@ -321,7 +322,7 @@ Problem::need_screenshot(float t)
 
 
 // is the simulation finished at the given time?
-bool 
+bool
 Problem::finished(float t)
 {
 	float tend(m_simparams.tend);
@@ -329,14 +330,14 @@ Problem::finished(float t)
 }
 
 
-MbCallBack& 
+MbCallBack&
 Problem::mb_callback(const float t, const float dt, const int i)
 {
 	return m_mbcallbackdata[i];
 };
 
 
-float3 
+float3
 Problem::g_callback(const float t)
 {
 	return make_float3(0.0);
@@ -525,7 +526,7 @@ void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
 	fillDeviceMapByAxesSplits(gdata, cutsX, cutsY, cutsZ);
 }
 
-void 
+void
 Problem::allocate_bodies(const int i)
 {
 	m_simparams.numbodies = i;
@@ -533,7 +534,15 @@ Problem::allocate_bodies(const int i)
 }
 
 
-RigidBody* 
+void
+Problem::allocate_ODE_bodies(const int i)
+{
+	m_simparams.numbodies = i;
+	m_ODE_bodies = new Object *[i];
+}
+
+
+RigidBody*
 Problem::get_body(const int i)
 {
 	if (i >= m_simparams.numbodies) {
@@ -545,7 +554,31 @@ Problem::get_body(const int i)
 }
 
 
-int 
+Object*
+Problem::get_ODE_body(const int i)
+{
+	if (i >= m_simparams.numbodies) {
+		stringstream ss;
+		ss << "get_ODE_body: body number " << i << " >= numbodies";
+		throw runtime_error(ss.str());
+	}
+	return m_ODE_bodies[i];
+}
+
+
+void
+Problem::add_ODE_body(Object* object)
+{
+	if (m_total_ODE_bodies >= m_simparams.numbodies) {
+		stringstream ss;
+		ss << "add_ODE_body: body number " << m_total_ODE_bodies << " >= numbodies";
+		throw runtime_error(ss.str());
+	}
+	m_ODE_bodies[m_total_ODE_bodies] = object;
+	m_total_ODE_bodies++;
+}
+
+int
 Problem::get_body_numparts(const int i)
 {
 	if (!m_simparams.numbodies)
@@ -555,7 +588,29 @@ Problem::get_body_numparts(const int i)
 }
 
 
-int 
+int
+Problem::get_ODE_bodies_numparts(void)
+{
+	int total_parts = 0;
+	for (int i = 0; i < m_simparams.numbodies; i++) {
+		total_parts += m_ODE_bodies[i]->GetParts().size();
+	}
+
+	return total_parts;
+}
+
+
+int
+Problem::get_ODE_body_numparts(const int i)
+{
+	if (!m_simparams.numbodies)
+		return 0;
+
+	return m_ODE_bodies[i]->GetParts().size();
+}
+
+
+int
 Problem::get_bodies_numparts(void)
 {
 	int total_parts = 0;
@@ -567,7 +622,7 @@ Problem::get_bodies_numparts(void)
 }
 
 
-void 
+void
 Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
 {
 	cg = m_bodies_cg;
@@ -575,38 +630,61 @@ Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
 }
 
 
-float3* 
+/*float3*
 Problem::get_rigidbodies_cg(void)
 {
 	for (int i = 0; i < m_simparams.numbodies; i++)  {
 		m_bodies[i].GetCG(m_bodies_cg[i]);
 	}
-	
+
+	return m_bodies_cg;
+}*/
+
+
+float3*
+Problem::get_rigidbodies_cg(void)
+{
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_bodies[i].m_object->m_ODEBody));
+		//cout << "Body n " << i << "\tpos(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
+	}
+
 	return m_bodies_cg;
 }
 
 
-float* 
+float3*
+Problem::get_ODE_bodies_cg(void)
+{
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
+		//cout << "Body n " << i << "\tpos(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
+	}
+
+	return m_bodies_cg;
+}
+
+
+float*
 Problem::get_rigidbodies_steprot(void)
 {
 	return m_bodies_steprot;
 }
 
 
-void 
+/*void
 Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
-									const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
 {
 	for (int i = 0; i < m_simparams.numbodies; i++)  {
 		m_bodies[i].TimeStep(force[i], m_physparams.gravity, torque[i], step, dt,
 				m_bodies_cg + i, m_bodies_trans + i, m_bodies_steprot + 9*i);
-		}
+	}
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 	trans = m_bodies_trans;
-}
+}*/
 
-// Maximum number of particles that may be generated
 uint
 Problem::max_parts(uint numParts)
 {
@@ -614,47 +692,92 @@ Problem::max_parts(uint numParts)
 		return numParts;
 
 	// if we have inlets, we (over)estimate the number of particles in all the inlets,
-	// and add a multiple of it to the number of particles
-	uint inletParts = 0;
-	for (uint inlet = 0; inlet < m_physparams.inlets; ++inlet) {
-		float3 range = as_float3(m_physparams.inlet_max[inlet]) - as_float3(m_physparams.inlet_min[inlet]);
-		range /= m_deltap; // regular fill
-		uint iparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
-		printf("  estimating %u particles in inlet %u\n", iparts, inlet);
+		// and add a multiple of it to the number of particles
+		uint inletParts = 0;
+		for (uint inlet = 0; inlet < m_physparams.inlets; ++inlet) {
+			float3 range = as_float3(m_physparams.inlet_max[inlet]) - as_float3(m_physparams.inlet_min[inlet]);
+			range /= m_deltap; // regular fill
+			uint iparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
+			printf("  estimating %u particles in inlet %u\n", iparts, inlet);
 
-		// number of 'fills', computed (if possible) from (inlet vel)*tend/(inlet disp)
-		float3 vel = as_float3(m_physparams.inlet_vel[inlet]);
-		if (!isfinite(vel.x)) vel.x = 0;
-		if (!isfinite(vel.y)) vel.y = 0;
-		if (!isfinite(vel.z)) vel.z = 0;
-		uint fills = length(vel)*m_simparams.tend/length(m_physparams.inlet_disp[inlet]);
-		if (fills > 0) {
-			printf("  estimating %u fills for inlet %u (%gs at %gm/s over %gm)\n", fills, inlet,
+			// number of 'fills', computed (if possible) from (inlet vel)*tend/(inlet disp)
+			float3 vel = as_float3(m_physparams.inlet_vel[inlet]);
+			if (!isfinite(vel.x)) vel.x = 0;
+			if (!isfinite(vel.y)) vel.y = 0;
+			if (!isfinite(vel.z)) vel.z = 0;
+			uint fills = length(vel)*m_simparams.tend/length(m_physparams.inlet_disp[inlet]);
+			if (fills > 0) {
+				printf("  estimating %u fills for inlet %u (%gs at %gm/s over %gm)\n", fills, inlet,
 				m_simparams.tend, length(vel), length(m_physparams.inlet_disp[inlet]));
-		} else {
-			fills = 2;
-			printf("Could not estimate fills for inlet %u, defaulting to %u\n", inlet, fills);
+			} else {
+				fills = 2;
+				printf("Could not estimate fills for inlet %u, defaulting to %u\n", inlet, fills);
+			}
+
+			inletParts += iparts*fills;
+
 		}
 
-		inletParts += iparts*fills;
+		// however, we assume that we can't have more particles than by filling the whole domain:
+		float3 range = get_worldsize();
+		range /= m_deltap; // regular fill
+		uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
+		printf("  estimating %u particles to fill the world\n", wparts);
 
-	}
+		uint maxparts = min(wparts, numParts + inletParts);
 
-	// however, we assume that we can't have more particles than by filling the whole domain:
-	float3 range = get_worldsize();
-	range /= m_deltap; // regular fill
-	uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
-	printf("  estimating %u particles to fill the world\n", wparts);
-
-	uint maxparts = min(wparts, numParts + inletParts);
-
-	return maxparts;
+		return maxparts;
 
 }
 
+void
+Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+{
+	dReal prev_quat[MAXBODIES][4];
+	for (int i = 0; i < m_total_ODE_bodies; i++)  {
+		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+		prev_quat[i][0] = quat[0];
+		prev_quat[i][1] = quat[1];
+		prev_quat[i][2] = quat[2];
+		prev_quat[i][3] = quat[3];
+		dBodyAddForce(m_ODE_bodies[i]->m_ODEBody, force[i].x, force[i].y, force[i].z);
+		dBodyAddTorque(m_ODE_bodies[i]->m_ODEBody, torque[i].x, torque[i].y, torque[i].z);
+	}
+
+	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
+	dWorldStep(m_ODEWorld, dt);
+	dJointGroupEmpty(m_ODEJointGroup);
+
+	for (int i = 0; i < m_simparams.numbodies; i++)  {
+		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
+		m_bodies_cg[i] = new_cg;
+		//cout << "Body n " << i << "\tcg(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
+		//cout << "Body n " << i << "\ttrans(" << m_bodies_trans[i].x << "," << m_bodies_trans[i].y << "," << m_bodies_trans[i].z << ")\n";
+		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+		dQuaternion step_quat;
+		dMatrix3 R;
+		dQMultiply2 (step_quat, new_quat, prev_quat[i]);
+		dQtoR (step_quat, R);
+		float *base_addr = m_bodies_steprot + 9*i;
+		base_addr[0] = R[0];
+		base_addr[1] = R[1];
+		base_addr[2] = R[2]; // Skipp R[3]
+		base_addr[3] = R[4];
+		base_addr[4] = R[5];
+		base_addr[5] = R[6]; // Skipp R[7]
+		base_addr[6] = R[8];
+		base_addr[7] = R[9];
+		base_addr[8] = R[10];
+	}
+	cg = m_bodies_cg;
+	steprot = m_bodies_steprot;
+	trans = m_bodies_trans;
+}
 
 // Number of planes
-uint 
+uint
 Problem::fill_planes(void)
 {
 	return 0;
@@ -662,14 +785,14 @@ Problem::fill_planes(void)
 
 
 // Copy planes for upload
-void 
+void
 Problem::copy_planes(float4*, float*)
 {
 	return;
 }
 
 
-float4* 
+float4*
 Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
@@ -712,24 +835,24 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 
 void
 Problem::draw_axis()
-{	
+{
 	float3 axis_center = m_origin + 0.5*m_size;
 	float axis_length = std::max(std::max(m_size.x, m_size.y), m_size.z)/4.0;
-	
+
 	/* X axis in green */
 	glColor3f(0.0f, 0.8f, 0.0f);
 	glBegin(GL_LINES);
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
 	glVertex3f(axis_center.x + axis_length, axis_center.y, axis_center.z);
 	glEnd();
-	
+
 	/* Y axis in red */
 	glColor3f(0.8f, 0.0f, 0.0f);
 	glBegin(GL_LINES);
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
 	glVertex3f(axis_center.x, axis_center.y  + axis_length, axis_center.z);
 	glEnd();
-	
+
 	/* Z axis in blu */
 	glColor3f(0.0f, 0.0f, 0.8f);
 	glBegin(GL_LINES);

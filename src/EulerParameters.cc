@@ -46,6 +46,13 @@ EulerParameters::EulerParameters(const double * ep)
 }
 
 
+EulerParameters::EulerParameters(const float * ep)
+{
+	for (int i=0; i < 4; i++)
+		m_ep[i] = double(ep[i]);
+}
+
+
 /*!	Copy constructor
 	\param source : source data
 */

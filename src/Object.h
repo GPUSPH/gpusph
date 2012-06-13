@@ -48,16 +48,23 @@
 
 class Object {
 	protected:
-		EulerParameters		m_ep;			///< Euler parameters associated with the object
-		Point				m_center;		///< Coordinates of center of gravity
-		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
-		double				m_mass;			///< Mass of the object
-		
+		EulerParameters		m_ep;					///< Euler parameters associated with the object
+		Point				m_center;				///< Coordinates of center of gravity
+		double				m_inertia[3];			///< Inertia matrix in the principal axes of inertia frame
+		double				m_mass;					///< Mass of the object
+		PointVect			m_parts;				///< Particles belonging to the object
+		bool				m_is_ODEBody_defined;	///< True if object is linked to an ODE body, false otherwise
+		bool				m_is_ODEGeom_defined;	///< True if object is linked to an ODE geometry, false otherwise
 	public:
-		dBodyID				m_ODEBody;
-		dGeomID				m_ODEGeom;
+		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
+		dGeomID				m_ODEGeom;		///< ODE geometry ID assicuated with the object
+		dMass				m_ODEMass;		///< ODE iniertial parameters of the object
 
-		Object(void) {};
+		Object(void) {
+			m_is_ODEBody_defined = false;
+			m_is_ODEGeom_defined = false;
+		};
+
 		virtual ~Object(void) {};
 
 		/// \name Mass related functions
@@ -96,6 +103,24 @@ class Object {
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
 		
+		/// Returns the particle vector associatet with the object
+		PointVect& GetParts(void);
+
+		/// \name ODE related functions
+		//@{
+		/// Compute the matrix of inertia
+		/*! This function compute the matrix of inertia of the obkect in the inertial
+		 *  frame (i.e. the 3 diagonal components) and store it in the m_inertia array.
+		 *	For the same reasons as volume, the inertia depends on particle spacing.
+		 *	\param dx : particle spacing
+		 *
+		 *  This function is pure virtual and then as to be defined at child level
+		 */
+		virtual void ODEBodyCreate(dWorldID, const double) {};
+
+		virtual void ODEGeomCreate(dSpaceID, const double) {};
+		//@}
+
 		/// \name Drawing functions
 		//@{
 		void GLDrawQuad(const Point&, const Point&, const Point&, const Point&) const;
