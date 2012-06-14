@@ -52,6 +52,7 @@ class Sphere: public Object {
 
 		void GLDraw(void) const;
 		void GLDraw(const EulerParameters&, const Point&) const;
+		void GLDraw(const dMatrix3, const Point&) const;
 		
 		bool IsInside(const Point&, const double) const;
 };
