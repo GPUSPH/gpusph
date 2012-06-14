@@ -65,6 +65,7 @@ class Point {
 		void SetCoord(double *);
 		
 		Point Rot(const dMatrix3);
+		Point TransposeRot(const dMatrix3);
 
 		/*! \name
 			Distance calculation
