@@ -1663,58 +1663,47 @@ ParticleSystem::reducerbforces(void)
 // WaveGage 
 void
 ParticleSystem::writeWaveGage()
-{		
+{
 	float uplimitx, downlimitx, uplimity, downlimity;
-	
 
+	int num =  m_simparams->gage.size();
 
-	for (int i=0; i < m_simparams->WaveGageNum ; i++) {
-		
+	for (int i = 0 ; i < num; ++i) {
 		uplimitx = m_simparams->gage[i].x+2*m_simparams->slength;
 		downlimitx = m_simparams->gage[i].x-2*m_simparams->slength;
 		uplimity = m_simparams->gage[i].y+2*m_simparams->slength;
 		downlimity = m_simparams->gage[i].y-2*m_simparams->slength;
 		int kcheck = 0;
-		
-		
-	for (uint index = 0; index < m_numParticles; index++) {
 
-		if (PART_FLAG(m_hInfo[index]) == 1)
-		{
-			float4 pos = m_hPos[index];
-								
+		for (uint index = 0; index < m_numParticles; index++) {
+			if (PART_FLAG(m_hInfo[index]) == 1) {
+				float4 pos = m_hPos[index];
+
 				//Taking height average between neighbouring surface particles 
 				if ((pos.x > downlimitx) && (pos.x < uplimitx) && (pos.y > downlimity) && (pos.y < uplimity)){
 					kcheck ++;
 					m_simparams->gage[i].z += pos.z;
 				}
-				
-						
-		} //if PART_FLAG
-	}//For loop over particles
+			} //if PART_FLAG
+		} //For loop over particles
 		m_simparams->gage[i].z = m_simparams->gage[i].z/kcheck;
 	} // For loop over WaveGages
 
 	//Write WaveGage information on one text file
 	m_writer->write_WaveGage(m_simTime,m_simparams->gage);
-	
 
 	//Writing the result on a VTK files	
 	static int fnum = 0;
 	stringstream ss;
-	
-	int num =  m_simparams->WaveGageNum;
-	
+
 	ss.width(5);
 	ss.fill('0');
 	ss << m_problem->get_dirname() << "/data/WaveGage_" << fnum << ".vtu";
-	
+
 	fnum++;
-	
+
 	FILE *fp = fopen(ss.str().c_str(),"w");
-	
-	
-	
+
 	// Header
 	fprintf(fp,"<?xml version=\"1.0\"?>\r\n");
 	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");

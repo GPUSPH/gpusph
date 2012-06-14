@@ -28,6 +28,8 @@
 #ifndef _SIMPARAMS_H
 #define _SIMPARAMS_H
 
+#include <vector>
+
 typedef struct MbCallBack {
 	short			type;
 	float			tstart;
@@ -42,6 +44,7 @@ typedef struct MbCallBack {
 	float			phase;
 } MbCallBack;
 
+typedef std::vector<float3> GageList;
 
 typedef struct SimParams {
 	float			slength;			// smoothing length
@@ -70,13 +73,7 @@ typedef struct SimParams {
 	bool            testpoints;         // true if we want to find velocity at testpoints
 	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
-	//WaveGage
-	bool			writeWaveGage;		//true if we want to use a wave gage
-	float			xgage;
-	float			ygage;
-	//Rozita
-	float3			gage[10];
-	float			WaveGageNum;
+	GageList		gage;				// water gages
 	int				numbodies;			// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
@@ -101,10 +98,6 @@ typedef struct SimParams {
 		testpoints(false),
 		savenormals(false),
 		surfaceparticle(false),
-		//WaveGage 
-		writeWaveGage (false),
-		xgage(0),
-		ygage(0),
 		numbodies(0),
 		maxneibsnum(128)
 	{};

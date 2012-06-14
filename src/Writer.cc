@@ -61,7 +61,7 @@ Writer::Writer(const Problem *problem)
 	} else {
 		fputs("#\ttime", m_WaveGagefile);
 		uint gage = 0;
-		for (; gage <problem->get_simparams()->WaveGageNum; ++gage)
+		for (; gage < problem->get_simparams()->gage.size(); ++gage)
 			fprintf(m_WaveGagefile, "\tzgage%u",
 					gage);
 		fputs("\n", m_WaveGagefile);
@@ -87,10 +87,10 @@ Writer::write_energy(float t, float4 *energy)
 
 //WaveGage
 void
-Writer::write_WaveGage(float t, float3 *gage)
+Writer::write_WaveGage(float t, GageList const& gage)
 {
 	fprintf(m_WaveGagefile, "%g", t);
-	for (int i=0; i < m_problem->get_simparams()->WaveGageNum; i++) {
+	for (int i=0; i < gage.size(); i++) {
 		fprintf(m_WaveGagefile, "\t%g",
 				gage[i].z);
 	}

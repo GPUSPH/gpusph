@@ -92,15 +92,8 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.savenormals = true;
 
 	//WaveGage
-	m_simparams. writeWaveGage = true;
-	m_simparams. WaveGageNum = 2;
-	m_simparams.gage[0].x = 1;
-	m_simparams.gage[0].y = 0.3;
-	m_simparams.gage[1].x = 0.5;
-	m_simparams.gage[1].y = 0.3;
-	
-	m_simparams. xgage = 1;
-	m_simparams. ygage = 0.3;
+	m_simparams.gage.push_back(make_float3(1, 0.3, 0));
+	m_simparams.gage.push_back(make_float3(0.5, 0.3, 0));
 
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 

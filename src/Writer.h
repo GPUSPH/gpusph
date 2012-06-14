@@ -55,7 +55,7 @@ public:
 
 	virtual void write_energy(float t, float4 *energy);
 	//WaveGage
-	virtual void write_WaveGage(float t, float3 *gage);
+	virtual void write_WaveGage(float t, GageList const& gage);
 
 protected:
 	string			m_dirname;

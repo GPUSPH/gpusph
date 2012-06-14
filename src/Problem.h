@@ -156,7 +156,7 @@ class Problem {
 		{
 			return &m_simparams;
 		};
-	
+
 		const PhysParams *get_physparams(void) const
 		{
 			return &m_physparams;
