@@ -136,8 +136,8 @@ class ParticleSystem
 		bool		m_neiblist_built;	// has the neib list ever been built?
 
 		// Physicals and simulation parameters
-		PhysParams	m_physparams;
-		SimParams	m_simparams;
+		PhysParams	*m_physparams;
+		SimParams	*m_simparams;
 		float		m_influenceRadius;		// slength*kernelRadius
 		float		m_nlInfluenceRadius;	// influence radius for neib list construction
 		float		m_nlSqInfluenceRadius;	// square influence radius for neib list construction

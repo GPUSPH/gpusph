@@ -147,19 +147,24 @@ class Problem {
 			return m_deltap;
 		}
 
-		const SimParams &get_simparams(void) const
+		const SimParams *get_simparams(void) const
 		{
-			return m_simparams;
+			return &m_simparams;
 		};
 
-		SimParams &get_simparams(void)
+		SimParams *get_simparams(void)
 		{
-		return m_simparams;
+			return &m_simparams;
 		};
 	
-	const PhysParams &get_physparams(void) const
+		const PhysParams *get_physparams(void) const
 		{
-			return m_physparams;
+			return &m_physparams;
+		};
+
+		PhysParams *get_physparams(void)
+		{
+			return &m_physparams;
 		};
 
 		string create_problem_dir();
