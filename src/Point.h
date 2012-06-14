@@ -58,8 +58,8 @@ class Point {
 		Point(const Point &);
 		Point(const float3 &);
 		Point(const float4 &);
-		Point(float *);
-		Point(double *);
+		Point(const float *);
+		Point(const double *);
 		~Point(void) {};
 
 		void SetCoord(double *);
