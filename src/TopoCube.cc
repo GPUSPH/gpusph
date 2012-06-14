@@ -190,7 +190,7 @@ TopoCube::SetPartMass(const double dx, const double rho)
 {
 	const double mass = dx*dx*dx*rho;
 
-	m_center(3) = mass;
+	m_origin(3) = m_center(3) = mass;
 	return mass;
 }
 
@@ -201,7 +201,6 @@ TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, con
 	Point   rorigin;
 	Vector  v;
 
-	m_origin(3) = m_center(3);
 	switch(face_num){
 		case 0:
 			rorigin = m_origin;
