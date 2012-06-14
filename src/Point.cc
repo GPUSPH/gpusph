@@ -88,7 +88,7 @@ Point::Point(const float4 &pt)
 /// Constructor from double coordinates array
 /*!	\param xx : coordinates array
 */
-Point::Point(double *xx)
+Point::Point(const double *xx)
 {
 	x[0] = xx[0];
 	x[1] = xx[1];
@@ -100,7 +100,7 @@ Point::Point(double *xx)
 /// Constructor from float coordinates array
 /*!	\param xx : coordinates array
 */
-Point::Point(float *xx)
+Point::Point(const float *xx)
 {
 	x[0] = xx[0];
 	x[1] = xx[1];
