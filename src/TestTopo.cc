@@ -39,7 +39,7 @@
 #include "Vector.h"
 
 // set to 0 to use boundary particles, 1 to use boundary planes
-#define USE_PLANES 0
+#define USE_PLANES 1
 
 #define EB experiment_box
 
