@@ -38,6 +38,7 @@
 
 #include <vector>
 #include "Vector.h"
+#include "ode/ode.h"
 
 class Vector;
 
@@ -57,6 +58,7 @@ class Point {
 		Point(const Point &);
 		Point(const float3 &);
 		Point(const float4 &);
+		Point(float *);
 		Point(double *);
 		~Point(void) {};
 
@@ -114,9 +116,13 @@ class Point {
 		void print(void);
 };
 
-float4 make_float4(const Point &pt);
+float4 make_float4(const Point &);
 
-float3 make_float3(const Point &pt);
+float3 make_float3(const Point &);
+
+void make_dvector3(const Point &, dVector3);
+
+void make_dvector4(const Point &, dVector4);
 
 typedef std::vector<Point> PointVect;
 #endif
