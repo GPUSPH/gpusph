@@ -32,6 +32,7 @@
 #include <cstdlib>
 
 #include "Sphere.h"
+#include "gl_utils.h"
 
 
 Sphere::Sphere(void)
@@ -178,8 +179,24 @@ Sphere::GLDraw(const EulerParameters& ep, const Point& cg) const
 	#undef CIRCLE_LINES
 }
 
+
+void
+Sphere::GLDraw(const dMatrix3 rot, const Point& cg) const
+{
+	  glEnable(GL_NORMALIZE);
+	  GLSetTransform(cg, rot);
+	  glScaled(m_r, m_r, m_r);
+	  GLDrawUnitSphere();
+	  glPopMatrix();
+	  glDisable(GL_NORMALIZE);
+}
+
+
 void
 Sphere::GLDraw(void) const
 {
-	GLDraw(m_ep, m_center);
+	if (m_is_ODEBody_defined)
+		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
+	else
+		GLDraw(m_ODERot, m_center);
 }
