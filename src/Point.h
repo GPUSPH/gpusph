@@ -64,6 +64,8 @@ class Point {
 
 		void SetCoord(double *);
 		
+		Point Rot(const dMatrix3);
+
 		/*! \name
 			Distance calculation
 		*/
@@ -112,6 +114,7 @@ class Point {
 		friend double dist(const Point &, const Point &);
 		friend double distsq(const Point &, const Point &);
 		//\}
+
 		// DEBUG
 		void print(void);
 };
