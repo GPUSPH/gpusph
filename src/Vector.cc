@@ -93,7 +93,7 @@ Vector::Vector(const float4 &v)
 /// Constructor from double coordinates array
 /*!	\param xx : coordinates array
 */
-Vector::Vector(double *xx)
+Vector::Vector(const double *xx)
 {
 	x[0] = xx[0];
 	x[1] = xx[1];
@@ -105,7 +105,7 @@ Vector::Vector(double *xx)
 /// Constructor from float coordinates array
 /*!	\param xx : coordinates array
 */
-Vector::Vector(float *xx)
+Vector::Vector(const float *xx)
 {
 	x[0] = xx[0];
 	x[1] = xx[1];
@@ -121,6 +121,18 @@ Vector::Rot(const dMatrix3 rot)
 	res(0) = rot[0]*x[0] + rot[1]*x[1] + rot[2]*x[2];
 	res(1) = rot[4]*x[0] + rot[5]*x[1] + rot[6]*x[2];
 	res(2) = rot[8]*x[0] + rot[9]*x[1] + rot[10]*x[2];
+
+	return res;
+}
+
+
+Vector
+Vector::TransposeRot(const dMatrix3 rot)
+{
+	Vector res;
+	res(0) = rot[0]*x[0] + rot[4]*x[1] + rot[8]*x[2];
+	res(1) = rot[1]*x[0] + rot[5]*x[1] + rot[9]*x[2];
+	res(2) = rot[2]*x[0] + rot[6]*x[1] + rot[10]*x[2];
 
 	return res;
 }

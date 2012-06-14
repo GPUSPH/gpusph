@@ -57,11 +57,12 @@ class Vector {
 		Vector(double xx = 0, double yy = 0, double zz = 0);
 		Vector(const float3 &);
 		Vector(const float4 &);
-		Vector(float *);
-		Vector(double *);
+		Vector(const float *);
+		Vector(const double *);
 		~Vector(void) {};
 
 		Vector Rot(const dMatrix3);
+		Vector TransposeRot(const dMatrix3);
 
 		/*! Return the norm of vector */
 		double norm(void) const;
