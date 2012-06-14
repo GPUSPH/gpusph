@@ -85,7 +85,7 @@ Point::Point(const float4 &pt)
 }
 
 
-/// Constructor from coordinates array
+/// Constructor from double coordinates array
 /*!	\param xx : coordinates array
 */
 Point::Point(double *xx)
@@ -93,7 +93,19 @@ Point::Point(double *xx)
 	x[0] = xx[0];
 	x[1] = xx[1];
 	x[2] = xx[2];
-		x[3] = xx[3];
+	x[3] = xx[3];
+}
+
+
+/// Constructor from float coordinates array
+/*!	\param xx : coordinates array
+*/
+Point::Point(float *xx)
+{
+	x[0] = xx[0];
+	x[1] = xx[1];
+	x[2] = xx[2];
+	x[3] = xx[3];
 }
 
 
@@ -379,6 +391,35 @@ double distsq(const Point &pnt1, const Point &pnt2)
 	return pnt1.DistSquared(pnt2);
 }
 
+
+float4 make_float4(const Point &pt)
+{
+	return make_float4(pt(0), pt(1), pt(2), pt(3));
+}
+
+
+float3 make_float3(const Point &pt)
+{
+	return make_float3(pt(0), pt(1), pt(2));
+}
+
+
+void make_dvector3(const Point &pt, dVector3 vec)
+{
+	vec[0] = pt(0);
+	vec[1] = pt(1);
+	vec[2] = pt(2);
+}
+
+
+void make_dvector4(const Point &pt, dVector4 vec)
+{
+	vec[0] = pt(0);
+	vec[1] = pt(1);
+	vec[2] = pt(2);
+	vec[3] = pt(3);
+}
+
 // DEBUG
 #include <iostream>
 void Point::print(void)
@@ -386,14 +427,3 @@ void Point::print(void)
 	std::cout << "Point (" << x[0] << ", " << x[1] << ", " << x[2] << ") mass = " << x[3] << "\n";
 	return;
 }
-
-float4 make_float4(const Point &pt)
-{
-	return make_float4(pt(0), pt(1), pt(2), pt(3));
-}
-
-float3 make_float3(const Point &pt)
-{
-	return make_float3(pt(0), pt(1), pt(2));
-}
-
