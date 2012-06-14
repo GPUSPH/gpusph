@@ -178,21 +178,7 @@ void TestTopo::copy_planes(float4 *planes, float *planediv)
 {
 	// planes are defined as a x + by +c z + d= 0
 
-	float sizex = experiment_box->get_vx()(0);
-	float sizey = experiment_box->get_vy()(1);
-
-	// north wall
-	planes[0] = make_float4(0, 1.0, 0, 0);
-	planediv[0] = 1.0;
-	// south wall
-	planes[1] = make_float4(0, -1.0, 0, sizey);
-	planediv[1] = 1.0;
-	// west wall
-	planes[2] = make_float4(1.0, 0, 0, 0);
-	planediv[2] = 1.0;
-	// east wall
-	planes[3] = make_float4(-1.0, 0, 0, sizex);
-	planediv[3] = 1.0;
+	experiment_box->get_planes(planes, planediv);
 }
 
 void TestTopo::draw_boundary(float t)
