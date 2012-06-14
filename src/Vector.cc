@@ -42,7 +42,6 @@ Vector::Vector(const Point &pnt1, const Point &pnt2)
 }
 
 
-
 /// Constructor
 /*! Constructor from vector coordinates
 	\param xx : x vector coordinate
@@ -64,6 +63,66 @@ Vector::Vector(const Vector &source)
 	x[0] = source.x[0];
 	x[1] = source.x[1];
 	x[2] = source.x[2];
+}
+
+
+/// Constructor from float3
+/*!	\param pt : float3
+  the fourth component (mass) is initialized to 0
+*/
+Vector::Vector(const float3 &v)
+{
+	x[0] = v.x;
+	x[1] = v.y;
+	x[2] = v.z;
+	x[3] = 0;
+}
+
+/// Constructor from float4
+/*!	\param pt : float4
+*/
+Vector::Vector(const float4 &v)
+{
+	x[0] = v.x;
+	x[1] = v.y;
+	x[2] = v.z;
+	x[3] = v.w;
+}
+
+
+/// Constructor from double coordinates array
+/*!	\param xx : coordinates array
+*/
+Vector::Vector(double *xx)
+{
+	x[0] = xx[0];
+	x[1] = xx[1];
+	x[2] = xx[2];
+	x[3] = xx[3];
+}
+
+
+/// Constructor from float coordinates array
+/*!	\param xx : coordinates array
+*/
+Vector::Vector(float *xx)
+{
+	x[0] = xx[0];
+	x[1] = xx[1];
+	x[2] = xx[2];
+	x[3] = xx[3];
+}
+
+
+Vector
+Vector::Rot(const dMatrix3 rot)
+{
+	Vector res;
+	res(0) = rot[0]*x[0] + rot[1]*x[1] + rot[2]*x[2];
+	res(1) = rot[4]*x[0] + rot[5]*x[1] + rot[6]*x[2];
+	res(2) = rot[8]*x[0] + rot[9]*x[1] + rot[10]*x[2];
+
+	return res;
 }
 
 
@@ -334,6 +393,35 @@ Vector operator/(const Vector &vect, double k)
 {
 	Vector res = vect;
 	return res /= k;
+}
+
+
+float4 make_float4(const Vector &v)
+{
+	return make_float4(v(0), v(1), v(2), v(3));
+}
+
+
+float3 make_float3(const Vector &v)
+{
+	return make_float3(v(0), v(1), v(2));
+}
+
+
+void make_dvector3(const Vector &v, dVector3 vec)
+{
+	vec[0] = v(0);
+	vec[1] = v(1);
+	vec[2] = v(2);
+}
+
+
+void make_dvector4(const Vector &v, dVector4 vec)
+{
+	vec[0] = v(0);
+	vec[1] = v(1);
+	vec[2] = v(2);
+	vec[3] = v(3);
 }
 
 
