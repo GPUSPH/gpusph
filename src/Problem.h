@@ -38,6 +38,8 @@
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
 
 
 using namespace std;
