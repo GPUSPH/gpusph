@@ -121,6 +121,18 @@ Point::Rot(const dMatrix3 rot)
 }
 
 
+Point
+Point::TransposeRot(const dMatrix3 rot)
+{
+	Point res;
+	res(0) = rot[0]*x[0] + rot[4]*x[1] + rot[8]*x[2];
+	res(1) = rot[1]*x[0] + rot[5]*x[1] + rot[9]*x[2];
+	res(2) = rot[2]*x[0] + rot[6]*x[1] + rot[10]*x[2];
+
+	return res;
+}
+
+
 void
 Point::SetCoord(double *data)
 {
