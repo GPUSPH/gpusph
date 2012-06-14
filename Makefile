@@ -164,7 +164,7 @@ endif
 # -------------------------- CFLAGS section -------------------------- #
 
 # nvcc-specific CFLAGS
-CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE)
+CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE) -DdSINGLE
 
 # Default CFLAGS (see notes below)
 ifeq ($(platform), Darwin)
@@ -264,17 +264,17 @@ endif
 # some platform-dependent configurations
 ifeq ($(platform), Linux)
 	# we need linking to SDKs for lGLEW
-	INCPATH=-I $(CUDA_INSTALL_PATH)/include -I $(CUDA_SDK_PATH)/shared/inc
-	LIBPATH=-L /usr/local/lib -L $(CUDA_SDK_PATH)shared/lib/linux -L $(CUDA_SDK_PATH)lib -L $(CUDA_SDK_PATH)/C/common/lib/linux/
-	LIBS=-lstdc++ -lcudart -lGL -lGLU -lglut -lGLEW$(GLEW_ARCH_SFX)
+	INCPATH=-I $(CUDA_INSTALL_PATH)/include -I $(CUDA_SDK_PATH)/shared/inc 
+	LIBPATH=-L /usr/local/lib -L $(CUDA_SDK_PATH)shared/lib/linux -L $(CUDA_SDK_PATH)lib -L $(CUDA_SDK_PATH)/C/common/lib/linux/ -L /usr/local/lib
+	LIBS=-lstdc++ -lcudart -lGL -lGLU -lglut -lGLEW$(GLEW_ARCH_SFX) -ode
 	LFLAGS=
 # 	CC=nvcc
 # 	CXX=$(CC)
 # 	LINKER=$(CXX)
 else ifeq ($(platform), Darwin)
 	INCPATH=-I $(CUDA_SDK_PATH)/C/common/inc/
-	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/C/common/lib/darwin/ -L$(CUDA_SDK_PATH)/C/lib/ -L/usr/local/cuda/lib
-	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/C/common/lib/darwin/libGLEW.a -lcudart
+	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/C/common/lib/darwin/ -L$(CUDA_SDK_PATH)/C/lib/ -L/usr/local/cuda/lib -L /usr/local/lib
+	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/C/common/lib/darwin/libGLEW.a -lcudart -lode
 	# Netbeans g++ flags: "-fPic -m32 -arch i386 -framework GLUT"
 	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker /usr/local/cuda/lib
 	CC=$(NVCC)
