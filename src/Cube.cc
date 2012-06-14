@@ -31,6 +31,8 @@
 #include "Cube.h"
 #include "Rect.h"
 
+#include "gl_utils.h"
+
 
 Cube::Cube(void)
 {
@@ -44,18 +46,38 @@ Cube::Cube(void)
 Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const EulerParameters &ep)
 {
 	m_origin = origin;
-	
+
 	m_ep = ep;
 	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
 	m_lz = lz;
-	
+
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
 	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
-	
+
 	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	m_origin.print();
+	m_center.print();
+}
+
+
+Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
+{
+	m_origin = origin;
+
+	dQtoR(quat, m_ODERot);
+
+	m_lx = lx;
+	m_ly = ly;
+	m_lz = lz;
+
+	m_vx = m_lx*Vector(1, 0, 0).Rot(m_ODERot);
+	m_vy = m_ly*Vector(0, 1, 0).Rot(m_ODERot);
+	m_vz = m_lz*Vector(0, 0, 1).Rot(m_ODERot);
+
+	m_center = m_origin + 0.5*Vector(m_lx, m_ly, m_lz).Rot(m_ODERot);
 	m_origin.print();
 	m_center.print();
 }
@@ -158,8 +180,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 		axis(2) = 0.0;
 	}
 	
-	m_ep = EulerParameters(axis, angle);
-	m_ep.ComputeRot();
+	dRFromAxisAndAngle (m_ODERot, axis(0), axis(1), axis(2), angle);
 }
 
 
@@ -341,7 +362,7 @@ Cube::InnerFill(PointVect& points, const double dx)
 bool
 Cube::IsInside(const Point& p, const double dx) const
 {
-	Point lp = m_ep.TransposeRot(p - m_origin);
+	Point lp = (p - m_origin).TransposeRot(m_ODERot);
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;
 	const double lz = m_lz + dx;
@@ -387,7 +408,19 @@ Cube::GLDraw(const EulerParameters& ep, const Point& cg) const
 
 
 void
+Cube::GLDraw(const dMatrix3 rot, const Point& cg) const
+{
+	GLSetTransform (cg, rot);
+	GLDrawBox (m_lx, m_ly, m_lz);
+	glPopMatrix();
+}
+
+
+void
 Cube::GLDraw(void) const
 {
-	GLDraw(m_ep, m_center);
+	if (m_is_ODEBody_defined)
+		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
+	else
+		GLDraw(m_ODERot, m_center);
 }

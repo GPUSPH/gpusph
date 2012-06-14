@@ -47,6 +47,7 @@ class Cube: public Object {
 	public:
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters&);
+		Cube(const Point&, const double, const double, const double, const dQuaternion);
 		Cube(const Point&, const Vector&, const Vector&, const Vector&);
 		virtual ~Cube(void) {};
 
@@ -73,6 +74,7 @@ class Cube: public Object {
 		
 		void GLDraw(void) const;
 		void GLDraw(const EulerParameters&, const Point&) const;
+		void GLDraw(const dMatrix3, const Point&) const;
 		
 		bool IsInside(const Point&, const double) const;
 };
