@@ -1076,7 +1076,7 @@ void calcEnergies(
 
 	uint gid = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	uint stride = INTMUL(gridDim.x,blockDim.x);
-	// .x kinetic, .y potential, .z internal (not computed here)
+	// .x kinetic, .y potential, .z internal
 	float4 energy[MAX_FLUID_TYPES], E_k[MAX_FLUID_TYPES];
 
 #pragma unroll
@@ -1093,6 +1093,14 @@ void calcEnergies(
 			float gh = kahan_dot(d_gravity, as_float3(pos));
 			kahan_add(energy[fluid_num].x, pos.w*v2/2, E_k[fluid_num].x);
 			kahan_add(energy[fluid_num].y, -pos.w*gh, E_k[fluid_num].y);
+			// internal elastic energy
+			float gamma = d_gammacoeff[fluid_num];
+			float gm1 = d_gammacoeff[fluid_num]-1;
+			float rho0 = d_rho0[fluid_num];
+			float elen = __powf(vel.w/rho0, gm1)/gm1 + rho0/vel.w - gamma/gm1;
+			float ssp = soundSpeed(vel.w, fluid_num);
+			elen *= ssp*ssp/gamma;
+			kahan_add(energy[fluid_num].z, pos.w*elen, E_k[fluid_num].z);
 		}
 		gid += stride;
 	}
@@ -1119,6 +1127,8 @@ void calcEnergies(
 				kahan_add(energy[i].x, other.x, E_k[i].x);
 				kahan_add(energy[i].y, oth_k.y, E_k[i].y);
 				kahan_add(energy[i].y, other.y, E_k[i].y);
+				kahan_add(energy[i].z, oth_k.z, E_k[i].z);
+				kahan_add(energy[i].z, other.z, E_k[i].z);
 			}
 		}
 	}
@@ -1175,6 +1185,8 @@ void calcEnergies2(
 				kahan_add(energy[i].x, other.x, E_k[i].x);
 				kahan_add(energy[i].y, oth_k.y, E_k[i].y);
 				kahan_add(energy[i].y, other.y, E_k[i].y);
+				kahan_add(energy[i].z, oth_k.z, E_k[i].z);
+				kahan_add(energy[i].z, other.z, E_k[i].z);
 			}
 		}
 	}
