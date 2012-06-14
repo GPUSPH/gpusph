@@ -47,7 +47,7 @@ Writer::Writer(const Problem *problem)
 		uint fluid = 0;
 		for (; fluid < problem->get_physparams().numFluids; ++fluid)
 			fprintf(m_energyfile, "\tkinetic%u\tpotential%u\telastic%u",
-					fluid, fluid);
+					fluid, fluid, fluid);
 		fputs("\n", m_energyfile);
 	}
 }
