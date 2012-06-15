@@ -27,6 +27,7 @@
 #define __PARTICLESYSTEM_H__
 
 #include "buildneibs.cuh" // hashKey
+#include "timing.h"
 #include "Problem.h"
 #include "Writer.h"
 
