@@ -1066,6 +1066,23 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 
 	}
 	glEnd();
+
+	if (m_simparams->gage.size() > 0) {
+		float lw;
+		glGetFloatv(GL_LINE_WIDTH, &lw);
+		glLineWidth(2.0);
+		glBegin(GL_LINES);
+		glColor3f(0,0,0);
+		GageList::iterator g = m_simparams->gage.begin();
+		GageList::iterator end = m_simparams->gage.end();
+		while (g != end) {
+			glVertex3f(g->x, g->y, m_worldOrigin.z);
+			glVertex3f(g->x, g->y, m_worldSize.z);
+			++g;
+		}
+		glEnd();
+		glLineWidth(lw);
+	}
 }
 
 void
