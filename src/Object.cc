@@ -251,6 +251,9 @@ Object::GLDrawCircle(const EulerParameters& ep, const Point& center, const doubl
 }
 
 
+
+
+
 /// Fill the object with particles 
 /*! Fill the object by callin Fill(points, dx, true).
  * 

@@ -72,21 +72,22 @@ Sphere::SetInertia(const double dx)
 
 
 void
-Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx)
+Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {
 	m_ODEBody = dBodyCreate(ODEWorld);
 	dMassSetZero(&m_ODEMass);
 	dMassSetSphereTotal(&m_ODEMass, m_mass, m_r + dx/2.0);
 	dBodySetMass(m_ODEBody, &m_ODEMass);
 	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	m_is_ODEBody_defined = true;
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
 }
 
 
 void
 Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 	m_ODEGeom = dCreateSphere(ODESpace, m_r + dx/2.0);
-	if (m_is_ODEBody_defined)
+	if (m_ODEBody)
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
 	else
 		dGeomSetPosition(m_ODEGeom,  m_center(0), m_center(1), m_center(2));
@@ -195,7 +196,7 @@ Sphere::GLDraw(const dMatrix3 rot, const Point& cg) const
 void
 Sphere::GLDraw(void) const
 {
-	if (m_is_ODEBody_defined)
+	if (m_ODEBody)
 		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
 	else
 		GLDraw(m_ODERot, m_center);
