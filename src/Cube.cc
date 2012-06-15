@@ -180,7 +180,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 		axis(2) = 0.0;
 	}
 	
-	dRFromAxisAndAngle (m_ODERot, axis(0), axis(1), axis(2), angle);
+	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
 }
 
 
@@ -208,25 +208,28 @@ Cube::SetInertia(const double dx)
 
 
 void
-Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx)
+Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {
 	m_ODEBody = dBodyCreate(ODEWorld);
 	dMassSetZero(&m_ODEMass);
 	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
 	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_origin(0) + m_lx/2.0, m_origin(1) + m_ly/2.0, m_origin(2) + m_lz/2.0);
-	m_is_ODEBody_defined = true;
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dBodySetRotation(m_ODEBody, m_ODERot);
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
 }
 
 
 void
 Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	m_ODEGeom = dCreateBox(ODESpace, m_lx + dx, m_ly + dx, m_lz + dx);
-	if (m_is_ODEBody_defined)
+	m_ODEGeom = dCreateBox(ODESpace, m_lx, m_ly, m_lz);
+	if (m_ODEBody)
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else
-		dGeomSetPosition(m_ODEGeom, m_origin(0) + m_lx/2.0, m_origin(1) + m_ly/2.0, m_origin(2) + m_lz/2.0);
-	m_is_ODEGeom_defined = true;
+	else {
+		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
+		dGeomSetRotation(m_ODEGeom, m_ODERot);
+	}
 }
 
 
@@ -419,7 +422,7 @@ Cube::GLDraw(const dMatrix3 rot, const Point& cg) const
 void
 Cube::GLDraw(void) const
 {
-	if (m_is_ODEBody_defined)
+	if (m_ODEBody)
 		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
 	else
 		GLDraw(m_ODERot, m_center);
