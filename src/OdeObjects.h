@@ -39,7 +39,6 @@
 #include "Cone.h"
 #include "Torus.h"
 
-#define dSINGLE
 #include "ode/ode.h"
 
 class OdeObjects: public Problem {

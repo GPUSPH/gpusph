@@ -34,7 +34,7 @@
 #include "OdeObjects.h"
 #include "Point.h"
 #include "RigidBody.h"
-#include "drawstuff.h"
+
 
 OdeObjects::OdeObjects(const Options &options) : Problem(options)
 {
@@ -240,17 +240,13 @@ void OdeObjects::draw_boundary(float t)
 	glColor3f(0.0, 1.0, 0.0);
 	experiment_box.GLDraw();
 	glColor3f(1.0, 0.0, 0.0);
-	//obstacle.GLDraw();
+	obstacle.GLDraw();
 
 	const dReal *pos,*R;
-	pos = dBodyGetPosition(sphere.m_ODEBody);
+	/*pos = dBodyGetPosition(sphere.m_ODEBody);
 	R = dBodyGetRotation(sphere.m_ODEBody);
-	dsDrawSphere(pos, R, 0.05);
-
-	pos = dGeomGetPosition(obstacle.m_ODEGeom);
-	R = dGeomGetRotation(obstacle.m_ODEGeom);
-	const float sides2[3] = {0.12, 0.12, 0.7*lz - 2*m_deltap};
-	dsDrawBox(pos, R, sides2);
+	dsDrawSphere(pos, R, 0.05);*/
+	sphere.GLDraw();
 
 	/*pos = dGeomGetPosition(cube.m_ODEGeom);
 	R = dGeomGetRotation(cube.m_ODEGeom);
