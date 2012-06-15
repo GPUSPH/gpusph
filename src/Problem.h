@@ -40,7 +40,6 @@
 #include "RigidBody.h"
 #include "particledefine.h"
 
-#define dSINGLE
 #include "ode/ode.h"
 
 using namespace std;
