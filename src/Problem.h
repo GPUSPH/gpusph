@@ -42,7 +42,6 @@
 #include "physparams.h"
 #include "simparams.h"
 
-#define dSINGLE
 #include "ode/ode.h"
 
 // not including GlobalData.h since it needs the complete definition of the Problem class
