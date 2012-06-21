@@ -46,7 +46,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
-	m_writerType = TEXTWRITER;
+	m_writerType = VTKWRITER;
 
 	// Data for problem setup
 	slope_length = 8.5;
@@ -90,6 +90,10 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	// Free surface detection
 	m_simparams.surfaceparticle = true;
 	m_simparams.savenormals = true;
+
+	//WaveGage
+	m_simparams.gage.push_back(make_float3(1, 0.3, 0));
+	m_simparams.gage.push_back(make_float3(0.5, 0.3, 0));
 
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 

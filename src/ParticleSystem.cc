@@ -49,6 +49,7 @@
 #include "VTKWriter.h"
 #include "VTKLegacyWriter.h"
 #include "Problem.h"
+#include "Writer.h"
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -94,8 +95,8 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_worldSize = problem->get_worldsize();
 	m_writerType = problem->get_writertype();
 
-	m_influenceRadius = m_simparams.kernelradius*m_simparams.slength;
-	m_nlInfluenceRadius = m_influenceRadius*m_simparams.nlexpansionfactor;
+	m_influenceRadius = m_simparams->kernelradius*m_simparams->slength;
+	m_nlInfluenceRadius = m_influenceRadius*m_simparams->nlexpansionfactor;
 	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
 
 	m_gridSize.x = (uint) (m_worldSize.x / m_influenceRadius);
@@ -109,7 +110,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_cellSize.y = m_worldSize.y / m_gridSize.y;
 	m_cellSize.z = m_worldSize.z / m_gridSize.z;
 
-	m_dt = m_simparams.dt;
+	m_dt = m_simparams->dt;
 
 	m_timingInfo.dt = m_dt;
 	m_timingInfo.t = 0.0f;
@@ -199,9 +200,9 @@ ParticleSystem::allocate(uint numParticles)
 		exit(1);
 	}
 
-	if (m_simparams.maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
+	if (m_simparams->maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
 		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
-				m_simparams.maxneibsnum, NEIBINDEX_INTERLEAVE);
+				m_simparams->maxneibsnum, NEIBINDEX_INTERLEAVE);
 		exit(1);
 	}
 	m_numParticles = numParticles;
@@ -215,7 +216,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
 	uint memory = 0;
 
@@ -231,12 +232,12 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hInfo, 0, infoSize);
 	memory += infoSize;
 
-	m_hEnergy = new float4[m_physparams.numFluids];
-	memset(m_hInfo, 0, sizeof(float4)*m_physparams.numFluids);
-	memory += sizeof(float4)*m_physparams.numFluids;
+	m_hEnergy = new float4[m_physparams->numFluids];
+	memset(m_hInfo, 0, sizeof(float4)*m_physparams->numFluids);
+	memory += sizeof(float4)*m_physparams->numFluids;
 
 	m_hVort = NULL;
-	if (m_simparams.vorticity) {
+	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numParticles];
 		memory += memSize3;
 		}
@@ -263,14 +264,14 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
+	m_hNeibsList = new uint[m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 #endif
 
 	// Free surface detection
 	m_hNormals = NULL;
-	if (m_simparams.savenormals) {
+	if (m_simparams->savenormals) {
 		m_hNormals = new float4[m_numParticles];
 		memset(m_hNormals, 0, memSize4);
 		memory += memSize4;
@@ -308,17 +309,17 @@ ParticleSystem::allocate(uint numParticles)
 	memory += infoSize;
 
 	// Free surface detection
-	if (m_simparams.savenormals) {
+	if (m_simparams->savenormals) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
 		memory += memSize4;
 	}
 
-	if (m_simparams.vorticity) {
+	if (m_simparams->vorticity) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, memSize3));
 		memory += memSize3;
 	}
 
-	if (m_simparams.visctype == SPSVISC) {
+	if (m_simparams->visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[0], memSize2));
 		memory += memSize2;
 
@@ -345,7 +346,7 @@ ParticleSystem::allocate(uint numParticles)
 	memory += neibslistSize;
 
 	// Allocate storage for rigid bodies forces and torque computation
-	if (m_simparams.numbodies) {
+	if (m_simparams->numbodies) {
 		m_numBodiesParticles = m_problem->get_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
 		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
@@ -361,18 +362,18 @@ ParticleSystem::allocate(uint numParticles)
 
 		uint rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
-		m_hRbLastIndex = new uint[m_simparams.numbodies];
-		m_hRbTotalForce = new float3[m_simparams.numbodies];
-		m_hRbTotalTorque = new float3[m_simparams.numbodies];
+		m_hRbLastIndex = new uint[m_simparams->numbodies];
+		m_hRbTotalForce = new float3[m_simparams->numbodies];
+		m_hRbTotalTorque = new float3[m_simparams->numbodies];
 
 		rbfirstindex[0] = 0;
-		for (int i = 1; i < m_simparams.numbodies; i++) {
+		for (int i = 1; i < m_simparams->numbodies; i++) {
 			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_body_numparts(i - 1);
 		}
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbstartindex", rbfirstindex, m_simparams.numbodies*sizeof(uint)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbstartindex", rbfirstindex, m_simparams->numbodies*sizeof(uint)));
 
 		int offset = 0;
-		for (int i = 0; i < m_simparams.numbodies; i++) {
+		for (int i = 0; i < m_simparams->numbodies; i++) {
 			m_hRbLastIndex[i] = m_problem->get_body_numparts(i) - 1 + offset;
 			for (int j = 0; j < m_problem->get_body_numparts(i); j++) {
 				rbnum[offset + j] = i;
@@ -385,7 +386,7 @@ ParticleSystem::allocate(uint numParticles)
 		delete[] rbnum;
 	}
 
-	if (m_simparams.dtadapt) {
+	if (m_simparams->dtadapt) {
 		m_numPartsFmax = getNumPartsFmax(numParticles);
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
 
@@ -413,7 +414,7 @@ ParticleSystem::allocate(uint numParticles)
 		this value should be kept up to date to fit the largest
 		possible reduction used during the simulation */
 	// presently: two float4 value per fluid type (allows Kahan summation)
-	size_t bufsize = 2*sizeof(float4)*blocks*m_physparams.numFluids;
+	size_t bufsize = 2*sizeof(float4)*blocks*m_physparams->numFluids;
 
 	void *buff = NULL;
 	CUDA_SAFE_CALL(cudaMalloc(&buff, bufsize));
@@ -425,7 +426,7 @@ ParticleSystem::allocate(uint numParticles)
 	set_reduction_params(buff, blocks, blocksize, m_device.sharedMemPerBlock);
 
 	// Allocating, reading and copying DEM
-	if (m_simparams.usedem) {
+	if (m_simparams->usedem) {
 		printf("Using DEM\n");
 		int2 dem_rc;
 		dem_rc.x = m_problem->get_dem_ncols();
@@ -433,7 +434,7 @@ ParticleSystem::allocate(uint numParticles)
 		printf("cols = %d\trows =% d\n", dem_rc.x, dem_rc.y);
 		setDemTexture(m_problem->get_dem(), dem_rc.x, dem_rc.y);
 		}
-	printf("Number of fluids: %d\n",m_physparams.numFluids);
+	printf("Number of fluids: %d\n",m_physparams->numFluids);
 	printf("GPU memory allocated\n");
 	printf("GPU memory used : %.2f MB\n", memory/(1024.0*1024.0));
 
@@ -469,22 +470,22 @@ void
 ParticleSystem::setPhysParams(void)
 {
 	// Setting visccoeff
-	switch (m_simparams.visctype) {
+	switch (m_simparams->visctype) {
 		case ARTVISC:
-			m_physparams.visccoeff = m_physparams.artvisccoeff;
+			m_physparams->visccoeff = m_physparams->artvisccoeff;
 			break;
 
 		case KINEMATICVISC:
 		case SPSVISC:
-			m_physparams.visccoeff = 4.0*m_physparams.kinematicvisc;
+			m_physparams->visccoeff = 4.0*m_physparams->kinematicvisc;
 			break;
 
 		case DYNAMICVISC:
-			m_physparams.visccoeff = m_physparams.kinematicvisc;
+			m_physparams->visccoeff = m_physparams->kinematicvisc;
 			break;
 	}
 	// Setting kernels and kernels derivative factors
-	float h = m_simparams.slength;
+	float h = m_simparams->slength;
 	float h3 = h*h*h;
 	float h4 = h3*h;
 	float h5 = h4*h;
@@ -501,51 +502,51 @@ ParticleSystem::setPhysParams(void)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_fcoeff_quadratic", &kernelcoeff, sizeof(float)));
 	kernelcoeff = 105.0f/(128.0f*M_PI*h5);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_fcoeff_wendland", &kernelcoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_numfluids", &m_physparams.numFluids, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rho0", &m_physparams.rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_bcoeff", &m_physparams.bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gammacoeff", &m_physparams.gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_sscoeff", &m_physparams.sscoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_sspowercoeff", &m_physparams.sspowercoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams.gravity, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_dcoeff", &m_physparams.dcoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_p1coeff", &m_physparams.p1coeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_p2coeff", &m_physparams.p2coeff, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_numfluids", &m_physparams->numFluids, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rho0", &m_physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_bcoeff", &m_physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gammacoeff", &m_physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_sscoeff", &m_physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_sspowercoeff", &m_physparams->sspowercoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams->gravity, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_dcoeff", &m_physparams->dcoeff, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_p1coeff", &m_physparams->p1coeff, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_p2coeff", &m_physparams->p2coeff, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_K", &m_physparams.MK_K, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_d", &m_physparams.MK_d, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_beta", &m_physparams.MK_beta, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_K", &m_physparams->MK_K, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_d", &m_physparams->MK_d, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_beta", &m_physparams->MK_beta, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_r0", &m_physparams.r0, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_visccoeff", &m_physparams.visccoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_epsartvisc", &m_physparams.epsartvisc, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_epsxsph", &m_physparams.epsxsph, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_dispvect", &m_physparams.dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_dispvect", &m_physparams.dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_dispvect", &m_physparams.dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_minlimit", &m_physparams.minlimit, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_maxlimit", &m_physparams.maxlimit, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_ewres", &m_physparams.ewres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_nsres", &m_physparams.nsres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdx", &m_physparams.demdx, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdy", &m_physparams.demdy, sizeof(float)));
-	float demdxdy = m_physparams.demdx*m_physparams.demdy;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_r0", &m_physparams->r0, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_visccoeff", &m_physparams->visccoeff, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_epsartvisc", &m_physparams->epsartvisc, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_epsxsph", &m_physparams->epsxsph, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_dispvect", &m_physparams->dispvect, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_dispvect", &m_physparams->dispvect, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_dispvect", &m_physparams->dispvect, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_minlimit", &m_physparams->minlimit, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_maxlimit", &m_physparams->maxlimit, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_ewres", &m_physparams->ewres, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_nsres", &m_physparams->nsres, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdx", &m_physparams->demdx, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdy", &m_physparams->demdy, sizeof(float)));
+	float demdxdy = m_physparams->demdx*m_physparams->demdy;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdxdy", &demdxdy, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demzmin", &m_physparams.demzmin, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_smagfactor", &m_physparams.smagfactor, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_kspsfactor", &m_physparams.kspsfactor, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demzmin", &m_physparams->demzmin, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_smagfactor", &m_physparams->smagfactor, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_kspsfactor", &m_physparams->kspsfactor, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_partsurf", &m_physparams.partsurf, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_partsurf", &m_physparams->partsurf, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglefluid", &m_physparams->cosconeanglefluid, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglenonfluid", &m_physparams->cosconeanglenonfluid, sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectobjectdf", &m_physparams.objectobjectdf, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectboundarydf", &m_physparams.objectboundarydf, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectobjectdf", &m_physparams->objectobjectdf, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectboundarydf", &m_physparams->objectboundarydf, sizeof(float)));
 
-	uint maxneibs_time_neibinterleave = m_simparams.maxneibsnum*NEIBINDEX_INTERLEAVE;
+	uint maxneibs_time_neibinterleave = m_simparams->maxneibsnum*NEIBINDEX_INTERLEAVE;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_maxneibsnum_time_neibindexinterleave", &maxneibs_time_neibinterleave, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum", &m_simparams.maxneibsnum, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum", &m_simparams->maxneibsnum, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum_time_neibindexinterleave", &maxneibs_time_neibinterleave, sizeof(uint)));
 }
 
@@ -553,36 +554,36 @@ ParticleSystem::setPhysParams(void)
 void
 ParticleSystem::getPhysParams(void)
 {
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.numFluids, "cuforces::d_numfluids", sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.rho0, "cuforces::d_rho0", MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.gravity, "cuforces::d_gravity", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.bcoeff, "cuforces::d_bcoeff", MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.gammacoeff, "cuforces::d_gammacoeff", MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.sscoeff, "cuforces::d_sscoeff",MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.sspowercoeff, "cuforces::d_sspowercoeff",MAX_FLUID_TYPES*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->numFluids, "cuforces::d_numfluids", sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->rho0, "cuforces::d_rho0", MAX_FLUID_TYPES*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->gravity, "cuforces::d_gravity", sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->bcoeff, "cuforces::d_bcoeff", MAX_FLUID_TYPES*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->gammacoeff, "cuforces::d_gammacoeff", MAX_FLUID_TYPES*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->sscoeff, "cuforces::d_sscoeff",MAX_FLUID_TYPES*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->sspowercoeff, "cuforces::d_sspowercoeff",MAX_FLUID_TYPES*sizeof(float), 0));
 
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.dcoeff, "cuforces::d_dcoeff", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.p1coeff, "cuforces::d_p1coeff", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.p2coeff, "cuforces::d_p2coeff", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->dcoeff, "cuforces::d_dcoeff", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->p1coeff, "cuforces::d_p1coeff", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->p2coeff, "cuforces::d_p2coeff", sizeof(float), 0));
 
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.MK_K, "cuforces::d_MK_K", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.MK_d, "cuforces::d_MK_d", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.MK_beta, "cuforces::d_MK_beta", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->MK_K, "cuforces::d_MK_K", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->MK_d, "cuforces::d_MK_d", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->MK_beta, "cuforces::d_MK_beta", sizeof(float), 0));
 
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.r0, "cuforces::d_r0", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.visccoeff, "cuforces::d_visccoeff", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.epsartvisc, "cuforces::d_epsartvisc", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.epsxsph, "cueuler::d_epsxsph", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.dispvect, "cuneibs::d_dispvect", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.maxlimit, "cueuler::d_maxlimit", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.minlimit, "cueuler::d_minlimit", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.ewres, "cuforces::d_ewres", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.nsres, "cuforces::d_nsres", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.demdx, "cuforces::d_demdx", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.demdy, "cuforces::d_demdy", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.demzmin, "cuforces::d_demzmin", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.smagfactor, "cuforces::d_smagfactor", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.kspsfactor, "cuforces::d_kspsfactor", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->r0, "cuforces::d_r0", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->visccoeff, "cuforces::d_visccoeff", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->epsartvisc, "cuforces::d_epsartvisc", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->epsxsph, "cueuler::d_epsxsph", sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->dispvect, "cuneibs::d_dispvect", sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->maxlimit, "cueuler::d_maxlimit", sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->minlimit, "cueuler::d_minlimit", sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->ewres, "cuforces::d_ewres", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->nsres, "cuforces::d_nsres", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->demdx, "cuforces::d_demdx", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->demdy, "cuforces::d_demdy", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->demzmin, "cuforces::d_demzmin", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->smagfactor, "cuforces::d_smagfactor", sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams->kspsfactor, "cuforces::d_kspsfactor", sizeof(float)));
 }
 
 
@@ -596,73 +597,73 @@ ParticleSystem::printPhysParams(FILE *summary)
 
 	unsigned int i=0;
 
-	while(i < m_physparams.numFluids) {
+	while(i < m_physparams->numFluids) {
 		fprintf(summary,"fluid #%u \n", i);
-		fprintf(summary, "\trho0 = %g\n", m_physparams.rho0[i]);
-		fprintf(summary, "\tb = %g\n", m_physparams.bcoeff[i]);
-		fprintf(summary, "\tgamma = %g\n", m_physparams.gammacoeff[i]);
-		fprintf(summary, "\tsscoeff = %g\n", m_physparams.sscoeff[i]);
-		fprintf(summary, "\tsspowercoeff = %g\n", m_physparams.sspowercoeff[i]);
-		fprintf(summary, "\tsound speed = %g\n", m_problem->soundspeed(m_physparams.rho0[i],i));
+		fprintf(summary, "\trho0 = %g\n", m_physparams->rho0[i]);
+		fprintf(summary, "\tb = %g\n", m_physparams->bcoeff[i]);
+		fprintf(summary, "\tgamma = %g\n", m_physparams->gammacoeff[i]);
+		fprintf(summary, "\tsscoeff = %g\n", m_physparams->sscoeff[i]);
+		fprintf(summary, "\tsspowercoeff = %g\n", m_physparams->sspowercoeff[i]);
+		fprintf(summary, "\tsound speed = %g\n", m_problem->soundspeed(m_physparams->rho0[i],i));
 		++i;
 		}
 
-#define g m_physparams.gravity
+#define g m_physparams->gravity
 	fprintf(summary, "gravity = (%g, %g, %g) [%g]\n", g.x, g.y, g.z, length(g));
 #undef g
 
-	fprintf(summary, "%s boundary parameters:\n", BoundaryName[m_simparams.boundarytype]);
-	switch (m_simparams.boundarytype) {
+	fprintf(summary, "%s boundary parameters:\n", BoundaryName[m_simparams->boundarytype]);
+	switch (m_simparams->boundarytype) {
 		case LJ_BOUNDARY:
-			fprintf(summary, "\td = %g\n", m_physparams.dcoeff);
-			fprintf(summary, "\tp1 = %g\n", m_physparams.p1coeff);
-			fprintf(summary, "\tp2 = %g\n", m_physparams.p2coeff);
+			fprintf(summary, "\td = %g\n", m_physparams->dcoeff);
+			fprintf(summary, "\tp1 = %g\n", m_physparams->p1coeff);
+			fprintf(summary, "\tp2 = %g\n", m_physparams->p2coeff);
 			break;
 		case MK_BOUNDARY:
-			fprintf(summary, "\tK = %g\n", m_physparams.MK_K);
-			fprintf(summary, "\td = %g\n", m_physparams.MK_d);
-			fprintf(summary, "\tbeta = %g\n", m_physparams.MK_beta);
+			fprintf(summary, "\tK = %g\n", m_physparams->MK_K);
+			fprintf(summary, "\td = %g\n", m_physparams->MK_d);
+			fprintf(summary, "\tbeta = %g\n", m_physparams->MK_beta);
 			break;
 	}
 
-	fprintf(summary, "r0 = %g\n", m_physparams.r0);
-	float visccoeff = m_physparams.visccoeff;
+	fprintf(summary, "r0 = %g\n", m_physparams->r0);
+	float visccoeff = m_physparams->visccoeff;
 	fprintf(summary,"Viscosity\n");
-	switch (m_simparams.visctype) {
+	switch (m_simparams->visctype) {
 		case ARTVISC:
 			fprintf(summary, "\tArtificial viscosity: artvisccoeff = %g (viscoeff=%g = artvisccoeff)\n",
-					m_physparams.artvisccoeff, visccoeff);
+					m_physparams->artvisccoeff, visccoeff);
 			break;
 
 		case KINEMATICVISC:
 			fprintf(summary, "\tKinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = 4*kinematicvisc)\n",
-					m_physparams.artvisccoeff, visccoeff);
+					m_physparams->artvisccoeff, visccoeff);
 			break;
 
 		case DYNAMICVISC:
 			fprintf(summary, "\tDynamic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
-					m_physparams.artvisccoeff, visccoeff);
+					m_physparams->artvisccoeff, visccoeff);
 			break;
 
 		case SPSVISC:
 			fprintf(summary, "\tSPS + kinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
-					m_physparams.artvisccoeff, visccoeff);
-			fprintf(summary, "\tSmagFactor = %g\n", m_physparams.smagfactor);
-			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams.kspsfactor);
+					m_physparams->artvisccoeff, visccoeff);
+			fprintf(summary, "\tSmagFactor = %g\n", m_physparams->smagfactor);
+			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams->kspsfactor);
 			break;
 		}
-	fprintf(summary, "espartvisc = %g\n", m_physparams.epsartvisc);
-	fprintf(summary, "epsxsph = %g\n", m_physparams.epsxsph);
-	if (m_simparams.periodicbound) {
+	fprintf(summary, "espartvisc = %g\n", m_physparams->epsartvisc);
+	fprintf(summary, "epsxsph = %g\n", m_physparams->epsxsph);
+	if (m_simparams->periodicbound) {
 		fprintf(summary, "Periodic boundary parameters (disp vect, min and max limit) used when x,y or z periodic boundary is set\n");
-		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams.dispvect.x, m_physparams.dispvect.y, m_physparams.dispvect.z);
-		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams.minlimit.x, m_physparams.minlimit.y, m_physparams.minlimit.z);
-		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams.maxlimit.x, m_physparams.maxlimit.y, m_physparams.maxlimit.z);
+		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams->dispvect.x, m_physparams->dispvect.y, m_physparams->dispvect.z);
+		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams->minlimit.x, m_physparams->minlimit.y, m_physparams->minlimit.z);
+		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams->maxlimit.x, m_physparams->maxlimit.y, m_physparams->maxlimit.z);
 		}
-	if (m_simparams.usedem) {
-		fprintf(summary, "DEM resolution ew = %g, ns = %g\n", m_physparams.ewres, m_physparams.nsres);
-		fprintf(summary, "Displacement for normal computing dx = %g, dy = %g\n", m_physparams.demdx, m_physparams.demdy);
-		fprintf(summary, "DEM zmin = %g\n", m_physparams.demzmin);
+	if (m_simparams->usedem) {
+		fprintf(summary, "DEM resolution ew = %g, ns = %g\n", m_physparams->ewres, m_physparams->nsres);
+		fprintf(summary, "Displacement for normal computing dx = %g, dy = %g\n", m_physparams->demdx, m_physparams->demdy);
+		fprintf(summary, "DEM zmin = %g\n", m_physparams->demzmin);
 		}
 
 }
@@ -675,25 +676,25 @@ ParticleSystem::printSimParams(FILE *summary)
 		summary = stdout;
 
 	fprintf(summary, "\nSimulation parameters:\n");
-	fprintf(summary, "slength = %g\n", m_simparams.slength);
-	fprintf(summary, "kernelradius = %g\n", m_simparams.kernelradius);
-	fprintf(summary, "initial dt = %g\n", m_simparams.dt);
-	fprintf(summary, "simulation end time = %g\n", m_simparams.tend);
-	fprintf(summary, "neib list construction every %d iteration\n", m_simparams.buildneibsfreq);
-	fprintf(summary, "Shepard filter every %d iteration\n", m_simparams.shepardfreq);
-	fprintf(summary, "MLS filter every %d iteration\n", m_simparams.mlsfreq);
-	fprintf(summary, "adaptive time step = %d\n", m_simparams.dtadapt);
-	fprintf(summary, "safety factor for adaptive time step = %f\n", m_simparams.dtadaptfactor);
-	fprintf(summary, "xsph correction = %d\n", m_simparams.xsph);
-	fprintf(summary, "SPH formulation = %d\n", m_simparams.sph_formulation);
-	fprintf(summary, "viscosity type = %d (%s)\n", m_simparams.visctype, ViscosityName[m_simparams.visctype]);
-	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams.mbcallback);
-	if (m_simparams.mbcallback)
+	fprintf(summary, "slength = %g\n", m_simparams->slength);
+	fprintf(summary, "kernelradius = %g\n", m_simparams->kernelradius);
+	fprintf(summary, "initial dt = %g\n", m_simparams->dt);
+	fprintf(summary, "simulation end time = %g\n", m_simparams->tend);
+	fprintf(summary, "neib list construction every %d iteration\n", m_simparams->buildneibsfreq);
+	fprintf(summary, "Shepard filter every %d iteration\n", m_simparams->shepardfreq);
+	fprintf(summary, "MLS filter every %d iteration\n", m_simparams->mlsfreq);
+	fprintf(summary, "adaptive time step = %d\n", m_simparams->dtadapt);
+	fprintf(summary, "safety factor for adaptive time step = %f\n", m_simparams->dtadaptfactor);
+	fprintf(summary, "xsph correction = %d\n", m_simparams->xsph);
+	fprintf(summary, "SPH formulation = %d\n", m_simparams->sph_formulation);
+	fprintf(summary, "viscosity type = %d (%s)\n", m_simparams->visctype, ViscosityName[m_simparams->visctype]);
+	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams->mbcallback);
+	if (m_simparams->mbcallback)
 		fprintf(summary, "\tnumber of moving boundaries = %d\n", m_problem->m_mbnumber);
-	fprintf(summary, "variable gravity callback function = %d\n",m_simparams.gcallback);
-	fprintf(summary, "periodic boundary = %s\n", m_simparams.periodicbound ? "true" : "false");
-	fprintf(summary, "using DEM = %d\n", m_simparams.usedem);
-	fprintf(summary, "number of rigid bodies = %d\n", m_simparams.numbodies);
+	fprintf(summary, "variable gravity callback function = %d\n",m_simparams->gcallback);
+	fprintf(summary, "periodic boundary = %s\n", m_simparams->periodicbound ? "true" : "false");
+	fprintf(summary, "using DEM = %d\n", m_simparams->usedem);
+	fprintf(summary, "number of rigid bodies = %d\n", m_simparams->numbodies);
 }
 
 
@@ -717,7 +718,7 @@ ParticleSystem::~ParticleSystem()
 	delete [] m_hPos;
 	delete [] m_hVel;
 	delete [] m_hInfo;
-	if (m_simparams.vorticity) {
+	if (m_simparams->vorticity) {
 		delete [] m_hVort;
 		}
 
@@ -729,7 +730,7 @@ ParticleSystem::~ParticleSystem()
 	delete [] m_hCellStart;
 	delete [] m_hCellEnd;
 #endif
-	if (m_simparams.savenormals)
+	if (m_simparams->savenormals)
 		delete [] m_hNormals;
 
 	delete m_writer;
@@ -739,13 +740,13 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dForces));
 	CUDA_SAFE_CALL(cudaFree(m_dXsph));
 
-	if (m_simparams.visctype == SPSVISC) {
+	if (m_simparams->visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaFree(m_dTau[0]));
 		CUDA_SAFE_CALL(cudaFree(m_dTau[1]));
 		CUDA_SAFE_CALL(cudaFree(m_dTau[2]));
 		}
 
-	if (m_simparams.vorticity) {
+	if (m_simparams->vorticity) {
 		CUDA_SAFE_CALL(cudaFree(m_dVort));
 		}
 
@@ -757,10 +758,10 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
 
 	// Free surface detection
-	if (m_simparams.savenormals)
+	if (m_simparams->savenormals)
 		CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
-	if (m_simparams.numbodies) {
+	if (m_simparams->numbodies) {
 		delete [] m_hRbLastIndex;
 		delete [] m_hRbTotalForce;
 		delete [] m_hRbTotalTorque;
@@ -779,10 +780,10 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
 
-	if (m_simparams.usedem)
+	if (m_simparams->usedem)
 		releaseDemTexture();
 
-	if (m_simparams.dtadapt) {
+	if (m_simparams->dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
 		}
@@ -806,7 +807,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 	 * construction */
 
 	if (need_write
-			&& (m_simparams.testpoints || m_simparams.surfaceparticle)
+			&& (m_simparams->testpoints || m_simparams->surfaceparticle)
 			&& !m_neiblist_built)
 		buildNeibList(false);
 
@@ -821,17 +822,17 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 		case VELOCITY:
 			{
 			//Testpoints
-			if (need_write && m_simparams.testpoints) {
+			if (need_write && m_simparams->testpoints) {
 				testpoints(	m_dPos[m_currentPosRead],
 							m_dVel[m_currentVelRead],
 							m_dInfo[m_currentInfoRead],
 							m_dNeibsList,
 							m_numParticles,
-							m_simparams.slength,
-							m_simparams.kerneltype,
+							m_simparams->slength,
+							m_simparams->kerneltype,
 							m_influenceRadius,
-							m_simparams.periodicbound);
-				} // if need_write && m_simparams.testpoints
+							m_simparams->periodicbound);
+				} // if need_write && m_simparams->testpoints
 
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hVel;
@@ -841,7 +842,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 
 		case INFO:
 			// Free surface detection
-			if (need_write && m_simparams.surfaceparticle) {
+			if (need_write && m_simparams->surfaceparticle) {
 				surfaceparticle( m_dPos[m_currentPosRead],
 								 m_dVel[m_currentVelRead],
 						         m_dNormals,
@@ -849,13 +850,13 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 								 m_dInfo[m_currentInfoWrite],
 								 m_dNeibsList,
 								 m_numParticles,
-								 m_simparams.slength,
-								 m_simparams.kerneltype,
+								 m_simparams->slength,
+								 m_simparams->kerneltype,
 								 m_influenceRadius,
-								 m_simparams.periodicbound,
-								 m_simparams.savenormals);
+								 m_simparams->periodicbound,
+								 m_simparams->savenormals);
 				std::swap(m_currentInfoRead, m_currentInfoWrite);
-				} // if need_write && m_simparams.surfaceparticle
+				} // if need_write && m_simparams->surfaceparticle
 
 			size = m_numParticles*sizeof(particleinfo);
 			hdata = (void*) m_hInfo;
@@ -874,10 +875,10 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 						m_dInfo[m_currentInfoRead],
 						m_dNeibsList,
 						m_numParticles,
-						m_simparams.slength,
-						m_simparams.kerneltype,
+						m_simparams->slength,
+						m_simparams->kerneltype,
 						m_influenceRadius,
-						m_simparams.periodicbound);
+						m_simparams->periodicbound);
 			break;
 
 #ifdef _DEBUG_
@@ -981,14 +982,14 @@ void
 ParticleSystem::writeToFile()
 {
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals);
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
 		m_dVel[m_currentVelRead],
 		m_dInfo[m_currentInfoRead],
 		m_numParticles,
-		m_physparams.numFluids);
+		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);
 }
 
@@ -1027,9 +1028,9 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 				switch (view_mode) {
 					case VM_NORMAL:
 					    glColor3f(0.0,0.0,1.0);
-					    if (m_physparams.numFluids > 1) {
+					    if (m_physparams->numFluids > 1) {
 					       v = (float) PART_FLUID_NUM(info[i]);
-	                       v /= (m_physparams.numFluids - 1);
+	                       v /= (m_physparams->numFluids - 1);
 						   glColor3f(v, 0.0, 1.0 - v);
 						   }
 						break;
@@ -1068,6 +1069,23 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 
 	}
 	glEnd();
+
+	if (m_simparams->gage.size() > 0) {
+		float lw;
+		glGetFloatv(GL_LINE_WIDTH, &lw);
+		glLineWidth(2.0);
+		glBegin(GL_LINES);
+		glColor3f(0,0,0);
+		GageList::iterator g = m_simparams->gage.begin();
+		GageList::iterator end = m_simparams->gage.end();
+		while (g != end) {
+			glVertex3f(g->x, g->y, m_worldOrigin.z);
+			glVertex3f(g->x, g->y, m_worldSize.z);
+			++g;
+		}
+		glEnd();
+		glLineWidth(lw);
+	}
 }
 
 void
@@ -1133,12 +1151,12 @@ ParticleSystem::buildNeibList(bool timing)
 			m_numParticles,
 			m_nGridCells,
 			m_nlSqInfluenceRadius,
-			m_simparams.periodicbound);
+			m_simparams->periodicbound);
 
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "cuneibs::d_numInteractions", sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "cuneibs::d_maxNeibs", sizeof(int), 0));
-	if (m_timingInfo.maxNeibs > m_simparams.maxneibsnum) {
-		printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
+	if (m_timingInfo.maxNeibs > m_simparams->maxneibsnum) {
+		printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams->maxneibsnum);
 		fflush(stdout);
 	}
 
@@ -1150,7 +1168,7 @@ ParticleSystem::buildNeibList(bool timing)
 		cudaEventDestroy(start_neibslist);
 		cudaEventDestroy(stop_neibslist);
 
-		int iter = m_iter/m_simparams.buildneibsfreq + 1;
+		int iter = m_iter/m_simparams->buildneibsfreq + 1;
 		m_timingInfo.meanNumInteractions = (m_timingInfo.meanNumInteractions*(iter - 1) + m_timingInfo.numInteractions)/iter;
 		m_timingInfo.meanTimeNeibsList = (m_timingInfo.meanTimeNeibsList*(iter - 1) + m_timingInfo.timeNeibsList)/iter;
 	}
@@ -1169,37 +1187,37 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	cudaEvent_t start_interactions, stop_interactions;
 	cudaEvent_t start_euler, stop_euler;
 
-	if (m_iter % m_simparams.buildneibsfreq == 0) {
+	if (m_iter % m_simparams->buildneibsfreq == 0) {
 		buildNeibList(timing);
 	}
 
 
-	if (m_simparams.shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams.shepardfreq == 0)) {
+	if (m_simparams->shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams->shepardfreq == 0)) {
 		shepard(m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
 				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
 				m_dNeibsList,
 				m_numParticles,
-				m_simparams.slength,
-				m_simparams.kerneltype,
+				m_simparams->slength,
+				m_simparams->kerneltype,
 				m_influenceRadius,
-				m_simparams.periodicbound);
+				m_simparams->periodicbound);
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
 
-	if (m_simparams.mlsfreq > 0 && m_iter > 0 && (m_iter % m_simparams.mlsfreq == 0)) {
+	if (m_simparams->mlsfreq > 0 && m_iter > 0 && (m_iter % m_simparams->mlsfreq == 0)) {
 		mls(	m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
 				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
 				m_dNeibsList,
 				m_numParticles,
-				m_simparams.slength,
-				m_simparams.kerneltype,
+				m_simparams->slength,
+				m_simparams->kerneltype,
 				m_influenceRadius,
-				m_simparams.periodicbound);
+				m_simparams->periodicbound);
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
@@ -1216,14 +1234,14 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		}
 
 	// setting moving boundaries data if necessary
-	if (m_simparams.mbcallback) {
+	if (m_simparams->mbcallback) {
 		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0, m_iter == 0);
 		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_mbdata", hMbData, m_mbDataSize));
 		}
-	if (m_simparams.gcallback) {
-		m_physparams.gravity = m_problem->g_callback(m_simTime);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams.gravity, sizeof(float3)));
+	if (m_simparams->gcallback) {
+		m_physparams->gravity = m_problem->g_callback(m_simTime);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams->gravity, sizeof(float3)));
 	}
 
 	float3 *cg;
@@ -1232,19 +1250,19 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// Copying floating bodies centers of gravity for torque computation in forces (needed only at first
 	// setp)
-	if (m_simparams.numbodies && m_iter == 0) {
+	if (m_simparams->numbodies && m_iter == 0) {
 		cg = m_problem->get_rigidbodies_cg();
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
 
 //		// Debug
-//		for (int i=0; i < m_simparams.numbodies; i++) {
+//		for (int i=0; i < m_simparams->numbodies; i++) {
 //			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
 //			}
 //
 //		uint rbfirstindex[MAXBODIES];
-//		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams.numbodies*sizeof(uint)));
-//		for (int i=0; i < m_simparams.numbodies; i++) {
+//		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
+//		for (int i=0; i < m_simparams->numbodies; i++) {
 //			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
 //			}
 		}
@@ -1258,23 +1276,23 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
-					m_simparams.slength,
+					m_simparams->slength,
 					m_dt,
-					m_simparams.dtadapt,
-					m_simparams.dtadaptfactor,
-					m_simparams.xsph,
-					m_simparams.kerneltype,
+					m_simparams->dtadapt,
+					m_simparams->dtadaptfactor,
+					m_simparams->xsph,
+					m_simparams->kerneltype,
 					m_influenceRadius,
-					m_simparams.visctype,
-					m_physparams.visccoeff,
+					m_simparams->visctype,
+					m_physparams->visccoeff,
 					m_dCfl,
 					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
-					m_simparams.periodicbound,
-					m_simparams.sph_formulation,
-					m_simparams.boundarytype,
-					m_simparams.usedem);
+					m_simparams->periodicbound,
+					m_simparams->sph_formulation,
+					m_simparams->boundarytype,
+					m_simparams->usedem);
 	// At this point forces = f(pos(n), vel(n))
 
 	if (timing) {
@@ -1290,13 +1308,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_euler, 0);
 		}
 
-	if (m_simparams.numbodies) {
+	if (m_simparams->numbodies) {
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
-						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
+						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams->numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams->numbodies*sizeof(float)));
 	}
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
@@ -1311,8 +1329,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dt/2.0,
 			1,
 			m_simTime + m_dt/2.0,
-			m_simparams.xsph,
-			m_simparams.periodicbound);
+			m_simparams->xsph,
+			m_simparams->periodicbound);
 	// At tis point:
 	//  m_dPos[m_currentPosRead] = pos(n)
 	//  m_dVel[m_currentVelRead] =  vel(n)
@@ -1331,20 +1349,20 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
-	if (m_simparams.numbodies) {
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
+	if (m_simparams->numbodies) {
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
 	}
 
 	// setting moving boundaries data if necessary
-	if (m_simparams.mbcallback) {
+	if (m_simparams->mbcallback) {
 		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0, m_iter == 0);
 		if (hMbData)
 			CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_mbdata", hMbData, m_mbDataSize));
 		}
-	if (m_simparams.gcallback) {
-		m_physparams.gravity = m_problem->g_callback(m_simTime);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams.gravity, sizeof(float3)));
+	if (m_simparams->gcallback) {
+		m_physparams->gravity = m_problem->g_callback(m_simTime);
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams->gravity, sizeof(float3)));
 	}
 
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
@@ -1356,32 +1374,32 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
-					m_simparams.slength,
+					m_simparams->slength,
 					m_dt,
-					m_simparams.dtadapt,
-					m_simparams.dtadaptfactor,
-					m_simparams.xsph,
-					m_simparams.kerneltype,
+					m_simparams->dtadapt,
+					m_simparams->dtadaptfactor,
+					m_simparams->xsph,
+					m_simparams->kerneltype,
 					m_influenceRadius,
-					m_simparams.visctype,
-					m_physparams.visccoeff,
+					m_simparams->visctype,
+					m_physparams->visccoeff,
 					m_dCfl,
 					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
-					m_simparams.periodicbound,
-					m_simparams.sph_formulation,
-					m_simparams.boundarytype,
-					m_simparams.usedem);
+					m_simparams->periodicbound,
+					m_simparams->sph_formulation,
+					m_simparams->boundarytype,
+					m_simparams->usedem);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
 
-	if (m_simparams.numbodies) {
+	if (m_simparams->numbodies) {
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
-						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
+						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams->numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams->numbodies*sizeof(float)));
 	}
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
@@ -1396,8 +1414,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dt/2.0,
 			2,
 			m_simTime + m_dt,
-			m_simparams.xsph,
-			m_simparams.periodicbound);
+			m_simparams->xsph,
+			m_simparams->periodicbound);
 	// At this point:
 	//  m_dPos[m_currentPosRead] = pos(n)
 	//  m_dVel[m_currentVelRead] =  vel(n)
@@ -1407,9 +1425,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
-	if (m_simparams.numbodies) {
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
+	if (m_simparams->numbodies) {
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
+		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
 	}
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
@@ -1426,7 +1444,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		fprintf(stderr, "[%g] WARNING: timestep %g too small: time is standing still\n",
 				m_simTime, m_dt);
 	}
-	if (m_simparams.dtadapt) {
+	if (m_simparams->dtadapt) {
 		m_dt = min(dt1, dt2);   // next time step value
 		if (!m_dt) {
 			throw DtZeroException(m_simTime, m_dt);
@@ -1467,13 +1485,13 @@ ParticleSystem::saveneibs()
 		pos.z = m_hPos[index].z;
 
 		// TODO: fix it for neib index interleave
-		for(uint i = index*m_simparams.maxneibsnum; i < index*m_simparams.maxneibsnum + m_simparams.maxneibsnum; i++) {
+		for(uint i = index*m_simparams->maxneibsnum; i < index*m_simparams->maxneibsnum + m_simparams->maxneibsnum; i++) {
 			uint neib_index = m_hNeibsList[i];
 
 			if (neib_index == 0xffffffff) break;
 
 			int3 periodic = make_int3(0);
-			if (m_simparams.periodicbound) {
+			if (m_simparams->periodicbound) {
 				if (neib_index & WARPXPLUS)
 					periodic.x = 1;
 				else if (neib_index & WARPXMINUS)
@@ -1500,7 +1518,7 @@ ParticleSystem::saveneibs()
 			relPos.y = pos.y - neib_pos.y;
 			relPos.z = pos.z - neib_pos.z;
 			float3 relPos2;
-			relPos2 = relPos + periodic*m_physparams.dispvect;
+			relPos2 = relPos + periodic*m_physparams->dispvect;
 
 			fprintf(fp, "%d\t%f\t%f\t%f\t", index, pos.x, pos.y, pos.z);
 			fprintf(fp, "%d\t%f\t%f\t%f\t", neib_index, relPos.x, relPos.y, relPos.z);
@@ -1647,7 +1665,7 @@ ParticleSystem::reducerbforces(void)
 
 	int firstindex = 0;
 	int lastindex = 0;
-	for (int i = 0; i < m_simparams.numbodies; i++) {
+	for (int i = 0; i < m_simparams->numbodies; i++) {
 		lastindex = m_hRbLastIndex[i];
 		float4 force = make_float4(0.0f);
 		float4 torque = make_float4(0.0f);
@@ -1661,4 +1679,97 @@ ParticleSystem::reducerbforces(void)
 		firstindex = lastindex + 1;
 	}
 }
+
+// WaveGage 
+void
+ParticleSystem::writeWaveGage()
+{
+	float uplimitx, downlimitx, uplimity, downlimity;
+
+	int num =  m_simparams->gage.size();
+
+	for (int i = 0 ; i < num; ++i) {
+		uplimitx = m_simparams->gage[i].x+2*m_simparams->slength;
+		downlimitx = m_simparams->gage[i].x-2*m_simparams->slength;
+		uplimity = m_simparams->gage[i].y+2*m_simparams->slength;
+		downlimity = m_simparams->gage[i].y-2*m_simparams->slength;
+		int kcheck = 0;
+		m_simparams->gage[i].z = 0;
+
+		for (uint index = 0; index < m_numParticles; index++) {
+			if (SURFACE_PARTICLE(m_hInfo[index])) {
+				float4 pos = m_hPos[index];
+
+				//Taking height average between neighbouring surface particles 
+				if ((pos.x > downlimitx) && (pos.x < uplimitx) && (pos.y > downlimity) && (pos.y < uplimity)){
+					kcheck ++;
+					m_simparams->gage[i].z += pos.z;
+				}
+			} //if PART_FLAG
+		} //For loop over particles
+		m_simparams->gage[i].z = m_simparams->gage[i].z/kcheck;
+	} // For loop over WaveGages
+
+	//Write WaveGage information on one text file
+	m_writer->write_WaveGage(m_simTime,m_simparams->gage);
+
+	//Writing the result on a VTK files	
+	// TODO this should be factored out in a Writer routine, and possibly made optional
+	static int fnum = 0;
+	stringstream ss;
+
+	ss.width(5);
+	ss.fill('0');
+	ss << m_problem->get_dirname() << "/data/WaveGage_" << fnum << ".vtu";
+
+	fnum++;
+
+	FILE *fp = fopen(ss.str().c_str(),"w");
+
+	// Header
+	fprintf(fp,"<?xml version=\"1.0\"?>\r\n");
+	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
+	fprintf(fp," <UnstructuredGrid>\r\n");
+	fprintf(fp,"  <Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\r\n", num, num);	
+	
+	//Writing Position	
+	fprintf(fp,"   <Points>\r\n");
+	fprintf(fp,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+	for (int i=0; i <  num; i++)
+		fprintf(fp,"%f\t%f\t%f\t",m_simparams->gage[i].x, m_simparams->gage[i].y, m_simparams->gage[i].z);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"   </Points>\r\n");
+	
+	// Cells data
+	fprintf(fp,"   <Cells>\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
+	for (int i = 0; i < num; i++)
+		fprintf(fp,"%d\t", i);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"\r\n");
+	
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
+	for (int i = 0; i < num; i++)
+		fprintf(fp,"%d\t", i + 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
+	for (int i = 0; i < num; i++)
+		fprintf(fp,"%d\t", 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	
+	fprintf(fp,"   </Cells>\r\n");
+	
+	fprintf(fp,"  </Piece>\r\n");
+	fprintf(fp," </UnstructuredGrid>\r\n");
+	fprintf(fp,"</VTKFile>");	
+	fclose(fp);	
+}
+
+
 /****************************************************************************************************/

@@ -34,6 +34,7 @@
 
 // Problem class
 #include "Problem.h"
+#include "particledefine.h"
 
 using namespace std;
 
@@ -53,12 +54,16 @@ public:
 			const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals) = 0;
 
 	virtual void write_energy(float t, float4 *energy);
+	//WaveGage
+	virtual void write_WaveGage(float t, GageList const& gage);
 
 protected:
 	string			m_dirname;
 	uint			m_FileCounter;
 	FILE*			m_timefile;
 	FILE*			m_energyfile;
+	//WaveGage
+	FILE*			m_WaveGagefile;
 	const Problem	*m_problem;
 	string			next_filenum();
 };

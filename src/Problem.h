@@ -38,6 +38,8 @@
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
 
 
 using namespace std;
@@ -152,15 +154,24 @@ class Problem {
 			return m_deltap;
 		}
 
-		SimParams &get_simparams(void)
+		const SimParams *get_simparams(void) const
 		{
-			SimParams &simparams = m_simparams;
-			return simparams;
+			return &m_simparams;
 		};
 
-		const PhysParams &get_physparams(void) const
+		SimParams *get_simparams(void)
 		{
-			return m_physparams;
+			return &m_simparams;
+		};
+
+		const PhysParams *get_physparams(void) const
+		{
+			return &m_physparams;
+		};
+
+		PhysParams *get_physparams(void)
+		{
+			return &m_physparams;
 		};
 
 		string create_problem_dir();

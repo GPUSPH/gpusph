@@ -22,16 +22,10 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-/*
- * File:   particleTypes.h
- * Author: alexis
- *
- * Created on 27 avril 2008, 15:27
- */
- /*  MODIFICATIONS on July 16, 2010
-  *  to include ParticleType and variable density
-  *
-  */
+
+/* System-related definitions */
+
+// TODO split non-particle stuff into different header(s)
 
 #ifndef _PARTICLEDEFINE_H
 #define	_PARTICLEDEFINE_H
@@ -224,152 +218,6 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #endif
 
 typedef unsigned int uint;
-
-
-typedef struct PhysParams {
-	float	rho0[MAX_FLUID_TYPES]; // density of various particles
-
-	float	partsurf;		// particle area (for surface friction)
-
-	float3	gravity;		// gravity
-	float	bcoeff[MAX_FLUID_TYPES];
-	float	gammacoeff[MAX_FLUID_TYPES];
-	float	sscoeff[MAX_FLUID_TYPES];
-	float	sspowercoeff[MAX_FLUID_TYPES];
-
-	// Lennard-Jones boundary coefficients
- 	float	r0;		 		// influence radius of boundary repulsive force
-	float	dcoeff;
-	float	p1coeff;
-	float	p2coeff;
-	// Monaghan-Kajtar boundary coefficients
-	float	MK_K;			// Typically: maximum velocity squared, or gravity times maximum height
-	float	MK_d;			// Typically: distance between boundary particles
-	float	MK_beta;		// Typically: ratio between h and MK_d
-
-	float	kinematicvisc;	// Kinematic viscosity
-	float	artvisccoeff;	// Artificial viscosity coefficient
-	// For ARTVSIC: artificial viscosity coefficient
-	// For KINEMATICVISC: 4*kinematic viscosity,
-	// For DYNAMICVISC: dynamic viscosity
-	float	visccoeff;
-	float	epsartvisc;
-	float	epsxsph;		// XSPH correction coefficient
-	float3	dispvect;		// offset vector for periodic boundaries
-	float3	maxlimit;
-	float3	minlimit;
-	float	ewres;			// DEM east-west resolution
-	float	nsres;			// DEM north-south resolution
-	float	demdx;			// Used for normal compution: displcement in x direction range ]0, exres[
-	float	demdy;			// displcement in y direction range ]0, nsres[
-	float	demdxdy;
-	float	demzmin;		// demdx*demdy
-	float	smagfactor;		// Cs*∆p^2
-	float	kspsfactor;		// 2/3*Ci*∆^2
-	int     numFluids;      // number of fluids in simulation
-	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
-	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
-	float	objectobjectdf;	// damping factor for object-object interaction 
-	float	objectboundarydf;	// damping factor for object-boundary interaction 
-	PhysParams(void) :
-		partsurf(0),
-		p1coeff(12.0f),
-		p2coeff(6.0f),
-		epsxsph(0.5f),
-		numFluids(1),
-		cosconeanglefluid(0.86),
-		cosconeanglenonfluid (0.5),
-		objectobjectdf (1.0),
-		objectboundarydf (1.0)
-
-	{};
-	/*! Set density parameters
-	  @param i	index in the array of materials
-	  @param rho	base density
-	  @param gamma	gamma coefficient
-	  @param c0	sound speed for density at rest
-	 */
-	void set_density(uint i, float rho, float gamma, float c0) {
-		rho0[i] = rho;
-		gammacoeff[i] = gamma;
-		bcoeff[i] = rho*c0*c0/gamma;
-		sscoeff[i] = c0;
-		sspowercoeff[i] = (gamma - 1)/2;
-	}
-} PhysParams;
-
-
-typedef struct MbCallBack {
-	short			type;
-	float			tstart;
-	float			tend;
-	float3			origin;
-	float3			vel;
-	float3			disp;
-	float			sintheta;
-	float			costheta;
-	float			omega;
-	float			amplitude;
-	float			phase;
-} MbCallBack;
-
-
-typedef struct SimParams {
-	float			slength;			// smoothing length
-	KernelType		kerneltype;			// kernel type
-	float			kernelradius;		// kernel radius
-	float			dt;					// initial timestep
-	float			tend;				// simulation end time (0 means run forever)
-	bool			xsph;				// true if XSPH correction
-	bool			dtadapt;			// true if adaptive timestep
-	float			dtadaptfactor;		// safety factor in the adaptive time step formula
-	int				buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
-	int				shepardfreq;		// frequency (in iterations) of Shepard density filter
-	int				mlsfreq;			// frequency (in iterations) of MLS density filter
-	ViscosityType	visctype;			// viscosity type (1 artificial, 2 laminar)
-	int				displayfreq;		// display update frequence (in seconds)
-	int				savedatafreq;		// simulation data saving frequence (in displayfreq)
-	int				saveimagefreq;		// screen capture frequence (in displayfreq)
-	bool			mbcallback;			// true if moving boundary velocity varies
-	bool			gcallback;			// true if using a variable gravity in problem
-	bool			periodicbound;		// true in case of periodic boundary
-	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
-	bool			usedem;				// true if using a DEM
-	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
-	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
-	bool			vorticity;			// true if we want to save vorticity
-	bool            testpoints;         // true if we want to find velocity at testpoints
-	bool            savenormals;        // true if we want to save the normals at free surface
-	bool            surfaceparticle;    // true if we want to find surface particles
-	int				numbodies;			// number of floating bodies
-	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
-	SimParams(void) :
-		kernelradius(2.0),
-		dt(0.00013),
-		tend(0),
-		xsph(false),
-		dtadapt(true),
-		dtadaptfactor(0.3),
-		buildneibsfreq(10),
-		shepardfreq(0),
-		mlsfreq(15),
-		visctype(ARTVISC),
-		mbcallback(false),
-		gcallback(false),
-		periodicbound(false),
-		nlexpansionfactor(1.0),
-		usedem(false),
-		sph_formulation(SPH_F1),
-		boundarytype(LJ_BOUNDARY),
-		vorticity(false),
-		testpoints(false),
-		savenormals(false),
-		surfaceparticle(false),
-		numbodies(0),
-		maxneibsnum(128)
-	{};
-} SimParams;
-
 
 typedef struct TimingInfo {
 	float   t;

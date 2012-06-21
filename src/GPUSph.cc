@@ -278,7 +278,7 @@ void init(const char *arg)
 
 	/* TODO do it this way for all options? */
 	if (isfinite(clOptions.tend))
-		problem->get_simparams().tend = clOptions.tend;
+		problem->get_simparams()->tend = clOptions.tend;
 
 	worldOrigin = problem->get_worldorigin();
 	worldSize = problem->get_worldsize();
@@ -449,6 +449,9 @@ void do_write()
 			ti.meanTimeNeibsList,
 			ti.meanTimeEuler);
 	#undef ti
+	if (problem->m_simparams.gage.size() > 0) {
+		psystem->writeWaveGage();
+	}
 	psystem->writeToFile();
 }
 
