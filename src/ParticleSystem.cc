@@ -1711,6 +1711,7 @@ ParticleSystem::writeWaveGage()
 	m_writer->write_WaveGage(m_simTime,m_simparams->gage);
 
 	//Writing the result on a VTK files	
+	// TODO this should be factored out in a Writer routine, and possibly made optional
 	static int fnum = 0;
 	stringstream ss;
 
