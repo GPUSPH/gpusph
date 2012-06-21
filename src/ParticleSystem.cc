@@ -1693,7 +1693,7 @@ ParticleSystem::writeWaveGage()
 		int kcheck = 0;
 
 		for (uint index = 0; index < m_numParticles; index++) {
-			if (PART_FLAG(m_hInfo[index]) == 1) {
+			if (SURFACE_PARTICLE(m_hInfo[index])) {
 				float4 pos = m_hPos[index];
 
 				//Taking height average between neighbouring surface particles 
