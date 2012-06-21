@@ -1691,6 +1691,7 @@ ParticleSystem::writeWaveGage()
 		uplimity = m_simparams->gage[i].y+2*m_simparams->slength;
 		downlimity = m_simparams->gage[i].y-2*m_simparams->slength;
 		int kcheck = 0;
+		m_simparams->gage[i].z = 0;
 
 		for (uint index = 0; index < m_numParticles; index++) {
 			if (SURFACE_PARTICLE(m_hInfo[index])) {
