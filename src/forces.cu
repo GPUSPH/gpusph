@@ -202,7 +202,7 @@ forces(	float4*			pos,
 	if (visctype == SPSVISC) {	// thread per particle
 		int numThreads = min(BLOCK_SIZE_SPS, numParticles);
 		int numBlocks = (int) ceil(numParticles / (float) numThreads);
-		#if (__COMPUTE__ >= 20)
+		#if (__COMPUTE__ == 20)
 		dummy_shared = 2560;
 		#endif
 		if (periodicbound) {
@@ -229,7 +229,7 @@ forces(	float4*			pos,
 	// thread per particle
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);		
-	#if (__COMPUTE__ >= 20)
+	#if (__COMPUTE__ == 20)
 	if (visctype == SPSVISC)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
 	else
@@ -314,7 +314,7 @@ shepard(float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	
 	// execute the kernel
-	#if (__COMPUTE__ >= 20)
+	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 	if (periodicbound) {
@@ -365,7 +365,7 @@ mls(float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel		
-	#if (__COMPUTE__ >= 20)
+	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
 	if (periodicbound) {
