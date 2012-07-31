@@ -189,6 +189,7 @@ endif
 # architecture switch. The *_SFX vars will be used later.
 ifeq ($(arch), x86_64)
 	_CFLAGS_ARCH += -m64
+	CUDPP_ARCH_SFX=_x86_64
 	GLEW_ARCH_SFX=_x86_64
 else # i386 or i686
 	_CFLAGS_ARCH += -m32
