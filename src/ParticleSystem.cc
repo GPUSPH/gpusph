@@ -148,7 +148,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 #define MEGABYTE (1024.0*1024.0)
 #define GIGABYTE (MEGABYTE*1024)
 
-	printf("\t%u multiprocessors, %u (%g%s) global memory\n",
+	printf("\t%u multiprocessors, %zu (%g%s) global memory\n",
 			m_device.multiProcessorCount,
 			m_device.totalGlobalMem,
 			m_device.totalGlobalMem > GIGABYTE ?
@@ -156,7 +156,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 			m_device.totalGlobalMem/MEGABYTE,
 			m_device.totalGlobalMem > GIGABYTE ?
 			"GB" : "MB");
-	printf("\t%u threads, %u (%g%s) shared memory per MP\n",
+	printf("\t%u threads, %zu (%g%s) shared memory per MP\n",
 			m_device.maxThreadsPerMultiProcessor,
 			m_device.sharedMemPerBlock,
 			m_device.sharedMemPerBlock/1024.0, "kB");
