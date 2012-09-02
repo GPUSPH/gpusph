@@ -365,17 +365,22 @@ void look(bool update=true)
 {
 	float d1 = length(camera_pos - worldOrigin);
 	float d2 = length(camera_pos - (worldOrigin+worldSize));
-	float d3 = length(camera_pos - worldOrigin+make_float3(0, 0, worldSize.z));
-	float d4 = length(camera_pos - worldOrigin+make_float3(0, worldSize.y, 0));
-	float d5 = length(camera_pos - worldOrigin+make_float3(worldSize.x, 0, 0));
-	float d6 = length(camera_pos - worldOrigin+make_float3(worldSize.x, 0, worldSize.z));
-	float d7 = length(camera_pos - worldOrigin+make_float3(0, worldSize.y, worldSize.z));
-	float d8 = length(camera_pos - worldOrigin+make_float3(worldSize.x, worldSize.y, 0));
+	float d3 = length(camera_pos - (worldOrigin+make_float3(0, 0, worldSize.z)));
+	float d4 = length(camera_pos - (worldOrigin+make_float3(0, worldSize.y, 0)));
+	float d5 = length(camera_pos - (worldOrigin+make_float3(worldSize.x, 0, 0)));
+	float d6 = length(camera_pos - (worldOrigin+make_float3(worldSize.x, 0, worldSize.z)));
+	float d7 = length(camera_pos - (worldOrigin+make_float3(0, worldSize.y, worldSize.z)));
+	float d8 = length(camera_pos - (worldOrigin+make_float3(worldSize.x, worldSize.y, 0)));
 
-	far_plane = 1.1*max(
+	near_plane = min(
+			min(min(d1, d2), min(d3, d4)),
+			min(min(d5, d6), min(d7, d8)))/view_trig;
+	far_plane = near_plane + max(
 			max(max(d1, d2), max(d3, d4)),
 			max(max(d5, d6), max(d7, d8)));
 
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
 	gluPerspective(view_angle, GLdouble(viewport[2])/viewport[3], near_plane, far_plane);
 
 	glMatrixMode(GL_MODELVIEW);
