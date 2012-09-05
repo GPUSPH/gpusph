@@ -35,6 +35,41 @@ extern "C"
 {
 
 void
+setneibsconstants(const SimParams *simparams, const PhysParams *physparams)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_dispvect, &physparams->dispvect, sizeof(float3)));
+	uint maxneibs_time_neibinterleave = simparams->maxneibsnum*NEIBINDEX_INTERLEAVE;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
+}
+
+
+void
+getneibsconstants(SimParams *simparams, PhysParams *physparams)
+{
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dispvect, cuneibs::d_dispvect, sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->maxneibsnum, cuneibs::d_maxneibsnum, sizeof(uint), 0));
+}
+
+
+void
+resetneibsinfo(void)
+{
+	uint temp = 0;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxNeibs, &temp, sizeof(int)));
+}
+
+
+void
+getneibsinfo(TimingInfo & timingInfo)
+{
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibs, cuneibs::d_maxNeibs, sizeof(int), 0));
+}
+
+
+void
 calcHash(float4*	pos,
 		 uint*		particleHash,
 		 uint*		particleIndex,

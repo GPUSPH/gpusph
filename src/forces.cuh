@@ -26,6 +26,10 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
+#include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
+
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
 	MULTIPLE OF NEIBINDEX_INTERLEAVE
@@ -79,6 +83,23 @@
 
 extern "C"
 {
+void
+setforcesconstants(const SimParams *simaprams, const PhysParams *physparams);
+
+void
+getforcesconstants(PhysParams *physparams);
+
+void
+setplaneconstants(int numPlanes, const float* PlanesDiv, const float4* Planes);
+
+void
+setgravity(float3 const& gravity);
+
+void
+setforcesrbcg(const float3* cg, int numbodies);
+
+void
+setforcesrbstart(const uint* rbfirstindex, int numbodies);
 
 float
 forces(	float4*			pos,
