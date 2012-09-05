@@ -41,7 +41,10 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
+#ifndef dSINGLE
 #define dSINGLE
+#endif
+
 #include "ode/ode.h"
 
 enum KernelType {

@@ -25,13 +25,57 @@
 
 #include <stdio.h>
 
-#include "particledefine.h"
-
 #include "euler.cuh"
 #include "euler_kernel.cu"
 
 extern "C"
 {
+void
+seteulerconstants(const PhysParams & physparams)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams.epsxsph, sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_dispvect, &physparams.dispvect, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_minlimit, &physparams.minlimit, sizeof(float3)));
+}
+
+
+void
+geteulerconstants(PhysParams & physparams)
+{
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams.epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams.maxlimit, cueuler::d_maxlimit, sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams.minlimit, cueuler::d_minlimit, sizeof(float3), 0));
+}
+
+
+void
+setmbdata(float4* MbData, uint size)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_mbdata, MbData, size));
+}
+
+
+void
+seteulerrbcg(float3* cg, int numbodies)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbcg, cg, numbodies*sizeof(float3)));
+}
+
+
+void
+seteulerrbtrans(float3* trans, int numbodies)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbtrans, trans, numbodies*sizeof(float3)));
+}
+
+
+void
+seteulerrbsteprot(float* rot, int numbodies)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
+}
+
+
 void
 euler(	float4*		oldPos,
 		float4*		oldVel,

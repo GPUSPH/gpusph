@@ -26,6 +26,9 @@
 #ifndef _BUILDNEIBS_CUH_
 #define _BUILDNEIBS_CUH_
 
+#include "particledefine.h"
+#include "vector_math.h"
+
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
 	MULTIPLE OF NEIBINDEX_INTERLEAVE
@@ -55,10 +58,20 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
-#include "vector_math.h"
 
 extern "C"
 {
+void
+setneibsconstants(const SimParams & simparams, const PhysParams & physparams);
+
+void
+getneibsconstants(SimParams & simparams, PhysParams & physparams);
+
+void
+resetneibsinfo(void);
+
+void
+getneibsinfo(TimingInfo & timingInfo);
 
 void
 calcHash(float4*	pos,
