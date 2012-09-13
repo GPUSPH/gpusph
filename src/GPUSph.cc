@@ -134,6 +134,8 @@ const float3 z_axis(make_float3(0, 0, 1));
 float near_plane = 0.1;
 float far_plane = 100;
 
+float3 box_corner[8];
+
 Problem *problem;
 
 bool screenshotNow = false;
@@ -283,6 +285,23 @@ void init(const char *arg)
 	worldOrigin = problem->get_worldorigin();
 	worldSize = problem->get_worldsize();
 
+	box_corner[0] = worldOrigin;
+	box_corner[1] = box_corner[0];
+	box_corner[1].x += worldSize.x;
+	box_corner[2] = box_corner[0];
+	box_corner[2].y += worldSize.y;
+	box_corner[3] = box_corner[0];
+	box_corner[3].z += worldSize.z;
+	box_corner[4] = box_corner[1];
+	box_corner[4].z += worldSize.z;
+	box_corner[5] = box_corner[2];
+	box_corner[5].z += worldSize.z;
+	box_corner[6] = box_corner[1];
+	box_corner[6].y += worldSize.y;
+	box_corner[7] = box_corner[6];
+	box_corner[7].z += worldSize.z;
+
+
 	reset_display();
 
 	psystem = new ParticleSystem(problem);
@@ -363,21 +382,25 @@ void update_projection(void)
 
 void look(bool update=true)
 {
-	float d1 = length(camera_pos - worldOrigin);
-	float d2 = length(camera_pos - (worldOrigin+worldSize));
-	float d3 = length(camera_pos - (worldOrigin+make_float3(0, 0, worldSize.z)));
-	float d4 = length(camera_pos - (worldOrigin+make_float3(0, worldSize.y, 0)));
-	float d5 = length(camera_pos - (worldOrigin+make_float3(worldSize.x, 0, 0)));
-	float d6 = length(camera_pos - (worldOrigin+make_float3(worldSize.x, 0, worldSize.z)));
-	float d7 = length(camera_pos - (worldOrigin+make_float3(0, worldSize.y, worldSize.z)));
-	float d8 = length(camera_pos - (worldOrigin+make_float3(worldSize.x, worldSize.y, 0)));
+	near_plane = HUGE_VAL;
+	far_plane = 0;
+	float d = HUGE_VAL-HUGE_VAL;
 
-	near_plane = min(
-			min(min(d1, d2), min(d3, d4)),
-			min(min(d5, d6), min(d7, d8)))/view_trig;
-	far_plane = near_plane + max(
-			max(max(d1, d2), max(d3, d4)),
-			max(max(d5, d6), max(d7, d8)));
+#define DIST_CHECK(expr) do { \
+	d = expr; \
+	if (d < near_plane) near_plane = d; \
+	if (d > far_plane) far_plane = d; \
+} while (0)
+
+	DIST_CHECK(fabs(camera_pos.x - worldSize.x));
+	DIST_CHECK(fabs(camera_pos.x - worldSize.x - worldOrigin.x));
+	DIST_CHECK(fabs(camera_pos.y - worldSize.y));
+	DIST_CHECK(fabs(camera_pos.y - worldSize.y - worldOrigin.y));
+	DIST_CHECK(fabs(camera_pos.z - worldSize.z));
+	DIST_CHECK(fabs(camera_pos.z - worldSize.z - worldOrigin.z));
+
+	for (uint i = 0; i < 8; ++i)
+		DIST_CHECK(length(camera_pos - box_corner[i]));
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
