@@ -129,14 +129,6 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define MAXMOVINGBOUND		16
 
 
-/*
-   Particle types. Non-fluid parts are negative.
-   When adding new ones make sure they are added before the first,
-   increasing the (negative) index so that FLUIDPART always ends at 0
- */
-
-#define MAX_FLUID_TYPES      4
-
 /* The particle type is a short integer organized this way:
    * lowest 4 bits: fluid number (for multifluid)
    * next 4 bits: non-fluid code (boundary, piston, etc)
@@ -144,6 +136,11 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 */
 
 #define MAX_FLUID_BITS       4
+// Remember to fix these macros if MAX_FLUID_BITS is change:
+// NOT_FLUID
+// PART_TYPE
+// PART_FLUID_NUM
+// TODO make those macros use masks derived from MAX_FLUID_BITS
 
 /* this can be increased to up to (1<<MAX_FLUID_BITS) */
 #define MAX_FLUID_TYPES      4
@@ -153,9 +150,23 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #error "Too many fluids"
 #endif
 
+
 #define FLUIDPART 0
 
-/* non-fluid types start at (1<<MAX_FLUID_BITS) */
+/* non-fluid particle types are mutually exclusive (e.g. a particle is _either_
+ * boundary _or_ piston, but not both, so they could be increasing from 1 to the
+ * maximum number of particle types that we need. But these are encoded in the high
+ * bits of the lowest byte, so they are all shifted by MAX_FLUID_BITS.
+ *
+ * Remember: these are numbers (but encoded in a higher position), not flags.
+ * Add to them by increasing the number that gets shifted.
+ *
+ * The maximum number of particle types we can have with 4 fluid bits is
+ * 2^4 -1 = 15 (16 including particle type 0 = fluid).
+ *
+ * If we ever need more, we can reduce MAX_FLUID_BITS to 2 (and force the limit of
+ * 4 fluid types), and we could have up to 2^6 - 1 = 63 non-fluid particle types.
+ * */
 #define BOUNDPART  (1<<MAX_FLUID_BITS)
 #define PISTONPART (2<<MAX_FLUID_BITS)
 #define PADDLEPART (3<<MAX_FLUID_BITS)
@@ -172,6 +183,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define NOT_FLUID(f) ((f).x & 0xf0)
 /* otherwise it's fluid */
 #define FLUID(f) (!(NOT_FLUID(f)))
+
 // Testpoints
 #define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
 // Particle belonging to an object
