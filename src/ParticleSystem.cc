@@ -995,7 +995,7 @@ ParticleSystem::writeToFile()
 
 
 void
-ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
+ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vertex, int view_mode)
 {
 	float minrho = m_problem->get_minrho();
 	float maxrho = m_problem->get_maxrho();
@@ -1014,12 +1014,16 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	glBegin(GL_POINTS);
 	{
 		for (uint i = 0; i < m_numParticles; i++) {
-			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
+			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && !VERTEX(info[i]) && show_boundary) {
 				glColor3f(0.0, 1.0, 0.0);
 				glVertex3fv((float*)&pos[i]);
 			}
 			if (OBJECT(info[i]) && show_floating) {
 				glColor3f(1.0, 0.0, 0.0);
+				glVertex3fv((float*)&pos[i]);
+			}
+			if (VERTEX(info[i]) && show_vertex) {
+				glColor3f(1.0, 0.0, 1.0);
 				glVertex3fv((float*)&pos[i]);
 			}
 			if (FLUID(info[i])) {

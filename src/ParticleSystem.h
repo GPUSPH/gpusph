@@ -106,7 +106,7 @@ class ParticleSystem
 		void*	getArray(ParticleArray, bool);
 		void	setArray(ParticleArray);
 		void	setPlanes();
-		void	drawParts(bool, bool, int);
+		void	drawParts(bool, bool, bool, int);
 		void	writeSummary(void);
 		void	writeToFile(void);
 

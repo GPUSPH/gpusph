@@ -56,6 +56,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	// m_simparams.visctype = KINEMATICVISC;
 	m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
+	//m_simparams.boundarytype = MF_BOUNDARY;
 
 	// Size and origin of the simulation domain
 	m_size = make_float3(l, w ,h);

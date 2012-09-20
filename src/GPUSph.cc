@@ -97,6 +97,7 @@ bool bPause = true;
 bool stepping_mode = false;
 bool show_boundary = false;
 bool show_floating = false;
+bool show_vertex = false;
 
 enum { M_VIEW = 0, M_MOVE};
 int view_field = ParticleSystem::VM_NORMAL;
@@ -494,7 +495,7 @@ void display()
 
 	if (displayEnabled)
 	{
-		psystem->drawParts(show_boundary, show_floating, view_field);
+		psystem->drawParts(show_boundary, show_floating, show_vertex, view_field);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
 		problem->draw_axis();
@@ -801,6 +802,12 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 	case 'v':
 		view_field = ParticleSystem::VM_VELOCITY;
 		printf("Showing velocity\n");
+		break;
+
+	case 'V':
+		show_vertex = !show_vertex;
+		printf("%showing vertex particles\n",
+				show_vertex ? "S" : "Not s");
 		break;
 
 	case 'p':

@@ -82,6 +82,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
+	MF_BOUNDARY,
 	INVALID_BOUNDARY
 };
 
@@ -93,6 +94,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 = {
 	"Lennard-Jones",
 	"Monaghan-Kajtar",
+	"Ferrand et al.",
 	"(invalid)"
 }
 #endif
@@ -162,6 +164,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define GATEPART   (4<<MAX_FLUID_BITS)
 #define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
 #define OBJECTPART (6<<MAX_FLUID_BITS)
+#define VERTEXPART (7<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PARTICLE_FLAG_START (1<<8)
@@ -180,6 +183,8 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
 // Boundary particle
 #define BOUNDARY(f) ((f).x == BOUNDPART)
+// Vertex particle
+#define VERTEX(f) ((f).x == VERTEXPART)
 // Extract particle type
 #define PART_TYPE(f) (((f).x >> MAX_FLUID_BITS) & 0xf)
 // Extract particle flag

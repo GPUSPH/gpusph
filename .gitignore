@@ -13,7 +13,7 @@ tags
 TODO
 .DS_Store
 .*.swp
-~
+*.~
 html
 latex
 Manual
