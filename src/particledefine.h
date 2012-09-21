@@ -131,21 +131,16 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define MAXMOVINGBOUND		16
 
 
-/*
-   Particle types. Non-fluid parts are negative.
-   When adding new ones make sure they are added before the first,
-   increasing the (negative) index so that FLUIDPART always ends at 0
- */
-
-#define MAX_FLUID_TYPES      4
-
 /* The particle type is a short integer organized this way:
    * lowest 4 bits: fluid number (for multifluid)
    * next 4 bits: non-fluid code (boundary, piston, etc)
    * high 8 bits: flags
 */
 
-#define MAX_FLUID_BITS       4
+// number of bits reserved for the fluid number
+#define MAX_FLUID_BITS	4
+// number of bits after which flags are stored
+#define PART_FLAG_SHIFT	8
 
 /* this can be increased to up to (1<<MAX_FLUID_BITS) */
 #define MAX_FLUID_TYPES      4
@@ -155,48 +150,69 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #error "Too many fluids"
 #endif
 
-#define FLUIDPART 0
+/* non-fluid particle types are mutually exclusive (e.g. a particle is _either_
+ * boundary _or_ piston, but not both, so they could be increasing from 1 to the
+ * maximum number of particle types that we need. But these are encoded in the high
+ * bits of the lowest byte, so they are all shifted by MAX_FLUID_BITS.
+ *
+ * Remember: these are numbers (but encoded in a higher position), not flags.
+ * Add to them by increasing the number that gets shifted.
+ *
+ * The maximum number of particle types we can have with 4 fluid bits is
+ * 2^4 -1 = 15 (16 including particle type 0 = fluid).
+ *
+ * If we ever need more, we can reduce MAX_FLUID_BITS to 2 (and force the limit of
+ * 4 fluid types), and we could have up to 2^6 - 1 = 63 non-fluid particle types.
+ */
 
-/* non-fluid types start at (1<<MAX_FLUID_BITS) */
-#define BOUNDPART  (1<<MAX_FLUID_BITS)
-#define PISTONPART (2<<MAX_FLUID_BITS)
-#define PADDLEPART (3<<MAX_FLUID_BITS)
-#define GATEPART   (4<<MAX_FLUID_BITS)
-#define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
-#define OBJECTPART (6<<MAX_FLUID_BITS)
-#define VERTEXPART (7<<MAX_FLUID_BITS)
+#define FLUIDPART		0
+#define BOUNDPART		(1<<MAX_FLUID_BITS)
+#define PISTONPART		(2<<MAX_FLUID_BITS)
+#define PADDLEPART		(3<<MAX_FLUID_BITS)
+#define GATEPART		(4<<MAX_FLUID_BITS)
+#define TESTPOINTSPART	(5<<MAX_FLUID_BITS)
+#define OBJECTPART		(6<<MAX_FLUID_BITS)
+#define VERTEXPART		(7<<MAX_FLUID_BITS)
 
 /* particle flags */
-#define PARTICLE_FLAG_START (1<<8)
+#define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 
-#define SURFACE_PARTICLE_FLAG (PARTICLE_FLAG_START<<0)
+#define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
 
-/* A particle is NOT fluid if it has the high bits of the lowest byte set */
-#define NOT_FLUID(f) ((f).x & 0xf0)
+
+/* A bitmask to select only the fluid number */
+#define FLUID_NUM_MASK	((1<<MAX_FLUID_BITS)-1)
+/* A bitmask to select only the particle type */
+#define FLUID_TYPE_MASK	((1<<PART_FLAG_SHIFT)-(1<<MAX_FLUID_BITS))
+
+/* A particle is NOT fluid if its fluid type is non-zero */
+#define NOT_FLUID(f)	((f).x & FLUID_TYPE_MASK)
 /* otherwise it's fluid */
-#define FLUID(f) (!(NOT_FLUID(f)))
-// Testpoints
-#define TESTPOINTS(f) ((f).x == TESTPOINTSPART)
-// Particle belonging to an object
-#define OBJECT(f) ((f).x == OBJECTPART)
-// Free surface detection
-#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
-// Boundary particle
-#define BOUNDARY(f) ((f).x == BOUNDPART)
-// Vertex particle
-#define VERTEX(f) ((f).x == VERTEXPART)
-// Extract particle type
-#define PART_TYPE(f) (((f).x >> MAX_FLUID_BITS) & 0xf)
-// Extract particle flag
-#define PART_FLAG(f) ((f).x >> 8)
-// Extract particle fluid number
-#define PART_FLUID_NUM(f) ((f).x & 0xf)
+#define FLUID(f)		(!(NOT_FLUID(f)))
 
-/* compile-time consistency check:
-   definition of NOT_FLUID() depends on MAX_FLUID_BITS being 4 */
-#if MAX_FLUID_BITS != 4
-#error "Adjust NOT_FLUID() macro"
-#endif
+/* Tests for particle types */
+// Testpoints
+#define TESTPOINTS(f)	((f).x == TESTPOINTSPART)
+// Particle belonging to an object
+#define OBJECT(f)		((f).x == OBJECTPART)
+// Boundary particle
+#define BOUNDARY(f)		((f).x == BOUNDPART)
+// Vertex particle
+#define VERTEX(f)		((f).x == VERTEXPART)
+
+/* Tests for particle flags */
+// Free surface detection
+#define SURFACE_PARTICLE(f)	((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
+
+/* Extract a specific subfield from the particle type, unshifted:
+ * this is used when saving data
+ */
+// Extract particle type
+#define PART_TYPE(f)		(((f).x & FLUID_TYPE_MASK) >> MAX_FLUID_BITS)
+// Extract particle flag
+#define PART_FLAG(f)		((f).x >> PART_FLAG_SHIFT)
+// Extract particle fluid number
+#define PART_FLUID_NUM(f)	((f).x & FLUID_NUM_MASK)
 
 
 /* Periodic neighborhood warping */

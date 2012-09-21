@@ -34,6 +34,8 @@
 #include "StillWater.h"
 
 
+#define USE_PLANES 1
+
 StillWater::StillWater(const Options &options) : Problem(options)
 {
 	H = 1;
@@ -113,14 +115,17 @@ void StillWater::release_memory(void)
 int StillWater::fill_parts()
 {
 	// distance between fluid box and wall
-	float wd = m_deltap;
+	float wd = m_physparams.r0;
 
 	parts.reserve(14000);
 
 	experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, w, 0), Vector(0, 0, h));
 
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
+
+#if !USE_PLANES
 	experiment_box.FillBorder(boundary_parts, wd, false);
+#endif
 
 	Cube fluid = Cube(Point(wd, wd, wd), Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
@@ -134,7 +139,12 @@ int StillWater::fill_parts()
 
 uint StillWater::fill_planes()
 {
+#if USE_PLANES
+	return 5;
+#else
 	return 0;
+#endif
+
 }
 
 void StillWater::copy_planes(float4 *planes, float *planediv)
