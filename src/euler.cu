@@ -54,21 +54,21 @@ euler(	float4*		oldPos,
 
 	// execute the kernel
 	if (step == 1) {
-		if (periodicbound) {
-			if (xsphcorr)
+		if (xsphcorr) {
+			if (periodicbound)
 				cueuler::eulerXsphDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
 									numParticles, dt2, dt2, t);
 			else
-				cueuler::eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
+				cueuler::eulerXsphDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
+									forces, xsph,
 									newPos, newVel,
 									numParticles, dt2, dt2, t);
 		} else {
-			if (xsphcorr)
-				cueuler::eulerXsphDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
+			if (periodicbound)
+				cueuler::eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
+									forces,
 									newPos, newVel,
 									numParticles, dt2, dt2, t);
 			else
@@ -78,21 +78,21 @@ euler(	float4*		oldPos,
 									numParticles, dt2, dt2, t);
 		}
 	} else if (step == 2) {
-		if (periodicbound) {
-			if (xsphcorr)
+		if (xsphcorr) {
+			if (periodicbound)
 				cueuler::eulerXsphDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
 			else
-				cueuler::eulerDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
+				cueuler::eulerXsphDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
+									forces, xsph,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
 		} else {
-			if (xsphcorr)
-				cueuler::eulerXsphDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
+			if (periodicbound)
+				cueuler::eulerDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
+									forces,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
 			else
