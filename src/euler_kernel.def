@@ -148,10 +148,10 @@ EULER_KERNEL_NAME(
 		// TODO: test rotations
 		else if (type(pinfo) == OBJECTPART) {
 			const int i = object(pinfo);
-			
+
 			// Applying rotation around center of gravity
 			applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
-			
+
 			// Applying center of gravity translation
 			pos.x += d_rbtrans[i].x;
 			pos.y += d_rbtrans[i].y;
