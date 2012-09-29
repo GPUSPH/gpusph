@@ -62,7 +62,7 @@ euler(	float4*		oldPos,
 									numParticles, dt2, dt2, t);
 			else
 				cueuler::eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
+									forces,
 									newPos, newVel,
 									numParticles, dt2, dt2, t);
 		} else {
@@ -73,7 +73,7 @@ euler(	float4*		oldPos,
 									numParticles, dt2, dt2, t);
 			else
 				cueuler::eulerDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
+									forces,
 									newPos, newVel,
 									numParticles, dt2, dt2, t);
 		}
@@ -86,7 +86,7 @@ euler(	float4*		oldPos,
 									numParticles, dt, dt2, t);
 			else
 				cueuler::eulerDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
+									forces,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
 		} else {
@@ -97,7 +97,7 @@ euler(	float4*		oldPos,
 									numParticles, dt, dt2, t);
 			else
 				cueuler::eulerDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
+									forces,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
 		}

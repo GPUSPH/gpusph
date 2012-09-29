@@ -56,7 +56,9 @@ EULER_KERNEL_NAME(
 	float4*	oldVel,
 	particleinfo* info,
 	float4*	forces,
+#if XSPH_KERNEL
 	float4*	xsph,
+#endif
 	float4*	newPos,
 	float4*	newVel,
 	uint	numParticles,
