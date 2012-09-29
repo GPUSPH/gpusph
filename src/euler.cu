@@ -53,8 +53,8 @@ euler(	float4*		oldPos,
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
 	// execute the kernel
-	if (step == 1) {
-		if (xsphcorr) {
+	if (xsphcorr) {
+		if (step == 1) {
 			if (periodicbound)
 				cueuler::eulerXsphDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
@@ -65,20 +65,7 @@ euler(	float4*		oldPos,
 									forces, xsph,
 									newPos, newVel,
 									numParticles, dt2, dt2, t);
-		} else {
-			if (periodicbound)
-				cueuler::eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
-									newPos, newVel,
-									numParticles, dt2, dt2, t);
-			else
-				cueuler::eulerDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
-									newPos, newVel,
-									numParticles, dt2, dt2, t);
-		}
-	} else if (step == 2) {
-		if (xsphcorr) {
+		} else if (step == 2) {
 			if (periodicbound)
 				cueuler::eulerXsphDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces, xsph,
@@ -89,7 +76,20 @@ euler(	float4*		oldPos,
 									forces, xsph,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
-		} else {
+		}
+	} else {
+		if (step == 1) {
+			if (periodicbound)
+				cueuler::eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
+									forces,
+									newPos, newVel,
+									numParticles, dt2, dt2, t);
+			else
+				cueuler::eulerDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
+									forces,
+									newPos, newVel,
+									numParticles, dt2, dt2, t);
+		} else if (step == 2) {
 			if (periodicbound)
 				cueuler::eulerDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
 									forces,
@@ -101,7 +101,7 @@ euler(	float4*		oldPos,
 									newPos, newVel,
 									numParticles, dt, dt2, t);
 		}
-	} // if (step == 2)
+	}
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");
