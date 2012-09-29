@@ -30,6 +30,31 @@
 #include "euler.cuh"
 #include "euler_kernel.cu"
 
+// Creates a kernel name based on whether XSPH is used or not
+#define _EULER_KERNEL_NAME(xsph) cueuler::euler##xsph##Device
+
+// Run the Euler kernel defined by EULER_KERNEL_NAME with the appropriate
+// template and launch grid parameters, passing the arguments defined in the
+// EULER_KERNEL_ARGS() macro. This macro takes one parameter, which is the
+// timestep passed to the kernel (dt on the first step, dt2 on the second)
+#define EULER_STEP_BOUNDARY_SWITCH \
+	do { \
+		if (step == 1) { \
+			if (periodicbound) \
+				EULER_KERNEL_NAME<1, true><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt2)); \
+			else \
+				EULER_KERNEL_NAME<1, false><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt2)); \
+		} else if (step == 2) { \
+			if (periodicbound) \
+				EULER_KERNEL_NAME<2, true><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt)); \
+			else \
+				EULER_KERNEL_NAME<2, false><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt)); \
+		} \
+	} while (0)
+
+#undef EULER_KERNEL_NAME
+#undef EULER_KERNEL_ARGS
+
 extern "C"
 {
 void
@@ -54,53 +79,25 @@ euler(	float4*		oldPos,
 
 	// execute the kernel
 	if (xsphcorr) {
-		if (step == 1) {
-			if (periodicbound)
-				cueuler::eulerXsphDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
-									newPos, newVel,
-									numParticles, dt2, dt2, t);
-			else
-				cueuler::eulerXsphDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
-									newPos, newVel,
-									numParticles, dt2, dt2, t);
-		} else if (step == 2) {
-			if (periodicbound)
-				cueuler::eulerXsphDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
-									newPos, newVel,
-									numParticles, dt, dt2, t);
-			else
-				cueuler::eulerXsphDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces, xsph,
-									newPos, newVel,
-									numParticles, dt, dt2, t);
-		}
+#define EULER_KERNEL_NAME _EULER_KERNEL_NAME(Xsph)
+#define EULER_KERNEL_ARGS(dt) \
+					oldPos, oldVel, info, \
+					forces, xsph, \
+					newPos, newVel, \
+					numParticles, dt, dt2, t
+		EULER_STEP_BOUNDARY_SWITCH;
+#undef EULER_KERNEL_NAME
+#undef EULER_KERNEL_ARGS
 	} else {
-		if (step == 1) {
-			if (periodicbound)
-				cueuler::eulerDevice<1, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
-									newPos, newVel,
-									numParticles, dt2, dt2, t);
-			else
-				cueuler::eulerDevice<1, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
-									newPos, newVel,
-									numParticles, dt2, dt2, t);
-		} else if (step == 2) {
-			if (periodicbound)
-				cueuler::eulerDevice<2, true><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
-									newPos, newVel,
-									numParticles, dt, dt2, t);
-			else
-				cueuler::eulerDevice<2, false><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-									forces,
-									newPos, newVel,
-									numParticles, dt, dt2, t);
-		}
+#define EULER_KERNEL_NAME _EULER_KERNEL_NAME()
+#define EULER_KERNEL_ARGS(dt) \
+					oldPos, oldVel, info, \
+					forces, \
+					newPos, newVel, \
+					numParticles, dt, dt2, t
+		EULER_STEP_BOUNDARY_SWITCH;
+#undef EULER_KERNEL_NAME
+#undef EULER_KERNEL_ARGS
 	}
 
 	// check if kernel invocation generated an error
