@@ -314,6 +314,10 @@ void init(const char *arg)
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
 	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
+
+	if(true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/) {
+		problem->copy_vertices(psystem->m_hVertices);
+	}
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
@@ -825,6 +829,10 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 		show_floating = !show_floating;
 		printf("%showing boundaries\n",
 				show_boundary ? "S" : "Not s");
+		break;
+	case 'F':
+		view_field = ParticleSystem::VM_NOFLUID;
+		printf("Showing transparent fluid\n");
 		break;
 
 	case 'v':

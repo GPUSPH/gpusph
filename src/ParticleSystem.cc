@@ -214,6 +214,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint memSize3 = sizeof(float3)*m_numParticles;
 	const uint memSize4 = sizeof(float4)*m_numParticles;
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
+	const uint vinfoSize = sizeof(vertexinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
 	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
@@ -233,7 +234,7 @@ ParticleSystem::allocate(uint numParticles)
 	memory += infoSize;
 
 	m_hEnergy = new float4[m_physparams->numFluids];
-	memset(m_hInfo, 0, sizeof(float4)*m_physparams->numFluids);
+	memset(m_hInfo, 0, sizeof(float4)*m_physparams->numFluids); //TODO Should it be m_hEnergy instead of m_hInfo?
 	memory += sizeof(float4)*m_physparams->numFluids;
 
 	m_hVort = NULL;
@@ -241,6 +242,10 @@ ParticleSystem::allocate(uint numParticles)
 		m_hVort = new float3[m_numParticles];
 		memory += memSize3;
 		}
+
+	m_hVertices = new vertexinfo[m_numParticles];
+	memset(m_hVertices, 0, vinfoSize);
+	memory += vinfoSize;
 
 
 #ifdef PSYSTEM_DEBUG
@@ -721,6 +726,8 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams->vorticity) {
 		delete [] m_hVort;
 		}
+	if (m_hVertices)
+		delete [] m_hVertices;
 
 #ifdef PSYSTEM_DEBUG
 	delete [] m_hForces;
@@ -1009,6 +1016,9 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 	float4* vel = m_hVel;
 	float3* vort = m_hVort;
 	particleinfo* info = m_hInfo;
+	vertexinfo* vinfo = m_hVertices;
+
+	bool show_fluid = view_mode == VM_NOFLUID? false : true;
 
 	glPointSize(2.0);
 	glBegin(GL_POINTS);
@@ -1023,10 +1033,10 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 				glVertex3fv((float*)&pos[i]);
 			}
 			if (VERTEX(info[i]) && show_vertex) {
-				glColor3f(1.0, 0.0, 1.0);
+				glColor3f(0.3, 0.7, 0.9);
 				glVertex3fv((float*)&pos[i]);
 			}
-			if (FLUID(info[i])) {
+			if (FLUID(info[i]) && show_fluid) {
 				float v; unsigned int t;
 				float ssvel = m_problem->soundspeed(vel[i].w, PART_FLUID_NUM(info[i]));
 				switch (view_mode) {
@@ -1034,7 +1044,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 					    glColor3f(0.0,0.0,1.0);
 					    if (m_physparams->numFluids > 1) {
 					       v = (float) PART_FLUID_NUM(info[i]);
-	                       v /= (m_physparams->numFluids - 1);
+						v /= (m_physparams->numFluids - 1);
 						   glColor3f(v, 0.0, 1.0 - v);
 						   }
 						break;
@@ -1062,6 +1072,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 						glColor3f((v - minp)/(maxp - minp),
 								1 - (v - minp)/(maxp - minp),0.0);
 						break;
+
 					case VM_VORTICITY:
 					    v = length(vort[i]);
 					    glColor3f(1.-(v-minvel)/(maxvel-minvel),1.0,1.0);
@@ -1071,6 +1082,21 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 			}
 		}
 
+	}
+	glEnd();
+
+	//draw connections between vertex particles (i.e. triangular boundary elements)
+	glBegin(GL_TRIANGLES);
+	glColor3f(0.2,0.6,0.8);
+	for(uint i = 0; i < m_numParticles; i++) {
+		if(BOUNDARY(info[i]) && show_vertex) {
+			uint i_vert1 = vinfo[i].x;
+			uint i_vert2 = vinfo[i].y;
+			uint i_vert3 = vinfo[i].z;
+			glVertex3f(pos[i_vert1].x, pos[i_vert1].y, pos[i_vert1].z);
+			glVertex3f(pos[i_vert2].x, pos[i_vert2].y, pos[i_vert2].z);
+			glVertex3f(pos[i_vert3].x, pos[i_vert3].y, pos[i_vert3].z);
+		}
 	}
 	glEnd();
 

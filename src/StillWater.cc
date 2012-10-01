@@ -34,7 +34,7 @@
 #include "StillWater.h"
 
 
-#define USE_PLANES 1
+#define USE_PLANES 0
 
 StillWater::StillWater(const Options &options) : Problem(options)
 {
@@ -124,7 +124,12 @@ int StillWater::fill_parts()
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
 
 #if !USE_PLANES
-	experiment_box.FillBorder(boundary_parts, wd, false);
+	if(true/*m_simparams.boundarytype == MF_BOUNDARY*/) {
+		experiment_box.FillBorder(boundary_parts, vertex_parts, vertex_indexes, wd, false);
+	}
+	else {
+		experiment_box.FillBorder(boundary_parts, wd, false);
+	}
 #endif
 
 	Cube fluid = Cube(Point(wd, wd, wd), Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
@@ -134,7 +139,7 @@ int StillWater::fill_parts()
 	// is m_deltap = r0
 	fluid.Fill(parts, m_deltap);
 
-	return parts.size() + boundary_parts.size();
+	return parts.size() + boundary_parts.size() + vertex_parts.size();
 }
 
 uint StillWater::fill_planes()
@@ -189,4 +194,31 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+
+	std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
+	for (uint i = j; i < j + vertex_parts.size(); i++) {
+		pos[i] = make_float4(vertex_parts[i-j]);
+		float rho = density(H - pos[i].z, 0);
+		vel[i] = make_float4(0, 0, 0, rho);
+		info[i] = make_particleinfo(VERTEXPART, 0, i);
+	}
+	j += vertex_parts.size();
+	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
+}
+void StillWater::copy_vertices(vertexinfo *vertices)
+{
+	uint offset = parts.size() + boundary_parts.size();
+
+	if(vertex_indexes.size() != boundary_parts.size()) {
+		std::cout << "Incorrect connectivity array!\n";
+		exit(1);
+	}
+
+	for (uint i = 0; i < boundary_parts.size(); i++) {
+		vertex_indexes[i].x += offset;
+		vertex_indexes[i].y += offset;
+		vertex_indexes[i].z += offset;
+
+		vertices[i] = vertex_indexes[i];
+	}
 }

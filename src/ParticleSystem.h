@@ -61,7 +61,7 @@ public:
 // ParticleSystem : class used to call CUDA kernels
 class ParticleSystem
 {
-	public:
+	public: // TODO Two "public" keywords in this class, probably this one should be "private:"
 		enum ParticleArray
 		{
 			POSITION = 0,
@@ -86,7 +86,8 @@ class ParticleSystem
 			VM_VELOCITY,
 			VM_PRESSURE,
 			VM_DENSITY,
-			VM_VORTICITY
+			VM_VORTICITY,
+			VM_NOFLUID
 		};
 
 		ParticleSystem(Problem *problem);
@@ -168,12 +169,17 @@ class ParticleSystem
 		particleinfo*	m_hInfo;			// info array
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
-		float4*     m_hNormals;				// normals at free surface
+		float4*		m_hNormals;				// normals at free surface
 		float4*		m_hEnergy;				// total fluid(s) energy
 
 		// CPU arrays for geometry
 		float4*		m_hPlanes;
 		float *		m_hPlanesDiv;
+
+		//CPU arrays for Ferrand et al. boundary model
+		float4*		m_hGradGamma;			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
+		float4*		m_hBoundElement;		// normal coordinates and surface of boundary elements (triangles)
+		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
 
 		// CPU arrays used for debugging
 		uint*		m_hNeibsList;
@@ -189,15 +195,18 @@ class ParticleSystem
 		float4*		m_dXsph;				// mean velocity array
 		float4*		m_dPos[2];				// position array
 		float4*		m_dVel[2];				// velocity array
-		particleinfo*	m_dInfo[2];			// particle info array
-		float4*     m_dNormals;				// normal at free surface
+		particleinfo*	m_dInfo[2];				// particle info array
+		float4*		m_dNormals;				// normal at free surface
 		float3*		m_dVort;				// vorticity
-		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
+		uint		m_numPartsFmax;				// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
 		float*		m_dTempCfl;				// temporary storage for cfl computation
 		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
 		
+		float4*		m_dGradGamma[2];			//
+		float4*		m_dBoundElement[2];			//
+
 		// TODO: profile with float3
 		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
 		float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies

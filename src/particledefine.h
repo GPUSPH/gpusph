@@ -322,4 +322,7 @@ inline __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(uint*)&info.z;
 }
+
+typedef uint4 vertexinfo;
+
 #endif

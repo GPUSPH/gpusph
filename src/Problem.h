@@ -41,6 +41,7 @@
 #include "physparams.h"
 #include "simparams.h"
 
+typedef std::vector<vertexinfo> VertexVect;
 
 using namespace std;
 
@@ -190,6 +191,7 @@ class Problem {
 		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);
+		virtual void copy_vertices(vertexinfo*) = 0;
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
