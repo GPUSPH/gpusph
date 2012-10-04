@@ -125,7 +125,7 @@ int StillWater::fill_parts()
 
 #if !USE_PLANES
 	if(true/*m_simparams.boundarytype == MF_BOUNDARY*/) {
-		experiment_box.FillBorder(boundary_parts, vertex_parts, vertex_indexes, wd, false);
+		experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
 	}
 	else {
 		experiment_box.FillBorder(boundary_parts, wd, false);
@@ -194,6 +194,13 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+}
+
+void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm)
+{
+	copy_to_array(pos, vel, info);
+
+	uint j = parts.size() + boundary_parts.size();
 
 	std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
 	for (uint i = j; i < j + vertex_parts.size(); i++) {
@@ -204,21 +211,24 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	}
 	j += vertex_parts.size();
 	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
-}
-void StillWater::copy_vertices(vertexinfo *vertices)
-{
-	uint offset = parts.size() + boundary_parts.size();
 
 	if(vertex_indexes.size() != boundary_parts.size()) {
-		std::cout << "Incorrect connectivity array!\n";
+		std::cout << "ERROR! Incorrect connectivity array!\n";
+		exit(1);
+	}
+	if(boundary_elems.size() != boundary_parts.size()) {
+		std::cout << "ERROR! Incorrect boundary elements array!\n";
 		exit(1);
 	}
 
+	uint offset = parts.size() + boundary_parts.size();
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vertex_indexes[i].x += offset;
 		vertex_indexes[i].y += offset;
 		vertex_indexes[i].z += offset;
 
 		vertices[i] = vertex_indexes[i];
+		
+		boundelm[i] = make_float4(boundary_elems[i]);
 	}
 }

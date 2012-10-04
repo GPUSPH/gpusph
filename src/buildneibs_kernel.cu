@@ -100,17 +100,33 @@ calcHashDevice(const float4*	posArray,
 	particleIndex[index] = index;
 }
 
-
+__global__
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+void inverseParticleIndexDevice (	uint*	particleIndex,
+					uint*	inversedParticleIndex,
+					uint	numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	
+	if (index < numParticles) {
+		int oldindex = particleIndex[index];
+		inversedParticleIndex[oldindex] = index;
+	}
+}
 __global__
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell start index
 										uint*			cellEnd,		// output: cell end index
 										float4*			sortedPos,		// output: sorted positions
 										float4*			sortedVel,		// output: sorted velocities
-										particleinfo*	sortedInfo,		// output: sorted info
+										particleinfo*		sortedInfo,		// output: sorted info
+										float4*			sortedBoundElements,	// output: sorted boundary elements
+										float4*			sortedGradGamma,	// output: sorted gradient gamma
+										vertexinfo*		sortedVertices,		// output: sorted vertices
 										uint*			particleHash,	// input: sorted grid hashes
 										uint*			particleIndex,	// input: sorted particle indices
-										uint			numParticles)
+										uint			numParticles,
+										uint*			inversedParticleIndex)
 {
 	extern __shared__ uint sharedHash[];	// blockSize + 1 elements
 
@@ -156,11 +172,20 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		float4 pos = tex1Dfetch(posTex, sortedIndex);	   // macro does either global read or texture fetch
 		float4 vel = tex1Dfetch(velTex, sortedIndex);	   // see particles_kernel.cuh
 		particleinfo info = tex1Dfetch(infoTex, sortedIndex);
+		float4 boundelement = tex1Dfetch(boundTex, sortedIndex);
+		float4 gradgamma = tex1Dfetch(gamTex, sortedIndex);
+		vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
-		}
+		sortedBoundElements[index] = boundelement;
+		sortedGradGamma[index] = gradgamma;
+		
+		sortedVertices[index].x = inversedParticleIndex[vertices.x];
+		sortedVertices[index].y = inversedParticleIndex[vertices.y];
+		sortedVertices[index].z = inversedParticleIndex[vertices.z];
+	}
 }
 
 
@@ -312,9 +337,11 @@ buildNeibsListDevice(
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
+		// This is also not true for "Ferrand et al." boundary model,
+		// where vertex particles also need to have a list of neighbours
 
 		// Neighboring list is calculated for testpoints and object points)
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info)) {
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info)/*TODO: || BOUNDARY(info)*/) {
 			// read particle position from global memory or texture according to architecture
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);

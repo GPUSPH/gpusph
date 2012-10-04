@@ -30,7 +30,10 @@
 // textures for particle position, velocity and flags
 texture<float4, 1, cudaReadModeElementType> posTex;		// position and mass
 texture<float4, 1, cudaReadModeElementType> velTex;		// velocity and density
+texture<float4, 1, cudaReadModeElementType> boundTex;		// boundary elements
+texture<float4, 1, cudaReadModeElementType> gamTex;		// gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	// info
+texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	// vertices
 
 // SPS matrix
 // TODO these should probably be coalesced in a float4 + float2 texture

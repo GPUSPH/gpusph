@@ -186,7 +186,7 @@ Cube::SetInertia(const double dx)
 }
 
 void
-Cube::FillBorder(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
+Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
@@ -231,7 +231,7 @@ Cube::FillBorder(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vin
 		}
 
 		Rect rect = Rect(rorigin, rvx, rvy);
-		rect.Fill(bpoints, vpoints, vindexes, dx, face_num, edgeparts);
+		rect.Fill(bpoints, belems, vpoints, vindexes, dx, face_num, edgeparts);
 	}
 }
 

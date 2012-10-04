@@ -53,7 +53,7 @@ class Cube: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 		
-		void FillBorder(PointVect&, PointVect&, std::vector<uint4>&, const double, const bool);
+		void FillBorder(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const bool);
 		void FillBorder(PointVect&, const double, const int, const bool*);
 		void FillBorder(PointVect&, const double, const bool);
 		void FillBorder(PointVect& points, const double dx)

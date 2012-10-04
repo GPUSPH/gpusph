@@ -35,13 +35,13 @@ extern "C"
 {
 
 void
-calcHash(float4*	pos,
-		 uint*		particleHash,
-		 uint*		particleIndex,
-		 uint3		gridSize,
-		 float3		cellSize,
-		 float3		worldOrigin,
-		 uint		numParticles)
+calcHash(	float4*		pos,
+		uint*		particleHash,
+		uint*		particleIndex,
+		uint3		gridSize,
+		float3		cellSize,
+		float3		worldOrigin,
+		uint		numParticles)
 {
 	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -53,19 +53,40 @@ calcHash(float4*	pos,
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
 
+void
+inverseParticleIndex (	uint*	particleIndex,
+			uint*	inversedParticleIndex,
+			uint	numParticles)
+{
+	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
+	
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");	
+}
+
 
 void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start index
 									uint*			cellEnd,		// output: cell end index
 									float4*			newPos,			// output: sorted positions
 									float4*			newVel,			// output: sorted velocities
-									particleinfo*	newInfo,		// output: sorted info
-									uint*			particleHash,   // input: sorted grid hashes
-									uint*			particleIndex,  // input: sorted particle indices
+									particleinfo*		newInfo,		// output: sorted info
+									float4*			newBoundElement,	// output: sorted boundary elements
+									float4*			newGradGamma,		// output: sorted gradient gamma
+									vertexinfo*		newVertices,		// output: sorted vertices
+									uint*			particleHash,		// input: sorted grid hashes
+									uint*			particleIndex,		// input: sorted particle indices
 									float4*			oldPos,			// input: sorted position array
 									float4*			oldVel,			// input: sorted velocity array
-									particleinfo*	oldInfo,		// input: sorted info array
+									particleinfo*		oldInfo,		// input: sorted info array
+									float4*			oldBoundElement,	// input: sorted boundary elements
+									float4*			oldGradGamma,		// input: sorted gradient gamma
+									vertexinfo*		oldVertices,		// input: sorted vertices
 									uint			numParticles,
-									uint			numGridCells)
+									uint			numGridCells,
+									uint*			inversedParticleIndex)
 {
 	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -75,17 +96,25 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
+	
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
-													newVel, newInfo, particleHash, particleIndex, numParticles);
+												newVel, newInfo, newBoundElement, newGradGamma, newVertices, particleHash,
+												particleIndex, numParticles, inversedParticleIndex);
 	
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
-	
+
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
 }
 
 
@@ -144,7 +173,7 @@ sort(uint*	particleHash, uint*	particleIndex, uint	numParticles)
 	thrust::device_ptr<uint> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
 	
-	 thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
 }
 }

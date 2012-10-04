@@ -63,18 +63,29 @@ calcHash(float4*	pos,
 		 uint		numParticles);
 
 void
+inverseParticleIndex (	uint*	particleIndex,
+			uint*	inversedParticleIndex,
+			uint	numParticles);
+void
 reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							uint*			cellEnd,		// output: cell end index
 							float4*			newPos,			// output: sorted positions
 							float4*			newVel,			// output: sorted velocities
-							particleinfo*	newInfo,		// output: sorted info
-							uint*			particleHash,   // input: sorted grid hashes
-							uint*			particleIndex,	// input: sorted particle indices
+							particleinfo*		newInfo,		// output: sorted info
+							float4*			newBoundElement,	// output: sorted boundary elements
+							float4*			newGradGamma,		// output: sorted gradient gamma
+							vertexinfo*		newVertices,		// output: sorted vertices
+							uint*			particleHash,		// input: sorted grid hashes
+							uint*			particleIndex,		// input: sorted particle indices
 							float4*			oldPos,			// input: sorted position array
 							float4*			oldVel,			// input: sorted velocity array
-							particleinfo*	oldInfo,		// input: sorted info array
+							particleinfo*		oldInfo,		// input: sorted info array
+							float4*			oldBoundElement,	// input: sorted boundary elements
+							float4*			oldGradGamma,		// input: sorted gradient gamma
+							vertexinfo*		oldVertices,		// input: sorted vertices
 							uint			numParticles,
-							uint			numGridCells);
+							uint			numGridCells,
+							uint*			inversedParticleIndes);
 
 void
 buildNeibsList( uint*				neibsList,

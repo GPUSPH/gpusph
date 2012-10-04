@@ -294,9 +294,9 @@ Rect::Fill(PointVect& points, const double dx, const bool* edges_to_fill)
 
 
 void
-Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes, const double dx, const int face_num, std::vector<uint> edgeparts[6][4])
+Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vector<uint4>& vindexes, const double dx, const int face_num, std::vector<uint> edgeparts[6][4])
 {
-	m_origin(3) = m_center(3);
+	m_origin(3) = m_center(3)/2;
 
 	int nx = (int) (m_lx/dx);
 	int ny = (int) (m_ly/dx);
@@ -304,15 +304,19 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 	int starty = 0;
 	int endx = nx;
 	int endy = ny;
+	double belm_surf = m_lx/nx * m_ly/ny / 2.0;
 
 	uint predef_vparts = 0;
+	Point belm(0, 0, 0, belm_surf);
 
 	//Fill near-edge regions with boundary particles (elements) and set connectivity for them
 	switch(face_num){
 		case 0: //back face
+			belm.SetCoord(0, 1, 0);
 			break;
 		case 1: //left face
 			startx++;
+			belm.SetCoord(-1, 0, 0);
 
 			predef_vparts = edgeparts[0][2].size();
 			if(predef_vparts)
@@ -331,11 +335,16 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 
 				uint4 vertices2 = {vpoint_index, vpoints.size() + i, vpoints.size() + i + 1, 0};
 				vindexes.push_back(vertices2);
+				
+				belems.push_back(belm);
+				belems.push_back(belm);
 			}
+
 			break;
 		case 2: //front face
 			startx++;
-
+			belm.SetCoord(0, -1, 0);
+			
 			predef_vparts = edgeparts[1][2].size();
 			if(predef_vparts)
 			for(uint i=0; i<predef_vparts-1; i++) {
@@ -353,12 +362,16 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 
 				uint4 vertices2 = {vpoint_index, vpoints.size() + i, vpoints.size() + i + 1, 0};
 				vindexes.push_back(vertices2);
+
+				belems.push_back(belm);
+				belems.push_back(belm);
 			}
 			break;
 		case 3: //right face
 			startx++;
 			endx--;
-
+			belm.SetCoord(1, 0, 0);
+			
 			predef_vparts = edgeparts[2][2].size();
 			if(predef_vparts)
 			for(uint i=0; i<predef_vparts-1; i++) {
@@ -396,13 +409,18 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 				uint4 vertices2 = {vpoints.size() + (endy-starty+1)*(endx-startx) + i, vpoint_index, vpoint_index + 1, 0};
 				vindexes.push_back(vertices2);
 			}
+
+			for(uint i=0; i<4*(predef_vparts-1); i++)
+				belems.push_back(belm);
+
 			break;
 		case 4: //bottom face
 			startx++;
 			starty++;
 			endx--;
 			endy--;
-
+			belm.SetCoord(0, 0, 1);
+			
 			predef_vparts = edgeparts[3][1].size();
 			if(predef_vparts)
 			for(uint i=1; i<predef_vparts; i++) {
@@ -494,12 +512,18 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 					vertices2.z = edgeparts[1][1][0];
 				vindexes.push_back(vertices2);
 			}
+			
+			for(uint i=0; i<8*(predef_vparts-2); i++)
+				belems.push_back(belm);
+
 			break;
 		case 5: //top face
 			startx++;
 			starty++;
 			endx--;
 			endy--;
+			belm.SetCoord(0, 0, -1);
+			
 			break;
 		}
 
@@ -507,18 +531,29 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 	for (int i = startx; i <= endx; i++)
 	for (int j = starty; j <= endy; j++) {
 			Point vp = m_origin + i*m_vx/nx + j*m_vy/ny;
-			vpoints.push_back(vp);
-			int nvertex = vpoints.size()-1;
+			int nvertex = vpoints.size();
 
 			//Save vertex particles located at the edges of planes
-			if (i == 0)
+			if (i == 0) {
 				edgeparts[face_num][0].push_back(nvertex);
-			if (i == nx)
+				vp(3) /= 2;
+			}
+			if (i == nx) {
 				edgeparts[face_num][2].push_back(nvertex);
-			if (j == 0)
+				vp(3) /= 2;
+			}
+			if (j == 0) {
 				edgeparts[face_num][1].push_back(nvertex);
-			if (j == ny)
+				vp(3) /= 2;
+				if(i == 0 || i == nx)
+					vp(3) /= 2;
+			}
+			if (j == ny) {
 				edgeparts[face_num][3].push_back(nvertex);
+			}
+			
+			vpoints.push_back(vp);
+
 
 			//Fill rectangular plane with boundary particles and set connectivity for them
 			if (i != endx && j != endy) {
@@ -533,6 +568,9 @@ Rect::Fill(PointVect& bpoints, PointVect& vpoints, std::vector<uint4>& vindexes,
 
 				uint4 vertices2 = {nvertex, nvertex + (endy-starty) + 1, nvertex + (endy-starty) + 2, 0};
 				vindexes.push_back(vertices2);
+				
+				belems.push_back(belm);
+				belems.push_back(belm);
 			}
 	}
 

@@ -77,6 +77,9 @@ class ParticleSystem
 			CELLEND,
 			// Free surface detection (Debug)
 			NORMALS,
+			BOUNDELEMENT,
+			GRADGAMMA,
+			VERTICES,
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -178,7 +181,7 @@ class ParticleSystem
 
 		//CPU arrays for Ferrand et al. boundary model
 		float4*		m_hGradGamma;			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
-		float4*		m_hBoundElement;		// normal coordinates and surface of boundary elements (triangles)
+		float4*		m_hBoundElement;		// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
 		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
 
 		// CPU arrays used for debugging
@@ -204,8 +207,9 @@ class ParticleSystem
 		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
 		
-		float4*		m_dGradGamma[2];			//
-		float4*		m_dBoundElement[2];			//
+		float4*		m_dGradGamma[2];			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
+		float4*		m_dBoundElement[2];			// normal coordinates (x,y,z) and (w) surface of boundary elements (triangles)
+		vertexinfo*	m_dVertices[2];				// stores indexes of 3 vertex particles for every boundary element
 
 		// TODO: profile with float3
 		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
@@ -221,8 +225,9 @@ class ParticleSystem
 
 		uint*		m_dParticleHash;		// hash table for sorting
 		uint*		m_dParticleIndex;		// sorted particle indexes
+		uint*		m_dInversedParticleIndex;	// inversed m_dParticle index array
 		uint*		m_dCellStart;			// index of cell start in sorted order
-		uint*		m_dCellEnd;				// index of cell end in sorted order
+		uint*		m_dCellEnd;			// index of cell end in sorted order
 		uint*		m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
 
 		uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
@@ -231,7 +236,13 @@ class ParticleSystem
 		uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
 		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
-
+		uint		m_currentBoundElementRead;	// current index in m_dBoundElement for normal coordinates (and surface) reading (0 or 1)
+		uint		m_currentBoundElementWrite;	// current index in m_dBoundElement for writing (0 or 1)
+		uint		m_currentGradGammaRead;		// current index in m_dGradGamma for gradient gamma (and gamma) reading (0 or 1)
+		uint		m_currentGradGammaWrite;	// current index in m_dGradGamma for writing (0 or 1)
+		uint		m_currentVerticesRead;		// current index in m_dVertices for vertices reading (0 or 1)
+		uint		m_currentVerticesWrite;		// current index in m_dVertices for writing (0 or 1)
+		
 		// CUDA device properties
 		cudaDeviceProp	m_device;
 

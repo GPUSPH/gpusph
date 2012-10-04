@@ -104,6 +104,12 @@ void Point::SetCoord(double *data)
 	x[2] = data[2];
 }
 
+void Point::SetCoord(double X, double Y, double Z)
+{
+	x[0] = X;
+	x[1] = Y;
+	x[2] = Z;
+}
 
 /// Squared distance from origin
 /*!	\return the squared distance from origin

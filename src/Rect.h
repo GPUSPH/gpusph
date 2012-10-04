@@ -58,7 +58,7 @@ class Rect: public Object {
 				const bool, const int);
 		
 		void Fill(PointVect&, const double, const bool*);
-		void Fill(PointVect&, PointVect&, std::vector<uint4>&, const double, const int, std::vector<uint> [][4]);
+		void Fill(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const int, std::vector<uint> [][4]);
 		int Fill(PointVect&, const double, const bool, const bool);
 		int Fill(PointVect&, const double, const bool fill = true);
 		

@@ -313,14 +313,21 @@ void init(const char *arg)
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
-	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
 
 	if(true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/) {
-		problem->copy_vertices(psystem->m_hVertices);
+		//problem->calc_Norm_and_Surf_BoundElm(psystem->m_hBoundElement);
+		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hVertices, psystem->m_hBoundElement);
 	}
+	else {
+		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
+	}
+	
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
+	psystem->setArray(ParticleSystem::BOUNDELEMENT);
+	psystem->setArray(ParticleSystem::GRADGAMMA);
+	psystem->setArray(ParticleSystem::VERTICES);
 
 	uint numPlanes = problem->fill_planes();
 	if (numPlanes > 0) {
@@ -468,6 +475,8 @@ void get_arrays(bool need_write)
 		if (problem->m_simparams.savenormals)
 			psystem->getArray(ParticleSystem::NORMALS, need_write);
 	}
+	if (true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/)
+		psystem->getArray(ParticleSystem::VERTICES, need_write);
 }
 
 void do_write()

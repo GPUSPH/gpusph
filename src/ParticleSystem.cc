@@ -74,6 +74,10 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Particle Index",
 	"Cell Start",
 	"Cell End",
+	"Normals",
+	"Boundary Elements",
+	"Gradient Gamma",
+	"Vertices",
 	"(invalid)"
 };
 
@@ -89,7 +93,13 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentVelRead(0),
 	m_currentVelWrite(1),
 	m_currentInfoRead(0),
-	m_currentInfoWrite(1)
+	m_currentInfoWrite(1),
+	m_currentBoundElementRead(0),
+	m_currentBoundElementWrite(1),
+	m_currentGradGammaRead(0),
+	m_currentGradGammaWrite(1),
+	m_currentVerticesRead(0),
+	m_currentVerticesWrite(1)
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
@@ -243,6 +253,14 @@ ParticleSystem::allocate(uint numParticles)
 		memory += memSize3;
 		}
 
+	m_hGradGamma = new float4[m_numParticles];
+	memset(m_hGradGamma, 0, memSize4);
+	memory += memSize4;
+	
+	m_hBoundElement = new float4[m_numParticles];
+	memset(m_hBoundElement, 0, memSize4);
+	memory += memSize4;
+	
 	m_hVertices = new vertexinfo[m_numParticles];
 	memset(m_hVertices, 0, vinfoSize);
 	memory += vinfoSize;
@@ -334,11 +352,32 @@ ParticleSystem::allocate(uint numParticles)
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], memSize2));
 		memory += memSize2;
 	}
+	
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dGradGamma[0], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dGradGamma[1], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dBoundElement[0], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dBoundElement[1], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVertices[0], vinfoSize));
+	memory += vinfoSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVertices[1], vinfoSize));
+	memory += vinfoSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
 	memory += hashSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
+	memory += hashSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInversedParticleIndex, hashSize));
 	memory += hashSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
@@ -728,6 +767,10 @@ ParticleSystem::~ParticleSystem()
 		}
 	if (m_hVertices)
 		delete [] m_hVertices;
+	if (m_hGradGamma)
+		delete [] m_hGradGamma;
+	if (m_hBoundElement)
+		delete [] m_hBoundElement;
 
 #ifdef PSYSTEM_DEBUG
 	delete [] m_hForces;
@@ -763,7 +806,14 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dVel[1]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[0]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
-
+	
+	CUDA_SAFE_CALL(cudaFree(m_dGradGamma[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dGradGamma[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dBoundElement[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dBoundElement[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dVertices[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dVertices[1]));
+	
 	// Free surface detection
 	if (m_simparams->savenormals)
 		CUDA_SAFE_CALL(cudaFree(m_dNormals));
@@ -783,6 +833,7 @@ ParticleSystem::~ParticleSystem()
 
 	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
+	CUDA_SAFE_CALL(cudaFree(m_dInversedParticleIndex));
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
@@ -931,6 +982,24 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			hdata = (void*) m_hNormals;
 			ddata = (void*) m_dNormals;
 			break;
+
+		case BOUNDELEMENT:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hBoundElement;
+			ddata = (void*) m_dBoundElement;
+			break;
+
+		case GRADGAMMA:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hGradGamma;
+			ddata = (void*) m_dGradGamma;
+			break;
+
+		case VERTICES:
+			size = m_numParticles*sizeof(vertexinfo);
+			hdata = (void*) m_hVertices;
+			ddata = (void*) m_dVertices[m_currentVerticesRead];
+			break;
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -964,6 +1033,25 @@ ParticleSystem::setArray(ParticleArray array)
 			ddata = m_dInfo[m_currentInfoRead];
 			size = m_numParticles*sizeof(particleinfo);
 			break;
+
+		case BOUNDELEMENT:
+			hdata = m_hBoundElement;
+			ddata = m_dBoundElement[m_currentBoundElementRead];
+			size = m_numParticles*sizeof(float4);
+			break;
+
+		case GRADGAMMA:
+			hdata = m_hGradGamma;
+			ddata = m_dGradGamma[m_currentGradGammaRead];
+			size = m_numParticles*sizeof(float4);
+			break;
+
+		case VERTICES:
+			hdata = m_hVertices;
+			ddata = m_dVertices[m_currentVerticesRead];
+			size = m_numParticles*sizeof(vertexinfo);
+			break;
+
 		default:
 			fprintf(stderr, "Trying to upload unknown array %d\n", array);
 			return;
@@ -1144,31 +1232,44 @@ ParticleSystem::buildNeibList(bool timing)
 
 	// hash based particle sort
 	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
+	
+	//inverse array with particle indexes
+	inverseParticleIndex(m_dParticleIndex, m_dInversedParticleIndex, m_numParticles);
 
 	reorderDataAndFindCellStart(
 			m_dCellStart,					// output: cell start index
-			m_dCellEnd,						// output: cell end index
-			m_dPos[m_currentPosWrite],		// output: sorted positions
-			m_dVel[m_currentVelWrite],		// output: sorted velocities
-			m_dInfo[m_currentInfoWrite],	// output: sorted info
+			m_dCellEnd,					// output: cell end index
+			m_dPos[m_currentPosWrite],			// output: sorted positions
+			m_dVel[m_currentVelWrite],			// output: sorted velocities
+			m_dInfo[m_currentInfoWrite],			// output: sorted info
+			m_dBoundElement[m_currentBoundElementWrite],	// output: sorted boundary elements
+			m_dGradGamma[m_currentGradGammaWrite],		// output: sorted gradient gamma
+			m_dVertices[m_currentVerticesWrite],		// output: sorted vertices
 			m_dParticleHash,				// input: sorted grid hashes
 			m_dParticleIndex,				// input: sorted particle indices
-			m_dPos[m_currentPosRead],		// input: sorted position array
-			m_dVel[m_currentVelRead],		// input: sorted velocity array
-			m_dInfo[m_currentInfoRead],		// input: sorted info array
+			m_dPos[m_currentPosRead],			// input: sorted position array
+			m_dVel[m_currentVelRead],			// input: sorted velocity array
+			m_dInfo[m_currentInfoRead],			// input: sorted info array
+			m_dBoundElement[m_currentBoundElementRead],	// input: sorted boundary elements
+			m_dGradGamma[m_currentGradGammaRead],		// input: sorted gradient gamma
+			m_dVertices[m_currentVerticesRead],		// input: sorted vertices
 			m_numParticles,
-			m_nGridCells);
+			m_nGridCells,
+			m_dInversedParticleIndex);
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 	std::swap(m_currentInfoRead, m_currentInfoWrite);
+	std::swap(m_currentBoundElementRead, m_currentBoundElementWrite);
+	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+	std::swap(m_currentVerticesRead, m_currentVerticesWrite);
 
 	m_timingInfo.numInteractions = 0;
 	m_timingInfo.maxNeibs = 0;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxNeibs", &m_timingInfo.maxNeibs, sizeof(int)));
 
-	// Build the neibghours list
+	// Build the neighbours list
 	buildNeibsList(	m_dNeibsList,
 			m_dPos[m_currentPosRead],
 			m_dInfo[m_currentInfoRead],

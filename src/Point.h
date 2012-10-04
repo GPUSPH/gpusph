@@ -61,6 +61,7 @@ class Point {
 		~Point(void) {};
 
 		void SetCoord(double *);
+		void SetCoord(double, double, double);		
 		
 		/*! \name
 			Distance calculation

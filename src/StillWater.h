@@ -11,6 +11,7 @@ class StillWater: public Problem {
 		Cube		experiment_box;
 		PointVect	parts;
 		PointVect	boundary_parts;
+		PointVect	boundary_elems;
 		PointVect	vertex_parts;
 		VertexVect	vertex_indexes;
 
@@ -25,8 +26,8 @@ class StillWater: public Problem {
 		uint fill_planes(void);
 		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, vertexinfo *, float4 *);
 		void copy_planes(float4*, float*);
-		void copy_vertices(vertexinfo*);
 
 		void release_memory(void);
 };
