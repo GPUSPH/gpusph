@@ -2,7 +2,7 @@
 #include <cuda_gl_interop.h>
 
 #include "cudautil.cuh"
-#include "compute_select.h"
+#include "compute_select.opt"
 
 cudaDeviceProp checkCUDA(const Options &options)
 {
