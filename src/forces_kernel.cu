@@ -365,7 +365,6 @@ dtadaptBlockReduce(	float*	sm_max,
 template<bool periodicbound>
 __device__ __forceinline__ void
 getNeibData(const float4	pos,
-			const uint*		neibsList,
 			const float		influenceradius,
 			uint&			neib_index,
 			float4&			neib_pos,
@@ -378,7 +377,6 @@ getNeibData(const float4	pos,
 template<>
 __device__ __forceinline__ void
 getNeibData<true>(	const float4	pos,
-					const uint*		neibsList,
 					const float		influenceradius,
 					uint&			neib_index,
 					float4&			neib_pos,
@@ -419,7 +417,6 @@ getNeibData<true>(	const float4	pos,
 template<>
 __device__ __forceinline__ void
 getNeibData<false>(	const float4	pos,
-					const uint*		neibsList,
 					const float		influenceradius,
 					uint&			neib_index,
 					float4&			neib_pos,
@@ -438,7 +435,6 @@ template<bool periodicbound>
 __device__ __forceinline__ void
 getNeibData(const float4	pos,
 			const float4*	posArray,
-			const uint*		neibsList,
 			const float		influenceradius,
 			uint&			neib_index,
 			float4&			neib_pos,
@@ -452,7 +448,6 @@ template<>
 __device__ __forceinline__ void
 getNeibData<true>(	const float4	pos,
 					const float4*	posArray,
-					const uint*		neibsList,
 					const float		influenceradius,
 					uint&			neib_index,
 					float4&			neib_pos,
@@ -494,7 +489,6 @@ template<>
 __device__ __forceinline__ void
 getNeibData<false>(	const float4	pos,
 					const float4*	posArray,
-					const uint*		neibsList,
 					const float		influenceradius,
 					uint&			neib_index,
 					float4&			neib_pos,
@@ -684,9 +678,9 @@ SPSstressMatrixDevice(	const float4* posArray,
 		float r;
 
 		#if( __COMPUTE__ >= 20)							
-		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 		#else
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		#endif
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
@@ -801,9 +795,9 @@ shepardDevice(	const float4*	posArray,
 		float r;
 
 		#if( __COMPUTE__ >= 20)							
-		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 		#else
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		#endif
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -875,9 +869,9 @@ MlsDevice(	const float4*	posArray,
 		float r;
 
 		#if( __COMPUTE__ >= 20)							
-		getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 		#else
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		#endif
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -941,9 +935,9 @@ MlsDevice(	const float4*	posArray,
 			float r;
 
 			#if( __COMPUTE__ >= 20)							
-			getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 			#else
-			getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 			#endif
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
@@ -973,9 +967,9 @@ MlsDevice(	const float4*	posArray,
 				float r;
 
 				#if( __COMPUTE__ >= 20)							
-				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 				#else
-				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 				const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
@@ -1240,7 +1234,7 @@ calcVortDevice(	float3*		vorticity,
 		float3 relPos;
 		float r;
 
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1299,7 +1293,7 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 		float3 relPos;
 		float r;
 
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
         const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1362,7 +1356,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 		float3 relPos;
 		float r;
 
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		const float neib_density = tex1Dfetch(velTex, neib_index).w;
 
 		if (r < influenceradius) {
@@ -1399,7 +1393,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 		float cosconeangle;
 
-		getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius) {

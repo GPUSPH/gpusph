@@ -141,9 +141,9 @@ FORCES_CUDA_KERNEL
 				float r;
 
 				#if( __COMPUTE__ >= 20)							
-				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 				#else
-				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 
 				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
@@ -311,9 +311,9 @@ FORCES_CUDA_KERNEL
 				float r;
 				
 				#if( __COMPUTE__ >= 20)							
-				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
 				#else
-				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+				getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 
     	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
