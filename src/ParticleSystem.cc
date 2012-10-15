@@ -581,6 +581,7 @@ ParticleSystem::printPhysParams(FILE *summary)
 		fprintf(summary, "DEM zmin = %g\n", m_physparams->demzmin);
 		}
 
+	fflush(summary);
 }
 
 
@@ -610,6 +611,8 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "periodic boundary = %s\n", m_simparams->periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams->usedem);
 	fprintf(summary, "number of rigid bodies = %d\n", m_simparams->numbodies);
+
+	fflush(summary);
 }
 
 
@@ -1364,6 +1367,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simTime, m_dt);
 		}
 	}
+	fflush(stderr);
 
 	if (timing) {
 		m_timingInfo.meanTimeInteract = (m_timingInfo.meanTimeInteract*(m_iter - 1) + m_timingInfo.timeInteract)/m_iter;

@@ -169,6 +169,7 @@ void show_timing(int ret)
 		(double)ti.numInteractions, ti.timeNeibsList, ti.meanTimeNeibsList, ti.maxNeibs,
 		(double)ti.meanNumInteractions, ti.numInteractions/ti.timeInteract, ti.meanNumInteractions/timingInfo.meanTimeInteract,
 		ti.timeEuler, ti.meanTimeEuler);
+	fflush(stdout);
 #undef ti
 }
 
@@ -476,6 +477,7 @@ void do_write()
 			ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			ti.meanTimeNeibsList,
 			ti.meanTimeEuler);
+	fflush(stdout);
 	#undef ti
 	if (problem->m_simparams.gage.size() > 0) {
 		psystem->writeWaveGage();
@@ -496,6 +498,7 @@ void display()
 #ifdef TIMING_LOG
 		fprintf(timing_log,"%9.4e\t%9.4e\t%9.4e\t%9.4e\t%9.4e\n", timingInfo.t, timingInfo.dt,
 				timingInfo.timeInteract, timingInfo.timeEuler, timingInfo.timeNeibsList);
+		fflush(timing_log);
 #endif
 	}
 
@@ -955,6 +958,7 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 		break;
 	}
 
+	fflush(stdout);
 	glutPostRedisplay();
 }
 
@@ -992,7 +996,7 @@ int
 main( int argc, char** argv)
 {
 	if (sizeof(uint) != 2*sizeof(short)) {
-		printf("Fatal: this architecture does not have uint = 2 short\n");
+		fprintf(stderr, "Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);
 	}
 	signal(SIGINT, quit);
