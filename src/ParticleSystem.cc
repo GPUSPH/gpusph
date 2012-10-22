@@ -807,7 +807,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case NEIBSLIST:
-			size = m_numParticles*MAXNEIBSNUM*sizeof(uint);
+			size = m_numParticles*m_simparams->maxneibsnum*sizeof(uint);
 			hdata = (void*) m_hNeibsList;
 			ddata = (void*) m_dNeibsList;
 			break;
