@@ -341,7 +341,7 @@ buildNeibsListDevice(
 		// where vertex particles also need to have a list of neighbours
 
 		// Neighboring list is calculated for testpoints and object points)
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info)/*TODO: || BOUNDARY(info)*/) {
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info)/*TODO: || VERTEX(info) || BOUNDARY(info)*/) {
 			// read particle position from global memory or texture according to architecture
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);

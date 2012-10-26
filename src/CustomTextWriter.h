@@ -37,7 +37,7 @@ public:
 	~CustomTextWriter();
 
 	void write(uint numParts, const float4 *pos, const float4 *vel,
-		const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals);
+		const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals, const float4 *gradGamma = 0);
 };
 
 #endif

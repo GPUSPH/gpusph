@@ -197,5 +197,39 @@ void calc_energy(
 	particleinfo const*	pinfo,
 		uint			numParticles,
 		uint			numFluids);
+
+// Computes initial values of the gamma gradient
+void
+initGradGamma(	float4*		oldPos,
+		float4*		newPos,
+		float4*		virtualVel,
+		particleinfo*	info,
+		float4*		boundElement,
+		float4*		gradGamma,
+		uint*		neibsList,
+		uint		numParticles,
+		float		slength,
+		float		inflRadius,
+		int		kerneltype,
+		bool		periodicbound);
+		
+// Computes current value of the gamma gradient and update gamma value
+// according to the evolution equation { dGamma/dt = gradGamma * relVel }
+void
+updateGamma(	float4*		oldPos,
+		float4*		newPos,
+		float4*		virtualVel,
+		particleinfo*	info,
+		float4*		boundElement,
+		float4*		newGam,
+		float4*		oldGam,
+		uint*		neibsList,
+		uint		numParticles,
+		float		slength,
+		float		inflRadius,
+		float		virtDt,
+		int		kerneltype,
+		bool		periodicbound);
+
 }
 #endif

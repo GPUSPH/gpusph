@@ -93,7 +93,7 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 
 void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
-				const float4 *normals)
+				const float4 *normals, const float4 *gradGamma)
 {
 	string filename, full_filename;
 
@@ -131,6 +131,12 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	scalar_array(fid, "Float32", "Mass", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
+	// mass
+	if (gradGamma) {
+		scalar_array(fid, "Float32", "Gamma", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
 	// particle info
 	if (info) {
 		scalar_array(fid, "Int16", "Part type", offset);
@@ -148,6 +154,12 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
+	
+	// gradient gamma
+	if (gradGamma) {
+		vector_array(fid, "Float32", "Gradient Gamma", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
+	}
 
 	// vorticity
 	if (vort) {
@@ -217,6 +229,15 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		float value = pos[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
+	
+	// gamma
+	if (gradGamma) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = gradGamma[i].w;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
 
 	// particle info
 	if (info) {
@@ -268,6 +289,16 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		float *value = zeroes;
 		if (FLUID(info[i]) || TESTPOINTS(info[i])) {
 			value = (float*)(vel + i);
+		}
+		fwrite(value, sizeof(*value), 3, fid);
+	}
+
+	// gradient gamma
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float *value = zeroes;
+		if (FLUID(info[i])) {
+			value = (float*)(gradGamma + i);
 		}
 		fwrite(value, sizeof(*value), 3, fid);
 	}

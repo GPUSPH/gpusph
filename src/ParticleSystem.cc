@@ -986,13 +986,13 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 		case BOUNDELEMENT:
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hBoundElement;
-			ddata = (void*) m_dBoundElement;
+			ddata = (void*) m_dBoundElement[m_currentBoundElementRead];
 			break;
 
 		case GRADGAMMA:
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hGradGamma;
-			ddata = (void*) m_dGradGamma;
+			ddata = (void*) m_dGradGamma[m_currentGradGammaRead];
 			break;
 
 		case VERTICES:
@@ -1077,7 +1077,7 @@ void
 ParticleSystem::writeToFile()
 {
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals);
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma);
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
@@ -1307,6 +1307,94 @@ ParticleSystem::buildNeibList(bool timing)
 	m_neiblist_built = true;
 }
 
+void
+ParticleSystem::initializeGammaAndGradGamma(void)
+{
+	buildNeibList(false);
+
+	initGradGamma(	m_dPos[m_currentPosRead],
+			m_dPos[m_currentPosWrite],
+			m_dVel[m_currentVelWrite],			//should be LagrangianVel
+			m_dInfo[m_currentInfoRead],
+			m_dBoundElement[m_currentBoundElementRead],
+			m_dGradGamma[m_currentGradGammaWrite],
+			m_dNeibsList,
+			m_numParticles,
+			m_simparams->slength,
+			m_influenceRadius,
+			m_simparams->kerneltype,
+			m_simparams->periodicbound);
+
+	std::swap(m_currentPosRead, m_currentPosWrite);
+	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+	std::swap(m_currentVelRead, m_currentVelWrite);
+
+	// Compute virtual displacement
+	int itNumber = 200;
+	float deltat = 1.0/itNumber;
+
+	for(uint i = 0; i < itNumber; i++) {
+
+		// Update gamma 1st call //TODO: and the last one
+		updateGamma(	m_dPos[m_currentPosRead],
+				m_dPos[m_currentPosWrite],
+				m_dVel[m_currentVelRead],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				deltat,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+
+		// Move the particles
+//		updatePositions(...);
+
+		std::swap(m_currentPosRead, m_currentPosWrite);
+
+//		// Build the neighbour list
+		buildNeibList(false);
+
+//		// Update gamma 2nd call
+//		updateGamma(	m_dPos[m_currentPosRead],
+//				m_dPos[m_currentPosWrite],
+//				m_dVel[m_currentVelRead],
+//				m_dInfo[m_currentInfoRead],
+//				m_dBoundElement[m_currentBoundElementRead],
+//				m_dGradGamma[m_currentGradGammaWrite],
+//				m_dGradGamma[m_currentGradGammaRead],
+//				m_dNeibsList,
+//				m_numParticles,
+//				m_simparams->slength,
+//				m_influenceRadius,
+//				deltat,
+//				m_simparams->kerneltype,
+//				m_simparams->periodicbound);
+
+//		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+
+		//DEBUG output
+		getArray(POSITION, false);
+		getArray(INFO, false);
+		getArray(GRADGAMMA, false);
+		std::string fname = m_problem->get_dirname() + "/gradgamma_init.csv";
+		FILE *fp = fopen(fname.c_str(), "a");
+		for (uint index = 0; index < m_numParticles; index++)
+			if(FLUID(m_hInfo[index])) {
+			float4 pos = m_hPos[index];
+			float4 gradGam = m_hGradGamma[index];
+		
+			fprintf(fp, "%f,%f,%f,%f,%f\n", pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w);
+			}
+		fclose(fp);
+	}
+}
 
 TimingInfo
 ParticleSystem::PredcorrTimeStep(bool timing)
@@ -1599,7 +1687,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 
 /****************************************************************************************************/
-// Utility function privided for debug purpose
+// Utility function provided for debug purpose
 /****************************************************************************************************/
 void
 ParticleSystem::saveneibs()
@@ -1784,6 +1872,40 @@ ParticleSystem::savenormals()
 	fclose(fp);
 
 
+}
+
+void
+ParticleSystem::savegradgamma()
+{
+	getArray(POSITION, false);
+//	getArray(VELOCITY, false);
+	getArray(GRADGAMMA, false);
+	std::string fname;
+	fname = m_problem->get_dirname() + "/gradgamma.csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 pos = m_hPos[index];
+//		float4 vel = m_hVel[index];
+		float4 gradGam = m_hGradGamma[index];
+		
+		fprintf(fp, "%d,%f,%f,%f,%f,%f,%f,%f\n", index, pos.x, pos.y, pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w);
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::saveboundelem()
+{
+	getArray(BOUNDELEMENT, false);
+	std::string fname;
+	fname = m_problem->get_dirname() + "/boundelements.csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 bElm = m_hBoundElement[index];
+		
+		fprintf(fp, "%d,%f,%f,%f,%f\n", index, bElm.x, bElm.y, bElm.z, bElm.w);
+	}
+	fclose(fp);
 }
 
 void

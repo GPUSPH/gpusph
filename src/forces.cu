@@ -159,6 +159,17 @@ void*	reduce_buffer = NULL;
 				(normals, newInfo, neibsList, numParticles, slength, influenceradius); \
 	break
 
+#define INITGRADGAMMA_CHECK(kernel, periodic) \
+	case kernel: \
+		cuforces::initGradGammaDevice<kernel, periodic><<< numBlocks, numThreads>>> \
+				(newPos, virtualVel, gradGamma, neibsList, numParticles, slength, inflRadius); \
+	break
+
+#define UPDATEGAMMA_CHECK(kernel, periodic) \
+	case kernel: \
+		cuforces::updateGammaDevice<kernel, periodic><<< numBlocks, numThreads>>> \
+				(newGam, newPos, neibsList, numParticles, slength, inflRadius, virtDt); \
+	break
 
 extern "C"
 {
@@ -759,6 +770,100 @@ void calc_energy(
 	CUDA_SAFE_CALL(cudaMemcpy(output, reduce_buffer, numFluids*sizeof(float4), cudaMemcpyDeviceToHost));
 }
 
+void
+initGradGamma(	float4*		oldPos,
+		float4*		newPos,
+		float4*		virtualVel,
+		particleinfo*	info,
+		float4*		boundElement,
+		float4*		gradGamma,
+		uint*		neibsList,
+		uint		numParticles,
+		float		slength,
+		float		inflRadius,
+		int		kerneltype,
+		bool		periodicbound)
+{
+	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	
+	//execute kernel
+	if (periodicbound) {
+		switch (kerneltype) {
+			INITGRADGAMMA_CHECK(CUBICSPLINE, true);
+//			INITGRADGAMMA_CHECK(QUADRATIC, true);
+			INITGRADGAMMA_CHECK(WENDLAND, true);
+		}
+	} else {
+		switch (kerneltype) {
+			INITGRADGAMMA_CHECK(CUBICSPLINE, false);
+//			INITGRADGAMMA_CHECK(QUADRATIC, false);
+			INITGRADGAMMA_CHECK(WENDLAND, false);
+		}
+	}
+	
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("CalcHash kernel execution failed");
+}
+
+void
+updateGamma(	float4*		oldPos,
+		float4*		newPos,
+		float4*		virtualVel,
+		particleinfo*	info,
+		float4*		boundElement,
+		float4*		newGam,
+		float4*		oldGam,
+		uint*		neibsList,
+		uint		numParticles,
+		float		slength,
+		float		inflRadius,
+		float		virtDt,
+		int		kerneltype,
+		bool		periodicbound)
+{
+	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, virtualVel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGam, numParticles*sizeof(float4)));
+	
+	//execute kernel
+	if (periodicbound) {
+		switch (kerneltype) {
+			UPDATEGAMMA_CHECK(CUBICSPLINE, true);
+//			UPDATEGAMMA_CHECK(QUADRATIC, true);
+			UPDATEGAMMA_CHECK(WENDLAND, true);
+		}
+	} else {
+		switch (kerneltype) {
+			UPDATEGAMMA_CHECK(CUBICSPLINE, false);
+//			UPDATEGAMMA_CHECK(QUADRATIC, false);
+			UPDATEGAMMA_CHECK(WENDLAND, false);
+		}
+	}
+	
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("CalcHash kernel execution failed");
+}
+
 } // extern "C"
 
 #undef KERNEL_CHECK
@@ -772,6 +877,8 @@ void calc_energy(
 #undef VORT_CHECK
 #undef TEST_CHECK
 #undef SURFACE_CHECK
+#undef INITGRADGAMMA_CHECK
+#undef UPDATEGAMMA_CHECK
 
 /* These were defined in forces_kernel.cu */
 #undef _FORCES_KERNEL_NAME

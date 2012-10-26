@@ -72,6 +72,7 @@
 
 #include "ParticleSystem.h"
 #include "Problem.h"
+#include "forces.cuh"
 
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
@@ -309,13 +310,12 @@ void init(const char *arg)
 
 	psystem->printPhysParams();
 	psystem->printSimParams();
-
+	
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
 
 	if(true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/) {
-		//problem->calc_Norm_and_Surf_BoundElm(psystem->m_hBoundElement);
 		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hVertices, psystem->m_hBoundElement);
 	}
 	else {
@@ -339,6 +339,11 @@ void init(const char *arg)
 		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
 		psystem->setPlanes();
 	}
+	
+	//psystem->saveboundelem();
+	
+	//Initialization of gamma and gradient of gamma
+	psystem->initializeGammaAndGradGamma();
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
@@ -475,8 +480,11 @@ void get_arrays(bool need_write)
 		if (problem->m_simparams.savenormals)
 			psystem->getArray(ParticleSystem::NORMALS, need_write);
 	}
-	if (true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/)
+	if (true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/) {
 		psystem->getArray(ParticleSystem::VERTICES, need_write);
+		psystem->getArray(ParticleSystem::GRADGAMMA, need_write);
+		psystem->getArray(ParticleSystem::BOUNDELEMENT, need_write);
+	}
 }
 
 void do_write()

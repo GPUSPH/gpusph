@@ -99,7 +99,7 @@ typedef struct SimParams {
 		savenormals(false),
 		surfaceparticle(false),
 		numbodies(0),
-		maxneibsnum(128)
+		maxneibsnum(256)
 	{};
 } SimParams;
 

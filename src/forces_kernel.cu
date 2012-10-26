@@ -1423,5 +1423,201 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 }
 /************************************************************************************************************/
+
+/************************************************************************************************************/
+/*					   Gamma calculations						    */
+/************************************************************************************************************/
+template<KernelType kerneltype>
+__device__ __forceinline__ float4
+gradGamma(	const float slength,
+		const float r,
+		const float4 boundElement)
+{
+	float4 retval = W<kerneltype>(r, slength) * boundElement.w * boundElement;
+	retval.w = 0;
+	return retval;
+}
+
+
+template<KernelType kerneltype, bool periodicbound>
+__global__ void
+initGradGammaDevice(	float4*		newPos,
+			float4*		virtualVel,
+			float4*		gradGam,
+			const uint*	neibsList,
+			const uint	numParticles,
+			const float	slength,
+			const float	inflRadius)
+{
+	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
+	if(index < numParticles) {
+		float4 pos = tex1Dfetch(posTex, index);
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		
+		// Taking info account self contribution in summation
+		float4 gGam = make_float4(0.0f);
+		float4 virtVel = make_float4(0.0f);
+		
+		// Compute gradient of gamma for fluid only
+		if(FLUID(info)) {
+			//uint counter = 0; //DEBUG
+
+			// Loop over all neighbors
+			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
+				uint neibIndex = neibsList[d_maxneibsnum_time_neibindexinterleave * lane + offset + i];
+				
+				if(neibIndex == 0xffffffff) break;
+				
+				float4 neibPos;
+				float3 relPos;
+				float r;
+				
+				getNeibData<periodicbound>(pos, inflRadius, neibIndex, neibPos, relPos, r);
+				
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
+				
+				if(r < inflRadius && BOUNDARY(neibInfo)) {
+					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
+					gGam += gradGamma<kerneltype>(slength, r, boundElement);
+					//counter++; //DEBUG
+				}
+			}
+			//DEBUG output
+			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
+			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
+			
+			//Set the virtual displacement
+			float magnitude = length(make_float3(gGam));
+			if (magnitude > 1.e-10) {
+				virtVel = -1.0 * inflRadius * gGam / magnitude;
+				virtVel.w = 0.0;
+			}
+		}
+		
+		// Set gamma to 1
+		gGam.w = 1.0;
+		
+		gradGam[index] = gGam;
+		virtualVel[index] = virtVel;
+		newPos[index] = pos - virtVel;
+	}
+}
+
+
+template<KernelType kerneltype, bool periodicbound>
+__global__ void
+updateGammaDevice(	float4*		newGam,
+			float4*		newPos,
+			const uint*	neibsList,
+			const uint	numParticles,
+			const float	slength,
+			const float	inflRadius,
+			const float	virtDt)
+{
+	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	
+	if(index < numParticles) {
+		float4 pos = tex1Dfetch(posTex, index);
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		float3 vel = make_float3(tex1Dfetch(velTex, index));
+		float4 oldGam = tex1Dfetch(gamTex, index);
+		
+		float4 gGam = make_float4(0.0f);
+		float deltaGam = 0.0;
+		
+		// Compute gradient of gamma for fluid only
+		if(FLUID(info)) {
+			//uint counter = 0; //DEBUG
+
+			// Loop over all neighbors
+			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
+				uint neibIndex = neibsList[d_maxneibsnum_time_neibindexinterleave * lane + offset + i];
+				
+				if(neibIndex == 0xffffffff) break;
+				
+				float4 neibPos;
+				float3 relPos;
+				float r;
+				
+				getNeibData<periodicbound>(pos, inflRadius, neibIndex, neibPos, relPos, r);
+				
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
+				
+				if(r < inflRadius && BOUNDARY(neibInfo)) {
+					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
+					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
+					gGam += gradGamma_as;
+					deltaGam += dot(make_float3(gradGamma_as), vel);
+					//counter++; //DEBUG
+				}
+			}
+			//DEBUG output
+			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
+			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
+			
+			//Update gamma value
+//			float magnitude = length(make_float3(gGam));
+//			if (magnitude > 1.e-10) {
+				gGam.w = oldGam.w + deltaGam * virtDt;
+//			}
+//			else
+//				gGam.w = 1.0;
+			
+			// Update positions TODO: move this into separate kernel, taking into account periodic boundary
+			pos += virtDt * make_float4(vel);
+		}
+		
+		newGam[index] = gGam;
+		newPos[index] = pos;
+	}
+}
+
+//template<KernelType kerneltype, bool periodicbound>
+//__global__ void
+//updatePositionsDevice(	float4*		newPos,
+//			const uint	numParticles,
+//			const float	virtDt)
+//{
+//	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+//	if (index >= numParticles) {
+//	
+//		float4 pos = tex1Dfetch(posTex, index);
+//		const float4 vel = tex1Dfetch(velTex, index);
+//		const particleinfo info = tex1Dfetch(infoTex, index);
+
+//		if (FLUID(info))
+//			pos += virtDt*make_float3(vel);
+
+////		if (periodicbound) {
+////			if (d_dispvect.x) {
+////				if (pos.x >= d_maxlimit.x)
+////					pos.x -= d_dispvect.x;
+////				else if (pos.x < d_minlimit.x)
+////					pos.x += d_dispvect.x;
+////			}
+////			if (d_dispvect.y) {
+////				if (pos.y >= d_maxlimit.y)
+////					pos.y -= d_dispvect.y;
+////				else if (pos.y < d_minlimit.y)
+////					pos.y += d_dispvect.y;
+////			}
+////			if (d_dispvect.z) {
+////				if (pos.z >= d_maxlimit.z)
+////					pos.z -= d_dispvect.z;
+////				else if (pos.z < d_minlimit.z)
+////					pos.z += d_dispvect.z;
+////			}
+////		}
+
+//		newPos[index] = pos;
+//	}
+//}
+/************************************************************************************************************/
 }
 #endif
