@@ -48,7 +48,7 @@ class Cube: public Object {
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters&);
 		Cube(const Point&, const Vector&, const Vector&, const Vector&);
-		~Cube(void) {};
+		virtual ~Cube(void) {};
 
 		double Volume(const double) const;
 		void SetInertia(const double);

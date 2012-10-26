@@ -369,5 +369,6 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	if (m_timefile != NULL) {
 		fprintf(m_timefile,"<DataSet timestep='%f' group='' part='%d' file='%s'/>\n",
 			t, 0, filename.c_str());
-		}
+		fflush(m_timefile);
+	}
 }

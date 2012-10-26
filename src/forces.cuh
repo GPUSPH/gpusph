@@ -26,13 +26,31 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
+#include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
+
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
 	MULTIPLE OF NEIBINDEX_INTERLEAVE
 	- a parallel reduction for adaptive dt is done inside forces, block
 	size for forces MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 20)
+#if (__COMPUTE__ >= 30)
+	#define BLOCK_SIZE_FORCES		256
+	#define BLOCK_SIZE_CALCVORT		256
+	#define MIN_BLOCKS_CALCVORT		8
+	#define BLOCK_SIZE_CALCTEST		256
+	#define MIN_BLOCKS_CALCTEST		8
+	#define BLOCK_SIZE_SHEPARD		256
+	#define MIN_BLOCKS_SHEPARD		8
+	#define BLOCK_SIZE_MLS			256
+	#define MIN_BLOCKS_MLS			8
+	#define BLOCK_SIZE_SPS			256
+	#define MIN_BLOCKS_SPS			8
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#elif (__COMPUTE__ == 20 || __COMPUTE__ == 21)
 	#define BLOCK_SIZE_FORCES		128
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		6
@@ -65,6 +83,23 @@
 
 extern "C"
 {
+void
+setforcesconstants(const SimParams *simaprams, const PhysParams *physparams);
+
+void
+getforcesconstants(PhysParams *physparams);
+
+void
+setplaneconstants(int numPlanes, const float* PlanesDiv, const float4* Planes);
+
+void
+setgravity(float3 const& gravity);
+
+void
+setforcesrbcg(const float3* cg, int numbodies);
+
+void
+setforcesrbstart(const uint* rbfirstindex, int numbodies);
 
 float
 forces(	float4*			pos,

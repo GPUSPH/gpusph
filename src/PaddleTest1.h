@@ -63,7 +63,7 @@ class PaddleTest1: public Problem {
 
 	public:
 		PaddleTest1(const Options &);
-		~PaddleTest1(void);
+		virtual ~PaddleTest1(void);
 		int fill_parts(void);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);

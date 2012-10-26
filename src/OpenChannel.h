@@ -42,7 +42,7 @@ class OpenChannel: public Problem {
 
 	public:
 		OpenChannel(const Options &);
-		~OpenChannel(void);
+		virtual ~OpenChannel(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

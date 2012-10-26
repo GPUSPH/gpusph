@@ -48,7 +48,7 @@ class Rect: public Object {
 		Rect(void);
 		Rect(const Point&, const double, const double, const EulerParameters &);
 		Rect(const Point&, const Vector&, const Vector&);
-		~Rect(void) {};
+		virtual ~Rect(void) {};
 
 		double Volume(const double) const;
 		void SetInertia(const double);

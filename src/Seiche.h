@@ -49,7 +49,7 @@ class Seiche: public Problem {
 
 	public:
 		Seiche(const Options &);
-		~Seiche(void);
+		virtual ~Seiche(void);
 
 		int  fill_parts(void);
 		uint fill_planes(void);

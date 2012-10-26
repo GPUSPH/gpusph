@@ -26,13 +26,35 @@
 #ifndef _EULER_CUH_
 #define _EULER_CUH_
 
+#include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
+
 #define BLOCK_SIZE_INTEGRATE	256
 
 extern "C"
 {
 void
+seteulerconstants(const PhysParams *physparams);
+
+void
+geteulerconstants(PhysParams *physparams);
+
+void
+setmbdata(const float4* MbData, uint size);
+
+void
+seteulerrbcg(const float3* cg, int numbodies);
+
+void
+seteulerrbtrans(const float3* trans, int numbodies);
+
+void
+seteulerrbsteprot(const float* rot, int numbodies);
+
+void
 euler(	float4*		oldPos,
-		float4*		oldVel,	      //particleinfo* info,
+		float4*		oldVel,
 		particleinfo* info,
 		float4*		forces,
 		float4*		xsph,

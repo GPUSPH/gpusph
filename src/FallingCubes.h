@@ -24,7 +24,7 @@ class FallingCubes: public Problem {
 
 	public:
 		FallingCubes(const Options &);
-		~FallingCubes(void);
+		virtual ~FallingCubes(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);

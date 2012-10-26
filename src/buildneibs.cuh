@@ -26,13 +26,26 @@
 #ifndef _BUILDNEIBS_CUH_
 #define _BUILDNEIBS_CUH_
 
+#include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
+
+#include "vector_math.h"
+
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
 	MULTIPLE OF NEIBINDEX_INTERLEAVE
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 20)
+#if (__COMPUTE__ >= 30)
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		8
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	8
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	8
+#elif (__COMPUTE__ == 20 || __COMPUTE__ == 21)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
 	#define BLOCK_SIZE_REORDERDATA	256
@@ -48,10 +61,20 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
-#include "vector_math.h"
 
 extern "C"
 {
+void
+setneibsconstants(const SimParams *simparams, const PhysParams *physparams);
+
+void
+getneibsconstants(SimParams *simparams, PhysParams *physparams);
+
+void
+resetneibsinfo(void);
+
+void
+getneibsinfo(TimingInfo & timingInfo);
 
 void
 calcHash(float4*	pos,

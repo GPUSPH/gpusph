@@ -40,7 +40,7 @@ class Disk: public Object {
 		Disk(const Point&, const double, const Vector&);
 		Disk(const Point&, const double, const EulerParameters&);
 		Disk(const Point&, const Vector&, const Vector &);
-		~Disk(void) {};
+		virtual ~Disk(void) {};
 		
 		double Volume(const double) const;
 		void SetInertia(const double);

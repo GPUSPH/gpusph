@@ -38,7 +38,7 @@ class Sphere: public Object {
 	public:
 		Sphere(void);
 		Sphere(const Point &, const double);
-		~Sphere(void) {};
+		virtual ~Sphere(void) {};
 
 		double Volume(const double) const;
 		void SetInertia(const double);
