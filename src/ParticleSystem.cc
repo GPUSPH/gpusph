@@ -214,7 +214,8 @@ ParticleSystem::allocate(uint numParticles)
 	const uint memSize3 = sizeof(float3)*m_numParticles;
 	const uint memSize4 = sizeof(float4)*m_numParticles;
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
-	const uint hashSize = sizeof(uint)*m_numParticles;
+	const uint hashSize = sizeof(hashKey)*m_numParticles;
+	const uint idxSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
 	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
@@ -248,13 +249,13 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
 
-	m_hParticleHash = new uint[m_numParticles];
+	m_hParticleHash = new hashKey[m_numParticles];
 	memset(m_hParticleHash, 0, hashSize);
 	memory += hashSize;
 
 	m_hParticleIndex = new uint[m_numParticles];
-	memset(m_hParticleIndex, 0, hashSize);
-	memory += hashSize;
+	memset(m_hParticleIndex, 0, idxSize);
+	memory += idxSize;
 
 	m_hCellStart = new uint[m_nGridCells];
 	memset(m_hCellStart, 0, gridcellSize);
@@ -333,8 +334,8 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
 	memory += hashSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
-	memory += hashSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, idxSize));
+	memory += idxSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
 	memory += gridcellSize;
@@ -813,13 +814,13 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case HASH:
-			size = m_numParticles*sizeof(uint);
+			size = m_numParticles*sizeof(hashSize);
 			hdata = (void*) m_hParticleHash;
 			ddata = (void*) m_dParticleHash;
 			break;
 
 		case PARTINDEX:
-			size = m_numParticles*sizeof(uint);
+			size = m_numParticles*sizeof(idxSize);
 			hdata = (void*) m_hParticleIndex;
 			ddata = (void*) m_dParticleIndex;
 			break;
@@ -1457,7 +1458,7 @@ ParticleSystem::savehash()
 		pos.x = m_hPos[index].x;
 		pos.y = m_hPos[index].y;
 		pos.z = m_hPos[index].z;
-		uint hash = m_hParticleHash[index];
+		hashKey hash = m_hParticleHash[index];
 		int3 gridPos;
 		gridPos.x = floor((pos.x - m_worldOrigin.x) / m_cellSize.x);
 		gridPos.y = floor((pos.y - m_worldOrigin.y) / m_cellSize.y);

@@ -71,7 +71,7 @@ getneibsinfo(TimingInfo & timingInfo)
 
 void
 calcHash(float4*	pos,
-		 uint*		particleHash,
+		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 uint3		gridSize,
 		 float3		cellSize,
@@ -94,7 +94,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									float4*			newPos,			// output: sorted positions
 									float4*			newVel,			// output: sorted velocities
 									particleinfo*	newInfo,		// output: sorted info
-									uint*			particleHash,   // input: sorted grid hashes
+									hashKey*		particleHash,   // input: sorted grid hashes
 									uint*			particleIndex,  // input: sorted particle indices
 									float4*			oldPos,			// input: sorted position array
 									float4*			oldVel,			// input: sorted velocity array
@@ -128,7 +128,7 @@ void
 buildNeibsList(	uint*				neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
-				const uint*			particleHash,
+				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
 				const uint3			gridSize,
@@ -174,9 +174,9 @@ buildNeibsList(	uint*				neibsList,
 }
 
 void
-sort(uint*	particleHash, uint*	particleIndex, uint	numParticles)
+sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 {
-	thrust::device_ptr<uint> particleHash_devptr = thrust::device_pointer_cast(particleHash);
+	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
 	
 	 thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);

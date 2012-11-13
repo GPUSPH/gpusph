@@ -77,7 +77,7 @@ calcGridHash(int3			gridPos,
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 calcHashDevice(const float4*	posArray,
-			   uint*			particleHash,
+			   hashKey*			particleHash,
 			   uint*			particleIndex,
 			   const uint3		gridSize,
 			   const float3		cellSize,
@@ -93,7 +93,7 @@ calcHashDevice(const float4*	posArray,
 
 	// get address in grid
 	const int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
-	const uint gridHash = calcGridHash(gridPos, gridSize);
+	const hashKey gridHash = (hashKey)calcGridHash(gridPos, gridSize) << GRIDHASH_BITSHIFT;
 
 	// store grid hash and particle index
 	particleHash[index] = gridHash;
@@ -108,7 +108,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 										float4*			sortedPos,		// output: sorted positions
 										float4*			sortedVel,		// output: sorted velocities
 										particleinfo*	sortedInfo,		// output: sorted info
-										uint*			particleHash,	// input: sorted grid hashes
+										hashKey*		particleHash,	// input: sorted grid hashes
 										uint*			particleIndex,	// input: sorted particle indices
 										uint			numParticles)
 {
@@ -119,7 +119,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 	uint hash;
 	// handle case when no. of particles not multiple of block size
 	if (index < numParticles) {
-		hash = particleHash[index];
+		hash = (uint)(particleHash[index] >> GRIDHASH_BITSHIFT);
 
 		// Load hash data into shared memory so that we can look
 		// at neighboring particle's hash value without loading
@@ -128,7 +128,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 		if (index > 0 && threadIdx.x == 0) {
 			// first thread in block must load neighbor particle hash
-			sharedHash[0] = particleHash[index-1];
+			sharedHash[0] = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
 			}
 	}
 

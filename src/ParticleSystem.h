@@ -26,7 +26,7 @@
 #ifndef __PARTICLESYSTEM_H__
 #define __PARTICLESYSTEM_H__
 
-#include "particledefine.h"
+#include "buildneibs.cuh" // hashKey
 #include "Problem.h"
 #include "Writer.h"
 
@@ -177,7 +177,7 @@ class ParticleSystem
 
 		// CPU arrays used for debugging
 		uint*		m_hNeibsList;
-		uint*		m_hParticleHash;
+		hashKey*	m_hParticleHash;
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
@@ -210,7 +210,7 @@ class ParticleSystem
 		uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
 		float4*		m_dMbData;				// device side moving boundary data
 
-		uint*		m_dParticleHash;		// hash table for sorting
+		hashKey*	m_dParticleHash;		// hash table for sorting
 		uint*		m_dParticleIndex;		// sorted particle indexes
 		uint*		m_dCellStart;			// index of cell start in sorted order
 		uint*		m_dCellEnd;				// index of cell end in sorted order
