@@ -71,6 +71,9 @@ getneibsinfo(TimingInfo & timingInfo)
 
 void
 calcHash(float4*	pos,
+#if HASH_KEY_SIZE >= 64
+		 particleinfo *pinfo,
+#endif
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 uint3		gridSize,
@@ -81,8 +84,12 @@ calcHash(float4*	pos,
 	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-										   gridSize, cellSize, worldOrigin, numParticles);
+	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos,
+#if HASH_KEY_SIZE >= 64
+		pinfo,
+#endif
+		particleHash, particleIndex,
+		gridSize, cellSize, worldOrigin, numParticles);
 	
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");

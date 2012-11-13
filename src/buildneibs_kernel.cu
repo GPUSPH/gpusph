@@ -77,6 +77,9 @@ calcGridHash(int3			gridPos,
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 calcHashDevice(const float4*	posArray,
+#if HASH_KEY_SIZE >= 64
+			   particleinfo *pinfo,
+#endif
 			   hashKey*			particleHash,
 			   uint*			particleIndex,
 			   const uint3		gridSize,
@@ -93,7 +96,11 @@ calcHashDevice(const float4*	posArray,
 
 	// get address in grid
 	const int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
-	const hashKey gridHash = (hashKey)calcGridHash(gridPos, gridSize) << GRIDHASH_BITSHIFT;
+	hashKey gridHash = (hashKey)calcGridHash(gridPos, gridSize) << GRIDHASH_BITSHIFT;
+#if HASH_KEY_SIZE >= 64
+	// with 64-bit (or bigger) hash keys, include the particle id in the hash
+	gridHash |= id(pinfo[index]);
+#endif
 
 	// store grid hash and particle index
 	particleHash[index] = gridHash;

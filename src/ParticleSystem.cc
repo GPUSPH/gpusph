@@ -1022,6 +1022,9 @@ ParticleSystem::buildNeibList(bool timing)
 
 	// compute hash
 	calcHash(m_dPos[m_currentPosRead],
+#if HASH_KEY_SIZE >= 64
+			m_dInfo[m_currentPosRead],
+#endif
 			m_dParticleHash,
 			m_dParticleIndex,
 			gridSize,

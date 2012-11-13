@@ -109,6 +109,9 @@ getneibsinfo(TimingInfo & timingInfo);
 
 void
 calcHash(float4*	pos,
+#if HASH_KEY_SIZE >= 64
+		 particleinfo* pinfo,
+#endif
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 uint3		gridSize,
