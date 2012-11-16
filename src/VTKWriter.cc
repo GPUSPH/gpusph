@@ -109,6 +109,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 
 	// Header
+	//====================================================================================
 	fprintf(fid,"<?xml version='1.0'?>\n");
 	fprintf(fid,"<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= '%s'>\n",
 		endianness[*(char*)&endian_int & 1]);
@@ -200,6 +201,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 
 	fprintf(fid," </UnstructuredGrid>\n");
 	fprintf(fid," <AppendedData encoding='raw'>\n_");
+	//====================================================================================
 
 	int numbytes=sizeof(float)*numParts;
 
@@ -207,10 +209,10 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float value = 0.0;
-		if (FLUID(info[i]))
-			value = m_problem->pressure(vel[i].w, object(info[i]));
-		else if (TESTPOINTS(info[i]))
+		if (TESTPOINTS(info[i]))
 			value = vel[i].w;
+		else
+			value = m_problem->pressure(vel[i].w, object(info[i]));
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
@@ -218,7 +220,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float value = 0.0;
-		if (FLUID(info[i]))
+		//if (FLUID(info[i]))
 			value = vel[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
@@ -287,9 +289,8 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float *value = zeroes;
-		if (FLUID(info[i]) || TESTPOINTS(info[i])) {
+		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
-		}
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 
@@ -297,9 +298,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float *value = zeroes;
-		if (FLUID(info[i])) {
-			value = (float*)(gradGamma + i);
-		}
+		value = (float*)(gradGamma + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 
