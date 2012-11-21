@@ -1231,8 +1231,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams->numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams->numbodies*sizeof(float)));
+		seteulerrbtrans(trans, m_simparams->numbodies);
+		seteulerrbsteprot(rot, m_simparams->numbodies);
 	}
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
@@ -1268,8 +1268,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
 	if (m_simparams->numbodies) {
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
+		setforcesrbcg(cg, m_simparams->numbodies);
+		seteulerrbcg(cg, m_simparams->numbodies);
 	}
 
 	// setting moving boundaries data if necessary
