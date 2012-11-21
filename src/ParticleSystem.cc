@@ -814,13 +814,13 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case HASH:
-			size = m_numParticles*sizeof(hashSize);
+			size = m_numParticles*sizeof(hashKey);
 			hdata = (void*) m_hParticleHash;
 			ddata = (void*) m_dParticleHash;
 			break;
 
 		case PARTINDEX:
-			size = m_numParticles*sizeof(idxSize);
+			size = m_numParticles*sizeof(uint);
 			hdata = (void*) m_hParticleIndex;
 			ddata = (void*) m_dParticleIndex;
 			break;
