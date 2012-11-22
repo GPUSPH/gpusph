@@ -105,6 +105,8 @@ float
 forces(	float4*			pos,
 		float4*			vel,
 		float4*			forces,
+		float4*			gradgam,
+		float4*			boundelem,
 		float4*			rbforces,
 		float4*			rbtorques,
 		float4*			xsph,
@@ -265,6 +267,15 @@ updateGamma(	float4*		oldPos,
 		float		virtDt,
 		int		kerneltype,
 		bool		periodicbound);
+		
+// Recomputes values at the boundary elements (currently only density) as an average
+// over three vertices of this element
 
+void
+updateBoundValues(	float4*		oldVel,
+			vertexinfo*	vertices,
+			particleinfo*	info,
+			uint		numParticles);
 }
+
 #endif

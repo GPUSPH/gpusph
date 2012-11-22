@@ -1148,8 +1148,9 @@ ParticleSystem::buildNeibList(bool timing)
 
 	// hash based particle sort
 	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
-	
-	//inverse array with particle indexes
+
+	//inverse array with particle indexes;
+	//array with inversed indexes will be used later to reassign vertices for boundary elements
 	inverseParticleIndex(m_dParticleIndex, m_dInversedParticleIndex, m_numParticles);
 
 	reorderDataAndFindCellStart(
@@ -1226,6 +1227,13 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 {
 	buildNeibList(false);
 
+	//Copy initial values of density from the sorted array (m_currentVelRead) to the unsorted array (m_currentVelWrite),
+	//which will be used to set virtual velocities during initilization of gamma field
+	long size = m_numParticles*sizeof(float4);
+	void* dest = m_dVel[m_currentVelWrite];
+	void* orig = m_dVel[m_currentVelRead];
+	CUDA_SAFE_CALL(cudaMemcpy(dest, orig, size, cudaMemcpyDeviceToDevice));
+
 	initGradGamma(	m_dPos[m_currentPosRead],
 			m_dPos[m_currentPosWrite],
 			m_dVel[m_currentVelWrite],			//should be LagrangianVel
@@ -1294,20 +1302,29 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 //		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
 		//DEBUG output
-		getArray(POSITION, false);
-		getArray(INFO, false);
-		getArray(GRADGAMMA, false);
-		std::string fname = m_problem->get_dirname() + "/gradgamma_init.csv";
-		FILE *fp = fopen(fname.c_str(), "a");
-		for (uint index = 0; index < m_numParticles; index++)
-			if(FLUID(m_hInfo[index])) {
-			float4 pos = m_hPos[index];
-			float4 gradGam = m_hGradGamma[index];
-		
-			fprintf(fp, "%f,%f,%f,%f,%f\n", pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w);
-			}
-		fclose(fp);
+//		getArray(POSITION, false);
+//		getArray(INFO, false);
+//		getArray(GRADGAMMA, false);
+//		std::string fname = m_problem->get_dirname() + "/gradgamma_init.csv";
+//		FILE *fp = fopen(fname.c_str(), "a");
+//		for (uint index = 0; index < m_numParticles; index++)
+//			if(FLUID(m_hInfo[index])) {
+//			float4 pos = m_hPos[index];
+//			float4 gradGam = m_hGradGamma[index];
+//		
+//			fprintf(fp, "%f,%f,%f,%f,%f\n", pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w);
+//			}
+//		fclose(fp);
 	}
+}
+
+void
+ParticleSystem::updateValuesAtBoundaryElements(void)
+{
+	updateBoundValues(	m_dVel[m_currentVelRead],
+				m_dVertices[m_currentVerticesRead],
+				m_dInfo[m_currentInfoRead],
+				m_numParticles);
 }
 
 TimingInfo
@@ -1403,6 +1420,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
+					m_dGradGamma[m_currentVelRead],
+					m_dBoundElement[m_currentVelRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1501,6 +1520,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
+					m_dGradGamma[m_currentVelWrite],
+					m_dBoundElement[m_currentVelWrite],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1819,6 +1840,24 @@ ParticleSystem::saveboundelem()
 		float4 bElm = m_hBoundElement[index];
 		
 		fprintf(fp, "%d,%f,%f,%f,%f\n", index, bElm.x, bElm.y, bElm.z, bElm.w);
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::saveVelocity()
+{
+	getArray(POSITION, false);
+	getArray(VELOCITY, false);
+	getArray(INFO, false);
+	std::string fname;
+	fname = m_problem->get_dirname() + "/velocity.csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 vel = m_hVel[index];
+		float4 pos = m_hPos[index];
+		
+		fprintf(fp, "%d,%f,%f,%f,%f,%f,%d\n", index, pos.z, vel.x, vel.y, vel.z, vel.w, PART_TYPE(m_hInfo[index]));
 	}
 	fclose(fp);
 }

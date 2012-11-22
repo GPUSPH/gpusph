@@ -105,6 +105,7 @@ class ParticleSystem
 
 		void	buildNeibList(bool timing);
 		void	initializeGammaAndGradGamma(void);
+		void	updateValuesAtBoundaryElements(void);
 
 		TimingInfo	PredcorrTimeStep(bool);
 
@@ -129,6 +130,7 @@ class ParticleSystem
 		void savecellstartend();
 		void savegradgamma();
 		void saveboundelem();
+		void saveVelocity();
 		void reducerbforces();
 
 		//WaveGage

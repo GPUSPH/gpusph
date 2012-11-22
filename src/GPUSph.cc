@@ -316,7 +316,7 @@ void init(const char *arg)
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
 
-	if(true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/) {
+	if(problem->m_simparams.boundarytype == MF_BOUNDARY) {
 		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hVertices, psystem->m_hBoundElement);
 	}
 	else {
@@ -342,9 +342,16 @@ void init(const char *arg)
 	}
 	
 	//psystem->saveboundelem();
+	//psystem->saveVelocity();
 	
-	//Initialization of gamma and gradient of gamma
-	psystem->initializeGammaAndGradGamma();
+	//Initialization of gamma and gradient of gamma and initialization of boundary values
+	if(problem->m_simparams.boundarytype == MF_BOUNDARY)
+	{	
+		psystem->initializeGammaAndGradGamma();
+		psystem->updateValuesAtBoundaryElements();
+	}
+		
+	//psystem->saveVelocity();
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
@@ -481,7 +488,7 @@ void get_arrays(bool need_write)
 		if (problem->m_simparams.savenormals)
 			psystem->getArray(ParticleSystem::NORMALS, need_write);
 	}
-	if (true/*problem->m_simparams.boundarytype == MF_BOUNDARY*/) {
+	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
 		psystem->getArray(ParticleSystem::VERTICES, need_write);
 		psystem->getArray(ParticleSystem::GRADGAMMA, need_write);
 		psystem->getArray(ParticleSystem::BOUNDELEMENT, need_write);

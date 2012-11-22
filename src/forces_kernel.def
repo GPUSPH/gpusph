@@ -78,7 +78,7 @@ FORCES_CUDA_KERNEL
 		// read particle info from texture
     	const particleinfo info = tex1Dfetch(infoTex, index);
 
-		// compute force only if the given particle if a fluid one
+		// compute force only if the given particle is a fluid one
 		if (FLUID(info)) {
 
 			// read other particle data from textures or global mem
@@ -88,6 +88,7 @@ FORCES_CUDA_KERNEL
 			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
 			const float4 vel = tex1Dfetch(velTex, index);
+			const float4 gradgamma = tex1Dfetch(gamTex, index);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -147,12 +148,14 @@ FORCES_CUDA_KERNEL
 				#endif
 
 				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
 
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
+					float4 bound_term_pres = make_float4(0.0f);
 
-					if (FLUID(neib_info)) {
+					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) ) {
+						const float4 belem = tex1Dfetch(boundTex, neib_index);
 
 						# ifdef VISC_SPS
 						sym33mat neib_tau;
@@ -180,6 +183,10 @@ FORCES_CUDA_KERNEL
 						/* The second formulation takes into consideration the density ratio */
 						if (sph_formulation == SPH_F2)
 							DrDt *= vel.w/neib_vel.w;
+						if(boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) {
+//							DrDt -= neib_vel.w*dot(make_float3(vel), make_float3(gradGamma<kerneltype>(slength, r, belem)) );
+//							DrDt /= gradgamma.w;
+						}
 						force.w += DrDt;
 
 						// pressure part of acceleration (to be multiplied by neib_mass*f)
@@ -225,24 +232,44 @@ FORCES_CUDA_KERNEL
 						mean_vel -= neib_pos.w*W<kerneltype>(r, slength)*relVel/(vel.w + neib_vel.w);
 						# endif
 
+						if(boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) {
+							bound_term_pres = DvDt*neib_vel.w*gradGamma<kerneltype>(slength, r, belem);
+						}
+						
 						DvDt *= neib_pos.w*f;
 					} else
 					switch (boundarytype) {
 						case LJ_BOUNDARY:
 							DvDt = LJForce(r);
+							printf("LJ force calculation\n");
 							break;
 						case MK_BOUNDARY:
 							DvDt = MKForce(r, slength, pos.w, pos.w);
+							break;
+						case MF_BOUNDARY:
 							break;
 						default:
 							DvDt = 1.0/0.0;
 					}
 					// interaction between two particles
-					force.x += DvDt*relPos.x;
-					force.y += DvDt*relPos.y;
-					force.z += DvDt*relPos.z;
+					if(boundarytype == MF_BOUNDARY) {
+						force.x += (DvDt*relPos.x - bound_term_pres.x)/gradgamma.w;
+						force.y += (DvDt*relPos.y - bound_term_pres.y)/gradgamma.w;
+						force.z += (DvDt*relPos.z - bound_term_pres.z)/gradgamma.w;		
+					}
+					else {
+						force.x += DvDt*relPos.x;
+						force.y += DvDt*relPos.y;
+						force.z += DvDt*relPos.z;
+					}
+
 				} // r < influenceradius
 			} // end of loop over neighbors
+			
+//			if (boundarytype == MF_BOUNDARY) {
+//				force.w -= vel.w*dot(make_float3(vel), make_float3(gradgamma));
+//				force.w /= gradgamma.w;
+//			}
 
 			# ifdef VISC_DYNAMIC
 			const float dynvisc = d_visccoeff*vel.w;
@@ -316,7 +343,7 @@ FORCES_CUDA_KERNEL
 				getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 
-    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				// TODO: improve multi objects
 				if (r < influenceradius) {

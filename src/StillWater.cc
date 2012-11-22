@@ -55,10 +55,10 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 20;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	// m_simparams.visctype = KINEMATICVISC;
+	//m_simparams.visctype = KINEMATICVISC;
 	m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
-	//m_simparams.boundarytype = MF_BOUNDARY;
+	m_simparams.boundarytype = MF_BOUNDARY;
 
 	// Size and origin of the simulation domain
 	m_size = make_float3(l, w ,h);
@@ -76,7 +76,8 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_physparams.r0 = m_deltap;
 	//m_physparams.visccoeff = 0.05f;
 	m_physparams.kinematicvisc = 1.0e-6f;
-	m_physparams.artvisccoeff = 0.3f;
+	//m_physparams.artvisccoeff = 0.3f;
+	m_physparams.artvisccoeff = 0;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
 
@@ -124,7 +125,7 @@ int StillWater::fill_parts()
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
 
 #if !USE_PLANES
-	if(true/*m_simparams.boundarytype == MF_BOUNDARY*/) {
+	if(m_simparams.boundarytype == MF_BOUNDARY) {
 		experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
 	}
 	else {

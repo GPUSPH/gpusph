@@ -117,6 +117,7 @@ void*	reduce_buffer = NULL;
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, periodic, dem); \
 		BOUNDARY_CHECK(MK_BOUNDARY, periodic, dem); \
+		BOUNDARY_CHECK(MF_BOUNDARY, periodic, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
@@ -305,6 +306,8 @@ float
 forces(	float4*			pos,
 		float4*			vel,
 		float4*			forces,
+		float4*			gradgam,
+		float4*			boundelem,
 		float4*			rbforces,
 		float4*			rbtorques,
 		float4*			xsph,
@@ -335,6 +338,8 @@ forces(	float4*			pos,
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 	// execute the kernel for computing SPS stress matrix, if needed
 	if (visctype == SPSVISC) {	// thread per particle
@@ -400,6 +405,8 @@ forces(	float4*			pos,
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 	if (dtadapt) {
 		float maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
@@ -938,7 +945,7 @@ initGradGamma(	float4*		oldPos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("CalcHash kernel execution failed");
+	CUT_CHECK_ERROR("InitGradGamma kernel execution failed");
 }
 
 void
@@ -980,7 +987,7 @@ updateGamma(	float4*		oldPos,
 			UPDATEGAMMA_CHECK(WENDLAND, false);
 		}
 	}
-	
+
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
@@ -988,7 +995,29 @@ updateGamma(	float4*		oldPos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("CalcHash kernel execution failed");
+	CUT_CHECK_ERROR("UpdateGamma kernel execution failed");
+}
+
+void
+updateBoundValues(	float4*		oldVel,
+			vertexinfo*	vertices,
+			particleinfo*	info,
+			uint		numParticles)
+{
+	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
+
+	//execute kernel
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, numParticles);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("UpdateBoundValues kernel execution failed");
 }
 
 } // extern "C"
