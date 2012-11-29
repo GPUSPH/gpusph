@@ -1256,10 +1256,12 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 	float deltat = 1.0/itNumber;
 
 	for(uint i = 0; i < itNumber; i++) {
+		// On every iteration updateGamma() is called twice, while updatePositions() is called only once,
+		// since evolution equation for gamma is integrated in time with a second-order time scheme:
+		// gamma(n+1) = gamma(n) + 0.5*[gradGam(n) + gradGam(n+1)]*[r(n+1) - r(n)]
 
-		// Update gamma 1st call //TODO: and the last one
+		// Update gamma 1st call
 		updateGamma(	m_dPos[m_currentPosRead],
-				m_dPos[m_currentPosWrite],
 				m_dVel[m_currentVelRead],
 				m_dInfo[m_currentInfoRead],
 				m_dBoundElement[m_currentBoundElementRead],
@@ -1276,30 +1278,34 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
 		// Move the particles
-//		updatePositions(...);
+		updatePositions(	m_dPos[m_currentPosRead],
+					m_dPos[m_currentPosWrite],
+					m_dVel[m_currentVelRead],
+					m_dInfo[m_currentInfoRead],
+					deltat,
+					m_numParticles);
 
 		std::swap(m_currentPosRead, m_currentPosWrite);
 
-//		// Build the neighbour list
+		// Build the neighbour list
 		buildNeibList(false);
 
-//		// Update gamma 2nd call
-//		updateGamma(	m_dPos[m_currentPosRead],
-//				m_dPos[m_currentPosWrite],
-//				m_dVel[m_currentVelRead],
-//				m_dInfo[m_currentInfoRead],
-//				m_dBoundElement[m_currentBoundElementRead],
-//				m_dGradGamma[m_currentGradGammaWrite],
-//				m_dGradGamma[m_currentGradGammaRead],
-//				m_dNeibsList,
-//				m_numParticles,
-//				m_simparams->slength,
-//				m_influenceRadius,
-//				deltat,
-//				m_simparams->kerneltype,
-//				m_simparams->periodicbound);
+		// Update gamma 2nd call
+		updateGamma(	m_dPos[m_currentPosRead],
+				m_dVel[m_currentVelRead],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				deltat,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
 
-//		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
 		//DEBUG output
 //		getArray(POSITION, false);
@@ -1490,6 +1496,22 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dPos[m_currentPosWrite] = pos(n+1/2) = pos(n) + vel(n)*dt/2
 	//  m_dVel[m_currentVelWrite] =  vel(n+1/2) = vel(n) + f(n)*dt/2
 
+		updateGamma(	m_dPos[m_currentPosRead],
+				m_dVel[m_currentVelRead],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+
 	if (timing) {
 		cudaEventRecord(stop_euler, 0);
 		cudaEventSynchronize(stop_euler);
@@ -1576,6 +1598,22 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dForces = f(n+1/2)
 	//  m_dPos[m_currentPosWrite] = pos(n+1) = pos(n) + velc(n+1/2)*dt
 	//  m_dVel[m_currentVelWrite] =  vel(n+1) = vel(n) + f(n+1/2)*dt
+
+		updateGamma(	m_dPos[m_currentPosWrite],
+				m_dVel[m_currentVelWrite],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler

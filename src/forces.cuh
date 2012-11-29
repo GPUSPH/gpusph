@@ -254,7 +254,6 @@ initGradGamma(	float4*		oldPos,
 // according to the evolution equation { dGamma/dt = gradGamma * relVel }
 void
 updateGamma(	float4*		oldPos,
-		float4*		newPos,
 		float4*		virtualVel,
 		particleinfo*	info,
 		float4*		boundElement,
@@ -267,10 +266,18 @@ updateGamma(	float4*		oldPos,
 		float		virtDt,
 		int		kerneltype,
 		bool		periodicbound);
-		
+
+//Moves particles back to their initial positions during initialization of gamma
+void
+updatePositions(	float4*		oldPos,
+			float4*		newPos,
+			float4*		virtualVel,
+			particleinfo*	info,
+			float		virtDt,
+			uint		numParticles);
+
 // Recomputes values at the boundary elements (currently only density) as an average
 // over three vertices of this element
-
 void
 updateBoundValues(	float4*		oldVel,
 			vertexinfo*	vertices,

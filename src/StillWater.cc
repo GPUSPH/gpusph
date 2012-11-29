@@ -142,6 +142,7 @@ int StillWater::fill_parts()
 	
 	//DEBUG: set only one fluid particle
 //	parts.clear();
+//	parts.push_back(Point(0.0, w/2.f, 0.0));
 //	for(int i=0; i < vertex_parts.size(); i++)
 //		if(	vertex_parts[i](2) == 0 &&
 //			vertex_parts[i](0) > 0.5*w && vertex_parts[i](0) < 0.5*w+2*m_deltap &&

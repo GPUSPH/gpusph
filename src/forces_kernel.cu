@@ -823,7 +823,6 @@ initGradGammaDevice(	float4*		newPos,
 template<KernelType kerneltype, bool periodicbound>
 __global__ void
 updateGammaDevice(	float4*		newGam,
-			float4*		newPos,
 			const uint*	neibsList,
 			const uint	numParticles,
 			const float	slength,
@@ -876,61 +875,60 @@ updateGammaDevice(	float4*		newGam,
 			//Update gamma value
 //			float magnitude = length(make_float3(gGam));
 //			if (magnitude > 1.e-10) {
-				gGam.w = oldGam.w + deltaGam * virtDt;
+				gGam.w = oldGam.w + deltaGam * 0.5*virtDt;
 //			}
 //			else
 //				gGam.w = 1.0;
-			
-			// Update positions TODO: move this into separate kernel, taking into account periodic boundary
-			pos += virtDt * make_float4(vel);
 		}
 		
 		newGam[index] = gGam;
-		newPos[index] = pos;
 	}
 }
 
+//FIXME: Modify this kernel taking into account periodic boundary
 //template<KernelType kerneltype, bool periodicbound>
-//__global__ void
-//updatePositionsDevice(	float4*		newPos,
-//			const uint	numParticles,
-//			const float	virtDt)
-//{
-//	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+__global__ void
+updatePositionsDevice(	float4*	newPos,
+			float	virtDt,
+			uint	numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-//	if (index >= numParticles) {
-//	
-//		float4 pos = tex1Dfetch(posTex, index);
-//		const float4 vel = tex1Dfetch(velTex, index);
-//		const particleinfo info = tex1Dfetch(infoTex, index);
+	if(index < numParticles) {
+		float4 pos = tex1Dfetch(posTex, index);
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		float4 vel = tex1Dfetch(velTex, index);
 
-//		if (FLUID(info))
-//			pos += virtDt*make_float3(vel);
+		if(FLUID(info)) {
+			pos.x += virtDt * vel.x;
+			pos.y += virtDt * vel.y;
+			pos.z += virtDt * vel.z;
+		}
 
-////		if (periodicbound) {
-////			if (d_dispvect.x) {
-////				if (pos.x >= d_maxlimit.x)
-////					pos.x -= d_dispvect.x;
-////				else if (pos.x < d_minlimit.x)
-////					pos.x += d_dispvect.x;
-////			}
-////			if (d_dispvect.y) {
-////				if (pos.y >= d_maxlimit.y)
-////					pos.y -= d_dispvect.y;
-////				else if (pos.y < d_minlimit.y)
-////					pos.y += d_dispvect.y;
-////			}
-////			if (d_dispvect.z) {
-////				if (pos.z >= d_maxlimit.z)
-////					pos.z -= d_dispvect.z;
-////				else if (pos.z < d_minlimit.z)
-////					pos.z += d_dispvect.z;
-////			}
-////		}
+//		if (periodicbound) {
+//			if (d_dispvect.x) {
+//				if (pos.x >= d_maxlimit.x)
+//					pos.x -= d_dispvect.x;
+//				else if (pos.x < d_minlimit.x)
+//					pos.x += d_dispvect.x;
+//			}
+//			if (d_dispvect.y) {
+//				if (pos.y >= d_maxlimit.y)
+//					pos.y -= d_dispvect.y;
+//				else if (pos.y < d_minlimit.y)
+//					pos.y += d_dispvect.y;
+//			}
+//			if (d_dispvect.z) {
+//				if (pos.z >= d_maxlimit.z)
+//					pos.z -= d_dispvect.z;
+//				else if (pos.z < d_minlimit.z)
+//					pos.z += d_dispvect.z;
+//			}
+//		}
 
-//		newPos[index] = pos;
-//	}
-//}
+		newPos[index] = pos;
+	}
+}
 
 __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
@@ -947,6 +945,13 @@ updateBoundValuesDevice(	float4*		oldVel,
 		
 		if (BOUNDARY(info)) {
 			oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+		}
+		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
+		//FIXME: keeping initial velocity values, if given
+		if (FLUID(info)) {
+			oldVel[index].x = 0;
+			oldVel[index].y = 0;
+			oldVel[index].z = 0;
 		}
 	}
 }

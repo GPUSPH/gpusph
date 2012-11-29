@@ -168,7 +168,7 @@ void*	reduce_buffer = NULL;
 #define UPDATEGAMMA_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::updateGammaDevice<kernel, periodic><<< numBlocks, numThreads>>> \
-				(newGam, newPos, neibsList, numParticles, slength, inflRadius, virtDt); \
+				(newGam, neibsList, numParticles, slength, inflRadius, virtDt); \
 	break
 
 extern "C"
@@ -950,7 +950,6 @@ initGradGamma(	float4*		oldPos,
 
 void
 updateGamma(	float4*		oldPos,
-		float4*		newPos,
 		float4*		virtualVel,
 		particleinfo*	info,
 		float4*		boundElement,
@@ -996,6 +995,32 @@ updateGamma(	float4*		oldPos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("UpdateGamma kernel execution failed");
+}
+
+void
+updatePositions(	float4*		oldPos,
+			float4*		newPos,
+			float4*		virtualVel,
+			particleinfo*	info,
+			float		virtDt,
+			uint		numParticles)
+{
+	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, virtualVel, numParticles*sizeof(float4)));
+
+	//execute kernel
+	cuforces::updatePositionsDevice<<<numBlocks, numThreads>>>(newPos, virtDt, numParticles);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("UpdatePositions kernel execution failed");
 }
 
 void
