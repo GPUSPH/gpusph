@@ -64,7 +64,7 @@ ifeq ($(platform), Linux)
 	CUDA_SDK_PATH=/usr/local/cudasdk
 else ifeq ($(platform), Darwin)
 	CUDA_INSTALL_PATH=/usr/local/cuda
-	CUDA_SDK_PATH="/Developer/GPU Computing"
+	CUDA_SDK_PATH=/usr/local/cuda/samples
 endif
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
@@ -272,11 +272,11 @@ ifeq ($(platform), Linux)
 # 	CXX=$(CC)
 # 	LINKER=$(CXX)
 else ifeq ($(platform), Darwin)
-	INCPATH=-I $(CUDA_SDK_PATH)/C/common/inc/
-	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/C/common/lib/darwin/ -L$(CUDA_SDK_PATH)/C/lib/ -L/usr/local/cuda/lib
-	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/C/common/lib/darwin/libGLEW.a -lcudart
+	INCPATH=-I $(CUDA_SDK_PATH)/common/inc/
+	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/common/lib/darwin/ -L$(CUDA_INSTALL_PATH)/lib/
+	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/common/lib/darwin/libGLEW.a -lcudart
 	# Netbeans g++ flags: "-fPic -m32 -arch i386 -framework GLUT"
-	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker /usr/local/cuda/lib
+	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker $(CUDA_INSTALL_PATH)/lib
 	CC=$(NVCC)
 	CXX=$(NVCC)
 	LINKER=$(NVCC)
