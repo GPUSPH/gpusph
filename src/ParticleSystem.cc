@@ -266,11 +266,11 @@ ParticleSystem::allocate(uint numParticles)
 	memory += vinfoSize;
 
 
-#ifdef PSYSTEM_DEBUG
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
 
+#ifdef _DEBUG_
 	m_hParticleHash = new uint[m_numParticles];
 	memset(m_hParticleHash, 0, hashSize);
 	memory += hashSize;
@@ -690,8 +690,8 @@ ParticleSystem::~ParticleSystem()
 	if (m_hBoundElement)
 		delete [] m_hBoundElement;
 
-#ifdef PSYSTEM_DEBUG
 	delete [] m_hForces;
+#ifdef _DEBUG_
 	delete [] m_hNeibsList;
 	delete [] m_hParticleHash;
 	delete [] m_hParticleIndex;
@@ -857,13 +857,12 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 						m_simparams->periodicbound);
 			break;
 
-#ifdef _DEBUG_
 		case FORCE:
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hForces;
 			ddata = (void*) m_dForces;
 			break;
-
+#ifdef _DEBUG_
 		case NEIBSLIST:
 			size = m_numParticles*m_simparams->maxneibsnum*sizeof(uint);
 			hdata = (void*) m_hNeibsList;
@@ -1347,7 +1346,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		buildNeibList(timing);
 	}
 
-
 	if (m_simparams->shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams->shepardfreq == 0)) {
 		shepard(m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
@@ -1426,8 +1424,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
-					m_dGradGamma[m_currentVelRead],
-					m_dBoundElement[m_currentVelRead],
+					m_dGradGamma[m_currentGradGammaRead],
+					m_dBoundElement[m_currentBoundElementRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1496,22 +1494,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dPos[m_currentPosWrite] = pos(n+1/2) = pos(n) + vel(n)*dt/2
 	//  m_dVel[m_currentVelWrite] =  vel(n+1/2) = vel(n) + f(n)*dt/2
 
-		updateGamma(	m_dPos[m_currentPosRead],
-				m_dVel[m_currentVelRead],
-				m_dInfo[m_currentInfoRead],
-				m_dBoundElement[m_currentBoundElementRead],
-				m_dGradGamma[m_currentGradGammaWrite],
-				m_dGradGamma[m_currentGradGammaRead],
-				m_dNeibsList,
-				m_numParticles,
-				m_simparams->slength,
-				m_influenceRadius,
-				m_dt,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
-
-		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
-
 	if (timing) {
 		cudaEventRecord(stop_euler, 0);
 		cudaEventSynchronize(stop_euler);
@@ -1542,8 +1524,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
-					m_dGradGamma[m_currentVelWrite],
-					m_dBoundElement[m_currentVelWrite],
+					m_dGradGamma[m_currentGradGammaRead],
+					m_dBoundElement[m_currentBoundElementRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1599,21 +1581,42 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dPos[m_currentPosWrite] = pos(n+1) = pos(n) + velc(n+1/2)*dt
 	//  m_dVel[m_currentVelWrite] =  vel(n+1) = vel(n) + f(n+1/2)*dt
 
-		updateGamma(	m_dPos[m_currentPosWrite],
-				m_dVel[m_currentVelWrite],
-				m_dInfo[m_currentInfoRead],
-				m_dBoundElement[m_currentBoundElementRead],
-				m_dGradGamma[m_currentGradGammaWrite],
-				m_dGradGamma[m_currentGradGammaRead],
-				m_dNeibsList,
-				m_numParticles,
-				m_simparams->slength,
-				m_influenceRadius,
-				m_dt,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
+	//Update gamma
+	//FIXME: Gamma should be updated inside one of existing kernels
+	// gamma(n+1/2) = gamma(n) + dt/2*∑[gradGam(n) * Vel(n+1)]
+	updateGamma(	m_dPos[m_currentPosRead],
+			m_dVel[m_currentVelWrite],
+			m_dInfo[m_currentInfoRead],
+			m_dBoundElement[m_currentBoundElementRead],
+			m_dGradGamma[m_currentGradGammaWrite],
+			m_dGradGamma[m_currentGradGammaRead],
+			m_dNeibsList,
+			m_numParticles,
+			m_simparams->slength,
+			m_influenceRadius,
+			m_dt,
+			m_simparams->kerneltype,
+			m_simparams->periodicbound);
 
-		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+
+	// gamma(n+1) = gamma(n+1/2) + dt/2*∑[gradGam(n+1) * Vel(n+1)] =
+	//		gamma(n) + dt/2*∑[ (gradGam(n)+gradGam(n+1)) * Vel(n+1)]
+	updateGamma(	m_dPos[m_currentPosWrite],
+			m_dVel[m_currentVelWrite],
+			m_dInfo[m_currentInfoRead],
+			m_dBoundElement[m_currentBoundElementRead],
+			m_dGradGamma[m_currentGradGammaWrite],
+			m_dGradGamma[m_currentGradGammaRead],
+			m_dNeibsList,
+			m_numParticles,
+			m_simparams->slength,
+			m_influenceRadius,
+			m_dt,
+			m_simparams->kerneltype,
+			m_simparams->periodicbound);
+
+	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
@@ -1852,17 +1855,21 @@ void
 ParticleSystem::savegradgamma()
 {
 	getArray(POSITION, false);
-//	getArray(VELOCITY, false);
 	getArray(GRADGAMMA, false);
+	getArray(INFO, false);
 	std::string fname;
-	fname = m_problem->get_dirname() + "/gradgamma.csv";
+	//fname = m_problem->get_dirname() + "/gradgamma.csv";
+	std::stringstream niter;
+	niter << m_iter;
+	fname = m_problem->get_dirname() + "/gradgamma" + niter.str() + ".csv";
 	FILE *fp = fopen(fname.c_str(), "w");
+
 	for (uint index = 0; index < m_numParticles; index++) {
 		float4 pos = m_hPos[index];
-//		float4 vel = m_hVel[index];
 		float4 gradGam = m_hGradGamma[index];
 		
-		fprintf(fp, "%d,%f,%f,%f,%f,%f,%f,%f\n", index, pos.x, pos.y, pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w);
+		if(gradGam.w = 0 && FLUID(m_hInfo[index]))
+		fprintf(fp, "%d,%d,%f,%f,%f,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, pos.x, pos.y, pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w, PART_TYPE(m_hInfo[index]));
 	}
 	fclose(fp);
 }
@@ -1889,17 +1896,41 @@ ParticleSystem::saveVelocity()
 	getArray(VELOCITY, false);
 	getArray(INFO, false);
 	std::string fname;
-	fname = m_problem->get_dirname() + "/velocity.csv";
+	//fname = m_problem->get_dirname() + "/velocity.csv";
+	std::stringstream niter;
+	niter << m_iter;
+	fname = m_problem->get_dirname() + "/velocity" + niter.str() + ".csv";
 	FILE *fp = fopen(fname.c_str(), "w");
 	for (uint index = 0; index < m_numParticles; index++) {
 		float4 vel = m_hVel[index];
 		float4 pos = m_hPos[index];
 		
-		fprintf(fp, "%d,%f,%f,%f,%f,%f,%d\n", index, pos.z, vel.x, vel.y, vel.z, vel.w, PART_TYPE(m_hInfo[index]));
+		fprintf(fp, "%d,%d,%f,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, pos.z, vel.x, vel.y, vel.z, vel.w, PART_TYPE(m_hInfo[index]));
 	}
 	fclose(fp);
 }
 
+void
+ParticleSystem::saveForces()
+{
+	getArray(INFO, false);
+	getArray(FORCE, false);
+	std::string fname;
+	//fname = m_problem->get_dirname() + "/forces.csv";
+	std::stringstream niter;
+	niter << m_iter;
+	fname = m_problem->get_dirname() + "/forces" + niter.str() + ".csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++)
+	if(FLUID(m_hInfo[index]))
+	{
+		float4 forces = m_hForces[index];
+		float4 pos = m_hPos[index];
+
+		fprintf(fp, "%d,%d,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, forces.x, forces.y, forces.z, forces.w, PART_TYPE(m_hInfo[index]));
+	}
+	fclose(fp);
+}
 void
 ParticleSystem::reducerbforces(void)
 {

@@ -154,7 +154,7 @@ FORCES_CUDA_KERNEL
 					float DvDt = 0.0f;
 					float4 bound_term_pres = make_float4(0.0f);
 
-					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) ) {
+					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 						const float4 belem = tex1Dfetch(boundTex, neib_index);
 
 						# ifdef VISC_SPS
@@ -179,13 +179,16 @@ FORCES_CUDA_KERNEL
 						const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
 
 						// density derivative
-						float DrDt = neib_pos.w*vel_dot_pos*f;
+						float DrDt = 0;
+						if(BOUNDARY(neib_info))
+							DrDt -= neib_vel.w*dot(make_float3(vel), make_float3(gradGamma<kerneltype>(slength, r, belem)) );
+						else
+							DrDt = neib_pos.w*vel_dot_pos*f;
 						/* The second formulation takes into consideration the density ratio */
 						if (sph_formulation == SPH_F2)
 							DrDt *= vel.w/neib_vel.w;
-						if(boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) {
-//							DrDt -= neib_vel.w*dot(make_float3(vel), make_float3(gradGamma<kerneltype>(slength, r, belem)) );
-//							DrDt /= gradgamma.w;
+						if(boundarytype == MF_BOUNDARY) {
+							DrDt /= gradgamma.w;
 						}
 						force.w += DrDt;
 
@@ -253,9 +256,16 @@ FORCES_CUDA_KERNEL
 					}
 					// interaction between two particles
 					if(boundarytype == MF_BOUNDARY) {
-						force.x += (DvDt*relPos.x - bound_term_pres.x)/gradgamma.w;
-						force.y += (DvDt*relPos.y - bound_term_pres.y)/gradgamma.w;
-						force.z += (DvDt*relPos.z - bound_term_pres.z)/gradgamma.w;		
+						if(BOUNDARY(neib_info)) {
+							force.x -= bound_term_pres.x/gradgamma.w;
+							force.y -= bound_term_pres.y/gradgamma.w;
+							force.z -= bound_term_pres.z/gradgamma.w;
+						}
+						else {
+							force.x += DvDt*relPos.x/gradgamma.w;
+							force.y += DvDt*relPos.y/gradgamma.w;
+							force.z += DvDt*relPos.z/gradgamma.w;
+						}
 					}
 					else {
 						force.x += DvDt*relPos.x;
@@ -265,11 +275,6 @@ FORCES_CUDA_KERNEL
 
 				} // r < influenceradius
 			} // end of loop over neighbors
-			
-//			if (boundarytype == MF_BOUNDARY) {
-//				force.w -= vel.w*dot(make_float3(vel), make_float3(gradgamma));
-//				force.w /= gradgamma.w;
-//			}
 
 			# ifdef VISC_DYNAMIC
 			const float dynvisc = d_visccoeff*vel.w;

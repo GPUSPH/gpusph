@@ -873,12 +873,12 @@ updateGammaDevice(	float4*		newGam,
 			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
 			
 			//Update gamma value
-//			float magnitude = length(make_float3(gGam));
-//			if (magnitude > 1.e-10) {
+			float magnitude = length(make_float3(gGam));
+			if (magnitude > 1.e-10) {
 				gGam.w = oldGam.w + deltaGam * 0.5*virtDt;
-//			}
-//			else
-//				gGam.w = 1.0;
+			}
+			else
+				gGam.w = 1.0;
 		}
 		
 		newGam[index] = gGam;

@@ -131,6 +131,7 @@ class ParticleSystem
 		void savegradgamma();
 		void saveboundelem();
 		void saveVelocity();
+		void saveForces();
 		void reducerbforces();
 
 		//WaveGage
