@@ -171,6 +171,12 @@ void*	reduce_buffer = NULL;
 				(newGam, neibsList, numParticles, slength, inflRadius, virtDt); \
 	break
 
+#define DYNBOUNDARY_CHECK(kernel, periodic) \
+	case kernel: \
+		cuforces::dynamicBoundConditionsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
+				 (oldPos, oldVel, neibsList, numParticles, slength, influenceradius); \
+	break
+
 extern "C"
 {
 void
@@ -1027,7 +1033,8 @@ void
 updateBoundValues(	float4*		oldVel,
 			vertexinfo*	vertices,
 			particleinfo*	info,
-			uint		numParticles)
+			uint		numParticles,
+			bool		initStep)
 {
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -1036,13 +1043,63 @@ updateBoundValues(	float4*		oldVel,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	//execute kernel
-	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, numParticles);
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, numParticles, initStep);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("UpdateBoundValues kernel execution failed");
+}
+
+void
+dynamicBoundConditions(	const float4*		oldPos,
+			float4*			oldVel,
+			const particleinfo*	info,
+			const uint*		neibsList,
+			const uint		numParticles,
+			const float		slength,
+			const int		kerneltype,
+			const float		influenceradius,
+			const bool		periodicbound)
+{
+	int dummy_shared = 0;
+
+	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	#endif
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+	// execute the kernel
+	if (periodicbound) {
+		switch (kerneltype) {
+			DYNBOUNDARY_CHECK(CUBICSPLINE, true);
+//			DYNBOUNDARY_CHECK(QUADRATIC, true);
+			DYNBOUNDARY_CHECK(WENDLAND, true);
+		}
+	} else {
+		switch (kerneltype) {
+			DYNBOUNDARY_CHECK(CUBICSPLINE, false);
+//			DYNBOUNDARY_CHECK(QUADRATIC, false);
+			DYNBOUNDARY_CHECK(WENDLAND, false);
+		}
+	}
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("DynamicBoundConditions kernel execution failed");
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
 }
 
 } // extern "C"

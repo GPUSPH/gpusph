@@ -1235,7 +1235,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 
 	initGradGamma(	m_dPos[m_currentPosRead],
 			m_dPos[m_currentPosWrite],
-			m_dVel[m_currentVelWrite],			//should be LagrangianVel
+			m_dVel[m_currentVelWrite],
 			m_dInfo[m_currentInfoRead],
 			m_dBoundElement[m_currentBoundElementRead],
 			m_dGradGamma[m_currentGradGammaWrite],
@@ -1329,7 +1329,8 @@ ParticleSystem::updateValuesAtBoundaryElements(void)
 	updateBoundValues(	m_dVel[m_currentVelRead],
 				m_dVertices[m_currentVerticesRead],
 				m_dInfo[m_currentInfoRead],
-				m_numParticles);
+				m_numParticles,
+				true);
 }
 
 TimingInfo
@@ -1583,40 +1584,60 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	//Update gamma
 	//FIXME: Gamma should be updated inside one of existing kernels
-	// gamma(n+1/2) = gamma(n) + dt/2*∑[gradGam(n) * Vel(n+1)]
-	updateGamma(	m_dPos[m_currentPosRead],
-			m_dVel[m_currentVelWrite],
-			m_dInfo[m_currentInfoRead],
-			m_dBoundElement[m_currentBoundElementRead],
-			m_dGradGamma[m_currentGradGammaWrite],
-			m_dGradGamma[m_currentGradGammaRead],
-			m_dNeibsList,
-			m_numParticles,
-			m_simparams->slength,
-			m_influenceRadius,
-			m_dt,
-			m_simparams->kerneltype,
-			m_simparams->periodicbound);
+	if(m_simparams->boundarytype == MF_BOUNDARY)
+	{
+		// gamma(n+1/2) = gamma(n) + dt/2*∑[gradGam(n) * Vel(n+1)]
+		updateGamma(	m_dPos[m_currentPosRead],
+				m_dVel[m_currentVelWrite],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
 
-	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
-	// gamma(n+1) = gamma(n+1/2) + dt/2*∑[gradGam(n+1) * Vel(n+1)] =
-	//		gamma(n) + dt/2*∑[ (gradGam(n)+gradGam(n+1)) * Vel(n+1)]
-	updateGamma(	m_dPos[m_currentPosWrite],
-			m_dVel[m_currentVelWrite],
-			m_dInfo[m_currentInfoRead],
-			m_dBoundElement[m_currentBoundElementRead],
-			m_dGradGamma[m_currentGradGammaWrite],
-			m_dGradGamma[m_currentGradGammaRead],
-			m_dNeibsList,
-			m_numParticles,
-			m_simparams->slength,
-			m_influenceRadius,
-			m_dt,
-			m_simparams->kerneltype,
-			m_simparams->periodicbound);
+		// gamma(n+1) = gamma(n+1/2) + dt/2*∑[gradGam(n+1) * Vel(n+1)] =
+		//		gamma(n) + dt/2*∑[ (gradGam(n)+gradGam(n+1)) * Vel(n+1)]
+		updateGamma(	m_dPos[m_currentPosWrite],
+				m_dVel[m_currentVelWrite],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
 
-	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+
+		//update density at vertex particles
+		dynamicBoundConditions(	m_dPos[m_currentPosWrite],
+					m_dVel[m_currentVelWrite],
+					m_dInfo[m_currentInfoRead],
+					m_dNeibsList,
+					m_numParticles,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_influenceRadius,
+					m_simparams->periodicbound);
+
+		updateBoundValues(	m_dVel[m_currentVelWrite],
+					m_dVertices[m_currentVerticesRead],
+					m_dInfo[m_currentInfoRead],
+					m_numParticles,
+					false);
+	}
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
@@ -1904,7 +1925,7 @@ ParticleSystem::saveVelocity()
 	for (uint index = 0; index < m_numParticles; index++) {
 		float4 vel = m_hVel[index];
 		float4 pos = m_hPos[index];
-		
+
 		fprintf(fp, "%d,%d,%f,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, pos.z, vel.x, vel.y, vel.z, vel.w, PART_TYPE(m_hInfo[index]));
 	}
 	fclose(fp);

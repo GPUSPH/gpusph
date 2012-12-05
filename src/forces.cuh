@@ -282,7 +282,23 @@ void
 updateBoundValues(	float4*		oldVel,
 			vertexinfo*	vertices,
 			particleinfo*	info,
-			uint		numParticles);
+			uint		numParticles,
+			bool		initStep);
+
+// Recomputes values at the vertex particles, following procedure similar to Shepard filter.
+// Only fluid particles are taken into summation
+// oldVel array is used to read density of fluid particles and to write density of vertex particles.
+// There is no need to use two velocity arrays (read and write) and swap them after.
+void
+dynamicBoundConditions(	const float4*		oldPos,
+			float4*			oldVel,
+			const particleinfo*	info,
+			const uint*		neibsList,
+			const uint		numParticles,
+			const float		slength,
+			const int		kerneltype,
+			const float		influenceradius,
+			const bool		periodicbound);
 }
 
 #endif

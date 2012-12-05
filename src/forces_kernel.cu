@@ -932,7 +932,8 @@ updatePositionsDevice(	float4*	newPos,
 
 __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
-				const uint	numParticles)
+				const uint	numParticles,
+				bool		initStep)
 {
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
 	
@@ -948,12 +949,76 @@ updateBoundValuesDevice(	float4*		oldVel,
 		}
 		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
 		//FIXME: keeping initial velocity values, if given
-		if (FLUID(info)) {
+		if (initStep && FLUID(info)) {
 			oldVel[index].x = 0;
 			oldVel[index].y = 0;
 			oldVel[index].z = 0;
 		}
 	}
+}
+
+template<KernelType kerneltype, bool periodicbound >
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+dynamicBoundConditionsDevice(	const float4*	oldPos,
+				float4*		oldVel,
+				const uint*	neibsList,
+				const uint	numParticles,
+				const float	slength,
+				const float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (!VERTEX(info))
+		return;
+
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = oldPos[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+
+	// in contrast to Shepard filter particle itself doesn't contribute into summation
+	float temp1 = 0;
+	float temp2 = 0;
+
+	// loop over all the neighbors
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		#if( __COMPUTE__ >= 20)
+		getNeibData<periodicbound>(pos, oldPos, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
+		#endif
+
+//		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
+		const float neib_rho = oldVel[neib_index].w;
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (r < influenceradius && FLUID(neib_info)) {
+			const float w = W<kerneltype>(r, slength)*neib_pos.w;
+			temp1 += w;
+			temp2 += w/neib_rho;
+		}
+	}
+
+	if(temp2)
+		oldVel[index].w = temp1/temp2;
 }
 /************************************************************************************************************/
 
@@ -1006,6 +1071,7 @@ shepardDevice(	const float4*	posArray,
 	float temp1 = pos.w*W<kerneltype>(0, slength);
 	float temp2 = temp1/vel.w ;
 
+	// FIXME: with MF boundary model vertex and boundary particles are included in the neighbor list
 	// loop over all the neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
 		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
