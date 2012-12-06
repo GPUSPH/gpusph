@@ -596,17 +596,17 @@ ParticleSystem::printPhysParams(FILE *summary)
 
 		case KINEMATICVISC:
 			fprintf(summary, "\tKinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = 4*kinematicvisc)\n",
-					m_physparams->artvisccoeff, visccoeff);
+					m_physparams->kinematicvisc, visccoeff);
 			break;
 
 		case DYNAMICVISC:
 			fprintf(summary, "\tDynamic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
-					m_physparams->artvisccoeff, visccoeff);
+					m_physparams->kinematicvisc, visccoeff);
 			break;
 
 		case SPSVISC:
 			fprintf(summary, "\tSPS + kinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
-					m_physparams->artvisccoeff, visccoeff);
+					m_physparams->kinematicvisc, visccoeff);
 			fprintf(summary, "\tSmagFactor = %g\n", m_physparams->smagfactor);
 			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams->kspsfactor);
 			break;
