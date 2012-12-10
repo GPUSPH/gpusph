@@ -63,10 +63,10 @@ void*	reduce_buffer = NULL;
 						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -330,6 +330,7 @@ forces(	float4*			pos,
 		ViscosityType	visctype,
 		float			visccoeff,
 		float*			cfl,
+		float*			cflGamma,
 		float*			tempCfl,
 		uint			numPartsFmax,
 		float2*			tau[],
@@ -435,6 +436,12 @@ forces(	float4*			pos,
 			dt_visc *= 0.125;
 			if (dt_visc < dt)
 				dt = dt_visc;
+		}
+
+		if(boundarytype == MF_BOUNDARY) {
+			float dt_gamma = 0.005/cflmax(numPartsFmax, cflGamma, tempCfl);
+			if (dt_gamma < dt)
+				dt = dt_gamma;
 		}
 	}
 	return dt;
@@ -832,9 +839,9 @@ cflmax( const uint	n,
 	uint numBlocks = 0;
 	uint numThreads = 0;
 	float max = 0.0f;
-	
+
 	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
-		
+
 	// execute the kernel
 	reducefmax(n, numThreads, numBlocks, cfl, tempCfl);
 
@@ -847,7 +854,7 @@ cflmax( const uint	n,
 		uint threads = 0, blocks = 0;
 		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
 
-		reducefmax(s, threads, blocks, tempCfl, tempCfl);
+		reducefmax(s, threads, blocks, tempCfl, tempCfl); //FIXME: incorrect parameters
 		CUT_CHECK_ERROR("fmax kernel execution failed");
 
 		s = (s + (threads*2-1)) / (threads*2);

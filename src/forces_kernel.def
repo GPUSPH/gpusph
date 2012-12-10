@@ -61,7 +61,8 @@ FORCES_CUDA_KERNEL
 	float4*		rbtorques
 	# ifdef DT_KERNEL
 	,
-	float*		cfl
+	float*		cfl,
+	float*		cflGamma
 	# endif
 )
 {
@@ -72,6 +73,8 @@ FORCES_CUDA_KERNEL
 	# ifdef DT_KERNEL
 	__shared__ float sm_max[BLOCK_SIZE_FORCES];
 	sm_max[threadIdx.x] = 0.0f;
+	__shared__ float sm_max_g[BLOCK_SIZE_FORCES];
+	sm_max_g[threadIdx.x] = 0.0f;
 	# endif
 
 	if (index < numParticles) {
@@ -129,6 +132,10 @@ FORCES_CUDA_KERNEL
 			# if defined(DT_KERNEL) || defined(VISC_ARTVISC)
 			/* sound speed sspeed is computed only once for the given particle */
 			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
+			# endif
+
+			# ifdef DT_KERNEL
+			float gradgamU = 0;
 			# endif
 
 			// loop over all neighbors
@@ -236,7 +243,14 @@ FORCES_CUDA_KERNEL
 						# endif
 
 						if(boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) {
-							bound_term_pres = DvDt*neib_vel.w*gradGamma<kerneltype>(slength, r, belem);
+							const float4 gradgam = gradGamma<kerneltype>(slength, r, belem);
+							bound_term_pres = DvDt*neib_vel.w*gradgam;
+
+							# ifdef DT_KERNEL
+							float tmp = abs(dot(make_float3(gradgam.x, gradgam.y, gradgam.z), make_float3(vel.x, vel.y, vel.z)));
+							if (tmp > gradgamU)
+								gradgamU = tmp;
+							# endif
 						}
 						
 						DvDt *= neib_pos.w*f;
@@ -244,7 +258,6 @@ FORCES_CUDA_KERNEL
 					switch (boundarytype) {
 						case LJ_BOUNDARY:
 							DvDt = LJForce(r);
-							printf("LJ force calculation\n");
 							break;
 						case MK_BOUNDARY:
 							DvDt = MKForce(r, slength, pos.w, pos.w);
@@ -313,7 +326,9 @@ FORCES_CUDA_KERNEL
 			
 			# ifdef DT_KERNEL
 			// storing data for cfl condition in shared memory			
-			sm_max[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)), sspeed*sspeed/slength);		
+			sm_max[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)), sspeed*sspeed/slength);
+			if(boundarytype == MF_BOUNDARY)
+				sm_max_g[threadIdx.x] = gradgamU;
 			# endif
 
 			# ifdef XSPH_KERNEL
@@ -375,6 +390,8 @@ FORCES_CUDA_KERNEL
 
 	# ifdef DT_KERNEL
 	dtadaptBlockReduce(sm_max, cfl);
+	if(boundarytype == MF_BOUNDARY)
+		dtadaptBlockReduce(sm_max_g, cflGamma);
 	# endif
 }
 /************************************************************************************************************/

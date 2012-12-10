@@ -209,6 +209,7 @@ class ParticleSystem
 		float3*		m_dVort;				// vorticity
 		uint		m_numPartsFmax;				// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
+		float*		m_dCflGamma;				// analogue of cfl due to gamma integration
 		float*		m_dTempCfl;				// temporary storage for cfl computation
 		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
