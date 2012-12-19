@@ -78,6 +78,7 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Boundary Elements",
 	"Gradient Gamma",
 	"Vertices",
+	"Pressure",
 	"(invalid)"
 };
 
@@ -99,7 +100,9 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentGradGammaRead(0),
 	m_currentGradGammaWrite(1),
 	m_currentVerticesRead(0),
-	m_currentVerticesWrite(1)
+	m_currentVerticesWrite(1),
+	m_currentPressureRead(0),
+	m_currentPressureWrite(1)
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
@@ -265,6 +268,9 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hVertices, 0, vinfoSize);
 	memory += vinfoSize;
 
+	m_hPressure = new float[m_numParticles];
+	memset(m_hPressure, 0, memSize);
+	memory += memSize;
 
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
@@ -370,6 +376,12 @@ ParticleSystem::allocate(uint numParticles)
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVertices[1], vinfoSize));
 	memory += vinfoSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPressure[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPressure[1], memSize));
+	memory += memSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
 	memory += hashSize;
@@ -694,6 +706,8 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hGradGamma;
 	if (m_hBoundElement)
 		delete [] m_hBoundElement;
+	if (m_hPressure)
+		delete [] m_hPressure;
 
 	delete [] m_hForces;
 #ifdef _DEBUG_
@@ -736,6 +750,8 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dBoundElement[1]));
 	CUDA_SAFE_CALL(cudaFree(m_dVertices[0]));
 	CUDA_SAFE_CALL(cudaFree(m_dVertices[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dPressure[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dPressure[1]));
 	
 	// Free surface detection
 	if (m_simparams->savenormals)
@@ -925,6 +941,10 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			hdata = (void*) m_hVertices;
 			ddata = (void*) m_dVertices[m_currentVerticesRead];
 			break;
+		case PRESSURE:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hPressure;
+			ddata = (void*) m_dPressure[m_currentPressureRead];
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -975,6 +995,12 @@ ParticleSystem::setArray(ParticleArray array)
 			hdata = m_hVertices;
 			ddata = m_dVertices[m_currentVerticesRead];
 			size = m_numParticles*sizeof(vertexinfo);
+			break;
+
+		case PRESSURE:
+			hdata = m_hPressure;
+			ddata = m_dPressure[m_currentPressureRead];
+			size = m_numParticles*sizeof(float);
 			break;
 
 		default:
@@ -1169,6 +1195,7 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dBoundElement[m_currentBoundElementWrite],	// output: sorted boundary elements
 			m_dGradGamma[m_currentGradGammaWrite],		// output: sorted gradient gamma
 			m_dVertices[m_currentVerticesWrite],		// output: sorted vertices
+			m_dPressure[m_currentPressureWrite],		// output: sorted pressure
 			m_dParticleHash,				// input: sorted grid hashes
 			m_dParticleIndex,				// input: sorted particle indices
 			m_dPos[m_currentPosRead],			// input: sorted position array
@@ -1177,6 +1204,7 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dBoundElement[m_currentBoundElementRead],	// input: sorted boundary elements
 			m_dGradGamma[m_currentGradGammaRead],		// input: sorted gradient gamma
 			m_dVertices[m_currentVerticesRead],		// input: sorted vertices
+			m_dPressure[m_currentPressureRead],		// input: sorted pressure
 			m_numParticles,
 			m_nGridCells,
 			m_dInversedParticleIndex);
@@ -1187,6 +1215,7 @@ ParticleSystem::buildNeibList(bool timing)
 	std::swap(m_currentBoundElementRead, m_currentBoundElementWrite);
 	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 	std::swap(m_currentVerticesRead, m_currentVerticesWrite);
+	std::swap(m_currentPressureRead, m_currentPressureWrite);
 
 	m_timingInfo.numInteractions = 0;
 	m_timingInfo.maxNeibs = 0;
@@ -1335,6 +1364,7 @@ void
 ParticleSystem::updateValuesAtBoundaryElements(void)
 {
 	updateBoundValues(	m_dVel[m_currentVelRead],
+				m_dPressure[m_currentPressureRead],
 				m_dVertices[m_currentVerticesRead],
 				m_dInfo[m_currentInfoRead],
 				m_numParticles,
@@ -1435,6 +1465,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dForces,					// f(n)
 					m_dGradGamma[m_currentGradGammaRead],
 					m_dBoundElement[m_currentBoundElementRead],
+					m_dPressure[m_currentPressureRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1536,6 +1567,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dForces,					// f(n+1/2)
 					m_dGradGamma[m_currentGradGammaRead],
 					m_dBoundElement[m_currentBoundElementRead],
+					m_dPressure[m_currentPressureRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1634,6 +1666,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		//update density at vertex particles
 		dynamicBoundConditions(	m_dPos[m_currentPosWrite],
 					m_dVel[m_currentVelWrite],
+					m_dPressure[m_currentPressureRead],
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
@@ -1643,6 +1676,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams->periodicbound);
 
 		updateBoundValues(	m_dVel[m_currentVelWrite],
+					m_dPressure[m_currentPressureRead],
 					m_dVertices[m_currentVerticesRead],
 					m_dInfo[m_currentInfoRead],
 					m_numParticles,
@@ -1937,6 +1971,23 @@ ParticleSystem::saveVelocity()
 		float4 pos = m_hPos[index];
 
 		fprintf(fp, "%d,%d,%f,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, pos.z, vel.x, vel.y, vel.z, vel.w, PART_TYPE(m_hInfo[index]));
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::savepressure()
+{
+	getArray(PRESSURE, false);
+	getArray(INFO, false);
+	std::string fname;
+	std::stringstream niter;
+	niter << m_iter;
+	fname = m_problem->get_dirname() + "/pressure" + niter.str() + ".csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+
+		fprintf(fp, "%d,%d,%f\n", index, PART_TYPE(m_hInfo[index]), m_hPressure[index]);
 	}
 	fclose(fp);
 }

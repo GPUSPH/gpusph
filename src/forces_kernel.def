@@ -164,6 +164,10 @@ FORCES_CUDA_KERNEL
 					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 						const float4 belem = tex1Dfetch(boundTex, neib_index);
 
+						float neib_pres = tex1Dfetch(presTex, neib_index);
+						if(FLUID(neib_info))
+							neib_pres = P(neib_vel.w, PART_FLUID_NUM(neib_info));
+
 						# ifdef VISC_SPS
 						sym33mat neib_tau;
 						temp = tex1Dfetch(tau0Tex, neib_index);
@@ -202,7 +206,7 @@ FORCES_CUDA_KERNEL
 						// pressure part of acceleration (to be multiplied by neib_mass*f)
 						switch (sph_formulation) {
 							case SPH_F1:
-								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info))/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
+								DvDt = -(p_precalc + neib_pres/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
 								break;
 							case SPH_F2:
 								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info)))/(vel.w*neib_vel.w);

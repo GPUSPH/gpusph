@@ -80,6 +80,7 @@ class ParticleSystem
 			BOUNDELEMENT,
 			GRADGAMMA,
 			VERTICES,
+			PRESSURE,
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -130,6 +131,7 @@ class ParticleSystem
 		void savecellstartend();
 		void savegradgamma();
 		void saveboundelem();
+		void savepressure();
 		void saveVelocity();
 		void saveForces();
 		void reducerbforces();
@@ -189,6 +191,7 @@ class ParticleSystem
 		float4*		m_hGradGamma;			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
 		float4*		m_hBoundElement;		// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
 		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
+		float*		m_hPressure;			// stores pressure, used only for vertex and boundary particles
 
 		// CPU arrays used for debugging
 		uint*		m_hNeibsList;
@@ -215,8 +218,9 @@ class ParticleSystem
 		float2*		m_dTau[3];				// SPS stress tensor
 		
 		float4*		m_dGradGamma[2];			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
-		float4*		m_dBoundElement[2];			// normal coordinates (x,y,z) and (w) surface of boundary elements (triangles)
+		float4*		m_dBoundElement[2];			// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
 		vertexinfo*	m_dVertices[2];				// stores indexes of 3 vertex particles for every boundary element
+		float*		m_dPressure[2];				// stores pressure for vertex and boundary particles
 
 		// TODO: profile with float3
 		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
@@ -249,6 +253,8 @@ class ParticleSystem
 		uint		m_currentGradGammaWrite;	// current index in m_dGradGamma for writing (0 or 1)
 		uint		m_currentVerticesRead;		// current index in m_dVertices for vertices reading (0 or 1)
 		uint		m_currentVerticesWrite;		// current index in m_dVertices for writing (0 or 1)
+		uint		m_currentPressureRead;		// current index in m_dPressure for pressure reading (0 or 1)
+		uint		m_currentPressureWrite;		// current index in m_dPressure for writing (0 or 1)
 		
 		// CUDA device properties
 		cudaDeviceProp	m_device;

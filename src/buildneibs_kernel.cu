@@ -123,6 +123,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 										float4*			sortedBoundElements,	// output: sorted boundary elements
 										float4*			sortedGradGamma,	// output: sorted gradient gamma
 										vertexinfo*		sortedVertices,		// output: sorted vertices
+										float*			sortedPressure,		// output: sorted pressure
 										uint*			particleHash,	// input: sorted grid hashes
 										uint*			particleIndex,	// input: sorted particle indices
 										uint			numParticles,
@@ -175,12 +176,14 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		float4 boundelement = tex1Dfetch(boundTex, sortedIndex);
 		float4 gradgamma = tex1Dfetch(gamTex, sortedIndex);
 		vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+		float pressure = tex1Dfetch(presTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
 		sortedBoundElements[index] = boundelement;
 		sortedGradGamma[index] = gradgamma;
+		sortedPressure[index] = pressure;
 		
 		sortedVertices[index].x = inversedParticleIndex[vertices.x];
 		sortedVertices[index].y = inversedParticleIndex[vertices.y];

@@ -174,7 +174,7 @@ void*	reduce_buffer = NULL;
 #define DYNBOUNDARY_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, neibsList, numParticles, slength, influenceradius); \
+				 (oldPos, oldVel, oldPressure, neibsList, numParticles, slength, influenceradius); \
 	break
 
 extern "C"
@@ -314,6 +314,7 @@ forces(	float4*			pos,
 		float4*			forces,
 		float4*			gradgam,
 		float4*			boundelem,
+		float*			pressure,
 		float4*			rbforces,
 		float4*			rbtorques,
 		float4*			xsph,
@@ -347,6 +348,7 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, presTex, pressure, numParticles*sizeof(float)));
 
 	// execute the kernel for computing SPS stress matrix, if needed
 	if (visctype == SPSVISC) {	// thread per particle
@@ -414,6 +416,7 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
 
 	if (dtadapt) {
 		float maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
@@ -1038,6 +1041,7 @@ updatePositions(	float4*		oldPos,
 
 void
 updateBoundValues(	float4*		oldVel,
+			float*		oldPressure,
 			vertexinfo*	vertices,
 			particleinfo*	info,
 			uint		numParticles,
@@ -1050,7 +1054,7 @@ updateBoundValues(	float4*		oldVel,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	//execute kernel
-	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, numParticles, initStep);
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldPressure, numParticles, initStep);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
@@ -1062,6 +1066,7 @@ updateBoundValues(	float4*		oldVel,
 void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
+			float*			oldPressure,
 			const particleinfo*	info,
 			const uint*		neibsList,
 			const uint		numParticles,

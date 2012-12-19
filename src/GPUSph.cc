@@ -329,6 +329,7 @@ void init(const char *arg)
 	psystem->setArray(ParticleSystem::BOUNDELEMENT);
 	psystem->setArray(ParticleSystem::GRADGAMMA);
 	psystem->setArray(ParticleSystem::VERTICES);
+	psystem->setArray(ParticleSystem::PRESSURE);
 
 	uint numPlanes = problem->fill_planes();
 	if (numPlanes > 0) {
@@ -352,6 +353,7 @@ void init(const char *arg)
 	}
 		
 	//psystem->saveVelocity();
+	//psystem->savepressure();
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 

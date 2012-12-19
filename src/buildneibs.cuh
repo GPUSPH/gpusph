@@ -98,6 +98,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			newBoundElement,	// output: sorted boundary elements
 							float4*			newGradGamma,		// output: sorted gradient gamma
 							vertexinfo*		newVertices,		// output: sorted vertices
+							float*			newPressure,		// output: sorted pressure
 							uint*			particleHash,		// input: sorted grid hashes
 							uint*			particleIndex,		// input: sorted particle indices
 							float4*			oldPos,			// input: sorted position array
@@ -106,6 +107,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			oldBoundElement,	// input: sorted boundary elements
 							float4*			oldGradGamma,		// input: sorted gradient gamma
 							vertexinfo*		oldVertices,		// input: sorted vertices
+							float*			oldPressure,		// input: sorted pressure
 							uint			numParticles,
 							uint			numGridCells,
 							uint*			inversedParticleIndes);

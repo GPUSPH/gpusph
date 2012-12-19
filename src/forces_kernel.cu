@@ -932,6 +932,7 @@ updatePositionsDevice(	float4*	newPos,
 
 __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
+				float*		oldPressure,
 				const uint	numParticles,
 				bool		initStep)
 {
@@ -943,9 +944,13 @@ updateBoundValuesDevice(	float4*		oldVel,
 		const float ro1 = oldVel[vertices.x].w;
 		const float ro2 = oldVel[vertices.y].w;
 		const float ro3 = oldVel[vertices.z].w;
-		
+		const float pres1 = oldPressure[vertices.x];
+		const float pres2 = oldPressure[vertices.y];
+		const float pres3 = oldPressure[vertices.z];
+
 		if (BOUNDARY(info)) {
 			oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+			oldPressure[index] = (pres1 + pres2 + pres3)/3.f;
 		}
 		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
 		//FIXME: keeping initial velocity values, if given
@@ -962,6 +967,7 @@ __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 dynamicBoundConditionsDevice(	const float4*	oldPos,
 				float4*		oldVel,
+				float*		oldPressure,
 				const uint*	neibsList,
 				const uint	numParticles,
 				const float	slength,
@@ -986,9 +992,14 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	const float vel = length(make_float3(oldVel[index]));
+	//TODO: it should be changed in case of moving boundaries
+	const float neib_vel = 0;
+
 	// in contrast to Shepard filter particle itself doesn't contribute into summation
 	float temp1 = 0;
 	float temp2 = 0;
+	float alpha = 0;
 
 	// loop over all the neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
@@ -1009,16 +1020,21 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 //		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const float neib_rho = oldVel[neib_index].w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
-			temp2 += w/neib_rho;
+			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,relPos) + 0.5*(neib_vel*neib_vel-vel*vel));
+			alpha += w/neib_rho;
 		}
 	}
 
-	if(temp2)
-		oldVel[index].w = temp1/temp2;
+	if(alpha)
+	{
+		oldVel[index].w = temp1/alpha;
+		oldPressure[index] = temp2*oldVel[index].w/alpha;
+	}
 }
 /************************************************************************************************************/
 
@@ -1091,7 +1107,7 @@ shepardDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && FLUID(neib_info)) {
+		if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
