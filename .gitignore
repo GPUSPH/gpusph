@@ -17,3 +17,10 @@ TODO
 html
 latex
 Manual
+other/
+mpitests/
+.project
+.cproject
+.settings/
+deviceQuery
+
