@@ -220,7 +220,13 @@ CFLAGS ?= $(_CFLAGS_ARCH) $(_CFLAGS) $(CFLAGS_GPU)
 # compilers
 CC=$(NVCC)
 CXX=$(NVCC)
-LINKER=$(NVCC)
+MPICXX=$(shell which mpicxx)
+ifeq ($(MPICXX),)
+      $(error MPI compiler not found, necessary for multi-node.)
+endif
+
+LINKER=$(MPICXX)
+#LINKER=$(NVCC)
 #LINKER=g++
 
 # Doxygen configuration
@@ -239,8 +245,11 @@ GPUDEPS = $(MAKEFILE).gpu
 CPUDEPS = $(MAKEFILE).cpu
 
 # .cc source files (CPU)
-CCFILES = $(wildcard $(SRCDIR)/*.cc)
+#CCFILES = $(wildcard $(SRCDIR)/*.cc)
+# filter-out NetworkManager, which has to be compiled with mpic++
+CCFILES = $(filter-out $(SRCDIR)/NetworkManager.%,$(wildcard $(SRCDIR)/*.cc))
 #CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
+MPICXXFILES = $(SRCDIR)/NetworkManager.cc
 
 # .cu source files (GPU), excluding *_kernel.cu
 CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
@@ -251,8 +260,9 @@ HEADERS = $(wildcard $(SRCDIR)/*.h)
 
 # object files via filename replacement
 CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
+MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
 CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
-OBJS = $(CCOBJS) $(CUOBJS)
+OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
 
 # option: echo - 0 silent, 1 show commands
 ifeq ($(echo), 1)
@@ -279,10 +289,14 @@ else ifeq ($(platform), Darwin)
 	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker $(CUDA_INSTALL_PATH)/lib
 	CC=$(NVCC)
 	CXX=$(NVCC)
-	LINKER=$(NVCC)
+	#LINKER=$(NVCC)
+	LINKER=$(MPICXX)
 else
 	$(warning architecture $(arch) not supported by this makefile)
 endif
+
+# MPICXX does not find automatically lcudart, as nvcc does
+LIBPATH+=-L$(CUDA_INSTALL_PATH)/lib64
 
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
 INCPATH+= -I$(SRCDIR) -I$(OPTSDIR)
@@ -305,7 +319,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo "Compiled with problem $(PROBLEM)"
 	$(CMDECHO)$(CARRIAGE_RETURN) && \
 	printf "[LINK] $(TARGET)\n" && \
-	$(LINKER) $(LFLAGS) $(LIBPATH) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(LINKER) $(LFLAGS) $(LIBPATH) $(MPI_LINKING) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -335,6 +349,12 @@ $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	printf "[CC] $(@F)..." && \
 	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
 
+# compile CPU objects requiring MPI compiler
+$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
+	$(CMDECHO)$(CARRIAGE_RETURN) && \
+	printf "[MPI] $(@F)..." && \
+	$(MPICXX) $(INCPATH) -c -o $@ $<
+
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
 	$(CMDECHO)$(CARRIAGE_RETURN) && \
@@ -362,7 +382,7 @@ clean: cpuclean gpuclean
 
 # target: cpuclean - Clean CPU stuff
 cpuclean:
-	$(RM) $(CCOBJS)
+	$(RM) $(CCOBJS) $(MPICXXOBJS)
 
 # target: gpuclean - Clean GPU stuff
 gpuclean:
@@ -378,9 +398,13 @@ cookiesclean:
 showobjs:
 	@echo "> CCFILES: $(CCFILES)"
 	@echo " --- "
+	@echo "> MPICXXFILES: $(MPICXXFILES)"
+	@echo " --- "
 	@echo "> CUFILES: $(CUFILES)"
 	@echo " --- "
 	@echo "> CCOBJS: $(CCOBJS)"
+	@echo " --- "
+	@echo "> MPICXXOBJS: $(MPICXXOBJS)"
 	@echo " --- "
 	@echo "> CUOBJS: $(CUOBJS)"
 	@echo " --- "
@@ -406,6 +430,7 @@ show:
 	@echo "Debug:           $(dbg)"
 	@echo "CC:              $(CC)"
 	@echo "CXX:             $(CXX)"
+	@echo "MPICXX:          $(MPICXX)"
 	@echo "Compute cap.:    $(COMPUTE)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
@@ -444,7 +469,7 @@ $(GPUDEPS): $(CUFILES) $(SRCDIR)
 		-w4096 -f- -- $(CFLAGS) -- $^ 2> /dev/null | \
 		sed -e 's/$(subst ./,,$(SRCDIR))/$(subst ./,,$(OBJDIR))/' > $(GPUDEPS)
 
-$(CPUDEPS): $(CCFILES) $(SRCDIR)
+$(CPUDEPS): $(CCFILES) $(MPICCFILES)  $(SRCDIR)
 	@echo [DEPS] CPU
 	$(CMDECHO)makedepend -Y -a -s'# CPU sources dependencies generated with "make deps"' \
 		-w4096 -f- -- $(CFLAGS) -- $^ 2> /dev/null | \
