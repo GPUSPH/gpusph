@@ -16,6 +16,10 @@
 // Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
 #include "problem_select.opt"
 
+// GlobalData, to be read potentially by everyone
+// Declared as global so that signal handlers can access it
+GlobalData gdata;
+
 // TODO: cleanup, no exit
 void print_usage() {
 	cerr << "Syntax: " << endl;
@@ -190,9 +194,6 @@ int newMain(int argc, char** argv) {
 
 	// Command line options
 	Options clOptions;
-
-	// GlobalData, to be read potentially by everyone
-	GlobalData gdata;
 
 	// catch SIGINT and SIGUSR1
 	struct sigaction int_action, usr1_action;
