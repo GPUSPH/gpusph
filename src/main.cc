@@ -42,7 +42,7 @@ void print_usage() {
 	exit(-1);
 }
 
-void parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata)
+bool parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata)
 {
 	const char *arg(NULL);
 
@@ -129,15 +129,16 @@ void parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata
 			//argc--;
 		} else if (!strcmp(arg, "--help")) {
 			print_usage();
-			exit(0);
+			//exit(0);
+			return false;
 		//} else if (!strcmp(arg, "--nopause")) {
 		//	bPause = false;
 		} else if (!strcmp(arg, "--")) {
 			cout << "Skipping unsupported option " << arg << endl;
 		} else {
 			cout << "Fatal: Unknown option: " << arg << endl;
-			// TODO: should not brutally terminate the program here, but the method only
-			exit(0);
+			// exit(0);
+			return false;
 
 			// Left for future dynamic loading:
 			/*if (_clOptions->problem.empty()) {
@@ -165,6 +166,8 @@ void parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata
 		problem_list();
 		exit(0);
 	}*/
+
+	return true;
 }
 
 bool check_short_length() {
@@ -198,7 +201,9 @@ int newMain(int argc, char** argv) {
 	usr1_action.sa_handler = sigusr1_handler;
 	sigaction(SIGUSR1, &usr1_action, NULL);
 
-	parse_options(argc, argv, &clOptions, &gdata);
+	if (!parse_options(argc, argv, &clOptions, &gdata))
+		exit(1);
+
 	// TODO: check options
 
 	// TODO: equivalent of GPUThread::runMultiGPU(&clOptions, &cdata);
