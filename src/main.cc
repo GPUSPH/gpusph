@@ -7,6 +7,9 @@
 
 // endl, cerr, etc.
 #include <iostream>
+// signal, sigaction, etc.
+#include <signal.h>
+
 #include "Options.h"
 #include "GlobalData.h"
 
@@ -168,6 +171,14 @@ bool check_short_length() {
 	return (sizeof(uint) == 2*sizeof(short));
 }
 
+void sigint_handler(int signum) {
+	// stub
+}
+
+void sigusr1_handler(int signum) {
+	// stub
+}
+
 int newMain(int argc, char** argv) {
 	if (!check_short_length()) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
@@ -180,7 +191,12 @@ int newMain(int argc, char** argv) {
 	// GlobalData, to be read potentially by everyone
 	GlobalData gdata;
 
-	// TODO: catch signal SIGINT et al.
+	// catch SIGINT and SIGUSR1
+	struct sigaction int_action, usr1_action;
+	int_action.sa_handler = sigint_handler;
+	sigaction(SIGINT, &int_action, NULL);
+	usr1_action.sa_handler = sigusr1_handler;
+	sigaction(SIGUSR1, &usr1_action, NULL);
 
 	parse_options(argc, argv, &clOptions, &gdata);
 	// TODO: check options
