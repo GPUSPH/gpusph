@@ -13,7 +13,7 @@
 #include "Options.h"
 #include "GlobalData.h"
 
-// Include only the problem selected at compile time (QUOTED_PROBLEM)
+// Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
 #include "problem_select.opt"
 
 // TODO: cleanup, no exit
@@ -39,7 +39,7 @@ void print_usage() {
 	cerr << " --single : Computes fluid-fluid interactions once per pair\n";
 	cerr << " --nopause : Do *not* start paused in GL mode\n";
 	cerr << " --help: Show this help and exit\n";
-	exit(-1);
+	//exit(-1);
 }
 
 bool parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata)
@@ -205,6 +205,8 @@ int newMain(int argc, char** argv) {
 		exit(1);
 
 	// TODO: check options
+
+	gdata.problem = new PROBLEM(clOptions);
 
 	// TODO: equivalent of GPUThread::runMultiGPU(&clOptions, &cdata);
 

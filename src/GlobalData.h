@@ -14,6 +14,8 @@
 #include "vector_types.h"
 // particleinfo
 #include "particledefine.h"
+// Problem
+#include "Problem.h"
 
 struct GlobalData {
 	// # of GPUs running
@@ -26,7 +28,7 @@ struct GlobalData {
 	// array of GPUThreads, one per GPU
 	//GPUThread** GPUTHREADS;
 
-	//Problem* problem;
+	Problem* problem;
 
 	// global number of particles
 	//uint totParticles;
@@ -142,9 +144,9 @@ struct GlobalData {
 
 	GlobalData(void):
 		devices(0),
-		/* GPUTHREADS(NULL),
-		//problem(NULL),
-		//totParticles(0),
+		// GPUTHREADS(NULL),
+		problem(NULL),
+		/*totParticles(0),
 		//numPlanes(0),
 		//idealSubset(0), */
 		s_hPos(NULL),
