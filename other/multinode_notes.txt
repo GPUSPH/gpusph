@@ -93,7 +93,7 @@ TT	(Worker ->) GPUWorker
 	//CopyManager
 	NetManager (init MPI, translates global dev id in local one + node id; or, just array?)
 
-common data
+common data	
 	world size
 	cell size
 	#gpus
@@ -126,9 +126,12 @@ methods
 	GPUSPH > hostSort
 	GPUWorker > allocateGPU
 	GPUWorker > uploadSubdomains
+	GPUWorkers > createCompactDevMap
 	GPUWorkers > uploadCompactDevMap
+	NetManager > init (get node number)
+	NetManager > finalize (get node number)
 	NetManager > getDevNode (get node number)
-	NetManager > getDevID (local cuda id in own node)
+	//NetManager > getDevID (local cuda id in own node) // translation?
 	
 
 k>  means GPU kernel done by the worker; the next step is specified in CommonData
@@ -136,16 +139,28 @@ k>  means GPU kernel done by the worker; the next step is specified in CommonDat
 TODO
 	compute cell size: where?
 	logging system
-	error system
-	load/store
+	error handling
+	load/store state
 	limits: in doc? in object? (e.g. num gpus, nodes, ram, etc.)
+	later: local cell. Now global addressing (and allocation)
+	makefile: compile with mpicc
+	MPI error checking
+		#define MPI_CHECK(call) \
+			if((call) != MPI_SUCCESS) { \
+			cerr << "MPI error calling \""#call"\"\n"; \
+				my_abort(-1); }
+		MPI_Abort(MPI_COMM_WORLD, int err);
 
 OTHER
 	GPUSPH: only one allocating CPU buffers, track total
 	GPUWorkers: only ones allocating GPU stuff, track total per device
 	MPI calls: no thread safe; all by the main thread
 	MPI init: as soon as possible if needed (says the manual)
+	Global device ID: now MPI_RANK*2+devnum, then 8bit dev + 24bit MPIRank (or, 1 edge 7 dev 24 rank)
 
+PAPERS
+	Dynamic Load Balancing in MPI Jobs
+	
 > main
 	> parse args (change minimum possible before MPI init)
 	NetManager > init (init MPI if necessary)
@@ -157,7 +172,7 @@ OTHER
 		problem > computeCellSize (world, cell, etc.)
 		problem > createDeviceMap
 			global dev id, bit edging
-		GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
+		//GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
 		problem > allocate (every process allocates everything)
 		GPUSPH > allocateCPU (cpu buffers, 1 per process)
 		> copy_to_array (from problem to GPUSPH buffers)
@@ -170,6 +185,7 @@ OTHER
 		GPUWorkers > allocateGPU
 		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
 			incl. edging!
+		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
 		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
 	GPUSPH > run
 		while (keep_going)
@@ -178,6 +194,7 @@ OTHER
 			// or -----
 			> buildNeibslist
 				k>  calcHash
+					2 bits from compactDevMap + usual
 				k>  sort_w_ids
 				k>  reorderDataAndFindCellStart
 				swap3
@@ -188,11 +205,13 @@ OTHER
 			//(init bodies)
 			k>  forces (in dt1; write on internals)
 MM			fetch/update forces on neighbors in other GPUs/nodes
+				initially done trivial and slow: stop and read
 			//reduce bodies
 			k>  euler (also on externals)
 			//reduce bodies
 			//callbacks (bounds, gravity)
 MM			fetch/update forces on neighbors in other GPUs/nodes
+				initially done trivial and slow: stop and read
 			k>  forces (in dt2; write on internals)
 			//reduce bodies
 			k>  euler (also on externals)
