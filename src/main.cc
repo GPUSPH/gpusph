@@ -164,14 +164,22 @@ void parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata
 	}*/
 }
 
+bool check_short_length() {
+	return (sizeof(uint) == 2*sizeof(short));
+}
+
 int newMain(int argc, char** argv) {
+	if (!check_short_length()) {
+		printf("Fatal: this architecture does not have uint = 2 short\n");
+		exit(1);
+	}
+
 	// Command line options
 	Options clOptions;
 
 	// GlobalData, to be read potentially by everyone
 	GlobalData gdata;
 
-	// TODO: check uint = 2 short
 	// TODO: catch signal SIGINT et al.
 
 	parse_options(argc, argv, &clOptions, &gdata);
