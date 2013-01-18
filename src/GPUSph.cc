@@ -453,16 +453,89 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	//...
+	//> checkCUDA (before allocating everything; put CC in common structure)
+	//		> new PS
+	//			creates new writer
+	//		> new Problem
+	//		problem > computeCellSize (world, cell, etc.)
+	//			problem > createDeviceMap
+	//			global dev id, bit edging
+	//		//GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
+	//		problem > allocate (every process allocates everything)
+	//		GPUSPH > allocateCPU (cpu buffers, 1 per process)
+	//		> copy_to_array (from problem to GPUSPH buffers)
+	//		GPUSPH > calcHashHost (partid, cell id, cell device)
+	//		GPUSPH > hostSort
+	//		// > new Integrator
+	//		> new Synchronizer
+	//		> new Workers
+	//		+ start workers
+	//		GPUWorkers > allocateGPU
+	//		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
+	//			incl. edging!
+	//		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
+	//		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
 
 	initialized = true;
 }
 
 bool GPUSPH::finalize() {
+	//GPUWorkers > deallocateGPU
+	//		// delete Integrator
+	//		delete Synchronizer
+	//		delete Workers
+	//		GPUSPH > deallocateCPU
+	//		problem > deallocate (every process allocates everything)
+	//		delete Problem
+	//		delete PS
+	//			delete Writer
 	// ...
 	initialized = false;
 }
 
 bool GPUSPH::runSimulation() {
-	// stub
+	//while (keep_going)
+	//			// Integrator > setNextStep
+	//			// run next SimulationStep (workers do it, w barrier)
+	//			// or -----
+	//			> buildNeibslist
+	//				k>  calcHash
+	//					2 bits from compactDevMap + usual
+	//				k>  sort_w_ids
+	//				k>  reorderDataAndFindCellStart
+	//				swap3
+	//				k>  buildNeibslist
+	//			k>  shepard && swap1
+	//			k>  mls && swap
+	//			//set mvboundaries and gravity
+	//			//(init bodies)
+	//			k>  forces (in dt1; write on internals)
+	//MM		fetch/update forces on neighbors in other GPUs/nodes
+	//				initially done trivial and slow: stop and read
+	//			//reduce bodies
+	//			k>  euler (also on externals)
+	//			//reduce bodies
+	//			//callbacks (bounds, gravity)
+	//MM		fetch/update forces on neighbors in other GPUs/nodes
+	//				initially done trivial and slow: stop and read
+	//			k>  forces (in dt2; write on internals)
+	//			//reduce bodies
+	//			k>  euler (also on externals)
+	//			//reduce bodies
+	//			swap2
+	//			increase t bz dt and iter (in every process
+	//			if dtadapt
+	//				dt = min (dt1, dt2)
+	//MM			send dt
+	//MM			gather dts, chose min, broadcast (if rank 0)
+	//MM			receive global dt
+	//				check/throw dtZero exception
+	//		problem > finished(t);
+	//		problem > need_write(t)
+	//		if (need_write)
+	//			> get_arrays
+	//				ask workers to dump arrays
+	//			> do_write
+	//				printf info
+	//				ps > writeToFile
 }
