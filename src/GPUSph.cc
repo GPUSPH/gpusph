@@ -58,10 +58,13 @@
 #include <signal.h>
 #include <time.h>
 
-
 #define GPUSPH_MAIN
 #include "particledefine.h"
 #undef GPUSPH_MAIN
+
+// NOTE: including GPUSPH.h before particledefine.h does not compile.
+// This inclusion problem should be solved
+#include "GPUSPH.h"
 
 #include "ParticleSystem.h"
 #include "Problem.h"
@@ -424,4 +427,42 @@ main( int argc, char** argv)
 	return 0;
 }
 
+/***  here follow the new methods - all that's above should be checked and moved or deleted ***/
 
+GPUSPH& GPUSPH::getInstance() {
+	// guaranteed to be destroyed; instantiated on first use
+	static GPUSPH instance;
+	// return a reference, not just a pointer
+	return instance;
+}
+
+GPUSPH::GPUSPH() {
+	clOptions = NULL;
+	gdata = NULL;
+	problem = NULL;
+	initialized = false;
+}
+
+GPUSPH::~GPUSPH() {
+	if (!initialized)
+		finalize();
+}
+
+bool GPUSPH::initialize(Options *_clOptions, GlobalData *_gdata, Problem *_problem) {
+	clOptions = _clOptions;
+	gdata = _gdata;
+	problem = _problem;
+
+	//...
+
+	initialized = true;
+}
+
+bool GPUSPH::finalize() {
+	// ...
+	initialized = false;
+}
+
+bool GPUSPH::runSimulation() {
+	// stub
+}
