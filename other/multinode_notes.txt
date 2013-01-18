@@ -152,6 +152,7 @@ TODO
 		MPI_Abort(MPI_COMM_WORLD, int err);
 	IFDEF switch in .opts? (e.g. problem_select.opt)
 	NetworkManager should be singleton too (might implement singleton template)
+	why PS creates the Writer? Should be GPUSPH in initiallization instead
 
 OTHER
 	GPUSPH: only one allocating CPU buffers, track total
@@ -167,10 +168,9 @@ PAPERS
 	> parse args (change minimum possible before MPI init)
 	NetManager > init (init MPI if necessary)
 	GPUSPH > init
-		> checkCUDA (before allocating everything; put CC in common structure)
 		> new PS
 			creates new writer
-		> new Problem
+		// > new Problem // no: it is in main now
 		problem > computeCellSize (world, cell, etc.)
 		problem > createDeviceMap
 			global dev id, bit edging
@@ -184,6 +184,7 @@ PAPERS
 		> new Synchronizer
 		> new Workers
 		+ start workers
+		GPUWorkers > checkCUDA (before allocating everything; put CC in common structure)
 		GPUWorkers > allocateGPU
 		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
 			incl. edging!
