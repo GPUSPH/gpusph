@@ -24,7 +24,7 @@ GlobalData gdata;
 void print_usage() {
 	cerr << "Syntax: " << endl;
 	cerr << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cerr << "\t       [--console] [--pthreads] [--dir directory] [--nosave] [--nobalance] [--nopause]\n";
+	cerr << "\t       [--pthreads] [--dir directory] [--nosave] [--nobalance] [--nopause]\n";
 	cerr << "\t       [--cpuonly VAL [--single]]\n";
 	cerr << "\t       [--alloc-max] [--lb-threshold VAL] [--cpuonly VAL]\n";
 	cerr << "\tGPUSPH --help\n\n";
@@ -32,7 +32,6 @@ void print_usage() {
 	cerr << " --dem : Use given DEM (if problem supports it)\n";
 	cerr << " --deltap : Use given deltap (VAL is cast to float)\n";
 	cerr << " --tend: Break at given time (VAL is cast to float)\n";
-	cerr << " --console : Run in console mode, no GL window\n";
 	cerr << " --dir : Use given directory for dumps instead of date-based one\n";
 	cerr << " --pthreads : Force use of threads even if single GPU\n";
 	cerr << " --nosave : Disable all file dumps but the last\n";
@@ -41,7 +40,6 @@ void print_usage() {
 	cerr << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
 	cerr << " --cpuonly : Simulates on the CPU using VAL pthreads\n";
 	cerr << " --single : Computes fluid-fluid interactions once per pair\n";
-	cerr << " --nopause : Do *not* start paused in GL mode\n";
 	cerr << " --help: Show this help and exit\n";
 	//exit(-1);
 }
@@ -104,11 +102,11 @@ bool parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata
 			_clOptions->custom_dir = std::string(*argv);
 			argv++;
 			argc--;
-		}*/ else if (!strcmp(arg, "--console")) {
+		} else if (!strcmp(arg, "--console")) {
 			_clOptions->console = true;
-		//} else if (!strcmp(arg, "--pthreads")) {
-		//	_clOptions->forcePthreads = true;
-		/* } else if (!strcmp(arg, "--cpuonly")) {
+		} else if (!strcmp(arg, "--pthreads")) {
+			_clOptions->forcePthreads = true;
+		} else if (!strcmp(arg, "--cpuonly")) {
 			_clOptions->cpuonly = true;
 			gdata->cpuonly = true;
 			sscanf(*argv, "%d", &(gdata->numCpuThreads));
@@ -125,13 +123,13 @@ bool parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata
 		} else if (!strcmp(arg, "--alloc-max")) {
 			_clOptions->alloc_max = true;
 			gdata->alloc_max = true;
-		}*/ //else if (!strcmp(arg, "--lb-threshold")) {
-			/* read the next arg as a float */
-			//sscanf(*argv, "%f", &(_clOptions->custom_lb_threshold));
-			//gdata->custom_lb_threshold = _clOptions->custom_lb_threshold;
-			//argv++;
-			//argc--;
-		} else if (!strcmp(arg, "--help")) {
+		} else if (!strcmp(arg, "--lb-threshold")) {
+			// read the next arg as a float
+			sscanf(*argv, "%f", &(_clOptions->custom_lb_threshold));
+			gdata->custom_lb_threshold = _clOptions->custom_lb_threshold;
+			argv++;
+			argc--;
+		} */ else if (!strcmp(arg, "--help")) {
 			print_usage();
 			//exit(0);
 			return false;

@@ -58,13 +58,6 @@
 #include <signal.h>
 #include <time.h>
 
-#include <GL/glew.h>
-#ifdef __APPLE__
-#include <GLUT/glut.h>
-#else
-#include <GL/glut.h>
-#endif
-#include "gl_screenshot.h"
 
 #define GPUSPH_MAIN
 #include "particledefine.h"
@@ -80,65 +73,13 @@ using namespace std;
 
 FILE *timing_log = NULL;
 
-int ox, oy; float oz = 0.9;
-
-GLdouble oldx, oldy, oldz;
-GLdouble newx, newy, newz;
-GLdouble modelview[16];
-GLdouble projection[16];
-GLint viewport[4];
-
-int buttonState = 0;
-const float inertia = 0.5;
-
-int mode = 0;
-bool displayEnabled = true;
-bool bPause = true;
-bool stepping_mode = false;
-bool show_boundary = false;
-bool show_floating = false;
-
-enum { M_VIEW = 0, M_MOVE};
-int view_field = ParticleSystem::VM_NORMAL;
-enum { M_INTERACTION = 0, M_NEIBSLIST, M_EULER, M_MEAN, M_NOTIMING};
-int timing = M_NEIBSLIST;
-
 ParticleSystem *psystem = 0;
-
-CScreenshot *glscreenshot = 0;
-
-float modelView[16];
 
 // timing
 TimingInfo  timingInfo;
 clock_t		start_time;
-char title[256];
-
-// viewing parameters
-float3 worldOrigin;
-float3 worldSize;
-float3 camera_pos;
-float3 target_pos;
-float3 camera_up;
-enum rotation_mode { ROT_NONE, ROT_ORT, ROT_VEC };
-rotation_mode rotating = ROT_NONE;
-
-#define view_angle 60.0
-/* cotg(view_angle/2) */
-#define view_trig (1.0/tan(M_PI*view_angle/360))
-
-const float3 x_axis(make_float3(1, 0, 0));
-const float3 y_axis(make_float3(0, 1, 0));
-const float3 z_axis(make_float3(0, 0, 1));
-
-float near_plane = 0.1;
-float far_plane = 100;
-
-float3 box_corner[8];
 
 Problem *problem;
-
-bool screenshotNow = false;
 
 void cleanup(void)
 {
@@ -173,39 +114,10 @@ void show_timing(int ret)
 #undef ti
 }
 
-void reset_display(void)
-{
-	camera_pos = target_pos = worldOrigin + worldSize/2;
-	camera_pos.y += worldSize.x*view_trig/2;
-	camera_pos.z += worldSize.z*view_trig/2;
-
-	float3 camvec = camera_pos - target_pos;
-
-	camera_up = rotate(camvec, cross(camvec, z_axis), M_PI/2);
-}
-
-void reset_target(void)
-{
-	if (rotating != ROT_NONE)
-		return;
-
-	float z;
-	double tx, ty, tz;
-	glReadPixels(viewport[2]/2, viewport[3]/2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
-	if (z == 1)
-		return;
-
-	gluUnProject(viewport[2]/2, viewport[3]/2, z, modelview,
-			projection, viewport, &tx, &ty, &tz);
-
-	target_pos.x = tx;
-	target_pos.y = ty;
-	target_pos.z = tz;
-}
-
 /* Command line options */
 Options clOptions;
 
+// TODO: delete this, use "make list-problems" to list problems instead
 void problem_list(void) {
 	cout << "GPUSph problems:\n";
 	cout << "\tDamBreak3D\n";
@@ -247,8 +159,6 @@ void parse_options(int argc, char **argv)
 			clOptions.dem = std::string(*argv);
 			argv++;
 			argc--;
-		} else if (!strcmp(arg, "--console")) {
-			clOptions.console = true;
 		} else if (!strcmp(arg, "--")) {
 			cout << "Skipping unsupported option " << arg << endl;
 		} else {
@@ -283,28 +193,6 @@ void init(const char *arg)
 	if (isfinite(clOptions.tend))
 		problem->get_simparams()->tend = clOptions.tend;
 
-	worldOrigin = problem->get_worldorigin();
-	worldSize = problem->get_worldsize();
-
-	box_corner[0] = worldOrigin;
-	box_corner[1] = box_corner[0];
-	box_corner[1].x += worldSize.x;
-	box_corner[2] = box_corner[0];
-	box_corner[2].y += worldSize.y;
-	box_corner[3] = box_corner[0];
-	box_corner[3].z += worldSize.z;
-	box_corner[4] = box_corner[1];
-	box_corner[4].z += worldSize.z;
-	box_corner[5] = box_corner[2];
-	box_corner[5].z += worldSize.z;
-	box_corner[6] = box_corner[1];
-	box_corner[6].y += worldSize.y;
-	box_corner[7] = box_corner[6];
-	box_corner[7].z += worldSize.z;
-
-
-	reset_display();
-
 	psystem = new ParticleSystem(problem);
 
 	psystem->printPhysParams();
@@ -329,127 +217,7 @@ void init(const char *arg)
 		psystem->setPlanes();
 	}
 
-	glscreenshot = new CScreenshot(problem->get_dirname());
-
 	start_time = clock();
-}
-
-
-void initGL()
-{
-	glewInit();
-	if (!glewIsSupported("GL_VERSION_2_0 GL_VERSION_1_5 GL_ARB_multitexture GL_ARB_vertex_buffer_object")) {
-		fprintf(stderr, "Required OpenGL extensions missing.");
-		exit(-1);
-	}
-
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_POINT_SMOOTH);
-	glClearColor(1, 1, 1, 0);
-
-	glutReportErrors();
-}
-
-void set_old(int x, int y)
-{
-	ox = x; oy = y;
-
-	float z;
-	glReadPixels(x, viewport[3] - y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
-	if (z == 1) {
-		glReadPixels(viewport[2]/2, viewport[3]/2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &z);
-		if (z == 1)
-			z = oz;
-	}
-	oz = z;
-	gluUnProject(x, viewport[3] - y, oz, modelview,
-			projection, viewport, &oldx, &oldy, &oldz );
-}
-
-void set_new(int x, int y)
-{
-	gluUnProject(x, viewport[3] - y, oz, modelview,
-			projection, viewport, &newx, &newy, &newz );
-}
-
-void update_projection(void)
-{
-	// get the projection matrix
-	glGetDoublev( GL_PROJECTION_MATRIX, projection );
-	// get the modelview matrix
-	glGetDoublev( GL_MODELVIEW_MATRIX, modelview );
-}
-
-void look(bool update=true)
-{
-	near_plane = HUGE_VAL;
-	far_plane = 0;
-	float d = HUGE_VAL-HUGE_VAL;
-
-#define DIST_CHECK(expr) do { \
-	d = expr; \
-	if (d < near_plane) near_plane = d; \
-	if (d > far_plane) far_plane = d; \
-} while (0)
-
-	DIST_CHECK(fabs(camera_pos.x - worldSize.x));
-	DIST_CHECK(fabs(camera_pos.x - worldSize.x - worldOrigin.x));
-	DIST_CHECK(fabs(camera_pos.y - worldSize.y));
-	DIST_CHECK(fabs(camera_pos.y - worldSize.y - worldOrigin.y));
-	DIST_CHECK(fabs(camera_pos.z - worldSize.z));
-	DIST_CHECK(fabs(camera_pos.z - worldSize.z - worldOrigin.z));
-
-	for (uint i = 0; i < 8; ++i)
-		DIST_CHECK(length(camera_pos - box_corner[i]));
-
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(view_angle, GLdouble(viewport[2])/viewport[3], near_plane, far_plane);
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	gluLookAt(camera_pos.x, camera_pos.y, camera_pos.z,
-			target_pos.x, target_pos.y, target_pos.z,
-			camera_up.x, camera_up.y, camera_up.z);
-
-	if (update)
-		update_projection();
-
-	reset_target();
-}
-
-/* heads up display code */
-void viewOrtho(int x, int y){ // Set Up An Ortho View
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadIdentity();
-	glOrtho(0, x , 0, y , -1, 1);
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-}
-
-void viewPerspective() // Set Up A Perspective View
-{
-	glMatrixMode(GL_PROJECTION); // Select Projection
-	glPopMatrix(); // Pop The Matrix
-	glMatrixMode(GL_MODELVIEW); // Select Modelview
-	glPopMatrix(); // Pop The Matrix
-}
-
-void displayStatus(char *s) {
-	int len, i;
-	viewOrtho(viewport[2], viewport[3]); //Starting to draw the HUD
-	float3 tank_size = problem->m_size;
-	glRasterPos2i(10, 10);
-	//glRasterPos3f(tank_size.x, tank_size.y, 0.0);
-	len = (int) strlen(s);
-	for (i = 0; i < len; i++) {
-		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, s[i]);
-	}
-	viewPerspective(); //switch back to 3D drawing
 }
 
 void get_arrays(bool need_write)
@@ -485,7 +253,8 @@ void do_write()
 	psystem->writeToFile();
 }
 
-void display()
+// commented out for possible future use
+/*void display()
 {
 	if (!bPause)
 	{
@@ -596,7 +365,7 @@ void display()
 
 	if (finished)
 		quit(0);
-}
+} */
 
 void console_loop(void)
 {
@@ -626,369 +395,6 @@ void console_loop(void)
 		quit(error);
 }
 
-
-void reshape(int w, int h)
-{
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-
-	glViewport(0, 0, w, h);
-	viewport[2] = w;
-	viewport[3] = h;
-
-	look();
-}
-
-
-
-void zoom(float factor)
-{
-	float3 delta = factor*(camera_pos - target_pos);
-	camera_pos += delta;
-	target_pos += delta;
-
-	look();
-}
-
-void pan(/* float dx, float dy */)
-{
-	float3 delta = make_float3(newx-oldx, newy-oldy, newz-oldz);
-
-	camera_pos -= delta;
-	target_pos -= delta;
-
-	look();
-}
-
-void rotate(float x, float y, float dx, float dy)
-{
-	float3 camvec = camera_pos - target_pos;
-
-	/* vector from old to mid */
-	float dox = ox - viewport[2]/2;
-	float doy = oy - viewport[3]/2;
-
-	float dol2 = dox*dox+doy*doy;
-
-	/* square length of vector from old to new */
-	float dl2 = dx*dx+dy*dy;
-
-	if (dol2*dl2 == 0)
-		return;
-
-	/* angle between old-to-mid and new-to-old */
-	float dot = (dox*dx + doy*dy)/sqrt(dol2*dl2);
-	float angle = acos(fabs(dot));
-
-#define axis_tol 32
-	/* Otherwise, if the rotating axis hasn't been chosen yet and we're
-	   moving approximately in the line passing through the midpoint, rotate
-	   around the camera_up or the ortogonal vector.
-	 */
-	if (rotating == ROT_NONE) {
-		if (angle < M_PI_4 ||
-				(fabs(dox) < axis_tol && fabs(doy) < axis_tol))
-			rotating = ROT_ORT;
-		else
-			rotating = ROT_VEC;
-	}
-
-	// FIXME can rotating be still ROT_NONE here?
-
-	if (rotating == ROT_ORT) {
-		float tx = -dx*M_PI;
-		float ty = dy*M_PI;
-
-		/* Force rotation to one direction if there's a strong preference */
-#define rot_factor 1.44
-		if (fabs(tx) > rot_factor*fabs(ty))
-			ty = 0;
-		if (fabs(ty) > rot_factor*fabs(tx))
-			tx = 0;
-#undef rot_factor
-
-		float3 ort = cross(camvec, camera_up);
-		camvec = rotate(camvec, camera_up, tx);
-		camvec = rotate(camvec, ort, ty);
-		camera_up = rotate(camera_up, ort, ty);
-
-		camera_pos = target_pos + camvec;
-	} else {
-		/* find the angle old-to-mid v new-to-mid */
-		dx = x - viewport[2]/2;
-		dy = y - viewport[3]/2;
-		dl2 = dx*dx+dy*dy;
-		dot = (dox*dy - doy*dx)/sqrt(dol2*dl2);
-		angle = asin(dot);
-		camera_up = rotate(camera_up, camvec, angle);
-	}
-
-	look();
-}
-
-
-void motion(int x, int y)
-{
-	float dx, dy;
-
-	dx = (float)(x - ox)/viewport[2];
-	dy = (float)(y - oy)/viewport[3];
-
-	set_new(x, y);
-
-	if (buttonState == 3) {
-		zoom(dy);
-	} else if (buttonState & 2) {
-		pan(/* dx, dy */);
-	} else if (buttonState & 1) { // left button
-		rotate(x, y, dx, dy);
-	}
-
-	set_old(x, y);
-
-	glutPostRedisplay();
-}
-
-
-void mouse(int button, int state, int x, int y)
-{
-	int mods;
-
-	set_old(x, y);
-
-	if (state == GLUT_UP) {
-		buttonState = 0;
-		reset_target();
-		glutPostRedisplay();
-		return;
-	}
-
-	/* buttons 3 and 4 correspond to
-	   zoom in/zoom out (scrollwheel)
-	   */
-	if (button == 3) {
-		zoom(-1.0/16);
-		return;
-	}
-	if (button == 4) {
-		zoom(1.0/16);
-		return;
-	}
-
-
-	// state == GLUTDOWN
-	buttonState |= 1<<button;
-
-	mods = glutGetModifiers();
-	if (mods & GLUT_ACTIVE_SHIFT) {
-		buttonState = 2;
-	} else if (mods & GLUT_ACTIVE_CTRL) {
-		buttonState = 3;
-	}
-
-	rotating = ROT_NONE;
-}
-
-
-// commented out to remove unused parameter warnings in Linux
-void key(unsigned char key, int /*x*/, int /*y*/)
-{
-	float3 camvec(camera_pos - target_pos);
-
-	switch (key)
-	{
-	case ' ':
-		bPause = !bPause;
-		printf("%saused\n", bPause ? "P" : "Unp");
-		break;
-
-	case 13:
-		stepping_mode = !stepping_mode;
-		if (stepping_mode) {
-			printf("Stepping\n");
-		} else {
-			printf("Running\n");
-			bPause = false;
-		}
-		break;
-
-	case '\033':
-	case 'q':
-		quit(0);
-		break;
-
-	case 'b':
-		show_boundary = !show_boundary;
-		printf("%showing boundaries\n",
-				show_boundary ? "S" : "Not s");
-		break;
-
-	case 'f':
-		show_floating = !show_floating;
-		printf("%showing boundaries\n",
-				show_boundary ? "S" : "Not s");
-		break;
-
-	case 'v':
-		view_field = ParticleSystem::VM_VELOCITY;
-		printf("Showing velocity\n");
-		break;
-
-	case 'p':
-		view_field = ParticleSystem::VM_PRESSURE;
-		printf("Showing pressure\n");
-		break;
-
-	case 'd':
-		view_field = ParticleSystem::VM_DENSITY;
-		printf("Showing density\n");
-		break;
-
-	case 'n':
-		view_field = ParticleSystem::VM_NORMAL;
-		printf("Showing normal\n");
-		break;
-
- 	case 'o':
- 	 	view_field = ParticleSystem::VM_VORTICITY;
- 	 	printf("Showing vorticity magnitude\n");
- 	 	break;
-
-	case 'X':
-		if (camvec.y == 0 && camvec.z == 0)
-			camera_pos.x = target_pos.x - camvec.x;
-		else {
-			camera_pos = target_pos - length(camvec)*x_axis;
-		}
-		camera_up = z_axis;
-		printf("Looking from X\n");
-		look();
-		break;
-
-	case 'Y':
-		if (camvec.x == 0 && camvec.z == 0)
-			camera_pos.y = target_pos.y - camvec.y;
-		else {
-			camera_pos = target_pos + length(camvec)*y_axis;
-		}
-		camera_up = z_axis;
-		printf("Looking from Y\n");
-		look();
-		break;
-
-	case 'Z':
-		if (camvec.x == 0 && camvec.y == 0)
-			camera_pos.z = target_pos.z - camvec.z;
-		else {
-			camera_pos = target_pos + length(camvec)*z_axis;
-		}
-		camera_up = y_axis;
-		printf("Looking from Z\n");
-		look();
-		break;
-
-
-	case 'x':
-		camera_up = rotate(camvec, cross(camvec, x_axis), M_PI/2);
-		printf("x axis up\n");
-		look();
-		break;
-
-	case 'y':
-		camera_up = rotate(camvec, cross(camvec, y_axis), M_PI/2);
-		printf("y axis up\n");
-		look();
-		break;
-
-	case 'z':
-		camera_up = rotate(camvec, cross(camvec, z_axis), M_PI/2);
-		printf("z axis up\n");
-		look();
-		break;
-
-	case '+':
-		printf("zooming in\n");
-		zoom(-0.25);
-		break;
-
-	case '-':
-		printf("zooming out\n");
-		zoom(0.25);
-		break;
-
-	case '0':
-		printf("resetting display out\n");
-		reset_display();
-		look();
-		break;
-
-	case 'r':
-		displayEnabled = !displayEnabled;
-		printf("Display %sabled\n", displayEnabled ? "en" : "dis");
-		break;
-
-	case 'i':
-		timing = M_INTERACTION;
-		printf("Title: interaction\n");
-		break;
-
-	case 'l':
-		timing = M_NEIBSLIST;
-		printf("Title: neighbours\n");
-		break;
-
-	case 'e':
-		timing = M_EULER;
-		printf("Title: Euler\n");
-		break;
-
-	case 'm':
-		timing = M_MEAN;
-		printf("Title: mean\n");
-		break;
-
-	case 's':
-		screenshotNow = true;
-		printf("Screenshotting\n");
-		break;
-
-	case 't':
-		timing = M_NOTIMING;
-		printf("Title: none\n");
-		break;
-	}
-
-	fflush(stdout);
-	glutPostRedisplay();
-}
-
-
-void idle(void)
-{
-	reset_target();
-	glutPostRedisplay();
-}
-
-
-void mainMenu(int i)
-{
-	key((unsigned char) i, 0, 0);
-}
-
-
-void initMenus()
-{
-	glutCreateMenu(mainMenu);
-	glutAddMenuEntry("Toggle view boundary [b]", 'b');
-	glutAddMenuEntry("Toggle view pressure [p]", 'p');
-	glutAddMenuEntry("Toggle view velocity [v]", 'v');
-	glutAddMenuEntry("Toggle view density [d]", 'd');
-	glutAddMenuEntry("Toggle animation [ ]", ' ');
-	glutAddMenuEntry("Quit (esc)", '\033');
-	glutAttachMenu(GLUT_RIGHT_BUTTON);
-}
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
@@ -1010,35 +416,8 @@ main( int argc, char** argv)
 	get_arrays(true);
 	do_write();
 
-	if (clOptions.console) {
-		console_loop();
-	} else {
-		glutInit(&argc, argv);
-		glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
-		glutInitWindowSize(800, 600);
-		viewport[0] = 0;
-		viewport[1] = 0;
-		viewport[2] = 800;
-		viewport[3] = 600;
-		glutCreateWindow("GPUSPH:  Hit Space Bar to start!");
+	console_loop();
 
-#ifdef TIMING_LOG
-		timing_log = fopen("timing.txt","w");
-#endif
-
-		initGL();
-
-		initMenus();
-
-		glutDisplayFunc(display);
-		glutReshapeFunc(reshape);
-		glutMouseFunc(mouse);
-		glutMotionFunc(motion);
-		glutKeyboardFunc(key);
-		glutIdleFunc(idle);
-
- 		glutMainLoop();
-	}
 
 	quit(0);
 

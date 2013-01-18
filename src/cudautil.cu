@@ -70,30 +70,3 @@ void threadSync()
 	CUDA_SAFE_CALL(cudaThreadSynchronize());
 }
 
-
-void copyArrayFromDevice(void* host, const void* device, GLuint vbo, int size)
-{
-	if (vbo)
-		CUDA_SAFE_CALL(cudaGLMapBufferObject((void**)&device, vbo));
-	CUDA_SAFE_CALL(cudaMemcpy(host, device, size, cudaMemcpyDeviceToHost));
-	if (vbo)
-		CUDA_SAFE_CALL(cudaGLUnmapBufferObject(vbo));
-}
-
-
-void copyArrayToDevice(void* device, const void* host, int offset, int size)
-{
-	CUDA_SAFE_CALL(cudaMemcpy((char *) device + offset, host, size, cudaMemcpyHostToDevice));
-}
-
-
-void registerGLBufferObject(GLuint vbo)
-{
-	CUDA_SAFE_CALL(cudaGLRegisterBufferObject(vbo));
-}
-
-
-void unregisterGLBufferObject(GLuint vbo)
-{
-	CUDA_SAFE_CALL(cudaGLUnregisterBufferObject(vbo));
-}

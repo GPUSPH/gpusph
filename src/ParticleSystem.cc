@@ -33,14 +33,7 @@
 
 #include <float.h>
 
-#include <GL/glew.h>
-#ifdef __APPLE__
-#include <GLUT/glut.h>
-#else
-#include <GL/glut.h>
-#endif
 #include <cuda_runtime_api.h>
-#include <cuda_gl_interop.h>
 
 #include "ParticleSystem.h"
 
@@ -908,101 +901,6 @@ ParticleSystem::writeToFile()
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);
-}
-
-
-void
-ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
-{
-	float minrho = m_problem->get_minrho();
-	float maxrho = m_problem->get_maxrho();
-	float minvel = m_problem->get_minvel();
-	float maxvel = m_problem->get_maxvel();
-
-	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
-	float maxp = m_problem->pressure(maxrho,0);
-
-	float4* pos = m_hPos;
-	float4* vel = m_hVel;
-	float3* vort = m_hVort;
-	particleinfo* info = m_hInfo;
-
-	glPointSize(2.0);
-	glBegin(GL_POINTS);
-	{
-		for (uint i = 0; i < m_numParticles; i++) {
-			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
-				glColor3f(0.0, 1.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
-			}
-			if (OBJECT(info[i]) && show_floating) {
-				glColor3f(1.0, 0.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
-			}
-			if (FLUID(info[i])) {
-				float v; unsigned int t;
-				float ssvel = m_problem->soundspeed(vel[i].w, PART_FLUID_NUM(info[i]));
-				switch (view_mode) {
-					case VM_NORMAL:
-					    glColor3f(0.0,0.0,1.0);
-					    if (m_physparams->numFluids > 1) {
-					       v = (float) PART_FLUID_NUM(info[i]);
-	                       v /= (m_physparams->numFluids - 1);
-						   glColor3f(v, 0.0, 1.0 - v);
-						   }
-						break;
-
-					case VM_VELOCITY:
-						v = length(make_float3(vel[i]));
-
-						if (v > ssvel)
-							printf("WARNING [%g]: particle %d speed %g > %g\n",
-							m_simTime, i, v, ssvel);
-						if (v*m_dtprev > m_influenceRadius)
-							printf("WARNING [%g]: particle %d moved by %g > %g\n",
-											m_simTime, i, v*m_dtprev, m_influenceRadius);
-						glColor3f((v - minvel)/(maxvel - minvel), 0.0, 1 - (v - minvel)/(maxvel - minvel));
-						break;
-
-					case VM_DENSITY:
-						v = vel[i].w;
-						glColor3f((v - minrho)/(maxrho - minrho), 0.0,
-								1 - (v - minrho)/(maxrho - minrho));
-						break;
-
-					case VM_PRESSURE:
-						v = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
-						glColor3f((v - minp)/(maxp - minp),
-								1 - (v - minp)/(maxp - minp),0.0);
-						break;
-					case VM_VORTICITY:
-					    v = length(vort[i]);
-					    glColor3f(1.-(v-minvel)/(maxvel-minvel),1.0,1.0);
-					    break;
-				}
-				glVertex3fv((float*)&pos[i]);
-			}
-		}
-
-	}
-	glEnd();
-
-	if (m_simparams->gage.size() > 0) {
-		float lw;
-		glGetFloatv(GL_LINE_WIDTH, &lw);
-		glLineWidth(2.0);
-		glBegin(GL_LINES);
-		glColor3f(0,0,0);
-		GageList::iterator g = m_simparams->gage.begin();
-		GageList::iterator end = m_simparams->gage.end();
-		while (g != end) {
-			glVertex3f(g->x, g->y, m_worldOrigin.z);
-			glVertex3f(g->x, g->y, m_worldSize.z);
-			++g;
-		}
-		glEnd();
-		glLineWidth(lw);
-	}
 }
 
 void
