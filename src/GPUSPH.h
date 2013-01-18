@@ -30,7 +30,7 @@ public:
 	static GPUSPH& getInstance();
 	GPUSPH(GPUSPH const&) {}; // NOT implemented
     void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
-	bool initialize(Options *_clOptions, GlobalData *_gdata, Problem *_problem);
+	bool initialize(GlobalData* _gdata);
 	/*static*/ bool runSimulation();
 	bool finalize();
 };

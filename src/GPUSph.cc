@@ -448,10 +448,10 @@ GPUSPH::~GPUSPH() {
 		finalize();
 }
 
-bool GPUSPH::initialize(Options *_clOptions, GlobalData *_gdata, Problem *_problem) {
-	clOptions = _clOptions;
+bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata = _gdata;
-	problem = _problem;
+	clOptions = gdata->clOptions;
+	problem = gdata->problem;
 
 	//...
 
