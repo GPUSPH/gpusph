@@ -25,10 +25,10 @@ private:
 	Problem *problem;
 	bool initialized;
 	GPUSPH();
-	~GPUSPH();
 public:
+	~GPUSPH();
 	static GPUSPH& getInstance();
-	GPUSPH(GPUSPH const&); // NOT implemented
+	GPUSPH(GPUSPH const&) {}; // NOT implemented
     void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
 	bool initialize(Options *_clOptions, GlobalData *_gdata, Problem *_problem);
 	/*static*/ bool runSimulation();
