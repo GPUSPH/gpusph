@@ -16,10 +16,6 @@
 // Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
 #include "problem_select.opt"
 
-// GlobalData, to be read potentially by everyone
-// Declared as global so that signal handlers can access it
-GlobalData gdata;
-
 // TODO: cleanup, no exit
 void print_usage() {
 	cerr << "Syntax: " << endl;
@@ -189,6 +185,8 @@ int newMain(int argc, char** argv) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);
 	}
+
+	GlobalData gdata;
 
 	// Command line options
 	Options clOptions;
