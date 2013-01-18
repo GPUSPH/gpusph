@@ -440,6 +440,7 @@ GPUSPH::GPUSPH() {
 	clOptions = NULL;
 	gdata = NULL;
 	problem = NULL;
+	psystem = NULL;
 	initialized = false;
 }
 
@@ -455,6 +456,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	//> checkCUDA (before allocating everything; put CC in common structure)
 	//		> new PS
+	psystem = new ParticleSystem(gdata);
 	//			creates new writer
 	//		> new Problem
 	//		problem > computeCellSize (world, cell, etc.)

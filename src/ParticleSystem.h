@@ -29,6 +29,7 @@
 #include "buildneibs.cuh" // hashKey
 #include "Problem.h"
 #include "Writer.h"
+#include "GlobalData.h"
 
 #include <exception>
 
@@ -90,6 +91,7 @@ class ParticleSystem
 		};
 
 		ParticleSystem(Problem *problem);
+		ParticleSystem(GlobalData *gdata);
 		~ParticleSystem();
 
 		void	allocate(uint numParticles);

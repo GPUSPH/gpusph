@@ -70,6 +70,121 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"(invalid)"
 };
 
+ParticleSystem::ParticleSystem(GlobalData *gdata) :
+	m_problem(gdata->problem),
+	m_neiblist_built(false),
+	m_physparams(gdata->problem->get_physparams()),
+	m_simparams(gdata->problem->get_simparams()),
+	m_simTime(0.0),
+	m_iter(0),
+	m_currentPosRead(0),
+	m_currentPosWrite(1),
+	m_currentVelRead(0),
+	m_currentVelWrite(1),
+	m_currentInfoRead(0),
+	m_currentInfoWrite(1)
+{
+	m_worldOrigin = m_problem->get_worldorigin();
+	m_worldSize = m_problem->get_worldsize();
+	m_writerType = m_problem->get_writertype();
+
+	m_influenceRadius = m_simparams->kernelradius*m_simparams->slength;
+	m_nlInfluenceRadius = m_influenceRadius*m_simparams->nlexpansionfactor;
+	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
+
+	m_gridSize.x = (uint) (m_worldSize.x / m_influenceRadius);
+	m_gridSize.y = (uint) (m_worldSize.y / m_influenceRadius);
+	m_gridSize.z = (uint) (m_worldSize.z / m_influenceRadius);
+
+	m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
+	m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
+
+	m_cellSize.x = m_worldSize.x / m_gridSize.x;
+	m_cellSize.y = m_worldSize.y / m_gridSize.y;
+	m_cellSize.z = m_worldSize.z / m_gridSize.z;
+
+	m_dt = m_simparams->dt;
+
+	m_timingInfo.dt = m_dt;
+	m_timingInfo.t = 0.0f;
+	m_timingInfo.maxNeibs = 0;
+	m_timingInfo.numInteractions = 0.0f;
+	m_timingInfo.meanNumInteractions = 0;
+	m_timingInfo.iterations = 0;
+	m_timingInfo.timeNeibsList = 0.0f;
+	m_timingInfo.meanTimeNeibsList = 0.0f;
+	m_timingInfo.timeInteract = 0.0f;
+	m_timingInfo.meanTimeInteract = 0.0f;
+	m_timingInfo.timeEuler = 0.0f;
+	m_timingInfo.meanTimeEuler = 0.0f;
+
+	// CHecking number of moving boundaries
+	if (m_problem->m_mbnumber > MAXMOVINGBOUND) {
+		stringstream ss;
+		ss << "Number of moving boundaries " << m_problem->m_mbnumber <<
+			" > MAXMOVINGBOUND (" << MAXMOVINGBOUND << ")" << endl;
+		throw runtime_error(ss.str());
+		}
+
+	// Computing size of moving bloudaries data
+	m_mbDataSize = m_problem->m_mbnumber*sizeof(float4);
+
+	printf("GPU implementation\n");
+	printf("Number of grid cells : %d\n", m_nGridCells);
+	printf("Grid size : (%d, %d, %d)\n", m_gridSize.x, m_gridSize.y, m_gridSize.z);
+	printf("Cell size : (%f, %f, %f)\n", m_cellSize.x, m_cellSize.y, m_cellSize.z);
+
+	/// TODO: move this, setDevice has to be called by each worker
+	// CUDA init
+	/// m_device = checkCUDA(m_problem->get_options());
+	printf("\nCUDA initialized\n");
+
+#define MEGABYTE (1024.0*1024.0)
+#define GIGABYTE (MEGABYTE*1024)
+
+	printf("\t%u multiprocessors, %zu (%g%s) global memory\n",
+			m_device.multiProcessorCount,
+			m_device.totalGlobalMem,
+			m_device.totalGlobalMem > GIGABYTE ?
+			m_device.totalGlobalMem/GIGABYTE :
+			m_device.totalGlobalMem/MEGABYTE,
+			m_device.totalGlobalMem > GIGABYTE ?
+			"GB" : "MB");
+	printf("\t%u threads, %zu (%g%s) shared memory per MP\n",
+			m_device.maxThreadsPerMultiProcessor,
+			m_device.sharedMemPerBlock,
+			m_device.sharedMemPerBlock/1024.0, "kB");
+
+	setPhysParams();
+
+	switch(m_writerType) {
+		case Problem::TEXTWRITER:
+			m_writer = new TextWriter(m_problem);
+			break;
+
+		case Problem::VTKWRITER:
+			m_writer = new VTKWriter(m_problem);
+			break;
+
+		case Problem::VTKLEGACYWRITER:
+			m_writer = new VTKLegacyWriter(m_problem);
+			break;
+
+		case Problem::CUSTOMTEXTWRITER:
+			m_writer = new CustomTextWriter(m_problem);
+			break;
+
+		default:
+			stringstream ss;
+			ss << "Writer not supported";
+			throw runtime_error(ss.str());
+			break;
+	}
+
+	writeSummary();
+}
+
+// previous constructor - once the multinode is working, this can be deleted
 ParticleSystem::ParticleSystem(Problem *problem) :
 	m_problem(problem),
 	m_neiblist_built(false),
