@@ -16,6 +16,8 @@
 #include "particledefine.h"
 // Problem
 #include "Problem.h"
+// Options
+#include "Options.h"
 
 struct GlobalData {
 	// # of GPUs running
@@ -29,6 +31,8 @@ struct GlobalData {
 	//GPUThread** GPUTHREADS;
 
 	Problem* problem;
+
+	Options* clOptions;
 
 	// global number of particles
 	//uint totParticles;
@@ -146,6 +150,7 @@ struct GlobalData {
 		devices(0),
 		// GPUTHREADS(NULL),
 		problem(NULL),
+		clOptions(NULL),
 		/*totParticles(0),
 		//numPlanes(0),
 		//idealSubset(0), */
