@@ -10,6 +10,7 @@
 // signal, sigaction, etc.
 #include <signal.h>
 
+#include "GPUSPH.h"
 #include "Options.h"
 #include "GlobalData.h"
 
@@ -210,6 +211,18 @@ int newMain(int argc, char** argv) {
 
 
 	gdata.problem = new PROBLEM(*(gdata.clOptions));
+
+	// get - and actually instantiate - the existing instance of GPUSPH
+	GPUSPH Simulator = GPUSPH::getInstance();
+
+	// initialize CUDA, start workers, allocate CPU and GPU buffers
+	Simulator.initialize(&gdata);
+
+	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+	//Simulator.runSimulation();
+
+	// finalize everything
+	Simulator.finalize();
 
 	return 0;
 }
