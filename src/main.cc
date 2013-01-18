@@ -13,6 +13,7 @@
 #include "GPUSPH.h"
 #include "Options.h"
 #include "GlobalData.h"
+#include "NetworkManager.h"
 
 // Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
 #include "problem_select.opt"
@@ -209,6 +210,10 @@ int newMain(int argc, char** argv) {
 
 	// TODO: check options, i.e. coherency
 
+	// NOTE: Although GPUSPH has been designed to be run with one multi-threaded process per node, it is important not to create
+	// any file or lock singleton resources before initializing the network, as the process might be forked
+	NetworkManager netmanager;
+	netmanager.initNetwork();
 
 	gdata.problem = new PROBLEM(*(gdata.clOptions));
 
@@ -223,6 +228,9 @@ int newMain(int argc, char** argv) {
 
 	// finalize everything
 	Simulator.finalize();
+
+	// finalize MPI
+	netmanager.finalizeNetwork();
 
 	return 0;
 }
