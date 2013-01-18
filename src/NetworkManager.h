@@ -22,6 +22,7 @@ public:
 	void finalizeNetwork();
 	int getWorldSize();
 	int getProcessRank();
+	char* getProcessorName();
 	// plus: methods to translate global<->local dev id?
 };
 

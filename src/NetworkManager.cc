@@ -45,3 +45,7 @@ int NetworkManager::getProcessRank() {
 	return process_rank;
 }
 
+char* NetworkManager::getProcessorName() {
+	return processor_name;
+}
+
