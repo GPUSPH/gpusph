@@ -6,10 +6,12 @@
  */
 
 #include "NetworkManager.h"
+#include <mpi.h>
 
 NetworkManager::NetworkManager() {
 	// TODO Auto-generated constructor stub
-
+	processor_name = new char[MPI_MAX_PROCESSOR_NAME];
+	// std::cout << MPI_MAX_PROCESSOR_NAME; // 256
 }
 
 NetworkManager::~NetworkManager() {
