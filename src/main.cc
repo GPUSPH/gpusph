@@ -40,9 +40,12 @@ void print_usage() {
 	//exit(-1);
 }
 
-bool parse_options(int argc, char **argv, Options *_clOptions, GlobalData *gdata)
+bool parse_options(int argc, char **argv, GlobalData *gdata)
 {
 	const char *arg(NULL);
+
+	if (!gdata) return NULL;
+	Options* _clOptions = gdata->clOptions;
 
 	// skip arg 0 (program name)
 	argv++; argc--;
@@ -189,7 +192,7 @@ int newMain(int argc, char** argv) {
 	GlobalData gdata;
 
 	// Command line options
-	Options clOptions;
+	gdata.clOptions = new Options();
 
 	// catch SIGINT and SIGUSR1
 	struct sigaction int_action, usr1_action;
@@ -198,14 +201,15 @@ int newMain(int argc, char** argv) {
 	usr1_action.sa_handler = sigusr1_handler;
 	sigaction(SIGUSR1, &usr1_action, NULL);
 
-	if (!parse_options(argc, argv, &clOptions, &gdata))
+	// parse command-line options
+	// NOTE: here gdata is almost complete, only the problem is not allocated yet
+	if (!parse_options(argc, argv, &gdata))
 		exit(1);
 
-	// TODO: check options
+	// TODO: check options, i.e. coherency
 
-	gdata.problem = new PROBLEM(clOptions);
 
-	// TODO: equivalent of GPUThread::runMultiGPU(&clOptions, &cdata);
+	gdata.problem = new PROBLEM(*(gdata.clOptions));
 
 	return 0;
 }
