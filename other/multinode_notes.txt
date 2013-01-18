@@ -150,6 +150,8 @@ TODO
 			cerr << "MPI error calling \""#call"\"\n"; \
 				my_abort(-1); }
 		MPI_Abort(MPI_COMM_WORLD, int err);
+	IFDEF switch in .opts? (e.g. problem_select.opt)
+	NetworkManager should be singleton too (might implement singleton template)
 
 OTHER
 	GPUSPH: only one allocating CPU buffers, track total
@@ -233,7 +235,7 @@ MM				receive global dt
 				printf info
 				ps > writeToFile
 	GPUSPH > cleanup
-		GPUWorkers > allocateGPU
+		GPUWorkers > deallocateGPU
 		// delete Integrator
 		delete Synchronizer
 		delete Workers
@@ -242,7 +244,7 @@ MM				receive global dt
 		delete Problem
 		delete PS
 			delete Writer
-		NetManager > MPIfinalize
+	NetManager > MPIfinalize
 
 
 
