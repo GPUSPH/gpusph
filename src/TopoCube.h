@@ -86,6 +86,7 @@ class TopoCube: public Object {
 		double get_voff()	{ return m_voff; }
 
 		static TopoCube* load_ascii_grid(const char *fname);
+		static TopoCube* load_xyz_file(const char *fname);
 
 		double SetPartMass(const double, const double);
 		double Volume(const double dx) const
