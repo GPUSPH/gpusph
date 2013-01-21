@@ -482,8 +482,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO
 	//		// > new Integrator
 
-	// TO check: this was done in main. Move in GPUSPH, or even in GlobalData
-	///		> new Synchronizer
+	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
+	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
 
 	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));

@@ -20,6 +20,8 @@
 #include "Options.h"
 // GPUWorker
 #include "GPUWorker.h"
+// Synchronizer
+#include "Synchronizer.h"
 
 struct GlobalData {
 	// # of GPUs running
@@ -35,6 +37,8 @@ struct GlobalData {
 	Problem* problem;
 
 	Options* clOptions;
+
+	Synchronizer* threadSynchronizer;
 
 	// global number of particles - whole simulation
 	uint totParticles;
@@ -160,6 +164,7 @@ struct GlobalData {
 		// GPUTHREADS(NULL),
 		problem(NULL),
 		clOptions(NULL),
+		threadSynchronizer(NULL),
 		/*totParticles(0),
 		//numPlanes(0),
 		//idealSubset(0), */
