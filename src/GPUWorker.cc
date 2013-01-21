@@ -37,11 +37,18 @@ void GPUWorker::uploadCompactDeviceMap() {
 }
 
 void GPUWorker::run_worker() {
-	// this is a wrapper to actually call pthread_create(simulationThread, ...)
+	// wrapper for pthread_create()
+	// NOTE: the dynamic instance of the GPUWorker is passed as parameter
+	pthread_create(&pthread_id, NULL, simulationThread, (void*)this);
 }
 
-void GPUWorker::simulationThread() {
-	// static method to be run as a separate pthread
+void* GPUWorker::simulationThread(void *ptr) {
+	// actual thread calling GPU-methods
+
+	// take the pointer of the instance starting this thread
+	GPUWorker* instance = (GPUWorker*) ptr;
+
+	// TODO
 }
 
 

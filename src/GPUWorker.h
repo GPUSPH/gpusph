@@ -13,7 +13,7 @@
 class GPUWorker {
 private:
 	pthread_t pthread_id;
-	static void simulationThread();
+	static void* simulationThread(void *ptr);
 public:
 	GPUWorker();
 	~GPUWorker();
