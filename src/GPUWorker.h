@@ -27,6 +27,7 @@ private:
 	GlobalData* gdata;
 	unsigned int devnum;
 	GlobalData* getGlobalData();
+	unsigned int getDeviceNumber();
 public:
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();

@@ -46,6 +46,10 @@ GlobalData* GPUWorker::getGlobalData() {
 	return gdata;
 }
 
+unsigned int GPUWorker::getDeviceNumber() {
+	return devnum;
+}
+
 void* GPUWorker::simulationThread(void *ptr) {
 	// actual thread calling GPU-methods
 
