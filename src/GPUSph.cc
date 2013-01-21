@@ -454,29 +454,63 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	//> checkCUDA (before allocating everything; put CC in common structure)
 	//		> new PS
 	psystem = new ParticleSystem(gdata);
-	//			creates new writer
+	//			PS creates new writer. Do it outside?
+
+	// no: done
 	//		> new Problem
+
+	// TODO: PS and problem should update wSize, wOrigin, cellSiye, gridSize in gdata
+	/// In gdata there should be a comment about when each field is updated
+	/**
 	//		problem > computeCellSize (world, cell, etc.)
+	// wsize and origin are already in problem
+	// ps in constructor computes m_gridSize as (uint) (m_worldSize.x / m_influenceRadius)
+	// ps then computes
+	//  m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
+	//  m_nSortingBits = ceil(log2(m_nGridCells)/4.0)*4;
+	//  m_cellSize.x = m_worldSize.x / m_gridSize.x;
+	//float3 wSize = cdata->problem->get_worldsize();
+	//float3 wOrigin = cdata->problem->get_worldorigin();
+	//float3 cellSize = cdata->GPUTHREADS[0]->getParticleSystem()->m_cellSize;
+	//cdata->gridSize = cdata->GPUTHREADS[0]->getParticleSystem()->m_gridSize;
+	 * **/
+
+	// TODO: allocate and fill the device map. Only ints?
 	//			problem > createDeviceMap
 	//			global dev id, bit edging
 	//		//GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
+
+	// TODO
 	//		problem > allocate (every process allocates everything)
 	//		GPUSPH > allocateCPU (cpu buffers, 1 per process)
+	// TO check: is this mandatory?
 	//		> copy_to_array (from problem to GPUSPH buffers)
+
+	// TODO
 	//		GPUSPH > calcHashHost (partid, cell id, cell device)
 	//		GPUSPH > hostSort
+
+	// TODO
 	//		// > new Integrator
-	//		> new Synchronizer
+
+	// TO check: this was done in main. Move in GPUSPH, or even in GlobalData
+	///		> new Synchronizer
+
+	// TODO
 	//		> new Workers
 	//		+ start workers
+
+	// DO in GPUworkers
+	//		GPUWorkers > checkCUDA (before allocating everything; put CC in common structure)
 	//		GPUWorkers > allocateGPU
 	//		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
 	//			incl. edging!
 	//		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
 	//		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
+
+	// TODO barrier to wait for their init or other mechanism
 
 	initialized = true;
 }
