@@ -26,6 +26,7 @@ private:
 	static void* simulationThread(void *ptr);
 	GlobalData* gdata;
 	unsigned int devnum;
+	GlobalData* getGlobalData();
 public:
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();

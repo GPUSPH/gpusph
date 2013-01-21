@@ -42,6 +42,10 @@ void GPUWorker::run_worker() {
 	pthread_create(&pthread_id, NULL, simulationThread, (void*)this);
 }
 
+GlobalData* GPUWorker::getGlobalData() {
+	return gdata;
+}
+
 void* GPUWorker::simulationThread(void *ptr) {
 	// actual thread calling GPU-methods
 
