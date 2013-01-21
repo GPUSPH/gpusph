@@ -522,6 +522,7 @@ bool GPUSPH::finalize() {
 }
 
 bool GPUSPH::runSimulation() {
+	if (!initialized) return false;
 	//while (keep_going)
 	//			// Integrator > setNextStep
 	//			// run next SimulationStep (workers do it, w barrier)

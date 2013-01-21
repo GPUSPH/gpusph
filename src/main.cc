@@ -224,7 +224,7 @@ int newMain(int argc, char** argv) {
 	Simulator.initialize(&gdata);
 
 	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-	//Simulator.runSimulation();
+	Simulator.runSimulation();
 
 	// finalize everything
 	Simulator.finalize();
