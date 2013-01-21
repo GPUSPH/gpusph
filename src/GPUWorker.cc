@@ -7,9 +7,9 @@
 
 #include "GPUWorker.h"
 
-GPUWorker::GPUWorker() {
-	// Init class. Fire thread?
-
+GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
+	gdata = _gdata;
+	devnum = _devnum;
 }
 
 GPUWorker::~GPUWorker() {

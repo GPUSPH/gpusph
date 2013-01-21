@@ -18,6 +18,8 @@
 #include "Problem.h"
 // Options
 #include "Options.h"
+// GPUWorker
+#include "GPUWorker.h"
 
 struct GlobalData {
 	// # of GPUs running
@@ -27,8 +29,8 @@ struct GlobalData {
 	// array of devices indices
 	unsigned int device[MAX_DEVICES];
 
-	// array of GPUThreads, one per GPU
-	//GPUThread** GPUTHREADS;
+	// array of GPUWorkers, one per GPU
+	GPUWorker** GPUWORKERS;
 
 	Problem* problem;
 

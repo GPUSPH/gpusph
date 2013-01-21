@@ -485,8 +485,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TO check: this was done in main. Move in GPUSPH, or even in GlobalData
 	///		> new Synchronizer
 
+	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
+	for (int d=0; d < gdata->devices; d++)
+		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
+
 	// TODO
-	//		> new Workers
 	//		+ start workers
 
 	// DO in GPUworkers
