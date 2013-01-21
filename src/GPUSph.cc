@@ -456,26 +456,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	//		> new PS
 	psystem = new ParticleSystem(gdata);
+	//			PS constructor updates cellSize, worldSize, nCells, etc. in gdata
 	//			PS creates new writer. Do it outside?
 
 	// no: done
 	//		> new Problem
-
-	// TODO: PS and problem should update wSize, wOrigin, cellSiye, gridSize in gdata
-	/// In gdata there should be a comment about when each field is updated
-	/**
-	//		problem > computeCellSize (world, cell, etc.)
-	// wsize and origin are already in problem
-	// ps in constructor computes m_gridSize as (uint) (m_worldSize.x / m_influenceRadius)
-	// ps then computes
-	//  m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
-	//  m_nSortingBits = ceil(log2(m_nGridCells)/4.0)*4;
-	//  m_cellSize.x = m_worldSize.x / m_gridSize.x;
-	//float3 wSize = cdata->problem->get_worldsize();
-	//float3 wOrigin = cdata->problem->get_worldorigin();
-	//float3 cellSize = cdata->GPUTHREADS[0]->getParticleSystem()->m_cellSize;
-	//cdata->gridSize = cdata->GPUTHREADS[0]->getParticleSystem()->m_gridSize;
-	 * **/
 
 	// TODO: allocate and fill the device map. Only ints?
 	//			problem > createDeviceMap

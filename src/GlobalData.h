@@ -43,6 +43,13 @@ struct GlobalData {
 	// maximum neighbors number
 	//uint maxneibsnum;
 
+	float3 worldSize;
+	float3 worldOrigin;
+	float3 cellSize;
+	uint3 gridSize;
+	uint nGridCells;
+	uint nSortingBits;
+
 	// ceil(totParticles/devices)
 	//uint idealSubset;
 
