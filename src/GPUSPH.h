@@ -27,6 +27,8 @@ private:
 	ParticleSystem *psystem;
 	bool initialized;
 	GPUSPH();
+	long unsigned int allocateCPUBuffers();
+	void deallocateCPUBuffers();
 public:
 	~GPUSPH();
 	static GPUSPH& getInstance();

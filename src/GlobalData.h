@@ -34,8 +34,8 @@ struct GlobalData {
 
 	Options* clOptions;
 
-	// global number of particles
-	//uint totParticles;
+	// global number of particles - whole simulation
+	uint totParticles;
 	// global number of planes (same as local ones)
 	//uint numPlanes;
 	// grid size, for particle hash computation

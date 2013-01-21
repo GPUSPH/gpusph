@@ -467,11 +467,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	//			global dev id, bit edging
 	//		//GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
 
-	// TODO
-	//		problem > allocate (every process allocates everything)
-	//		GPUSPH > allocateCPU (cpu buffers, 1 per process)
-	// TO check: is this mandatory?
-	//		> copy_to_array (from problem to GPUSPH buffers)
+	// allocate the particles of the *whole* simulation
+	gdata->totParticles = problem->fill_parts();
+	// allocate cpu buffers, 1 per process
+	allocateCPUBuffers(); // TODO
+	// To check: is this mandatory? this requires double memory!
+	//	copy particles from problem to GPUSPH buffers
+	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 
 	// TODO
 	//		GPUSPH > calcHashHost (partid, cell id, cell device)
@@ -505,7 +507,7 @@ bool GPUSPH::finalize() {
 	//		// delete Integrator
 	//		delete Synchronizer
 	//		delete Workers
-	//		GPUSPH > deallocateCPU
+	deallocateCPUBuffers();
 	//		problem > deallocate (every process allocates everything)
 	//		delete Problem
 	//		delete PS
@@ -559,4 +561,53 @@ bool GPUSPH::runSimulation() {
 	//			> do_write
 	//				printf info
 	//				ps > writeToFile
+}
+
+// Returns the number of allocated bytes.
+// This does *not* include what was previously allocated (e.g. particles in problem->fillparts())
+long unsigned int GPUSPH::allocateCPUBuffers() {
+
+	long unsigned int numparts = gdata->totParticles;
+	const uint float4Size = sizeof(float4) * numparts;
+	const uint infoSize = sizeof(particleinfo) * numparts;
+
+	long unsigned int totCPUbytes = 0;
+
+	// allocate pinned memory
+	//s_hPos = (float*)
+	// test also cudaHostAllocWriteCombined
+	//cudaHostAlloc(&s_hPos, memSize4, cudaHostAllocPortable);
+	//cudaMallocHost(&s_hPos, memSize4, cudaHostAllocPortable);
+	gdata->s_hPos = new float4[numparts];
+	memset(gdata->s_hPos, 0, float4Size);
+	totCPUbytes += float4Size;
+
+	gdata->s_hVel = new float4[numparts];
+	memset(gdata->s_hVel, 0, float4Size);
+	totCPUbytes += float4Size;
+
+	gdata->s_hInfo = new particleinfo[numparts];
+	memset(gdata->s_hInfo, 0, infoSize);
+	totCPUbytes += infoSize;
+
+	/*dump_hPos = new float4[numparts];
+	memset(dump_hPos, 0, float4Size);
+	totCPUbytes += float4Size;
+
+	dump_hVel = new float4[numparts];
+	memset(dump_hVel, 0, float4Size);
+	totCPUbytes += float4Size;
+
+	dump_hInfo = new particleinfo[numparts];
+	memset(dump_hInfo, 0, infoSize);
+	totCPUbytes += infoSize;*/
+
+	return totCPUbytes;
+}
+
+void GPUSPH::deallocateCPUBuffers() {
+	//cudaFreeHost(s_hPos); // pinned memory
+	delete [] gdata->s_hPos;
+	delete [] gdata->s_hVel;
+	delete [] gdata->s_hInfo;
 }
