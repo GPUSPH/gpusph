@@ -485,12 +485,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TO check: this was done in main. Move in GPUSPH, or even in GlobalData
 	///		> new Synchronizer
 
+	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
 	for (int d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
-	// TODO
-	//		+ start workers
+	// actually start the threads
+	for (int d=0; d < gdata->devices; d++)
+		gdata->GPUWORKERS[d]->run_worker();
 
 	// DO in GPUworkers
 	//		GPUWorkers > checkCUDA (before allocating everything; put CC in common structure)
