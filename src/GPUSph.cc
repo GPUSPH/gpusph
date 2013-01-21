@@ -504,6 +504,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// TODO barrier to wait for their init or other mechanism
 
+	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
+
 	initialized = true;
 }
 
@@ -523,6 +525,14 @@ bool GPUSPH::finalize() {
 
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
+
+	gdata->threadSynchronizer->barrier(); // end of begins UPLOAD ***
+
+	// TODO
+
+	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
+
+
 	//while (keep_going)
 	//			// Integrator > setNextStep
 	//			// run next SimulationStep (workers do it, w barrier)
@@ -567,6 +577,17 @@ bool GPUSPH::runSimulation() {
 	//			> do_write
 	//				printf info
 	//				ps > writeToFile
+
+	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
+
+	// just wait or...?
+
+	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
+
+	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
+	// we wait for the threads to actually exit
+	for (int d=0; d < gdata->devices; d++)
+		gdata->GPUWORKERS[d]->join_worker();
 }
 
 // Returns the number of allocated bytes.

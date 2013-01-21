@@ -57,8 +57,9 @@ unsigned int GPUWorker::getDeviceNumber() {
 	return devnum;
 }
 
+// Actual thread calling GPU-methods
 void* GPUWorker::simulationThread(void *ptr) {
-	// actual thread calling GPU-methods
+	// INITIALIZATION PHASE
 
 	// take the pointer of the instance starting this thread
 	GPUWorker* instance = (GPUWorker*) ptr;
@@ -67,7 +68,22 @@ void* GPUWorker::simulationThread(void *ptr) {
 	const GlobalData* gdata = instance->getGlobalData();
 	const unsigned int devnum = instance->getDeviceNumber();
 
+	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
+	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
+
 	// TODO
+
+	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
+
+	// TODO
+
+	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
+
+	// TODO
+
+	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
+
+	pthread_exit(NULL);
 }
 
 
