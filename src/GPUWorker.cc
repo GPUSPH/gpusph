@@ -56,6 +56,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// take the pointer of the instance starting this thread
 	GPUWorker* instance = (GPUWorker*) ptr;
 
+	// retrieve GlobalData and device number (index in process array)
+	const GlobalData* gdata = instance->getGlobalData();
+	const unsigned int devnum = instance->getDeviceNumber();
+
 	// TODO
 }
 
