@@ -16,6 +16,7 @@ NetworkManager::NetworkManager() {
 
 NetworkManager::~NetworkManager() {
 	// TODO Auto-generated destructor stub
+	// TODO: finalize if not done yet
 }
 
 void NetworkManager::initNetwork() {
