@@ -36,6 +36,7 @@ public:
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void run_worker();
+	void join_worker();
 };
 
 #endif /* GPUWORKER_H_ */

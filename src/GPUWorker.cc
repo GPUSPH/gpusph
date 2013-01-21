@@ -42,6 +42,13 @@ void GPUWorker::run_worker() {
 	pthread_create(&pthread_id, NULL, simulationThread, (void*)this);
 }
 
+// Join the simulation thread (in pthreads' terminology)
+// WARNING: blocks the caller until the thread reaches pthread_exit. Be sure to call it after all barriers
+// have been reached or may result in deadlock!
+void GPUWorker::join_worker() {
+	pthread_join(pthread_id, NULL);
+}
+
 GlobalData* GPUWorker::getGlobalData() {
 	return gdata;
 }
