@@ -24,6 +24,8 @@ struct GlobalData;
 
 #include "cudautil.cuh"
 
+// In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
+// Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
 private:
 	pthread_t pthread_id;

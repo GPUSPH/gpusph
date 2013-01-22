@@ -494,15 +494,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (int d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->run_worker();
 
-	// DO in GPUworkers
-	//		GPUWorkers > checkCUDA (before allocating everything; put CC in common structure)
-	//		GPUWorkers > allocateGPU
-	//		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
-	//			incl. edging!
-	//		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
-	//		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
-
-	// TODO barrier to wait for their init or other mechanism
+	// The following barrier waits for GPUworkers to complete CUDA init, GPU allocation, subdomain and devmap upload
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
