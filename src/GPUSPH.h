@@ -30,8 +30,8 @@ private:
 	ParticleSystem *psystem;
 	bool initialized;
 	GPUSPH();
-	long unsigned int allocateGlobalCPUBuffers();
-	void deallocateGlobalCPUBuffers();
+	long unsigned int allocateGlobalHostBuffers();
+	void deallocateGlobalHostBuffers();
 public:
 	~GPUSPH();
 	static GPUSPH& getInstance();
