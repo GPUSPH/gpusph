@@ -16,6 +16,8 @@ GPUWorker::~GPUWorker() {
 	// Free everything and pthread terminate
 }
 
+// All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
+// Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {
 	// stub
 }
