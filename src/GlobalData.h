@@ -23,6 +23,9 @@
 // Synchronizer
 #include "Synchronizer.h"
 
+// The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
+// by different classes in different phases of the initialization. Pointers should be used in the code
+// only where we are sure they were already initialized.
 struct GlobalData {
 	// # of GPUs running
 

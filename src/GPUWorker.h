@@ -18,7 +18,8 @@ class GPUWorker;
  * When the compiler includes "GlobalData.h" from somewhere else, it defines _GLOBAL_DATA_
  * and in turn includes "GPUWorker.h"; but the latter does not know the GlobalData struct
  * yet and including GloblData.h again does not work since _GLOBAL_DATA_ is defined.
- * So we need to forward-declare the struct GlobalData. GPUWorker finds it and compiles. */
+ * So we need to forward-declare the struct GlobalData. GPUWorker finds it and compiles.
+ * The GPUWorker class needs to be forward-declared as well, since GlobalData needs it. */
 struct GlobalData;
 
 class GPUWorker {
