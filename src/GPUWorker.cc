@@ -16,8 +16,20 @@ GPUWorker::~GPUWorker() {
 	// Free everything and pthread terminate
 }
 
-size_t GPUWorker::allocateDevice() {
-	// allocate GPU dev memory
+size_t GPUWorker::allocateHostBuffers() {
+	// stub
+}
+
+size_t GPUWorker::allocateDeviceBuffers() {
+	// stub
+}
+
+void GPUWorker::deallocateHostBuffers() {
+	// stub
+}
+
+void GPUWorker::deallocateDeviceBuffers() {
+	// stub
 }
 
 void GPUWorker::uploadSubdomains() {

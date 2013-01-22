@@ -94,7 +94,11 @@ private:
 	uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 	uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
 
-	size_t allocateDevice();
+	size_t allocateHostBuffers();
+	size_t allocateDeviceBuffers();
+	void deallocateHostBuffers();
+	void deallocateDeviceBuffers();
+
 	void uploadSubdomains();
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
