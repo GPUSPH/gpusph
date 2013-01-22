@@ -57,6 +57,14 @@ unsigned int GPUWorker::getDeviceNumber() {
 	return devnum;
 }
 
+cudaDeviceProp GPUWorker::getDeviceProperties() {
+	return m_deviceProperties;
+}
+
+void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
+	m_deviceProperties = _m_deviceProperties;
+}
+
 // Actual thread calling GPU-methods
 void* GPUWorker::simulationThread(void *ptr) {
 	// INITIALIZATION PHASE

@@ -31,6 +31,13 @@ private:
 	GlobalData* getGlobalData();
 	unsigned int getDeviceNumber();
 
+	// it would be easier to put the device properties in a shared array in GlobalData;
+	// this, however, would violate the principle that any CUDA-related code should be
+	// handled by GPUWorkers and, secondly, GPUSPH
+	cudaDeviceProp m_deviceProperties;
+	// the setter is private and meant to be called ony by the simulation thread
+	void setDeviceProperties(cudaDeviceProp _m_deviceProperties);
+
 	// CPU arrays
 	float4*		m_hPos;					// postions array
 	float4*		m_hVel;					// velocity array
@@ -92,6 +99,7 @@ public:
 	void uploadCompactDeviceMap();
 	void run_worker();
 	void join_worker();
+	cudaDeviceProp getDeviceProperties();
 };
 
 #endif /* GPUWORKER_H_ */
