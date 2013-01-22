@@ -470,7 +470,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 	// allocate cpu buffers, 1 per process
-	allocateCPUBuffers(); // TODO
+	allocateGlobalCPUBuffers(); // TODO
 	// To check: is this mandatory? this requires double memory!
 	//	copy particles from problem to GPUSPH buffers
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
@@ -506,7 +506,7 @@ bool GPUSPH::finalize() {
 	//		// delete Integrator
 	//		delete Synchronizer
 	//		delete Workers
-	deallocateCPUBuffers();
+	deallocateGlobalCPUBuffers();
 	//		problem > deallocate (every process allocates everything)
 	//		delete Problem
 	//		delete PS
@@ -582,9 +582,10 @@ bool GPUSPH::runSimulation() {
 		gdata->GPUWORKERS[d]->join_worker();
 }
 
+// Allocate the shared buffers, i.e. those accessed by all workers
 // Returns the number of allocated bytes.
 // This does *not* include what was previously allocated (e.g. particles in problem->fillparts())
-long unsigned int GPUSPH::allocateCPUBuffers() {
+long unsigned int GPUSPH::allocateGlobalCPUBuffers() {
 
 	long unsigned int numparts = gdata->totParticles;
 	const uint float4Size = sizeof(float4) * numparts;
@@ -624,7 +625,8 @@ long unsigned int GPUSPH::allocateCPUBuffers() {
 	return totCPUbytes;
 }
 
-void GPUSPH::deallocateCPUBuffers() {
+// Deallocate the shared buffers, i.e. those accessed by all workers
+void GPUSPH::deallocateGlobalCPUBuffers() {
 	//cudaFreeHost(s_hPos); // pinned memory
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;
