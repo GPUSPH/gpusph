@@ -11,6 +11,7 @@
 class GPUWorker;
 
 #include <pthread.h>
+#include "vector_types.h"
 #include "GlobalData.h"
 
 /* We need a forward declaration of GlobalData.
@@ -28,6 +29,59 @@ private:
 	unsigned int devnum;
 	GlobalData* getGlobalData();
 	unsigned int getDeviceNumber();
+
+	// CPU arrays
+	float4*		m_hPos;					// postions array
+	float4*		m_hVel;					// velocity array
+	float4*		m_hForces;				// forces array
+	particleinfo*	m_hInfo;			// info array
+	float3*		m_hVort;				// vorticity
+	float*		m_hVisc;				// viscosity
+	float4*     m_hNormals;				// normals at free surface
+
+	// TODO: CPU arrays used for debugging
+
+	// GPU arrays
+	float4*		m_dForces;				// forces array
+	float4*		m_dXsph;				// mean velocity array
+	float4*		m_dPos[2];				// position array
+	float4*		m_dVel[2];				// velocity array
+	particleinfo*	m_dInfo[2];			// particle info array
+	float4*     m_dNormals;				// normal at free surface
+	float3*		m_dVort;				// vorticity
+	uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
+	float*		m_dCfl;					// cfl for each block
+	float*		m_dTempCfl;				// temporary storage for cfl computation
+	float*		m_dCfl2;				// test
+	float2*		m_dTau[3];				// SPS stress tensor
+	unsigned long*	m_dParticleHashLong;		// hash table for sorting
+	uint*		m_dParticleIndex;		// sorted particle indexes
+	uint*		m_dCellStart;			// index of cell start in sorted order
+	uint*		m_dCellEnd;				// index of cell end in sorted order
+	uint*		m_dSliceStart;			// index of first cell in slice
+	uint*		m_dNeibsList;			// neib list with maxneibsnum neibs per particle
+
+	// CPU/GPU arrays for rigid bodies
+	uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
+	float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies
+	float4*		m_dRbTorques;			// Torques on particles belonging to rigid bodies
+	uint*		m_dRbNum;				// Key used in segmented scan
+	uint*		m_hRbLastIndex;			// Indexes of last particles belonging to rigid bodies
+	float3*		m_hRbTotalForce;		// Total force acting on each rigid body
+	float3*		m_hRbTotalTorque;		// Total torque acting on each rigid body
+
+	// CPU/GPU data for moving boundaries
+	uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
+	float4*		m_dMbData;				// device side moving boundary data
+
+	// indices for double buffers
+	uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
+	uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)
+	uint		m_currentVelRead;		// current index in m_dVel for velocity reading (0 or 1)
+	uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
+	uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
+	uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
+
 public:
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();
