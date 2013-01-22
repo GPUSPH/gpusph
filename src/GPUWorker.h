@@ -94,13 +94,14 @@ private:
 	uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 	uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
 
-public:
-	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
-	~GPUWorker();
 	size_t allocateDevice();
 	void uploadSubdomains();
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
+
+public:
+	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
+	~GPUWorker();
 	void run_worker();
 	void join_worker();
 	cudaDeviceProp getDeviceProperties();
