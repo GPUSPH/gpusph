@@ -76,6 +76,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 	const GlobalData* gdata = instance->getGlobalData();
 	const unsigned int devnum = instance->getDeviceNumber();
 
+	instance->setDeviceProperties( checkCUDA(gdata, devnum) );
+
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 

@@ -22,6 +22,8 @@ class GPUWorker;
  * The GPUWorker class needs to be forward-declared as well, since GlobalData needs it. */
 struct GlobalData;
 
+#include "cudautil.cuh"
+
 class GPUWorker {
 private:
 	pthread_t pthread_id;
