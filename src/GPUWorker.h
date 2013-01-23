@@ -40,6 +40,8 @@ private:
 
 	// number of particles of the assigned subset
 	uint m_numParticles;
+	// number of cells of the grid of the whole world
+	uint m_nGridCells;
 
 	// it would be easier to put the device properties in a shared array in GlobalData;
 	// this, however, would violate the principle that any CUDA-related code should be
