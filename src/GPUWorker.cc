@@ -249,9 +249,11 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	instance->setDeviceProperties( checkCUDA(gdata, devnum) );
 
-	//		GPUWorkers > allocateGPU
-	//		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
-	//			incl. edging!
+	// allocate CPU and GPU arrays
+	instance->allocateHostBuffers();
+	instance->allocateDeviceBuffers();
+
+	// TODO
 	//		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
 	//		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
 
