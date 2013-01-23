@@ -24,6 +24,9 @@ struct GlobalData;
 
 #include "cudautil.cuh"
 
+#include "physparams.h"
+#include "simparams.h"
+
 // In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
@@ -41,6 +44,10 @@ private:
 	cudaDeviceProp m_deviceProperties;
 	// the setter is private and meant to be called ony by the simulation thread
 	void setDeviceProperties(cudaDeviceProp _m_deviceProperties);
+
+	// utility pointers - the actual structures are in Problem
+	PhysParams*	m_physparams;
+	SimParams*	m_simparams;
 
 	// CPU arrays
 	float4*		m_hPos;					// postions array

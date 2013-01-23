@@ -10,6 +10,10 @@
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 	gdata = _gdata;
 	devnum = _devnum;
+
+	// we know that GPUWorker is initialized when Problem was already
+	m_simparams = gdata->problem->get_simparams();
+	m_physparams = gdata->problem->get_physparams();
 }
 
 GPUWorker::~GPUWorker() {
