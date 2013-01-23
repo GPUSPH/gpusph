@@ -23,7 +23,33 @@ GPUWorker::~GPUWorker() {
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
 // Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {
-	// stub
+	// common sizes
+	const uint float3Size = sizeof(float3)*m_numParticles;
+	const uint float4Size = sizeof(float4)*m_numParticles;
+	const uint infoSize = sizeof(particleinfo)*m_numParticles;
+
+	size_t allocated = 0;
+
+	m_hPos = new float4[m_numParticles];
+	memset(m_hPos, 0, float4Size);
+	allocated += float4Size;
+
+	m_hVel = new float4[m_numParticles];
+	memset(m_hVel, 0, float4Size);
+	allocated += float4Size;
+
+	m_hInfo = new particleinfo[m_numParticles];
+	memset(m_hInfo, 0, infoSize);
+	allocated += infoSize;
+
+	m_hVort = NULL;
+	if (m_simparams->vorticity) {
+		m_hVort = new float3[m_numParticles];
+		allocated += float3Size;
+		// NOTE: *not* memsetting, as in master branch
+	}
+
+	return allocated;
 }
 
 size_t GPUWorker::allocateDeviceBuffers() {
