@@ -11,6 +11,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 	gdata = _gdata;
 	devnum = _devnum;
 
+	m_hPos = NULL;
+	m_hVel = NULL;
+	m_hInfo = NULL;
+	m_hVort = NULL;
+
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->get_simparams();
 	m_physparams = gdata->problem->get_physparams();
@@ -46,7 +51,6 @@ size_t GPUWorker::allocateHostBuffers() {
 	memset(m_hInfo, 0, infoSize);
 	allocated += infoSize;
 
-	m_hVort = NULL;
 	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numParticles];
 		allocated += float3Size;
