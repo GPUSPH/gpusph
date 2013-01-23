@@ -23,6 +23,9 @@
 // Synchronizer
 #include "Synchronizer.h"
 
+// Next step for workers. It could be replaced by a struct with the list of parameters to be used
+enum CommandType {IDLE, CALCHASH, REORDER, BUILDNEIBS, FORCES, EULER, QUIT};
+
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
@@ -116,7 +119,7 @@ struct GlobalData {
 	//uint numCpuThreads;
 
 	// next command to be executed by workers
-	//CommandType nextCommand;
+	CommandType nextCommand;
 
 	// ids, tdatas and ranges of each cpu thread
 	//pthread_t *cpuThreadIds;
@@ -188,12 +191,12 @@ struct GlobalData {
 		//requestSliceStartDump(false),
 		iterations(0),
 		t(0.0f),
-		dt(0.0f)
+		dt(0.0f),
 		//cpuonly(false),
 		//single_inter(false),
 		//numCpuThreads(0),
 		//cpuThreadIds(NULL),
-		//nextCommand(IDLE),
+		nextCommand(IDLE)
 		//tdatas(NULL),
 		//cpuThreadFromParticle(NULL),
 		//cpuThreadToParticle(NULL),
