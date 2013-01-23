@@ -55,11 +55,11 @@ private:
 	// CPU arrays
 	float4*		m_hPos;					// postions array
 	float4*		m_hVel;					// velocity array
-	float4*		m_hForces;				// forces array
+	//float4*		m_hForces;				// forces array
 	particleinfo*	m_hInfo;			// info array
 	float3*		m_hVort;				// vorticity
-	float*		m_hVisc;				// viscosity
-	float4*     m_hNormals;				// normals at free surface
+	//float*		m_hVisc;				// viscosity
+	//float4*     m_hNormals;				// normals at free surface
 
 	// TODO: CPU arrays used for debugging
 
