@@ -24,6 +24,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 	// going to change when each worker will only manage a subset of particles
 	m_numParticles = gdata->totParticles;
 	m_nGridCells = gdata->nGridCells;
+
+	m_hostMemory = m_deviceMemory = 0;
 }
 
 GPUWorker::~GPUWorker() {
@@ -58,6 +60,7 @@ size_t GPUWorker::allocateHostBuffers() {
 		// NOTE: *not* memsetting, as in master branch
 	}
 
+	m_hostMemory += allocated;
 	return allocated;
 }
 
@@ -168,6 +171,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	//	setDemTexture(m_problem->m_dem, m_problem->m_ncols, m_problem->m_nrows);
 	//}
 
+	m_deviceMemory += allocated;
 	return allocated;
 }
 
@@ -218,6 +222,14 @@ unsigned int GPUWorker::getDeviceNumber() {
 
 cudaDeviceProp GPUWorker::getDeviceProperties() {
 	return m_deviceProperties;
+}
+
+unsigned long GPUWorker::getHostMemory() {
+	return m_hostMemory;
+}
+
+unsigned long GPUWorker::getDeviceMemory() {
+	return m_deviceMemory;
 }
 
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {

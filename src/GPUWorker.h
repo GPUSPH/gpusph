@@ -48,6 +48,10 @@ private:
 	// number of cells of the grid of the whole world
 	uint m_nGridCells;
 
+	// memory allocate
+	unsigned long m_hostMemory;
+	unsigned long m_deviceMemory;
+
 	// it would be easier to put the device properties in a shared array in GlobalData;
 	// this, however, would violate the principle that any CUDA-related code should be
 	// handled by GPUWorkers and, secondly, GPUSPH
@@ -126,6 +130,8 @@ public:
 	void run_worker();
 	void join_worker();
 	cudaDeviceProp getDeviceProperties();
+	unsigned long getHostMemory();
+	unsigned long getDeviceMemory();
 };
 
 #endif /* GPUWORKER_H_ */
