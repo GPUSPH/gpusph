@@ -469,6 +469,16 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
+
+	// TODO:  before allocating everything else we should check if the number of particles is too high.
+	// Not only the mere number of particles should be compared to a hardcoded system limit, but a good
+	// estimation of the required memory should be computed
+	if (gdata->totParticles >= MAXPARTICLES) {
+		fprintf(stderr, "Cannot handle %u > %u particles, sorry\n", gdata->totParticles, MAXPARTICLES);
+		// exit(1);
+		return false;
+	}
+
 	// allocate cpu buffers, 1 per process
 	allocateGlobalHostBuffers(); // TODO was partially implemented
 	// To check: is this mandatory? this requires double memory!
