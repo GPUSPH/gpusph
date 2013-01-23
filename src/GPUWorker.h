@@ -38,6 +38,9 @@ private:
 	GlobalData* getGlobalData();
 	unsigned int getDeviceNumber();
 
+	// number of particles of the assigned subset
+	uint m_numParticles;
+
 	// it would be easier to put the device properties in a shared array in GlobalData;
 	// this, however, would violate the principle that any CUDA-related code should be
 	// handled by GPUWorkers and, secondly, GPUSPH
