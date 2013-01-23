@@ -38,6 +38,7 @@ private:
 	pthread_t pthread_id;
 	static void* simulationThread(void *ptr);
 	GlobalData* gdata;
+
 	unsigned int devnum;
 	GlobalData* getGlobalData();
 	unsigned int getDeviceNumber();

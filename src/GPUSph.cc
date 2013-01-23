@@ -490,8 +490,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate cpu buffers, 1 per process
 	allocateGlobalHostBuffers(); // TODO was partially implemented
-	// To check: is this mandatory? this requires double memory!
-	//	copy particles from problem to GPUSPH buffers
+
+	// Check: is this mandatory? this requires double the memory!
+	// copy particles from problem to GPUSPH buffers
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 
 	// TODO
