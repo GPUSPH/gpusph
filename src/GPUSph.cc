@@ -479,6 +479,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		return false;
 	}
 
+	// Self-explicative check - but could be moved elsewhere
+	uint _maxneibsnum = gdata->problem->get_simparams()->maxneibsnum;
+	if (_maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
+		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
+				_maxneibsnum, NEIBINDEX_INTERLEAVE);
+		// exit(1);
+		return false;
+	}
+
 	// allocate cpu buffers, 1 per process
 	allocateGlobalHostBuffers(); // TODO was partially implemented
 	// To check: is this mandatory? this requires double memory!
