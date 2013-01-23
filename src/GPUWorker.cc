@@ -62,7 +62,113 @@ size_t GPUWorker::allocateHostBuffers() {
 }
 
 size_t GPUWorker::allocateDeviceBuffers() {
-	// stub
+	// common sizes
+	// compute common sizes (in bytes)
+	//const uint floatSize = sizeof(float)*m_numParticles;
+	const uint float2Size = sizeof(float2)*m_numParticles;
+	const uint float3Size = sizeof(float3)*m_numParticles;
+	const uint float4Size = sizeof(float4)*m_numParticles;
+	const uint infoSize = sizeof(particleinfo)*m_numParticles;
+	const uint intSize = sizeof(uint)*m_numParticles;
+	const uint longSize = sizeof(unsigned long)*m_numParticles;
+	const uint intCellsSize = sizeof(uint)*m_nGridCells;
+	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	//const uint neibslistSize = sizeof(uint)*128*m_numParticles;
+	//const uint sliceArraySize = sizeof(uint)*m_gridSize.PSA;
+
+	size_t allocated = 0;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dForces, float4Size));
+	CUDA_SAFE_CALL(cudaMemset(m_dForces, 0, float4Size));
+	allocated += float4Size;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dXsph, float4Size));
+	allocated += float4Size;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[0], float4Size));
+	allocated += float4Size;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[1], float4Size));
+	allocated += float4Size;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVel[0], float4Size));
+	allocated += float4Size;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVel[1], float4Size));
+	allocated += float4Size;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[0], infoSize));
+	allocated += infoSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
+	allocated += infoSize;
+
+	// Free surface detection
+	if (m_simparams->savenormals) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, float4Size));
+		allocated += float4Size;
+	}
+
+	if (m_simparams->vorticity) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, float3Size));
+		allocated += float3Size;
+	}
+
+	if (m_simparams->visctype == SPSVISC) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[0], float2Size));
+		allocated += float2Size;
+
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[1], float2Size));
+		allocated += float2Size;
+
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], float2Size));
+		allocated += float2Size;
+	}
+
+	//CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
+	//memory += hashSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHashLong, longSize));
+	allocated += longSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, intSize));
+	allocated += intSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, intCellsSize));
+	allocated += intCellsSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, intCellsSize));
+	allocated += intCellsSize;
+
+	//CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSliceStart, sliceArraySize));
+	//allocated += sliceArraySize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
+	allocated += neibslistSize;
+
+	// TODO: allocation for rigid bodies
+
+	if (m_simparams->dtadapt) {
+		m_numPartsFmax = getNumPartsFmax(m_numParticles);
+		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
+
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
+
+		const uint tempCflSize = getFmaxTempStorageSize(m_numPartsFmax);
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
+
+		allocated += fmaxTableSize;
+	}
+
+	// TODO: call setDemTexture(), which allocates and reads the DEM
+	//if (m_simparams->usedem) {
+	//	//printf("Using DEM\n");
+	//	//printf("cols = %d\trows =% d\n", m_problem->m_ncols, m_problem->m_nrows);
+	//	setDemTexture(m_problem->m_dem, m_problem->m_ncols, m_problem->m_nrows);
+	//}
+
+	return allocated;
 }
 
 void GPUWorker::deallocateHostBuffers() {
