@@ -261,10 +261,40 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
 	// TODO
+	//		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
+	//			incl. edging!
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
 	// TODO
+	/* Here is a copy-past from the CPU thread worker of branch cpusph, as a canvas */
+	/*
+	while (gdata->keep_going) {
+		switch (gdata->nextStep) {
+			// logging here?
+			case CALCHASH:
+				tdata->psystem->calcHashHostRange(fromPart, toPart);
+				break;
+			case REORDER:
+				tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
+				break;
+			case BUILDNEIBS:
+				tdata->psystem->buildNeibsListHostRange(fromPart, toPart);
+				break;
+			case FORCES:
+				cd->cpuThreadDts[tdata->CPUThreadIndex] =
+					tdata->psystem->forcesHostRange(fromPart, toPart);
+				break;
+			case EULER:
+				tdata->psystem->eulerHostRange(fromPart, toPart);
+				break;
+			case QUIT:
+				dontstop = false;
+				break;
+
+		}
+		if (gdata->keep_going) // BARRIER
+	} */
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
