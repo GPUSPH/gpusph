@@ -209,6 +209,13 @@ Problem::g_callback(const float t)
 	return make_float3(0.0);
 }
 
+// Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[
+void Problem::fillDeviceMap(uint numDevices, uint numCells, uchar* deviceMap) {
+	uint cells_per_device = numCells / numDevices;
+	for (uint i=0; i < numCells; i++)
+		deviceMap[i] = i/cells_per_device;
+}
+
 
 void 
 Problem::allocate_bodies(const int i)

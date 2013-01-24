@@ -195,6 +195,9 @@ class Problem {
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
 
+		// Partition the grid in numDevices parts - virtual to allow more sophisticated or topology-specific partitionings
+		virtual void fillDeviceMap(uint numDevices, uint numCells, uchar* deviceMap);
+
 		void allocate_bodies(const int);
 		RigidBody* get_body(const int);
 		void get_rigidbodies_data(float3 * &, float * &);
