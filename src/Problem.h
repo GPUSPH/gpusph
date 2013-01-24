@@ -41,6 +41,11 @@
 #include "physparams.h"
 #include "simparams.h"
 
+// forward declarations before GlobalData
+class Problem;
+struct GlobalData;
+#include "GlobalData.h"
+
 
 using namespace std;
 
@@ -196,7 +201,7 @@ class Problem {
 		virtual float3 g_callback(const float);
 
 		// Partition the grid in numDevices parts - virtual to allow more sophisticated or topology-specific partitionings
-		virtual void fillDeviceMap(uint numDevices, uint numCells, uchar* deviceMap);
+		virtual void fillDeviceMap(GlobalData* gdata);
 
 		void allocate_bodies(const int);
 		RigidBody* get_body(const int);
