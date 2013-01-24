@@ -215,6 +215,7 @@ int newMain(int argc, char** argv) {
 	NetworkManager netmanager;
 	netmanager.initNetwork();
 
+	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(*(gdata.clOptions));
 
 	// get - and actually instantiate - the existing instance of GPUSPH
@@ -228,6 +229,9 @@ int newMain(int argc, char** argv) {
 
 	// finalize everything
 	Simulator.finalize();
+
+	// same consideration as above
+	delete gdata.problem;
 
 	// finalize MPI
 	netmanager.finalizeNetwork();
