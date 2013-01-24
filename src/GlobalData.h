@@ -70,6 +70,7 @@ struct GlobalData {
 	float4*			s_hVel;  // velocity array
 	particleinfo*	s_hInfo; // particle info array
 	float4*			s_hForces;  // forces (alloc by 1st thread, for striping)
+	uchar* 			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
 	// pinned memory var to retrieve dt asynchronously
 	//float *pin_maxcfl;
@@ -178,6 +179,7 @@ struct GlobalData {
 		s_hVel(NULL),
 		s_hInfo(NULL),
 		s_hForces(NULL),
+		s_hDeviceMap(NULL),
 		//pin_maxcfl(NULL),
 		//dump_hPos(NULL),
 		//dump_hVel(NULL),

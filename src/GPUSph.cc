@@ -462,10 +462,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// no: done
 	//		> new Problem
 
-	// TODO: allocate and fill the device map. Only ints?
-	//			problem > createDeviceMap
-	//			global dev id, bit edging
-	//		//GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
+	// TODO: fill the device map
+	//			problem > fillDeviceMap()
+	//			global dev id (no bit edging)
 
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
@@ -608,8 +607,10 @@ bool GPUSPH::runSimulation() {
 long unsigned int GPUSPH::allocateGlobalHostBuffers() {
 
 	long unsigned int numparts = gdata->totParticles;
+	unsigned int numcells = gdata->nGridCells;
 	const uint float4Size = sizeof(float4) * numparts;
 	const uint infoSize = sizeof(particleinfo) * numparts;
+	const uint ucharCellSize = sizeof(uchar) * numcells;
 
 	long unsigned int totCPUbytes = 0;
 
@@ -642,6 +643,12 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers() {
 	memset(dump_hInfo, 0, infoSize);
 	totCPUbytes += infoSize;*/
 
+	if (gdata->devices>1) {
+		gdata->s_hDeviceMap = new uchar[numcells];
+		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
+		totCPUbytes += ucharCellSize;
+	}
+
 	return totCPUbytes;
 }
 
@@ -651,4 +658,5 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;
 	delete [] gdata->s_hInfo;
+	delete [] gdata->s_hDeviceMap;
 }

@@ -233,6 +233,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #endif
 
 typedef unsigned int uint;
+typedef unsigned char uchar;
 
 typedef struct TimingInfo {
 	float   t;
