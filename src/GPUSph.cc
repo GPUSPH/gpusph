@@ -518,7 +518,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
-	initialized = true;
+	return (initialized = true);
 }
 
 bool GPUSPH::finalize() {
