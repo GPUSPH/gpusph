@@ -213,6 +213,21 @@ struct GlobalData {
 		//custom_lb_threshold(0.0f),
 		//alloc_max(false)
 	{ };
+
+	int3 calcGridPosHost(float3 pos) {
+		int3 gridPos;
+		gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
+		gridPos.y = floor((pos.y - worldOrigin.y) / cellSize.y);
+		gridPos.z = floor((pos.z - worldOrigin.z) / cellSize.z);
+		return gridPos;
+	}
+
+	uint calcGridHashHost(int3 gridPos) {
+		gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
+		gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
+		gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+		return ( (gridPos.z * gridSize.y) * gridSize.x ) + (gridPos.y * gridSize.x) + gridPos.x;
+	}
 };
 
 #endif // _GLOBAL_DATA_
