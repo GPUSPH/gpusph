@@ -538,7 +538,7 @@ bool GPUSPH::finalize() {
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
-	gdata->threadSynchronizer->barrier(); // end of begins UPLOAD ***
+	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
 	// TODO
 
