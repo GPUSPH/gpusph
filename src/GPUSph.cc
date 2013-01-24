@@ -522,16 +522,30 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 }
 
 bool GPUSPH::finalize() {
-	//GPUWorkers > deallocateGPU
-	//		// delete Integrator
-	//		delete Synchronizer
-	//		delete Workers
+	// gpu buffers have been already destroyed at the end of the simulationThread()
+	// GPUWorkers > deallocateGPU
+
+	// TODO later
+	// delete Integrator
+
+	// workers
+	for (int d=0; d < gdata->devices; d++)
+			delete gdata->GPUWORKERS[d];
+
+	// Synchronizer
+	delete gdata->threadSynchronizer;
+
+	// host buffers
 	deallocateGlobalHostBuffers();
+
 	//		problem > deallocate (every process allocates everything)
 	//		delete Problem
-	//		delete PS
-	//			delete Writer
-	// ...
+
+	// ParticleSystem which, in turn, deletes the Writer
+	delete psystem;
+
+	// ...anything else?
+
 	initialized = false;
 }
 
