@@ -192,6 +192,7 @@ void GPUWorker::deallocateHostBuffers() {
 	delete [] m_hCellEnd;
 	if (m_simparams->vorticity)
 		delete [] m_hVort;
+	// here: dem host buffers?
 }
 
 void GPUWorker::deallocateDeviceBuffers() {
