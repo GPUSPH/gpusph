@@ -72,6 +72,10 @@ private:
 	//float*		m_hVisc;				// viscosity
 	//float4*     m_hNormals;				// normals at free surface
 
+	// copy of CellStart and CellEnd on host, to be accessed by GPUSPH and/or by other workers
+	uint*		m_hCellStart;			// index of cell start in sorted order
+	uint*		m_hCellEnd;				// index of cell end in sorted order
+
 	// TODO: CPU arrays used for debugging
 
 	// GPU arrays

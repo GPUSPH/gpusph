@@ -39,6 +39,7 @@ size_t GPUWorker::allocateHostBuffers() {
 	const uint float3Size = sizeof(float3)*m_numParticles;
 	const uint float4Size = sizeof(float4)*m_numParticles;
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
+	const uint uintCellsSize = sizeof(uint)*m_nGridCells;
 
 	size_t allocated = 0;
 
@@ -53,6 +54,14 @@ size_t GPUWorker::allocateHostBuffers() {
 	m_hInfo = new particleinfo[m_numParticles];
 	memset(m_hInfo, 0, infoSize);
 	allocated += infoSize;
+
+	m_hCellStart = new uint[m_nGridCells];
+	memset(m_hCellStart, 0, uintCellsSize);
+	allocated += uintCellsSize;
+
+	m_hCellEnd = new uint[m_nGridCells];
+	memset(m_hCellEnd, 0, uintCellsSize);
+	allocated += uintCellsSize;
 
 	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numParticles];
