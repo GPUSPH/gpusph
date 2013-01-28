@@ -196,7 +196,41 @@ void GPUWorker::deallocateHostBuffers() {
 }
 
 void GPUWorker::deallocateDeviceBuffers() {
-	// stub
+	CUDA_SAFE_CALL(cudaFree(m_dForces));
+	CUDA_SAFE_CALL(cudaFree(m_dXsph));
+	CUDA_SAFE_CALL(cudaFree(m_dPos));
+	CUDA_SAFE_CALL(cudaFree(m_dPos));
+	CUDA_SAFE_CALL(cudaFree(m_dVel));
+	CUDA_SAFE_CALL(cudaFree(m_dVel));
+	CUDA_SAFE_CALL(cudaFree(m_dInfo));
+	CUDA_SAFE_CALL(cudaFree(m_dInfo));
+
+	if (m_simparams->savenormals)
+		CUDA_SAFE_CALL(cudaFree(m_dNormals));
+
+	if (m_simparams->vorticity)
+		CUDA_SAFE_CALL(cudaFree(m_dVort));
+
+	if (m_simparams->visctype == SPSVISC) {
+		CUDA_SAFE_CALL(cudaFree(m_dTau[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dTau[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dTau[2]));
+	}
+
+	CUDA_SAFE_CALL(cudaFree(m_dParticleHashLong));
+	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
+	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
+	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
+	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
+
+	// TODO: deallocation for rigid bodies
+
+	if (m_simparams->dtadapt) {
+		CUDA_SAFE_CALL(cudaFree(m_dCfl));
+		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
+	}
+
+	// here: dem device buffers?
 }
 
 void GPUWorker::uploadSubdomains() {
