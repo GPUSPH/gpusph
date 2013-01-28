@@ -185,7 +185,13 @@ size_t GPUWorker::allocateDeviceBuffers() {
 }
 
 void GPUWorker::deallocateHostBuffers() {
-	// stub
+	delete [] m_hPos;
+	delete [] m_hVel;
+	delete [] m_hInfo;
+	delete [] m_hCellStart;
+	delete [] m_hCellEnd;
+	if (m_simparams->vorticity)
+		delete [] m_hVort;
 }
 
 void GPUWorker::deallocateDeviceBuffers() {
