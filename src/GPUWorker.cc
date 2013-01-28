@@ -74,7 +74,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint intSize = sizeof(uint)*m_numParticles;
 	const uint longSize = sizeof(unsigned long)*m_numParticles;
-	const uint intCellsSize = sizeof(uint)*m_nGridCells;
+	const uint uintCellsSize = sizeof(uint)*m_nGridCells;
 	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 	//const uint neibslistSize = sizeof(uint)*128*m_numParticles;
 	//const uint sliceArraySize = sizeof(uint)*m_gridSize.PSA;
@@ -136,11 +136,11 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, intSize));
 	allocated += intSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, intCellsSize));
-	allocated += intCellsSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, uintCellsSize));
+	allocated += uintCellsSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, intCellsSize));
-	allocated += intCellsSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, uintCellsSize));
+	allocated += uintCellsSize;
 
 	//CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSliceStart, sliceArraySize));
 	//allocated += sliceArraySize;
