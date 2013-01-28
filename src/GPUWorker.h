@@ -112,6 +112,10 @@ private:
 	uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
 	float4*		m_dMbData;				// device side moving boundary data
 
+	// CPU/GPU buffers for the compact device map (2 bits per cell)
+	uint*		m_hCompactDeviceMap;
+	uint*		m_dCompactDeviceMap;
+
 	// indices for double buffers
 	uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
 	uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)

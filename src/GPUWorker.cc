@@ -63,6 +63,11 @@ size_t GPUWorker::allocateHostBuffers() {
 	memset(m_hCellEnd, 0, uintCellsSize);
 	allocated += uintCellsSize;
 
+	// TODO: only allocate when multi-GPU
+	m_hCompactDeviceMap = new uint[m_nGridCells];
+	memset(m_hCompactDeviceMap, 0, uintCellsSize);
+	allocated += uintCellsSize;
+
 	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numParticles];
 		allocated += float3Size;
@@ -157,6 +162,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
 	allocated += neibslistSize;
 
+	// TODO: allocate only if multi-GPU
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
+	allocated += uintCellsSize;
+
 	// TODO: allocation for rigid bodies
 
 	if (m_simparams->dtadapt) {
@@ -222,6 +231,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
+	CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 
 	// TODO: deallocation for rigid bodies
 
