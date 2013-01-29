@@ -3,6 +3,12 @@
 
 #define MAX_DEVICES_PER_NODE 8
 
+// 2 high bits for cell type in the compact device map
+#define INNER_CELL		((uint)0<<30)
+#define INNER_EDGE_CELL	((uint)1<<30)
+#define OUTER_EDGE_CELL	((uint)2<<30)
+#define OUTER_CELL		((uint)3<<30) // memset to 0xFF for making OUTER_CELL defaults
+
 #endif // _MULTIGPU_DEFINES_
 
 

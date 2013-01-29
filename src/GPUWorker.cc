@@ -249,10 +249,66 @@ void GPUWorker::uploadSubdomains() {
 	// upload subdomain, just allocated and sorted by main thread
 }
 
+// create a compact device map, for this device, from the global one,
+// with each cell being marked in the high bits
 void GPUWorker::createCompactDeviceMap() {
-	// create a compact device map, for this device, from the global one,
-	// with each cell being marked in the high bits
+	// Here we have several possibilities:
+	// 1. dynamic programming - visit each cell and half of its neighbors once, only write self
+	//    (14*cells reads, 1*cells writes)
+	// 2. visit each cell and all its neighbors, then write the output only for self
+	//    (27*cells reads, 1*cells writes)
+	// 3. same as 2 but reuse last read buffer; in the general case, it is possible to reuse 18 cells each time
+	//    (9*cells reads, 1*cells writes)
+	// 4. visit each cell; if it is assigned to self, visit its neighbors; set self and edging neighbors; if it is not self, write nothing and do not visit neighbors
+	//    (initial memset, 1*extCells + 27*intCells reads, 27*intCells writes; if there are 2 devices per process, this means roughly ~14 reads and ~writes per cell)
+	// 5. same as 4. but only make writes for alternate cells (3D chessboard: only white cells write on neibs)
+	// 6. upload on the device, maybe recycling an existing buffer, and perform a parallel algorithm on the GPU
+	//    (27xcells cached reads, cells writes)
+	// 7. ...
+	// Algorithms 1. and 3. may be the fastest. Number 2 is currently implemented; later will test 3.
+	// One minor optimization has been implemented: iterating on neighbors stops as soon as there are enough information (e.g. cell belongs to self and there is
+	// at least one neib which does not ==> inner_edge). Another optimization would be to avoid linearizing all cells but exploit burst of consecutive indices. This
+	// reduces the computations but not the read/write operations.
 
+	// iterate on all cells of the world
+	for (int ix=0; ix < gdata->gridSize.x; ix++)
+		for (int iy=0; iy < gdata->gridSize.y; iy++)
+			for (int iz=0; iz < gdata->gridSize.z; iz++) {
+				// data of current cell
+				uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
+				uint cell_devnum = gdata->s_hDeviceMap[cell_lin_idx];
+				bool is_mine = (cell_devnum == devnum);
+				// aux vars for iterating on neibs
+				bool any_foreign_neib = false; // at least one neib does not belong to me?
+				bool any_mine_neib = false; // at least one neib does belong to me?
+				bool enough_info = false; // when true, stop iterating on neibs
+				// iterate on neighbors
+				for (int dx=-1; dx <= 1 && !enough_info; dx++)
+					for (int dy=-1; dy <= 1 && !enough_info; dy++)
+						for (int dz=-1; dz <= 1 && !enough_info; dz++)
+							// check we are in the grid
+							// TODO: modulus for periodic boundaries
+							if (ix + dx < 0 || ix + dx >= gdata->gridSize.x ||
+								iy + dy < 0 || iy + dy >= gdata->gridSize.y ||
+								iz + dz < 0 || iz + dz >= gdata->gridSize.z) continue;
+							else
+							// do not iterate on self
+							if (!(dx == 0 && dy == 0 && dz == 0)) {
+								// data of neib cell
+								uint neib_lin_idx = gdata->calcGridHashHost(ix + dx, iy + dy, iz + dz);
+								uint neib_devnum = gdata->s_hDeviceMap[neib_lin_idx];
+								any_mine_neib =		(neib_devnum == cell_devnum);
+								any_foreign_neib =	(neib_devnum != cell_devnum);
+								// did we read enough to decide for current cell?
+								enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
+							}
+				uint cellType;
+				if (is_mine && !any_foreign_neib)	cellType = INNER_CELL;
+				if (is_mine && any_foreign_neib)	cellType = INNER_EDGE_CELL;
+				if (!is_mine && any_mine_neib)		cellType = OUTER_EDGE_CELL;
+				if (!is_mine && !any_mine_neib)		cellType = OUTER_CELL;
+				m_hCompactDeviceMap[cell_lin_idx] = cellType;
+			}
 }
 
 void GPUWorker::uploadCompactDeviceMap() {
