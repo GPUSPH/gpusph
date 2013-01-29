@@ -1,7 +1,7 @@
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
-#define MAX_DEVICES 10
+#define MAX_DEVICES_PER_NODE 8
 
 #endif // _MULTIGPU_DEFINES_
 

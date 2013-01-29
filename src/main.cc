@@ -62,9 +62,9 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			pch = strtok (*argv,",");
 			while (pch != NULL) {
 				//printf ("%s\n",pch);
-				if (gdata->devices==MAX_DEVICES) {
+				if (gdata->devices==MAX_DEVICES_PER_NODE) {
 					printf("WARNING: devices exceeding number %u will be ignored\n",
-						gdata->device[MAX_DEVICES-1]);
+						gdata->device[MAX_DEVICES_PER_NODE-1]);
 					break;
 				} else {
 					// inc _clOptions->devices only if scanf was successful

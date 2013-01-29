@@ -35,7 +35,7 @@ struct GlobalData {
 	// number of user-specified devices (# of GPUThreads)
 	unsigned int devices;
 	// array of devices indices
-	unsigned int device[MAX_DEVICES];
+	unsigned int device[MAX_DEVICES_PER_NODE];
 
 	// array of GPUWorkers, one per GPU
 	GPUWorker** GPUWORKERS;
@@ -92,7 +92,7 @@ struct GlobalData {
 	//particleinfo s_info_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
 
 	// last dt for each PS
-	float s_dt[MAX_DEVICES];
+	float s_dt[MAX_DEVICES_PER_NODE];
 
 	// moving boundaries data
 	//float4* mbData;
