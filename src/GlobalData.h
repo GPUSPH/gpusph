@@ -230,6 +230,13 @@ struct GlobalData {
 		gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
 		return ( (gridPos.z * gridSize.y) * gridSize.x ) + (gridPos.y * gridSize.x) + gridPos.x;
 	}
+	// overload of the previous function
+	uint calcGridHashHost(int cellX, int cellY, int cellZ) {
+		int trimmedX = max(0, min(cellX, gridSize.x-1));
+		int trimmedY = max(0, min(cellY, gridSize.y-1));
+		int trimmedZ = max(0, min(cellZ, gridSize.z-1));
+		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
+	}
 };
 
 #endif // _GLOBAL_DATA_
