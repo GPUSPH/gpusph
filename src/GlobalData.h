@@ -214,6 +214,7 @@ struct GlobalData {
 		//alloc_max(false)
 	{ };
 
+	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(float3 pos) {
 		int3 gridPos;
 		gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
@@ -222,6 +223,7 @@ struct GlobalData {
 		return gridPos;
 	}
 
+	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int3 gridPos) {
 		gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
 		gridPos.y = max(0, min(gridPos.y, gridSize.y-1));

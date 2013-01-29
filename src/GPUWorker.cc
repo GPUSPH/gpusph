@@ -30,6 +30,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 
 GPUWorker::~GPUWorker() {
 	// Free everything and pthread terminate
+	// should check whether the pthread is still running and force its termination?
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
@@ -163,6 +164,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	allocated += neibslistSize;
 
 	// TODO: allocate only if multi-GPU
+	// TODO: an array of uchar would suffice
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
 	allocated += uintCellsSize;
 
@@ -254,11 +256,10 @@ void GPUWorker::createCompactDeviceMap() {
 }
 
 void GPUWorker::uploadCompactDeviceMap() {
-	// create a compact device map, for this device, from the global one,
-	// with each cell being marked in the high bits
-
+	// self-explanatory, should just upload
 }
 
+// this should be singleton, i.e. should check that no other thread has been started (mutex + counter or bool)
 void GPUWorker::run_worker() {
 	// wrapper for pthread_create()
 	// NOTE: the dynamic instance of the GPUWorker is passed as parameter
