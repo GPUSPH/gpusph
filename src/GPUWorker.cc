@@ -311,8 +311,10 @@ void GPUWorker::createCompactDeviceMap() {
 			}
 }
 
+// self-explanatory
 void GPUWorker::uploadCompactDeviceMap() {
-	// self-explanatory, should just upload
+	size_t _size = m_nGridCells * sizeof( m_dCompactDeviceMap[0] );
+	CUDA_SAFE_CALL(cudaMemcpy(m_dCompactDeviceMap, m_hCompactDeviceMap, _size, cudaMemcpyHostToDevice));
 }
 
 // this should be singleton, i.e. should check that no other thread has been started (mutex + counter or bool)
