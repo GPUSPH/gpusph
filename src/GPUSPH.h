@@ -24,22 +24,35 @@
 
 class GPUSPH {
 private:
-	Options *clOptions;
-	GlobalData *gdata;
-	Problem *problem;
-	ParticleSystem *psystem;
+	// some pointers
+	Options* clOptions;
+	GlobalData* gdata;
+	Problem* problem;
+	ParticleSystem* psystem;
+
+	// other vars
 	bool initialized;
+
+	// constructor (private for singleton scheme)
 	GPUSPH();
+
+	// (de)allocation of shared host buffers
 	long unsigned int allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
 public:
+	// destructor
 	~GPUSPH();
+	// getInstance(), constructor and operator for singleton
 	static GPUSPH& getInstance();
 	GPUSPH(GPUSPH const&) {}; // NOT implemented
     void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
+
+    // (de)initialization (include allocation)
 	bool initialize(GlobalData* _gdata);
-	/*static*/ bool runSimulation();
 	bool finalize();
+
+	/*static*/ bool runSimulation();
+
 };
 
 #endif // GPUSPH_H_
