@@ -675,3 +675,65 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	delete [] gdata->s_hInfo;
 	delete [] gdata->s_hDeviceMap;
 }
+
+// Assumption: problem already filled, deviceMap filled, particles copied in shared arrays
+// Sort the particles (including data) and update counters in m_partsPerDevice, which will be used to upload
+void GPUSPH::sortParticlesByHash() {
+	// todo: move this in allocateGlobalBuffers...() and rename it
+	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
+	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++)
+		m_partsPerDevice[d] = 0;
+
+	// fill array with particle hashes (aka global device numbers)
+	for (int p=0; p < gdata->totParticles; p++) {
+		// compute cell according to particle's position
+		int3 cellCoords = gdata->calcGridPosHost( gdata->s_hPos[p].x, gdata->s_hPos[p].y, gdata->s_hPos[p].z );
+		// compute cell linearized index
+		uint linearizedCellIdx = gdata->calcGridHashHost( cellCoords );
+		// read which device number was assigned
+		uchar whichDev = gdata->s_hDeviceMap[linearizedCellIdx];
+		// that's the key
+		m_hParticleHashes[p] = whichDev;
+		// increment per-device counter
+		m_partsPerDevice[whichDev]++;
+	}
+
+	// *** About the algorithm being used
+	//
+	// Sine many particles share the same key, what we need is actually a compaction rather than a sort.
+	// A cycle sort would be probably the best performing in terms of reducing the number of writes.
+	// A selection sort would be the easiest to implement but could yield more swaps than needed.
+	// The following variant, hybrid with a counting sort, is implemented.
+	// We already counted how many particles are there for each device (m_partsPerDevice[]).
+	// We keep two pointers, leftB and rightB (B stands for boundary). The idea is that leftB is the place
+	// where we are going to put the next element and rightB is being moved to "scan" the rest of the array
+	// and select next element. Unlike selection sort, rightB is initialized at the end of the array and
+	// being decreased; this way, each element is expected to be moved no more than twice (estimation).
+	// Moreover, a burst of particles which partially overlaps the correct bucket is not entirely moved:
+	// since rightB goes from right to left, the leftmost particles are moved while the overlapping ones
+	// are not. leftB is incremented as long as there are particles already in positions; rightB is reset
+	// to the end if 1. there is a bucket change 2. it enters in current bucket / intersect leftB.
+
+	// init
+	const uint maxIdx = (gdata->totParticles - 1);
+	uint leftB = 0;
+	uint rightB = maxIdx;
+	uint currentDevice = 0;
+	uint firstParticleOfNextDevice = m_partsPerDevice[0];
+
+	while (leftB < maxIdx) {
+		// increase leftB until we are in same bucket and the current particle is correctly placed
+		while (m_hParticleHashes[leftB] == currentDevice && leftB < firstParticleOfNextDevice)
+			leftB++;
+		// bucket change?
+		if (leftB == firstParticleOfNextDevice) {
+			currentDevice++;
+			firstParticleOfNextDevice += m_partsPerDevice[currentDevice];
+		} else {
+			// no bucket change; scan rightB and swap
+			// ...
+		}
+	}
+
+	delete [] m_hParticleHashes;
+}

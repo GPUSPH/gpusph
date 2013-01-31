@@ -39,6 +39,11 @@ private:
 	// (de)allocation of shared host buffers
 	long unsigned int allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
+
+	// sort particles by device before uploading
+	void sortParticlesByHash();
+	// counter: how many particles per device (also used for uploading)
+	uchar m_partsPerDevice[MAX_DEVICES_PER_CLUSTER]; // TODO: can change to PER_NODE if not compiling for multinode
 public:
 	// destructor
 	~GPUSPH();
