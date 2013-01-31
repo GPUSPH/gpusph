@@ -2,6 +2,7 @@
 #define _MULTIGPU_DEFINES_
 
 #define MAX_DEVICES_PER_NODE 8
+#define MAX_DEVICES_PER_CLUSTER 256
 
 // 2 high bits for cell type in the compact device map
 #define INNER_CELL		((uint)0<<30)
