@@ -222,6 +222,14 @@ struct GlobalData {
 		gridPos.z = floor((pos.z - worldOrigin.z) / cellSize.z);
 		return gridPos;
 	}
+	// overloaded
+	int3 calcGridPosHost(float px, float py, float pz) {
+		int3 gridPos;
+		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
+		gridPos.y = floor((py - worldOrigin.y) / cellSize.y);
+		gridPos.z = floor((pz - worldOrigin.z) / cellSize.z);
+		return gridPos;
+	}
 
 	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int3 gridPos) {
@@ -230,7 +238,7 @@ struct GlobalData {
 		gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
 		return ( (gridPos.z * gridSize.y) * gridSize.x ) + (gridPos.y * gridSize.x) + gridPos.x;
 	}
-	// overload of the previous function
+	// overloaded
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) {
 		int trimmedX = max(0, min(cellX, gridSize.x-1));
 		int trimmedY = max(0, min(cellY, gridSize.y-1));
