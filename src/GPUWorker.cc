@@ -417,7 +417,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
-	// TODO
+	// deallocate buffers
+	instance->deallocateHostBuffers();
+	instance->deallocateDeviceBuffers();
+	// ...what else?
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
 
