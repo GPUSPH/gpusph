@@ -545,6 +545,8 @@ bool GPUSPH::finalize() {
 	// ...anything else?
 
 	initialized = false;
+
+	return true;
 }
 
 bool GPUSPH::runSimulation() {
@@ -612,6 +614,8 @@ bool GPUSPH::runSimulation() {
 	// we wait for the threads to actually exit
 	for (int d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
+
+	return true;
 }
 
 // Allocate the shared buffers, i.e. those accessed by all workers
