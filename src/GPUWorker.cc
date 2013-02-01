@@ -372,9 +372,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->allocateHostBuffers();
 	instance->allocateDeviceBuffers();
 
-	// TODO
-	//		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
-	//		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
+	// create and upload the compact device map (2 bits per cell)
+	instance->createCompactDeviceMap();
+	instance->uploadCompactDeviceMap();
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
