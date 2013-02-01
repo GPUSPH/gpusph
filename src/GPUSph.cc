@@ -495,9 +495,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy particles from problem to GPUSPH buffers
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 
-	// TODO
-	//		GPUSPH > calcHashHost (partid, cell id, cell device)
-	//		GPUSPH > hostSort
+	sortParticlesByHash();
 
 	// TODO
 	//		// > new Integrator
@@ -676,13 +674,16 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	delete [] gdata->s_hDeviceMap;
 }
 
+// Sort the particles in-place (pos, vel, info) according to the device number;
+// update counters in m_partsPerDevice, which will be used to upload
 // Assumption: problem already filled, deviceMap filled, particles copied in shared arrays
-// Sort the particles (including data) and update counters in m_partsPerDevice, which will be used to upload
 void GPUSPH::sortParticlesByHash() {
-	// todo: move this in allocateGlobalBuffers...() and rename it
-	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
+	// reset counters. Not using memset since its size is typically lower than 1Kb
 	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++)
 		m_partsPerDevice[d] = 0;
+
+	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
+	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers)
 	for (int p=0; p < gdata->totParticles; p++) {
@@ -692,17 +693,17 @@ void GPUSPH::sortParticlesByHash() {
 		uint linearizedCellIdx = gdata->calcGridHashHost( cellCoords );
 		// read which device number was assigned
 		uchar whichDev = gdata->s_hDeviceMap[linearizedCellIdx];
-		// that's the key
+		// that's the key!
 		m_hParticleHashes[p] = whichDev;
 		// increment per-device counter
 		m_partsPerDevice[whichDev]++;
 	}
 
-	// *** About the algorithm being used
+	// *** About the algorithm being used ***
 	//
-	// Sine many particles share the same key, what we need is actually a compaction rather than a sort.
+	// Since many particles share the same key, what we need is actually a compaction rather than a sort.
 	// A cycle sort would be probably the best performing in terms of reducing the number of writes.
-	// A selection sort would be the easiest to implement but could yield more swaps than needed.
+	// A selection sort would be the easiest to implement but would yield more swaps than needed.
 	// The following variant, hybrid with a counting sort, is implemented.
 	// We already counted how many particles are there for each device (m_partsPerDevice[]).
 	// We keep two pointers, leftB and rightB (B stands for boundary). The idea is that leftB is the place
@@ -710,30 +711,51 @@ void GPUSPH::sortParticlesByHash() {
 	// and select next element. Unlike selection sort, rightB is initialized at the end of the array and
 	// being decreased; this way, each element is expected to be moved no more than twice (estimation).
 	// Moreover, a burst of particles which partially overlaps the correct bucket is not entirely moved:
-	// since rightB goes from right to left, the leftmost particles are moved while the overlapping ones
-	// are not. leftB is incremented as long as there are particles already in positions; rightB is reset
-	// to the end if 1. there is a bucket change 2. it enters in current bucket / intersect leftB.
+	// since rightB goes from right to left, the rightmost particles are moved while the overlapping ones
+	// are not. All particles before leftB have already been compacted; leftB is incremented as long as there
+	// are particles already in correct positions. When there is a bucket change (we know because of )
+	// rightB is reset to the end of the array.
+	// Possible optimization: decrease maxIdx to the last non-correct element of the array (if there is a burst
+	// of correct particles in the end, this avoids scanning them everytime) and update this while running.
+	// The following implementation iterates on buckets explicitly instead of working solely on leftB and rightB
+	// and detect the bucket change. Same operations, cleaner code.
 
 	// init
 	const uint maxIdx = (gdata->totParticles - 1);
 	uint leftB = 0;
-	uint rightB = maxIdx;
-	uint currentDevice = 0;
-	uint firstParticleOfNextDevice = m_partsPerDevice[0];
+	uint rightB;
+	uint nextBucketBeginsAt = 0;
 
-	while (leftB < maxIdx) {
-		// increase leftB until we are in same bucket and the current particle is correctly placed
-		while (m_hParticleHashes[leftB] == currentDevice && leftB < firstParticleOfNextDevice)
+	// NOTE: in the for cycle we want to iterate on the global number of devices, not the local (process) one
+	// NOTE(2): we don't need to iterate in the last bucket: it should be already correct after the others. That's why "devices-1".
+	// We might want to iterate on last bucket only for correctness check.
+	// For each bucket (device)...
+	for (uint currentDevice=0; currentDevice < (gdata->devices-1); currentDevice++) {
+		// compute where current bucket ends
+		nextBucketBeginsAt += m_partsPerDevice[currentDevice];
+		// reset rightB to the end
+		rightB = maxIdx;
+		// go on until we reach the end of the current bucket
+		while (leftB < nextBucketBeginsAt) {
+			// if in the current position there is a particle *not* belonging to the bucket...
+			if (m_hParticleHashes[leftB] != currentDevice) {
+				// ...let's find a correct one, scanning from right to left
+				while (m_hParticleHashes[rightB] != currentDevice) rightB--;
+				// here it should never happen that (rightB <= leftB). We should throw an error if it happens
+				particleSwap(leftB, rightB);
+			}
+			// already correct or swapped, time to go on
 			leftB++;
-		// bucket change?
-		if (leftB == firstParticleOfNextDevice) {
-			currentDevice++;
-			firstParticleOfNextDevice += m_partsPerDevice[currentDevice];
-		} else {
-			// no bucket change; scan rightB and swap
-			// ...
 		}
 	}
-
+	// delete array of keys (might be recycle instead?)
 	delete [] m_hParticleHashes;
+}
+
+// Swap two particles in shared arrays (pos, vel, pInfo)
+void GPUSPH::particleSwap(uint idx1, uint idx2) {
+	// could keep a counter
+	swap( gdata->s_hPos[idx1],  gdata->s_hPos[idx2] );
+	swap( gdata->s_hVel[idx1],  gdata->s_hVel[idx2] );
+	swap( gdata->s_hInfo[idx1], gdata->s_hInfo[idx2] );
 }
