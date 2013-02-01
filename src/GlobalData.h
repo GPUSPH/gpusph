@@ -72,6 +72,8 @@ struct GlobalData {
 	float4*			s_hForces;  // forces (alloc by 1st thread, for striping)
 	uchar* 			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
+	// counter: how many particles per device
+	uchar s_hPartsPerDevice[MAX_DEVICES_PER_CLUSTER]; // TODO: can change to PER_NODE if not compiling for multinode
 	// pinned memory var to retrieve dt asynchronously
 	//float *pin_maxcfl;
 

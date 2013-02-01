@@ -680,7 +680,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 void GPUSPH::sortParticlesByHash() {
 	// reset counters. Not using memset since its size is typically lower than 1Kb
 	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++)
-		m_partsPerDevice[d] = 0;
+		gdata->s_hPartsPerDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
@@ -696,7 +696,7 @@ void GPUSPH::sortParticlesByHash() {
 		// that's the key!
 		m_hParticleHashes[p] = whichDev;
 		// increment per-device counter
-		m_partsPerDevice[whichDev]++;
+		gdata->s_hPartsPerDevice[whichDev]++;
 	}
 
 	// *** About the algorithm being used ***
@@ -732,7 +732,7 @@ void GPUSPH::sortParticlesByHash() {
 	// For each bucket (device)...
 	for (uint currentDevice=0; currentDevice < (gdata->devices-1); currentDevice++) {
 		// compute where current bucket ends
-		nextBucketBeginsAt += m_partsPerDevice[currentDevice];
+		nextBucketBeginsAt += gdata->s_hPartsPerDevice[currentDevice];
 		// reset rightB to the end
 		rightB = maxIdx;
 		// go on until we reach the end of the current bucket

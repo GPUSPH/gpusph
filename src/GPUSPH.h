@@ -44,8 +44,6 @@ private:
 	void sortParticlesByHash();
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
 	void particleSwap(uint idx1, uint idx2);
-	// counter: how many particles per device (also used for uploading)
-	uchar m_partsPerDevice[MAX_DEVICES_PER_CLUSTER]; // TODO: can change to PER_NODE if not compiling for multinode
 public:
 	// destructor
 	~GPUSPH();
