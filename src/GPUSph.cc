@@ -675,7 +675,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
-// update counters in m_partsPerDevice, which will be used to upload
+// update counters s_hPartsPerDevice and s_hStartPerDevice, which will be used to upload
 // Assumption: problem already filled, deviceMap filled, particles copied in shared arrays
 void GPUSPH::sortParticlesByHash() {
 	// reset counters. Not using memset since its size is typically lower than 1Kb
@@ -698,6 +698,11 @@ void GPUSPH::sortParticlesByHash() {
 		// increment per-device counter
 		gdata->s_hPartsPerDevice[whichDev]++;
 	}
+
+	// update s_hStartPerDevice with incremental sum (should do in specific function?)
+	gdata->s_hStartPerDevice[0] = 0;
+	for (uint d=1; d < gdata->devices; d++)
+		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1]++;
 
 	// *** About the algorithm being used ***
 	//
