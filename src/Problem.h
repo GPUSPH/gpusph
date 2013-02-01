@@ -190,7 +190,7 @@ class Problem {
 		virtual void draw_boundary(float) = 0;
 		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
-		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*) = 0;
+		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*) {};
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);

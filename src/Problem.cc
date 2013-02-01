@@ -76,7 +76,6 @@ Problem::density(float h, int i)
 	return density;
 }
 
-
 float
 Problem::soundspeed(float rho, int i)
 {

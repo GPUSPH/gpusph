@@ -264,9 +264,9 @@ endif
 # some platform-dependent configurations
 ifeq ($(platform), Linux)
 	# we need linking to SDKs for lGLEW
-	INCPATH=-I $(CUDA_INSTALL_PATH)/include -I $(CUDA_SDK_PATH)/shared/inc
-	LIBPATH=-L /usr/local/lib -L $(CUDA_SDK_PATH)shared/lib/linux -L $(CUDA_SDK_PATH)lib -L $(CUDA_SDK_PATH)/C/common/lib/linux/
-	LIBS=-lstdc++ -lcudart -lGL -lGLU -lglut -lGLEW$(GLEW_ARCH_SFX)
+	INCPATH=-I $(CUDA_INSTALL_PATH)/include -I $(CUDA_SDK_PATH)/shared/inc -I $(HDF5_DIR)/include
+	LIBPATH=-L /usr/local/lib -L $(CUDA_SDK_PATH)shared/lib/linux -L $(CUDA_SDK_PATH)lib -L $(CUDA_SDK_PATH)/C/common/lib/linux/ -L $(HDF5_DIR)/lib
+	LIBS=-lstdc++ -lcudart -lGL -lGLU -lglut -lGLEW$(GLEW_ARCH_SFX) -lhdf5
 	LFLAGS=
 # 	CC=nvcc
 # 	CXX=$(CC)

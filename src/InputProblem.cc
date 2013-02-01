@@ -1,0 +1,155 @@
+
+#ifdef __APPLE__
+#include <OpenGl/gl.h>
+#else
+#include <GL/gl.h>
+#endif
+#include <math.h>
+#include <iostream>
+
+#include "InputProblem.h"
+#include "HDF5SphReader.h"
+
+
+#define USE_PLANES 0
+
+InputProblem::InputProblem(const Options &options) : Problem(options)
+{
+	//inputfile = "/home/vorobyev/Crixus/geometries/120120-spheric2/0.spheric2-dr-0.01833.h5sph";
+	//inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.fishpass_pv.h5sph";
+	inputfile = "/home/vorobyev/Crixus/geometries/plane/0.plane_pv.h5sph";
+	numparticles = 0;
+	H = 0.55;
+	l = 3.5; w = 1.0; h = 1.0;
+
+	set_deltap(0.01833f);
+
+	// SPH parameters
+	m_simparams.slength = 1.3f*m_deltap;
+	m_simparams.kernelradius = 2.0f;
+	m_simparams.kerneltype = WENDLAND;
+	m_simparams.dt = 0.00004f;
+	m_simparams.xsph = false;
+	m_simparams.dtadapt = true;
+	m_simparams.dtadaptfactor = 0.3;
+	m_simparams.buildneibsfreq = 20;
+	m_simparams.shepardfreq = 0;
+	m_simparams.mlsfreq = 0;
+	m_simparams.visctype = KINEMATICVISC;
+	//m_simparams.visctype = ARTVISC;
+	m_simparams.mbcallback = false;
+	m_simparams.boundarytype = MF_BOUNDARY;
+
+	// Size and origin of the simulation domain
+	m_size = make_float3(l, w ,h);
+	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+
+	m_writerType = VTKWRITER;
+
+	// Physical parameters
+	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+	float g = length(m_physparams.gravity);
+	m_physparams.set_density(0, 1000.0, 7.0f, 25.0f);
+
+	m_physparams.dcoeff = 5.0f*g*H;
+
+	m_physparams.r0 = m_deltap;
+	//m_physparams.visccoeff = 0.05f;
+	m_physparams.kinematicvisc = 1.0e-6f;
+	m_physparams.artvisccoeff = 0.3f;
+	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams.epsxsph = 0.5f;
+
+	m_simparams.periodicbound = false;
+
+	// Scales for drawing
+	m_maxrho = density(H, 0);
+	m_minrho = m_physparams.rho0[0];
+	m_minvel = 0.0f;
+	m_maxvel = 0.1f;
+
+	// Drawing and saving times
+	m_displayinterval = 1.0e-4;
+	m_writefreq = 100;
+	m_screenshotfreq = 0;
+
+	// Name of problem used for directory creation
+	m_name = "InputProblem";
+	create_problem_dir();
+}
+
+
+int InputProblem::fill_parts()
+{
+	std::cout << std::endl << "Reading particle data from the input:" << std::endl << inputfile << std::endl;
+	const char *ch_inputfile = inputfile.c_str();
+	int npart = HDF5SphReader::getNParts(ch_inputfile);
+
+	return npart;
+}
+
+
+void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm)
+{
+	const char *ch_inputfile = inputfile.c_str();
+	int npart = HDF5SphReader::getNParts(ch_inputfile);
+	
+	HDF5SphReader::ReadParticles *buf = new HDF5SphReader::ReadParticles[npart];
+	HDF5SphReader::readParticles(buf, ch_inputfile, npart);
+	
+	int n_parts = 0;
+	int n_vparts = 0;
+	int n_bparts = 0;
+	
+	for (uint i = 0; i<npart; i++) {
+		switch(buf[i].ParticleType) {
+			case 1:
+				n_parts++;
+				break;
+			case 2:
+				n_vparts++;
+				break;
+			case 3:
+				n_bparts++;
+				break;
+		}
+	}
+
+	std::cout << "Fluid parts: " << n_parts << "\n";
+	for (uint i = 0; i < n_parts; i++) {
+		float rho = density(H - buf[i].Coords_2, 0);
+		pos[i] = make_float4(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume);
+		vel[i] = make_float4(0, 0, 0, rho);
+		info[i] = make_particleinfo(FLUIDPART, 0, i);
+	}
+	int j = n_parts;
+	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+
+	std::cout << "Vertex parts: " << n_vparts << "\n";
+	for (uint i = j; i < j + n_vparts; i++) {
+		float rho = density(H - buf[i].Coords_2, 0);
+		pos[i] = make_float4(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume);
+		vel[i] = make_float4(0, 0, 0, rho);
+		info[i] = make_particleinfo(VERTEXPART, 0, i);
+	}
+	j += n_vparts;
+	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
+
+	std::cout << "Boundary parts: " << n_bparts << "\n";
+	for (uint i = j; i < j + n_bparts; i++) {
+		pos[i] = make_float4(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, m_physparams.rho0[0]*buf[i].Volume);
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		vertices[i].x = buf[i].VertexParticle1;
+		vertices[i].y = buf[i].VertexParticle2;
+		vertices[i].z = buf[i].VertexParticle3;
+		boundelm[i].x = buf[i].Normal_0;
+		boundelm[i].y = buf[i].Normal_1;
+		boundelm[i].z = buf[i].Normal_2;
+		boundelm[i].w = buf[i].Surface;
+	}
+	j += n_bparts;
+	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+
+	delete [] buf;
+}

@@ -344,7 +344,6 @@ void init(const char *arg)
 	
 	//psystem->saveboundelem();
 	//psystem->saveVelocity();
-	
 	//Initialization of gamma and gradient of gamma and initialization of boundary values
 	if(problem->m_simparams.boundarytype == MF_BOUNDARY)
 	{	
@@ -354,7 +353,6 @@ void init(const char *arg)
 		
 	//psystem->saveVelocity();
 	//psystem->savepressure();
-
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
 	start_time = clock();
