@@ -391,11 +391,12 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->uploadCompactDeviceMap();
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
+
+	// here GPUSPH::initialize is over and GPUSPH::runSimulation() is called
+
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
-	// TODO
-	//		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
-	//			incl. edging!
+	instance->uploadSubdomains();
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 

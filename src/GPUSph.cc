@@ -554,7 +554,7 @@ bool GPUSPH::runSimulation() {
 
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
-	// TODO
+	// here the Workers are uploading their subdomains
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
