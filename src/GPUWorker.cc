@@ -26,6 +26,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 	m_nGridCells = gdata->nGridCells;
 
 	m_hostMemory = m_deviceMemory = 0;
+
+	// the initial assignment is arbitrary, just need to be complementary
+	m_currentPosRead = m_currentVelRead = m_currentInfoRead = 1;
+	m_currentPosWrite = m_currentVelWrite = m_currentInfoWrite = 0;
 }
 
 GPUWorker::~GPUWorker() {
