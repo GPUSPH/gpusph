@@ -116,14 +116,6 @@ private:
 	uint*		m_hCompactDeviceMap;
 	uint*		m_dCompactDeviceMap;
 
-	// indices for double buffers
-	uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
-	uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)
-	uint		m_currentVelRead;		// current index in m_dVel for velocity reading (0 or 1)
-	uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
-	uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
-	uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
-
 	// swap (indices for) double buffers
 	void swap_buffers(bool alsoInfo);
 

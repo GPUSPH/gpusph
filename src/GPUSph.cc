@@ -454,6 +454,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
+	// the initial assignment is arbitrary, just need to be complementary
+	gdata->s_currentPosRead = gdata->s_currentVelRead = gdata->s_currentInfoRead = 1;
+	gdata->s_currentPosWrite = gdata->s_currentVelWrite = gdata->s_currentInfoWrite = 0;
+
 	//		> new PS
 	psystem = new ParticleSystem(gdata);
 	//			PS constructor updates cellSize, worldSize, nCells, etc. in gdata
@@ -767,4 +771,12 @@ void GPUSPH::particleSwap(uint idx1, uint idx2) {
 	swap( gdata->s_hPos[idx1],  gdata->s_hPos[idx2] );
 	swap( gdata->s_hVel[idx1],  gdata->s_hVel[idx2] );
 	swap( gdata->s_hInfo[idx1], gdata->s_hInfo[idx2] );
+}
+
+// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
+void GPUSPH::swapDeviceBuffers(bool alsoInfo) {
+	std::swap(gdata->s_currentPosRead, gdata->s_currentPosWrite);
+	std::swap(gdata->s_currentVelRead, gdata->s_currentVelWrite);
+	if (alsoInfo)
+		std::swap(gdata->s_currentInfoRead, gdata->s_currentInfoWrite);
 }
