@@ -373,6 +373,14 @@ void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
 
+// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
+void GPUWorker::swap_buffers(bool alsoInfo) {
+	std::swap(m_currentPosRead, m_currentPosWrite);
+	std::swap(m_currentVelRead, m_currentVelWrite);
+	if (alsoInfo)
+		std::swap(m_currentInfoRead, m_currentInfoWrite);
+}
+
 // Actual thread calling GPU-methods
 void* GPUWorker::simulationThread(void *ptr) {
 	// INITIALIZATION PHASE

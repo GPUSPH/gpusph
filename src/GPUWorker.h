@@ -124,6 +124,9 @@ private:
 	uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 	uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
 
+	// swap (indices for) double buffers
+	void swap_buffers(bool alsoInfo);
+
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
