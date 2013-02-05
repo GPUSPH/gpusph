@@ -405,34 +405,34 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
 	// TODO
-	/* Here is a copy-past from the CPU thread worker of branch cpusph, as a canvas */
-	/*
+	// Here is a copy-past from the CPU thread worker of branch cpusph, as a canvas
 	while (gdata->keep_going) {
-		switch (gdata->nextStep) {
+		switch (gdata->nextCommand) {
 			// logging here?
+			case IDLE:
+				break;
 			case CALCHASH:
-				tdata->psystem->calcHashHostRange(fromPart, toPart);
+				//tdata->psystem->calcHashHostRange(fromPart, toPart);
 				break;
 			case REORDER:
-				tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
+				//tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
 				break;
 			case BUILDNEIBS:
-				tdata->psystem->buildNeibsListHostRange(fromPart, toPart);
+				//tdata->psystem->buildNeibsListHostRange(fromPart, toPart);
 				break;
 			case FORCES:
-				cd->cpuThreadDts[tdata->CPUThreadIndex] =
-					tdata->psystem->forcesHostRange(fromPart, toPart);
+				//cd->cpuThreadDts[tdata->CPUThreadIndex] =
+				//	tdata->psystem->forcesHostRange(fromPart, toPart);
 				break;
 			case EULER:
-				tdata->psystem->eulerHostRange(fromPart, toPart);
+				//tdata->psystem->eulerHostRange(fromPart, toPart);
 				break;
 			case QUIT:
-				dontstop = false;
+				//dontstop = false;
 				break;
-
 		}
-		if (gdata->keep_going) // BARRIER
-	} */
+		if (gdata->keep_going) gdata->threadSynchronizer->barrier();
+	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
