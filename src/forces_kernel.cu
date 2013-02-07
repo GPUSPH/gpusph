@@ -1073,7 +1073,7 @@ shepardDevice(	const float4*	posArray,
 	// read particle data from sorted arrays
 	// normalize kernel only if the given particle is a fluid one
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
+	if (NOT_FLUID(info) && !VERTEX(info))
 		return;
 
 	#if( __COMPUTE__ >= 20)
@@ -1087,7 +1087,6 @@ shepardDevice(	const float4*	posArray,
 	float temp1 = pos.w*W<kerneltype>(0, slength);
 	float temp2 = temp1/vel.w ;
 
-	// FIXME: with MF boundary model vertex and boundary particles are included in the neighbor list
 	// loop over all the neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
 		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];

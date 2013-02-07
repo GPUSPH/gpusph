@@ -55,7 +55,8 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 20;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.visctype = KINEMATICVISC;
+	//m_simparams.visctype = KINEMATICVISC;
+	m_simparams.visctype = DYNAMICVISC;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = MF_BOUNDARY;
@@ -69,13 +70,14 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
+	m_physparams.set_density(0, 1000.0, 7.0f, 32.0f);
 
 	m_physparams.dcoeff = 5.0f*g*H;
 
 	m_physparams.r0 = m_deltap;
 	//m_physparams.visccoeff = 0.05f;
-	m_physparams.kinematicvisc = 1.0e-6f;
+	m_physparams.kinematicvisc = 3.0e-2f;
+	//m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
@@ -90,7 +92,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
-	m_writefreq = 10;
+	m_writefreq = 1000;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation

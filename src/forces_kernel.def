@@ -79,7 +79,7 @@ FORCES_CUDA_KERNEL
 
 	if (index < numParticles) {
 		// read particle info from texture
-    	const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// compute force only if the given particle is a fluid one
 		if (FLUID(info)) {
@@ -160,6 +160,7 @@ FORCES_CUDA_KERNEL
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
 					float4 bound_term_pres = make_float4(0.0f);
+					float3 bound_term_visc = make_float3(0.0f);
 
 					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 						const float4 belem = tex1Dfetch(boundTex, neib_index);
@@ -192,7 +193,7 @@ FORCES_CUDA_KERNEL
 						// density derivative
 						float DrDt = 0;
 						if(BOUNDARY(neib_info))
-							DrDt -= neib_vel.w*dot(make_float3(vel), make_float3(gradGamma<kerneltype>(slength, r, belem)) );
+							DrDt -= neib_vel.w*dot(relVel, make_float3(gradGamma<kerneltype>(slength, r, belem)) );
 						else
 							DrDt = neib_pos.w*vel_dot_pos*f;
 						/* The second formulation takes into consideration the density ratio */
@@ -230,9 +231,17 @@ FORCES_CUDA_KERNEL
 										(tau.a33 + neib_tau.a33)*relPos.z);
 						# endif // VISC_DYNAMIC + elif*
 
-						force.x += visc*relVel.x;
-						force.y += visc*relVel.y;
-						force.z += visc*relVel.z;
+						if(!BOUNDARY(neib_info))
+						if(boundarytype == MF_BOUNDARY) {
+							force.x += visc*relVel.x/gradgamma.w;
+							force.y += visc*relVel.y/gradgamma.w;
+							force.z += visc*relVel.z/gradgamma.w;
+						}
+						else {
+							force.x += visc*relVel.x;
+							force.y += visc*relVel.y;
+							force.z += visc*relVel.z;
+						}
 
 						# elif defined(VISC_ARTVISC)
 						if (vel_dot_pos < 0.0f)
@@ -247,11 +256,27 @@ FORCES_CUDA_KERNEL
 						# endif
 
 						if(boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) {
-							const float4 gradgam = gradGamma<kerneltype>(slength, r, belem);
-							bound_term_pres = DvDt*neib_vel.w*gradgam;
+							const float4 gradgam_as = gradGamma<kerneltype>(slength, r, belem);
+							bound_term_pres = DvDt*neib_vel.w*gradgam_as;
+
+							// normal vector
+							const float3 normal_s = make_float3(belem.x, belem.y, belem.z);
+							// z_as - distance between fluid particle and boundary element along the normal
+							float z_as = dot(relPos, normal_s);
+							const float deltap = slength/1.3f; //FIXME: deltap should be an input parameter for this kernel
+							if (z_as < deltap)
+								z_as = deltap;
+							// velocity of fluid particle along the wall
+							const float3 vel_tau = relVel - dot(relVel, normal_s)*normal_s;
+							// This expression is correct only when used together with DYNAMICVISC model
+							bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + neib_vel.w)/z_as*vel_tau;
+
+							//DEBUG output
+//							if (length(bound_term_visc) > length(bound_term_pres))
+//								printf("Utau_x: %g, Utau_y: %g, Utau_z %g\n", bound_term_visc.x, bound_term_visc.y, bound_term_visc.z);
 
 							# ifdef DT_KERNEL
-							float tmp = abs(dot(make_float3(gradgam.x, gradgam.y, gradgam.z), make_float3(vel.x, vel.y, vel.z)));
+							float tmp = abs(dot(make_float3(gradgam_as.x, gradgam_as.y, gradgam_as.z), make_float3(vel.x, vel.y, vel.z)));
 							if (tmp > gradgamU)
 								gradgamU = tmp;
 							# endif
@@ -274,9 +299,9 @@ FORCES_CUDA_KERNEL
 					// interaction between two particles
 					if(boundarytype == MF_BOUNDARY) {
 						if(BOUNDARY(neib_info)) {
-							force.x -= bound_term_pres.x/gradgamma.w;
-							force.y -= bound_term_pres.y/gradgamma.w;
-							force.z -= bound_term_pres.z/gradgamma.w;
+							force.x -= bound_term_pres.x/gradgamma.w + bound_term_visc.x/gradgamma.w/vel.w;
+							force.y -= bound_term_pres.y/gradgamma.w + bound_term_visc.y/gradgamma.w/vel.w;
+							force.z -= bound_term_pres.z/gradgamma.w + bound_term_visc.z/gradgamma.w/vel.w;
 						}
 						else {
 							force.x += DvDt*relPos.x/gradgamma.w;
