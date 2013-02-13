@@ -904,15 +904,15 @@ MlsDevice(	const float4*	posArray,
 	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
 	// and if the number of fluids neighbors if above a minimum
 	// value, otherwise no correction is applied
-	float maxa = fmax(fabs(a11), fabs(a12));
-	maxa = fmax(maxa, fabs(a13));
-	maxa = fmax(maxa, fabs(a14));
-	maxa = fmax(maxa, fabs(a22));
-	maxa = fmax(maxa, fabs(a23));
-	maxa = fmax(maxa, fabs(a24));
-	maxa = fmax(maxa, fabs(a33));
-	maxa = fmax(maxa, fabs(a34));
-	maxa = fmax(maxa, fabs(a44));
+	float maxa = fmaxf(fabsf(a11), fabsf(a12));
+	maxa = fmaxf(maxa, fabsf(a13));
+	maxa = fmaxf(maxa, fabsf(a14));
+	maxa = fmaxf(maxa, fabsf(a22));
+	maxa = fmaxf(maxa, fabsf(a23));
+	maxa = fmaxf(maxa, fabsf(a24));
+	maxa = fmaxf(maxa, fabsf(a33));
+	maxa = fmaxf(maxa, fabsf(a34));
+	maxa = fmaxf(maxa, fabsf(a44));
 	maxa *= maxa;
 	maxa *= maxa;
 	float det = a11*(a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)
