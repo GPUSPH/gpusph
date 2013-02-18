@@ -135,6 +135,9 @@ class ParticleSystem
 		// Free surface detection (Debug)
 		void savenormals();
 
+		// check extra displacement offset validity
+		void checkPeriodicity();
+
 	public:
 		Problem		*m_problem;				// pointer to problem object
 

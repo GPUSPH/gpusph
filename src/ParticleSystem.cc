@@ -675,6 +675,7 @@ ParticleSystem::printPhysParams(FILE *summary)
 		fprintf(summary, "disp offs = (%g, %g, %g)\n", m_physparams->dispOffset.x, m_physparams->dispOffset.y, m_physparams->dispOffset.z);
 		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams->minlimit.x, m_physparams->minlimit.y, m_physparams->minlimit.z);
 		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams->maxlimit.x, m_physparams->maxlimit.y, m_physparams->maxlimit.z);
+		checkPeriodicity();
 		}
 	if (m_simparams->usedem) {
 		fprintf(summary, "DEM resolution ew = %g, ns = %g\n", m_physparams->ewres, m_physparams->nsres);
@@ -1723,6 +1724,18 @@ ParticleSystem::writeWaveGage()
 	fprintf(fp," </UnstructuredGrid>\r\n");
 	fprintf(fp,"</VTKFile>");	
 	fclose(fp);	
+}
+
+void ParticleSystem::checkPeriodicity() {
+	// check if there is any extra offset with 2+ periodic boundaries
+	int disp_count = 0;
+	if (m_physparams->dispvect.x != 0.0F) disp_count++;
+	if (m_physparams->dispvect.y != 0.0F) disp_count++;
+	if (m_physparams->dispvect.z != 0.0F) disp_count++;
+	bool any_extra = (m_physparams->dispOffset.x != 0.0F) ||
+		(m_physparams->dispOffset.y != 0.0F) || (m_physparams->dispOffset.z != 0.0F);
+	if (any_extra && disp_count > 1)
+		printf("WARNING: extra displacement offset has little sense with multiple periodic boundaries!\n");
 }
 
 
