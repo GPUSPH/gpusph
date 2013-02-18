@@ -47,6 +47,7 @@ __constant__ uint d_maxneibsnum_time_neibindexinterleave;
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
 __constant__ float3 d_dispvect;
+__constant__ float3 d_dispOffset;
 
 // calculate position in uniform grid
 __device__ __forceinline__ int3
@@ -230,20 +231,30 @@ neibsInCell(
 			uint*			neibsList,
 			uint&			neibs_num,
 			const uint		lane,
-			const uint		offset)
+			const uint		offset,
+			const int3		gridDisplacement)
 {
 	int3 periodic = make_int3(0);
+	int3 extra_offset = make_int3(0);
 	if (periodicbound) {
 		if (gridPos.x < 0) {
 			if (d_dispvect.x) {
 				gridPos.x = gridSize.x;
 				periodic.x = 1;
+				extra_offset.y = 1;
+				extra_offset.z = 1;
+				gridPos.y += gridDisplacement.y;
+				gridPos.z += gridDisplacement.z;
 			} else
 				return;
 		} else if (gridPos.x >= gridSize.x) {
 			if (d_dispvect.x) {
 				gridPos.x = 0;
 				periodic.x = -1;
+				extra_offset.y = -1;
+				extra_offset.z = -1;
+				gridPos.y -= gridDisplacement.y;
+				gridPos.z -= gridDisplacement.z;
 			} else
 				return;
 		}
@@ -251,12 +262,20 @@ neibsInCell(
 			if (d_dispvect.y) {
 				gridPos.y = gridSize.y;
 				periodic.y = 1;
+				extra_offset.x = 1;
+				extra_offset.z = 1;
+				gridPos.x += gridDisplacement.x;
+				gridPos.z += gridDisplacement.z;
 			} else
 				return;
 		} else if (gridPos.y >= gridSize.y) {
 			if (d_dispvect.y) {
 				gridPos.y = 0;
 				periodic.y = -1;
+				extra_offset.x = -1;
+				extra_offset.z = -1;
+				gridPos.x -= gridDisplacement.x;
+				gridPos.z -= gridDisplacement.z;
 			} else
 				return;
 		}
@@ -264,12 +283,20 @@ neibsInCell(
 			if (d_dispvect.z) {
 				gridPos.z = gridSize.z;
 				periodic.z = 1;
+				extra_offset.x = 1;
+				extra_offset.y = 1;
+				gridPos.x += gridDisplacement.x;
+				gridPos.y += gridDisplacement.y;
 			} else
 				return;
 		} else if (gridPos.z >= gridSize.z) {
 			if (d_dispvect.z) {
 				gridPos.z = 0;
 				periodic.z = -1;
+				extra_offset.x = -1;
+				extra_offset.y = -1;
+				gridPos.x -= gridDisplacement.x;
+				gridPos.y -= gridDisplacement.y;
 			} else
 				return;
 		}
@@ -303,7 +330,7 @@ neibsInCell(
 				float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
 				#endif
 				if (periodicbound)
-					relPos += periodic*d_dispvect;
+					relPos += periodic*d_dispvect + extra_offset*d_dispOffset;
 
 				uint mod_index = neib_index;
 				if (sqlength(relPos) < sqinfluenceradius) {
@@ -375,6 +402,12 @@ buildNeibsListDevice(
 
 			// get address in grid
 			const int3 gridPos = calcGridPos(pos, worldOrigin, cellSize);
+			int3 gridDisplacement = make_int3(0);
+
+			if (periodicbound && (d_dispOffset.x != 0.0F || d_dispOffset.y != 0.0F || d_dispOffset.z != 0.0F)) {
+				gridDisplacement = calcGridPos(pos + d_dispOffset, worldOrigin, cellSize);
+				gridDisplacement -= gridPos;
+			}
 
 			// examine only neighboring cells
 			for(int z=-1; z<=1; z++) {
@@ -385,7 +418,7 @@ buildNeibsListDevice(
 							posArray, 
 							#endif
 							gridPos + make_int3(x, y, z), index, pos, gridSize, numParticles, 
-							sqinfluenceradius, neibsList, neibs_num, lane, offset);
+							sqinfluenceradius, neibsList, neibs_num, lane, offset, gridDisplacement);
 				}
 			}
 		}

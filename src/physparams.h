@@ -60,6 +60,7 @@ typedef struct PhysParams {
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
 	float3	dispvect;		// offset vector for periodic boundaries
+	float3	dispOffset;		// extra offset vector which, given that a coordinate is periodic, is added to the other 2
 	float3	maxlimit;
 	float3	minlimit;
 	float	ewres;			// DEM east-west resolution

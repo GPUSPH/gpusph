@@ -38,6 +38,7 @@ void
 setneibsconstants(const SimParams *simparams, const PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_dispvect, &physparams->dispvect, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_dispOffset, &physparams->dispOffset, sizeof(float3)));
 	uint maxneibs_time_neibinterleave = simparams->maxneibsnum*NEIBINDEX_INTERLEAVE;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
@@ -48,6 +49,7 @@ void
 getneibsconstants(SimParams *simparams, PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dispvect, cuneibs::d_dispvect, sizeof(float3), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dispOffset, cuneibs::d_dispOffset, sizeof(float3), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->maxneibsnum, cuneibs::d_maxneibsnum, sizeof(uint), 0));
 }
 

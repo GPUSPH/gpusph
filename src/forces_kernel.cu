@@ -79,7 +79,8 @@ __constant__ float	d_MK_beta;
 __constant__ float	d_visccoeff;
 __constant__ float	d_epsartvisc;
 
-__constant__ float3	d_dispvect;					// displacment vector for periodic boundaries
+__constant__ float3	d_dispvect;					// displacement vector for periodic boundaries
+__constant__ float3	d_dispOffset;				// extra displacement for complementary coordinates
 
 // Constants used for DEM
 __constant__ float	d_ewres;
@@ -386,18 +387,28 @@ getNeibData<true>(	const float4	pos,
 					float&			r)
 {
 	int3 periodic = make_int3(0);
-	if (neib_index & WARPXPLUS)
+	int3 extra_offset = make_int3(0);
+	if (neib_index & WARPXPLUS) {
 		periodic.x = 1;
-	else if (neib_index & WARPXMINUS)
+		extra_offset.y = extra_offset.z = 1;
+	} else if (neib_index & WARPXMINUS) {
 		periodic.x = -1;
-	if (neib_index & WARPYPLUS)
+		extra_offset.y = extra_offset.z = -1;
+	}
+	if (neib_index & WARPYPLUS) {
 		periodic.y = 1;
-	else if (neib_index & WARPYMINUS)
+		extra_offset.x = extra_offset.z = 1;
+	} else if (neib_index & WARPYMINUS) {
 		periodic.y = -1;
-	if (neib_index & WARPZPLUS)
+		extra_offset.x = extra_offset.z = -1;
+	}
+	if (neib_index & WARPZPLUS) {
 		periodic.z = 1;
-	else if (neib_index & WARPZMINUS)
+		extra_offset.x = extra_offset.y = 1;
+	} else if (neib_index & WARPZMINUS) {
 		periodic.z = -1;
+		extra_offset.x = extra_offset.y = -1;
+	}
 
 	neib_index &= NOWARP;
 
@@ -409,7 +420,7 @@ getNeibData<true>(	const float4	pos,
 	r = length(relPos);
 	if (periodic.x || periodic.y || periodic.z) {
 		if (r > influenceradius) {
-			relPos += periodic*d_dispvect;
+			relPos += periodic*d_dispvect + extra_offset*d_dispOffset;
 			r = length(relPos);
 		}
 	}
@@ -460,18 +471,28 @@ getNeibData<true>(	const float4	pos,
 					float&			r)
 {
 	int3 periodic = make_int3(0);
-	if (neib_index & WARPXPLUS)
+	int3 extra_offset = make_int3(0);
+	if (neib_index & WARPXPLUS) {
 		periodic.x = 1;
-	else if (neib_index & WARPXMINUS)
+		extra_offset.y = extra_offset.z = 1;
+	} else if (neib_index & WARPXMINUS) {
 		periodic.x = -1;
-	if (neib_index & WARPYPLUS)
+		extra_offset.y = extra_offset.z = -1;
+	}
+	if (neib_index & WARPYPLUS) {
 		periodic.y = 1;
-	else if (neib_index & WARPYMINUS)
+		extra_offset.x = extra_offset.z = 1;
+	} else if (neib_index & WARPYMINUS) {
 		periodic.y = -1;
-	if (neib_index & WARPZPLUS)
+		extra_offset.x = extra_offset.z = -1;
+	}
+	if (neib_index & WARPZPLUS) {
 		periodic.z = 1;
-	else if (neib_index & WARPZMINUS)
+		extra_offset.x = extra_offset.y = 1;
+	} else if (neib_index & WARPZMINUS) {
 		periodic.z = -1;
+		extra_offset.x = extra_offset.y = -1;
+	}
 
 	neib_index &= NOWARP;
 
@@ -483,7 +504,7 @@ getNeibData<true>(	const float4	pos,
 	r = length(relPos);
 	if (periodic.x || periodic.y || periodic.z) {
 		if (r > influenceradius) {
-			relPos += periodic*d_dispvect;
+			relPos += periodic*d_dispvect + extra_offset*d_dispOffset;
 			r = length(relPos);
 		}
 	}

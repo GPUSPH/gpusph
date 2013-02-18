@@ -672,6 +672,7 @@ ParticleSystem::printPhysParams(FILE *summary)
 	if (m_simparams->periodicbound) {
 		fprintf(summary, "Periodic boundary parameters (disp vect, min and max limit) used when x,y or z periodic boundary is set\n");
 		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams->dispvect.x, m_physparams->dispvect.y, m_physparams->dispvect.z);
+		fprintf(summary, "disp offs = (%g, %g, %g)\n", m_physparams->dispOffset.x, m_physparams->dispOffset.y, m_physparams->dispOffset.z);
 		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams->minlimit.x, m_physparams->minlimit.y, m_physparams->minlimit.z);
 		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams->maxlimit.x, m_physparams->maxlimit.y, m_physparams->maxlimit.z);
 		}
@@ -1434,19 +1435,29 @@ ParticleSystem::saveneibs()
 			if (neib_index == 0xffffffff) break;
 
 			int3 periodic = make_int3(0);
+			int3 extra_offset = make_int3(0);
 			if (m_simparams->periodicbound) {
-				if (neib_index & WARPXPLUS)
+				if (neib_index & WARPXPLUS) {
 					periodic.x = 1;
-				else if (neib_index & WARPXMINUS)
+					extra_offset.y = extra_offset.z = 1;
+				} else if (neib_index & WARPXMINUS) {
 					periodic.x = -1;
-				if (neib_index & WARPYPLUS)
+					extra_offset.y = extra_offset.z = -1;
+				}
+				if (neib_index & WARPYPLUS) {
 					periodic.y = 1;
-				else if (neib_index & WARPYMINUS)
+					extra_offset.x = extra_offset.z = 1;
+				} else if (neib_index & WARPYMINUS) {
 					periodic.y = -1;
-				if (neib_index & WARPZPLUS)
+					extra_offset.x = extra_offset.z = -1;
+				}
+				if (neib_index & WARPZPLUS) {
 					periodic.z = 1;
-				else if (neib_index & WARPZMINUS)
+					extra_offset.x = extra_offset.y = 1;
+				} else if (neib_index & WARPZMINUS) {
 					periodic.z = -1;
+					extra_offset.x = extra_offset.y = -1;
+				}
 
 				neib_index &= NOWARP;
 			}
@@ -1461,7 +1472,7 @@ ParticleSystem::saveneibs()
 			relPos.y = pos.y - neib_pos.y;
 			relPos.z = pos.z - neib_pos.z;
 			float3 relPos2;
-			relPos2 = relPos + periodic*m_physparams->dispvect;
+			relPos2 = relPos + periodic*m_physparams->dispvect + extra_offset*m_physparams->dispOffset;
 
 			fprintf(fp, "%d\t%f\t%f\t%f\t", index, pos.x, pos.y, pos.z);
 			fprintf(fp, "%d\t%f\t%f\t%f\t", neib_index, relPos.x, relPos.y, relPos.z);

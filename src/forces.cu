@@ -201,6 +201,7 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, &physparams->visccoeff, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsartvisc, &physparams->epsartvisc, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dispvect, &physparams->dispvect, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dispOffset, &physparams->dispOffset, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ewres, &physparams->ewres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_nsres, &physparams->nsres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demdx, &physparams->demdx, sizeof(float)));
