@@ -239,6 +239,12 @@ P(const float rho, const uint i)
 	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1);
 }
 
+// Inverted equation of state: density from pressure
+__device__ __forceinline__ float
+rho(const float P, const uint i)
+{
+	return d_rho0[i]*__powf(P/d_bcoeff[i] + 1, 1.0f/d_gammacoeff[i]);
+}
 
 // Sound speed computed from density
 __device__ __forceinline__ float
@@ -993,8 +999,6 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	#endif
 
 	const float vel = length(make_float3(oldVel[index]));
-	//TODO: it should be changed in case of moving boundaries
-	const float neib_vel = 0;
 
 	// in contrast to Shepard filter particle itself doesn't contribute into summation
 	float temp1 = 0;
@@ -1021,6 +1025,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		const float neib_rho = oldVel[neib_index].w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 		const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
+		const float neib_vel = length(make_float3(oldVel[neib_index]));
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
@@ -1032,8 +1037,9 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	if(alpha)
 	{
-		oldVel[index].w = temp1/alpha;
+		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
 		oldPressure[index] = temp2*oldVel[index].w/alpha;
+		oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
 	}
 }
 /************************************************************************************************************/
