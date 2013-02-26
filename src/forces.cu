@@ -171,6 +171,12 @@ void*	reduce_buffer = NULL;
 				(newGam, neibsList, numParticles, slength, inflRadius, virtDt); \
 	break
 
+#define UPDATEGAMMAPRCOR_CHECK(kernel, periodic) \
+	case kernel: \
+		cuforces::updateGammaPrCorDevice<kernel, periodic><<< numBlocks, numThreads>>> \
+				(newPos, newGam, neibsList, numParticles, slength, inflRadius, virtDt); \
+	break
+
 #define DYNBOUNDARY_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
@@ -966,16 +972,18 @@ initGradGamma(	float4*		oldPos,
 
 void
 updateGamma(	float4*		oldPos,
+		float4*		newPos,
 		float4*		virtualVel,
 		particleinfo*	info,
 		float4*		boundElement,
-		float4*		newGam,
 		float4*		oldGam,
+		float4*		newGam,
 		uint*		neibsList,
 		uint		numParticles,
 		float		slength,
 		float		inflRadius,
 		float		virtDt,
+		bool		predcor,
 		int		kerneltype,
 		bool		periodicbound)
 {
@@ -989,17 +997,34 @@ updateGamma(	float4*		oldPos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGam, numParticles*sizeof(float4)));
 	
 	//execute kernel
-	if (periodicbound) {
-		switch (kerneltype) {
-			UPDATEGAMMA_CHECK(CUBICSPLINE, true);
-//			UPDATEGAMMA_CHECK(QUADRATIC, true);
-			UPDATEGAMMA_CHECK(WENDLAND, true);
+	if(predcor) {
+		if (periodicbound) {
+			switch (kerneltype) {
+				UPDATEGAMMAPRCOR_CHECK(CUBICSPLINE, true);
+//				UPDATEGAMMAPRCOR_CHECK(QUADRATIC, true);
+				UPDATEGAMMAPRCOR_CHECK(WENDLAND, true);
+			}
+		} else {
+			switch (kerneltype) {
+				UPDATEGAMMAPRCOR_CHECK(CUBICSPLINE, false);
+//				UPDATEGAMMAPRCOR_CHECK(QUADRATIC, false);
+				UPDATEGAMMAPRCOR_CHECK(WENDLAND, false);
+			}
 		}
-	} else {
-		switch (kerneltype) {
-			UPDATEGAMMA_CHECK(CUBICSPLINE, false);
-//			UPDATEGAMMA_CHECK(QUADRATIC, false);
-			UPDATEGAMMA_CHECK(WENDLAND, false);
+	}
+	else {
+		if (periodicbound) {
+			switch (kerneltype) {
+				UPDATEGAMMA_CHECK(CUBICSPLINE, true);
+//				UPDATEGAMMA_CHECK(QUADRATIC, true);
+				UPDATEGAMMA_CHECK(WENDLAND, true);
+			}
+		} else {
+			switch (kerneltype) {
+				UPDATEGAMMA_CHECK(CUBICSPLINE, false);
+//				UPDATEGAMMA_CHECK(QUADRATIC, false);
+				UPDATEGAMMA_CHECK(WENDLAND, false);
+			}
 		}
 	}
 

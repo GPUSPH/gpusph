@@ -941,6 +941,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			hdata = (void*) m_hVertices;
 			ddata = (void*) m_dVertices[m_currentVerticesRead];
 			break;
+
 		case PRESSURE:
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hPressure;
@@ -1298,16 +1299,18 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 
 		// Update gamma 1st call
 		updateGamma(	m_dPos[m_currentPosRead],
+				m_dPos[m_currentPosWrite],
 				m_dVel[m_currentVelRead],
 				m_dInfo[m_currentInfoRead],
 				m_dBoundElement[m_currentBoundElementRead],
-				m_dGradGamma[m_currentGradGammaWrite],
 				m_dGradGamma[m_currentGradGammaRead],
+				m_dGradGamma[m_currentGradGammaWrite],
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
 				deltat,
+				0,
 				m_simparams->kerneltype,
 				m_simparams->periodicbound);
 
@@ -1328,16 +1331,18 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 
 		// Update gamma 2nd call
 		updateGamma(	m_dPos[m_currentPosRead],
+				m_dPos[m_currentPosWrite],
 				m_dVel[m_currentVelRead],
 				m_dInfo[m_currentInfoRead],
 				m_dBoundElement[m_currentBoundElementRead],
-				m_dGradGamma[m_currentGradGammaWrite],
 				m_dGradGamma[m_currentGradGammaRead],
+				m_dGradGamma[m_currentGradGammaWrite],
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
 				deltat,
+				0,
 				m_simparams->kerneltype,
 				m_simparams->periodicbound);
 
@@ -1460,6 +1465,28 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 //			}
 		}
 
+	if(m_simparams->boundarytype == MF_BOUNDARY)
+	{
+		//update density and pressure at vertex particles
+		dynamicBoundConditions(	m_dPos[m_currentPosRead], 		//pos(n)
+					m_dVel[m_currentVelRead], 		//vel(n)
+					m_dPressure[m_currentPressureRead],
+					m_dInfo[m_currentInfoRead],
+					m_dNeibsList,
+					m_numParticles,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_influenceRadius,
+					m_simparams->periodicbound);
+
+		updateBoundValues(	m_dVel[m_currentVelRead],		//vel(n)
+					m_dPressure[m_currentPressureRead],
+					m_dVertices[m_currentVerticesRead],
+					m_dInfo[m_currentInfoRead],
+					m_numParticles,
+					false);
+	}
+
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
@@ -1562,6 +1589,50 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		setgravity(m_physparams->gravity);
 	}
 
+	if(m_simparams->boundarytype == MF_BOUNDARY)
+	{
+		//update density and pressure at vertex particles
+		dynamicBoundConditions(	m_dPos[m_currentPosWrite], 		//pos(n+1/2)
+					m_dVel[m_currentVelWrite], 		//vel(n+1/2)
+					m_dPressure[m_currentPressureRead],
+					m_dInfo[m_currentInfoRead],
+					m_dNeibsList,
+					m_numParticles,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_influenceRadius,
+					m_simparams->periodicbound);
+
+		updateBoundValues(	m_dVel[m_currentVelWrite],		//vel(n+1/2)
+					m_dPressure[m_currentPressureRead],
+					m_dVertices[m_currentVerticesRead],
+					m_dInfo[m_currentInfoRead],
+					m_numParticles,
+					false);
+
+		// gamma(n+1/2) = gamma(n) + dt/4*∑[gradGam(n+1/2) + gradGam(n)] * Vel(n+1/2)
+		updateGamma(	m_dPos[m_currentPosRead],			//pos(n)
+				m_dPos[m_currentPosWrite],			//pos(n+1/2)
+				m_dVel[m_currentVelWrite],			//vel(n+1/2)
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaRead],		//gamma(n) {input}
+				m_dGradGamma[m_currentGradGammaWrite],		//gamma(n+1/2) {output}
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				1,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+		// At this point:
+		// m_dGradGamma[m_currentGradGammaRead] = gradgamma(n+1/2)
+		// m_dGradGamma[m_currentGradGammaWrite] = gradgamma(n)
+	}
+
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
@@ -1624,63 +1695,29 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dPos[m_currentPosWrite] = pos(n+1) = pos(n) + velc(n+1/2)*dt
 	//  m_dVel[m_currentVelWrite] =  vel(n+1) = vel(n) + f(n+1/2)*dt
 
-	//Update gamma
-	//FIXME: Gamma should be updated inside one of existing kernels
 	if(m_simparams->boundarytype == MF_BOUNDARY)
 	{
-		// gamma(n+1/2) = gamma(n) + dt/2*∑[gradGam(n) * Vel(n+1)]
-		updateGamma(	m_dPos[m_currentPosRead],
-				m_dVel[m_currentVelWrite],
+		// gamma(n+1) = gamma(n+1/2) + dt/4*∑[gradGam(n+1) + gradGam(n+1/2)] * Vel(n+1)
+		updateGamma(	m_dPos[m_currentPosRead],			//pos(n)
+				m_dPos[m_currentPosWrite],			//pos(n+1)
+				m_dVel[m_currentVelWrite],			//vel(n+1)
 				m_dInfo[m_currentInfoRead],
 				m_dBoundElement[m_currentBoundElementRead],
-				m_dGradGamma[m_currentGradGammaWrite],
-				m_dGradGamma[m_currentGradGammaRead],
+				m_dGradGamma[m_currentGradGammaRead],		//gamma(n+1/2) {input}
+				m_dGradGamma[m_currentGradGammaWrite],		//gamma(n+1) {output}
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
 				m_dt,
+				1,
 				m_simparams->kerneltype,
 				m_simparams->periodicbound);
 
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
-
-		// gamma(n+1) = gamma(n+1/2) + dt/2*∑[gradGam(n+1) * Vel(n+1)] =
-		//		gamma(n) + dt/2*∑[ (gradGam(n)+gradGam(n+1)) * Vel(n+1)]
-		updateGamma(	m_dPos[m_currentPosWrite],
-				m_dVel[m_currentVelWrite],
-				m_dInfo[m_currentInfoRead],
-				m_dBoundElement[m_currentBoundElementRead],
-				m_dGradGamma[m_currentGradGammaWrite],
-				m_dGradGamma[m_currentGradGammaRead],
-				m_dNeibsList,
-				m_numParticles,
-				m_simparams->slength,
-				m_influenceRadius,
-				m_dt,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
-
-		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
-
-		//update density at vertex particles
-		dynamicBoundConditions(	m_dPos[m_currentPosWrite],
-					m_dVel[m_currentVelWrite],
-					m_dPressure[m_currentPressureRead],
-					m_dInfo[m_currentInfoRead],
-					m_dNeibsList,
-					m_numParticles,
-					m_simparams->slength,
-					m_simparams->kerneltype,
-					m_influenceRadius,
-					m_simparams->periodicbound);
-
-		updateBoundValues(	m_dVel[m_currentVelWrite],
-					m_dPressure[m_currentPressureRead],
-					m_dVertices[m_currentVerticesRead],
-					m_dInfo[m_currentInfoRead],
-					m_numParticles,
-					false);
+		// At this point:
+		// m_dGradGamma[m_currentGradGammaRead] = gradgamma(n+1)
+		// m_dGradGamma[m_currentGradGammaWrite] = gradgamma(n+1/2))
 	}
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU

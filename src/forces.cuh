@@ -256,16 +256,18 @@ initGradGamma(	float4*		oldPos,
 // according to the evolution equation { dGamma/dt = gradGamma * relVel }
 void
 updateGamma(	float4*		oldPos,
+		float4*		newPos,
 		float4*		virtualVel,
 		particleinfo*	info,
 		float4*		boundElement,
-		float4*		newGam,
 		float4*		oldGam,
+		float4*		newGam,
 		uint*		neibsList,
 		uint		numParticles,
 		float		slength,
 		float		inflRadius,
 		float		virtDt,
+		bool		predcor,
 		int		kerneltype,
 		bool		periodicbound);
 
