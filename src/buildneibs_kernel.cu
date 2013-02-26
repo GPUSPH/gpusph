@@ -270,9 +270,9 @@ neibsInCell(
 	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
-		//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
+	//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
     	const particleinfo info = tex1Dfetch(infoTex, neib_index);
-        if (!TESTPOINTS (info)) {
+        if (!TESTPOINTS (info) && !PROBE(info)) {
 			if (neib_index != index) {			  // check not interacting with self
 				#if (__COMPUTE__ >= 20)			
 				float3 relPos = pos - make_float3(posArray[neib_index]);
@@ -344,7 +344,7 @@ buildNeibsListDevice(
 		// where vertex particles also need to have a list of neighbours
 
 		// Neighboring list is calculated for testpoints and object points)
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info)/*TODO: || BOUNDARY(info)*/) {
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || PROBE(info)/*TODO: || BOUNDARY(info)*/) {
 			// read particle position from global memory or texture according to architecture
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);

@@ -172,6 +172,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define TESTPOINTSPART		(5<<MAX_FLUID_BITS)
 #define OBJECTPART		(6<<MAX_FLUID_BITS)
 #define VERTEXPART		(7<<MAX_FLUID_BITS)
+#define PROBEPART		(8<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
@@ -198,6 +199,8 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define BOUNDARY(f)		((f).x == BOUNDPART)
 // Vertex particle
 #define VERTEX(f)		((f).x == VERTEXPART)
+// Probe particle
+#define PROBE(f)		((f).x == PROBEPART)
 
 /* Tests for particle flags */
 // Free surface detection

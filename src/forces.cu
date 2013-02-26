@@ -183,6 +183,12 @@ void*	reduce_buffer = NULL;
 				 (oldPos, oldVel, oldPressure, neibsList, numParticles, slength, influenceradius); \
 	break
 
+#define CALCPROBE_CHECK(kernel, periodic) \
+	case kernel: \
+		cuforces::calcProbeDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
+				 (oldPos, oldVel, oldPressure, neibsList, numParticles, slength, influenceradius); \
+	break
+
 extern "C"
 {
 void
@@ -1131,6 +1137,57 @@ dynamicBoundConditions(	const float4*		oldPos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("DynamicBoundConditions kernel execution failed");
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+}
+
+void
+calcProbe(	float4*			oldPos,
+		float4*			oldVel,
+		float*			oldPressure,
+		const particleinfo*	info,
+		const uint*		neibsList,
+		const uint		numParticles,
+		const float		slength,
+		const int		kerneltype,
+		const float		influenceradius,
+		const bool		periodicbound)
+{
+	int dummy_shared = 0;
+
+	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	#endif
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+	// execute the kernel
+	if (periodicbound) {
+		switch (kerneltype) {
+			CALCPROBE_CHECK(CUBICSPLINE, true);
+//			CALCPROBE_CHECK(QUADRATIC, true);
+			CALCPROBE_CHECK(WENDLAND, true);
+		}
+	} else {
+		switch (kerneltype) {
+			CALCPROBE_CHECK(CUBICSPLINE, false);
+//			CALCPROBE_CHECK(QUADRATIC, false);
+			CALCPROBE_CHECK(WENDLAND, false);
+		}
+	}
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("CalcProbe kernel execution failed");
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));

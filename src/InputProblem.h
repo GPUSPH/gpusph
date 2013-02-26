@@ -11,6 +11,7 @@ class InputProblem: public Problem {
 		int		numparticles;
 		float		w, l, h;
 		float		H; // water level (used to set D constant)
+		int		n_probeparts; // number of probe particles (used for output)
 
 	public:
 		InputProblem(const Options &);

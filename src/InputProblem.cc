@@ -18,9 +18,14 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	inputfile = "/home/vorobyev/Crixus/geometries/spheric2/0.spheric2-dr-0.01833-dp-0.02.h5sph";
 	//inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.fishpass_pv.h5sph";
 	//inputfile = "/home/vorobyev/Crixus/geometries/plane/0.plane_pv.h5sph";
+	//inputfile = "/home/vorobyev/Crixus/geometries/opencube/0.opencube_salome.h5sph";
 	numparticles = 0;
+	n_probeparts = 208;
 	H = 0.55;
 	l = 3.5; w = 1.0; h = 1.0;
+//	n_probeparts = 0;
+//	H = 1.0;
+//	l = 1.4; w = 1.4; h = 1.1;
 
 	set_deltap(0.02f);
 
@@ -35,7 +40,8 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 20;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.visctype = KINEMATICVISC;
+	m_simparams.visctype = DYNAMICVISC;
+	//m_simparams.visctype = KINEMATICVISC;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = MF_BOUNDARY;
@@ -49,14 +55,14 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0f, 25.0f);
+	m_physparams.set_density(0, 1000.0, 7.0f, 40.0f);
 
 	m_physparams.dcoeff = 5.0f*g*H;
 
 	m_physparams.r0 = m_deltap;
 	//m_physparams.visccoeff = 0.05f;
-	m_physparams.kinematicvisc = 1.0e-6f;
-	//m_physparams.kinematicvisc = 3.0e-2f;
+	//m_physparams.kinematicvisc = 1.0e-6f;
+	m_physparams.kinematicvisc = 1.0e-2f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
@@ -71,7 +77,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
-	m_writefreq = 100;
+	m_writefreq = 1000;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
@@ -84,11 +90,10 @@ int InputProblem::fill_parts()
 {
 	std::cout << std::endl << "Reading particle data from the input:" << std::endl << inputfile << std::endl;
 	const char *ch_inputfile = inputfile.c_str();
-	int npart = HDF5SphReader::getNParts(ch_inputfile);
+	int npart = HDF5SphReader::getNParts(ch_inputfile) + n_probeparts;
 
 	return npart;
 }
-
 
 void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm)
 {
@@ -151,6 +156,46 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	}
 	j += n_bparts;
 	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	if(n_probeparts) {
+		std::cout << "Probe parts: " << n_probeparts << "\n";
+		float4 probe_coord[n_probeparts];
+
+		// Probe H1
+		for (uint i = 0; i < 50; i++) {
+			probe_coord[i] = make_float4(2.724, 0.5, 0.02*i, 0);
+		}
+		// Probe H2
+		for (uint i = 50; i < 100; i++) {
+			probe_coord[i] = make_float4(2.228, 0.5, 0.02*(i-50), 0);
+		}
+		// Probe H3
+		for (uint i = 100; i < 150; i++) {
+			probe_coord[i] = make_float4(1.732, 0.5, 0.02*(i-100), 0);
+		}
+		// Probe H4
+		for (uint i = 150; i < 200; i++) {
+			probe_coord[i] = make_float4(0.582, 0.5, 0.02*(i-150), 0);
+		}
+		// Pressure probes
+		probe_coord[200] = make_float4(2.3955, 0.529, 0.021, 0); // Probe P1
+		probe_coord[201] = make_float4(2.3955, 0.529, 0.061, 0); // Probe P2
+		probe_coord[202] = make_float4(2.3955, 0.529, 0.101, 0); // Probe P3
+		probe_coord[203] = make_float4(2.3955, 0.529, 0.141, 0); // Probe P4
+		probe_coord[204] = make_float4(2.4165, 0.471, 0.161, 0); // Probe P5
+		probe_coord[205] = make_float4(2.4565, 0.471, 0.161, 0); // Probe P6
+		probe_coord[206] = make_float4(2.4965, 0.471, 0.161, 0); // Probe P7
+		probe_coord[207] = make_float4(2.5365, 0.471, 0.161, 0); // Probe P8
+
+		for (uint i = j; i < j + n_probeparts; i++) {
+			pos[i] = probe_coord[i-j];
+			vel[i] = make_float4(0, 0, 0, 1000);
+			info[i] = make_particleinfo(PROBEPART, 0, i);
+		}
+	}
+	//*******************************************************************
 
 	delete [] buf;
 }

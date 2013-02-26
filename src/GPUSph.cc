@@ -311,7 +311,7 @@ void init(const char *arg)
 
 	psystem->printPhysParams();
 	psystem->printSimParams();
-	
+
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
@@ -322,7 +322,7 @@ void init(const char *arg)
 	else {
 		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
 	}
-	
+
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
@@ -341,7 +341,7 @@ void init(const char *arg)
 		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
 		psystem->setPlanes();
 	}
-	
+
 	//psystem->saveboundelem();
 	//psystem->saveVelocity();
 	//Initialization of gamma and gradient of gamma and initialization of boundary values
@@ -350,7 +350,7 @@ void init(const char *arg)
 		psystem->initializeGammaAndGradGamma();
 		psystem->updateValuesAtBoundaryElements();
 	}
-		
+
 	//psystem->saveVelocity();
 	//psystem->savepressure();
 	glscreenshot = new CScreenshot(problem->get_dirname());
@@ -548,8 +548,10 @@ void display()
 	if (need_display || need_write)
 	{
 		get_arrays(need_write);
-		if (need_write)
+		if (need_write) {
 			do_write();
+			psystem->saveprobedata();
+		}
 	}
 
 	if (displayEnabled)
