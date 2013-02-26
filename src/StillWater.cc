@@ -55,6 +55,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 20;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
+	m_simparams.ferrari = 0.1f;
 	//m_simparams.visctype = KINEMATICVISC;
 	m_simparams.visctype = DYNAMICVISC;
 	//m_simparams.visctype = ARTVISC;

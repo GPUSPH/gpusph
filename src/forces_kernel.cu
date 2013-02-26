@@ -62,6 +62,8 @@ __constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];
 
 __constant__ float3	d_gravity;						// gravity (vector)
 
+__constant__ float	d_ferrari;				// coefficient for Ferrari correction
+
 // LJ boundary repusion force comuting
 __constant__ float	d_dcoeff;
 __constant__ float	d_p1coeff;

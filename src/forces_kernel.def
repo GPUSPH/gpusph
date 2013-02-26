@@ -129,10 +129,11 @@ FORCES_CUDA_KERNEL
 					break;
 			}
 
-			# if defined(DT_KERNEL) || defined(VISC_ARTVISC)
+			//FIXME: Speed of sound should be calculated with MF_BOUNDARY, even when dt is constant
+			//# if defined(DT_KERNEL) || defined(VISC_ARTVISC)
 			/* sound speed sspeed is computed only once for the given particle */
 			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
-			# endif
+			//# endif
 
 			# ifdef DT_KERNEL
 			float gradgamU = 0;
@@ -164,6 +165,7 @@ FORCES_CUDA_KERNEL
 
 					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 						const float4 belem = tex1Dfetch(boundTex, neib_index);
+						const float neib_sspeed = soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info));
 
 						float neib_pres = tex1Dfetch(presTex, neib_index);
 						if(FLUID(neib_info))
@@ -194,6 +196,14 @@ FORCES_CUDA_KERNEL
 						float DrDt = 0;
 						if(BOUNDARY(neib_info))
 							DrDt -= neib_vel.w*dot(relVel, make_float3(gradGamma<kerneltype>(slength, r, belem)) );
+						else if(d_ferrari) {
+							//P_a' = P_a - rho_0*g*(z_b-z_a)
+							const float pres_a_prime = P(vel.w, PART_FLUID_NUM(info)) + d_rho0[PART_FLUID_NUM(info)]*d_gravity.z*(neib_pos.z-pos.z);
+							//rho_a' = inverted_EoS(P_a')
+							const float rho_a_prime = rho(pres_a_prime, PART_FLUID_NUM(info));
+							float3 ferraricor = max(sspeed, neib_sspeed)*(rho_a_prime - neib_vel.w)/vel.w/r*relPos;
+							DrDt = neib_pos.w*dot(relVel + d_ferrari*ferraricor, relPos)*f;
+						}
 						else
 							DrDt = neib_pos.w*vel_dot_pos*f;
 						/* The second formulation takes into consideration the density ratio */
@@ -246,7 +256,7 @@ FORCES_CUDA_KERNEL
 						# elif defined(VISC_ARTVISC)
 						if (vel_dot_pos < 0.0f)
 							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
-										soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
+										neib_sspeed, r, slength);
 						# else
 						# error Unknown viscosity!
 						# endif // VISC_*

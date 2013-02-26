@@ -660,6 +660,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "neib list construction every %d iteration\n", m_simparams->buildneibsfreq);
 	fprintf(summary, "Shepard filter every %d iteration\n", m_simparams->shepardfreq);
 	fprintf(summary, "MLS filter every %d iteration\n", m_simparams->mlsfreq);
+	fprintf(summary, "Ferrari correction = %g\n", m_simparams->ferrari);
 	fprintf(summary, "adaptive time step = %d\n", m_simparams->dtadapt);
 	fprintf(summary, "safety factor for adaptive time step = %f\n", m_simparams->dtadaptfactor);
 	fprintf(summary, "xsph correction = %d\n", m_simparams->xsph);

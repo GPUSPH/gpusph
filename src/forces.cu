@@ -255,6 +255,7 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams)
 
 	uint maxneibs_time_neibinterleave = simparams->maxneibsnum*NEIBINDEX_INTERLEAVE;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
 }
 
 
