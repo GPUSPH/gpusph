@@ -106,6 +106,7 @@ class ParticleSystem
 
 		void	buildNeibList(bool timing);
 		void	initializeGammaAndGradGamma(void);
+		void	imposeDynamicBoundaryConditions(void);
 		void	updateValuesAtBoundaryElements(void);
 
 		TimingInfo	PredcorrTimeStep(bool);

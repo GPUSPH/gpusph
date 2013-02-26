@@ -1380,6 +1380,21 @@ ParticleSystem::updateValuesAtBoundaryElements(void)
 				true);
 }
 
+void
+ParticleSystem::imposeDynamicBoundaryConditions(void)
+{
+	dynamicBoundConditions(	m_dPos[m_currentPosRead],
+				m_dVel[m_currentVelRead],
+				m_dPressure[m_currentPressureRead],
+				m_dInfo[m_currentInfoRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_influenceRadius,
+				m_simparams->periodicbound);
+}
+
 TimingInfo
 ParticleSystem::PredcorrTimeStep(bool timing)
 {

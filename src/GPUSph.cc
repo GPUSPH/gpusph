@@ -348,6 +348,7 @@ void init(const char *arg)
 	if(problem->m_simparams.boundarytype == MF_BOUNDARY)
 	{	
 		psystem->initializeGammaAndGradGamma();
+		psystem->imposeDynamicBoundaryConditions();
 		psystem->updateValuesAtBoundaryElements();
 	}
 
