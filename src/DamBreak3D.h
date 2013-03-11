@@ -43,9 +43,12 @@ class DamBreak3D: public Problem {
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	obstacle_parts;
-		float		H;  // still watr level		
+		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
+		float		obstaclex, obstacley, obstaclez;
+		float3		obstacle_origin;
+		int		n_probeparts; // number of probe particles (used for output)
 
 	public:
 		DamBreak3D(const Options &);

@@ -1748,7 +1748,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	}
 
 	//Calculate values at probe particles
-	if(m_simparams->boundarytype == MF_BOUNDARY)
+	if(true)
 	{
 		calcProbe(	m_dPos[m_currentPosWrite],
 				m_dVel[m_currentVelWrite],
@@ -2096,8 +2096,8 @@ ParticleSystem::saveprobedata()
 	float H[4][50];
 	for (int i=0; i<4; i++)
 	for (int j=0; j<50; j++)
-		H[i][j] = -1;
-	float P[8];
+		H[i][j] = -1.0f;
+	float P[8] = {-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f};
 
 	for (uint index = 0; index < m_numParticles; index++) {
 		if (PROBE(m_hInfo[index])) {

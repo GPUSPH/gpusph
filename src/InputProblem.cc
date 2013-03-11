@@ -78,7 +78,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
-	m_writefreq = 1000;
+	m_writefreq = 100;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation

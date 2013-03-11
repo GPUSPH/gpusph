@@ -51,7 +51,7 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	set_deltap(0.05f);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = QUADRATIC;
+	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;

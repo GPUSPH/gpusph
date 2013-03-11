@@ -40,11 +40,21 @@
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	lx = 1.6;
-	ly = 0.67;
-	lz = 0.6;	
-	H = 0.4;
+//	lx = 1.6;
+//	ly = 0.67;
+//	lz = 0.6;
+//	H = 0.4;
+	lx = 3.22;
+	ly = 1.0;
+	lz = 1.0;
+	H = 0.55;
 	wet = false;
+	//Spheric 2 test case:
+	obstaclex = 0.161;
+	obstacley = 0.403;
+	obstaclez = 0.161;
+	obstacle_origin = make_float3(2.476, 0.5, 0.0805);
+	n_probeparts = 208;
 	
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
@@ -63,10 +73,10 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = DYNAMICVISC;
-    m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f;
+	//m_simparams.visctype = ARTVISC;
+	m_simparams.visctype = DYNAMICVISC;
+	m_simparams.boundarytype= LJ_BOUNDARY;
+	m_simparams.tend = 5.0f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -76,38 +86,37 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Physical parameters
-	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
-	
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	m_physparams.set_density(0, 1000.0, 7.0f, 40.0f);
+
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
-	
+
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-	
-	m_physparams.kinematicvisc = 1.0e-6f;
+
+	m_physparams.kinematicvisc = 1.0e-2f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
+
 	// Scales for drawing
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
 	//m_maxvel = sqrt(m_physparams.gravity*H);
 	m_maxvel = 3.0f;
-	
+
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 20;
-	m_screenshotfreq = 20;
-	
+	m_displayinterval = 1.0e-4;
+	m_writefreq = 100;
+	m_screenshotfreq = 0;
+
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
 	create_problem_dir();
@@ -137,10 +146,12 @@ int DamBreak3D::fill_parts()
 	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
+//	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
+//					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
+	obstacle = Cube(Point(obstacle_origin.x - obstaclex/2, obstacle_origin.y - obstacley/2, r0),
+			Vector(obstaclex, 0, 0), Vector(0, obstacley, 0), Vector(0, 0, obstaclez - r0));
 
-	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
+	fluid = Cube(Point(r0, r0, r0), Vector(1.228, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 	
 	if (wet) {
@@ -165,7 +176,7 @@ int DamBreak3D::fill_parts()
 		obstacle.Unfill(parts, r0);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + n_probeparts;
 }
 
 
@@ -206,4 +217,44 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	if(n_probeparts) {
+		std::cout << "Probe parts: " << n_probeparts << "\n";
+		float4 probe_coord[n_probeparts];
+
+		// Probe H1
+		for (uint i = 0; i < 50; i++) {
+			probe_coord[i] = make_float4(2.724, 0.5, 0.02*i, 0);
+		}
+		// Probe H2
+		for (uint i = 50; i < 100; i++) {
+			probe_coord[i] = make_float4(2.228, 0.5, 0.02*(i-50), 0);
+		}
+		// Probe H3
+		for (uint i = 100; i < 150; i++) {
+			probe_coord[i] = make_float4(1.732, 0.5, 0.02*(i-100), 0);
+		}
+		// Probe H4
+		for (uint i = 150; i < 200; i++) {
+			probe_coord[i] = make_float4(0.582, 0.5, 0.02*(i-150), 0);
+		}
+		// Pressure probes
+		probe_coord[200] = make_float4(2.3955, 0.529, 0.021, 0); // Probe P1
+		probe_coord[201] = make_float4(2.3955, 0.529, 0.061, 0); // Probe P2
+		probe_coord[202] = make_float4(2.3955, 0.529, 0.101, 0); // Probe P3
+		probe_coord[203] = make_float4(2.3955, 0.529, 0.141, 0); // Probe P4
+		probe_coord[204] = make_float4(2.4165, 0.471, 0.161, 0); // Probe P5
+		probe_coord[205] = make_float4(2.4565, 0.471, 0.161, 0); // Probe P6
+		probe_coord[206] = make_float4(2.4965, 0.471, 0.161, 0); // Probe P7
+		probe_coord[207] = make_float4(2.5365, 0.471, 0.161, 0); // Probe P8
+
+		for (uint i = j; i < j + n_probeparts; i++) {
+			pos[i] = probe_coord[i-j];
+			vel[i] = make_float4(0, 0, 0, 1000);
+			info[i] = make_particleinfo(PROBEPART, 0, i);
+		}
+	}
+	//*******************************************************************
 }
