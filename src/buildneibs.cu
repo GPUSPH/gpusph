@@ -71,7 +71,10 @@ getneibsinfo(TimingInfo & timingInfo)
 
 void
 calcHash(float4*	pos,
-		 uint*		particleHash,
+#if HASH_KEY_SIZE >= 64
+		 particleinfo *pinfo,
+#endif
+		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 uint3		gridSize,
 		 float3		cellSize,
@@ -81,8 +84,12 @@ calcHash(float4*	pos,
 	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-										   gridSize, cellSize, worldOrigin, numParticles);
+	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos,
+#if HASH_KEY_SIZE >= 64
+		pinfo,
+#endif
+		particleHash, particleIndex,
+		gridSize, cellSize, worldOrigin, numParticles);
 	
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
@@ -112,7 +119,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									float4*			newGradGamma,		// output: sorted gradient gamma
 									vertexinfo*		newVertices,		// output: sorted vertices
 									float*			newPressure,		// output: sorted pressure
-									uint*			particleHash,		// input: sorted grid hashes
+									hashKey*		particleHash,		// input: sorted grid hashes
 									uint*			particleIndex,		// input: sorted particle indices
 									float4*			oldPos,			// input: sorted position array
 									float4*			oldVel,			// input: sorted velocity array
@@ -161,7 +168,7 @@ void
 buildNeibsList(	uint*				neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
-				const uint*			particleHash,
+				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
 				const uint3			gridSize,
@@ -207,9 +214,9 @@ buildNeibsList(	uint*				neibsList,
 }
 
 void
-sort(uint*	particleHash, uint*	particleIndex, uint	numParticles)
+sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 {
-	thrust::device_ptr<uint> particleHash_devptr = thrust::device_pointer_cast(particleHash);
+	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
 	
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);

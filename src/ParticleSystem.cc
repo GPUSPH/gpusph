@@ -228,7 +228,8 @@ ParticleSystem::allocate(uint numParticles)
 	const uint memSize4 = sizeof(float4)*m_numParticles;
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint vinfoSize = sizeof(vertexinfo)*m_numParticles;
-	const uint hashSize = sizeof(uint)*m_numParticles;
+	const uint hashSize = sizeof(hashKey)*m_numParticles;
+	const uint idxSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
 	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
@@ -276,14 +277,15 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
 
+
 #ifdef _DEBUG_
-	m_hParticleHash = new uint[m_numParticles];
+	m_hParticleHash = new hashKey[m_numParticles];
 	memset(m_hParticleHash, 0, hashSize);
 	memory += hashSize;
 
 	m_hParticleIndex = new uint[m_numParticles];
-	memset(m_hParticleIndex, 0, hashSize);
-	memory += hashSize;
+	memset(m_hParticleIndex, 0, idxSize);
+	memory += idxSize;
 
 	m_hCellStart = new uint[m_nGridCells];
 	memset(m_hCellStart, 0, gridcellSize);
@@ -386,8 +388,8 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
 	memory += hashSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
-	memory += hashSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, idxSize));
+	memory += idxSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInversedParticleIndex, hashSize));
 	memory += hashSize;
@@ -895,7 +897,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case HASH:
-			size = m_numParticles*sizeof(uint);
+			size = m_numParticles*sizeof(hashKey);
 			hdata = (void*) m_hParticleHash;
 			ddata = (void*) m_dParticleHash;
 			break;
@@ -1178,6 +1180,9 @@ ParticleSystem::buildNeibList(bool timing)
 
 	// compute hash
 	calcHash(m_dPos[m_currentPosRead],
+#if HASH_KEY_SIZE >= 64
+			m_dInfo[m_currentPosRead],
+#endif
 			m_dParticleHash,
 			m_dParticleIndex,
 			gridSize,
@@ -1557,8 +1562,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
 
 		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams->numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams->numbodies*sizeof(float)));
+		seteulerrbtrans(trans, m_simparams->numbodies);
+		seteulerrbsteprot(rot, m_simparams->numbodies);
 	}
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
@@ -1594,8 +1599,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
 	if (m_simparams->numbodies) {
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams->numbodies*sizeof(float3)));
+		setforcesrbcg(cg, m_simparams->numbodies);
+		seteulerrbcg(cg, m_simparams->numbodies);
 	}
 
 	// setting moving boundaries data if necessary
@@ -1875,7 +1880,7 @@ ParticleSystem::savehash()
 		pos.x = m_hPos[index].x;
 		pos.y = m_hPos[index].y;
 		pos.z = m_hPos[index].z;
-		uint hash = m_hParticleHash[index];
+		hashKey hash = m_hParticleHash[index];
 		int3 gridPos;
 		gridPos.x = floor((pos.x - m_worldOrigin.x) / m_cellSize.x);
 		gridPos.y = floor((pos.y - m_worldOrigin.y) / m_cellSize.y);

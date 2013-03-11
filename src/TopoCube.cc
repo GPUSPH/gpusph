@@ -204,6 +204,73 @@ TopoCube *TopoCube::load_ascii_grid(const char* fname)
 	return ret;
 }
 
+
+/* Create a TopoCube from a (xyz) sorted ASCII elevation file.
+ * The format of the file must be:
+ *
+ * cols: number of columns
+ * rows: number of rows
+ * x y z
+ *
+ * - The total number of line of the file must be cols*rows+2.
+ * - Data must be sorted by x (first key) and by y (second key)
+ * values.
+ * - The underlying grid must be regular : constant and same
+ * resolution along x and y.
+ */
+TopoCube *TopoCube::load_xyz_file(const char* fname)
+{
+	ifstream fdem(fname);
+	if (!fdem.good()) {
+		stringstream err_msg;
+		err_msg	<< "failed to open DEM " << fname;
+
+		throw runtime_error(err_msg.str());
+	}
+
+	string s;
+
+	double north, south, east, west;
+	int ncols, nrows;
+
+	for (int i = 1; i <= 2; i++) {
+		fdem >> s;
+		if (s.find("cols:") != string::npos) fdem >> ncols;
+		else if (s.find("rows:") != string::npos) fdem >> nrows;
+	}
+
+	double zmin = NAN, zmax = NAN;
+	float *dem = new float[ncols*nrows];
+	double x ,y, z, res;
+	for (int col = 0; col < ncols; ++col) {
+		for (int row = 0; row < nrows; ++row) {
+			fdem >> x >> y >> z;
+			if (row == 0 && col == 0)
+				res = y;
+			if (row == 1 && col == 0)
+				res = y - res;
+			zmax = max(z, zmax);
+			zmin = min(z, zmin);
+			dem[row*ncols+col] = z;
+		}
+	}
+	fdem.close();
+	south = 0;
+	west = 0;
+	north = nrows*res;
+	east = ncols*res;
+	TopoCube *ret = new TopoCube();
+
+	ret->SetCubeDem(dem, east-west, north-south, zmax-zmin,
+		ncols, nrows, -zmin);
+	ret->SetGeoLocation(north, south, east, west);
+
+	delete [] dem;
+
+	return ret;
+}
+
+
 double
 TopoCube::SetPartMass(const double dx, const double rho)
 {
