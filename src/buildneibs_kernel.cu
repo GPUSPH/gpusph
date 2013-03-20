@@ -102,6 +102,9 @@ calcHashDevice(const float4*	posArray,
 	gridHash |= id(pinfo[index]);
 #endif
 
+	if (INACTIVE(pos))
+		gridHash = HASH_KEY_MAX;
+
 	// store grid hash and particle index
 	particleHash[index] = gridHash;
 	particleIndex[index] = index;

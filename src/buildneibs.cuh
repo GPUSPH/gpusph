@@ -50,8 +50,10 @@
 #error "Hash keys should be at least 32-bit wide"
 #elif HASH_KEY_SIZE == 32
 typedef unsigned int hashKey;
+#define HASH_KEY_MAX UINT_MAX
 #elif HASH_KEY_SIZE == 64
 typedef unsigned long hashKey;
+#define HASH_KEY_MAX ULONG_MAX
 #else
 #error "unmanaged hash key size"
 #endif
