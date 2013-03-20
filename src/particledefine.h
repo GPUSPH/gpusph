@@ -190,6 +190,24 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* otherwise it's fluid */
 #define FLUID(f)		(!(NOT_FLUID(f)))
 
+// fluid particles can be active or inactive. Particles are marked inactive under appropriate
+// conditions (e.g. after flowing out through an outlet), and are kept around until the next
+// buildneibs, that sweeps them away.
+// Since the inactivity of the particles must be accessible during neighbor list building,
+// and in particular when computing the particle hash for bucketing, we carry the information
+// in the position/mass field. Since fluid particles have positive mass, it is sufficient
+// to set its mass to zero to mark the particle inactive
+
+// a particle is active if its mass is non-zero
+#define ACTIVE(p)	(p).w
+#define INACTIVE(p)	!((p).w)
+
+// disable a particle by zeroing its mass
+inline __host__ __device__ void
+disable_particle(float4 &pos) {
+	pos.w = 0;
+}
+
 /* Tests for particle types */
 // Testpoints
 #define TESTPOINTS(f)	((f).x == TESTPOINTSPART)
