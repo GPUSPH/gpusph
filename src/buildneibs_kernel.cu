@@ -136,6 +136,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 										float*			sortedPressure,		// output: sorted pressure
 										hashKey*		particleHash,		// input: sorted grid hashes
 										uint*			particleIndex,		// input: sorted particle indices
+										uint*			newNumParticles,	// output: number of active particles found
 										uint			numParticles,
 										uint*			inversedParticleIndex)
 {
@@ -163,20 +164,33 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 	if (index < numParticles) {
 		// If this particle has a different cell index to the previous
-		// particle then it must be the first particle in the cell,
-		// so store the index of this particle in the cell.
-		// As it isn't the first particle, it must also be the cell end of
-		// the previous particle's cell
+		// particle then it must be the first particle in the cell
+		// or the first inactive particle.
+		// Store the index of this particle as the new cell start and as
+		// the previous cell end
 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
-			cellStart[hash] = index;
+			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
 				cellEnd[sharedHash[threadIdx.x]] = index;
+			// if it isn't an inactive particle, it is also the start of the
+			// new cell, otherwise, it's the number of active particles
+			if (hash != HASH_KEY_MAX)
+				cellStart[hash] = index;
+			else {
+				*newNumParticles = index;
 			}
+		}
+
+		// if we are an inactive particle, we're done
+		if (hash == HASH_KEY_MAX)
+			return;
 
 		if (index == numParticles - 1) {
+			// we only get here if all particles are active
 			cellEnd[hash] = index + 1;
-			}
+			*newNumParticles = numParticles;
+		}
 
 		// Now use the sorted index to reorder the pos and vel data
 		uint sortedIndex = particleIndex[index];

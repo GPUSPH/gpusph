@@ -242,6 +242,7 @@ class ParticleSystem
 		uint*		m_dCellStart;			// index of cell start in sorted order
 		uint*		m_dCellEnd;			// index of cell end in sorted order
 		uint*		m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
+		uint*		m_dNewNumParticles;		// number of active particles found during neib list
 
 		uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
 		uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)

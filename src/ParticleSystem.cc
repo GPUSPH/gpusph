@@ -403,6 +403,9 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
 	memory += neibslistSize;
 
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
+	memory += sizeof(uint);
+
 	// Allocate storage for rigid bodies forces and torque computation
 	if (m_simparams->numbodies) {
 		m_numBodiesParticles = m_problem->get_bodies_numparts();
@@ -1216,9 +1219,19 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dGradGamma[m_currentGradGammaRead],		// input: sorted gradient gamma
 			m_dVertices[m_currentVerticesRead],		// input: sorted vertices
 			m_dPressure[m_currentPressureRead],		// input: sorted pressure
+			m_dNewNumParticles,				// output: number of active particles
 			m_numParticles,
 			m_nGridCells,
 			m_dInversedParticleIndex);
+
+	uint activeParticles;
+	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles,
+			sizeof(uint), cudaMemcpyDeviceToHost));
+	if (activeParticles != m_numParticles) {
+		printf("particles: %d => %d\n", m_numParticles, activeParticles);
+		m_timingInfo.numParticles = m_numParticles = activeParticles;
+	}
+
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);

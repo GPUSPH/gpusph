@@ -128,6 +128,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									float4*			oldGradGamma,		// input: sorted gradient gamma
 									vertexinfo*		oldVertices,		// input: sorted vertices
 									float*			oldPressure,		// input: sorted pressure
+									uint*			newNumParticles,	// output: number of active particles found
 									uint			numParticles,
 									uint			numGridCells,
 									uint*			inversedParticleIndex)
@@ -149,8 +150,8 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
 												newVel, newInfo, newBoundElement, newGradGamma, newVertices, newPressure,
-												particleHash, particleIndex, numParticles, inversedParticleIndex);
-	
+												particleHash, particleIndex, newNumParticles, numParticles, inversedParticleIndex);
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
 

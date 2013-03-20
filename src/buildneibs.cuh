@@ -144,6 +144,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			oldGradGamma,		// input: sorted gradient gamma
 							vertexinfo*		oldVertices,		// input: sorted vertices
 							float*			oldPressure,		// input: sorted pressure
+							uint*			newNumParticles,	// output: number of active particles found
 							uint			numParticles,
 							uint			numGridCells,
 							uint*			inversedParticleIndes);
