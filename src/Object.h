@@ -48,7 +48,7 @@
 class Object {
 	protected:
 		EulerParameters		m_ep;					///< Euler parameters associated with the object
-		dMatrix4 			m_ODERot;				///< ODE rotation matrix associated to the object
+		dMatrix3 			m_ODERot;				///< ODE rotation matrix associated to the object
 		Point				m_center;				///< Coordinates of center of gravity
 		double				m_inertia[3];			///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;					///< Mass of the object
