@@ -184,7 +184,7 @@ int OdeObjects::fill_parts()
 	}
 
 
-	// Rigid body #1
+	// Rigid body #1 : sphere
 	Point rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
 	sphere = Sphere(rb_cg, 0.05);
 	sphere.SetPartMass(r0, m_physparams.rho0[0]*0.6);
@@ -195,16 +195,15 @@ int OdeObjects::fill_parts()
 	sphere.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_ODE_body(&sphere);
 
-	/*double l = 0.1, w = 0.1, h = 0.1;
-	rb_cg = Point(0.7, 0.5*ly, h/2 + 2*r0);
-	cube = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
-	cube.SetPartMass(r0, m_physparams.rho0[0]*0.3);
-	cube.SetMass(r0, m_physparams.rho0[0]*0.3);
-	cube.Unfill(parts, r0);
-	cube.FillBorder(cube.GetParts(), r0);
-	cube.ODEBodyCreate(m_ODEWorld, m_deltap);
-	cube.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(&cube);*/
+	// Rigid body #2 : cylinder
+	cylinder = Cylinder(Point(0.9, 0.7*ly, r0), 0.05, Vector(0, 0, 0.2));
+	cylinder.SetPartMass(r0, m_physparams.rho0[0]*0.3);
+	cylinder.SetMass(r0, m_physparams.rho0[0]*0.3);
+	cylinder.Unfill(parts, r0);
+	cylinder.FillBorder(cylinder.GetParts(), r0);
+	cylinder.ODEBodyCreate(m_ODEWorld, m_deltap);
+	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&cylinder);
 
 	joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
 	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
@@ -247,6 +246,7 @@ void OdeObjects::draw_boundary(float t)
 	R = dBodyGetRotation(sphere.m_ODEBody);
 	dsDrawSphere(pos, R, 0.05);*/
 	sphere.GLDraw();
+	cylinder.GLDraw();
 
 	/*pos = dGeomGetPosition(cube.m_ODEGeom);
 	R = dGeomGetRotation(cube.m_ODEGeom);
