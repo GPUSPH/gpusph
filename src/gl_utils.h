@@ -216,8 +216,8 @@ GLDrawCylinder(const float r, const float h)
 	const double angle2 = 2.0*M_PI/LINES_NUM;
 	for (int i = 0; i < LINES_NUM; i++) {
 		double u = i*angle2;
-		const float p1[3] = {r*cos(u), r*sin(u), 0.0};
-		const float p2[3] = {r*cos(u), r*sin(u), h};
+		const float p1[3] = {r*cos(u), r*sin(u), -h/2.};
+		const float p2[3] = {r*cos(u), r*sin(u), h/2.};
 		GLDrawLine(p1, p2);
 	}
 
