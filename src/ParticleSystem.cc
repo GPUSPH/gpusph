@@ -1656,6 +1656,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		// At this point:
 		// m_dGradGamma[m_currentGradGammaRead] = gradgamma(n+1/2)
 		// m_dGradGamma[m_currentGradGammaWrite] = gradgamma(n)
+
 	}
 
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
@@ -2003,15 +2004,15 @@ ParticleSystem::savegradgamma()
 	//fname = m_problem->get_dirname() + "/gradgamma.csv";
 	std::stringstream niter;
 	niter << m_iter;
-	fname = m_problem->get_dirname() + "/gradgamma" + niter.str() + ".csv";
+	fname = m_problem->get_dirname() + "/gradgamma" + niter.str() + ".dat";
 	FILE *fp = fopen(fname.c_str(), "w");
 
 	for (uint index = 0; index < m_numParticles; index++) {
 		float4 pos = m_hPos[index];
 		float4 gradGam = m_hGradGamma[index];
 		
-		if(gradGam.w = 0 && FLUID(m_hInfo[index]))
-		fprintf(fp, "%d,%d,%f,%f,%f,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, pos.x, pos.y, pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w, PART_TYPE(m_hInfo[index]));
+		if(pos.x < 0.1 && pos.y < 0.1 && pos.z < 0.1 && FLUID(m_hInfo[index]))
+		fprintf(fp, "%d\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%d\n", index, m_hInfo[index].z, pos.x, pos.y, pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w, PART_TYPE(m_hInfo[index]));
 	}
 	fclose(fp);
 }

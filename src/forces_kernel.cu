@@ -840,46 +840,40 @@ updateGammaDevice(	float4*		newGam,
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-	
+
 	if(index < numParticles) {
 		float4 pos = tex1Dfetch(posTex, index);
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		float3 vel = make_float3(tex1Dfetch(velTex, index));
 		float4 oldGam = tex1Dfetch(gamTex, index);
-		
+
 		float4 gGam = make_float4(0.0f);
 		float deltaGam = 0.0;
-		
+
 		// Compute gradient of gamma for fluid only
 		if(FLUID(info)) {
-			//uint counter = 0; //DEBUG
-
 			// Loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
 				uint neibIndex = neibsList[d_maxneibsnum_time_neibindexinterleave * lane + offset + i];
-				
+
 				if(neibIndex == 0xffffffff) break;
-				
+
 				float4 neibPos;
 				float3 relPos;
 				float r;
 				
 				getNeibData<periodicbound>(pos, inflRadius, neibIndex, neibPos, relPos, r);
-				
+
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
-				
+
 				if(r < inflRadius && BOUNDARY(neibInfo)) {
 					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
 					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
 					gGam += gradGamma_as;
 					deltaGam += dot(make_float3(gradGamma_as), vel);
-					//counter++; //DEBUG
 				}
 			}
-			//DEBUG output
-			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
-			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
-			
+
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
 			if (magnitude > 1.e-10) {
@@ -888,7 +882,7 @@ updateGammaDevice(	float4*		newGam,
 			else
 				gGam.w = 1.0;
 		}
-		
+
 		newGam[index] = gGam;
 	}
 }
@@ -921,7 +915,6 @@ updateGammaPrCorDevice( float4*		newPos,
 
 		// Compute gradient of gamma for fluid only
 		if(FLUID(info)) {
-			//uint counter = 0; //DEBUG
 
 			// Loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
@@ -933,9 +926,9 @@ updateGammaPrCorDevice( float4*		newPos,
 				float3 relPos;
 				float r;
 
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
+				getNeibData<periodicbound>(newpos, newPos, inflRadius, neibIndex, neibPos, relPos, r);
 
-				getNeibData<periodicbound>(newpos, inflRadius, neibIndex, neibPos, relPos, r);
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
 
 				if(r < inflRadius && BOUNDARY(neibInfo)) {
 					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
@@ -944,9 +937,6 @@ updateGammaPrCorDevice( float4*		newPos,
 					deltaGam += dot(make_float3(gradGamma_as), vel);
 				}
 			}
-			//DEBUG output
-			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
-			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
 
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));

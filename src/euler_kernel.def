@@ -94,7 +94,7 @@ EULER_KERNEL_NAME(
 	particleinfo pinfo = info[index];
 	#endif
 
-	if(type(pinfo) != BOUNDPART) {
+	if(type(pinfo) != BOUNDPART && type(pinfo) != VERTEXPART) {
 		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 		# ifdef XSPH_KERNEL
 		float4 mean_vel = xsph[index];
