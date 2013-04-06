@@ -68,6 +68,10 @@ typedef struct TimingInfo {
 	 * particles changes during the simulation
 	 */
 	ulong	iterTimesParts;
+	// a method to return the throughput computed as iterations times particles per second
+	double	getIPPS(void) const {
+		return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;
+	}
 } TimingInfo;
 
 

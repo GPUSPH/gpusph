@@ -99,8 +99,8 @@ bool show_floating = false;
 
 enum { M_VIEW = 0, M_MOVE};
 int view_field = ParticleSystem::VM_NORMAL;
-enum { M_INTERACTION = 0, M_NEIBSLIST, M_EULER, M_MEAN, M_NOTIMING};
-int timing = M_NEIBSLIST;
+enum { M_INTERACTION = 0, M_NEIBSLIST, M_EULER, M_MEAN, M_IPPS, M_NOTIMING};
+int timing = M_IPPS;
 
 ParticleSystem *psystem = 0;
 
@@ -149,7 +149,7 @@ void cleanup(void)
 void quit(int ret)
 {
 	double elapsed_sec = (clock() - timingInfo->startTime)/CLOCKS_PER_SEC;
-	printf("\nTotal time %es\n", elapsed_sec);
+	printf("\nTotal time %es, throughput %e IPPS\n", elapsed_sec, timingInfo->getIPPS());
 	printf("Quitting\n");
 	cleanup();
 	exit(ret);
@@ -162,11 +162,13 @@ void show_timing(int ret)
 		"\nt=%es dt=%es %u parts.\n"
 		"%e neibs. in %es, mean %e neibs/s, max %u neibs\n"
 		"%e ints., %e ints/s, mean %e ints/s)\n"
-		"integration in %es (mean %es)\n",
+		"integration in %es (mean %es)\n"
+		"throughput %e IPPS\n",
 		ti->t, ti->dt, ti->numParticles,
 		(double)ti->numInteractions, ti->timeNeibsList, ti->meanTimeNeibsList, ti->maxNeibs,
 		(double)ti->meanNumInteractions, ti->numInteractions/ti->timeInteract, ti->meanNumInteractions/ti->meanTimeInteract,
-		ti->timeEuler, ti->meanTimeEuler);
+		ti->timeEuler, ti->meanTimeEuler,
+		ti->getIPPS());
 	fflush(stdout);
 #undef ti
 }
@@ -470,11 +472,13 @@ void do_write()
 	printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
 			"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			"mean neib list in %es\n"
-			"mean integration in %es\n",
+			"mean integration in %es\n"
+			"throughput %e IPPS\n",
 			ti->t, ti->iterations, ti->dt, ti->numParticles, (double) ti->meanNumInteractions,
 			ti->meanTimeInteract, ((double)ti->meanNumInteractions)/ti->meanTimeInteract, ti->maxNeibs,
 			ti->meanTimeNeibsList,
-			ti->meanTimeEuler);
+			ti->meanTimeEuler,
+			ti->getIPPS());
 	fflush(stdout);
 	#undef ti
 	if (problem->m_simparams.gage.size() > 0) {
@@ -568,6 +572,12 @@ void display()
 			sprintf(title, "%7.2e interactions (%7.2eint./s) - Neibs list %7.2es - Euler %7.2es",
 				(double) ti->meanNumInteractions, (double) ti->meanNumInteractions/ti->meanTimeInteract,
 				ti->meanTimeNeibsList, ti->meanTimeEuler);
+			break;
+
+		case M_IPPS:
+			sprintf(title, "t=%7.2es dt=%7.2es %10u parts. %10lu iters. %7.2e IPPS\n",
+				ti->t, ti->dt, ti->numParticles, ti->iterations,
+				ti->getIPPS());
 			break;
 
 		case M_NOTIMING:
