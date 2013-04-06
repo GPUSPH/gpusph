@@ -29,6 +29,7 @@
 #define _TIMING_H
 
 typedef unsigned int uint;
+typedef unsigned long ulong;
 
 typedef struct TimingInfo {
 	float   t;
@@ -36,8 +37,8 @@ typedef struct TimingInfo {
 	uint	numParticles;
 	uint	maxNeibs;
 	uint	numInteractions;
-	long	iterations;
-	long	meanNumInteractions;
+	ulong	iterations;
+	ulong	meanNumInteractions;
 	float   timeNeibsList;
 	float   meanTimeNeibsList;
 	float   timeInteract;
