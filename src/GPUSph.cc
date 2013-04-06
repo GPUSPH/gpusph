@@ -109,7 +109,7 @@ CScreenshot *glscreenshot = 0;
 float modelView[16];
 
 // timing
-TimingInfo  timingInfo;
+TimingInfo  const* timingInfo = NULL;
 char title[256];
 
 // viewing parameters
@@ -148,7 +148,7 @@ void cleanup(void)
 
 void quit(int ret)
 {
-	double elapsed_sec = (clock() - timingInfo.startTime)/CLOCKS_PER_SEC;
+	double elapsed_sec = (clock() - timingInfo->startTime)/CLOCKS_PER_SEC;
 	printf("\nTotal time %es\n", elapsed_sec);
 	printf("Quitting\n");
 	cleanup();
@@ -163,10 +163,10 @@ void show_timing(int ret)
 		"%e neibs. in %es, mean %e neibs/s, max %u neibs\n"
 		"%e ints., %e ints/s, mean %e ints/s)\n"
 		"integration in %es (mean %es)\n",
-		ti.t, ti.dt, ti.numParticles,
-		(double)ti.numInteractions, ti.timeNeibsList, ti.meanTimeNeibsList, ti.maxNeibs,
-		(double)ti.meanNumInteractions, ti.numInteractions/ti.timeInteract, ti.meanNumInteractions/timingInfo.meanTimeInteract,
-		ti.timeEuler, ti.meanTimeEuler);
+		ti->t, ti->dt, ti->numParticles,
+		(double)ti->numInteractions, ti->timeNeibsList, ti->meanTimeNeibsList, ti->maxNeibs,
+		(double)ti->meanNumInteractions, ti->numInteractions/ti->timeInteract, ti->meanNumInteractions/ti->meanTimeInteract,
+		ti->timeEuler, ti->meanTimeEuler);
 	fflush(stdout);
 #undef ti
 }
@@ -329,7 +329,7 @@ void init(const char *arg)
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
-	timingInfo.startTime = clock();
+	timingInfo = psystem->markStart();
 }
 
 
@@ -471,10 +471,10 @@ void do_write()
 			"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			"mean neib list in %es\n"
 			"mean integration in %es\n",
-			ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
-			ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
-			ti.meanTimeNeibsList,
-			ti.meanTimeEuler);
+			ti->t, ti->iterations, ti->dt, ti->numParticles, (double) ti->meanNumInteractions,
+			ti->meanTimeInteract, ((double)ti->meanNumInteractions)/ti->meanTimeInteract, ti->maxNeibs,
+			ti->meanTimeNeibsList,
+			ti->meanTimeEuler);
 	fflush(stdout);
 	#undef ti
 	if (problem->m_simparams.gage.size() > 0) {
@@ -503,11 +503,11 @@ void display()
 	// render
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	bool finished = problem->finished(timingInfo.t);
+	bool finished = problem->finished(timingInfo->t);
 
-	bool need_display = displayEnabled && problem->need_display(timingInfo.t);
-	bool need_write = problem->need_write(timingInfo.t) || finished;
-	problem->write_rbdata(timingInfo.t);
+	bool need_display = displayEnabled && problem->need_display(timingInfo->t);
+	bool need_write = problem->need_write(timingInfo->t) || finished;
+	problem->write_rbdata(timingInfo->t);
 
 	if (stepping_mode) {
 		need_display = true;
@@ -529,7 +529,7 @@ void display()
 		problem->draw_axis();
 
 		char s[1024];
-		size_t len = sprintf(s, "t=%7.4es", timingInfo.t, timingInfo.dt);
+		size_t len = sprintf(s, "t=%7.4es", timingInfo->t, timingInfo->dt);
 		if (stepping_mode)
 			len += sprintf(s + len, "    (stepping mode)");
 		else if (bPause)
@@ -544,35 +544,37 @@ void display()
 
 	glutSwapBuffers();
 
+#define ti timingInfo
 	switch (timing) {
 		case M_INTERACTION:
-			sprintf(title, "t=%7.2es dt=%7.2es %d parts. %7.2eint. : %7.2eint./s (mean %7.2eint./s) (maxneibs %d)", timingInfo.t, timingInfo.dt,
-			timingInfo.numParticles, (double) timingInfo.meanNumInteractions,
-			((double) timingInfo.numInteractions)/timingInfo.timeInteract,
-			((double) timingInfo.meanNumInteractions)/timingInfo.meanTimeInteract, timingInfo.maxNeibs);
+			sprintf(title, "t=%7.2es dt=%7.2es %d parts. %7.2eint. : %7.2eint./s (mean %7.2eint./s) (maxneibs %d)",
+				ti->t, ti->dt, ti->numParticles, (double) ti->meanNumInteractions,
+				((double) ti->numInteractions)/ti->timeInteract,
+				((double) ti->meanNumInteractions)/ti->meanTimeInteract, ti->maxNeibs);
 			break;
 
 		case M_NEIBSLIST:
-			sprintf(title, "t=%7.2es dt=%7.2es %d parts. %7.2e neibs in %7.2es (mean %7.2es) (maxneibs %d)",timingInfo.t, timingInfo.dt,
-			timingInfo.numParticles, (double) timingInfo.numInteractions,
-			timingInfo.timeNeibsList,
-			timingInfo.meanTimeNeibsList, timingInfo.maxNeibs);
+			sprintf(title, "t=%7.2es dt=%7.2es %d parts. %7.2e neibs in %7.2es (mean %7.2es) (maxneibs %d)",
+				ti->t, ti->dt, ti->numParticles, (double) ti->numInteractions,
+				ti->timeNeibsList, ti->meanTimeNeibsList, ti->maxNeibs);
 			break;
 
 		case M_EULER:
-			sprintf(title, "t=%7.2es dt=%7.2es %d parts. integration in %7.2es (mean %7.2es)", timingInfo.t, timingInfo.dt,
-			timingInfo.numParticles, timingInfo.timeEuler, timingInfo.meanTimeEuler);
+			sprintf(title, "t=%7.2es dt=%7.2es %d parts. integration in %7.2es (mean %7.2es)",
+				ti->t, ti->dt, ti->numParticles, ti->timeEuler, ti->meanTimeEuler);
 			break;
 
 		case M_MEAN:
-			sprintf(title, "%7.2e interactions (%7.2eint./s) - Neibs list %7.2es - Euler %7.2es", (double) timingInfo.meanNumInteractions,
-				(double) timingInfo.meanNumInteractions/timingInfo.meanTimeInteract, timingInfo.meanTimeNeibsList, timingInfo.meanTimeEuler);
+			sprintf(title, "%7.2e interactions (%7.2eint./s) - Neibs list %7.2es - Euler %7.2es",
+				(double) ti->meanNumInteractions, (double) ti->meanNumInteractions/ti->meanTimeInteract,
+				ti->meanTimeNeibsList, ti->meanTimeEuler);
 			break;
 
 		case M_NOTIMING:
 			title[0] = '\0';
 			break;
 	}
+#undef ti
 
 	// leave the "Hit space to start" message until unpaused
 	if (!bPause)
@@ -583,11 +585,11 @@ void display()
 	glutReportErrors();
 
 	// Taking a screenshot
-	if (displayEnabled && (problem->need_screenshot(timingInfo.t) || screenshotNow))
+	if (displayEnabled && (problem->need_screenshot(timingInfo->t) || screenshotNow))
 	{
-		glscreenshot->TakeScreenshot(timingInfo.t);
+		glscreenshot->TakeScreenshot(timingInfo->t);
 		if (screenshotNow) {
-			cout << "Screenshot @ " << timingInfo.t << endl;
+			cout << "Screenshot @ " << timingInfo->t << endl;
 			screenshotNow = false;
 		}
 	}
@@ -609,9 +611,9 @@ void console_loop(void)
 			error = 1;
 		}
 
-		finished |= problem->finished(timingInfo.t);
+		finished |= problem->finished(timingInfo->t);
 
-		bool need_write = problem->need_write(timingInfo.t) || finished;
+		bool need_write = problem->need_write(timingInfo->t) || finished;
 
 		if (need_write)
 		{

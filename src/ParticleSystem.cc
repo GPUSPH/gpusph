@@ -1095,13 +1095,21 @@ ParticleSystem::buildNeibList(bool timing)
 	m_neiblist_built = true;
 }
 
+TimingInfo const*
+ParticleSystem::markStart(void)
+{
+	m_timingInfo.startTime = clock();
+	return &m_timingInfo;
+}
 
-TimingInfo
+
+
+TimingInfo const*
 ParticleSystem::PredcorrTimeStep(bool timing)
 {
 	// do nothing if the simulation is over
 	if (m_problem->finished(m_simTime))
-		return m_timingInfo;
+		return &m_timingInfo;
 
 	cudaEvent_t start_interactions, stop_interactions;
 	cudaEvent_t start_euler, stop_euler;
@@ -1384,7 +1392,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	m_timingInfo.iterations++;
 	m_timingInfo.iterTimesParts += m_numParticles;
 
-	return m_timingInfo;
+	return &m_timingInfo;
 }
 
 
