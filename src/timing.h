@@ -62,6 +62,12 @@ typedef struct TimingInfo {
 	double  meanTimeEuler;
 	// clock time when simulation started
 	clock_t	startTime;
+	// number of iterations times number of particles
+	/* Note: this is computed by adding to it the current number of particles
+	 * after each iteration, to ensure the correct value even when the number of
+	 * particles changes during the simulation
+	 */
+	ulong	iterTimesParts;
 } TimingInfo;
 
 

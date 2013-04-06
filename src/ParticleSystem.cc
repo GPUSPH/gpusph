@@ -124,6 +124,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_timingInfo.meanTimeInteract = 0.0f;
 	m_timingInfo.timeEuler = 0.0f;
 	m_timingInfo.meanTimeEuler = 0.0f;
+	m_timingInfo.iterTimesParts = 0;
 
 	// CHecking number of moving boundaries
 	if (m_problem->m_mbnumber > MAXMOVINGBOUND) {
@@ -1381,6 +1382,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	m_timingInfo.dt = m_dt;
 	m_timingInfo.t = m_simTime;
 	m_timingInfo.iterations++;
+	m_timingInfo.iterTimesParts += m_numParticles;
 
 	return m_timingInfo;
 }
