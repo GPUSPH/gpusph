@@ -34,19 +34,33 @@ typedef unsigned int uint;
 typedef unsigned long ulong;
 
 typedef struct TimingInfo {
+	// current simulation time
 	float   t;
+	// current simulation timestep
 	float   dt;
+	// current number of particles
 	uint	numParticles;
+	// current maximum number of neibs
 	uint	maxNeibs;
+	// number of particle-particle interactions with current neiblist
 	uint	numInteractions;
+	// iterations done so far
 	ulong	iterations;
+	// average number of particle-particle interactions
 	ulong	meanNumInteractions;
+	// time taken to build the neiblist (latest)
 	float   timeNeibsList;
+	// avg. time  to build the neiblist
 	float   meanTimeNeibsList;
+	// time taken to compute interactions (latest)
 	float   timeInteract;
+	// avg. time to compute interactions
 	float   meanTimeInteract;
+	// time taken to integrate (latest)
 	float   timeEuler;
+	// avg. time to integrate
 	double  meanTimeEuler;
+	// clock time when simulation started
 	clock_t	startTime;
 } TimingInfo;
 
