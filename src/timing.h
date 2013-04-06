@@ -28,6 +28,8 @@
 #ifndef _TIMING_H
 #define _TIMING_H
 
+#include <time.h>
+
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
@@ -45,6 +47,7 @@ typedef struct TimingInfo {
 	float   meanTimeInteract;
 	float   timeEuler;
 	double  meanTimeEuler;
+	clock_t	startTime;
 } TimingInfo;
 
 

@@ -56,7 +56,6 @@
 #include <time.h>
 #include <string.h>
 #include <signal.h>
-#include <time.h>
 
 #include <GL/glew.h>
 #ifdef __APPLE__
@@ -111,7 +110,6 @@ float modelView[16];
 
 // timing
 TimingInfo  timingInfo;
-clock_t		start_time;
 char title[256];
 
 // viewing parameters
@@ -150,7 +148,7 @@ void cleanup(void)
 
 void quit(int ret)
 {
-	double elapsed_sec = (clock() - start_time)/CLOCKS_PER_SEC;
+	double elapsed_sec = (clock() - timingInfo.startTime)/CLOCKS_PER_SEC;
 	printf("\nTotal time %es\n", elapsed_sec);
 	printf("Quitting\n");
 	cleanup();
@@ -331,7 +329,7 @@ void init(const char *arg)
 
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
-	start_time = clock();
+	timingInfo.startTime = clock();
 }
 
 
