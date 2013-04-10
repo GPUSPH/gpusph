@@ -99,6 +99,7 @@ class ParticleSystem
 		void	getPhysParams(void);
 		void	printPhysParams(FILE *summary = NULL);
 		void	printSimParams(FILE *summary = NULL);
+		// mark the beginning of the simulation
 		TimingInfo const*	markStart(void);
 
 		void	buildNeibList(bool timing);

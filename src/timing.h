@@ -72,6 +72,11 @@ typedef struct TimingInfo {
 	double	getIPPS(void) const {
 		return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;
 	}
+	// set the startTime of the simulation
+	clock_t	start(void) {
+		startTime = clock();
+		return startTime;
+	}
 } TimingInfo;
 
 

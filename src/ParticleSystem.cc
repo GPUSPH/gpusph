@@ -1098,7 +1098,7 @@ ParticleSystem::buildNeibList(bool timing)
 TimingInfo const*
 ParticleSystem::markStart(void)
 {
-	m_timingInfo.startTime = clock();
+	m_timingInfo.start();
 	return &m_timingInfo;
 }
 
