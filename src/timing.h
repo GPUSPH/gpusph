@@ -42,10 +42,10 @@ typedef struct TimingInfo {
 	uint	numParticles;
 	// current maximum number of neibs
 	uint	maxNeibs;
-	// number of particle-particle interactions with current neiblist
-	uint	numInteractions;
 	// iterations done so far
 	ulong	iterations;
+	// number of particle-particle interactions with current neiblist
+	uint	numInteractions;
 	// average number of particle-particle interactions
 	ulong	meanNumInteractions;
 	// time taken to build the neiblist (latest)
@@ -60,14 +60,26 @@ typedef struct TimingInfo {
 	float   timeEuler;
 	// avg. time to integrate
 	double  meanTimeEuler;
+
 	// clock time when simulation started
 	clock_t	startTime;
 	// number of iterations times number of particles
+
 	/* Note: this is computed by adding to it the current number of particles
 	 * after each iteration, to ensure the correct value even when the number of
 	 * particles changes during the simulation
 	 */
 	ulong	iterTimesParts;
+
+	TimingInfo(void) : t(0), dt(0), numParticles(0), maxNeibs(0),
+		iterations(0), numInteractions(0), meanNumInteractions(0),
+		timeNeibsList(0), meanTimeNeibsList(0),
+		timeInteract(0), meanTimeInteract(0),
+		timeEuler(0), meanTimeEuler(0),
+		startTime(0), iterTimesParts(0)
+	{}
+
+
 	// a method to return the throughput computed as iterations times particles per second
 	double	getIPPS(void) const {
 		return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;

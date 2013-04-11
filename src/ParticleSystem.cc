@@ -113,18 +113,6 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_dt = m_simparams->dt;
 
 	m_timingInfo.dt = m_dt;
-	m_timingInfo.t = 0.0f;
-	m_timingInfo.maxNeibs = 0;
-	m_timingInfo.numInteractions = 0.0f;
-	m_timingInfo.meanNumInteractions = 0;
-	m_timingInfo.iterations = 0;
-	m_timingInfo.timeNeibsList = 0.0f;
-	m_timingInfo.meanTimeNeibsList = 0.0f;
-	m_timingInfo.timeInteract = 0.0f;
-	m_timingInfo.meanTimeInteract = 0.0f;
-	m_timingInfo.timeEuler = 0.0f;
-	m_timingInfo.meanTimeEuler = 0.0f;
-	m_timingInfo.iterTimesParts = 0;
 
 	// CHecking number of moving boundaries
 	if (m_problem->m_mbnumber > MAXMOVINGBOUND) {
