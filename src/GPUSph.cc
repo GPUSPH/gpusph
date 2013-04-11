@@ -149,7 +149,7 @@ void cleanup(void)
 void quit(int ret)
 {
 	double elapsed_sec = (clock() - timingInfo->startTime)/CLOCKS_PER_SEC;
-	printf("\nTotal time %es, throughput %e IPPS\n", elapsed_sec, timingInfo->getIPPS());
+	printf("\nTotal time %es, throughput %.4g MIPPS\n", elapsed_sec, timingInfo->getMIPPS());
 	printf("Quitting\n");
 	cleanup();
 	exit(ret);
@@ -163,12 +163,12 @@ void show_timing(int ret)
 		"%e neibs. in %es, mean %e neibs/s, max %u neibs\n"
 		"%e ints., %e ints/s, mean %e ints/s)\n"
 		"integration in %es (mean %es)\n"
-		"throughput %e IPPS\n",
+		"throughput %.4g MIPPS\n",
 		ti->t, ti->dt, ti->numParticles,
 		(double)ti->numInteractions, ti->timeNeibsList, ti->meanTimeNeibsList, ti->maxNeibs,
 		(double)ti->meanNumInteractions, ti->numInteractions/ti->timeInteract, ti->meanNumInteractions/ti->meanTimeInteract,
 		ti->timeEuler, ti->meanTimeEuler,
-		ti->getIPPS());
+		ti->getMIPPS());
 	fflush(stdout);
 #undef ti
 }
@@ -473,12 +473,12 @@ void do_write()
 			"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			"mean neib list in %es\n"
 			"mean integration in %es\n"
-			"throughput %e IPPS\n",
+			"throughput %.4g MIPPS\n",
 			ti->t, ti->iterations, ti->dt, ti->numParticles, (double) ti->meanNumInteractions,
 			ti->meanTimeInteract, ((double)ti->meanNumInteractions)/ti->meanTimeInteract, ti->maxNeibs,
 			ti->meanTimeNeibsList,
 			ti->meanTimeEuler,
-			ti->getIPPS());
+			ti->getMIPPS());
 	fflush(stdout);
 	#undef ti
 	if (problem->m_simparams.gage.size() > 0) {
@@ -575,9 +575,9 @@ void display()
 			break;
 
 		case M_IPPS:
-			sprintf(title, "t=%7.2es dt=%7.2es %10u parts. %10lu iters. %7.2e IPPS\n",
+			sprintf(title, "t=%7.2es dt=%7.2es %10u parts. %10lu iters. %7.2g MIPPS\n",
 				ti->t, ti->dt, ti->numParticles, ti->iterations,
-				ti->getIPPS());
+				ti->getMIPPS());
 			break;
 
 		case M_NOTIMING:

@@ -84,6 +84,11 @@ typedef struct TimingInfo {
 	double	getIPPS(void) const {
 		return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;
 	}
+	// almost all devices get at least 1MIPPS, so:
+	inline
+	double	getMIPPS(void) const {
+		return getIPPS()/1000000.0;
+	}
 	// set the startTime of the simulation
 	clock_t	start(void) {
 		startTime = clock();
