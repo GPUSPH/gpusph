@@ -1137,6 +1137,7 @@ calcProbeDevice(	float4*		oldPos,
 	// in contrast to Shepard filter particle itself doesn't contribute into summation
 	float pressure = 0;
 	float alpha = 0;
+	uint num_neib = 0;
 
 	// loop over all the neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
@@ -1161,14 +1162,18 @@ calcProbeDevice(	float4*		oldPos,
 			const float w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;
 			pressure += w*P(neib_rho, PART_FLUID_NUM(neib_info));
 			alpha += w;
+			num_neib++;
 		}
 	}
 
 	if(alpha)
 	{
 		oldPos[index].w = alpha;
-		oldPressure[index] = pressure/alpha;
 	}
+	if(num_neib > 10)
+		oldPressure[index] = pressure/alpha;
+	else
+		oldPressure[index] = 0;
 }
 /************************************************************************************************************/
 
