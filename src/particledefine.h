@@ -230,6 +230,12 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 typedef unsigned int uint;
 
+typedef unsigned char uchar;
+
+typedef struct neibdata {
+	uchar	cell;
+	uchar 	offset;
+};
 
 typedef struct PhysParams {
 	float	rho0[MAX_FLUID_TYPES]; // density of various particles
@@ -444,17 +450,17 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	return v;
 }
 
-inline __host__ __device__ const short& type(const particleinfo &info)
+static __inline__ __host__ __device__ const short& type(const particleinfo &info)
 {
 	return info.x;
 }
 
-inline __host__ __device__ const short& object(const particleinfo &info)
+static __inline__ __host__ __device__ const short& object(const particleinfo &info)
 {
 	return info.y;   /***********NOTE */
 }
 
-inline __host__ __device__ const uint & id(const particleinfo &info)
+static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(uint*)&info.z;
 }
