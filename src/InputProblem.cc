@@ -185,7 +185,10 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 
 	std::cout << "Boundary parts: " << n_bparts << "\n";
 	for (uint i = j; i < j + n_bparts; i++) {
-		pos[i] = make_float4(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, m_physparams.rho0[0]*buf[i].Volume);
+		// Crixus sets zero volume for boundary particles resulting in zero mass. It doesn't affect calculations, but it
+		// contradicts with new feature of indication particles, which left the outlet, by zeroing their mass.
+		// To avoid problems masses of boundary particles are set to 99
+		pos[i] = make_float4(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 99.0);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		vertices[i].x = buf[i].VertexParticle1;
