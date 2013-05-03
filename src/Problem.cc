@@ -69,7 +69,8 @@ Problem::density(float h, int i)
 	float density = m_physparams.rho0[i];
 
 	if (h > 0) {
-		float g = length(m_physparams.gravity);
+		//float g = length(m_physparams.gravity);
+		float g = abs(m_physparams.gravity.z);
 		density = m_physparams.rho0[i]*pow(g*m_physparams.rho0[i]*h/m_physparams.bcoeff[i] + 1,
 				1/m_physparams.gammacoeff[i]);
 		}

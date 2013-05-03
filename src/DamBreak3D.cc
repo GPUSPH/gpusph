@@ -73,6 +73,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
+	m_simparams.ferrari = 0.1;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.boundarytype= LJ_BOUNDARY;
