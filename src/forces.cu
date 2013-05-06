@@ -162,7 +162,7 @@ void*	reduce_buffer = NULL;
 #define INITGRADGAMMA_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::initGradGammaDevice<kernel, periodic><<< numBlocks, numThreads>>> \
-				(newPos, virtualVel, gradGamma, neibsList, numParticles, slength, inflRadius); \
+				(newPos, virtualVel, gradGamma, neibsList, numParticles, deltap, slength, inflRadius); \
 	break
 
 #define UPDATEGAMMA_CHECK(kernel, periodic) \
@@ -942,6 +942,7 @@ initGradGamma(	float4*		oldPos,
 		float4*		gradGamma,
 		uint*		neibsList,
 		uint		numParticles,
+		float		deltap,
 		float		slength,
 		float		inflRadius,
 		int		kerneltype,

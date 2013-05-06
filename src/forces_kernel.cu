@@ -765,6 +765,7 @@ initGradGammaDevice(	float4*		newPos,
 			float4*		gradGam,
 			const uint*	neibsList,
 			const uint	numParticles,
+			const float deltap,
 			const float	slength,
 			const float	inflRadius)
 {
@@ -783,6 +784,7 @@ initGradGammaDevice(	float4*		newPos,
 		// Compute gradient of gamma for fluid only
 		if(FLUID(info)) {
 			//uint counter = 0; //DEBUG
+			float rmin = inflRadius;
 
 			// Loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
@@ -802,8 +804,14 @@ initGradGammaDevice(	float4*		newPos,
 					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
 					gGam += gradGamma<kerneltype>(slength, r, boundElement);
 					//counter++; //DEBUG
+					if(r < rmin)
+						rmin = r;
 				}
 			}
+
+			if(rmin < 0.8*deltap)
+				disable_particle(pos);
+
 			//DEBUG output
 			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
 			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);

@@ -1302,6 +1302,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 			m_dGradGamma[m_currentGradGammaWrite],
 			m_dNeibsList,
 			m_numParticles,
+			m_problem->m_deltap,
 			m_simparams->slength,
 			m_influenceRadius,
 			m_simparams->kerneltype,
