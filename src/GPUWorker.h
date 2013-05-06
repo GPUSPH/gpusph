@@ -116,9 +116,6 @@ private:
 	uint*		m_hCompactDeviceMap;
 	uint*		m_dCompactDeviceMap;
 
-	// swap (indices for) double buffers
-	void swap_buffers(bool alsoInfo);
-
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();

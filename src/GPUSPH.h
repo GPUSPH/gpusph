@@ -44,8 +44,7 @@ private:
 	void sortParticlesByHash();
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
 	void particleSwap(uint idx1, uint idx2);
-	// swap (indices of) device double buffers
-	void swapDeviceBuffers(bool alsoInfo);
+
 public:
 	// destructor
 	~GPUSPH();

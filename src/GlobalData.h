@@ -257,6 +257,14 @@ struct GlobalData {
 		int trimmedZ = max(0, min(cellZ, gridSize.z-1));
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
+
+	// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
+	void swapDeviceBuffers(bool alsoInfo) {
+		std::swap(s_currentPosRead, s_currentPosWrite);
+		std::swap(s_currentVelRead, s_currentVelWrite);
+		if (alsoInfo)
+			std::swap(s_currentInfoRead, s_currentInfoWrite);
+	}
 };
 
 #endif // _GLOBAL_DATA_
