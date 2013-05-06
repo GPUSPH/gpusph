@@ -562,8 +562,8 @@ bool GPUSPH::runSimulation() {
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-
-	//while (keep_going)
+	// TODO
+	while (gdata->keep_going) {
 	//			// Integrator > setNextStep
 	//			// run next SimulationStep (workers do it, w barrier)
 	//			// or -----
@@ -607,6 +607,7 @@ bool GPUSPH::runSimulation() {
 	//			> do_write
 	//				printf info
 	//				ps > writeToFile
+	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
@@ -765,7 +766,7 @@ void GPUSPH::sortParticlesByHash() {
 	delete [] m_hParticleHashes;
 }
 
-// Swap two particles in shared arrays (pos, vel, pInfo)
+// Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2) {
 	// could keep a counter
 	swap( gdata->s_hPos[idx1],  gdata->s_hPos[idx2] );

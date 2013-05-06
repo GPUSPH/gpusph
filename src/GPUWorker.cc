@@ -401,14 +401,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
 	// TODO
-	// Here is a copy-past from the CPU thread worker of branch cpusph, as a canvas
+	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 	while (gdata->keep_going) {
 		switch (gdata->nextCommand) {
 			// logging here?
 			case IDLE:
 				break;
 			case CALCHASH:
-				//tdata->psystem->calcHashHostRange(fromPart, toPart);
+				//gdata->psystem->calcHashHostRange(fromPart, toPart);
 				break;
 			case REORDER:
 				//tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
