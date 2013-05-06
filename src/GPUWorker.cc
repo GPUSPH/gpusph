@@ -6,6 +6,7 @@
  */
 
 #include "GPUWorker.h"
+#include "buildneibs.cuh"
 
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 	gdata = _gdata;
@@ -409,6 +410,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case CALCHASH:
 				//gdata->psystem->calcHashHostRange(fromPart, toPart);
+				instance->kernel_calcHash();
 				break;
 			case REORDER:
 				//tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
@@ -441,5 +443,18 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	pthread_exit(NULL);
 }
+
+void GPUWorker::kernel_calcHash()
+{
+	calcHash(m_dPos[gdata->s_currentPosRead],
+					//m_dParticleHashLong,
+					m_dParticleIndex, // WARNING: this is only to compile; the correct hash array must be passed instead
+					m_dParticleIndex,
+					gdata->gridSize,
+					gdata->cellSize,
+					gdata->worldOrigin,
+					m_numParticles);
+}
+
 
 

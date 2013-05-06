@@ -125,6 +125,9 @@ private:
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 
+	// kernels
+	void kernel_calcHash();
+
 public:
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();
