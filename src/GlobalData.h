@@ -65,7 +65,7 @@ struct GlobalData {
 	// ceil(totParticles/devices)
 	//uint idealSubset;
 
-	// CPU buffers ("s" stands for "shared")
+	// CPU buffers ("s" stands for "shared"). Not double buffered
 	float4*			s_hPos;  // position array
 	float4*			s_hVel;  // velocity array
 	particleinfo*	s_hInfo; // particle info array
@@ -98,12 +98,12 @@ struct GlobalData {
 	// last dt for each PS
 	float s_dt[MAX_DEVICES_PER_NODE];
 
-	// indices for device double buffers
+	// indices for double-buffered device arrays (0 or 1)
 	uint s_currentPosRead;	// current index in m_dPos for position reading (0 or 1)
 	uint s_currentPosWrite;	// current index in m_dPos for writing (0 or 1)
 	uint s_currentVelRead;	// current index in m_dVel for velocity reading (0 or 1)
 	uint s_currentVelWrite;	// current index in m_dVel for writing (0 or 1)
-	uint s_currentInfoRead;	// current index in m_dInfo for info reading (0 or 1)
+	uint s_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 	uint s_currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
 
 	// moving boundaries data

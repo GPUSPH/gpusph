@@ -455,8 +455,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem = gdata->problem;
 
 	// the initial assignment is arbitrary, just need to be complementary
-	gdata->s_currentPosRead = gdata->s_currentVelRead = gdata->s_currentInfoRead = 1;
-	gdata->s_currentPosWrite = gdata->s_currentVelWrite = gdata->s_currentInfoWrite = 0;
+	gdata->s_currentPosRead = gdata->s_currentVelRead = gdata->s_currentInfoRead = 0;
+	gdata->s_currentPosWrite = gdata->s_currentVelWrite = gdata->s_currentInfoWrite = 1;
 
 	//		> new PS
 	psystem = new ParticleSystem(gdata);

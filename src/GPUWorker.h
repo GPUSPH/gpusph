@@ -127,12 +127,28 @@ private:
 
 	// kernels
 	void kernel_calcHash();
+	/*void kernel_sort();
+	void kernel_reorderDataAndFindCellStart();
+	void kernel_findSliceStart();
+	void kernel_buildNeibsList(uint firstNG, uint lastNG);
+	float kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
+		bool reduce = true, cudaStream_t f_stream = 0,
+		uint cfl_offset = 0, float *pin_maxcfl = NULL);
+	float kernel_reduce_forces();
+	void kernel_euler(bool firstPhase, uint firstNG, uint lastNG);
+	void uploadMbData();
+	void uploadGravity();*/
 
 public:
+	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();
+
+	// thread management
 	void run_worker();
 	void join_worker();
+
+	// utility getters
 	cudaDeviceProp getDeviceProperties();
 	unsigned long getHostMemory();
 	unsigned long getDeviceMemory();
