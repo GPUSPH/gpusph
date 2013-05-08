@@ -196,6 +196,12 @@ void init(const char *arg)
 	if (isfinite(clOptions.tend))
 		problem->get_simparams()->tend = clOptions.tend;
 
+	// set the influence radii - should be encapsulated somewhere as this is physics logic
+	SimParams *sp = problem->get_simparams();
+	sp->influenceRadius = sp->kernelradius * sp->slength;
+	sp->nlInfluenceRadius = sp->influenceRadius * sp->nlexpansionfactor;
+	sp->nlSqInfluenceRadius = sp->nlInfluenceRadius * sp->nlInfluenceRadius;
+
 	psystem = new ParticleSystem(problem);
 
 	psystem->printPhysParams();

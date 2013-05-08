@@ -50,6 +50,9 @@ typedef struct SimParams {
 	float			slength;			// smoothing length
 	KernelType		kerneltype;			// kernel type
 	float			kernelradius;		// kernel radius
+	float 			influenceRadius;	// influence radius ( = kernelradius * slength)
+	float 			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
+	float 			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;					// initial timestep
 	float			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
@@ -78,6 +81,9 @@ typedef struct SimParams {
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
 		kernelradius(2.0),
+		influenceRadius(0),
+		nlInfluenceRadius(0),
+		nlSqInfluenceRadius(0),
 		dt(0.00013),
 		tend(0),
 		xsph(false),
