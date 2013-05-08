@@ -412,6 +412,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//gdata->psystem->calcHashHostRange(fromPart, toPart);
 				instance->kernel_calcHash();
 				break;
+			case SORT:
+				//instance->kernel_sort();
+				break;
 			case REORDER:
 				//tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
 				break;

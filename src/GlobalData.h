@@ -24,7 +24,7 @@
 #include "Synchronizer.h"
 
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used
-enum CommandType {IDLE, CALCHASH, REORDER, BUILDNEIBS, FORCES, EULER, QUIT};
+enum CommandType {IDLE, CALCHASH, SORT, REORDER, BUILDNEIBS, FORCES, EULER, QUIT};
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
