@@ -510,6 +510,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO
 	//		// > new Integrator
 
+	// TODO: read DEM file. setDemTexture() will be called from the GPUWokers instead
+
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
 

@@ -391,6 +391,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->createCompactDeviceMap();
 	instance->uploadCompactDeviceMap();
 
+	// TODO: here set_reduction_params() will be called (to be implemented in this class). These parameters can be device-specific.
+
+	// TODO: here setDemTexture() will be called. It is device-wide, but reading the DEM file is process wide and will be in GPUSPH class
+
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
 	// here GPUSPH::initialize is over and GPUSPH::runSimulation() is called
@@ -499,8 +503,8 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 		return forces(  m_dPos[gdata->s_currentPosRead],   // pos(n)
 						m_dVel[gdata->s_currentVelRead],   // vel(n)
 						m_dForces,					// f(n)
-						0, // qqq: float4*			rbforces,
-						0, // qqq: float4*			rbtorques,
+						0, // float* rbforces
+						0, // float* rbtorques
 						m_dXsph,
 						m_dInfo[gdata->s_currentInfoRead],
 						m_dNeibsList,
@@ -522,20 +526,12 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem );
-						/*reduce,
-						f_stream,
-						cfl_offset,
-						pin_maxcfl,
-						true,
-						//forces_start, // qqq
-						//forces_stop // qqq
-						0,0); */
 	else
 		return forces(  m_dPos[gdata->s_currentPosWrite],  // pos(n+1/2)
 						m_dVel[gdata->s_currentVelWrite],  // vel(n+1/2)
 						m_dForces,					// f(n+1/2)
-						0, // qqq: float4*			rbforces,
-						0, // qqq: float4*			rbtorques,
+						0, // float* rbforces,
+						0, // float* rbtorques,
 						m_dXsph,
 						m_dInfo[gdata->s_currentInfoRead],
 						m_dNeibsList,
@@ -557,14 +553,7 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem );
-						/*reduce,
-						f_stream,
-						cfl_offset,
-						pin_maxcfl,
-						true,
-						//forces_start, // qqq
-						//forces_stop // qqq
-						0,0); */
+
 }
 
 void GPUWorker::kernel_euler(bool firstPhase, uint firstNG, uint lastNG) {

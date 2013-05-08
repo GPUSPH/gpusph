@@ -134,7 +134,6 @@ private:
 	float kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 		bool reduce = true, cudaStream_t f_stream = 0,
 		uint cfl_offset = 0, float *pin_maxcfl = NULL);
-	float kernel_reduce_forces();
 	void kernel_euler(bool firstPhase, uint firstNG, uint lastNG);
 	/*void uploadMbData();
 	void uploadGravity();*/
