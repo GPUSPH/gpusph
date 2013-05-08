@@ -13,6 +13,7 @@ class GPUWorker;
 #include <pthread.h>
 #include "vector_types.h"
 #include "GlobalData.h"
+#include "buildneibs.cuh" // for hashKey
 
 /* We need a forward declaration of GlobalData.
  * When the compiler includes "GlobalData.h" from somewhere else, it defines _GLOBAL_DATA_
@@ -92,7 +93,7 @@ private:
 	float*		m_dTempCfl;				// temporary storage for cfl computation
 	float*		m_dCfl2;				// test
 	float2*		m_dTau[3];				// SPS stress tensor
-	unsigned long*	m_dParticleHashLong;		// hash table for sorting
+	hashKey*	m_dParticleHash;		// hash table for sorting; 32 or 64 bit according to HASH_KEY_SIZE
 	uint*		m_dParticleIndex;		// sorted particle indexes
 	uint*		m_dCellStart;			// index of cell start in sorted order
 	uint*		m_dCellEnd;				// index of cell end in sorted order

@@ -91,9 +91,9 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	const uint float4Size = sizeof(float4)*m_numParticles;
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint intSize = sizeof(uint)*m_numParticles;
-	const uint longSize = sizeof(unsigned long)*m_numParticles;
 	const uint uintCellsSize = sizeof(uint)*m_nGridCells;
 	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint hashSize = sizeof(hashKey)*m_numParticles;
 	//const uint neibslistSize = sizeof(uint)*128*m_numParticles;
 	//const uint sliceArraySize = sizeof(uint)*m_gridSize.PSA;
 
@@ -146,10 +146,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		allocated += float2Size;
 	}
 
-	//CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
-	//memory += hashSize;
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHashLong, longSize));
-	allocated += longSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
+	allocated += hashSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, intSize));
 	allocated += intSize;
@@ -231,7 +229,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 		CUDA_SAFE_CALL(cudaFree(m_dTau[2]));
 	}
 
-	CUDA_SAFE_CALL(cudaFree(m_dParticleHashLong));
+	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
@@ -448,8 +446,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 void GPUWorker::kernel_calcHash() {
 	calcHash(m_dPos[gdata->s_currentPosRead],
-					//m_dParticleHashLong, // qqq
-					m_dParticleIndex, // WARNING: this is only to compile; the correct hash array must be passed instead
+					m_dParticleHash,
 					m_dParticleIndex,
 					gdata->gridSize,
 					gdata->cellSize,
@@ -468,8 +465,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart() {
 							m_dPos[gdata->s_currentPosWrite],		 // output: sorted positions
 							m_dVel[gdata->s_currentVelWrite],		 // output: sorted velocities
 							m_dInfo[gdata->s_currentInfoWrite],		 // output: sorted info
-							//m_dParticleHash,   // input: sorted grid hashes // qqq
-							m_dParticleIndex,
+							m_dParticleHash,
 							m_dParticleIndex,  // input: sorted particle indices
 							m_dPos[gdata->s_currentPosRead],		 // input: sorted position array
 							m_dVel[gdata->s_currentVelRead],		 // input: sorted velocity array
@@ -482,7 +478,7 @@ void GPUWorker::kernel_buildNeibsList(uint firstNG, uint lastNG) {
 	buildNeibsList(	m_dNeibsList,
 						m_dPos[gdata->s_currentPosRead],
 						m_dInfo[gdata->s_currentInfoRead],
-						0, // qqq: hashKey*		particleHash,
+						m_dParticleHash,
 						m_dCellStart,
 						m_dCellEnd,
 						gdata->gridSize,
