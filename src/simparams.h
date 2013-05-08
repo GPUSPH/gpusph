@@ -80,6 +80,8 @@ typedef struct SimParams {
 	int				numbodies;			// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
+		slength(0),
+		kerneltype(INVALID_KERNEL),
 		kernelradius(2.0),
 		influenceRadius(0),
 		nlInfluenceRadius(0),
