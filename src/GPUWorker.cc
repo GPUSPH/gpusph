@@ -7,6 +7,8 @@
 
 #include "GPUWorker.h"
 #include "buildneibs.cuh"
+#include "forces.cuh"
+#include "euler.cuh"
 
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
 	gdata = _gdata;
@@ -444,10 +446,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	pthread_exit(NULL);
 }
 
-void GPUWorker::kernel_calcHash()
-{
+void GPUWorker::kernel_calcHash() {
 	calcHash(m_dPos[gdata->s_currentPosRead],
-					//m_dParticleHashLong,
+					//m_dParticleHashLong, // qqq
 					m_dParticleIndex, // WARNING: this is only to compile; the correct hash array must be passed instead
 					m_dParticleIndex,
 					gdata->gridSize,
@@ -456,5 +457,149 @@ void GPUWorker::kernel_calcHash()
 					m_numParticles);
 }
 
+void GPUWorker::kernel_sort() {
+	//m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
+	//sort(m_dParticleHash, m_dParticleIndex, m_numParticles);  // qqq
+}
+
+void GPUWorker::kernel_reorderDataAndFindCellStart() {
+	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
+							m_dCellEnd,		// output: cell end index
+							m_dPos[gdata->s_currentPosWrite],		 // output: sorted positions
+							m_dVel[gdata->s_currentVelWrite],		 // output: sorted velocities
+							m_dInfo[gdata->s_currentInfoWrite],		 // output: sorted info
+							//m_dParticleHash,   // input: sorted grid hashes // qqq
+							m_dParticleIndex,
+							m_dParticleIndex,  // input: sorted particle indices
+							m_dPos[gdata->s_currentPosRead],		 // input: sorted position array
+							m_dVel[gdata->s_currentVelRead],		 // input: sorted velocity array
+							m_dInfo[gdata->s_currentInfoRead],		 // input: sorted info array
+							m_numParticles,
+							m_nGridCells);
+}
+
+void GPUWorker::kernel_buildNeibsList(uint firstNG, uint lastNG) {
+	buildNeibsList(	m_dNeibsList,
+						m_dPos[gdata->s_currentPosRead],
+						m_dInfo[gdata->s_currentInfoRead],
+						0, // qqq: hashKey*		particleHash,
+						m_dCellStart,
+						m_dCellEnd,
+						gdata->gridSize,
+						gdata->cellSize,
+						gdata->worldOrigin,
+						m_numParticles,
+						m_nGridCells,
+						m_simparams->nlInfluenceRadius,
+						m_simparams->periodicbound);
+}
+
+float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
+	bool reduce, cudaStream_t f_stream, uint cfl_offset, float *pin_maxcfl) {
+
+	if (firstPhase)
+		return forces(  m_dPos[gdata->s_currentPosRead],   // pos(n)
+						m_dVel[gdata->s_currentVelRead],   // vel(n)
+						m_dForces,					// f(n)
+						0, // qqq: float4*			rbforces,
+						0, // qqq: float4*			rbtorques,
+						m_dXsph,
+						m_dInfo[gdata->s_currentInfoRead],
+						m_dNeibsList,
+						m_numParticles,
+						m_simparams->slength,
+						gdata->dt, // m_dt,
+						m_simparams->dtadapt,
+						m_simparams->dtadaptfactor,
+						m_simparams->xsph,
+						m_simparams->kerneltype,
+						m_simparams->influenceRadius,
+						m_simparams->visctype,
+						m_physparams->visccoeff,
+						m_dCfl,
+						0, // qqq: float*			tempCfl, (was m_dTempFmax),
+						m_numPartsFmax,
+						m_dTau,
+						m_simparams->periodicbound,
+						m_simparams->sph_formulation,
+						m_simparams->boundarytype,
+						m_simparams->usedem );
+						/*reduce,
+						f_stream,
+						cfl_offset,
+						pin_maxcfl,
+						true,
+						//forces_start, // qqq
+						//forces_stop // qqq
+						0,0); */
+	else
+		return forces(  m_dPos[gdata->s_currentPosWrite],  // pos(n+1/2)
+						m_dVel[gdata->s_currentVelWrite],  // vel(n+1/2)
+						m_dForces,					// f(n+1/2)
+						0, // qqq: float4*			rbforces,
+						0, // qqq: float4*			rbtorques,
+						m_dXsph,
+						m_dInfo[gdata->s_currentInfoRead],
+						m_dNeibsList,
+						m_numParticles,
+						m_simparams->slength,
+						gdata->dt, // m_dt,
+						m_simparams->dtadapt,
+						m_simparams->dtadaptfactor,
+						m_simparams->xsph,
+						m_simparams->kerneltype,
+						m_simparams->influenceRadius,
+						m_simparams->visctype,
+						m_physparams->visccoeff,
+						m_dCfl,
+						0, // qqq: float*			tempCfl, (was m_dTempFmax),
+						m_numPartsFmax,
+						m_dTau,
+						m_simparams->periodicbound,
+						m_simparams->sph_formulation,
+						m_simparams->boundarytype,
+						m_simparams->usedem );
+						/*reduce,
+						f_stream,
+						cfl_offset,
+						pin_maxcfl,
+						true,
+						//forces_start, // qqq
+						//forces_stop // qqq
+						0,0); */
+}
+
+void GPUWorker::kernel_euler(bool firstPhase, uint firstNG, uint lastNG) {
+	if (firstPhase)
+		euler(  m_dPos[gdata->s_currentPosRead],   // pos(n)
+				m_dVel[gdata->s_currentVelRead],   // vel(n)
+				m_dInfo[gdata->s_currentInfoRead], //particleInfo
+				m_dForces,					// f(n+1/2)
+				m_dXsph,
+				m_dPos[gdata->s_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
+				m_dVel[gdata->s_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+				m_numParticles,
+				gdata->dt, // m_dt,
+				gdata->dt/2.0f, // m_dt/2.0,
+				1,
+				gdata->t + gdata->dt / 2.0f, // + m_dt,
+				m_simparams->xsph,
+				m_simparams->periodicbound);
+	else
+		euler(  m_dPos[gdata->s_currentPosRead],   // pos(n)
+				m_dVel[gdata->s_currentVelRead],   // vel(n)
+				m_dInfo[gdata->s_currentInfoRead], //particleInfo
+				m_dForces,					// f(n+1/2)
+				m_dXsph,
+				m_dPos[gdata->s_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
+				m_dVel[gdata->s_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+				m_numParticles,
+				gdata->dt, // m_dt,
+				gdata->dt/2.0f, // m_dt/2.0,
+				2,
+				gdata->t + gdata->dt,// + m_dt,
+				m_simparams->xsph,
+				m_simparams->periodicbound);
+}
 
 
