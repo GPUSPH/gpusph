@@ -458,8 +458,7 @@ void GPUWorker::kernel_calcHash() {
 }
 
 void GPUWorker::kernel_sort() {
-	//m_sorter->sort(m_dParticleHash, m_dParticleIndex, m_numParticles, m_nSortingBits);
-	//sort(m_dParticleHash, m_dParticleIndex, m_numParticles);  // qqq
+	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart() {
