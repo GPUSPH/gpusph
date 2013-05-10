@@ -577,16 +577,19 @@ bool GPUSPH::runSimulation() {
 
 	// TODO
 	while (gdata->keep_going) {
-	//			// Integrator > setNextStep
-	//			// run next SimulationStep (workers do it, w barrier)
-	//			// or -----
-	//			> buildNeibslist
-	//				k>  calcHash
-	//					2 bits from compactDevMap + usual
-	//				k>  sort_w_ids
-	//				k>  reorderDataAndFindCellStart
-	//				swap3
-	//				k>  buildNeibslist
+		// when there will be an Integrator class, here (or after bneibs?) we will call Integrator -> setNextStep
+
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
+			doCommand(CALCHASH);
+			doCommand(SORT);
+			doCommand(REORDER);
+			// swap pos, vel and info double buffers
+			gdata->swapDeviceBuffers(true);
+			doCommand(BUILDNEIBS);
+
+		}
+
 	//			k>  shepard && swap1
 	//			k>  mls && swap
 	//			//set mvboundaries and gravity
