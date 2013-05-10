@@ -413,27 +413,26 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case IDLE:
 				break;
 			case CALCHASH:
-				//gdata->psystem->calcHashHostRange(fromPart, toPart);
 				instance->kernel_calcHash();
 				break;
 			case SORT:
-				//instance->kernel_sort();
+				instance->kernel_sort();
 				break;
 			case REORDER:
-				//tdata->psystem->reorderAndCellStartHostRange(fromPart, toPart);
+				instance->kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
-				//tdata->psystem->buildNeibsListHostRange(fromPart, toPart);
+				instance->kernel_buildNeibsList(0, 0);
 				break;
 			case FORCES:
 				//cd->cpuThreadDts[tdata->CPUThreadIndex] =
 				//	tdata->psystem->forcesHostRange(fromPart, toPart);
 				break;
 			case EULER:
-				//tdata->psystem->eulerHostRange(fromPart, toPart);
+				instance->kernel_euler(false, 0, 0);
 				break;
 			case QUIT:
-				//dontstop = false;
+				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 		}
 		if (gdata->keep_going) {
