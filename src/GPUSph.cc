@@ -568,7 +568,11 @@ bool GPUSPH::runSimulation() {
 
 	// here the Workers are uploading their subdomains
 
+	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
+	// nextCommand properly before the barrier (although should be already initialized to IDLE).
+	gdata->nextCommand = IDLE;
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
+	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 1
 
 	// TODO
 	while (gdata->keep_going) {
@@ -617,6 +621,8 @@ bool GPUSPH::runSimulation() {
 	//				ps > writeToFile
 	}
 
+	gdata->nextCommand = QUIT;
+	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
 	// just wait or...?

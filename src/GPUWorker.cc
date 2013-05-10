@@ -436,7 +436,11 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//dontstop = false;
 				break;
 		}
-		if (gdata->keep_going) gdata->threadSynchronizer->barrier();
+		if (gdata->keep_going) {
+			// the first barrier waits for the main thread to set the next command; the second is to unlock
+			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 1
+			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
+		}
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
