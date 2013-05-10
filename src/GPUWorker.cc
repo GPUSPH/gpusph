@@ -456,6 +456,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 void GPUWorker::kernel_calcHash() {
 	calcHash(m_dPos[gdata->s_currentPosRead],
+#if HASH_KEY_SIZE >= 64
+					m_dInfo[gdata->s_currentPosRead],
+#endif
 					m_dParticleHash,
 					m_dParticleIndex,
 					gdata->gridSize,
