@@ -570,6 +570,7 @@ bool GPUSPH::runSimulation() {
 
 	// After next barrier, the workers will enter their simulation cycle, so it is recommended to set
 	// nextCommand properly before the barrier (although should be already initialized to IDLE).
+	// doCommand(IDLE) would be equivalent, but this is more clear
 	gdata->nextCommand = IDLE;
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 1
@@ -621,6 +622,7 @@ bool GPUSPH::runSimulation() {
 	//				ps > writeToFile
 	}
 
+	// doCommand(QUIT) would be equivalent, but this is more clear
 	gdata->nextCommand = QUIT;
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
@@ -786,5 +788,12 @@ void GPUSPH::particleSwap(uint idx1, uint idx2) {
 	swap( gdata->s_hPos[idx1],  gdata->s_hPos[idx2] );
 	swap( gdata->s_hVel[idx1],  gdata->s_hVel[idx2] );
 	swap( gdata->s_hInfo[idx1], gdata->s_hInfo[idx2] );
+}
+
+// set nextCommand, unlock the threads and wait for them to complete
+void GPUSPH::doCommand(CommandType cmd) {
+	gdata->nextCommand = cmd;
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 }
 
