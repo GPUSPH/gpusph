@@ -48,6 +48,9 @@ private:
 	// set nextCommand, unlock the threads and wait for them to complete
 	void doCommand(CommandType cmd);
 
+	// sets the correct viscosity coefficient according to the one set in SimParams
+	void setViscosityCoefficient();
+
 public:
 	// destructor
 	~GPUSPH();

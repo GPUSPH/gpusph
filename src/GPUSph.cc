@@ -464,6 +464,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->s_currentPosRead = gdata->s_currentVelRead = gdata->s_currentInfoRead = 0;
 	gdata->s_currentPosWrite = gdata->s_currentVelWrite = gdata->s_currentInfoWrite = 1;
 
+	// sets the correct viscosity coefficient according to the one set in SimParams
+	setViscosityCoefficient();
+
 	//		> new PS
 	psystem = new ParticleSystem(gdata);
 	//			PS constructor updates cellSize, worldSize, nCells, etc. in gdata
@@ -800,3 +803,22 @@ void GPUSPH::doCommand(CommandType cmd) {
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 }
 
+void GPUSPH::setViscosityCoefficient()
+{
+	PhysParams *pp = gdata->problem->get_physparams();
+	// Setting visccoeff
+	switch (gdata->problem->get_simparams()->visctype) {
+		case ARTVISC:
+			pp->visccoeff = pp->artvisccoeff;
+			break;
+
+		case KINEMATICVISC:
+		case SPSVISC:
+			pp->visccoeff = 4.0*pp->kinematicvisc;
+			break;
+
+		case DYNAMICVISC:
+			pp->visccoeff = pp->kinematicvisc;
+			break;
+	}
+}

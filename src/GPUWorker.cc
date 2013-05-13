@@ -383,6 +383,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	instance->setDeviceProperties( checkCUDA(gdata, devnum) );
 
+	// upload constants (PhysParames, some SimParams)
+	instance->uploadConstants();
+
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
 	instance->allocateDeviceBuffers();
@@ -593,6 +596,16 @@ void GPUWorker::kernel_euler(bool firstPhase, uint firstNG, uint lastNG) {
 				gdata->t + gdata->dt,// + m_dt,
 				m_simparams->xsph,
 				m_simparams->periodicbound);
+}
+
+void GPUWorker::uploadConstants()
+{
+	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
+
+	// Setting kernels and kernels derivative factors
+	setforcesconstants(m_simparams, m_physparams);
+	seteulerconstants(m_physparams);
+	setneibsconstants(m_simparams, m_physparams);
 }
 
 

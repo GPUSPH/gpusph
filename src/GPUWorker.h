@@ -125,6 +125,7 @@ private:
 	void uploadSubdomains();
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
+	void uploadConstants();
 
 	// kernels
 	void kernel_calcHash();
