@@ -809,6 +809,16 @@ static __inline__ __host__ __device__ void operator+=(uint3 &a, const uint3 &b)
 	a.x += b.x; a.y += b.y; a.z += b.z;
 }
 
+static __inline__ __host__ __device__ void operator+=(uint3 &a, const int3 &b)
+{
+	a.x += b.x; a.y += b.y; a.z += b.z;
+}
+
+static __inline__ __host__ __device__ void operator+=(int3 &a, const uint3 &b)
+{
+	a.x += b.x; a.y += b.y; a.z += b.z;
+}
+
 // subtract
 static __inline__ __host__ __device__ uint3 operator-(const uint3 &a, const uint3 &b)
 {

@@ -168,7 +168,7 @@ class ParticleSystem
 		float *		m_hPlanesDiv;
 
 		// CPU arrays used for debugging
-		uint*		m_hNeibsList;
+		neibdata*	m_hNeibsList;
 		uint*		m_hParticleHash;
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
@@ -206,7 +206,7 @@ class ParticleSystem
 		uint*		m_dParticleIndex;		// sorted particle indexes
 		uint*		m_dCellStart;			// index of cell start in sorted order
 		uint*		m_dCellEnd;				// index of cell end in sorted order
-		uint*		m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
+		neibdata*	m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
 
 		uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
 		uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)

@@ -38,6 +38,7 @@
 
 #include "particledefine.h"
 #include "textures.cuh"
+#include "vector_math.h"
 
 namespace cuneibs {
 __constant__ uint d_maxneibsnum;
@@ -171,12 +172,13 @@ neibsInCell(
 			const float4*	posArray,
 			#endif
 			int3			gridPos,
+			const uchar		cell,
 			const uint		index,
 			const float3	pos,
 			const uint3		gridSize,
 			const uint		numParticles,
 			const float		sqinfluenceradius,
-			uint*			neibsList,
+			neibdata*		neibsList,
 			uint&			neibs_num,
 			const uint		lane,
 			const uint		offset)
@@ -229,6 +231,10 @@ neibsInCell(
 				return;
 	}
 
+	neibdata neib;
+	neib.cell = cell;
+	neib.offset = 0;
+
 	// get hash value of grid position
 	const uint gridHash = calcGridHash(gridPos, gridSize);
 
@@ -271,8 +277,10 @@ neibsInCell(
 							mod_index |= WARPZMINUS;
 					}
 
-					if (neibs_num < d_maxneibsnum)
-						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = mod_index;
+					if (neibs_num < d_maxneibsnum) {
+						neib.offset = neib_index - bucketStart;
+						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = neib;
+					}
 					neibs_num++;
 				}
 
@@ -291,7 +299,7 @@ buildNeibsListDevice(
 						#if (__COMPUTE__ >= 20)			
 						const float4*	posArray,
 						#endif
-						uint*			neibsList,
+						neibdata*		neibsList,
 						const uint3		gridSize,
 						const float3	cellSize,
 						const float3	worldOrigin,
@@ -333,14 +341,14 @@ buildNeibsListDevice(
 							#if (__COMPUTE__ >= 20)
 							posArray, 
 							#endif
-							gridPos + make_int3(x, y, z), index, pos, gridSize, numParticles, 
+							gridPos + make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos, gridSize, numParticles,
 							sqinfluenceradius, neibsList, neibs_num, lane, offset);
 				}
 			}
 		}
 		
 		if (neibs_num < d_maxneibsnum)
-			neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffffffff;
+			*((ushort*) &neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset]) = 0xffff;
 	}
 	
 	if (neibcount) {

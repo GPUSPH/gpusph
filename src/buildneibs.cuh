@@ -97,37 +97,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							uint			numGridCells);
 
 void
-buildNeibsList( uint*				neibsList,
-				const float4*		pos,
-				const particleinfo*	info,
-				const uint*			particleHash,
-				const uint*			cellStart,
-				const uint*			cellEnd,
-				const uint3			gridSize,
-				const float3		cellSize,
-				const float3		worldOrigin,
-				const uint			numParticles,
-				const uint			gridCells,
-				const float			sqinfluenceradius,
-				const bool			periodicbound);
-
-void
-buildNeibsList2( uint*			neibsList,
-				float4*			pos,
-				particleinfo*	info,
-				uint*			particleHash,
-				uint*			cellStart,
-				uint*			cellEnd,
-				uint3			gridSize,
-				float3			cellSize,
-				float3			worldOrigin,
-				uint			numParticles,
-				uint			gridCells,
-				float			sqinfluenceradius,
-				bool			periodicbound);
-
-void
-buildNeibsList4( uint*				neibsList,
+buildNeibsList( neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
 				const uint*			particleHash,

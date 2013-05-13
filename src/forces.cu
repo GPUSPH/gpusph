@@ -50,16 +50,16 @@ cudaArray*  dDem = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, particleHash, cellStart, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, particleHash, cellStart, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, particleHash, cellStart, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, particleHash, cellStart, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -155,7 +155,7 @@ cudaArray*  dDem = NULL;
 extern "C"
 {
 void
-setforcesconstants(const SimParams & simparams, const PhysParams & physparams)
+setforcesconstants(const SimParams & simparams, const PhysParams & physparams, const uint3 gridSize)
 {
 	// Setting kernels and kernels derivative factors
 	float h = simparams.slength;
@@ -218,6 +218,20 @@ setforcesconstants(const SimParams & simparams, const PhysParams & physparams)
 
 	uint maxneibs_time_neibinterleave = simparams.maxneibsnum*NEIBINDEX_INTERLEAVE;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
+
+	// Neibs cell to offset table
+	int3 cell_to_offset[27];
+	for(int z=-1; z<=1; z++) {
+		for(int y=-1; y<=1; y++) {
+			for(int x=-1; x<=1; x++) {
+				int i = (x + 1) + (y + 1)*3 + (z + 1)*9;
+				cell_to_offset[i] =  make_int3(x, y, z);
+			}
+		}
+	}
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(int3)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 
@@ -291,7 +305,9 @@ forces(	float4*			pos,
 		float4*			rbtorques,
 		float4*			xsph,
 		particleinfo	*info,
-		uint*			neibsList,
+		uint*			particleHash,
+		uint*			cellStart,
+		neibdata*		neibsList,
 		uint			numParticles,
 		float			slength,
 		float			dt,
@@ -415,7 +431,7 @@ shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
 		particleinfo	*info,
-		uint*		neibsList,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		slength,
 		int			kerneltype,
@@ -468,7 +484,7 @@ mls(float4*		pos,
 	float4*		oldVel,
 	float4*		newVel,
 	particleinfo	*info,
-	uint*		neibsList,
+	neibdata*	neibsList,
 	uint		numParticles,
 	float		slength,
 	int			kerneltype,
@@ -515,7 +531,7 @@ vorticity(	float4*		pos,
 			float4*		vel,
 			float3*		vort,
 			particleinfo	*info,
-			uint*		neibsList,
+			neibdata*		neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
@@ -557,7 +573,7 @@ void
 testpoints( float4*		pos,
 			float4*		newVel,
 			particleinfo	*info,
-			uint*		neibsList,
+			neibdata*	neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
@@ -601,7 +617,7 @@ surfaceparticle(	float4*		pos,
 					float4*		normals,
 					particleinfo	*info,
 					particleinfo	*newInfo,
-					uint*		neibsList,
+					neibdata*	neibsList,
 					uint		numParticles,
 					float		slength,
 					int			kerneltype,

@@ -198,7 +198,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint neibslistSize = sizeof(neibdata)*m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
 	uint memory = 0;
 
@@ -242,7 +242,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
+	m_hNeibsList = new neibdata[m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 #endif
@@ -436,7 +436,7 @@ ParticleSystem::setPhysParams(void)
 			break;
 	}
 
-	setforcesconstants(m_simparams, m_physparams);
+	setforcesconstants(m_simparams, m_physparams, m_gridSize);
 	seteulerconstants(m_physparams);
 	setneibsconstants(m_simparams, m_physparams);
 
@@ -842,7 +842,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case NEIBSLIST:
-			size = m_numParticles*m_simparams.maxneibsnum*sizeof(uint);
+			size = m_numParticles*m_simparams.maxneibsnum*sizeof(neibdata);
 			hdata = (void*) m_hNeibsList;
 			ddata = (void*) m_dNeibsList;
 			break;
@@ -1210,6 +1210,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dRbTorques,
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
+					m_dParticleHash,
+					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
 					m_simparams.slength,
@@ -1312,6 +1314,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dRbTorques,
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
+					m_dParticleHash,
+					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
 					m_simparams.slength,
@@ -1434,9 +1438,10 @@ ParticleSystem::saveneibs()
 		pos.y = m_hPos[index].y;
 		pos.z = m_hPos[index].z;
 
-		// TODO: fix it for neib index interleave
+		// TODO: fix it for neib index interleave and new neibdata
 		for(uint i = index*m_simparams.maxneibsnum; i < index*m_simparams.maxneibsnum + m_simparams.maxneibsnum; i++) {
-			uint neib_index = m_hNeibsList[i];
+			//uint neib_index = m_hNeibsList[i];
+			uint neib_index = 0;
 
 			if (neib_index == 0xffffffff) break;
 

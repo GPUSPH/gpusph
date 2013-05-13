@@ -125,7 +125,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 
 
 void
-buildNeibsList(	uint*				neibsList,
+buildNeibsList(	neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
 				const uint*			particleHash,
@@ -179,7 +179,7 @@ sort(uint*	particleHash, uint*	particleIndex, uint	numParticles)
 	thrust::device_ptr<uint> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
 	
-	 thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
 }
 }

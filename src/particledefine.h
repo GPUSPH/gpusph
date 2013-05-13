@@ -235,7 +235,7 @@ typedef unsigned char uchar;
 typedef struct neibdata {
 	uchar	cell;
 	uchar 	offset;
-};
+} neibdata;
 
 typedef struct PhysParams {
 	float	rho0[MAX_FLUID_TYPES]; // density of various particles
