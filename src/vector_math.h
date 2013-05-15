@@ -497,6 +497,171 @@ static __inline__ __host__ __device__ float3 rotate(const float3 &v, const float
 			a31*v.x+a32*v.y+a33*v.z);
 }
 
+// double3 functions
+////////////////////////////////////////////////////////////////////////////////
+
+// additional constructors
+static __inline__ __host__ __device__ double3 make_double3(const double &s)
+{
+	return make_double3(s, s, s);
+}
+
+static __inline__ __host__ __device__ double3 make_double3(const double2 &a)
+{
+	return make_double3(a.x, a.y, 0.0);
+}
+
+static __inline__ __host__ __device__ double3 make_double3(const double2 &a, const double &s)
+{
+	return make_double3(a.x, a.y, s);
+}
+
+static __inline__ __host__ __device__ double3 make_double3(const double4 &a)
+{
+	return make_double3(a.x, a.y, a.z);  // discards w
+}
+
+static __inline__ __host__ __device__ double3 make_double3(const int3 &a)
+{
+	return make_double3(double(a.x), double(a.y), double(a.z));
+}
+
+static __inline__ __host__  double3 make_double3(const float *a)
+{
+	return make_double3(double(a[0]), double(a[1]), double(a[2]));
+}
+
+static __inline__ __host__  double3 make_double3(const double *a)
+{
+	return make_double3(a[0], a[1], a[2]);
+}
+
+// negate
+static __inline__ __host__ __device__ double3 operator-(const double3 &a)
+{
+	return make_double3(-a.x, -a.y, -a.z);
+}
+
+
+// addition
+static __inline__ __host__ __device__ double3 operator+(const double3 &a, const double3 &b)
+{
+	return make_double3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+
+static __inline__ __host__ __device__ double3 operator+(double3 a, double b)
+{
+	return make_double3(a.x + b, a.y + b, a.z + b);
+}
+
+static __inline__ __host__ __device__ void operator+=(double3 &a, const double3 &b)
+{
+	a.x += b.x; a.y += b.y; a.z += b.z;
+}
+
+// subtract
+static __inline__ __host__ __device__ double3 operator-(const double3 &a, const double3 &b)
+{
+	return make_double3(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+static __inline__ __host__ __device__ double3 operator-(const double3 &a, const double &b)
+{
+	return make_double3(a.x - b, a.y - b, a.z - b);
+}
+
+static __inline__ __host__ __device__ void operator-=(double3 &a, const double3 &b)
+{
+	a.x -= b.x; a.y -= b.y; a.z -= b.z;
+}
+
+// multiply
+static __inline__ __host__ __device__ double3 operator*(const double3 &a, const double3 &b)
+{
+	return make_double3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
+static __inline__ __host__ __device__ double3 operator*(const int3 &a, const double3 &b)
+{
+	return make_double3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
+static __inline__ __host__ __device__ double3 operator*(const double3 &a, const double &s)
+{
+	return make_double3(a.x * s, a.y * s, a.z * s);
+}
+
+static __inline__ __host__ __device__ double3 operator*(const double &s, const double3 &a)
+{
+	return make_double3(a.x * s, a.y * s, a.z * s);
+}
+static __inline__ __host__ __device__ void operator*=(double3 &a, const double &s)
+{
+	a.x *= s; a.y *= s; a.z *= s;
+}
+
+// divide
+static __inline__ __host__ __device__ double3 operator/(const double3 &a, const double3 &b)
+{
+	return make_double3(a.x / b.x, a.y / b.y, a.z / b.z);
+}
+
+static __inline__ __host__ __device__ double3 operator/(const double3 &a, const double &s)
+{
+	float inv = 1.0 / s;
+	return a * inv;
+}
+
+static __inline__ __host__ __device__ double3 operator/(const double &s, const double3 &a)
+{
+	float inv = 1.0f / s;
+	return a * inv;
+}
+
+static __inline__ __host__ __device__ void operator/=(double3 &a, const double &s)
+{
+	float inv = 1.0 / s;
+	a *= inv;
+}
+
+
+// dot product
+static __inline__ __host__ __device__ double dot(const double3 &a, const double3 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+// cross product
+static __inline__ __host__ __device__ double3 cross(const double3 &a, const double3 &b)
+{
+	return make_double3(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x);
+}
+
+// squared length
+static __inline__ __host__ __device__ double sqlength(const double3 &v)
+{
+	return dot(v, v);
+}
+
+// length
+static __inline__ __host__ __device__ double length(const double3 &v)
+{
+	return sqrtf(sqlength(v));
+}
+
+// normalize
+static __inline__ __host__ __device__ double3 normalize(const double3 &v)
+{
+	float invLen = rsqrtf(sqlength(v));
+	return v * invLen;
+}
+
+// floor
+static __inline__ __host__ __device__ double3 floor(const double3 &v)
+{
+	return make_double3(floor(v.x), floor(v.y), floor(v.z));
+}
+
 // float4 functions
 ////////////////////////////////////////////////////////////////////////////////
 
