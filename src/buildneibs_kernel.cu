@@ -48,9 +48,9 @@ __constant__ float3 d_dispvect;
 
 // calculate position in uniform grid
 __device__ __forceinline__ int3
-calcGridPos(float3			pos,
-			const float3	worldOrigin,
-			const float3	cellSize)
+calcGridPos(const float3	&pos,
+			const float3	&worldOrigin,
+			const float3	&cellSize)
 {
 	int3 gridPos;
 	gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
@@ -63,8 +63,8 @@ calcGridPos(float3			pos,
 
 // calculate address in grid from position (clamping to edges)
 __device__ __forceinline__ uint
-calcGridHash(int3			gridPos,
-			 const uint3	gridSize)
+calcGridHash(int3		&gridPos,
+			const uint3	&gridSize)
 {
 	gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
 	gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
@@ -95,7 +95,7 @@ calcHashDevice(const float4*	posArray,
 	const float4 pos = posArray[index];
 
 	// get address in grid
-	const int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
+	int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
 	hashKey gridHash = (hashKey)calcGridHash(gridPos, gridSize) << GRIDHASH_BITSHIFT;
 #if HASH_KEY_SIZE >= 64
 	// with 64-bit (or bigger) hash keys, include the particle id in the hash
@@ -179,8 +179,8 @@ neibsInCell(
 			#endif
 			int3			gridPos,
 			const uint		index,
-			const float3	pos,
-			const uint3		gridSize,
+			const float3	&pos,
+			const uint3		&gridSize,
 			const uint		numParticles,
 			const float		sqinfluenceradius,
 			uint*			neibsList,
