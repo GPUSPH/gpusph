@@ -326,9 +326,9 @@ typedef struct MbCallBack {
 
 
 typedef struct SimParams {
-	float			slength;			// smoothing length
+	double			slength;			// smoothing length
 	KernelType		kerneltype;			// kernel type
-	float			kernelradius;		// kernel radius
+	double			kernelradius;		// kernel radius
 	float			dt;					// initial timestep
 	float			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
@@ -344,7 +344,7 @@ typedef struct SimParams {
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
 	bool			periodicbound;		// true in case of periodic boundary
-	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
+	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
