@@ -478,7 +478,7 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 void
 Problem::draw_axis()
 {	
-	float3 axis_center = m_origin + 0.5*m_size;
+	float3 axis_center = make_float3(m_origin + 0.5*m_size);
 	float axis_length = std::max(std::max(m_size.x, m_size.y), m_size.z)/4.0;
 	
 	/* X axis in green */
@@ -501,4 +501,66 @@ Problem::draw_axis()
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z + axis_length);
 	glEnd();
+}
+
+
+// Compute grid size related parameters
+void
+Problem::set_grid_params(void)
+{
+	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
+
+	m_gridsize.x = (uint) (m_size.x / influenceRadius);
+	m_gridsize.y = (uint) (m_size.y / influenceRadius);
+	m_gridsize.z = (uint) (m_size.z / influenceRadius);
+
+	m_cellsize.x = m_size.x / m_gridsize.x;
+	m_cellsize.y = m_size.y / m_gridsize.y;
+	m_cellsize.z = m_size.z / m_gridsize.z;
+}
+
+
+// Compute position in uniform grid
+int3
+Problem::calc_grid_pos(const Point&	pos)
+{
+	int3 gridPos;
+	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
+	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
+	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+
+	return gridPos;
+}
+
+
+// Compute address in grid from position (clamping to edges)
+uint
+Problem::calc_grid_hash(int3 gridPos)
+{
+	gridPos.x = max(0, min(gridPos.x, m_gridsize.x-1));
+	gridPos.y = max(0, min(gridPos.y, m_gridsize.y-1));
+	gridPos.z = max(0, min(gridPos.z, m_gridsize.z-1));
+	return INTMUL(INTMUL(gridPos.z, m_gridsize.y), m_gridsize.x) + INTMUL(gridPos.y, m_gridsize.x) + gridPos.x;
+}
+
+
+void
+Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
+{
+	int3 gridPos = calc_grid_pos(pos);
+	hash = calc_grid_hash(gridPos);
+	localpos.x = float(pos(0) - (gridPos.x + 0.5)*m_cellsize.x);
+	localpos.y = float(pos(1) - (gridPos.y + 0.5)*m_cellsize.y);
+	localpos.z = float(pos(2) - (gridPos.z + 0.5)*m_cellsize.z);
+	localpos.w = float(pos(4));
+}
+
+
+void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+{
+}
+
+
+void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+{
 }

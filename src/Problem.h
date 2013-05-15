@@ -65,9 +65,11 @@ class Problem {
 		dSpaceID		m_ODESpace;
 		dJointGroupID	m_ODEJointGroup;
 
-		float3	m_size;			// Size of compuation domain
-		float3	m_origin;		// Origin of compuatation domain
-		float	m_deltap;		// Initial particle spacing
+		double3	m_size;			// Size of computational domain
+		double3	m_origin;		// Origin of computational domain
+		double3	m_cellsize;		// Size of grid cells
+		uint3	m_gridsize;		// Number of grid cells along each axis
+		double	m_deltap;		// Initial particle spacing
 
 		// Min and max values used for display
 		float	m_maxrho;
@@ -111,12 +113,12 @@ class Problem {
 
 		float3 get_worldorigin(void)
 		{
-			return m_origin;
+			return make_float3(m_origin);
 		};
 
 		float3 get_worldsize(void)
 		{
-			return m_size;
+			return make_float3(m_size);
 		};
 
 		WriterType get_writertype(void)
@@ -143,7 +145,7 @@ class Problem {
 			return m_problem_dir.c_str();
 		}
 
-		float set_deltap(const float dflt)
+		float set_deltap(const double dflt)
 		{
 			if (isfinite((double) m_options.deltap))
 				m_deltap = m_options.deltap;
@@ -151,6 +153,19 @@ class Problem {
 				m_deltap = dflt;
 			return m_deltap;
 		}
+
+		float set_deltap(const float dflt)
+		{
+			return float(set_deltap(double(dflt)));
+		}
+
+		void set_grid_params(void);
+
+		int3 calc_grid_pos(const Point&);
+
+		uint calc_grid_hash(int3);
+
+		void calc_localpos_and_hash(const Point&, float4&, uint&);
 
 		SimParams &get_simparams(void)
 		{
@@ -178,7 +193,8 @@ class Problem {
 		virtual uint fill_planes(void);
 		virtual void draw_boundary(float) = 0;
 		virtual void draw_axis(void);
-		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
+		virtual void copy_to_array(float4*, float4*, particleinfo*);
+		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*);
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);
