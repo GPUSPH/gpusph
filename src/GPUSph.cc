@@ -229,7 +229,7 @@ void parse_options(int argc, char **argv)
 			argc--;
 		} else if (!strcmp(arg, "--deltap")) {
 			/* read the next arg as a float */
-			sscanf(*argv, "%f", &(clOptions.deltap));
+			sscanf(*argv, "%lf", &(clOptions.deltap));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--tend")) {
@@ -410,7 +410,7 @@ void viewPerspective() // Set Up A Perspective View
 void displayTime(char *s) {
 	int len, i;
 	viewOrtho(viewport[2], viewport[3]); //Starting to draw the HUD
-	float3 tank_size = problem->m_size;
+	float3 tank_size = make_float3(problem->m_size);
 	glRasterPos2i(10, 10);
 	//glRasterPos3f(tank_size.x, tank_size.y, 0.0);
 	len = (int) strlen(s);
