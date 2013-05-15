@@ -40,8 +40,8 @@
 DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(1.6f, 0.67f, 0.4f);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_double3(1.6, 0.67, 0.4);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 

@@ -46,8 +46,8 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	std::cout << "h = " << h <<"\n";
 
 	// Size and origin of the simulation domain
-	m_size = make_float3(l, w ,h);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_double3(l, w ,h);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 

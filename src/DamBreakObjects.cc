@@ -45,8 +45,8 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	H = 0.4;
 	wet = false;
 	
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 

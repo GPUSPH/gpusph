@@ -113,10 +113,10 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 	// Physical parameters
 	H = 2.0;
 	//nsres = 1; ewres = 1;
-	m_size = make_float3(ewres*((float) m_ncols), nsres*((float) m_nrows), H);
+	m_size = make_double3(ewres*((float) m_ncols), nsres*((float) m_nrows), H);
 	cout << "m_size: " << m_size.x << " " << m_size.y << " " << m_size.z << "\n";
 
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0f, 7.0f, 20.f);

@@ -40,8 +40,8 @@
 SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(9.0f, 0.4f, 1.0f);
-	m_origin = make_float3(0.0f, 0.0f,0.0f);
+	m_size = make_double3(9.0f, 0.4f, 1.0f);
+	m_origin = make_double3(0.0f, 0.0f,0.0f);
 
 	m_writerType = VTKWRITER;
 

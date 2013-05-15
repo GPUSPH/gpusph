@@ -42,8 +42,8 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	h = 0.7;
 	H = 0.5;
 
-	m_size = make_float3(l, a ,h);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_double3(l, a ,h);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 

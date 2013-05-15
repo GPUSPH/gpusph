@@ -43,8 +43,8 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	ly = 0.6;
 	lz = 1.0;
 	
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = TEXTWRITER;
 
