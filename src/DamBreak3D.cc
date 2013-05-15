@@ -46,15 +46,15 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.4;
 	wet = false;
 	
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.02f);
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
+	set_deltap(0.02);
+	m_simparams.slength = 1.3*m_deltap;
+	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
@@ -70,7 +70,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 
 	// Free surface detection
 	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals =true;
+	m_simparams.savenormals = true;
 
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
@@ -178,31 +178,39 @@ void DamBreak3D::draw_boundary(float t)
 }
 
 
-void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
+	float4 localpos;
+	uint hashvalue;
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
+		hash[i] = hashvalue;
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		pos[i] = make_float4(obstacle_parts[i-j]);
+		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
+		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
+		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
