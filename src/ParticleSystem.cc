@@ -208,6 +208,10 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hInfo, 0, infoSize);
 	memory += infoSize;
 
+	m_hParticleHash = new uint[m_numParticles];
+	memset(m_hParticleHash, 0, hashSize);
+	memory += hashSize;
+
 	m_hVort = NULL;
 	if (m_simparams.vorticity) {
 		m_hVort = new float3[m_numParticles];
@@ -219,10 +223,6 @@ ParticleSystem::allocate(uint numParticles)
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
-
-	m_hParticleHash = new uint[m_numParticles];
-	memset(m_hParticleHash, 0, hashSize);
-	memory += hashSize;
 
 	m_hParticleIndex = new uint[m_numParticles];
 	memset(m_hParticleIndex, 0, hashSize);
@@ -828,6 +828,12 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 						m_simparams.periodicbound);
 			break;
 
+		case HASH:
+			size = m_numParticles*sizeof(uint);
+			hdata = (void*) m_hParticleHash;
+			ddata = (void*) m_dParticleHash;
+			break;
+
 #ifdef _DEBUG_
 		case FORCE:
 			size = m_numParticles*sizeof(float4);
@@ -839,12 +845,6 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			size = m_numParticles*m_simparams.maxneibsnum*sizeof(neibdata);
 			hdata = (void*) m_hNeibsList;
 			ddata = (void*) m_dNeibsList;
-			break;
-
-		case HASH:
-			size = m_numParticles*sizeof(uint);
-			hdata = (void*) m_hParticleHash;
-			ddata = (void*) m_dParticleHash;
 			break;
 
 		case PARTINDEX:
@@ -888,22 +888,29 @@ ParticleSystem::setArray(ParticleArray array)
 
 	switch (array) {
 		case POSITION:
-			hdata = m_hPos;
-			ddata = m_dPos[m_currentPosRead];
+			hdata = (void*) m_hPos;
+			ddata = (void*) m_dPos[m_currentPosRead];
 			size = m_numParticles*sizeof(float4);
 			break;
 
 		case VELOCITY:
-			hdata = m_hVel;
-			ddata = m_dVel[m_currentVelRead];
+			hdata = (void*) m_hVel;
+			ddata = (void*) m_dVel[m_currentVelRead];
 			size = m_numParticles*sizeof(float4);
 			break;
 
 		case INFO:
-			hdata = m_hInfo;
-			ddata = m_dInfo[m_currentInfoRead];
+			hdata = (void*) m_hInfo;
+			ddata = (void*) m_dInfo[m_currentInfoRead];
 			size = m_numParticles*sizeof(particleinfo);
 			break;
+
+		case HASH:
+			hdata = (void*) m_hParticleHash;
+			ddata = (void*) m_dParticleHash;
+			size = m_numParticles*sizeof(uint);
+			break;
+
 		default:
 			fprintf(stderr, "Trying to upload unknown array %d\n", array);
 			return;
@@ -936,6 +943,17 @@ ParticleSystem::writeToFile()
 }
 
 
+uint3
+ParticleSystem::calcGridPos(uint hash)
+{
+	uint3 gridPos;
+	gridPos.z = hash/(m_gridSize.x*m_gridSize.y);
+	gridPos.y = (hash - gridPos.z*m_gridSize.x*m_gridSize.y)/m_gridSize.x;
+	gridPos.x = hash - gridPos.y*m_gridSize.x;
+
+	return gridPos;
+}
+
 void
 ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 {
@@ -947,22 +965,26 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
 	float maxp = m_problem->pressure(maxrho,0);
 
-	float4* pos = m_hPos;
+	float4* relpos = m_hPos;
 	float4* vel = m_hVel;
 	float3* vort = m_hVort;
+	uint* 	hash = m_hParticleHash;
 	particleinfo* info = m_hInfo;
 
 	glPointSize(2.0);
 	glBegin(GL_POINTS);
 	{
 		for (uint i = 0; i < m_numParticles; i++) {
+			float3 pos = make_float3(relpos[i]);
+			pos = m_cellSize*calcGridPos(hash[i]) + pos + 0.5f*m_cellSize;
+
 			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
 				glColor3f(0.0, 1.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 			if (OBJECT(info[i]) && show_floating) {
 				glColor3f(1.0, 0.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 			if (FLUID(info[i])) {
 				float v; unsigned int t;
@@ -1005,7 +1027,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 					    glColor3f(1.-(v-minvel)/(maxvel-minvel),1.0,1.0);
 					    break;
 				}
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 		}
 
