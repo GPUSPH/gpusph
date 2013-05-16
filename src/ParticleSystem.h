@@ -155,10 +155,11 @@ class ParticleSystem
 		long		m_iter;					// iteration number
 
 		// CPU arrays
-		float4*		m_hPos;					// postions array
+		float4*		m_hPos;					// positions array
 		float4*		m_hVel;					// velocity array
 		float4*		m_hForces;				// forces array
 		particleinfo*	m_hInfo;			// info array
+		uint*		m_hParticleHash;		// particle hash
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
 		float4*     m_hNormals;				// normals at free surface
@@ -169,7 +170,6 @@ class ParticleSystem
 
 		// CPU arrays used for debugging
 		neibdata*	m_hNeibsList;
-		uint*		m_hParticleHash;
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
