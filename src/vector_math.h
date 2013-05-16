@@ -351,18 +351,37 @@ static __inline__ __host__ __device__ float3 operator*(const float3 &a, const fl
 {
 	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
 }
+
 static __inline__ __host__ __device__ float3 operator*(const int3 &a, const float3 &b)
 {
 	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
 }
+
+static __inline__ __host__ __device__ float3 operator*(const float3 &a, const int3 &b)
+{
+	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
+static __inline__ __host__ __device__ float3 operator*(const uint3 &a, const float3 &b)
+{
+	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
+static __inline__ __host__ __device__ float3 operator*(const float3 &a, const uint3 &b)
+{
+	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const float &s)
 {
 	return make_float3(a.x * s, a.y * s, a.z * s);
 }
+
 static __inline__ __host__ __device__ float3 operator*(const float &s, const float3 &a)
 {
 	return make_float3(a.x * s, a.y * s, a.z * s);
 }
+
 static __inline__ __host__ __device__ void operator*=(float3 &a, const float &s)
 {
 	a.x *= s; a.y *= s; a.z *= s;
