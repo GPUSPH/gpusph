@@ -290,10 +290,11 @@ void init(const char *arg)
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
-	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
+	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hParticleHash);
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
+	psystem->setArray(ParticleSystem::HASH);
 
 	uint numPlanes = problem->fill_planes();
 	if (numPlanes > 0) {
@@ -452,6 +453,7 @@ void display()
 		psystem->getArray(ParticleSystem::POSITION, need_write);
 		psystem->getArray(ParticleSystem::VELOCITY, need_write);
 		psystem->getArray(ParticleSystem::INFO, need_write);
+		psystem->getArray(ParticleSystem::HASH, need_write);
 		if (need_write) {
 			if (problem->m_simparams.vorticity)
 				psystem->getArray(ParticleSystem::VORTICITY, need_write);
