@@ -15,7 +15,6 @@
 
 InputProblem::InputProblem(const Options &options) : Problem(options)
 {
-	//inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.fishpass_pv.h5sph";			//Fishpass 3D (not working yet)
 	//inputfile = "/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1.h5sph";			//StillWater periodic
 	//inputfile = "/home/vorobyev/Crixus/geometries/opencube/0.opencube_salome.h5sph";			//StillWater (meshed in Salome)
 	//inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.05.h5sph";		//Plane Poiseuille flow
@@ -52,15 +51,31 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Fishpass
 	//*************************************************************************************
-	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/wrong.fishpass_covered_0.0075_sl10.h5sph";
+	// Poitier geometry
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/wrong.fishpass_covered_0.0075_sl10.h5sph";
 
-	set_deltap(0.0075f);
+//	set_deltap(0.0075f);
+
+//	n_probeparts = 0;
+//	H = 0.2;
+//	l = 0.75; w = 0.675; h = 0.4;
+
+//	float slope = 0.1;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	// BAW geometry
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.BAW.fishpass.0.01.h5sph";
+
+	set_deltap(0.01f);
 
 	n_probeparts = 0;
-	H = 0.2;
-	l = 0.75; w = 0.675; h = 0.4;
+	H = 0.25;
+	l = 1.019; w = 0.785; h = 0.4;
 
-	float slope = 0.1;
+	float slope = 0.027;
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	m_physparams.gravity = make_float3(9.81f*sin(atan(slope)), 0.0, -9.81f*cos(atan(slope)));
 
@@ -79,7 +94,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 10;
+	m_simparams.buildneibsfreq = 1;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 1.0;
@@ -104,8 +119,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	m_physparams.r0 = m_deltap;
 	//m_physparams.visccoeff = 0.05f;
-	//m_physparams.kinematicvisc = 1.0e-6f;
-	m_physparams.kinematicvisc = 1.0e-2f;
+	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
