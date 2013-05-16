@@ -121,6 +121,16 @@ class Problem {
 			return make_float3(m_size);
 		};
 
+		float3 get_cellsize(void)
+		{
+			return make_float3(m_cellsize);
+		};
+
+		uint3 get_gridsize(void)
+		{
+			return m_gridsize;
+		};
+
 		WriterType get_writertype(void)
 		{
 			return m_writerType;

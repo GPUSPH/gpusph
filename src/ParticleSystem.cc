@@ -91,22 +91,16 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
+	m_cellSize = problem->get_cellsize();
+	m_gridSize = problem->get_gridsize();
 	m_writerType = problem->get_writertype();
 
 	m_influenceRadius = m_simparams.kernelradius*m_simparams.slength;
 	m_nlInfluenceRadius = m_influenceRadius*m_simparams.nlexpansionfactor;
 	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
 
-	m_gridSize.x = (uint) (m_worldSize.x / m_influenceRadius);
-	m_gridSize.y = (uint) (m_worldSize.y / m_influenceRadius);
-	m_gridSize.z = (uint) (m_worldSize.z / m_influenceRadius);
-
 	m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
 	m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
-
-	m_cellSize.x = m_worldSize.x / m_gridSize.x;
-	m_cellSize.y = m_worldSize.y / m_gridSize.y;
-	m_cellSize.z = m_worldSize.z / m_gridSize.z;
 
 	m_dt = m_simparams.dt;
 
