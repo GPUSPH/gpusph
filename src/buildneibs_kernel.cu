@@ -74,10 +74,44 @@ calcGridHash(int3			gridPos,
 }
 
 
+__device__ __forceinline__ uint3
+calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
+{
+	uint3 gridPos;
+	int temp = INTMUL(gridSize.y, gridSize.x);
+	gridPos.z = gridHash/temp;
+	temp = gridHash - gridPos.z*temp;
+	gridPos.y = temp/gridSize.x;
+	gridPos.x = temp - gridPos.y*gridSize.x;
+
+	return gridPos;
+}
+
+// Clamp grid pos
+__device__ __forceinline__ void
+clampGridPos(int3& gridPos, const uint3 gridSize)
+{
+	if (gridPos.x < 0)
+		gridPos.x = 0;
+	else if (gridPos.x >= gridSize.x)
+		gridPos.x = gridSize.x;
+
+	if (gridPos.y < 0)
+		gridPos.y = 0;
+	else if (gridPos.y >= gridSize.y)
+		gridPos.y = gridSize.y;
+
+	if (gridPos.z < 0)
+		gridPos.z = 0;
+	else if (gridPos.z >= gridSize.z)
+		gridPos.z = gridSize.z;
+}
+
+
 // calculate grid hash value for each particle
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-calcHashDevice(const float4*	posArray,
+calcHashDevice(float4*			posArray,
 			   uint*			particleHash,
 			   uint*			particleIndex,
 			   const uint3		gridSize,
@@ -90,15 +124,27 @@ calcHashDevice(const float4*	posArray,
 	if (index >= numParticles)
 		return;
 
+	// Getting new pos relative to old cell
 	const float4 pos = posArray[index];
+	uint gridHash = particleHash[index];
 
-	// get address in grid
-	const int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
-	const uint gridHash = calcGridHash(gridPos, gridSize);
+	// Getting grid address of old cell
+	int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
 
-	// store grid hash and particle index
+	// Computing grid offset from new pos relative to old hash
+	const int3 gridOffset = make_float3(pos)/cellSize;
+
+	// Compute new grid pos relative to cell and new cell hash
+	gridPos += gridOffset;
+	pos -= pos*gridOffset;
+
+	// Compute new hash
+	gridHash = calcGridHash(gridPos, gridSize);
+
+	// Store grid hash, particle index and position relative to cell
 	particleHash[index] = gridHash;
 	particleIndex[index] = index;
+	posArray[index] = pos;
 }
 
 
@@ -172,10 +218,12 @@ neibsInCell(
 			const float4*	posArray,
 			#endif
 			int3			gridPos,
+			const int3		gridOffset,
 			const uchar		cell,
 			const uint		index,
 			const float3	pos,
 			const uint3		gridSize,
+			const float3	cellSize,
 			const uint		numParticles,
 			const float		sqinfluenceradius,
 			neibdata*		neibsList,
@@ -183,6 +231,7 @@ neibsInCell(
 			const uint		lane,
 			const uint		offset)
 {
+	gridPos += gridOffset;
 	int3 periodic = make_int3(0);
 	if (periodicbound) {
 		if (gridPos.x < 0) {
@@ -257,6 +306,7 @@ neibsInCell(
 				#else
 				float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
 				#endif
+				relPos -= gridOffset*cellSize;
 				if (periodicbound)
 					relPos += periodic*d_dispvect;
 
@@ -341,8 +391,8 @@ buildNeibsListDevice(
 							#if (__COMPUTE__ >= 20)
 							posArray, 
 							#endif
-							gridPos + make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos, gridSize, numParticles,
-							sqinfluenceradius, neibsList, neibs_num, lane, offset);
+							gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos, gridSize, cellSize,
+							numParticles, sqinfluenceradius, neibsList, neibs_num, lane, offset);
 				}
 			}
 		}
