@@ -110,6 +110,7 @@ __constant__ float d_objectboundarydf;
 
 // Grid data
 __constant__ uint3	d_gridSize;
+__constant__ float3 d_cellSize;
 
 // Neibdata cell number to offset
 __constant__ int3 d_cell_to_offset[27];
@@ -563,9 +564,7 @@ getNeibData<false>(	const float4	pos,
 	neib_pos = posArray[neib_index];
 
 	// compute relative vector and distance
-	relPos.x = pos.x - neib_pos.x;
-	relPos.y = pos.y - neib_pos.y;
-	relPos.z = pos.z - neib_pos.z;
+	relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
 	r = length(relPos);
 }
 /************************************************************************************************************/
