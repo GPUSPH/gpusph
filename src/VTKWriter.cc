@@ -59,7 +59,7 @@ VTKWriter::~VTKWriter()
 	}
 }
 
-void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
+void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
 				const float4 *normals)
 {
@@ -109,7 +109,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	 // Writing mass
 	fprintf(fid,"	<DataArray type=\"Float32\" Name=\"Mass\" format=\"ascii\">\r\n");
 	for (int i=0; i < numParts; i++)
-		fprintf(fid,"%f\t",pos[i].w);
+		fprintf(fid,"%f\t", (float) pos[i].w);
 	fprintf(fid,"\r\n");
 	fprintf(fid,"	</DataArray>\r\n");
 
@@ -194,7 +194,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 
 	// Writing position
 	fprintf(fid,"   <Points>\r\n");
-	fprintf(fid,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+	fprintf(fid,"	<DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
 	for (int i=0; i < numParts; i++)
 		fprintf(fid,"%f\t%f\t%f\t",pos[i].x, pos[i].y, pos[i].z);
 	fprintf(fid,"\r\n");

@@ -49,7 +49,7 @@ public:
 	virtual ~Writer();
 
 	
-	virtual void write(uint numParts, const float4 *pos, const float4 *vel,
+	virtual void write(uint numParts, const double4 *pos, const float4 *vel,
 			const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals) = 0;
 
 protected:

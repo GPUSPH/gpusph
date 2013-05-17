@@ -63,7 +63,7 @@ VTKLegacyWriter::~VTKLegacyWriter()
 	}
 }
 
-void VTKLegacyWriter::write(uint numParts, const float4 *pos, const float4 *vel,
+void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 							const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals)
 {
 	string filename, full_filename;
@@ -83,7 +83,7 @@ void VTKLegacyWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fprintf(fid, "# vtk DataFile Version 2.0\n%s\n", m_dirname.c_str());
 	fprintf(fid, "ASCII\nDATASET UNSTRUCTURED_GRID\n");
 
-	fprintf(fid, "POINTS %u float\n", numParts);
+	fprintf(fid, "POINTS %u double\n", numParts);
 	// Start with particle positions
 	for (int i=0; i < numParts; ++i)
 		fprintf(fid, "%f %f %f\n", pos[i].x, pos[i].y, pos[i].z);
@@ -139,7 +139,7 @@ void VTKLegacyWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	fprintf(fid, "SCALARS Mass float\n");
 	print_lookup(fid);
 	for (int i=0; i < numParts; ++i)
-		fprintf(fid, "%f\n", pos[i].w);
+		fprintf(fid, "%f\n", (float) pos[i].w);
 	fprintf(fid, "\n\n");
 
 	// Vorticity
