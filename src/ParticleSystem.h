@@ -114,6 +114,8 @@ class ParticleSystem
 		float	getTimestep(void) { return m_dt; }
 		float	getTime(void) { return m_simTime; }
 
+		uint3 calcGridPos(uint);
+
 		// DEBUG
 		void saveneibs();
 		void savehash();
@@ -155,7 +157,8 @@ class ParticleSystem
 		long		m_iter;					// iteration number
 
 		// CPU arrays
-		float4*		m_hPos;					// positions array
+		float4*		m_hPos;					// relative positions array
+		double4*	m_hdPos;				// absolute position array
 		float4*		m_hVel;					// velocity array
 		float4*		m_hForces;				// forces array
 		particleinfo*	m_hInfo;			// info array

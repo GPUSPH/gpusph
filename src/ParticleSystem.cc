@@ -199,6 +199,9 @@ ParticleSystem::allocate(uint numParticles)
 	m_hPos = new float4[m_numParticles];
 	memset(m_hPos, 0, memSize4);
 	memory += memSize4;
+	m_hdPos = new double4[m_numParticles];
+	memset(m_hdPos, 0, 2*memSize4);
+	memory += 2*memSize4;
 
 	m_hVel = new float4[m_numParticles];
 	memset(m_hVel, 0, memSize4);
@@ -280,6 +283,21 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
 	memory += infoSize;
 
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
+	memory += hashSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
+	memory += hashSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
+	memory += gridcellSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, gridcellSize));
+	memory += gridcellSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
+	memory += neibslistSize;
+
 	// Free surface detection
 	if (m_simparams.savenormals) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
@@ -301,21 +319,6 @@ ParticleSystem::allocate(uint numParticles)
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], memSize2));
 		memory += memSize2;
 	}
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
-	memory += hashSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
-	memory += hashSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
-	memory += gridcellSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, gridcellSize));
-	memory += gridcellSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
-	memory += neibslistSize;
 
 	// Allocate storage for rigid bodies forces and torque computation
 	if (m_simparams.numbodies) {
@@ -676,6 +679,7 @@ ParticleSystem::writeSummary(void)
 ParticleSystem::~ParticleSystem()
 {
 	delete [] m_hPos;
+	delete [] m_hdPos;
 	delete [] m_hVel;
 	delete [] m_hInfo;
 	if (m_simparams.vorticity) {
@@ -938,18 +942,27 @@ ParticleSystem::setPlanes(void)
 void
 ParticleSystem::writeToFile()
 {
+	for (uint i = 0; i < m_numParticles; i++) {
+		const float4 pos = m_hPos[i];
+		double4 dpos;
+		uint3 gridPos = calcGridPos(m_hParticleHash[i]);
+		dpos.x = ((double) m_cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
+		dpos.y = ((double) m_cellSize.y)*(gridPos.y + 0.5) + (double) pos.x;
+		dpos.z = ((double) m_cellSize.z)*(gridPos.z + 0.5) + (double) pos.x;
+		m_hdPos[i] = dpos;
+	}
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
+	m_writer->write(m_numParticles, m_hdPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams.testpoints, m_hNormals);
 }
 
 
 uint3
-ParticleSystem::calcGridPos(uint hash)
+ParticleSystem::calcGridPos(uint particleHash)
 {
 	uint3 gridPos;
-	gridPos.z = hash/(m_gridSize.x*m_gridSize.y);
-	gridPos.y = (hash - gridPos.z*m_gridSize.x*m_gridSize.y)/m_gridSize.x;
-	gridPos.x = hash - gridPos.y*m_gridSize.x;
+	gridPos.z = particleHash/(m_gridSize.x*m_gridSize.y);
+	gridPos.y = (particleHash - gridPos.z*m_gridSize.x*m_gridSize.y)/m_gridSize.x;
+	gridPos.x = particleHash - gridPos.y*m_gridSize.x;
 
 	return gridPos;
 }
@@ -1060,13 +1073,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			}
 
 		// compute hash
-		calcHash(m_dPos[m_currentPosRead],
+		/* calcHash(m_dPos[m_currentPosRead],
 				 m_dParticleHash,
 				 m_dParticleIndex,
 				 gridSize,
 				 cellSize,
 				 worldOrigin,
-				 m_numParticles);
+				 m_numParticles);*/
 
 
 		// hash based particle sort
