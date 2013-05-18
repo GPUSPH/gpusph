@@ -74,10 +74,10 @@ calcGridHash(int3			gridPos,
 }
 
 
-__device__ __forceinline__ uint3
+__device__ __forceinline__ int3
 calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
 {
-	uint3 gridPos;
+	int3 gridPos;
 	int temp = INTMUL(gridSize.y, gridSize.x);
 	gridPos.z = gridHash/temp;
 	temp = gridHash - gridPos.z*temp;
@@ -125,18 +125,20 @@ calcHashDevice(float4*			posArray,
 		return;
 
 	// Getting new pos relative to old cell
-	const float4 pos = posArray[index];
+	float4 pos = posArray[index];
 	uint gridHash = particleHash[index];
 
 	// Getting grid address of old cell
 	int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
 
 	// Computing grid offset from new pos relative to old hash
-	const int3 gridOffset = make_float3(pos)/cellSize;
+	const int3 gridOffset = make_int3(make_float3(pos)/cellSize);
 
 	// Compute new grid pos relative to cell and new cell hash
 	gridPos += gridOffset;
-	pos -= pos*gridOffset;
+	pos.x -= pos.x*(float) gridOffset.x;
+	pos.y -= pos.y*(float) gridOffset.y;
+	pos.z -= pos.z*(float) gridOffset.z;
 
 	// Compute new hash
 	gridHash = calcGridHash(gridPos, gridSize);
