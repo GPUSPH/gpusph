@@ -69,6 +69,12 @@
 #include "ParticleSystem.h"
 #include "Problem.h"
 
+// Writer types
+#include "TextWriter.h"
+#include "VTKWriter.h"
+#include "VTKLegacyWriter.h"
+#include "CustomTextWriter.h"
+
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -819,6 +825,36 @@ void GPUSPH::setViscosityCoefficient()
 
 		case DYNAMICVISC:
 			pp->visccoeff = pp->kinematicvisc;
+			break;
+	}
+}
+
+// creates the Writer according to the requested WriterType
+void GPUSPH::createWriter()
+{
+	gdata->writerType = gdata->problem->get_writertype();
+	switch(gdata->writerType) {
+		case Problem::TEXTWRITER:
+			gdata->writer = new TextWriter(gdata->problem);
+			break;
+
+		case Problem::VTKWRITER:
+			gdata->writer = new VTKWriter(gdata->problem);
+			break;
+
+		case Problem::VTKLEGACYWRITER:
+			gdata->writer = new VTKLegacyWriter(gdata->problem);
+			break;
+
+		case Problem::CUSTOMTEXTWRITER:
+			gdata->writer = new CustomTextWriter(gdata->problem);
+			break;
+
+		default:
+			//stringstream ss;
+			//ss << "Writer not supported";
+			//throw runtime_error(ss.str());
+			printf("Writer not supported\n");
 			break;
 	}
 }

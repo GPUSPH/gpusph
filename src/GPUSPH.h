@@ -51,6 +51,9 @@ private:
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
 
+	// create the Writer
+	void createWriter();
+
 public:
 	// destructor
 	~GPUSPH();
