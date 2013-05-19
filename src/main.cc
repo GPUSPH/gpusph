@@ -193,7 +193,7 @@ void sigusr1_handler(int signum) {
 	//gdata_static_pointer->save_request = true;
 }
 
-int newMain(int argc, char** argv) {
+int main(int argc, char** argv) {
 	if (!check_short_length()) {
 		printf("Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);

@@ -414,7 +414,7 @@ void console_loop(void)
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
 int
-main( int argc, char** argv)
+oldMain( int argc, char** argv)
 {
 	if (sizeof(uint) != 2*sizeof(short)) {
 		fprintf(stderr, "Fatal: this architecture does not have uint = 2 short\n");
