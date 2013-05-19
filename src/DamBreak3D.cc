@@ -52,7 +52,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.02);
+	set_deltap(0.05);
 	m_simparams.slength = 1.3*m_deltap;
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
@@ -69,8 +69,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.tend = 1.5f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals = true;
+	m_simparams.surfaceparticle = false;
+	m_simparams.savenormals = false;
 
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
@@ -185,7 +185,17 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
+		if (boundary_parts[i](0) <= m_size.x + 0.01 && boundary_parts[i](0) >= m_size.x - 0.01) {
+		std::cout << "Absolute position:" << "\n";
+		std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
+		}
 		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+
+		if (boundary_parts[i](0) <= m_size.x + 0.01 && boundary_parts[i](0) >= m_size.x - 0.01) {
+		std::cout << "Local position and hash:" << "\n";
+		std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n";
+		}
+
 		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
@@ -208,10 +218,13 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	std::flush(std::cout);
 }
