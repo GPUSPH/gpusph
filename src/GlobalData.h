@@ -138,6 +138,10 @@ struct GlobalData {
 
 	// next command to be executed by workers
 	CommandType nextCommand;
+	// step parameter, e.g. for predictor/corrector scheme
+	uint step;
+
+	// Writer variables
 	Problem::WriterType writerType;
 	Writer *writer;
 
@@ -218,6 +222,7 @@ struct GlobalData {
 		//numCpuThreads(0),
 		//cpuThreadIds(NULL),
 		nextCommand(IDLE),
+		step(0),
 		writerType(Problem::VTKWRITER),
 		writer(NULL)
 		//tdatas(NULL),

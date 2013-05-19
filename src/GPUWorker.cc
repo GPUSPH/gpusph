@@ -508,11 +508,12 @@ void GPUWorker::kernel_buildNeibsList()
 						m_simparams->periodicbound);
 }
 
-
-	if (firstPhase)
-		return forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 void GPUWorker::kernel_forces()
 {
+	float returned_dt = 0.0F;
+	bool firstStep = gdata->step == 1;
+	if (firstStep)
+		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 						m_dVel[gdata->currentVelRead],   // vel(n)
 						m_dForces,					// f(n)
 						0, // float* rbforces
@@ -539,7 +540,7 @@ void GPUWorker::kernel_forces()
 						m_simparams->boundarytype,
 						m_simparams->usedem );
 	else
-		return forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
+		returned_dt = forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
 						m_dVel[gdata->currentVelWrite],  // vel(n+1/2)
 						m_dForces,					// f(n+1/2)
 						0, // float* rbforces,
@@ -566,11 +567,17 @@ void GPUWorker::kernel_forces()
 						m_simparams->boundarytype,
 						m_simparams->usedem );
 
+	// gdata->dts is directly used instead of handling dt1 and dt2
+	if (firstStep)
+		gdata->dts[devnum] = returned_dt;
+	else
+		gdata->dts[devnum] = min(gdata->dts[devnum], returned_dt);
 }
 
 void GPUWorker::kernel_euler()
 {
-	if (firstPhase)
+	if (gdata->step == 1)
+
 		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
 				m_dVel[gdata->currentVelRead],   // vel(n)
 				m_dInfo[gdata->currentInfoRead], //particleInfo
