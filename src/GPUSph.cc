@@ -608,35 +608,31 @@ bool GPUSPH::runSimulation() {
 	//			k>  mls && swap
 	//			//set mvboundaries and gravity
 	//			//(init bodies)
-	//			k>  forces (in dt1; write on internals)
+		gdata->step = 1;
+		doCommand(FORCES);
+
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
 	//				initially done trivial and slow: stop and read
 	//			//reduce bodies
-	//			k>  euler (also on externals)
+
+		doCommand(EULER);
+
 	//			//reduce bodies
 	//			//callbacks (bounds, gravity)
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
 	//				initially done trivial and slow: stop and read
-	//			k>  forces (in dt2; write on internals)
+
+		gdata->step = 2;
+		doCommand(FORCES);
+
 	//			//reduce bodies
-	//			k>  euler (also on externals)
+
+		doCommand(EULER);
+
 	//			//reduce bodies
-	//			swap2
-	//			increase t bz dt and iter (in every process
-	//			if dtadapt
-	//				dt = min (dt1, dt2)
-	//MM			send dt
-	//MM			gather dts, chose min, broadcast (if rank 0)
-	//MM			receive global dt
-	//				check/throw dtZero exception
-	//		problem > finished(t);
-	//		problem > need_write(t)
-	//		if (need_write)
-	//			> get_arrays
-	//				ask workers to dump arrays
-	//			> do_write
-	//				printf info
-	//				ps > writeToFile
+
+		gdata->swapDeviceBuffers(false);
+
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
 			gdata->dt = gdata->dts[0];
