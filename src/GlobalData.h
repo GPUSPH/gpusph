@@ -28,6 +28,14 @@
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used
 enum CommandType {IDLE, CALCHASH, SORT, REORDER, BUILDNEIBS, FORCES, EULER, QUIT};
 
+enum WriterType
+{
+	TEXTWRITER,
+	VTKWRITER,
+	VTKLEGACYWRITER,
+	CUSTOMTEXTWRITER
+};
+
 // forward declaration of Writer
 class Writer;
 
@@ -142,7 +150,7 @@ struct GlobalData {
 	uint step;
 
 	// Writer variables
-	Problem::WriterType writerType;
+	WriterType writerType;
 	Writer *writer;
 
 	// ids, tdatas and ranges of each cpu thread
@@ -223,7 +231,7 @@ struct GlobalData {
 		//cpuThreadIds(NULL),
 		nextCommand(IDLE),
 		step(0),
-		writerType(Problem::VTKWRITER),
+		writerType(VTKWRITER),
 		writer(NULL)
 		//tdatas(NULL),
 		//cpuThreadFromParticle(NULL),

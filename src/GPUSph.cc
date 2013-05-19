@@ -869,21 +869,26 @@ void GPUSPH::setViscosityCoefficient()
 // creates the Writer according to the requested WriterType
 void GPUSPH::createWriter()
 {
-	gdata->writerType = gdata->problem->get_writertype();
-	switch(gdata->writerType) {
+	//gdata->writerType = gdata->problem->get_writertype();
+	//switch(gdata->writerType) {
+	switch (gdata->problem->get_writertype()) {
 		case Problem::TEXTWRITER:
+			gdata->writerType = TEXTWRITER;
 			gdata->writer = new TextWriter(gdata->problem);
 			break;
 
 		case Problem::VTKWRITER:
+			gdata->writerType = VTKWRITER;
 			gdata->writer = new VTKWriter(gdata->problem);
 			break;
 
 		case Problem::VTKLEGACYWRITER:
+			gdata->writerType = VTKLEGACYWRITER;
 			gdata->writer = new VTKLegacyWriter(gdata->problem);
 			break;
 
 		case Problem::CUSTOMTEXTWRITER:
+			gdata->writerType = CUSTOMTEXTWRITER;
 			gdata->writer = new CustomTextWriter(gdata->problem);
 			break;
 
