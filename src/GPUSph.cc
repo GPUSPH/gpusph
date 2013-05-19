@@ -637,6 +637,18 @@ bool GPUSPH::runSimulation() {
 	//			> do_write
 	//				printf info
 	//				ps > writeToFile
+		// choose minimum dt among the devices
+		if (gdata->problem->get_simparams()->dtadapt) {
+			gdata->dt = gdata->dts[0];
+			for (int d=1; d < gdata->devices; d++)
+				gdata->dt = min(gdata->dt, gdata->dts[d]);
+			// TODO for multinode
+			//MM			send dt
+			//MM			gather dts, chose min, broadcast (if rank 0)
+			//MM			receive global dt
+		}
+
+		// TODO				check/throw dtZero exception
 	}
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
