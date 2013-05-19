@@ -517,6 +517,9 @@ Problem::set_grid_params(void)
 	m_cellsize.x = m_size.x / m_gridsize.x;
 	m_cellsize.y = m_size.y / m_gridsize.y;
 	m_cellsize.z = m_size.z / m_gridsize.z;
+
+	printf("Grid size : (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
+	printf("Cell size : (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
 }
 
 
@@ -552,7 +555,7 @@ Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
 	localpos.x = float(pos(0) - (gridPos.x + 0.5)*m_cellsize.x);
 	localpos.y = float(pos(1) - (gridPos.y + 0.5)*m_cellsize.y);
 	localpos.z = float(pos(2) - (gridPos.z + 0.5)*m_cellsize.z);
-	localpos.w = float(pos(4));
+	localpos.w = float(pos(3));
 }
 
 
