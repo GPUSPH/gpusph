@@ -101,15 +101,15 @@ struct GlobalData {
 	//particleinfo s_info_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
 
 	// last dt for each PS
-	float s_dt[MAX_DEVICES_PER_NODE];
+	float dts[MAX_DEVICES_PER_NODE];
 
 	// indices for double-buffered device arrays (0 or 1)
-	uint s_currentPosRead;	// current index in m_dPos for position reading (0 or 1)
-	uint s_currentPosWrite;	// current index in m_dPos for writing (0 or 1)
-	uint s_currentVelRead;	// current index in m_dVel for velocity reading (0 or 1)
-	uint s_currentVelWrite;	// current index in m_dVel for writing (0 or 1)
-	uint s_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
-	uint s_currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
+	uint currentPosRead;	// current index in m_dPos for position reading (0 or 1)
+	uint currentPosWrite;	// current index in m_dPos for writing (0 or 1)
+	uint currentVelRead;	// current index in m_dVel for velocity reading (0 or 1)
+	uint currentVelWrite;	// current index in m_dVel for writing (0 or 1)
+	uint currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
+	uint currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
 
 	// moving boundaries data
 	//float4* mbData;
@@ -269,10 +269,10 @@ struct GlobalData {
 
 	// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
 	void swapDeviceBuffers(bool alsoInfo) {
-		std::swap(s_currentPosRead, s_currentPosWrite);
-		std::swap(s_currentVelRead, s_currentVelWrite);
+		std::swap(currentPosRead, currentPosWrite);
+		std::swap(currentVelRead, currentVelWrite);
 		if (alsoInfo)
-			std::swap(s_currentInfoRead, s_currentInfoWrite);
+			std::swap(currentInfoRead, currentInfoWrite);
 	}
 };
 

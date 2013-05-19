@@ -458,9 +458,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 }
 
 void GPUWorker::kernel_calcHash() {
-	calcHash(m_dPos[gdata->s_currentPosRead],
+	calcHash(m_dPos[gdata->currentPosRead],
 #if HASH_KEY_SIZE >= 64
-					m_dInfo[gdata->s_currentPosRead],
+					m_dInfo[gdata->currentPosRead],
 #endif
 					m_dParticleHash,
 					m_dParticleIndex,
@@ -477,22 +477,22 @@ void GPUWorker::kernel_sort() {
 void GPUWorker::kernel_reorderDataAndFindCellStart() {
 	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
-							m_dPos[gdata->s_currentPosWrite],		 // output: sorted positions
-							m_dVel[gdata->s_currentVelWrite],		 // output: sorted velocities
-							m_dInfo[gdata->s_currentInfoWrite],		 // output: sorted info
+							m_dPos[gdata->currentPosWrite],		 // output: sorted positions
+							m_dVel[gdata->currentVelWrite],		 // output: sorted velocities
+							m_dInfo[gdata->currentInfoWrite],		 // output: sorted info
 							m_dParticleHash,
 							m_dParticleIndex,  // input: sorted particle indices
-							m_dPos[gdata->s_currentPosRead],		 // input: sorted position array
-							m_dVel[gdata->s_currentVelRead],		 // input: sorted velocity array
-							m_dInfo[gdata->s_currentInfoRead],		 // input: sorted info array
+							m_dPos[gdata->currentPosRead],		 // input: sorted position array
+							m_dVel[gdata->currentVelRead],		 // input: sorted velocity array
+							m_dInfo[gdata->currentInfoRead],		 // input: sorted info array
 							m_numParticles,
 							m_nGridCells);
 }
 
 void GPUWorker::kernel_buildNeibsList(uint firstNG, uint lastNG) {
 	buildNeibsList(	m_dNeibsList,
-						m_dPos[gdata->s_currentPosRead],
-						m_dInfo[gdata->s_currentInfoRead],
+						m_dPos[gdata->currentPosRead],
+						m_dInfo[gdata->currentInfoRead],
 						m_dParticleHash,
 						m_dCellStart,
 						m_dCellEnd,
@@ -509,13 +509,13 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 	bool reduce, cudaStream_t f_stream, uint cfl_offset, float *pin_maxcfl) {
 
 	if (firstPhase)
-		return forces(  m_dPos[gdata->s_currentPosRead],   // pos(n)
-						m_dVel[gdata->s_currentVelRead],   // vel(n)
+		return forces(  m_dPos[gdata->currentPosRead],   // pos(n)
+						m_dVel[gdata->currentVelRead],   // vel(n)
 						m_dForces,					// f(n)
 						0, // float* rbforces
 						0, // float* rbtorques
 						m_dXsph,
-						m_dInfo[gdata->s_currentInfoRead],
+						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
 						m_numParticles,
 						m_simparams->slength,
@@ -536,13 +536,13 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 						m_simparams->boundarytype,
 						m_simparams->usedem );
 	else
-		return forces(  m_dPos[gdata->s_currentPosWrite],  // pos(n+1/2)
-						m_dVel[gdata->s_currentVelWrite],  // vel(n+1/2)
+		return forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
+						m_dVel[gdata->currentVelWrite],  // vel(n+1/2)
 						m_dForces,					// f(n+1/2)
 						0, // float* rbforces,
 						0, // float* rbtorques,
 						m_dXsph,
-						m_dInfo[gdata->s_currentInfoRead],
+						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
 						m_numParticles,
 						m_simparams->slength,
@@ -567,13 +567,13 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 
 void GPUWorker::kernel_euler(bool firstPhase, uint firstNG, uint lastNG) {
 	if (firstPhase)
-		euler(  m_dPos[gdata->s_currentPosRead],   // pos(n)
-				m_dVel[gdata->s_currentVelRead],   // vel(n)
-				m_dInfo[gdata->s_currentInfoRead], //particleInfo
+		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
+				m_dVel[gdata->currentVelRead],   // vel(n)
+				m_dInfo[gdata->currentInfoRead], //particleInfo
 				m_dForces,					// f(n+1/2)
 				m_dXsph,
-				m_dPos[gdata->s_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
-				m_dVel[gdata->s_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
+				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
@@ -582,13 +582,13 @@ void GPUWorker::kernel_euler(bool firstPhase, uint firstNG, uint lastNG) {
 				m_simparams->xsph,
 				m_simparams->periodicbound);
 	else
-		euler(  m_dPos[gdata->s_currentPosRead],   // pos(n)
-				m_dVel[gdata->s_currentVelRead],   // vel(n)
-				m_dInfo[gdata->s_currentInfoRead], //particleInfo
+		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
+				m_dVel[gdata->currentVelRead],   // vel(n)
+				m_dInfo[gdata->currentInfoRead], //particleInfo
 				m_dForces,					// f(n+1/2)
 				m_dXsph,
-				m_dPos[gdata->s_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
-				m_dVel[gdata->s_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
+				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,

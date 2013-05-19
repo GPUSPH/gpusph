@@ -467,8 +467,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem = gdata->problem;
 
 	// the initial assignment is arbitrary, just need to be complementary
-	gdata->s_currentPosRead = gdata->s_currentVelRead = gdata->s_currentInfoRead = 0;
-	gdata->s_currentPosWrite = gdata->s_currentVelWrite = gdata->s_currentInfoWrite = 1;
+	gdata->currentPosRead = gdata->currentVelRead = gdata->currentInfoRead = 0;
+	gdata->currentPosWrite = gdata->currentVelWrite = gdata->currentInfoWrite = 1;
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
