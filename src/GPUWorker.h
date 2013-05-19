@@ -131,11 +131,9 @@ private:
 	void kernel_calcHash();
 	void kernel_sort();
 	void kernel_reorderDataAndFindCellStart();
-	void kernel_buildNeibsList(uint firstNG, uint lastNG);
-	float kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
-		bool reduce = true, cudaStream_t f_stream = 0,
-		uint cfl_offset = 0, float *pin_maxcfl = NULL);
-	void kernel_euler(bool firstPhase, uint firstNG, uint lastNG);
+	void kernel_buildNeibsList();
+	void kernel_forces();
+	void kernel_euler();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

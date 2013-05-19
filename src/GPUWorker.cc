@@ -425,14 +425,13 @@ void* GPUWorker::simulationThread(void *ptr) {
 				instance->kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
-				instance->kernel_buildNeibsList(0, 0);
+				instance->kernel_buildNeibsList();
 				break;
 			case FORCES:
-				//cd->cpuThreadDts[tdata->CPUThreadIndex] =
-				//	tdata->psystem->forcesHostRange(fromPart, toPart);
+				instance->kernel_forces();
 				break;
 			case EULER:
-				instance->kernel_euler(false, 0, 0);
+				instance->kernel_euler();
 				break;
 			case QUIT:
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -489,7 +488,8 @@ void GPUWorker::kernel_reorderDataAndFindCellStart() {
 							m_nGridCells);
 }
 
-void GPUWorker::kernel_buildNeibsList(uint firstNG, uint lastNG) {
+void GPUWorker::kernel_buildNeibsList()
+{
 	buildNeibsList(	m_dNeibsList,
 						m_dPos[gdata->currentPosRead],
 						m_dInfo[gdata->currentInfoRead],
@@ -505,11 +505,11 @@ void GPUWorker::kernel_buildNeibsList(uint firstNG, uint lastNG) {
 						m_simparams->periodicbound);
 }
 
-float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
-	bool reduce, cudaStream_t f_stream, uint cfl_offset, float *pin_maxcfl) {
 
 	if (firstPhase)
 		return forces(  m_dPos[gdata->currentPosRead],   // pos(n)
+void GPUWorker::kernel_forces()
+{
 						m_dVel[gdata->currentVelRead],   // vel(n)
 						m_dForces,					// f(n)
 						0, // float* rbforces
@@ -565,7 +565,8 @@ float GPUWorker::kernel_forces(bool firstPhase, uint firstNG, uint lastNG,
 
 }
 
-void GPUWorker::kernel_euler(bool firstPhase, uint firstNG, uint lastNG) {
+void GPUWorker::kernel_euler()
+{
 	if (firstPhase)
 		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
 				m_dVel[gdata->currentVelRead],   // vel(n)
