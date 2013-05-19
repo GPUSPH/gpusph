@@ -177,12 +177,20 @@ bool check_short_length() {
 	return (sizeof(uint) == 2*sizeof(short));
 }
 
+// SIGINT handler: issues a quit_request
 void sigint_handler(int signum) {
-	// stub
+	// TODO: if issued the second time, brutally terminate everything
+	if (gdata_static_pointer->quit_request) {
+		// stub
+	} else {
+		printf("Kindly asking to quit - please wait for the current iteration to complete\n");
+		gdata_static_pointer->quit_request = true;
+	}
 }
 
 void sigusr1_handler(int signum) {
-	// stub
+	// TODO: actually issue a user save_request
+	//gdata_static_pointer->save_request = true;
 }
 
 int newMain(int argc, char** argv) {
@@ -192,6 +200,7 @@ int newMain(int argc, char** argv) {
 	}
 
 	GlobalData gdata;
+	gdata_static_pointer = &gdata;
 
 	// Command line options
 	gdata.clOptions = new Options();

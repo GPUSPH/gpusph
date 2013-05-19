@@ -120,7 +120,7 @@ struct GlobalData {
 
 	// simulation time control
 	bool keep_going;
-	//bool quit_request;
+	bool quit_request;
 	//bool save_request;
 	//bool save_after_bneibs;
 	//bool requestSliceStartDump;
@@ -206,7 +206,7 @@ struct GlobalData {
 		//mbData(NULL),
 		//mbDataSize(0),
 		keep_going(true),
-		//quit_request(false),
+		quit_request(false),
 		//save_request(false),
 		//save_after_bneibs(false),
 		//requestSliceStartDump(false),
@@ -275,5 +275,9 @@ struct GlobalData {
 			std::swap(currentInfoRead, currentInfoWrite);
 	}
 };
+
+// static pointer to the instance of GlobalData allocated in the main. Its aim is to make
+// variables such as quit_request and save_request accessible by the signal handlers
+static GlobalData *gdata_static_pointer;
 
 #endif // _GLOBAL_DATA_
