@@ -473,8 +473,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
 
+	// the Writer was created in the PS constructor
+	createWriter();
+
+	// TODO: writeSummary
+
+	// we should need no PS anymore
 	//		> new PS
-	psystem = new ParticleSystem(gdata);
+	// psystem = new ParticleSystem(gdata);
 	//			PS constructor updates cellSize, worldSize, nCells, etc. in gdata
 	//			PS creates new writer. Do it outside?
 
@@ -557,11 +563,10 @@ bool GPUSPH::finalize() {
 	// host buffers
 	deallocateGlobalHostBuffers();
 
-	//		problem > deallocate (every process allocates everything)
-	//		delete Problem
-
 	// ParticleSystem which, in turn, deletes the Writer
-	delete psystem;
+	//delete psystem;
+
+	delete gdata->writer;
 
 	// ...anything else?
 
