@@ -659,7 +659,8 @@ bool GPUSPH::runSimulation() {
 // Allocate the shared buffers, i.e. those accessed by all workers
 // Returns the number of allocated bytes.
 // This does *not* include what was previously allocated (e.g. particles in problem->fillparts())
-long unsigned int GPUSPH::allocateGlobalHostBuffers() {
+long unsigned int GPUSPH::allocateGlobalHostBuffers()
+{
 
 	long unsigned int numparts = gdata->totParticles;
 	unsigned int numcells = gdata->nGridCells;
@@ -708,7 +709,8 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers() {
 }
 
 // Deallocate the shared buffers, i.e. those accessed by all workers
-void GPUSPH::deallocateGlobalHostBuffers() {
+void GPUSPH::deallocateGlobalHostBuffers()
+{
 	//cudaFreeHost(s_hPos); // pinned memory
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;
@@ -800,7 +802,8 @@ void GPUSPH::sortParticlesByHash() {
 }
 
 // Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
-void GPUSPH::particleSwap(uint idx1, uint idx2) {
+void GPUSPH::particleSwap(uint idx1, uint idx2)
+{
 	// could keep a counter
 	swap( gdata->s_hPos[idx1],  gdata->s_hPos[idx2] );
 	swap( gdata->s_hVel[idx1],  gdata->s_hVel[idx2] );
@@ -808,7 +811,8 @@ void GPUSPH::particleSwap(uint idx1, uint idx2) {
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd) {
+void GPUSPH::doCommand(CommandType cmd)
+{
 	gdata->nextCommand = cmd;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1

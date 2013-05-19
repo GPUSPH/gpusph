@@ -456,7 +456,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 	pthread_exit(NULL);
 }
 
-void GPUWorker::kernel_calcHash() {
+void GPUWorker::kernel_calcHash()
+{
 	calcHash(m_dPos[gdata->currentPosRead],
 #if HASH_KEY_SIZE >= 64
 					m_dInfo[gdata->currentPosRead],
@@ -469,11 +470,13 @@ void GPUWorker::kernel_calcHash() {
 					m_numParticles);
 }
 
-void GPUWorker::kernel_sort() {
+void GPUWorker::kernel_sort()
+{
 	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
 }
 
-void GPUWorker::kernel_reorderDataAndFindCellStart() {
+void GPUWorker::kernel_reorderDataAndFindCellStart()
+{
 	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
 							m_dPos[gdata->currentPosWrite],		 // output: sorted positions
