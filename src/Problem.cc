@@ -523,7 +523,7 @@ Problem::set_grid_params(void)
 }
 
 
-// Compute position in uniform grid
+// Compute position in uniform grid (clamping to edges)
 int3
 Problem::calc_grid_pos(const Point&	pos)
 {
@@ -531,18 +531,18 @@ Problem::calc_grid_pos(const Point&	pos)
 	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
 	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
 	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+	gridPos.x = max(0, min(gridPos.x, m_gridsize.x-1));
+	gridPos.y = max(0, min(gridPos.y, m_gridsize.y-1));
+	gridPos.z = max(0, min(gridPos.z, m_gridsize.z-1));
 
 	return gridPos;
 }
 
 
-// Compute address in grid from position (clamping to edges)
+// Compute address in grid from position
 uint
 Problem::calc_grid_hash(int3 gridPos)
 {
-	gridPos.x = max(0, min(gridPos.x, m_gridsize.x-1));
-	gridPos.y = max(0, min(gridPos.y, m_gridsize.y-1));
-	gridPos.z = max(0, min(gridPos.z, m_gridsize.z-1));
 	return INTMUL(INTMUL(gridPos.z, m_gridsize.y), m_gridsize.x) + INTMUL(gridPos.y, m_gridsize.x) + gridPos.x;
 }
 
