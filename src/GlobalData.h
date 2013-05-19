@@ -22,9 +22,14 @@
 #include "GPUWorker.h"
 // Synchronizer
 #include "Synchronizer.h"
+// Writer
+#include "Writer.h"
 
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used
 enum CommandType {IDLE, CALCHASH, SORT, REORDER, BUILDNEIBS, FORCES, EULER, QUIT};
+
+// forward declaration of Writer
+class Writer;
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
@@ -133,6 +138,8 @@ struct GlobalData {
 
 	// next command to be executed by workers
 	CommandType nextCommand;
+	Problem::WriterType writerType;
+	Writer *writer;
 
 	// ids, tdatas and ranges of each cpu thread
 	//pthread_t *cpuThreadIds;
@@ -210,7 +217,9 @@ struct GlobalData {
 		//single_inter(false),
 		//numCpuThreads(0),
 		//cpuThreadIds(NULL),
-		nextCommand(IDLE)
+		nextCommand(IDLE),
+		writerType(Problem::VTKWRITER),
+		writer(NULL)
 		//tdatas(NULL),
 		//cpuThreadFromParticle(NULL),
 		//cpuThreadToParticle(NULL),
