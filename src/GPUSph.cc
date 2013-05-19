@@ -645,6 +645,26 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// TODO				check/throw dtZero exception
+
+		// increase counters
+		gdata->iterations++;
+		gdata->t += gdata->dt;
+		// buildneibs?
+
+		printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
+
+		bool finished = gdata->problem->finished(gdata->t);
+		bool need_write = gdata->problem->need_write(gdata->t);
+
+		// TODO		if (need_write)
+		//			> get_arrays
+		//				ask workers to dump arrays
+		//			> do_write
+		//				printf info
+		//				ps > writeToFile
+
+		if (finished || gdata->quit_request)
+			gdata->keep_going = false;
 	}
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
