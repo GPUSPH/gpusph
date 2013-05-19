@@ -520,7 +520,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy particles from problem to GPUSPH buffers
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 
-	sortParticlesByHash();
+	if (gdata->devices>1)
+		sortParticlesByHash();
 
 	// TODO
 	//		// > new Integrator
@@ -743,7 +744,8 @@ void GPUSPH::deallocateGlobalHostBuffers()
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;
 	delete [] gdata->s_hInfo;
-	delete [] gdata->s_hDeviceMap;
+	if (gdata->devices>1)
+		delete [] gdata->s_hDeviceMap;
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
