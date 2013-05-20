@@ -57,6 +57,9 @@ private:
 	// use the writer
 	void doWrite();
 
+	// print information about the status of the simulation
+	void printStatus();
+
 public:
 	// destructor
 	~GPUSPH();

@@ -958,3 +958,21 @@ void GPUSPH::doWrite()
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
 }
+
+void GPUSPH::printStatus()
+{
+//#define ti timingInfo
+	printf(	"Simulation at t=%es iterations=%ld dt=%es %u parts.\n",
+			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
+			//"mean neib list in %es\n"
+			//"mean integration in %es\n",
+			gdata->t, gdata->iterations, gdata->dt, gdata->totParticles
+			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
+			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
+			//ti.meanTimeNeibsList,
+			//ti.meanTimeEuler
+			);
+	fflush(stdout);
+//#undef ti
+}
+
