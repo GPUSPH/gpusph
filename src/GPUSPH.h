@@ -54,6 +54,9 @@ private:
 	// create the Writer
 	void createWriter();
 
+	// use the writer
+	void doWrite();
+
 public:
 	// destructor
 	~GPUSPH();

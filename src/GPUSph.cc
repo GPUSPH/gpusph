@@ -943,3 +943,18 @@ void GPUSPH::createWriter()
 			break;
 	}
 }
+
+void GPUSPH::doWrite()
+{
+	gdata->writer->write(gdata->totParticles, gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo,
+			/*m_hVort*/NULL, gdata->t, gdata->problem->get_simparams()->testpoints, /*m_hNormals*/ NULL);
+	gdata->problem->mark_written(gdata->t);
+	// TODO: enable energy computation and dump
+	/*calc_energy(m_hEnergy,
+		m_dPos[m_currentPosRead],
+		m_dVel[m_currentVelRead],
+		m_dInfo[m_currentInfoRead],
+		m_numParticles,
+		m_physparams->numFluids);
+	m_writer->write_energy(m_simTime, m_hEnergy);*/
+}
