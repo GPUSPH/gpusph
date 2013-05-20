@@ -703,7 +703,8 @@ bool GPUSPH::runSimulation() {
 		//				printf info
 		//				ps > writeToFile
 
-		if (finished || gdata->quit_request)
+		//if (finished || gdata->quit_request)
+		if (gdata->quit_request || gdata->iterations > 3)
 			gdata->keep_going = false;
 	}
 
