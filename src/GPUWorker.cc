@@ -210,12 +210,12 @@ void GPUWorker::deallocateHostBuffers() {
 void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dForces));
 	CUDA_SAFE_CALL(cudaFree(m_dXsph));
-	CUDA_SAFE_CALL(cudaFree(m_dPos));
-	CUDA_SAFE_CALL(cudaFree(m_dPos));
-	CUDA_SAFE_CALL(cudaFree(m_dVel));
-	CUDA_SAFE_CALL(cudaFree(m_dVel));
-	CUDA_SAFE_CALL(cudaFree(m_dInfo));
-	CUDA_SAFE_CALL(cudaFree(m_dInfo));
+	CUDA_SAFE_CALL(cudaFree(m_dPos[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dPos[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dVel[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dVel[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dInfo[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
 
 	if (m_simparams->savenormals)
 		CUDA_SAFE_CALL(cudaFree(m_dNormals));
