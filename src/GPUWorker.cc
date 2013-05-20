@@ -255,13 +255,17 @@ void GPUWorker::uploadSubdomain() {
 
 	size_t _size = 0;
 
+	int buffer = gdata->currentPosRead;
+	printf("Uploading to buffer %d\n", buffer);
+
 	// memcpys - recalling GPU arrays are double buffered
 	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosWrite ] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(m_dPos[ gdata->currentPosWrite ], m_hPos, _size, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(m_dPos[ buffer ], m_hPos, _size, cudaMemcpyHostToDevice));
 	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelWrite ] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(m_dVel[ gdata->currentVelWrite ], m_hVel, _size, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(m_dVel[ buffer ], m_hVel, _size, cudaMemcpyHostToDevice));
 	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoWrite ] ); // particleInfo
-	CUDA_SAFE_CALL(cudaMemcpy(m_dInfo[ gdata->currentInfoWrite ], m_hInfo, _size, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(m_dInfo[ buffer ], m_hInfo, _size, cudaMemcpyHostToDevice));
+}
 
 // download the subdomain to the private member arrays
 void GPUWorker::downloadSubdomain() {
