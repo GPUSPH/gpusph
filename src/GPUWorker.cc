@@ -247,7 +247,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 }
 
 // upload subdomain, just allocated and sorted by main thread
-void GPUWorker::uploadSubdomains() {
+void GPUWorker::uploadSubdomain() {
 	// indices
 	uint myDevNum = devnum; // global device number
 	uint firstInnerParticle	= gdata->s_hStartPerDevice[myDevNum];
