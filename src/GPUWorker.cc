@@ -262,6 +262,57 @@ void GPUWorker::uploadSubdomain() {
 	CUDA_SAFE_CALL(cudaMemcpy(m_dVel[ gdata->currentVelWrite ], m_hVel, _size, cudaMemcpyHostToDevice));
 	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoWrite ] ); // particleInfo
 	CUDA_SAFE_CALL(cudaMemcpy(m_dInfo[ gdata->currentInfoWrite ], m_hInfo, _size, cudaMemcpyHostToDevice));
+
+// download the subdomain to the private member arrays
+void GPUWorker::downloadSubdomain() {
+	// indices
+	uint myDevNum = devnum; // global device number
+	uint firstInnerParticle	= gdata->s_hStartPerDevice[myDevNum];
+	uint howManyParticles	= gdata->s_hPartsPerDevice[myDevNum];
+
+	size_t _size = 0;
+
+	// memcpys - recalling GPU arrays are double buffered
+	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosRead ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(	m_hPos,
+								m_dPos[ gdata->currentPosRead ],
+								_size, cudaMemcpyDeviceToHost));
+
+	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelRead ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(	m_hVel,
+								m_dVel[ gdata->currentVelRead ],
+								_size, cudaMemcpyDeviceToHost));
+
+	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoRead ] ); // particleInfo
+	CUDA_SAFE_CALL(cudaMemcpy(	m_hInfo,
+								m_dInfo[ gdata->currentInfoRead ],
+								_size, cudaMemcpyDeviceToHost));
+}
+
+// download the subdomain to the shared CPU arrays
+void GPUWorker::downloadSubdomainToGlobalBuffer() {
+	// indices
+	uint myDevNum = devnum; // global device number
+	uint firstInnerParticle	= gdata->s_hStartPerDevice[myDevNum];
+	uint howManyParticles	= gdata->s_hPartsPerDevice[myDevNum];
+
+	size_t _size = 0;
+
+	// memcpys - recalling GPU arrays are double buffered
+	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosRead ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hPos + firstInnerParticle,
+								m_dPos[ gdata->currentPosRead ],
+								_size, cudaMemcpyDeviceToHost));
+
+	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelRead ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVel + firstInnerParticle,
+								m_dVel[ gdata->currentVelRead ],
+								_size, cudaMemcpyDeviceToHost));
+
+	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoRead ] ); // particleInfo
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hInfo + firstInnerParticle,
+								m_dInfo[ gdata->currentInfoRead ],
+								_size, cudaMemcpyDeviceToHost));
 }
 
 // create a compact device map, for this device, from the global one,

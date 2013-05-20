@@ -123,6 +123,9 @@ private:
 	void deallocateDeviceBuffers();
 
 	void uploadSubdomain();
+	void downloadSubdomain();
+	void downloadSubdomainToGlobalBuffer();
+
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void uploadConstants();
