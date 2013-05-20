@@ -391,8 +391,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->allocateDeviceBuffers();
 
 	// create and upload the compact device map (2 bits per cell)
-	instance->createCompactDeviceMap();
-	instance->uploadCompactDeviceMap();
+	if (gdata->devices>1) {
+		instance->createCompactDeviceMap();
+		instance->uploadCompactDeviceMap();
+	}
 
 	// TODO: here set_reduction_params() will be called (to be implemented in this class). These parameters can be device-specific.
 
