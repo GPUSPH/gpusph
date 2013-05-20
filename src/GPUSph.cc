@@ -499,6 +499,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->dt = _sp->dt;
 
 	// the initial assignment is arbitrary, just need to be complementary
+	// (caveat: as long as these pointers, and not just 0 and 1 values, are always used)
 	gdata->currentPosRead = gdata->currentVelRead = gdata->currentInfoRead = 0;
 	gdata->currentPosWrite = gdata->currentVelWrite = gdata->currentInfoWrite = 1;
 
@@ -588,10 +589,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 }
 
 bool GPUSPH::finalize() {
-	// gpu buffers have been already destroyed at the end of the simulationThread()
-	// GPUWorkers > deallocateGPU
-
-	// TODO later
+	// TODO here, when there will be the Integrator
 	// delete Integrator
 
 	// workers
@@ -644,7 +642,6 @@ bool GPUSPH::runSimulation() {
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(true);
 			doCommand(BUILDNEIBS);
-
 		}
 
 	//			k>  shepard && swap1
