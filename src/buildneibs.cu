@@ -186,7 +186,7 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
 	
-	 thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
 }
 }
