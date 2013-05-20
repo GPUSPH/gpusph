@@ -598,6 +598,8 @@ bool GPUSPH::finalize() {
 	for (int d=0; d < gdata->devices; d++)
 			delete gdata->GPUWORKERS[d];
 
+	delete gdata->GPUWORKERS;
+
 	// Synchronizer
 	delete gdata->threadSynchronizer;
 
