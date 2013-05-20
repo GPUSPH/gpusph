@@ -467,6 +467,37 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
+	// utility pointer
+	SimParams *_sp = gdata->problem->get_simparams();
+
+	// update the GlobalData copies of the sizes of the domain
+	gdata->worldOrigin = problem->get_worldorigin();
+	gdata->worldSize = problem->get_worldsize();
+	// TODO: re-enable the followin after the WriterType rampage is over
+	// gdata->writerType = problem->get_writertype();
+
+	// initialize the influence radius and its derived parameters
+	_sp->influenceRadius = _sp->kernelradius * _sp->slength;
+	_sp->nlInfluenceRadius = _sp->influenceRadius * _sp->nlexpansionfactor;
+	_sp->nlSqInfluenceRadius = _sp->nlInfluenceRadius * _sp->nlInfluenceRadius;
+
+	// compute the size of grid
+	gdata->gridSize.x = (uint) (gdata->worldSize.x / _sp->influenceRadius);
+	gdata->gridSize.y = (uint) (gdata->worldSize.y / _sp->influenceRadius);
+	gdata->gridSize.z = (uint) (gdata->worldSize.z / _sp->influenceRadius);
+
+	// compute the number of cells and the number of significant bits for radixsort
+	gdata->nGridCells = gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
+	gdata->nSortingBits = ceil(log2((float) gdata->nGridCells)/4.0)*4;
+
+	// since the gridsize was obtained by truncation, make the cellSize and exact divisor
+	gdata->cellSize.x = gdata->worldSize.x / gdata->gridSize.x;
+	gdata->cellSize.y = gdata->worldSize.y / gdata->gridSize.y;
+	gdata->cellSize.z = gdata->worldSize.z / gdata->gridSize.z;
+
+	// initial dt (or, just dt in case adaptive is enabled)
+	gdata->dt = _sp->dt;
+
 	// the initial assignment is arbitrary, just need to be complementary
 	gdata->currentPosRead = gdata->currentVelRead = gdata->currentInfoRead = 0;
 	gdata->currentPosWrite = gdata->currentVelWrite = gdata->currentInfoWrite = 1;
