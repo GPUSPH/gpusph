@@ -182,7 +182,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
 
-		allocated += fmaxTableSize;
+		allocated += fmaxTableSize + tempCflSize;
 	}
 
 	// TODO: call setDemTexture(), which allocates and reads the DEM
