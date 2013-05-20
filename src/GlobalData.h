@@ -246,7 +246,10 @@ struct GlobalData {
 		//nobalance(false),
 		//custom_lb_threshold(0.0f),
 		//alloc_max(false)
-	{ };
+	{
+		for (uint i=0; i < MAX_DEVICES_PER_NODE; i++)
+			dts[i] = 0.0F;
+	};
 
 	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(float3 pos) {
