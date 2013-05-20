@@ -530,7 +530,7 @@ void GPUWorker::kernel_buildNeibsList()
 void GPUWorker::kernel_forces()
 {
 	float returned_dt = 0.0F;
-	bool firstStep = gdata->step == 1;
+	bool firstStep = (gdata->step == 1);
 	if (firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 						m_dVel[gdata->currentVelRead],   // vel(n)
