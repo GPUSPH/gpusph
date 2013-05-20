@@ -546,7 +546,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
 	// not before allocating the host buffers
-	gdata->problem->fillDeviceMap(gdata);
+	if (gdata->devices>1)
+		gdata->problem->fillDeviceMap(gdata);
 
 	// Check: is this mandatory? this requires double the memory!
 	// copy particles from problem to GPUSPH buffers
