@@ -401,14 +401,17 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// TODO: here setDemTexture() will be called. It is device-wide, but reading the DEM file is process wide and will be in GPUSPH class
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
+	//printf("Thread %d, wait for the initialization\n", devnum);
 
 	// here GPUSPH::initialize is over and GPUSPH::runSimulation() is called
 
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
+	//printf("Thread %d, beings the upload\n", devnum);
 
 	instance->uploadSubdomains();
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
+	//printf("Thread %d, beings the simulation\n", devnum);
 
 	// TODO
 	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
@@ -416,37 +419,50 @@ void* GPUWorker::simulationThread(void *ptr) {
 		switch (gdata->nextCommand) {
 			// logging here?
 			case IDLE:
+				//printf("Thread %d, IDLE command\n", devnum);
 				break;
 			case CALCHASH:
+				//printf("Thread %d, CALCHASH command\n", devnum);
 				instance->kernel_calcHash();
 				break;
 			case SORT:
+				//printf("Thread %d, SORT command\n", devnum);
 				instance->kernel_sort();
 				break;
 			case REORDER:
+				//printf("Thread %d, REORDER command\n", devnum);
 				instance->kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
+				//printf("Thread %d, BUILDNEIBS command\n", devnum);
 				instance->kernel_buildNeibsList();
 				break;
 			case FORCES:
+				//printf("Thread %d, FORCE command\n", devnum);
 				instance->kernel_forces();
 				break;
 			case EULER:
+				//printf("Thread %d, EULER command\n", devnum);
 				instance->kernel_euler();
 				break;
 			case QUIT:
+				//printf("Thread %d, QUIT command\n", devnum);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 		}
 		if (gdata->keep_going) {
 			// the first barrier waits for the main thread to set the next command; the second is to unlock
+			//printf("Thread %d, arriving at CYCLE BARRIER 1\n", devnum);
 			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 1
+			//printf("Thread %d, out of CYCLE BARRIER 1\n", devnum);
+			//printf("Thread %d, arriving at CYCLE BARRIER 2\n", devnum);
 			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
+			//printf("Thread %d, out of CYCLE BARRIER 2\n", devnum);
 		}
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
+	//printf("Thread %d, out of simulation\n", devnum);
 
 	// deallocate buffers
 	instance->deallocateHostBuffers();
@@ -454,6 +470,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// ...what else?
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
+	//printf("Thread %d, out of finalization\n", devnum);
 
 	pthread_exit(NULL);
 }
