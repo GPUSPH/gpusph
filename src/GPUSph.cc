@@ -776,6 +776,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += ucharCellSize;
 	}
 
+	printf("Allocated %lu bytes on host for %lu particles\n", totCPUbytes, numparts);
 	return totCPUbytes;
 }
 
