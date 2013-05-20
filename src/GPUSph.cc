@@ -978,4 +978,3 @@ void GPUSPH::printStatus()
 	fflush(stdout);
 //#undef ti
 }
-

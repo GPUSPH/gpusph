@@ -645,10 +645,13 @@ void GPUWorker::kernel_forces()
 						m_simparams->usedem );
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
+	//printf(" Step %d, bool %d, returned %g, current %g, ",
+	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
 	if (firstStep)
 		gdata->dts[devnum] = returned_dt;
 	else
 		gdata->dts[devnum] = min(gdata->dts[devnum], returned_dt);
+	//printf("set to %g\n",gdata->dts[devnum]);
 }
 
 void GPUWorker::kernel_euler()
