@@ -459,7 +459,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 	//printf("Thread %d, beings the upload\n", devnum);
 
-	instance->uploadSubdomains();
+	instance->uploadSubdomain();
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 	//printf("Thread %d, beings the simulation\n", devnum);
