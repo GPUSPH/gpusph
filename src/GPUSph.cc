@@ -574,6 +574,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	for (int d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
+	gdata->keep_going = true;
+
 	// actually start the threads
 	for (int d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->run_worker();
