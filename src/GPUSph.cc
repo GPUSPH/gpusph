@@ -457,8 +457,9 @@ GPUSPH::GPUSPH() {
 }
 
 GPUSPH::~GPUSPH() {
-	if (!initialized)
-		finalize();
+	// it would be useful to have a "fallback" deallocation but we have to check
+	// that main did not do that already
+	if (initialized) finalize();
 }
 
 bool GPUSPH::initialize(GlobalData *_gdata) {
