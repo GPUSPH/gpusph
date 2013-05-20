@@ -555,6 +555,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	if (gdata->devices>1)
 		sortParticlesByHash();
+	else {
+		// if there is something more to do, encapsulate in a dedicated method please
+		gdata->s_hStartPerDevice[0] = 0;
+		gdata->s_hPartsPerDevice[0] = gdata->totParticles;
+	}
 
 	// TODO
 	//		// > new Integrator
