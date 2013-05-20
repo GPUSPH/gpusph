@@ -500,6 +500,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf("Thread %d, EULER command\n", devnum);
 				instance->kernel_euler();
 				break;
+			case DUMP:
+				instance->downloadSubdomainToGlobalBuffer();
+				break;
 			case QUIT:
 				//printf("Thread %d, QUIT command\n", devnum);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle

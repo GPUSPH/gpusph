@@ -26,7 +26,7 @@
 #include "Writer.h"
 
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used
-enum CommandType {IDLE, CALCHASH, SORT, REORDER, BUILDNEIBS, FORCES, EULER, QUIT};
+enum CommandType {IDLE, CALCHASH, SORT, REORDER, BUILDNEIBS, FORCES, EULER, DUMP, QUIT};
 
 enum WriterType
 {
