@@ -232,7 +232,8 @@ int main(int argc, char** argv) {
 	GPUSPH Simulator = GPUSPH::getInstance();
 
 	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	Simulator.initialize(&gdata);
+	bool result = Simulator.initialize(&gdata);
+	printf("GPUSPH: %s\n", (result ? "initialized" : "NOT initialized") );
 
 	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
 	Simulator.runSimulation();
