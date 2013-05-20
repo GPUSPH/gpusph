@@ -179,9 +179,10 @@ bool check_short_length() {
 
 // SIGINT handler: issues a quit_request
 void sigint_handler(int signum) {
-	// TODO: if issued the second time, brutally terminate everything
+	// if issued the second time, brutally terminate everything
 	if (gdata_static_pointer->quit_request) {
-		// stub
+		printf("Second quit request - brutally terminating\n");
+		exit(1);
 	} else {
 		printf("Kindly asking to quit - please wait for the current iteration to complete\n");
 		gdata_static_pointer->quit_request = true;
