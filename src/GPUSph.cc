@@ -696,12 +696,15 @@ bool GPUSPH::runSimulation() {
 		bool finished = gdata->problem->finished(gdata->t);
 		bool need_write = gdata->problem->need_write(gdata->t) || finished;
 
-		// TODO		if (need_write)
-		//			> get_arrays
-		//				ask workers to dump arrays
-		//			> do_write
-		//				printf info
-		//				ps > writeToFile
+
+		if (need_write) {
+			// ask workers to dump their subdomains and wait for it to complete
+			doCommand(DUMP);
+			// triggers Writer->write()
+			doWrite();
+			// usual status
+			printStatus();
+		}
 
 		//if (finished || gdata->quit_request)
 		if (gdata->quit_request || gdata->iterations > 3)
