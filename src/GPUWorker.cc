@@ -256,12 +256,12 @@ void GPUWorker::uploadSubdomains() {
 	size_t _size = 0;
 
 	// memcpys - recalling GPU arrays are double buffered
-	_size = howManyParticles * sizeof( m_hPos[0] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(m_dPos[0], m_hPos, _size, cudaMemcpyHostToDevice));
-	_size = howManyParticles * sizeof( m_hVel[0] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(m_dVel[0], m_hVel, _size, cudaMemcpyHostToDevice));
-	_size = howManyParticles * sizeof( m_hInfo[0] ); // particleInfo
-	CUDA_SAFE_CALL(cudaMemcpy(m_dInfo[0], m_hInfo, _size, cudaMemcpyHostToDevice));
+	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosWrite ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(m_dPos[ gdata->currentPosWrite ], m_hPos, _size, cudaMemcpyHostToDevice));
+	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelWrite ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(m_dVel[ gdata->currentVelWrite ], m_hVel, _size, cudaMemcpyHostToDevice));
+	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoWrite ] ); // particleInfo
+	CUDA_SAFE_CALL(cudaMemcpy(m_dInfo[ gdata->currentInfoWrite ], m_hInfo, _size, cudaMemcpyHostToDevice));
 }
 
 // create a compact device map, for this device, from the global one,
