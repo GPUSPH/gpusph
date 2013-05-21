@@ -630,9 +630,9 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 1
 
-	// TODO
 	while (gdata->keep_going) {
-		// when there will be an Integrator class, here (or after bneibs?) we will call Integrator -> setNextStep
+		// when there will be an Integrator class, here (or after bneibs?) we will
+		// call Integrator -> setNextStep
 
 		// build neighbors list
 		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
@@ -648,6 +648,7 @@ bool GPUSPH::runSimulation() {
 	//			k>  mls && swap
 	//			//set mvboundaries and gravity
 	//			//(init bodies)
+
 		gdata->step = 1;
 		doCommand(FORCES);
 
@@ -689,7 +690,7 @@ bool GPUSPH::runSimulation() {
 		// increase counters
 		gdata->iterations++;
 		gdata->t += gdata->dt;
-		// buildneibs?
+		// buildneibs_freq?
 
 		printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
