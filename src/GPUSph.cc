@@ -562,6 +562,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->s_hPartsPerDevice[0] = gdata->totParticles;
 	}
 
+	printf("Host arrays after sorting the particles:\n");
+	for (uint d=0; d < gdata->devices; d++)
+		printf(" - device at index %u has %u particles assigned and offset %u\n",
+			d, gdata->s_hPartsPerDevice[d], gdata->s_hStartPerDevice[d]);
+
 	// TODO
 	//		// > new Integrator
 
