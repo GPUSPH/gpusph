@@ -955,7 +955,8 @@ void GPUSPH::createWriter()
 void GPUSPH::doWrite()
 {
 	gdata->writer->write(gdata->totParticles, gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo,
-			/*m_hVort*/NULL, gdata->t, gdata->problem->get_simparams()->testpoints, /*m_hNormals*/ NULL);
+		/*m_hVort*/NULL, gdata->t, gdata->problem->get_simparams()->testpoints,
+		/*m_hNormals*/ NULL);
 	gdata->problem->mark_written(gdata->t);
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
