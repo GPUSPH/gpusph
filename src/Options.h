@@ -35,12 +35,14 @@ struct Options {
 	string problem; // problem name
 	int device;  // which device to use
 	string dem; // DEM file to use
+	string custom_dir; // custom directory for dumps
 	float deltap; // deltap
 	float tend; // simulation end
 	Options(void) :
 		problem(),
 		device(-1),
 		dem(),
+		custom_dir(),
 		deltap(NAN),
 		tend(NAN)
 	{};

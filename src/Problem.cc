@@ -50,6 +50,8 @@ Problem::Problem(const Options &options)
 	m_rbdatafile = NULL;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_bodies = NULL;
+	if (options.custom_dir.length()>0)
+		m_problem_dir = options.custom_dir;
 }
 
 
@@ -106,16 +108,26 @@ Problem::need_display(float t)
 std::string 
 Problem::create_problem_dir(void)
 {
-	time_t  rawtime;
-	char	time_str[17];
+	// if no custom dir was set, create one based on the name of the problem plus the time
+	if (m_problem_dir.length()==0) {
+		time_t  rawtime;
+		char	time_str[17];
 
-	time(&rawtime);
-	strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
-	time_str[16] = '\0';
-	// if "./tests/" doesn't exist yet...
-	mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
-	m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
-	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+		time(&rawtime);
+		strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
+		time_str[16] = '\0';
+		m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
+
+		// create "./tests/" if it doesn't exist yet. Assuming this yield no error...
+		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
+	}
+
+	// create the directory
+	if (mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO)) {
+		fprintf(stderr, " * WARNING: couldn't create directory %s\n",
+			m_problem_dir.c_str());
+		fprintf(stderr, "   Possible causes: no permessions, parent directory doesn't exist, etc.\n");
+	}
 
 	if (m_rbdata_writeinterval) {
 		string rbdata_filename = m_problem_dir + "/rbdata.txt";

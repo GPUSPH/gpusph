@@ -97,13 +97,11 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->dem = std::string(*argv);
 			argv++;
 			argc--;
-		}
-		// TODO: add --dir option from multigpu. Maybe just a cherry pick?
-		/*} else if (!strcmp(arg, "--dir")) {
+		} else if (!strcmp(arg, "--dir")) {
 			_clOptions->custom_dir = std::string(*argv);
 			argv++;
 			argc--;
-		} else if (!strcmp(arg, "--console")) {
+		} /* else if (!strcmp(arg, "--console")) {
 			_clOptions->console = true;
 		} else if (!strcmp(arg, "--pthreads")) {
 			_clOptions->forcePthreads = true;
