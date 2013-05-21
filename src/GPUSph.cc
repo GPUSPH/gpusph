@@ -870,6 +870,7 @@ void GPUSPH::sortParticlesByHash() {
 				while (m_hParticleHashes[rightB] != currentDevice) rightB--;
 				// here it should never happen that (rightB <= leftB). We should throw an error if it happens
 				particleSwap(leftB, rightB);
+				std::swap(m_hParticleHashes[leftB], m_hParticleHashes[rightB]);
 			}
 			// already correct or swapped, time to go on
 			leftB++;
