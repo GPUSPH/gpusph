@@ -808,12 +808,8 @@ void GPUSPH::sortParticlesByHash() {
 
 	// fill array with particle hashes (aka global device numbers)
 	for (int p=0; p < gdata->totParticles; p++) {
-		// compute cell according to particle's position
-		int3 cellCoords = gdata->calcGridPosHost( gdata->s_hPos[p].x, gdata->s_hPos[p].y, gdata->s_hPos[p].z );
-		// compute cell linearized index
-		uint linearizedCellIdx = gdata->calcGridHashHost( cellCoords );
-		// read which device number was assigned
-		uchar whichDev = gdata->s_hDeviceMap[linearizedCellIdx];
+		// compute cell according to the particle's position and to the deviceMap
+		uchar whichDev = gdata->calcDevice(gdata->s_hPos[p]);
 		// that's the key!
 		m_hParticleHashes[p] = whichDev;
 		// increment per-device counter
