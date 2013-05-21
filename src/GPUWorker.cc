@@ -455,6 +455,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->allocateHostBuffers();
 	instance->allocateDeviceBuffers();
 
+	printf("Thread %u allocated %lu Kb on host, %lu Kb on device %u\n",
+		deviceIndex, instance->getHostMemory(), instance->getDeviceMemory(), cudaDeviceNumber);
+
 	// create and upload the compact device map (2 bits per cell)
 	if (gdata->devices>1) {
 		instance->createCompactDeviceMap();
