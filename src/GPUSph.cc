@@ -828,7 +828,7 @@ void GPUSPH::sortParticlesByHash() {
 	// update s_hStartPerDevice with incremental sum (should do in specific function?)
 	gdata->s_hStartPerDevice[0] = 0;
 	for (uint d=1; d < gdata->devices; d++)
-		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1]++;
+		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// *** About the algorithm being used ***
 	//
