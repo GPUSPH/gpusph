@@ -40,10 +40,10 @@ GPUWorker::~GPUWorker() {
 // Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {
 	// common sizes
-	const uint float3Size = sizeof(float3)*m_numParticles;
-	const uint float4Size = sizeof(float4)*m_numParticles;
-	const uint infoSize = sizeof(particleinfo)*m_numParticles;
-	const uint uintCellsSize = sizeof(uint)*m_nGridCells;
+	const uint float3Size = sizeof(float3) * m_numParticles;
+	const uint float4Size = sizeof(float4) * m_numParticles;
+	const uint infoSize = sizeof(particleinfo) * m_numParticles;
+	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
 
 	size_t allocated = 0;
 
@@ -86,14 +86,14 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	// common sizes
 	// compute common sizes (in bytes)
 	//const uint floatSize = sizeof(float)*m_numParticles;
-	const uint float2Size = sizeof(float2)*m_numParticles;
-	const uint float3Size = sizeof(float3)*m_numParticles;
-	const uint float4Size = sizeof(float4)*m_numParticles;
-	const uint infoSize = sizeof(particleinfo)*m_numParticles;
-	const uint intSize = sizeof(uint)*m_numParticles;
-	const uint uintCellsSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
-	const uint hashSize = sizeof(hashKey)*m_numParticles;
+	const uint float2Size = sizeof(float2) * m_numParticles;
+	const uint float3Size = sizeof(float3) * m_numParticles;
+	const uint float4Size = sizeof(float4) * m_numParticles;
+	const uint infoSize = sizeof(particleinfo) * m_numParticles;
+	const uint intSize = sizeof(uint) * m_numParticles;
+	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
+	const uint neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint hashSize = sizeof(hashKey) * m_numParticles;
 	//const uint neibslistSize = sizeof(uint)*128*m_numParticles;
 	//const uint sliceArraySize = sizeof(uint)*m_gridSize.PSA;
 
@@ -255,19 +255,24 @@ void GPUWorker::uploadSubdomain() {
 
 	size_t _size = 0;
 
-	int buffer = gdata->currentPosRead;
-	printf("Uploading to buffer %d\n", buffer);
-
 	// memcpys - recalling GPU arrays are double buffered
 	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosWrite ] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(m_dPos[ buffer ], m_hPos, _size, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dPos[ buffer ],
+								gdata->s_hPos + firstInnerParticle,
+								_size, cudaMemcpyHostToDevice));
+
 	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelWrite ] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(m_dVel[ buffer ], m_hVel, _size, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dVel[ buffer ],
+								gdata->s_hVel + firstInnerParticle,
+								_size, cudaMemcpyHostToDevice));
+
 	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoWrite ] ); // particleInfo
-	CUDA_SAFE_CALL(cudaMemcpy(m_dInfo[ buffer ], m_hInfo, _size, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dInfo[ buffer ],
+								gdata->s_hInfo + firstInnerParticle,
+								_size, cudaMemcpyHostToDevice));
 }
 
-// download the subdomain to the private member arrays
+// DEPRECATED download the subdomain to the private member arrays
 void GPUWorker::downloadSubdomain() {
 	// indices
 	uint myDevNum = devnum; // global device number
