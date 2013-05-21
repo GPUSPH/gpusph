@@ -804,6 +804,10 @@ void GPUSPH::deallocateGlobalHostBuffers()
 // update counters s_hPartsPerDevice and s_hStartPerDevice, which will be used to upload
 // Assumption: problem already filled, deviceMap filled, particles copied in shared arrays
 void GPUSPH::sortParticlesByHash() {
+	// DEBUG: print the list of particles before sorting
+	// for (uint p=0; p < gdata->totParticles; p++)
+	//	printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) );
+
 	// reset counters. Not using memset since its size is typically lower than 1Kb
 	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++)
 		gdata->s_hPartsPerDevice[d] = 0;
@@ -878,6 +882,35 @@ void GPUSPH::sortParticlesByHash() {
 	}
 	// delete array of keys (might be recycle instead?)
 	delete [] m_hParticleHashes;
+
+	// DEBUG: check if the sort was correct
+	/*bool monotonic = true;
+	bool count_c = true;
+	uint hcount[MAX_DEVICES_PER_CLUSTER];
+	for (uint d=0; d<gdata->devices; d++)
+		hcount[d] = 0;
+	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
+		uint cdev = gdata->calcDevice(gdata->s_hPos[p]);
+		if (p > 0 && cdev < gdata->calcDevice(gdata->s_hPos[p-1])) {
+			printf(" -- sorting error: array[%d] has device %d, array[%d] has device %d\n",
+				p-1, gdata->calcDevice(gdata->s_hPos[p-1]), p, cdev );
+			monotonic = false;
+		}
+		hcount[cdev]++;
+	}
+	for (uint d=0; d<gdata->devices; d++)
+		if (hcount[d] != gdata->s_hPartsPerDevice[d]) {
+			count_c = false;
+			printf(" -- sorting error: counted %d particles for device %d, but should be %d\n",
+					hcount[d], d, gdata->s_hPartsPerDevice[d]);
+		}
+	if (monotonic && count_c)
+		printf(" --- array OK\n");
+	else
+		printf(" --- array ERROR\n");
+	// finally, print the list again
+	//for (uint p=1; p < gdata->totParticles && monotonic; p++)
+	//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
 }
 
 // Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
