@@ -27,6 +27,9 @@
 #include <stdexcept>
 
 #include "VTKWriter.h"
+// GlobalData is required for writing the device index. With some order
+// of inclusions, a forward declaration might be required
+#include "GlobalData.h"
 
 using namespace std;
 
@@ -145,6 +148,12 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
+	// device index
+	if (m_gdata) {
+		scalar_array(fid, "UInt32", "DeviceIndex", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
@@ -256,6 +265,16 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (int i=0; i < numParts; i++) {
 			uint value = id(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// device index
+	if (m_gdata) {
+		numbytes = sizeof(uint)*numParts;
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			uint value = m_gdata->calcDevice(pos[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 	}
