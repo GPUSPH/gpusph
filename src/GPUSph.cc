@@ -506,7 +506,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
 
-	// the Writer was created in the PS constructor
+	// create the Writer according to the WriterType
 	createWriter();
 
 	// TODO: writeSummary
@@ -554,7 +554,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy particles from problem to GPUSPH buffers
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 
-	if (gdata->devices>1)
+	if (gdata->devices > 1)
 		sortParticlesByHash();
 	else {
 		// if there is something more to do, encapsulate in a dedicated method please
@@ -802,7 +802,7 @@ void GPUSPH::deallocateGlobalHostBuffers()
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
 // update counters s_hPartsPerDevice and s_hStartPerDevice, which will be used to upload
-// Assumption: problem already filled, deviceMap filled, particles copied in shared arrays
+// Assumptions: problem already filled, deviceMap filled, particles copied in shared arrays
 void GPUSPH::sortParticlesByHash() {
 	// DEBUG: print the list of particles before sorting
 	// for (uint p=0; p < gdata->totParticles; p++)
@@ -816,7 +816,7 @@ void GPUSPH::sortParticlesByHash() {
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers)
-	for (int p=0; p < gdata->totParticles; p++) {
+	for (uint p=0; p < gdata->totParticles; p++) {
 		// compute cell according to the particle's position and to the deviceMap
 		uchar whichDev = gdata->calcDevice(gdata->s_hPos[p]);
 		// that's the key!
@@ -1005,7 +1005,7 @@ void GPUSPH::doWrite()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation at t=%es iterations=%ld dt=%es %u parts.\n",
+	printf(	"Simulation time t=%es, iteration=%ld, dt=%es, %u parts\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
