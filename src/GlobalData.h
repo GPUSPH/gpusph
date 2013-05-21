@@ -283,6 +283,17 @@ struct GlobalData {
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
 
+	uchar calcDevice(float4 pos) {
+		// do not access s_hDeviceMap if single-GPU
+		if (devices == 1) return 0;
+		// compute 3D cell coordinate
+		int3 cellCoords = calcGridPosHost( pos.x, pos.y, pos.z );
+		// compute cell linearized index
+		uint linearizedCellIdx = calcGridHashHost( cellCoords );
+		// read which device number was assigned
+		return s_hDeviceMap[linearizedCellIdx];
+	}
+
 	// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
 	void swapDeviceBuffers(bool alsoInfo) {
 		std::swap(currentPosRead, currentPosWrite);
