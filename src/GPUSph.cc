@@ -925,6 +925,7 @@ void GPUSPH::createWriter()
 		case Problem::VTKWRITER:
 			gdata->writerType = VTKWRITER;
 			gdata->writer = new VTKWriter(gdata->problem);
+			gdata->writer->setGlobalData(gdata); // VTK also supports writing the device index
 			break;
 
 		case Problem::VTKLEGACYWRITER:
