@@ -697,7 +697,7 @@ bool GPUSPH::runSimulation() {
 		gdata->t += gdata->dt;
 		// buildneibs_freq?
 
-		printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
+		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
 		bool need_write = gdata->problem->need_write(gdata->t) || finished;
