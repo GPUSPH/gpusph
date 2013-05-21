@@ -256,18 +256,18 @@ void GPUWorker::uploadSubdomain() {
 	size_t _size = 0;
 
 	// memcpys - recalling GPU arrays are double buffered
-	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosWrite ] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dPos[ buffer ],
+	_size = howManyParticles * sizeof( m_hPos[ gdata->currentPosRead ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dPos[ gdata->currentPosRead ],
 								gdata->s_hPos + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
 
-	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelWrite ] ); // float4
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dVel[ buffer ],
+	_size = howManyParticles * sizeof( m_hVel[ gdata->currentVelRead ] ); // float4
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dVel[ gdata->currentVelRead ],
 								gdata->s_hVel + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
 
-	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoWrite ] ); // particleInfo
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dInfo[ buffer ],
+	_size = howManyParticles * sizeof( m_hInfo[ gdata->currentInfoRead ] ); // particleInfo
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dInfo[ gdata->currentInfoRead ],
 								gdata->s_hInfo + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
 }
