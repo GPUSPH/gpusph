@@ -10,9 +10,10 @@
 #include "forces.cuh"
 #include "euler.cuh"
 
-GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _devnum) {
+GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	gdata = _gdata;
-	devnum = _devnum;
+	m_deviceIndex = _deviceIndex;
+	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
 
 	m_hPos = NULL;
 	m_hVel = NULL;
@@ -249,9 +250,8 @@ void GPUWorker::deallocateDeviceBuffers() {
 // upload subdomain, just allocated and sorted by main thread
 void GPUWorker::uploadSubdomain() {
 	// indices
-	uint myDevNum = devnum; // global device number
-	uint firstInnerParticle	= gdata->s_hStartPerDevice[myDevNum];
-	uint howManyParticles	= gdata->s_hPartsPerDevice[myDevNum];
+	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
+	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
 	size_t _size = 0;
 
@@ -275,9 +275,8 @@ void GPUWorker::uploadSubdomain() {
 // DEPRECATED download the subdomain to the private member arrays
 void GPUWorker::downloadSubdomain() {
 	// indices
-	uint myDevNum = devnum; // global device number
-	uint firstInnerParticle	= gdata->s_hStartPerDevice[myDevNum];
-	uint howManyParticles	= gdata->s_hPartsPerDevice[myDevNum];
+	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
+	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
 	size_t _size = 0;
 
@@ -301,9 +300,8 @@ void GPUWorker::downloadSubdomain() {
 // download the subdomain to the shared CPU arrays
 void GPUWorker::downloadSubdomainToGlobalBuffer() {
 	// indices
-	uint myDevNum = devnum; // global device number
-	uint firstInnerParticle	= gdata->s_hStartPerDevice[myDevNum];
-	uint howManyParticles	= gdata->s_hPartsPerDevice[myDevNum];
+	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
+	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
 	size_t _size = 0;
 
@@ -352,7 +350,7 @@ void GPUWorker::createCompactDeviceMap() {
 				// data of current cell
 				uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
 				uint cell_devnum = gdata->s_hDeviceMap[cell_lin_idx];
-				bool is_mine = (cell_devnum == devnum);
+				bool is_mine = (cell_devnum == m_deviceIndex);
 				// aux vars for iterating on neibs
 				bool any_foreign_neib = false; // at least one neib does not belong to me?
 				bool any_mine_neib = false; // at least one neib does belong to me?
@@ -410,8 +408,14 @@ GlobalData* GPUWorker::getGlobalData() {
 	return gdata;
 }
 
-unsigned int GPUWorker::getDeviceNumber() {
-	return devnum;
+unsigned int GPUWorker::getCUDADeviceNumber()
+{
+	return m_cudaDeviceNumber;
+}
+
+unsigned int GPUWorker::getDeviceIndex()
+{
+	return m_deviceIndex;
 }
 
 cudaDeviceProp GPUWorker::getDeviceProperties() {
@@ -439,9 +443,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	// retrieve GlobalData and device number (index in process array)
 	const GlobalData* gdata = instance->getGlobalData();
-	const unsigned int devnum = instance->getDeviceNumber();
+	const unsigned int cudaDeviceNumber = instance->getCUDADeviceNumber();
+	const unsigned int deviceIndex = instance->getDeviceIndex();
 
-	instance->setDeviceProperties( checkCUDA(gdata, devnum) );
+	instance->setDeviceProperties( checkCUDA(gdata, cudaDeviceNumber) );
 
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
@@ -637,10 +642,10 @@ void GPUWorker::kernel_forces()
 	//printf(" Step %d, bool %d, returned %g, current %g, ",
 	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
 	if (firstStep)
-		gdata->dts[devnum] = returned_dt;
+		gdata->dts[m_deviceIndex] = returned_dt;
 	else
-		gdata->dts[devnum] = min(gdata->dts[devnum], returned_dt);
-	//printf("set to %g\n",gdata->dts[devnum]);
+		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+	//printf("set to %g\n",gdata->dts[m_deviceIndex]);
 }
 
 void GPUWorker::kernel_euler()

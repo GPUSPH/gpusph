@@ -41,9 +41,11 @@ private:
 	static void* simulationThread(void *ptr);
 	GlobalData* gdata;
 
-	unsigned int devnum;
+	unsigned int m_cudaDeviceNumber;
+	unsigned int m_deviceIndex;
 	GlobalData* getGlobalData();
-	unsigned int getDeviceNumber();
+	unsigned int getCUDADeviceNumber();
+	unsigned int getDeviceIndex();
 
 	// number of particles of the assigned subset
 	uint m_numParticles;

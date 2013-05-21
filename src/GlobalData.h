@@ -47,7 +47,7 @@ struct GlobalData {
 
 	// number of user-specified devices (# of GPUThreads)
 	unsigned int devices;
-	// array of devices indices
+	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
 
 	// array of GPUWorkers, one per GPU
