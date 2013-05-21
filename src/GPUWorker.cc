@@ -24,9 +24,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_simparams = gdata->problem->get_simparams();
 	m_physparams = gdata->problem->get_physparams();
 
-	// we also know Problem::fillparts() has already been called; however, this is
-	// going to change when each worker will only manage a subset of particles
-	m_numParticles = gdata->totParticles;
+	// we also know Problem::fillparts() has already been called
+	m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
 	m_nGridCells = gdata->nGridCells;
 
 	m_hostMemory = m_deviceMemory = 0;
