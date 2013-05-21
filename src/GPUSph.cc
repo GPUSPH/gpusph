@@ -716,6 +716,8 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
+	printf("Simulation end, cleaning up...\n");
+
 	// just wait or...?
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
