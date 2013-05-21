@@ -66,6 +66,8 @@ Writer::Writer(const Problem *problem)
 					gage);
 		fputs("\n", m_WaveGagefile);
 	}
+
+	m_gdata = NULL;
 }
 
 Writer::~Writer()
@@ -117,3 +119,7 @@ Writer::next_filenum()
 	return ss.str();
 }
 
+void Writer::setGlobalData(GlobalData *_gdata)
+{
+	m_gdata = _gdata;
+}
