@@ -162,6 +162,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	//allocated += sliceArraySize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
+	CUDA_SAFE_CALL(cudaMemset(m_dNeibsList, 0xffffffff, neibslistSize));
 	allocated += neibslistSize;
 
 	// TODO: allocate only if multi-GPU
