@@ -43,7 +43,7 @@
  */
 
 #ifndef HASH_KEY_SIZE
-#define HASH_KEY_SIZE 32
+#define HASH_KEY_SIZE 64
 #endif
 
 #if HASH_KEY_SIZE < 32
