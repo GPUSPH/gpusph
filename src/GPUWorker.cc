@@ -577,7 +577,7 @@ void GPUWorker::kernel_buildNeibsList()
 						gdata->worldOrigin,
 						m_numParticles,
 						m_nGridCells,
-						m_simparams->nlInfluenceRadius,
+						m_simparams->nlSqInfluenceRadius,
 						m_simparams->periodicbound);
 }
 
