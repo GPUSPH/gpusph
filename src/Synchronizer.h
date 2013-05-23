@@ -23,6 +23,8 @@ public:
 	void barrier();
 	void forceUnlock();
 	unsigned int queryReachedThreads();
+	unsigned int getNumThreads();
+	bool didForceUnlockOccurr();
 };
 
 #endif /* SYNCHRONIZER_H_ */

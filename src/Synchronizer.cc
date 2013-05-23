@@ -50,3 +50,15 @@ void Synchronizer::forceUnlock() {
 unsigned int Synchronizer::queryReachedThreads() {
 	return m_reached;
 }
+
+// get the number of threads needed by the barrier to unlock
+unsigned int Synchronizer::getNumThreads()
+{
+	return m_nThreads;
+}
+
+// did we already try to force unlock?
+bool Synchronizer::didForceUnlockOccurr()
+{
+	return m_forcesUnlockOccurred;
+}
