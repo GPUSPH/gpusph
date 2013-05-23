@@ -179,8 +179,15 @@ bool check_short_length() {
 void sigint_handler(int signum) {
 	// if issued the second time, brutally terminate everything
 	if (gdata_static_pointer->quit_request) {
-		printf("Second quit request - brutally terminating\n");
-		exit(1);
+		uint reachedt = gdata_static_pointer->threadSynchronizer->queryReachedThreads();
+		uint maxt = gdata_static_pointer->threadSynchronizer->getNumThreads();
+		if (reachedt > 0 && reachedt < maxt && !gdata_static_pointer->threadSynchronizer->didForceUnlockOccurr()) {
+			printf("Second quit request - threads waiting: %u/%u. Forcing unlock...\n");
+			gdata_static_pointer->threadSynchronizer->forceUnlock();
+		} else {
+			printf("Unable to force unlock. Issuing exit(1)\n");
+			exit(1);
+		}
 	} else {
 		printf("Kindly asking to quit - please wait for the current iteration to complete\n");
 		gdata_static_pointer->quit_request = true;
