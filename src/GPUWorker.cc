@@ -489,28 +489,35 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case IDLE:
 				break;
 			case CALCHASH:
+				//printf(" T %d issuing HASH\n", deviceIndex);
 				instance->kernel_calcHash();
 				break;
 			case SORT:
+				//printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
 			case REORDER:
+				//printf(" T %d issuing REORDER\n", deviceIndex);
 				instance->kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
+				//printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
 				instance->kernel_buildNeibsList();
 				break;
 			case FORCES:
+				//printf(" T %d issuing FORCES\n", deviceIndex);
 				instance->kernel_forces();
 				break;
 			case EULER:
+				//printf(" T %d issuing EULER\n", deviceIndex);
 				instance->kernel_euler();
 				break;
 			case DUMP:
+				//printf(" T %d issuing DUMP\n", deviceIndex);
 				instance->downloadSubdomainToGlobalBuffer();
 				break;
 			case QUIT:
-				//printf("Thread %d, QUIT command\n", devnum);
+				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 		}
