@@ -373,8 +373,8 @@ void GPUWorker::createCompactDeviceMap() {
 								// data of neib cell
 								uint neib_lin_idx = gdata->calcGridHashHost(ix + dx, iy + dy, iz + dz);
 								uint neib_devnum = gdata->s_hDeviceMap[neib_lin_idx];
-								any_mine_neib =		(neib_devnum == cell_devnum);
-								any_foreign_neib =	(neib_devnum != cell_devnum);
+								any_mine_neib	 |= (neib_devnum == cell_devnum);
+								any_foreign_neib |= (neib_devnum != cell_devnum);
 								// did we read enough to decide for current cell?
 								enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 							}
