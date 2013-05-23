@@ -1067,12 +1067,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	cudaEvent_t start_interactions, stop_interactions;
 	cudaEvent_t start_euler, stop_euler;
 
-	/*getArray(ParticleSystem::HASH, false);
-	getArray(ParticleSystem::POSITION, false);
-	getArray(ParticleSystem::VELOCITY, false);
-	getArray(ParticleSystem::INFO, false);
-	writeToFile();*/
-
 	if (m_iter % m_simparams.buildneibsfreq == 0) {
 
 		uint3 gridSize = m_gridSize;
@@ -1095,7 +1089,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				 worldOrigin,
 				 m_numParticles);
 
-
 		// hash based particle sort
 		sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
 
@@ -1115,17 +1108,12 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		std::swap(m_currentPosRead, m_currentPosWrite);
 		std::swap(m_currentVelRead, m_currentVelWrite);
 		std::swap(m_currentInfoRead, m_currentInfoWrite);
-		
+
 		m_timingInfo.numInteractions = 0;
 		m_timingInfo.maxNeibs = 0;
 		resetneibsinfo();
-		/*
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_numInteractions", &m_timingInfo.numInteractions, sizeof(int)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxNeibs", &m_timingInfo.maxNeibs, sizeof(int)));
-		*/
 
-		std::cout << "Buildneibs" << std::endl;
-		// Build the neibghours list
+		// Build the neibghors list
 		buildNeibsList(	m_dNeibsList,
 						m_dPos[m_currentPosRead],
 						m_dInfo[m_currentInfoRead],
@@ -1142,10 +1130,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 		getneibsinfo(m_timingInfo);
 
-		/*
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.numInteractions, "cuneibs::d_numInteractions", sizeof(int), 0));
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_timingInfo.maxNeibs, "cuneibs::d_maxNeibs", sizeof(int), 0));
-		*/
 		if (m_timingInfo.maxNeibs > m_simparams.maxneibsnum) {
 			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
 			fflush(stdout);
@@ -1163,14 +1147,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_timingInfo.meanNumInteractions = (m_timingInfo.meanNumInteractions*(iter - 1) + m_timingInfo.numInteractions)/iter;
 			m_timingInfo.meanTimeNeibsList = (m_timingInfo.meanTimeNeibsList*(iter - 1) + m_timingInfo.timeNeibsList)/iter;
 			}
-
-		getArray(ParticleSystem::HASH, false);
-		getArray(ParticleSystem::POSITION, false);
-		std::cout << "\nAfter buildneibs" << std::endl;
-		for (int i = 0; i < m_numParticles; i++) {
-			//std::cout << "Index: " << i  << "\t Pos: (" << m_hPos[i].x << ", " << m_hPos[i].y
-			//<< ", " << m_hPos[i].z << ")\t Hash: " << m_hParticleHash[i] << std::endl;
-		}
 	}
 
 
@@ -1220,12 +1196,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0, m_iter == 0);
 		if (hMbData)
 			setmbdata(hMbData, m_mbDataSize);
-			//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_mbdata", hMbData, m_mbDataSize));
 		}
 	if (m_simparams.gcallback) {
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
 		setgravity(m_physparams.gravity);
-		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
 
 	float3 *cg;
@@ -1233,29 +1207,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	float *rot;
 
 	// Copying floating bodies centers of gravity for torque computation in forces (needed only at first
-	// setp)
+	// step)
 	if (m_simparams.numbodies && m_iter == 0) {
 		cg = m_problem->get_ODE_bodies_cg();
 		setforcesrbcg(cg, m_simparams.numbodies);
 		seteulerrbcg(cg, m_simparams.numbodies);
-
-		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-
-//		// Debug
-//		for (int i=0; i < m_simparams.numbodies; i++) {
-//			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
-//			}
-//
-//		uint rbfirstindex[MAXBODIES];
-//		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams.numbodies*sizeof(uint)));
-//		for (int i=0; i < m_simparams.numbodies; i++) {
-//			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
-//			}
 		}
 
-
-	std::cout << "Forces1" << std::endl;
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
@@ -1299,17 +1257,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_euler, 0);
 		}
 
-	/*if (m_simparams.numbodies) {
-		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
-						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
-
-		//m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt/2.0, cg, trans, rot);
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));
-
-		//m_problem->ODE_timestep(m_dt/2.0);
-	}*/
-
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
 			m_dInfo[m_currentInfoRead], //particleInfo(n)
@@ -1340,28 +1287,17 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventDestroy(stop_euler);
 		}
 
-	// euler need the previous center of gravity but forces the new, so we copy to GPU
-	// here instead before call to euler
-	/*if (m_simparams.numbodies) {
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-	}*/
-
 	// setting moving boundaries data if necessary
 	if (m_simparams.mbcallback) {
 		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0, m_iter == 0);
 		if (hMbData)
 			setmbdata(hMbData, m_mbDataSize);
-			//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_mbdata", hMbData, m_mbDataSize));
 		}
 	if (m_simparams.gcallback) {
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
 		setgravity(m_physparams.gravity);
-		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("d_gravity", &m_physparams.gravity, sizeof(float3)));
 	}
 
-
-	std::cout << "Forces 2" << std::endl;
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
@@ -1401,13 +1337,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		seteulerrbcg(cg, m_simparams.numbodies);
 		seteulerrbtrans(trans, m_simparams.numbodies);
 		seteulerrbsteprot(rot, m_simparams.numbodies);
-
-		/*CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbcg", cg, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbtrans", trans, m_simparams.numbodies*sizeof(float3)));
-		CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_rbsteprot", rot, 9*m_simparams.numbodies*sizeof(float)));*/
-
-		//m_problem->ODE_timestep(m_dt/2.0);
 	}
 
 
@@ -1477,7 +1406,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 
 /****************************************************************************************************/
-// Utility function privided for debug purpose
+// Utility function provided for debug purpose
 /****************************************************************************************************/
 void
 ParticleSystem::saveneibs()
