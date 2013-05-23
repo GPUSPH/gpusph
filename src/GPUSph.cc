@@ -273,6 +273,9 @@ void init(const char *arg)
 {
 	problem = new PROBLEM(clOptions);
 
+	printf("Problem calling set grid params\n");
+	problem->set_grid_params();
+
 	/* TODO do it this way for all options? */
 	if (isfinite(clOptions.tend))
 		problem->get_simparams().tend = clOptions.tend;
