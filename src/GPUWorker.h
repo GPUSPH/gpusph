@@ -99,7 +99,7 @@ private:
 	uint*		m_dParticleIndex;		// sorted particle indexes
 	uint*		m_dCellStart;			// index of cell start in sorted order
 	uint*		m_dCellEnd;				// index of cell end in sorted order
-	uint*		m_dSliceStart;			// index of first cell in slice
+	//uint*		m_dSliceStart;			// index of first cell in slice
 	uint*		m_dNeibsList;			// neib list with maxneibsnum neibs per particle
 
 	// CPU/GPU arrays for rigid bodies
