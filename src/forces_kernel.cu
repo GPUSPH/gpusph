@@ -364,13 +364,13 @@ dtadaptBlockReduce(	float*	sm_max,
 
 /********************************* Periodic boundary management *********************************************/
 // Compute position in uniform grid from hash value (cell number)
-__device__ __forceinline__ uint3
-calcGridPosFromHash(const uint cellnum)
+__device__ __forceinline__ int3
+calcGridPosFromHash(const uint gridHash)
 {
-	uint3 gridPos;
+	int3 gridPos;
 	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
-	gridPos.z = cellnum/temp;
-	temp = cellnum - gridPos.z*temp;
+	gridPos.z = gridHash/temp;
+	temp = gridHash - gridPos.z*temp;
 	gridPos.y = temp/d_gridSize.x;
 	gridPos.x = temp - gridPos.y*d_gridSize.x;
 
@@ -380,7 +380,7 @@ calcGridPosFromHash(const uint cellnum)
 
 // Compute address in grid from position
 __device__ __forceinline__ uint
-calcGridHash(const uint3 gridPos)
+calcGridHash(const int3 gridPos)
 {
 	return INTMUL(INTMUL(gridPos.z, d_gridSize.y), d_gridSize.x) + INTMUL(gridPos.y, d_gridSize.x) + gridPos.x;
 }
@@ -393,13 +393,14 @@ getNeibData(const float4	pos,
 			const uint*		cellStart,
 			const float		influenceradius,
 			const neibdata	neib_data,
-			uint3			gridPos,
+			int3			gridPos,
 			uint&			neib_index,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index,
 			float4&			neib_pos,
 			float3&			relPos,
-			float&			r);
+			float&			r,
+			const uint index);
 
 
 // In case of periodic boundaries we add the displacement
@@ -410,13 +411,14 @@ getNeibData<true>(	const float4	pos,
 					const uint*		cellStart,
 					const float		influenceradius,
 					const neibdata	neib_data,
-					uint3			gridPos,
+					int3			gridPos,
 					uint&			neib_index,
 					char&			neib_cellnum,
 					uint&			neib_cell_base_index,
 					float4&			neib_pos,
 					float3&			relPos,
-					float&			r)
+					float&			r,
+					const uint index)
 {
 	int3 periodic = make_int3(0);
 	if (neib_index & WARPXPLUS)
@@ -455,13 +457,14 @@ getNeibData<false>(	const float4	pos,
 					const uint*		cellStart,
 					const float		influenceradius,
 					const neibdata	neib_data,
-					uint3			gridPos,
+					int3			gridPos,
 					uint&			neib_index,
 					char&			neib_cellnum,
 					uint&			neib_cell_base_index,
 					float4&			neib_pos,
 					float3&			relPos,
-					float&			r)
+					float&			r,
+					const uint index)
 {
 	neib_pos = tex1Dfetch(posTex, neib_index);
 
@@ -479,13 +482,14 @@ getNeibData(const float4	pos,
 			const uint*		cellStart,
 			const float		influenceradius,
 			const neibdata	neib_data,
-			uint3			gridPos,
+			int3			gridPos,
 			uint&			neib_index,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index,
 			float4&			neib_pos,
 			float3&			relPos,
-			float&			r);
+			float&			r,
+			const uint index);
 
 
 // In case of periodic boundaries we add the displacement
@@ -497,13 +501,14 @@ getNeibData<true>(	const float4	pos,
 					const uint*		cellStart,
 					const float		influenceradius,
 					const neibdata	neib_data,
-					uint3			gridPos,
+					int3			gridPos,
 					uint&			neib_index,
 					char&			neib_cellnum,
 					uint&			neib_cell_base_index,
 					float4&			neib_pos,
 					float3&			relPos,
-					float&			r)
+					float&			r,
+					const uint index)
 {
 	int3 periodic = make_int3(0);
 	if (neib_index & WARPXPLUS)
@@ -543,27 +548,36 @@ getNeibData<false>(	const float4	pos,
 					const uint*		cellStart,
 					const float		influenceradius,
 					const neibdata	neib_data,
-					uint3			gridPos,
+					int3			gridPos,
 					uint&			neib_index,
 					char&			neib_cellnum,
 					uint&			neib_cell_base_index,
 					float4&			neib_pos,
 					float3&			relPos,
-					float&			r)
+					float&			r,
+					const uint numParticles)
 {
 	if (neib_data.cell != neib_cellnum) {
-		// update current neib cell number
+		// Update current neib cell number
 		neib_cellnum = neib_data.cell;
-		// compute new neib base cell index
+		// Compute new neib base cell index
 		gridPos += d_cell_to_offset[neib_cellnum];
 		neib_cell_base_index = cellStart[calcGridHash(gridPos)];
 	}
-	// compute neib_index
+
+
+	// Compute neib index
 	neib_index = neib_cell_base_index + neib_data.offset;
+	// DEBUG: safe guard
+	// TODO: to be removed
+	if (neib_index >= numParticles) {
+		printf("neib index %d >= num particles %d \n", neib_index, numParticles);
+		neib_index = 0;
+	}
 	// Get neib pos
 	neib_pos = posArray[neib_index];
 
-	// compute relative vector and distance
+	// Compute relative position vector and distance
 	relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
 	r = length(relPos);
 }

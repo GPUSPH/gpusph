@@ -77,13 +77,13 @@ FORCES_CUDA_KERNEL
 	# endif
 
 	if (index < numParticles) {
-		// read particle info from texture
+		// Read particle info from texture
     	const particleinfo info = tex1Dfetch(infoTex, index);
 
-		// compute force only if the given particle if a fluid one
+		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
-			// read other particle data from textures or global mem
+			// Read other particle datas from textures or global mem
 			#if( __COMPUTE__ >= 20)
 			const float4 pos = posArray[index];
 			#else
@@ -91,8 +91,8 @@ FORCES_CUDA_KERNEL
 			#endif
 			const float4 vel = tex1Dfetch(velTex, index);
 
-			// compute grid index of current particle
-			uint3 gridPos = calcGridPosFromHash(particleHash[index]);
+			// Compute grid position of current particle
+			int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -152,10 +152,10 @@ FORCES_CUDA_KERNEL
 
 				#if( __COMPUTE__ >= 20)							
 				getNeibData<periodicbound>(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
-						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r);
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 				#else
 				getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
-						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r);
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 				#endif
 
 				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
@@ -314,7 +314,7 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			// compute grid index of current particle
-			uint3 gridPos = calcGridPosFromHash(particleHash[index]);
+			int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			// persistent variables across getNeibData calls
 			char neib_cellnum = -1;
@@ -333,10 +333,10 @@ FORCES_CUDA_KERNEL
 
 			#if( __COMPUTE__ >= 20)
 			getNeibData<periodicbound>(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
-					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r);
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 			#else
 			getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
-					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r);
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 			#endif
 
     	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
