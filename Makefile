@@ -169,6 +169,11 @@ endif
 # nvcc-specific CFLAGS
 CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE)
 
+# add debug flag -G
+ifeq ($(dbg), 1)
+	CFLAGS_GPU += -G
+endif
+
 # Default CFLAGS (see notes below)
 ifeq ($(platform), Darwin)
 	CFLAGS_STANDARD =
