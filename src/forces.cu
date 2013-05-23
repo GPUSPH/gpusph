@@ -55,23 +55,23 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_CHECK(kernel, boundarytype, periodic, formulation, visc, dem) \
 	case kernel: \
-		if (!dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
-		else if (!dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
-		else if (dtadapt && !xsphcorr) \
+		/*if (!dtadapt && !xsphcorr) */ \
+				/* cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>> */ \
+						/* (pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); */  \
+		/* else if (!dtadapt && xsphcorr) */ \
+				/* cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>> */ \
+						/* (pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); */ \
+		/* else */ if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
 						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
-		else if (dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+		/* else if (dtadapt && xsphcorr) */ \
+				/* cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>*/ \
+						/* (pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); */ \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, periodic, formulation, visc, dem); \
+		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, periodic, formulation, visc, dem); */\
 		KERNEL_CHECK(WENDLAND,		boundarytype, periodic, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -94,10 +94,10 @@ void*	reduce_buffer = NULL;
 		break
 
 #define VISC_CHECK_STANDARD(boundarytype, periodic, dem) \
-		VISC_CHECK(boundarytype, periodic, ARTVISC, dem); \
+		VISC_CHECK(boundarytype, periodic, ARTVISC, dem); /* \
 		VISC_CHECK(boundarytype, periodic, DYNAMICVISC, dem); \
 		VISC_CHECK(boundarytype, periodic, KINEMATICVISC, dem);\
-		VISC_CHECK(boundarytype, periodic, SPSVISC, dem);
+		VISC_CHECK(boundarytype, periodic, SPSVISC, dem);*/
 
 
 #define VISC_SWITCH(boundarytype, periodic, dem) \
@@ -116,7 +116,7 @@ void*	reduce_buffer = NULL;
 #define BOUNDARY_SWITCH(periodic, dem) \
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, periodic, dem); \
-		BOUNDARY_CHECK(MK_BOUNDARY, periodic, dem); \
+		/* BOUNDARY_CHECK(MK_BOUNDARY, periodic, dem); */ \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
