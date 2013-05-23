@@ -105,44 +105,14 @@ calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
  *	\param[in,out] gridPos : gridPos to be clamped
  *	\param[in] gridSize : grid size
  */
-/*__device__ __forceinline__ void
+__device__ __forceinline__ void
 clampGridPos(int3& gridPos, const uint3 gridSize)
 {
-	if (gridPos.x < 0)
-		gridPos.x = 0;
-	else if (gridPos.x >= gridSize.x)
-		gridPos.x = gridSize.x;
-
-	if (gridPos.y < 0)
-		gridPos.y = 0;
-	else if (gridPos.y >= gridSize.y)
-		gridPos.y = gridSize.y;
-
-	if (gridPos.z < 0)
-		gridPos.z = 0;
-	else if (gridPos.z >= gridSize.z)
-		gridPos.z = gridSize.z;
-}*/
-
-/// Clamp grid position to edges
-/*! Clamp grid position to [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
- *
- *	\param[in] gridPos : gridPos
- *	\param[in] gridSize : grid size
- *
- *	\return clamped grid pos
- */
-__device__ __forceinline__ int3
-clampGridPos(const int3& gridPos, const uint3& gridSize)
-{
-	int3 clampedGridPos = make_int3(abs(gridPos));
-
-	clampedGridPos.x = (gridPos.x < gridSize.x) ? : gridSize.x - 1;
-	clampedGridPos.y = (gridPos.y < gridSize.y) ? : gridSize.y - 1;
-	clampedGridPos.z = (gridPos.z < gridSize.z) ? : gridSize.z - 1;
-
-	return clampedGridPos;
+	gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
+	gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
+	gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
 }
+
 
 /// Updates particles hash value of particles and prepare the index table
 /*! This kernel should be called before the sort. It
@@ -159,7 +129,7 @@ clampGridPos(const int3& gridPos, const uint3& gridSize)
  *	\param[in] numParticles : total number of particles
  */
 __global__ void
-//__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 			   uint*			particleHash,	///< particle's hashes (in, out)
 			   uint*			particleIndex,	///< particle's indexes (out)
@@ -183,21 +153,22 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		uint gridHash = particleHash[index];
 
 		// Getting grid address of old cell (computed from old hash)
-		int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
+		const int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
 
 		// Computing grid offset from new pos relative to old hash
 		int3 gridOffset = make_int3(make_float3(pos)/cellSize);
 
 		// Compute new grid pos relative to cell and new cell hash
-		const int3 newGridPos = gridPos + gridOffset;
-		gridOffset = clampGridPos(newGridPos, gridSize) - gridPos;
+		int3 newGridPos = gridPos + gridOffset;
+		clampGridPos(newGridPos, gridSize);
+		gridOffset = newGridPos - gridPos;
 
 		pos.x -= (float) gridOffset.x*cellSize.x;
 		pos.y -= (float) gridOffset.y*cellSize.y;
 		pos.z -= (float) gridOffset.z*cellSize.z;
 
 		// Compute new hash
-		gridHash = calcGridHash(gridPos, gridSize);
+		gridHash = calcGridHash(newGridPos, gridSize);
 
 		// Store grid hash, particle index and position relative to cell
 		particleHash[index] = gridHash;
