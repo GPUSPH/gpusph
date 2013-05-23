@@ -12,11 +12,11 @@
 
 class Synchronizer {
 private:
-	unsigned int nThreads;
-	unsigned int reached;
-	pthread_mutex_t syncMutex;
-	pthread_cond_t syncCondition;
-	bool forcesUnlockOccurred;
+	unsigned int m_nThreads;
+	unsigned int m_reached;
+	pthread_mutex_t m_syncMutex;
+	pthread_cond_t m_syncCondition;
+	bool m_forcesUnlockOccurred;
 public:
 	Synchronizer(unsigned int numThreads);
 	~Synchronizer();
