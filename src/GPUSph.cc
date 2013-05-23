@@ -927,6 +927,14 @@ void GPUSPH::particleSwap(uint idx1, uint idx2)
 // set nextCommand, unlock the threads and wait for them to complete
 void GPUSPH::doCommand(CommandType cmd)
 {
+	// resetting the host buffers is useful to check if the arrays are completely filled
+	/*/ if (cmd==DUMP) {
+		const uint float4Size = sizeof(float4) * gdata->totParticles;
+		const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
+		memset(gdata->s_hPos, 0, float4Size);
+		memset(gdata->s_hVel, 0, float4Size);
+		memset(gdata->s_hInfo, 0, infoSize);
+	} */
 	gdata->nextCommand = cmd;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
