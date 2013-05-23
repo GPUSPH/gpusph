@@ -155,7 +155,7 @@ cudaArray*  dDem = NULL;
 extern "C"
 {
 void
-setforcesconstants(const SimParams & simparams, const PhysParams & physparams, const uint3 gridSize)
+setforcesconstants(const SimParams & simparams, const PhysParams & physparams, const uint3 gridSize, const float3 cellSize)
 {
 	// Setting kernels and kernels derivative factors
 	float h = simparams.slength;
@@ -232,6 +232,8 @@ setforcesconstants(const SimParams & simparams, const PhysParams & physparams, c
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(int3)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cellSize, &cellSize, sizeof(float3)));
 }
 
 
