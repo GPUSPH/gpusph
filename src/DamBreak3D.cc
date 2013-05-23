@@ -56,7 +56,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.slength = 1.3*m_deltap;
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
-	m_simparams.dt = 0.0001f;
+	m_simparams.dt = 0.0005f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
@@ -66,7 +66,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f;
+	m_simparams.tend = 0.2f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -105,8 +105,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
-	m_writefreq = 20;
-	m_screenshotfreq = 20;
+	m_writefreq = 1;
+	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
@@ -185,15 +185,22 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		if (boundary_parts[i](0) <= m_size.x + 0.01 && boundary_parts[i](0) >= m_size.x - 0.01) {
+		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
 		std::cout << "Absolute position:" << "\n";
 		std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-		}
+		}*/
 		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
 
-		if (boundary_parts[i](0) <= m_size.x + 0.01 && boundary_parts[i](0) >= m_size.x - 0.01) {
+		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
 		std::cout << "Local position and hash:" << "\n";
 		std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n";
+		}*/
+		if (i == 1378) {
+			std::cout << "Absolute position:" << "\n";
+			std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
+			std::cout << "Local position and hash:" << "\n";
+			std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n\n";
+
 		}
 
 		pos[i] = localpos;
