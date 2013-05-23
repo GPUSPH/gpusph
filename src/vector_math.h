@@ -858,6 +858,11 @@ static __inline__ __host__ __device__ int3 make_int3(const int &s)
 	return make_int3(s, s, s);
 }
 
+static __inline__ __host__ __device__ int3 make_int3(const int3 &s)
+{
+	return make_int3(s.x, s.y, s.z);
+}
+
 static __inline__ __host__ __device__ int3 make_int3(const float3 &a)
 {
 	return make_int3(int(a.x), int(a.y), int(a.z));
@@ -960,6 +965,12 @@ static __inline__ __device__ __host__ int3 clamp(const int3 &v, const int3 &a, c
 	return make_int3(clamp(v.x, a.x, b.x), clamp(v.y, a.y, b.y), clamp(v.z, a.z, b.z));
 }
 
+
+// abs
+static __inline__ __device__ __host__ int3 abs(const int3 &a)
+{
+	return make_int3(abs(a.x), abs(a.y), abs(a.z));
+}
 
 // uint3 functions
 ////////////////////////////////////////////////////////////////////////////////
