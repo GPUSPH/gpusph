@@ -73,6 +73,7 @@ void
 calcHash(float4*	pos,
 		 uint*		particleHash,
 		 uint*		particleIndex,
+		 particleinfo* particleInfo,
 		 uint3		gridSize,
 		 float3		cellSize,
 		 float3		worldOrigin,
@@ -82,8 +83,8 @@ calcHash(float4*	pos,
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
 	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-										   gridSize, cellSize, worldOrigin, numParticles);
-	
+										   particleInfo, gridSize, cellSize, numParticles);
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
@@ -96,9 +97,9 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									particleinfo*	newInfo,		// output: sorted info
 									uint*			particleHash,   // input: sorted grid hashes
 									uint*			particleIndex,  // input: sorted particle indices
-									float4*			oldPos,			// input: sorted position array
-									float4*			oldVel,			// input: sorted velocity array
-									particleinfo*	oldInfo,		// input: sorted info array
+									float4*			oldPos,			// input: unsorted positions
+									float4*			oldVel,			// input: unsorted velocities
+									particleinfo*	oldInfo,		// input: unsorted info
 									uint			numParticles,
 									uint			numGridCells)
 {
@@ -154,13 +155,13 @@ buildNeibsList(	neibdata*			neibsList,
 			#if (__COMPUTE__ >= 20)			
 			pos, 
 			#endif
-			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
+			particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
 	else
 		cuneibs::buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
 			#if (__COMPUTE__ >= 20)			
 			pos, 
 			# endif
-			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
+			particleHash, neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
 		
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");

@@ -74,6 +74,17 @@ calcGridHash(int3			gridPos,
 }
 
 
+/// Compute grid position from hash value
+/*! Compute the grid position corresponding to the given hash. The position
+ * 	should be in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+ *
+ *	\param[in] gridHash : hash value
+ *	\param[in] gridSize : grid size
+ *
+ *	\return grid position
+ *
+ *	Beware : no test is done by this function to ensure that hash value is valid.
+ */
 __device__ __forceinline__ int3
 calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
 {
@@ -87,8 +98,14 @@ calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
 	return gridPos;
 }
 
-// Clamp grid pos
-__device__ __forceinline__ void
+
+/// Clamp grid position to edges
+/*! Clamp grid position to [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+ *
+ *	\param[in,out] gridPos : gridPos to be clamped
+ *	\param[in] gridSize : grid size
+ */
+/*__device__ __forceinline__ void
 clampGridPos(int3& gridPos, const uint3 gridSize)
 {
 	if (gridPos.x < 0)
@@ -105,19 +122,51 @@ clampGridPos(int3& gridPos, const uint3 gridSize)
 		gridPos.z = 0;
 	else if (gridPos.z >= gridSize.z)
 		gridPos.z = gridSize.z;
+}*/
+
+/// Clamp grid position to edges
+/*! Clamp grid position to [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+ *
+ *	\param[in] gridPos : gridPos
+ *	\param[in] gridSize : grid size
+ *
+ *	\return clamped grid pos
+ */
+__device__ __forceinline__ int3
+clampGridPos(const int3& gridPos, const uint3& gridSize)
+{
+	int3 clampedGridPos = make_int3(abs(gridPos));
+
+	clampedGridPos.x = (gridPos.x < gridSize.x) ? : gridSize.x - 1;
+	clampedGridPos.y = (gridPos.y < gridSize.y) ? : gridSize.y - 1;
+	clampedGridPos.z = (gridPos.z < gridSize.z) ? : gridSize.z - 1;
+
+	return clampedGridPos;
 }
 
-
-// calculate grid hash value for each particle
+/// Updates particles hash value of particles and prepare the index table
+/*! This kernel should be called before the sort. It
+ * 		- updates hash values and relative positions for fluid and
+ * 		object particles
+ * 		- fill the particle's indexes array with current index
+ *
+ *	\param[in,out] posArray : particle's positions
+ *	\param[in,out] particleHash : particle's hashes
+ *	\param[out] particleIndex : particle's indexes
+ *	\param[in] particleInfo : particle's informations
+ *	\param[in] gridSize : grid size
+ *	\param[in] cellSize : cell size
+ *	\param[in] numParticles : total number of particles
+ */
 __global__ void
-__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-calcHashDevice(float4*			posArray,
-			   uint*			particleHash,
-			   uint*			particleIndex,
-			   const uint3		gridSize,
-			   const float3		cellSize,
-			   const float3		worldOrigin,
-			   const uint		numParticles)
+//__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
+			   uint*			particleHash,	///< particle's hashes (in, out)
+			   uint*			particleIndex,	///< particle's indexes (out)
+			   particleinfo*	particelInfo,	///< particle's informations (in)
+			   const uint3		gridSize,		///< grid size (in)
+			   const float3		cellSize,		///< cell size (in)
+			   const uint		numParticles)	///< total number of particles (in)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -126,47 +175,79 @@ calcHashDevice(float4*			posArray,
 
 	// Getting new pos relative to old cell
 	float4 pos = posArray[index];
-	uint gridHash = particleHash[index];
+	const particleinfo info = particelInfo[index];
 
-	// Getting grid address of old cell
-	int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
+	// We compute new hash only for fluid or object particles
+	if (FLUID(info) || OBJECT(info)) {
+		// Getting the old grid hash
+		uint gridHash = particleHash[index];
 
-	// Computing grid offset from new pos relative to old hash
-	const int3 gridOffset = make_int3(make_float3(pos)/cellSize);
+		// Getting grid address of old cell (computed from old hash)
+		int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
 
-	// Compute new grid pos relative to cell and new cell hash
-	gridPos += gridOffset;
-	pos.x -= pos.x*(float) gridOffset.x;
-	pos.y -= pos.y*(float) gridOffset.y;
-	pos.z -= pos.z*(float) gridOffset.z;
+		// Computing grid offset from new pos relative to old hash
+		int3 gridOffset = make_int3(make_float3(pos)/cellSize);
 
-	// Compute new hash
-	gridHash = calcGridHash(gridPos, gridSize);
+		// Compute new grid pos relative to cell and new cell hash
+		const int3 newGridPos = gridPos + gridOffset;
+		gridOffset = clampGridPos(newGridPos, gridSize) - gridPos;
 
-	// Store grid hash, particle index and position relative to cell
-	particleHash[index] = gridHash;
+		pos.x -= (float) gridOffset.x*cellSize.x;
+		pos.y -= (float) gridOffset.y*cellSize.y;
+		pos.z -= (float) gridOffset.z*cellSize.z;
+
+		// Compute new hash
+		gridHash = calcGridHash(gridPos, gridSize);
+
+		// Store grid hash, particle index and position relative to cell
+		particleHash[index] = gridHash;
+		posArray[index] = pos;
+	}
+
+	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
-	posArray[index] = pos;
 }
 
 
+/// Reorders particles data after the sort and updates cells informations
+/*! This kernel should be called after the sort. It
+ * 		- computes the index of the first and last particle of
+ * 		each grid cell
+ * 		- reorders the particle's data (position, velocity, ...)
+ * 		according to particles index that have been previously
+ * 		sorted during the sort phase
+ *
+ *	\param[out] cellStart : index of cells first particle
+ *	\param[out] cellEnd : index of cells last particle
+ *	\param[out] sortedPos : new sorted particle's positions
+ *	\param[out] sortedVel : new sorted particle's velocities
+ *	\param[out] sortedInfo : new sorted particle's informations
+ *	\param[in] particleHash : previously sorted particle's hashes
+ *	\param[in] particleIndex : previously sorted particle's indexes
+ *	\param[in] numParticles : total number of particles
+ *
+ * In order to avoid WAR issues we use double buffering : the unsorted data
+ * are read trough texture fetches and the sorted one written in a coalesced
+ * way in global memory.
+ */
 __global__
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell start index
-										uint*			cellEnd,		// output: cell end index
-										float4*			sortedPos,		// output: sorted positions
-										float4*			sortedVel,		// output: sorted velocities
-										particleinfo*	sortedInfo,		// output: sorted info
-										uint*			particleHash,	// input: sorted grid hashes
-										uint*			particleIndex,	// input: sorted particle indices
+void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells first particle (out)
+										uint*			cellEnd,		///< index of cells last particle (out)
+										float4*			sortedPos,		///< new sorted particle's positions (out)
+										float4*			sortedVel,		///< new sorted particle's velocities (out)
+										particleinfo*	sortedInfo,		///< new sorted particle's informations (out)
+										uint*			particleHash,	///< previously sorted particle's hashes (in)
+										uint*			particleIndex,	///< previously sorted particle's hashes (in)
 										uint			numParticles)
 {
-	extern __shared__ uint sharedHash[];	// blockSize + 1 elements
+	// Shared hash array of dimension blockSize + 1
+	extern __shared__ uint sharedHash[];
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	uint hash;
-	// handle case when no. of particles not multiple of block size
+	// Handle the case when number of particles is not multiple of block size
 	if (index < numParticles) {
 		hash = particleHash[index];
 
@@ -176,7 +257,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		sharedHash[threadIdx.x + 1] = hash;
 
 		if (index > 0 && threadIdx.x == 0) {
-			// first thread in block must load neighbor particle hash
+			// First thread in block must load neighbor particle hash
 			sharedHash[0] = particleHash[index-1];
 			}
 	}
@@ -200,11 +281,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 			cellEnd[hash] = index + 1;
 			}
 
-		// Now use the sorted index to reorder the pos and vel data
-		uint sortedIndex = particleIndex[index];
-		float4 pos = tex1Dfetch(posTex, sortedIndex);	   // macro does either global read or texture fetch
-		float4 vel = tex1Dfetch(velTex, sortedIndex);	   // see particles_kernel.cuh
-		particleinfo info = tex1Dfetch(infoTex, sortedIndex);
+		// Now use the sorted index to reorder particle's data
+		const uint sortedIndex = particleIndex[index];
+		const float4 pos = tex1Dfetch(posTex, sortedIndex);
+		const float4 vel = tex1Dfetch(velTex, sortedIndex);
+		const particleinfo info = tex1Dfetch(infoTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
@@ -213,6 +294,30 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 }
 
 
+/// Find neighbors in a given cell
+/*! This function look for neighbors of the current particle in
+ * a given cell
+ *
+ *	\param[in] posArray : particle's positions
+ *	\param[in] gridPos : current particle grid position
+ *	\param[in] gridOffset : cell offset from current particle cell
+ *	\param[in] cell : cell number
+ *	\param[in] index : index of the current particle
+ *	\param[in] pos : position of the current particle
+ *	\param[in] gridSize : grid size
+ *	\param[in] cellSize : cell size
+ *	\param[in] numParticles : total number of particles
+ *	\param[in] sqinfluenceradius : squared value of the influence radius
+ *	\param[out] neibList : neighbor's list
+ *	\param[in, out] neibs_num : current number of neighbors found for current particle
+ *	\param[in] lane : lane for write interleaving
+ *	\param[in] offset : pffset for write interleaving
+ *
+ *	\pparam periodicbound : use periodic boundaries (0, 1)
+ *
+ * First and last particle index for grid cells and particle's informations
+ * are read trough texture fetches.
+ */
 template <bool periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
@@ -233,7 +338,11 @@ neibsInCell(
 			const uint		lane,
 			const uint		offset)
 {
+	// Compute the grid position of the current cell
 	gridPos += gridOffset;
+
+	// Deal with periodic boundaries
+	// TODO: fix
 	int3 periodic = make_int3(0);
 	if (periodicbound) {
 		if (gridPos.x < 0) {
@@ -286,35 +395,47 @@ neibsInCell(
 	neib.cell = cell;
 	neib.offset = 0;
 
-	// get hash value of grid position
+	// Get hash value from grid position
 	const uint gridHash = calcGridHash(gridPos, gridSize);
 
-	// get start of bucket for this cell
+	// Get the first particle index of the cell
 	const uint bucketStart = tex1Dfetch(cellStartTex, gridHash);
 
+	// Return if the cell is empty
 	if (bucketStart == 0xffffffff)
-		return;   // cell empty
+		return;
 
-	// iterate over particles in this cell
+	// Get the last particle index of the cell
 	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
+	// Iterate over all particles in the cell
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
-		//Testpoints ( Testpoints are not considered in neighboring list of other particles since they are imaginary particles)
+		// Testpoints are not considered in neighboring list of other particles since they are imaginary particles.
     	const particleinfo info = tex1Dfetch(infoTex, neib_index);
         if (!TESTPOINTS (info)) {
-			if (neib_index != index) {			  // check not interacting with self
+        	// Check for self interaction
+			if (neib_index != index) {
+				// Compute relative position between particle and potential neighbor
 				#if (__COMPUTE__ >= 20)			
 				float3 relPos = pos - make_float3(posArray[neib_index]);
 				#else
 				float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
 				#endif
 				relPos -= gridOffset*cellSize;
+
+				// Deal with periodic boundaries
+				// TODO: fix
 				if (periodicbound)
 					relPos += periodic*d_dispvect;
 
-				uint mod_index = neib_index;
+				// Check if the squared distance is smaller than the squared influence radius
+				// used for neighbor list construction
 				if (sqlength(relPos) < sqinfluenceradius) {
+
+					// Deal with periodic boundaries
+					// TODO: fix
 					if (periodicbound) {
+						uint mod_index = neib_index;
 						if (periodic.x == 1)
 							mod_index |= WARPXPLUS;
 						else if (periodic.x == -1)
@@ -344,61 +465,83 @@ neibsInCell(
 }
 
 
+/// Builds particles neighbors list
+/*! This kernel computes the neighbor's indexes of all particles.
+ * In order to have best performance across different compute capabilities
+ * particle's positions are read from global memory for compute capability
+ * greather or equal to 2.0 and from texture otherwise.
+ *
+ *	\param[in] posArray : particle's positions
+ *	\param[in] particleHash : particle's hashes
+ *	\param[out] neibList : neighbor's list
+ *	\param[in] gridSize : grid size
+ *	\param[in] cellSize : cell size
+ *	\param[in] numParticles : total number of particles
+ *	\param[in] sqinfluenceradius : squared value of the influence radius
+ *
+ *	\pparam periodicbound : use periodic boundaries (0, 1)
+ *	\pparam neibcount : compute maximum neighbor number (0, 1)
+ *
+ * First and last particle index for grid cells and particle's informations
+ * are read trough texture fetches.
+ */
 template<bool periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
 buildNeibsListDevice(   
 						#if (__COMPUTE__ >= 20)			
-						const float4*	posArray,
+						const float4*	posArray,				///< particle's positions (in)
 						#endif
-						neibdata*		neibsList,
-						const uint3		gridSize,
-						const float3	cellSize,
-						const float3	worldOrigin,
-						const uint		numParticles,
-						const float		sqinfluenceradius)
+						const uint*		particleHash,			///< particle's hashes (in)
+						neibdata*		neibsList,				///< neighbor's list (out)
+						const uint3		gridSize,				///< grid size (in)
+						const float3	cellSize,				///< cell size (in)
+						const uint		numParticles,			///< total number of particles (in)
+						const float		sqinfluenceradius)		///< squared influence radius (in)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	const uint tid = threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = tid & (NEIBINDEX_INTERLEAVE - 1);
 
-	uint neibs_num = 0;
+	uint neibs_num = 0;		// Number of neighbors for the current particle
 
 	if (index < numParticles) {
-		// read particle info from texture
+		// Read particle info from texture
     	const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
 
-		// Neighboring list is calculated for testpoints and object points)
+		// Neighbor list is build for fluid, test and object particle's
 		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info)) {
-			// read particle position from global memory or texture according to architecture
+			// Get particle position
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);
 			#else
 			const float3 pos = make_float3(tex1Dfetch(posTex, index));
 			#endif
 
-			// get address in grid
-			const int3 gridPos = calcGridPos(pos, worldOrigin, cellSize);
+			// Get particle grid position computed from particle hash
+			const int3 gridPos = calcGridPosFromHash(particleHash[index], gridSize);
 
-			// examine only neighboring cells
+			// Look trough the 26 neighboring cells and the current particle cell
 			for(int z=-1; z<=1; z++) {
 				for(int y=-1; y<=1; y++) {
-					for(int x=-1; x<=1; x++)
+					for(int x=-1; x<=1; x++) {
 						neibsInCell<periodicbound>(
 							#if (__COMPUTE__ >= 20)
 							posArray, 
 							#endif
 							gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos, gridSize, cellSize,
 							numParticles, sqinfluenceradius, neibsList, neibs_num, lane, offset);
+					}
 				}
 			}
 		}
 		
+		// Setting the end marker
 		if (neibs_num < d_maxneibsnum)
 			*((ushort*) &neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset]) = 0xffff;
 	}

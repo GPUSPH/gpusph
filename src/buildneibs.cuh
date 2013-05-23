@@ -77,6 +77,7 @@ void
 calcHash(float4*	pos,
 		 uint*		particleHash,
 		 uint*		particleIndex,
+		 particleinfo* particleInfo,
 		 uint3		gridSize,
 		 float3		cellSize,
 		 float3		worldOrigin,
