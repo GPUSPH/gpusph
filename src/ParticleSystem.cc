@@ -1486,8 +1486,8 @@ ParticleSystem::savehash()
 		gridPos.z = std::max(0, std::min(gridPos.z, (int) m_gridSize.z-1));
 		uint chash = gridPos.z*m_gridSize.y*m_gridSize.x + gridPos.y*m_gridSize.x + gridPos.x;
 
-		fprintf(fp, "%d\t%f\t%f\t%f\t%d\t%d\n", index, pos.x, pos.y, pos.z,
-					hash, chash);
+		fprintf(fp, "%d\t%f\t%f\t%f\t%lu\t%u\n", index, pos.x, pos.y, pos.z,
+					(long)hash, chash);
 		}
 	fclose(fp);
 
