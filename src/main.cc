@@ -156,6 +156,14 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 		gdata->device[gdata->devices++] = 0;
 	}
 
+#if HASH_KEY_SIZE < 64
+	// only single-GPU possible with 32 bits keys
+	if (gdata->devices > 1) {
+		printf(" FATAL: multi-GPU requires the Hashkey to be at least 64 bits long\n");
+		return false;
+	}
+#endif
+
 	// only for single-gpu
 	_clOptions->device = gdata->device[0];
 
