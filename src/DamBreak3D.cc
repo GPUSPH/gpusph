@@ -52,13 +52,13 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.05);
+	set_deltap(0.008);
 	m_simparams.slength = 1.3*m_deltap;
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
-	m_simparams.dt = 0.0005f;
+	m_simparams.dt = 0.00001f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
+	m_simparams.dtadapt = false;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
@@ -66,7 +66,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 0.2f;
+	m_simparams.tend = 0.00036f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -105,7 +105,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
-	m_writefreq = 1;
+	m_writefreq = 0;
 	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
