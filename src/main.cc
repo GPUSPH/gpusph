@@ -190,7 +190,7 @@ void sigint_handler(int signum) {
 		uint reachedt = gdata_static_pointer->threadSynchronizer->queryReachedThreads();
 		uint maxt = gdata_static_pointer->threadSynchronizer->getNumThreads();
 		if (reachedt > 0 && reachedt < maxt && !gdata_static_pointer->threadSynchronizer->didForceUnlockOccurr()) {
-			printf("Second quit request - threads waiting: %u/%u. Forcing unlock...\n");
+			printf("Second quit request - threads waiting: %u/%u. Forcing unlock...\n", reachedt, maxt);
 			gdata_static_pointer->threadSynchronizer->forceUnlock();
 		} else {
 			printf("Unable to force unlock. Issuing exit(1)\n");
