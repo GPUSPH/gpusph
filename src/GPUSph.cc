@@ -247,6 +247,10 @@ void parse_options(int argc, char **argv)
 			clOptions.dem = std::string(*argv);
 			argv++;
 			argc--;
+		} else if (!strcmp(arg, "--dir")) {
+			clOptions.dir = std::string(*argv);
+			argv++;
+			argc--;
 		} else if (!strcmp(arg, "--console")) {
 			clOptions.console = true;
 		} else if (!strcmp(arg, "--")) {

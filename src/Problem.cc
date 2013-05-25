@@ -50,6 +50,7 @@ Problem::Problem(const Options &options)
 	m_rbdatafile = NULL;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_bodies = NULL;
+	m_problem_dir = options.dir;
 }
 
 
@@ -106,15 +107,24 @@ Problem::need_display(float t)
 std::string 
 Problem::create_problem_dir(void)
 {
-	time_t  rawtime;
-	char	time_str[17];
+	// if no data save directory was specified, default to a name
+	// composed of problem name followed by date and time
+	if (m_problem_dir.empty()) {
+		time_t  rawtime;
+		char	time_str[17];
 
-	time(&rawtime);
-	strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
-	time_str[16] = '\0';
-	// if "./tests/" doesn't exist yet...
-	mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
-	m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
+		time(&rawtime);
+		strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
+		time_str[16] = '\0';
+		// if "./tests/" doesn't exist yet...
+		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
+		m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
+	}
+
+	// TODO it should be possible to specify a directory with %-like
+	// replaceable strings, such as %{problem} => problem name,
+	// %{time} => launch time, etc.
+
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
 	if (m_rbdata_writeinterval) {
