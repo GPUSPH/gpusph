@@ -63,9 +63,9 @@ Problem::~Problem(void)
     }
 }
 
-		
+
 float
-Problem::density(float h, int i)
+Problem::density(float h, int i) const
 {
 	float density = m_physparams.rho0[i];
 
@@ -79,7 +79,7 @@ Problem::density(float h, int i)
 
 
 float
-Problem::soundspeed(float rho, int i)
+Problem::soundspeed(float rho, int i) const
 {
 	return m_physparams.sscoeff[i]*pow(rho/m_physparams.rho0[i], m_physparams.sspowercoeff[i]);
 }

@@ -82,8 +82,8 @@ class Problem {
 		FILE*		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }
-		int		get_dem_ncols() { return m_ncols; }
-		int		get_dem_nrows() { return m_nrows; }
+		int		get_dem_ncols() const { return m_ncols; }
+		int		get_dem_nrows() const { return m_nrows; }
 		void	set_dem(const float *dem, int ncols, int nrows) {
 			m_dem = dem; m_ncols = ncols; m_nrows = nrows;
 		}
@@ -106,17 +106,17 @@ class Problem {
 
 		virtual ~Problem(void);
 
-		Options get_options(void)
+		Options const& get_options(void) const
 		{
 			return m_options;
 		}
 
-		float3 get_worldorigin(void)
+		float3 const& get_worldorigin(void) const
 		{
 			return m_origin;
 		};
 
-		float3 get_worldsize(void)
+		float3 const& get_worldsize(void) const
 		{
 			return m_size;
 		};
@@ -126,23 +126,23 @@ class Problem {
 			return m_writerType;
 		};
 
-		float get_minrho(void) { return m_minrho; };
+		float get_minrho(void) const { return m_minrho; };
 
-		float get_maxrho(void) { return m_maxrho; };
+		float get_maxrho(void) const { return m_maxrho; };
 
-		float get_maxvel(void) { return m_maxvel; };
+		float get_maxvel(void) const { return m_maxvel; };
 
-		float get_minvel(void) { return m_minvel; };
+		float get_minvel(void) const { return m_minvel; };
 
-		float density(float, int);
+		float density(float, int) const;
 
 		float pressure(float, int) const;
 
-		float soundspeed(float, int);
+		float soundspeed(float, int) const;
 
-		string get_dirname(void) const
+		string const& get_dirname(void) const
 		{
-			return m_problem_dir.c_str();
+			return m_problem_dir;
 		}
 
 		float set_deltap(const float dflt)
