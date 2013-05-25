@@ -38,6 +38,8 @@
 
 #include "particledefine.h"
 #include "textures.cuh"
+// CELLTYPE_MASK_*
+#include "multi_gpu_defines.h"
 
 namespace cuneibs {
 __constant__ uint d_maxneibsnum;
@@ -103,8 +105,8 @@ calcHashDevice(const float4*	posArray,
 #if HASH_KEY_SIZE >= 64
 	// with 64-bit (or bigger) hash keys, include the particle id in the hash
 	gridHash |= id(pinfo[index]);
-	// reset the 2 most significant bits of the hash (bitwise AND with 00111111...)
-	gridHash &= ~(0xFF << (GRIDHASH_BITSHIFT - 2));
+	// prepare the 2 most significant bits of the hash (bitwise AND with 00111111...)
+	gridHash &= CELLTYPE_BITMASK_64;
 	// mark the cell as inner/outer and/or edge by setting the high bits
 	gridHash |= compactDeviceMap[shortGridHash] << (GRIDHASH_BITSHIFT -2);
 #endif
@@ -134,6 +136,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 	// handle case when no. of particles not multiple of block size
 	if (index < numParticles) {
 		hash = (uint)(particleHash[index] >> GRIDHASH_BITSHIFT);
+		// reset the high bits, which contain the cellType
+		hash &= CELLTYPE_BITMASK_32;
 
 		// Load hash data into shared memory so that we can look
 		// at neighboring particle's hash value without loading
@@ -142,8 +146,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 		if (index > 0 && threadIdx.x == 0) {
 			// first thread in block must load neighbor particle hash
-			sharedHash[0] = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
-			}
+			uint neib_hash = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
+			// reset the celltype
+			sharedHash[0] = (neib_hash & CELLTYPE_BITMASK_32);
+		}
 	}
 
 	__syncthreads();
