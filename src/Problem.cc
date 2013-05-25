@@ -104,7 +104,7 @@ Problem::need_display(float t)
 }
 
 
-std::string 
+std::string const&
 Problem::create_problem_dir(void)
 {
 	// if no data save directory was specified, default to a name
