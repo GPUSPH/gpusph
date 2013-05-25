@@ -111,6 +111,7 @@ void
 calcHash(float4*	pos,
 #if HASH_KEY_SIZE >= 64
 		 particleinfo* pinfo,
+		 uint* compactDeviceMap,
 #endif
 		 hashKey*	particleHash,
 		 uint*		particleIndex,

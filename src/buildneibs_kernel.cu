@@ -79,6 +79,7 @@ __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 calcHashDevice(const float4*	posArray,
 #if HASH_KEY_SIZE >= 64
 			   particleinfo *pinfo,
+			   uint			*compactDeviceMap,
 #endif
 			   hashKey*			particleHash,
 			   uint*			particleIndex,
@@ -96,10 +97,16 @@ calcHashDevice(const float4*	posArray,
 
 	// get address in grid
 	const int3 gridPos = calcGridPos(make_float3(pos), worldOrigin, cellSize);
-	hashKey gridHash = (hashKey)calcGridHash(gridPos, gridSize) << GRIDHASH_BITSHIFT;
+	const uint shortGridHash = calcGridHash(gridPos, gridSize);
+	hashKey gridHash = (hashKey)shortGridHash << GRIDHASH_BITSHIFT;
+
 #if HASH_KEY_SIZE >= 64
 	// with 64-bit (or bigger) hash keys, include the particle id in the hash
 	gridHash |= id(pinfo[index]);
+	// reset the 2 most significant bits of the hash (bitwise AND with 00111111...)
+	gridHash &= ~(0xFF << (GRIDHASH_BITSHIFT - 2));
+	// mark the cell as inner/outer and/or edge by setting the high bits
+	gridHash |= compactDeviceMap[shortGridHash] << (GRIDHASH_BITSHIFT -2);
 #endif
 
 	// store grid hash and particle index

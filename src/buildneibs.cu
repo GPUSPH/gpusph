@@ -73,6 +73,7 @@ void
 calcHash(float4*	pos,
 #if HASH_KEY_SIZE >= 64
 		 particleinfo *pinfo,
+		 uint*		compactDeviceMap,
 #endif
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
@@ -87,6 +88,7 @@ calcHash(float4*	pos,
 	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos,
 #if HASH_KEY_SIZE >= 64
 		pinfo,
+		compactDeviceMap,
 #endif
 		particleHash, particleIndex,
 		gridSize, cellSize, worldOrigin, numParticles);
