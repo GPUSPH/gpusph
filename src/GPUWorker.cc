@@ -341,7 +341,7 @@ void GPUWorker::downloadSubdomainToGlobalBuffer() {
 }
 
 // download cellStart and cellEnd to the shared arrays
-void GPUWorker::downloadCells()
+void GPUWorker::downloadCellsIndices()
 {
 	size_t _size = gdata->nGridCells * sizeof(uint);
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellStarts[m_deviceIndex],
@@ -350,6 +350,10 @@ void GPUWorker::downloadCells()
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellEnds[m_deviceIndex],
 								m_dCellEnd,
 								_size, cudaMemcpyDeviceToHost));
+	_size = 4 * sizeof(uint);
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
+									m_dSegmentStart,
+									_size, cudaMemcpyDeviceToHost));
 }
 
 // create a compact device map, for this device, from the global one,
@@ -545,7 +549,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case DUMP_CELLS:
 				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
-				instance->downloadCells();
+				instance->downloadCellsIndices();
 				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);

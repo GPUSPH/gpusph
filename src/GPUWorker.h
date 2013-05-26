@@ -130,7 +130,7 @@ private:
 	void uploadSubdomain();
 	void downloadSubdomain();
 	void downloadSubdomainToGlobalBuffer();
-	void downloadCells();
+	void downloadCellsIndices();
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
