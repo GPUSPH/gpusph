@@ -205,7 +205,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
-		}
+	}
 }
 
 
