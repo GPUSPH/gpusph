@@ -338,10 +338,10 @@ void GPUWorker::downloadSubdomainToGlobalBuffer() {
 void GPUWorker::downloadCells()
 {
 	size_t _size = gdata->nGridCells * sizeof(uint);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellStart[m_deviceIndex],
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellStarts[m_deviceIndex],
 								m_dCellStart,
 								_size, cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellEnd[m_deviceIndex],
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellEnds[m_deviceIndex],
 								m_dCellEnd,
 								_size, cudaMemcpyDeviceToHost));
 }
