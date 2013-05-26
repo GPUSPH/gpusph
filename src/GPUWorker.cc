@@ -257,16 +257,22 @@ void GPUWorker::uploadSubdomain() {
 
 	// memcpys - recalling GPU arrays are double buffered
 	_size = howManyParticles * sizeof(float4);
+	//printf("Thread %d uploading %d POS items (%u Kb) on device %d from position %d\n",
+	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
 	CUDA_SAFE_CALL(cudaMemcpy(	m_dPos[ gdata->currentPosRead ],
 								gdata->s_hPos + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
 
 	_size = howManyParticles * sizeof(float4);
+	//printf("Thread %d uploading %d VEL items (%u Kb) on device %d from position %d\n",
+	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
 	CUDA_SAFE_CALL(cudaMemcpy(	m_dVel[ gdata->currentVelRead ],
 								gdata->s_hVel + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
 
 	_size = howManyParticles * sizeof(particleinfo);
+	//printf("Thread %d uploading %d INFO items (%u Kb) on device %d from position %d\n",
+	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
 	CUDA_SAFE_CALL(cudaMemcpy(	m_dInfo[ gdata->currentInfoRead ],
 								gdata->s_hInfo + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
