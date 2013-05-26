@@ -135,21 +135,19 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 	uint hash;
 	// handle case when no. of particles not multiple of block size
 	if (index < numParticles) {
+		// To find where cells start/end we only need the cell part of the hash.
+		// Note: we do not reset the high bits since we need them to find the segments
+		// (aka where the outer particles begin)
 		hash = (uint)(particleHash[index] >> GRIDHASH_BITSHIFT);
-		// reset the high bits, which contain the cellType
-		hash &= CELLTYPE_BITMASK_32;
 
 		// Load hash data into shared memory so that we can look
 		// at neighboring particle's hash value without loading
 		// two hash values per thread
 		sharedHash[threadIdx.x + 1] = hash;
 
-		if (index > 0 && threadIdx.x == 0) {
+		if (index > 0 && threadIdx.x == 0)
 			// first thread in block must load neighbor particle hash
-			uint neib_hash = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
-			// reset the celltype
-			sharedHash[0] = (neib_hash & CELLTYPE_BITMASK_32);
-		}
+			sharedHash[0] = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
 	}
 
 	__syncthreads();
@@ -161,14 +159,30 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		// As it isn't the first particle, it must also be the cell end of
 		// the previous particle's cell
 
+		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
+		// everytime we use a cell hash to access an element of CellStart or CellEnd
+
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
+#if HASH_KEY_SIZE >= 64
+			cellStart[hash & CELLTYPE_BITMASK_32] = index;
+#else
 			cellStart[hash] = index;
+#endif
 			if (index > 0)
+#if HASH_KEY_SIZE >= 64
+				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK_32] = index;
+#else
 				cellEnd[sharedHash[threadIdx.x]] = index;
-			}
+#endif
+		}
 
 		if (index == numParticles - 1) {
+			// ditto
+#if HASH_KEY_SIZE >= 64
+			cellEnd[hash & CELLTYPE_BITMASK_32] = index + 1;
+#else
 			cellEnd[hash] = index + 1;
+#endif
 			}
 
 		// Now use the sorted index to reorder the pos and vel data
