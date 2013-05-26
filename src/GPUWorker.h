@@ -51,6 +51,8 @@ private:
 	uint m_numParticles;
 	// number of cells of the grid of the whole world
 	uint m_nGridCells;
+	// number of allocated particles (includes internal, external and unused slots)
+	uint m_numAlocatedParticles;
 
 	// memory allocate
 	unsigned long m_hostMemory;
@@ -121,6 +123,11 @@ private:
 
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
+
+	// methods to handle the number of particles
+	uint getNumParticles();
+	uint getMaxParticles();
+	uint estimateROParticles();
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
