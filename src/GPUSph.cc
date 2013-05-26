@@ -788,17 +788,21 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
 		totCPUbytes += ucharCellSize;
 
-		// cellStart and cellEnd of all devices. Array of device pointers stored on host
+		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
 		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dCellEnds =  (uint**)calloc(gdata->devices, sizeof(uint*));
+		gdata->s_dSegmentsStart = (uint**)calloc(gdata->devices, sizeof(uint*));
 
 		// few bytes... but still count them
-		totCPUbytes += gdata->devices * sizeof(uint*) * 2;
+		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 
 		for (uint d=0; d < gdata->devices; d++) {
 			gdata->s_dCellStarts[d] = (uint*)calloc(numcells, sizeof(uint));
 			gdata->s_dCellEnds[d] =   (uint*)calloc(numcells, sizeof(uint));
 			totCPUbytes += uintCellSize * 2;
+
+			gdata->s_dSegmentsStart[d] = (uint*)calloc(4, sizeof(uint));
+			totCPUbytes += sizeof(uint) * 4;
 		}
 	}
 
@@ -820,9 +824,11 @@ void GPUSPH::deallocateGlobalHostBuffers()
 		for (int d=0; d < gdata->devices; d++) {
 			delete [] gdata->s_dCellStarts[d];
 			delete [] gdata->s_dCellEnds[d];
+			delete [] gdata->s_dSegmentsStart[d];
 		}
 		delete [] gdata->s_dCellEnds;
 		delete [] gdata->s_dCellStarts;
+		delete [] gdata->s_dSegmentsStart;
 	}
 }
 

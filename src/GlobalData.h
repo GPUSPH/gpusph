@@ -91,10 +91,11 @@ struct GlobalData {
 	uint s_hPartsPerDevice[MAX_DEVICES_PER_CLUSTER]; // TODO: can change to PER_NODE if not compiling for multinode
 	uint s_hStartPerDevice[MAX_DEVICES_PER_CLUSTER]; // ditto
 
-	// cellStart and cellEnd for each device.
+	// cellStart, cellEnd, segmentStart (limits of cells of the sam type) for each device.
 	// Note the s(shared)_d(device) prefix, since they're device pointers
 	uint** s_dCellStarts;
 	uint** s_dCellEnds;
+	uint** s_dSegmentsStart;
 
 	// pinned memory var to retrieve dt asynchronously
 	//float *pin_maxcfl;
@@ -220,6 +221,7 @@ struct GlobalData {
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),
 		s_dCellEnds(NULL),
+		s_dSegmentsStart(NULL),
 		//pin_maxcfl(NULL),
 		//dump_hPos(NULL),
 		//dump_hVel(NULL),
