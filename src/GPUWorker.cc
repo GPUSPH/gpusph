@@ -545,6 +545,7 @@ void GPUWorker::kernel_calcHash()
 	calcHash(m_dPos[gdata->currentPosRead],
 #if HASH_KEY_SIZE >= 64
 					m_dInfo[gdata->currentInfoRead],
+					m_dCompactDeviceMap,
 #endif
 					m_dParticleHash,
 					m_dParticleIndex,
