@@ -781,9 +781,23 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	totCPUbytes += infoSize;*/
 
 	if (gdata->devices>1) {
+		// deviceMap
 		gdata->s_hDeviceMap = new uchar[numcells];
 		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
 		totCPUbytes += ucharCellSize;
+
+		// cellStart and cellEnd of all devices. Array of device pointers stored on host
+		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
+		gdata->s_dCellEnds =  (uint**)calloc(gdata->devices, sizeof(uint*));
+
+		// few bytes... but still count them
+		totCPUbytes += gdata->devices * sizeof(uint*) * 2;
+
+		for (uint d=0; d < gdata->devices; d++) {
+			gdata->s_dCellStarts[d] = (uint*)calloc(numcells, sizeof(uint));
+			gdata->s_dCellEnds[d] =   (uint*)calloc(numcells, sizeof(uint));
+			totCPUbytes += ucharCellSize * 2;
+		}
 	}
 
 	printf("Allocated %lu bytes on host for %lu particles\n", totCPUbytes, numparts);
@@ -797,8 +811,17 @@ void GPUSPH::deallocateGlobalHostBuffers()
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;
 	delete [] gdata->s_hInfo;
-	if (gdata->devices>1)
+	// multi-GPU specific arrays
+	if (gdata->devices>1) {
 		delete [] gdata->s_hDeviceMap;
+		// cells
+		for (int d=0; d < gdata->devices; d++) {
+			delete [] gdata->s_dCellStarts[d];
+			delete [] gdata->s_dCellEnds[d];
+		}
+		delete [] gdata->s_dCellEnds;
+		delete [] gdata->s_dCellStarts;
+	}
 }
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
