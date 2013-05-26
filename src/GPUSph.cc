@@ -749,6 +749,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	const uint float4Size = sizeof(float4) * numparts;
 	const uint infoSize = sizeof(particleinfo) * numparts;
 	const uint ucharCellSize = sizeof(uchar) * numcells;
+	const uint uintCellSize = sizeof(uint) * numcells;
 
 	long unsigned int totCPUbytes = 0;
 
@@ -797,7 +798,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 		for (uint d=0; d < gdata->devices; d++) {
 			gdata->s_dCellStarts[d] = (uint*)calloc(numcells, sizeof(uint));
 			gdata->s_dCellEnds[d] =   (uint*)calloc(numcells, sizeof(uint));
-			totCPUbytes += ucharCellSize * 2;
+			totCPUbytes += uintCellSize * 2;
 		}
 	}
 
