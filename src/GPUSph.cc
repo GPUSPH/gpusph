@@ -715,8 +715,7 @@ bool GPUSPH::runSimulation() {
 			printStatus();
 		}
 
-		//if (finished || gdata->quit_request)
-		if (gdata->quit_request || gdata->iterations > 3)
+		if (finished || gdata->quit_request || gdata->iterations > 1)
 			gdata->keep_going = false;
 	}
 
