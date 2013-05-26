@@ -1062,6 +1062,9 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dPos[m_currentPosRead],		// input: sorted position array
 			m_dVel[m_currentVelRead],		// input: sorted velocity array
 			m_dInfo[m_currentInfoRead],		// input: sorted info array
+#if HASH_KEY_SIZE >= 64
+			NULL, // WARNING: this is only to allow for compiling. DO NOT DO THIS
+#endif
 			m_numParticles,
 			m_nGridCells);
 
