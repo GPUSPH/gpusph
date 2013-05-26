@@ -131,6 +131,9 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			oldPos,			// input: sorted position array
 							float4*			oldVel,			// input: sorted velocity array
 							particleinfo*	oldInfo,		// input: sorted info array
+#if HASH_KEY_SIZE >= 64
+							uint*			segmentStart,
+#endif
 							uint			numParticles,
 							uint			numGridCells);
 

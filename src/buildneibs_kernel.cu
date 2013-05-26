@@ -126,6 +126,9 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 										particleinfo*	sortedInfo,		// output: sorted info
 										hashKey*		particleHash,	// input: sorted grid hashes
 										uint*			particleIndex,	// input: sorted particle indices
+#if HASH_KEY_SIZE >= 64
+										uint*			segmentStart,
+#endif
 										uint			numParticles)
 {
 	extern __shared__ uint sharedHash[];	// blockSize + 1 elements
@@ -183,7 +186,15 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #else
 			cellEnd[hash] = index + 1;
 #endif
-			}
+		}
+
+#if HASH_KEY_SIZE >= 64
+		// if the particle hash is 64bits long, also find the segment start
+		uchar curr_type = (hash & (~CELLTYPE_BITMASK_32)) >> 30;
+		uchar prev_type = (sharedHash[threadIdx.x] & (~CELLTYPE_BITMASK_32)) >> 30;
+		if (index == 0 || curr_type != prev_type)
+			segmentStart[curr_type] = index;
+#endif
 
 		// Now use the sorted index to reorder the pos and vel data
 		uint sortedIndex = particleIndex[index];

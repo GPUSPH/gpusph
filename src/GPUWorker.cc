@@ -94,6 +94,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
 	const uint neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 	const uint hashSize = sizeof(hashKey) * m_numParticles;
+	const uint segmentsSize = sizeof(uint) * 4; // 4 = types of cells
 	//const uint neibslistSize = sizeof(uint)*128*m_numParticles;
 	//const uint sliceArraySize = sizeof(uint)*m_gridSize.PSA;
 
@@ -169,6 +170,9 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	if (gdata->devices > 1) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
 		allocated += uintCellsSize;
+
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSegmentStart, segmentsSize));
+		allocated += segmentsSize;
 	}
 
 	// TODO: allocation for rigid bodies
@@ -237,8 +241,10 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
 
-	if (gdata->devices > 1)
+	if (gdata->devices > 1) {
 		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
+		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+	}
 
 	// TODO: deallocation for rigid bodies
 
@@ -597,6 +603,9 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dPos[gdata->currentPosRead],		 // input: sorted position array
 							m_dVel[gdata->currentVelRead],		 // input: sorted velocity array
 							m_dInfo[gdata->currentInfoRead],		 // input: sorted info array
+#if HASH_KEY_SIZE >= 64
+							m_dSegmentStart,
+#endif
 							m_numParticles,
 							m_nGridCells);
 }

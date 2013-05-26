@@ -119,6 +119,9 @@ private:
 	uint*		m_hCompactDeviceMap;
 	uint*		m_dCompactDeviceMap;
 
+	// where sequences of cells of the same type begin
+	uint*		m_dSegmentStart;
+
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
