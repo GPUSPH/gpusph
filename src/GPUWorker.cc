@@ -528,6 +528,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing DUMP\n", deviceIndex);
 				instance->downloadSubdomainToGlobalBuffer();
 				break;
+			case DUMP_CELLS:
+				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
+				instance->downloadCells();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
