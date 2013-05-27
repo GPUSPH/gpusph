@@ -679,6 +679,8 @@ bool GPUSPH::runSimulation() {
 
 		doCommand(EULER);
 
+		doCommand(UPDATE_EXTERNAL);
+
 	//			//reduce bodies
 	//			//callbacks (bounds, gravity)
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -690,6 +692,8 @@ bool GPUSPH::runSimulation() {
 	//			//reduce bodies
 
 		doCommand(EULER);
+
+		doCommand(UPDATE_EXTERNAL);
 
 	//			//reduce bodies
 
