@@ -133,6 +133,67 @@ void GPUWorker::importPeerEdgeCells()
 	cudaDeviceSynchronize();
 }
 
+// overwrite the external edge cells with an updated copy
+// NOTE: for this method and importPeerEdgeCells() could be encapsulated somehow, since their
+// algorithms have a strong overlap
+void GPUWorker::updatePeerEdgeCells()
+{
+	// at the moment, the cells are imported in the same order they are encountered iterating
+	// on the device map. We wonder if iterating per-device would lead more optimized transfers.
+	// Keeping a list of external cells to be updated could be useful to this aim.
+	// For sure one optimization should be to compact (when possible) burst of cells coming from
+	// the same peer device.
+
+	// iterate on all cells
+	for (uint cell=0; cell < m_nGridCells; cell++)
+		// if the current is an external edge cell...
+		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL) {
+			// check in which device it is
+			uchar peerDevIndex = gdata->s_hDeviceMap[cell];
+			uint peerCudaDevNum = gdata->device[peerDevIndex];
+			// find its cellStart and cellEnd on the peer device
+			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
+			uint peerCellEnd = gdata->s_dCellEnds[peerDevIndex][cell];
+			// find its cellStart and cellEnd on self
+			uint selfCellStart = gdata->s_dCellStarts[m_deviceIndex][cell];
+			uint selfCellEnd = gdata->s_dCellEnds[m_deviceIndex][cell];
+			// if it is not empty...
+			// (it is redundant to check also self but could used as a correctness check)
+			if (peerCellStart != 0xFFFFFFFF) {
+				// cellEnd is exclusive
+				uint numPartsInPeerCell = peerCellEnd - peerCellStart;
+				// retrieve device pointers of peer device
+				const float4** peer_dPos = gdata->GPUWORKERS[peerDevIndex]->getDPosBuffers();
+				const float4** peer_dVel = gdata->GPUWORKERS[peerDevIndex]->getDVelBuffers();
+				const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
+				// append pos, vel and info data
+				size_t _size = numPartsInPeerCell * sizeof(float4);
+				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dPos[ gdata->currentPosRead ] + selfCellStart,
+												m_cudaDeviceNumber,
+												peer_dPos[ gdata->currentPosRead ] + peerCellStart,
+												peerCudaDevNum,
+												_size));
+				// _size = numPartsInPeerCell * sizeof(float4);
+				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dVel[ gdata->currentVelRead ] + selfCellStart,
+												m_cudaDeviceNumber,
+												peer_dVel[ gdata->currentVelRead ] + peerCellStart,
+												peerCudaDevNum,
+												_size));
+				_size = numPartsInPeerCell * sizeof(particleinfo);
+				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dInfo[ gdata->currentInfoRead ] + selfCellStart,
+												m_cudaDeviceNumber,
+												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
+												peerCudaDevNum,
+												_size));
+
+			} // if cell is not empty
+		} // if cell is external edge
+
+	// cudaMemcpyPeer() is asynchronous with the host. We synchronize at the end to wait for the
+	// transfers to be complete.
+	cudaDeviceSynchronize();
+}
+
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
 // Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {

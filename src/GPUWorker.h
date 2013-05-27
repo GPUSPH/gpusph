@@ -134,6 +134,8 @@ private:
 
 	// append a copy of the external cells of other devices to the present array
 	void importPeerEdgeCells();
+	// overwrite the external edge cells with an updated copy
+	void updatePeerEdgeCells();
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
