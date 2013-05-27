@@ -36,4 +36,10 @@ T div_up(T a, T b) {
 	return (a + b - 1)/b;
 }
 
+// Round a up to the next multiple of b.
+template<typename T>
+T round_up(T a, T b) {
+	return div_up(a, b)*b;
+}
+
 #endif

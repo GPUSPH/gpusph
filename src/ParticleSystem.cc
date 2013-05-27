@@ -62,6 +62,8 @@
 #include <thrust/scan.h>
 #include <thrust/functional.h>
 
+#include "utils.h"
+
 static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] = {
 	"Position",
 	"Velocity",
@@ -206,7 +208,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint hashSize = sizeof(hashKey)*m_numParticles;
 	const uint idxSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*round_up(m_numParticles, NEIBINDEX_INTERLEAVE);
 
 	uint memory = 0;
 

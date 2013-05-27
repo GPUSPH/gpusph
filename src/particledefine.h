@@ -224,7 +224,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define	MAXBODIES				10
 
 
-#define NEIBINDEX_INTERLEAVE		32
+#define NEIBINDEX_INTERLEAVE		32U
 
 #if (__COMPUTE__ >= 20)
 	#define INTMUL(x,y) (x)*(y)
