@@ -79,6 +79,9 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Gradient Gamma",
 	"Vertices",
 	"Pressure",
+	"Turbulent Kinetic Energy [k]",
+	"Turbulent Dissipation Rate [e]",
+	"Eddy Viscosity",
 	"(invalid)"
 };
 
@@ -102,7 +105,13 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentVerticesRead(0),
 	m_currentVerticesWrite(1),
 	m_currentPressureRead(0),
-	m_currentPressureWrite(1)
+	m_currentPressureWrite(1),
+	m_currentTKERead(0),
+	m_currentTKEWrite(1),
+	m_currentEpsRead(0),
+	m_currentEpsWrite(1),
+	m_currentTurbViscRead(0),
+	m_currentTurbViscWrite(1)
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
@@ -273,6 +282,18 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hPressure, 0, memSize);
 	memory += memSize;
 
+	m_hTKE = new float[m_numParticles];
+	memset(m_hTKE, 0, memSize);
+	memory += memSize;
+
+	m_hEps = new float[m_numParticles];
+	memset(m_hEps, 0, memSize);
+	memory += memSize;
+
+	m_hTurbVisc = new float[m_numParticles];
+	memset(m_hTurbVisc, 0, memSize);
+	memory += memSize;
+
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
@@ -383,6 +404,24 @@ ParticleSystem::allocate(uint numParticles)
 	memory += memSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPressure[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTKE[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTKE[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dEps[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dEps[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTurbVisc[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTurbVisc[1], memSize));
 	memory += memSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
@@ -631,6 +670,10 @@ ParticleSystem::printPhysParams(FILE *summary)
 					m_physparams->kinematicvisc, visccoeff);
 			fprintf(summary, "\tSmagFactor = %g\n", m_physparams->smagfactor);
 			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams->kspsfactor);
+			break;
+		case KEPS:
+			fprintf(summary, "\tk-e model: kinematicvisc = %g m^2/s\n",
+					m_physparams->kinematicvisc);
 			break;
 		}
 	fprintf(summary, "espartvisc = %g\n", m_physparams->epsartvisc);
@@ -952,6 +995,21 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hPressure;
 			ddata = (void*) m_dPressure[m_currentPressureRead];
+
+		case TKE:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hTKE;
+			ddata = (void*) m_dTKE[m_currentTKERead];
+
+		case EPSILON:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hEps;
+			ddata = (void*) m_dEps[m_currentEpsRead];
+
+		case TURBVISC:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hTurbVisc;
+			ddata = (void*) m_dTurbVisc[m_currentTurbViscRead];
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -1010,6 +1068,24 @@ ParticleSystem::setArray(ParticleArray array)
 			size = m_numParticles*sizeof(float);
 			break;
 
+		case TKE:
+			hdata = m_hTKE;
+			ddata = m_dTKE[m_currentTKERead];
+			size = m_numParticles*sizeof(float);
+			break;
+
+		case EPSILON:
+			hdata = m_hEps;
+			ddata = m_dEps[m_currentEpsRead];
+			size = m_numParticles*sizeof(float);
+			break;
+
+		case TURBVISC:
+			hdata = m_hTurbVisc;
+			ddata = m_dTurbVisc[m_currentTurbViscRead];
+			size = m_numParticles*sizeof(float);
+			break;
+
 		default:
 			fprintf(stderr, "Trying to upload unknown array %d\n", array);
 			return;
@@ -1033,7 +1109,7 @@ void
 ParticleSystem::writeToFile()
 {
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma);
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hTurbVisc);
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],

@@ -107,6 +107,7 @@ enum ViscosityType {
 	KINEMATICVISC,
 	DYNAMICVISC,
 	SPSVISC,
+	KEPS,
 	INVALID_VISCOSITY
 } ;
 
@@ -121,6 +122,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 	"Kinematic",
 	"Dynamic",
 	"SPS + kinematic",
+	"k-e model",
 	"(invalid)"
 }
 #endif

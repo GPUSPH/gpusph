@@ -98,9 +98,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 1.0;
-	m_simparams.visctype = DYNAMICVISC;
-	//m_simparams.visctype = KINEMATICVISC;
-	//m_simparams.visctype = ARTVISC;
+	m_simparams.visctype = KEPS;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = MF_BOUNDARY;
 
