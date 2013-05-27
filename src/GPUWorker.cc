@@ -667,6 +667,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
 				instance->downloadCellsIndices();
 				break;
+			case APPEND_EXTERNAL:
+				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
+				instance->importPeerEdgeCells();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
