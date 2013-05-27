@@ -641,6 +641,8 @@ bool GPUSPH::runSimulation() {
 
 		// build neighbors list
 		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
+			// run most of the following commands on all particles
+			gdata->only_internal = false;
 
 			// if running on multiple GPUs, update the external cells
 			if (gdata->devices > 1) {
@@ -662,6 +664,9 @@ bool GPUSPH::runSimulation() {
 			doCommand(DUMP_CELLS);
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(true);
+
+			// build neib lists only for internal particles
+			gdata->only_internal = true;
 			doCommand(BUILDNEIBS);
 		}
 
@@ -670,6 +675,8 @@ bool GPUSPH::runSimulation() {
 	//			//set mvboundaries and gravity
 	//			//(init bodies)
 
+		// compute forces only on internal particles
+		gdata->only_internal = true;
 		gdata->step = 1;
 		doCommand(FORCES);
 
@@ -677,6 +684,9 @@ bool GPUSPH::runSimulation() {
 	//				initially done trivial and slow: stop and read
 	//			//reduce bodies
 
+		// at the moment, only run euler on internal. If we exchange the forces instead of
+		// the positions and velocities, we need to change this
+		gdata->only_internal = true;
 		doCommand(EULER);
 
 		doCommand(UPDATE_EXTERNAL);
@@ -687,10 +697,12 @@ bool GPUSPH::runSimulation() {
 	//				initially done trivial and slow: stop and read
 
 		gdata->step = 2;
+		gdata->only_internal = true;
 		doCommand(FORCES);
 
 	//			//reduce bodies
 
+		gdata->only_internal = true;
 		doCommand(EULER);
 
 		doCommand(UPDATE_EXTERNAL);
