@@ -53,6 +53,8 @@ private:
 	uint m_nGridCells;
 	// number of allocated particles (includes internal, external and unused slots)
 	uint m_numAlocatedParticles;
+	// number of internal particles, used for multi-GPU
+	uint m_numInternalParticles;
 
 	// memory allocate
 	unsigned long m_hostMemory;
