@@ -28,6 +28,8 @@
 #include "euler.cuh"
 #include "euler_kernel.cu"
 
+#include "utils.h"
+
 // Creates a kernel name based on whether XSPH is used or not
 #define _EULER_KERNEL_NAME(xsph) cueuler::euler##xsph##Device
 
@@ -119,8 +121,8 @@ euler(	float4*		oldPos,
 		bool		periodicbound)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	// execute the kernel
 	if (xsphcorr) {

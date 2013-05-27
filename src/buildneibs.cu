@@ -31,6 +31,8 @@
 #include "buildneibs.cuh"
 #include "buildneibs_kernel.cu"
 
+#include "utils.h"
+
 extern "C"
 {
 
@@ -81,8 +83,8 @@ calcHash(float4*	pos,
 		 float3		worldOrigin,
 		 uint		numParticles)
 {
-	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos,
 #if HASH_KEY_SIZE >= 64
@@ -109,8 +111,8 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									uint			numParticles,
 									uint			numGridCells)
 {
-	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 	
 	CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
 
@@ -146,8 +148,8 @@ buildNeibsList(	uint*				neibsList,
 				const float			sqinfluenceradius,
 				const bool			periodicbound)
 {
-	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
-	const int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
+	const uint numBlocks = div_up(numParticles, numThreads);
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));

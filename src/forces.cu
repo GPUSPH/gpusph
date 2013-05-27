@@ -31,6 +31,8 @@
 #include "textures.cuh"
 #include "forces.cuh"
 
+#include "utils.h"
+
 cudaArray*  dDem = NULL;
 
 /* Auxiliary data for parallel reductions */
@@ -327,8 +329,8 @@ forces(	float4*			pos,
 
 	// execute the kernel for computing SPS stress matrix, if needed
 	if (visctype == SPSVISC) {	// thread per particle
-		int numThreads = min(BLOCK_SIZE_SPS, numParticles);
-		int numBlocks = (int) ceil(numParticles / (float) numThreads);
+		uint numThreads = min(BLOCK_SIZE_SPS, numParticles);
+		uint numBlocks = div_up(numParticles, numThreads);
 		#if (__COMPUTE__ == 20)
 		dummy_shared = 2560;
 		#endif
@@ -354,8 +356,8 @@ forces(	float4*			pos,
 	}
 	
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);		
+	uint numThreads = min(BLOCK_SIZE_FORCES, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 	#if (__COMPUTE__ == 20)
 	if (visctype == SPSVISC)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
@@ -431,8 +433,8 @@ shepard(float4*		pos,
 {
 	int dummy_shared = 0;
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -484,8 +486,8 @@ mls(float4*		pos,
 {
 	int dummy_shared = 0;
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_MLS, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_MLS, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
@@ -530,8 +532,8 @@ vorticity(	float4*		pos,
 			bool		periodicbound)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_CALCVORT, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCVORT, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
@@ -572,8 +574,8 @@ testpoints( float4*		pos,
 			bool		periodicbound)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
@@ -617,8 +619,8 @@ surfaceparticle(	float4*		pos,
 					bool        savenormals)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
