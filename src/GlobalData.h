@@ -170,6 +170,9 @@ struct GlobalData {
 	CommandType nextCommand;
 	// step parameter, e.g. for predictor/corrector scheme
 	uint step;
+	// set to true if next kernel has to be run only on internal particles
+	// (need support of the worker and/or the kernel)
+	bool only_internal;
 
 	// Writer variables
 	WriterType writerType;
@@ -256,6 +259,7 @@ struct GlobalData {
 		//cpuThreadIds(NULL),
 		nextCommand(IDLE),
 		step(0),
+		only_internal(false),
 		writerType(VTKWRITER),
 		writer(NULL)
 		//tdatas(NULL),
