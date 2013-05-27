@@ -436,10 +436,10 @@ void GPUWorker::createCompactDeviceMap() {
 								enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 							}
 				uint cellType;
-				if (is_mine && !any_foreign_neib)	cellType = INNER_CELL;
-				if (is_mine && any_foreign_neib)	cellType = INNER_EDGE_CELL;
-				if (!is_mine && any_mine_neib)		cellType = OUTER_EDGE_CELL;
-				if (!is_mine && !any_mine_neib)		cellType = OUTER_CELL;
+				if (is_mine && !any_foreign_neib)	cellType = CELLTYPE_MASK_INNER_CELL;
+				if (is_mine && any_foreign_neib)	cellType = CELLTYPE_MASK_INNER_EDGE_CELL;
+				if (!is_mine && any_mine_neib)		cellType = CELLTYPE_MASK_OUTER_EDGE_CELL;
+				if (!is_mine && !any_mine_neib)		cellType = CELLTYPE_MASK_OUTER_CELL;
 				m_hCompactDeviceMap[cell_lin_idx] = cellType;
 			}
 }

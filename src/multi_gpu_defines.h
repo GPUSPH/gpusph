@@ -4,12 +4,18 @@
 #define MAX_DEVICES_PER_NODE 8
 #define MAX_DEVICES_PER_CLUSTER 256
 
+// cellTypes used as array indices for the segments
+#define CELLTYPE_INNER_CELL			((uint)0)
+#define CELLTYPE_INNER_EDGE_CELL	((uint)1)
+#define CELLTYPE_OUTER_EDGE_CELL	((uint)2)
+#define CELLTYPE_OUTER_CELL			((uint)3)
+
 // 2 high bits for cell type in the compact device map. It is important in
 // the current implementation that the OUTER cells are sorted last
-#define INNER_CELL		((uint)0<<30)
-#define INNER_EDGE_CELL	((uint)1<<30)
-#define OUTER_EDGE_CELL	((uint)2<<30)
-#define OUTER_CELL		((uint)3<<30) // memset to 0xFF for making OUTER_CELL defaults
+#define CELLTYPE_MASK_INNER_CELL		(CELLTYPE_INNER_CELL<<30)
+#define CELLTYPE_MASK_INNER_EDGE_CELL	(CELLTYPE_INNER_EDGE_CELL<<30)
+#define CELLTYPE_MASK_OUTER_EDGE_CELL	(CELLTYPE_OUTER_EDGE_CELL<<30)
+#define CELLTYPE_MASK_OUTER_CELL		(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
 
 // Bitmasks used to reset the cellType
 #define CELLTYPE_BITMASK_32 (~( (unsigned int)3 << 30))
