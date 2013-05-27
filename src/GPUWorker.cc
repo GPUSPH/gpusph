@@ -166,26 +166,26 @@ void GPUWorker::updatePeerEdgeCells()
 				// retrieve device pointers of peer device
 				const float4** peer_dPos = gdata->GPUWORKERS[peerDevIndex]->getDPosBuffers();
 				const float4** peer_dVel = gdata->GPUWORKERS[peerDevIndex]->getDVelBuffers();
-				const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
+				//const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
 				// append pos, vel and info data
 				size_t _size = numPartsInPeerCell * sizeof(float4);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dPos[ gdata->currentPosRead ] + selfCellStart,
+				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dPos[ gdata->currentPosWrite ] + selfCellStart,
 												m_cudaDeviceNumber,
-												peer_dPos[ gdata->currentPosRead ] + peerCellStart,
+												peer_dPos[ gdata->currentPosWrite ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
 				// _size = numPartsInPeerCell * sizeof(float4);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dVel[ gdata->currentVelRead ] + selfCellStart,
+				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dVel[ gdata->currentVelWrite ] + selfCellStart,
 												m_cudaDeviceNumber,
-												peer_dVel[ gdata->currentVelRead ] + peerCellStart,
+												peer_dVel[ gdata->currentVelWrite ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
-				_size = numPartsInPeerCell * sizeof(particleinfo);
+				/*_size = numPartsInPeerCell * sizeof(particleinfo);
 				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dInfo[ gdata->currentInfoRead ] + selfCellStart,
 												m_cudaDeviceNumber,
 												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
 												peerCudaDevNum,
-												_size));
+												_size));*/
 
 			} // if cell is not empty
 		} // if cell is external edge
