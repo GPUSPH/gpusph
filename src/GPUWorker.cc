@@ -564,6 +564,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
+			case CROP:
+				//printf(" T %d issuing CROP\n", deviceIndex);
+				instance->dropExternalParticles();
+				break;
 			case REORDER:
 				//printf(" T %d issuing REORDER\n", deviceIndex);
 				instance->kernel_reorderDataAndFindCellStart();

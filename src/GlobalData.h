@@ -28,7 +28,7 @@
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
 // requests to download cellStart and cellEnd
-enum CommandType {IDLE, CALCHASH, SORT, REORDER, BUILDNEIBS, FORCES, EULER, DUMP, DUMP_CELLS, QUIT};
+enum CommandType {IDLE, CALCHASH, SORT, CROP, REORDER, BUILDNEIBS, FORCES, EULER, DUMP, DUMP_CELLS, QUIT};
 
 enum WriterType
 {
