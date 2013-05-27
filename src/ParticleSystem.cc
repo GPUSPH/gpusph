@@ -379,18 +379,18 @@ ParticleSystem::allocate(uint numParticles)
 	}
 
 	if (m_simparams->dtadapt) {
-		m_numPartsFmax = getNumPartsFmax(numParticles);
-		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
+		uint fmaxElements = getFmaxElements(numParticles);
+		const uint fmaxTableSize = fmaxElements*sizeof(float);
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
 
-		const uint tempCflSize = getFmaxTempStorageSize(m_numPartsFmax);
+		const uint tempCflSize = getFmaxTempStorageSize(fmaxElements);
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
 
-		memory += fmaxTableSize;
-		}
+		memory += fmaxTableSize + tempCflSize;
+	}
 
 	// number of blocks to be used in parallel reductions
 	size_t blocks = 6*m_device.multiProcessorCount;
@@ -1204,7 +1204,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_physparams->visccoeff,
 					m_dCfl,
 					m_dTempCfl,
-					m_numPartsFmax,
 					m_dTau,
 					m_simparams->periodicbound,
 					m_simparams->sph_formulation,
@@ -1302,7 +1301,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_physparams->visccoeff,
 					m_dCfl,
 					m_dTempCfl,
-					m_numPartsFmax,
 					m_dTau,
 					m_simparams->periodicbound,
 					m_simparams->sph_formulation,

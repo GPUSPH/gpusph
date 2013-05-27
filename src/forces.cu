@@ -313,7 +313,6 @@ forces(	float4*			pos,
 		float			visccoeff,
 		float*			cfl,
 		float*			tempCfl,
-		uint			numPartsFmax,
 		float2*			tau[],
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
@@ -393,7 +392,9 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (dtadapt) {
-		float maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
+		// cfl holds one value per block in the forces kernel call,
+		// so it holds numBlocks elements
+		float maxcfl = cflmax(numBlocks, cfl, tempCfl);
 		dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 		if (visctype != ARTVISC) {
@@ -785,13 +786,16 @@ void getNumBlocksAndThreads(const uint	n,
 	blocks = MIN(maxBlocks, blocks);
 }
 
-
+// returns the number of elements in the (starting) fmax array, assuming n particles.
+// this is _exactly_ the number of blocks in the grid launch for the forces kernel over n
+// particles, since the forces kernel pre-reduces the cfl values, producing one value
+// per block instead of one per particle
 uint
-getNumPartsFmax(const uint n)
+getFmaxElements(const uint n)
 {
-	return (int) ceil(n / (float) min(BLOCK_SIZE_FORCES, n));
+	return div_up(n, min(BLOCK_SIZE_FORCES, n));
 }
-	
+
 
 uint
 getFmaxTempStorageSize(const uint n)

@@ -122,7 +122,6 @@ forces(	float4*			pos,
 		float			visccoeff,
 		float*			cfl,
 		float*			tempCfl,
-		uint			numPartsFmax,
 		float2*			tau[],
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
@@ -209,7 +208,7 @@ reduceRbForces(	float4*		forces,
 				uint		numBodiesParticles);
 
 uint
-getNumPartsFmax(const uint n);
+getFmaxElements(const uint n);
 
 uint
 getFmaxTempStorageSize(const uint n);
