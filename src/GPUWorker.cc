@@ -65,12 +65,16 @@ uint GPUWorker::estimateROParticles()
 // Assuming segments have already been filled and downloaded to the shared array
 void GPUWorker::dropExternalParticles()
 {
-	uint _new_numParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
-	if (_new_numParts > m_numParticles)
+	// We would like to trim out all external particles. According to the sorting criteria,
+	// they should be compacted last. If there are no external particles, their segmentStart
+	// is equal to m_numParticles
+	uint external_start_at = min( gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
+			gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
+	if (external_start_at > m_numParticles)
 		printf("WARNING: thread %u: first outer particle (%u) beyond active particles (%u)! Not cropping\n",
-				m_deviceIndex, _new_numParts, m_numParticles);
+				m_deviceIndex, external_start_at, m_numParticles);
 	else
-		m_numParticles = _new_numParts;
+		m_numParticles = external_start_at;
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
