@@ -28,7 +28,20 @@
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
 // requests to download cellStart and cellEnd
-enum CommandType {IDLE, CALCHASH, SORT, CROP, REORDER, BUILDNEIBS, FORCES, EULER, DUMP, DUMP_CELLS, QUIT};
+enum CommandType {
+	IDLE,				// do a dummy cycle
+	CALCHASH,			// run calcHash kernel
+	SORT,				// run thrust::sort
+	CROP,				// crop out all the external particles
+	REORDER,			// run reorderAndFindCellStart kernel
+	BUILDNEIBS,			// run buildNeibs kernel
+	FORCES,				// run forces kernel
+	EULER,				// run euler kernel
+	DUMP,				// dump all pos, vel and info to shared host arrays
+	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
+	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
+	QUIT				// quits the simulation cycle
+};
 
 enum WriterType
 {
