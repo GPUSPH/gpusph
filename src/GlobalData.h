@@ -40,6 +40,7 @@ enum CommandType {
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
+	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	QUIT				// quits the simulation cycle
 };
 
