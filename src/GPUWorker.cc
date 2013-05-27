@@ -773,12 +773,13 @@ void GPUWorker::kernel_calcHash()
 					gdata->gridSize,
 					gdata->cellSize,
 					gdata->worldOrigin,
-					m_numParticles);
+					(gdata->only_internal ? m_numInternalParticles : m_numParticles) );
 }
 
 void GPUWorker::kernel_sort()
 {
-	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
+	sort(m_dParticleHash, m_dParticleIndex,
+		(gdata->only_internal ? m_numInternalParticles : m_numParticles) );
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
@@ -796,7 +797,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 #if HASH_KEY_SIZE >= 64
 							m_dSegmentStart,
 #endif
-							m_numParticles,
+							(gdata->only_internal ? m_numInternalParticles : m_numParticles),
 							m_nGridCells);
 	// if multi-GPU, update the number of internal particles
 	if (gdata->devices > 1)
@@ -815,7 +816,7 @@ void GPUWorker::kernel_buildNeibsList()
 						gdata->gridSize,
 						gdata->cellSize,
 						gdata->worldOrigin,
-						m_numParticles,
+						(gdata->only_internal ? m_numInternalParticles : m_numParticles),
 						m_nGridCells,
 						m_simparams->nlSqInfluenceRadius,
 						m_simparams->periodicbound);
@@ -834,7 +835,7 @@ void GPUWorker::kernel_forces()
 						m_dXsph,
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
-						m_numParticles,
+						(gdata->only_internal ? m_numInternalParticles : m_numParticles),
 						m_simparams->slength,
 						gdata->dt, // m_dt,
 						m_simparams->dtadapt,
@@ -861,7 +862,7 @@ void GPUWorker::kernel_forces()
 						m_dXsph,
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
-						m_numParticles,
+						(gdata->only_internal ? m_numInternalParticles : m_numParticles),
 						m_simparams->slength,
 						gdata->dt, // m_dt,
 						m_simparams->dtadapt,
@@ -901,7 +902,7 @@ void GPUWorker::kernel_euler()
 				m_dXsph,
 				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
-				m_numParticles,
+				(gdata->only_internal ? m_numInternalParticles : m_numParticles),
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
 				1,
@@ -916,7 +917,7 @@ void GPUWorker::kernel_euler()
 				m_dXsph,
 				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
-				m_numParticles,
+				(gdata->only_internal ? m_numInternalParticles : m_numParticles),
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
 				2,
