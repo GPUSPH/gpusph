@@ -337,6 +337,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	// TODO: allocation for rigid bodies
 
 	if (m_simparams->dtadapt) {
+		// for the allocation we use m_numPartsFmax computed from m_numAlocatedParticles;
+		// we need to update this when we run forces on a subset of particles
 		m_numPartsFmax = getNumPartsFmax(m_numAlocatedParticles);
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
 
