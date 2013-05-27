@@ -169,6 +169,10 @@ public:
 	cudaDeviceProp getDeviceProperties();
 	unsigned long getHostMemory();
 	unsigned long getDeviceMemory();
+	// for peer transfers
+	const float4** getDPosBuffers();
+	const float4** getDVelBuffers();
+	const particleinfo** getDInfoBuffers();
 };
 
 #endif /* GPUWORKER_H_ */

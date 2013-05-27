@@ -505,6 +505,21 @@ unsigned long GPUWorker::getDeviceMemory() {
 	return m_deviceMemory;
 }
 
+const float4** GPUWorker::getDPosBuffers()
+{
+	return (const float4**)m_dPos;
+}
+
+const float4** GPUWorker::getDVelBuffers()
+{
+	return (const float4**)m_dVel;
+}
+
+const particleinfo** GPUWorker::getDInfoBuffers()
+{
+	return (const particleinfo**)m_dInfo;
+}
+
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
