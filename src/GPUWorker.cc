@@ -61,6 +61,17 @@ uint GPUWorker::estimateROParticles()
 	return gdata->s_hPartsPerDevice[m_deviceIndex] * 1.5f;
 }
 
+// Cut all particles that are not internal.
+// Assuming segments have already been filled and downloaded to the shared array
+void GPUWorker::dropExternalParticles()
+{
+	uint _new_numParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
+	if (_new_numParts > m_numParticles)
+		printf("WARNING: thread %u: first outer particle (%u) beyond active particles (%u)! Not cropping\n",
+				m_deviceIndex, _new_numParts, m_numParticles);
+	else
+		m_numParticles = _new_numParts;
+}
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
 // Later this will be changed since each thread does not need to allocate the global number of particles.

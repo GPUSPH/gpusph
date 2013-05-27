@@ -129,6 +129,9 @@ private:
 	uint getMaxParticles();
 	uint estimateROParticles();
 
+	// cuts all external particles
+	void dropExternalParticles();
+
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
