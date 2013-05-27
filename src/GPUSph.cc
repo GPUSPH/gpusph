@@ -641,6 +641,20 @@ bool GPUSPH::runSimulation() {
 
 		// build neighbors list
 		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
+
+			// if running on multiple GPUs, update the external cells
+			if (gdata->devices > 1) {
+				// we need extra calchash, sort, reorder, etc. This will be later optimized
+				doCommand(CALCHASH);
+				doCommand(SORT);
+				doCommand(REORDER);
+				doCommand(DUMP_CELLS);
+				// crop away the obsolete copy of the external (edge and non-edge) cells
+				doCommand(CROP);
+				// append the fresh copies
+				doCommand(APPEND_EXTERNAL);
+			}
+
 			doCommand(CALCHASH);
 			doCommand(SORT);
 			doCommand(REORDER);
