@@ -82,6 +82,7 @@ void GPUWorker::importPeerEdgeCells()
 {
 	// at the moment, the cells are imported in the same order they are encountered iterating
 	// on the device map. We wonder if iterating per-device would lead more optimized transfers.
+	// Keeping a list of external cells to be updated could be useful to this aim.
 	// For sure one optimization should be to compact (when possible) burst of cells coming from
 	// the same peer device.
 
