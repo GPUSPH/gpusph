@@ -132,6 +132,9 @@ private:
 	// cuts all external particles
 	void dropExternalParticles();
 
+	// append a copy of the external cells of other devices to the present array
+	void importPeerEdgeCells();
+
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
