@@ -45,6 +45,9 @@ private:
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
 	void particleSwap(uint idx1, uint idx2);
 
+	// update s_hStartPerDevice and s_hPartsPerDevice
+	void updateArrayIndices();
+
 	// set nextCommand, unlock the threads and wait for them to complete
 	void doCommand(CommandType cmd);
 

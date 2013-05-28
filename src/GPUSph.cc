@@ -1089,3 +1089,16 @@ void GPUSPH::printStatus()
 	fflush(stdout);
 //#undef ti
 }
+
+// update s_hStartPerDevice and s_hPartsPerDevice.
+// Could go in GlobalData but would need another forward-declaration
+void GPUSPH::updateArrayIndices() {
+	// this should always hold
+	gdata->s_hStartPerDevice[0] = 0;
+	// just store an incremental counter
+	for (int d=0; d < gdata->devices; d++) {
+		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumParticles();
+		if (d > 0)
+			gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
+	}
+}
