@@ -89,7 +89,7 @@ void GPUWorker::importPeerEdgeCells()
 	// iterate on all cells
 	for (uint cell=0; cell < m_nGridCells; cell++)
 		// if the current is an external edge cell...
-		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL) {
+		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
 			// check in which device it is
 			uchar peerDevIndex = gdata->s_hDeviceMap[cell];
 			uint peerCudaDevNum = gdata->device[peerDevIndex];
@@ -148,7 +148,7 @@ void GPUWorker::updatePeerEdgeCells()
 	// iterate on all cells
 	for (uint cell=0; cell < m_nGridCells; cell++)
 		// if the current is an external edge cell...
-		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL) {
+		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
 			// check in which device it is
 			uchar peerDevIndex = gdata->s_hDeviceMap[cell];
 			uint peerCudaDevNum = gdata->device[peerDevIndex];
