@@ -648,6 +648,18 @@ void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
 
+void GPUWorker::setPeerAccess()
+{
+	int res;
+	cudaDeviceCanAccessPeer(&res, m_deviceIndex, 1 - m_deviceIndex);
+	printf(" > Device %u can access device %u: %u\n", m_deviceIndex, 1 - m_deviceIndex, res);
+	for (uint d=0; d < gdata->devices; d++) {
+		if (d != m_deviceIndex) cudaDeviceEnablePeerAccess(d, 0);
+	}
+	cudaDeviceCanAccessPeer(&res, m_deviceIndex, 1 - m_deviceIndex);
+	printf(" > Device %u can access device %u: %u\n", m_deviceIndex, 1 - m_deviceIndex, res);
+}
+
 // Actual thread calling GPU-methods
 void* GPUWorker::simulationThread(void *ptr) {
 	// INITIALIZATION PHASE
