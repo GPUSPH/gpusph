@@ -7,7 +7,7 @@
 // TODO: errors should be thrown properly, the functions should not brutally terminate everything.
 // Furthermore, the number of CUDA devices could be checked before the threads are started (i.e. when checking
 // command line options in main()).
-cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devnum)
+cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 {
 	int deviceCount;
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
@@ -16,7 +16,7 @@ cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devnum)
 		exit(1);
 	}
 
-	int cudaDevNum = gdata->device[devnum];
+	int cudaDevNum = gdata->device[devidx];
 
 	// it is a semnatic error to correct here the validity of the device num.
 	// if a devnum is out of range, program should terminate, not try to "fix" it

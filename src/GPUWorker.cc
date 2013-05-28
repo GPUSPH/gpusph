@@ -672,7 +672,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	const unsigned int cudaDeviceNumber = instance->getCUDADeviceNumber();
 	const unsigned int deviceIndex = instance->getDeviceIndex();
 
-	instance->setDeviceProperties( checkCUDA(gdata, cudaDeviceNumber) );
+	instance->setDeviceProperties( checkCUDA(gdata, deviceIndex) );
 
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
