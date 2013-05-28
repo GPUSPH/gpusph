@@ -128,11 +128,6 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
-	// methods to handle the number of particles
-	uint getNumParticles();
-	uint getMaxParticles();
-	uint estimateROParticles();
-
 	// cuts all external particles
 	void dropExternalParticles();
 
@@ -169,6 +164,11 @@ public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();
+
+	// methods to handle the number of particles
+	uint getNumParticles();
+	uint getMaxParticles();
+	uint estimateROParticles();
 
 	// thread management
 	void run_worker();
