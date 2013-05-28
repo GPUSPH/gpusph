@@ -669,7 +669,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 		deviceIndex, instance->getHostMemory()/1000, instance->getDeviceMemory()/1000, cudaDeviceNumber);
 
 	// create and upload the compact device map (2 bits per cell)
-	if (gdata->devices>1) {
+	if (gdata->devices > 1) {
 		instance->createCompactDeviceMap();
 		instance->uploadCompactDeviceMap();
 	}
