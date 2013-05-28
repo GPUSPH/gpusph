@@ -715,9 +715,11 @@ bool GPUSPH::runSimulation() {
 
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
-			gdata->dt = gdata->dts[0];
+			if (gdata->dts[0] > 0.0F)
+				gdata->dt = gdata->dts[0];
 			for (int d=1; d < gdata->devices; d++)
-				gdata->dt = min(gdata->dt, gdata->dts[d]);
+				if (gdata->dts[d] > 0.0F)
+					gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// TODO for multinode
 			//MM			send dt
 			//MM			gather dts, chose min, broadcast (if rank 0)
