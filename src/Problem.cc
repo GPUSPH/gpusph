@@ -225,7 +225,7 @@ Problem::g_callback(const float t)
 void Problem::fillDeviceMap(GlobalData* gdata) {
 	uint cells_per_device = gdata->nGridCells / gdata->devices;
 	for (uint i=0; i < gdata->nGridCells; i++)
-		gdata->s_hDeviceMap[i] = i/cells_per_device;
+		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->devices-1);
 }
 
 void 
