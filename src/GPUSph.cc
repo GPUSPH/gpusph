@@ -651,6 +651,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(REORDER);
 				gdata->swapDeviceBuffers(true);
 				doCommand(DUMP_CELLS);
+				updateArrayIndices();
 				// crop away the obsolete copy of the external (edge and non-edge) cells
 				doCommand(CROP);
 				// append the fresh copies
@@ -662,6 +663,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(REORDER);
 			// TODO: make async
 			doCommand(DUMP_CELLS);
+			updateArrayIndices();
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(true);
 
