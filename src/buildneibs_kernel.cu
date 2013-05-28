@@ -108,7 +108,8 @@ calcHashDevice(const float4*	posArray,
 	// prepare the 2 most significant bits of the hash (bitwise AND with 00111111...)
 	gridHash &= CELLTYPE_BITMASK_64;
 	// mark the cell as inner/outer and/or edge by setting the high bits
-	gridHash |= compactDeviceMap[shortGridHash] << (GRIDHASH_BITSHIFT -2);
+	// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
+	gridHash |= ((long unsigned int)compactDeviceMap[shortGridHash]) << GRIDHASH_BITSHIFT;
 #endif
 
 	// store grid hash and particle index
