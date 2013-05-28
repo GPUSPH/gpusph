@@ -167,6 +167,7 @@ public:
 
 	// methods to handle the number of particles
 	uint getNumParticles();
+	uint getNumInternalParticles();
 	uint getMaxParticles();
 	uint estimateROParticles();
 

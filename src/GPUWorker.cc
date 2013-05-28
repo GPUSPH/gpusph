@@ -47,6 +47,11 @@ uint GPUWorker::getNumParticles()
 	return m_numParticles;
 }
 
+uint GPUWorker::getNumInternalParticles() {
+	return min( gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
+				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
+}
+
 // Return the maximum number of particles the worker can handled (allocated)
 uint GPUWorker::getMaxParticles()
 {
