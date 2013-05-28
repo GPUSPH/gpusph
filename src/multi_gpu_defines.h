@@ -12,12 +12,12 @@
 
 // 2 high bits for cell type in the compact device map. It is important in
 // the current implementation that the OUTER cells are sorted last
-#define CELLTYPE_MASK_INNER_CELL		(CELLTYPE_INNER_CELL<<30)
-#define CELLTYPE_MASK_INNER_EDGE_CELL	(CELLTYPE_INNER_EDGE_CELL<<30)
-#define CELLTYPE_MASK_OUTER_EDGE_CELL	(CELLTYPE_OUTER_EDGE_CELL<<30)
-#define CELLTYPE_MASK_OUTER_CELL		(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
+#define CELLTYPE_INNER_CELL_SHIFTED			(CELLTYPE_INNER_CELL<<30)
+#define CELLTYPE_INNER_EDGE_CELL_SHIFTED	(CELLTYPE_INNER_EDGE_CELL<<30)
+#define CELLTYPE_OUTER_EDGE_CELL_SHIFTED	(CELLTYPE_OUTER_EDGE_CELL<<30)
+#define CELLTYPE_OUTER_CELL_SHIFTED			(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
 
-// Bitmasks used to reset the cellType
+// Bitmasks used to reset the cellType (in AND to reset: 0011111...)
 #define CELLTYPE_BITMASK_32 (~( (unsigned int)3 << 30))
 #define CELLTYPE_BITMASK_64 (~( (long unsigned int)3 << 62))
 
