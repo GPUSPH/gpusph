@@ -89,7 +89,6 @@ struct GlobalData {
 	float3 cellSize;
 	uint3 gridSize;
 	uint nGridCells;
-	uint nSortingBits;
 
 	// ceil(totParticles/devices)
 	//uint idealSubset;

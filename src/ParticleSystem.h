@@ -153,7 +153,7 @@ class ParticleSystem
 		uint		m_numPlanes;			// total number of planes
 		uint3		m_gridSize;				// number of domain cells in each direction
 		uint		m_nGridCells;			// total number of domain cells
-		uint		m_nSortingBits;			// number of significant bits for sorting (ceil(log2(m_nGridCells)))
+		//uint		m_nSortingBits;			// number of significant bits for sorting (ceil(log2(m_nGridCells)))
 		float3		m_worldOrigin;			// origin of simulation domain
 		float3		m_worldSize;			// simulation domain size
 		float3		m_cellSize;				// size of domain cell

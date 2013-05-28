@@ -486,9 +486,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->gridSize.y = (uint) (gdata->worldSize.y / _sp->influenceRadius);
 	gdata->gridSize.z = (uint) (gdata->worldSize.z / _sp->influenceRadius);
 
-	// compute the number of cells and the number of significant bits for radixsort
+	// compute the number of cells
 	gdata->nGridCells = gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
-	gdata->nSortingBits = ceil(log2((float) gdata->nGridCells)/4.0)*4;
 
 	// since the gridsize was obtained by truncation, make the cellSize and exact divisor
 	gdata->cellSize.x = gdata->worldSize.x / gdata->gridSize.x;

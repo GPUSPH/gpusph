@@ -98,7 +98,7 @@ ParticleSystem::ParticleSystem(GlobalData *gdata) :
 	gdata->gridSize = m_gridSize;
 
 	gdata->nGridCells = m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
-	gdata->nSortingBits = m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
+	//gdata->nSortingBits = m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
 
 	m_cellSize.x = m_worldSize.x / m_gridSize.x;
 	m_cellSize.y = m_worldSize.y / m_gridSize.y;
@@ -214,7 +214,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_gridSize.z = (uint) (m_worldSize.z / m_influenceRadius);
 
 	m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
-	m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
+	//m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
 
 	m_cellSize.x = m_worldSize.x / m_gridSize.x;
 	m_cellSize.y = m_worldSize.y / m_gridSize.y;
