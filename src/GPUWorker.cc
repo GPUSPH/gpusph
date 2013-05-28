@@ -227,9 +227,11 @@ size_t GPUWorker::allocateHostBuffers() {
 	allocated += uintCellsSize;
 
 	// TODO: only allocate when multi-GPU
-	m_hCompactDeviceMap = new uint[m_nGridCells];
-	memset(m_hCompactDeviceMap, 0, uintCellsSize);
-	allocated += uintCellsSize;
+	if (gdata->devices > 1) {
+		m_hCompactDeviceMap = new uint[m_nGridCells];
+		memset(m_hCompactDeviceMap, 0, uintCellsSize);
+		allocated += uintCellsSize;
+	}
 
 	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numAlocatedParticles];
@@ -369,6 +371,8 @@ void GPUWorker::deallocateHostBuffers() {
 	delete [] m_hInfo;
 	delete [] m_hCellStart;
 	delete [] m_hCellEnd;
+	if (gdata->devices > 1)
+		delete [] m_hCompactDeviceMap;
 	if (m_simparams->vorticity)
 		delete [] m_hVort;
 	// here: dem host buffers?
