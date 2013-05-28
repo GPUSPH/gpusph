@@ -311,7 +311,6 @@ forces(	float4*			pos,
 		float			visccoeff,
 		float*			cfl,
 		float*			tempCfl,
-		uint			numPartsFmax,
 		float2*			tau[],
 		bool			periodicbound,
 		SPHFormulation	sph_formulation,
@@ -391,7 +390,9 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (dtadapt) {
-		float maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
+		// cfl holds one value per block in the forces kernel call,
+		// so it holds numBlocks elements
+		float maxcfl = cflmax(numBlocks, cfl, tempCfl);
 		dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 		if (visctype != ARTVISC) {

@@ -338,8 +338,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	if (m_simparams->dtadapt) {
 		// for the allocation we use m_numPartsFmax computed from m_numAlocatedParticles;
-		// we need to update this when we run forces on a subset of particles
-		m_numPartsFmax = getNumPartsFmax(m_numAlocatedParticles);
+		// after forces we use an updated value instead (the numblocks of forces)
+		uint m_numPartsFmax = getNumPartsFmax(m_numAlocatedParticles);
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
@@ -849,7 +849,6 @@ void GPUWorker::kernel_forces()
 						m_physparams->visccoeff,
 						m_dCfl,
 						m_dTempCfl,
-						m_numPartsFmax,
 						m_dTau,
 						m_simparams->periodicbound,
 						m_simparams->sph_formulation,
@@ -876,7 +875,6 @@ void GPUWorker::kernel_forces()
 						m_physparams->visccoeff,
 						m_dCfl,
 						m_dTempCfl,
-						m_numPartsFmax,
 						m_dTau,
 						m_simparams->periodicbound,
 						m_simparams->sph_formulation,

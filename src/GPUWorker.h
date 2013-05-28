@@ -94,7 +94,7 @@ private:
 	particleinfo*	m_dInfo[2];			// particle info array
 	float4*     m_dNormals;				// normal at free surface
 	float3*		m_dVort;				// vorticity
-	uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
+	//uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
 	float*		m_dCfl;					// cfl for each block
 	float*		m_dTempCfl;				// temporary storage for cfl computation
 	float*		m_dCfl2;				// test
