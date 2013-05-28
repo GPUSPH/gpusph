@@ -1101,7 +1101,7 @@ void GPUSPH::updateArrayIndices() {
 	gdata->s_hStartPerDevice[0] = 0;
 	// just store an incremental counter
 	for (int d=0; d < gdata->devices; d++) {
-		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumParticles();
+		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
 		if (d > 0)
 			gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 	}
