@@ -58,7 +58,7 @@ uint GPUWorker::getMaxParticles()
 // TODO: make a more realisti estimation, e.g. by counting the neighbor cells
 uint GPUWorker::estimateROParticles()
 {
-	return gdata->s_hPartsPerDevice[m_deviceIndex] * 0.5f;
+	return gdata->s_hPartsPerDevice[m_deviceIndex] * 1.5f;
 }
 
 // Cut all particles that are not internal.
