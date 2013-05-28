@@ -118,10 +118,6 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 	
 	CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
-#if HASH_KEY_SIZE >= 64
-	// initialize segmentStart to numParticles (to handle empty segment)
-	CUDA_SAFE_CALL(cudaMemset(segmentStart, numParticles, 4*sizeof(uint)));
-#endif
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));

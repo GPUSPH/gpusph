@@ -135,6 +135,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
+#if HASH_KEY_SIZE >= 64
+	// initialize segmentStarts
+	if (index < 4) segmentStart[index] = numParticles;
+#endif
+
 	uint hash;
 	// handle case when no. of particles not multiple of block size
 	if (index < numParticles) {
