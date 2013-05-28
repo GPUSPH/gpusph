@@ -544,8 +544,8 @@ void GPUWorker::createCompactDeviceMap() {
 			for (int iz=0; iz < gdata->gridSize.z; iz++) {
 				// data of current cell
 				uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
-				uint cell_devnum = gdata->s_hDeviceMap[cell_lin_idx];
-				bool is_mine = (cell_devnum == m_deviceIndex);
+				uint cell_devidx = gdata->s_hDeviceMap[cell_lin_idx];
+				bool is_mine = (cell_devidx == m_deviceIndex);
 				// aux vars for iterating on neibs
 				bool any_foreign_neib = false; // at least one neib does not belong to me?
 				bool any_mine_neib = false; // at least one neib does belong to me?
@@ -564,9 +564,9 @@ void GPUWorker::createCompactDeviceMap() {
 							if (!(dx == 0 && dy == 0 && dz == 0)) {
 								// data of neib cell
 								uint neib_lin_idx = gdata->calcGridHashHost(ix + dx, iy + dy, iz + dz);
-								uint neib_devnum = gdata->s_hDeviceMap[neib_lin_idx];
-								any_mine_neib	 |= (neib_devnum == cell_devnum);
-								any_foreign_neib |= (neib_devnum != cell_devnum);
+								uint neib_devidx = gdata->s_hDeviceMap[neib_lin_idx];
+								any_mine_neib	 |= (neib_devidx == cell_devidx);
+								any_foreign_neib |= (neib_devidx != cell_devidx);
 								// did we read enough to decide for current cell?
 								enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 							}
