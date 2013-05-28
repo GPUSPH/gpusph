@@ -649,6 +649,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(CALCHASH);
 				doCommand(SORT);
 				doCommand(REORDER);
+				gdata->swapDeviceBuffers(true);
 				doCommand(DUMP_CELLS);
 				// crop away the obsolete copy of the external (edge and non-edge) cells
 				doCommand(CROP);
