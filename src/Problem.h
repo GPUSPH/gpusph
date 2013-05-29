@@ -69,8 +69,8 @@ class Problem {
 			CUSTOMTEXTWRITER
 		};
 
-		float3	m_size;			// Size of compuation domain
-		float3	m_origin;		// Origin of compuatation domain
+		float3	m_size;			// Size of computation domain
+		float3	m_origin;		// Origin of computation domain
 		float	m_deltap;		// Initial particle spacing
 
 		// Min and max values used for display
