@@ -177,6 +177,10 @@ void DamBreak3D::draw_boundary(float t)
 	obstacle.GLDraw();
 }
 
+void DamBreak3D::fillDeviceMap(GlobalData* gdata)
+{
+	fillDeviceMapByAxis(gdata, Y_AXIS);
+}
 
 void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {

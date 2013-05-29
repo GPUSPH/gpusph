@@ -55,6 +55,9 @@ class DamBreak3D: public Problem {
 		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
 
+		// override standard split
+		void fillDeviceMap(GlobalData* gdata);
+
 		void release_memory(void);
 };
 #endif	/* _DAMBREAK3D_H */
