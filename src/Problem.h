@@ -69,6 +69,15 @@ class Problem {
 			CUSTOMTEXTWRITER
 		};
 
+		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
+		enum SplitAxis
+		{
+			LONGEST_AXIS,
+			X_AXIS,
+			Y_AXIS,
+			Z_AXIS
+		};
+
 		float3	m_size;			// Size of computation domain
 		float3	m_origin;		// Origin of computation domain
 		float	m_deltap;		// Initial particle spacing
@@ -200,8 +209,12 @@ class Problem {
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
 
-		// Partition the grid in numDevices parts - virtual to allow more sophisticated or topology-specific partitionings
+		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap(GlobalData* gdata);
+		// partition by splitting the cells according to their linearized hash
+		void fillDeviceMapByCellHash(GlobalData* gdata);
+		// partition by splitting along an axis. Default: along the longest
+		void fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis);
 
 		void allocate_bodies(const int);
 		RigidBody* get_body(const int);

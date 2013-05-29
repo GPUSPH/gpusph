@@ -221,11 +221,66 @@ Problem::g_callback(const float t)
 	return make_float3(0.0);
 }
 
-// Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[
-void Problem::fillDeviceMap(GlobalData* gdata) {
+// Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
+// Default algorithm: split along the longest axis
+void Problem::fillDeviceMap(GlobalData* gdata)
+{
+	fillDeviceMapByAxis(gdata, LONGEST_AXIS);
+}
+
+// partition by splitting the cells according to their linearized hash.
+void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
+{
 	uint cells_per_device = gdata->nGridCells / gdata->devices;
 	for (uint i=0; i < gdata->nGridCells; i++)
 		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->devices-1);
+}
+
+// partition by splitting along the specified axis
+void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis)
+{
+	// select the longest axis
+	if (preferred_split_axis == LONGEST_AXIS) {
+		if (	gdata->worldSize.x >= gdata->worldSize.y &&
+				gdata->worldSize.x >= gdata->worldSize.z)
+			preferred_split_axis == X_AXIS;
+		else
+		if (	gdata->worldSize.y >= gdata->worldSize.z)
+			preferred_split_axis == Y_AXIS;
+		else
+			preferred_split_axis == Z_AXIS;
+	}
+	uint cells_per_longest_axis;
+	switch (preferred_split_axis) {
+		case X_AXIS:
+			cells_per_longest_axis = gdata->gridSize.x;
+			break;
+		case Y_AXIS:
+			cells_per_longest_axis = gdata->gridSize.y;
+			break;
+		case Z_AXIS:
+			cells_per_longest_axis = gdata->gridSize.z;
+			break;
+	}
+	uint cells_per_device_per_longest_axis = cells_per_longest_axis / gdata->devices;
+	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
+		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
+			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
+				uint axis_coordinate;
+				switch (preferred_split_axis) {
+					case X_AXIS: axis_coordinate = cx; break;
+					case Y_AXIS: axis_coordinate = cy; break;
+					case Z_AXIS: axis_coordinate = cz; break;
+				}
+				// everything is just a preparation for the following line
+				uchar dstDevice = axis_coordinate / cells_per_device_per_longest_axis;
+				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
+				dstDevice = min(dstDevice, gdata->devices - 1);
+				// compute cell address
+				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = dstDevice;
+			}
 }
 
 void 
