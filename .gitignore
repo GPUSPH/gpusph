@@ -23,4 +23,5 @@ mpitests/
 .cproject
 .settings/
 deviceQuery
+seewaves/
 
