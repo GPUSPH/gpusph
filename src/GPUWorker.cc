@@ -128,9 +128,27 @@ void GPUWorker::importPeerEdgeCells()
 												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
-				// update the number of particles
+				// now we should write
+				// cellStart[cell] = m_numParticles
+				// cellEnd[cell] = m_numParticles + numPartsInPeerCell
+				// in both device memory and host buffers (although will not be used)
+
+				// Update host copy of cellStart and cellEnd. Since it is an external cell,
+				// it is unlikely that the host copy will be used, but it is always good to keep
+				// indices coherent
+				gdata->s_dCellStarts[m_deviceIndex][cell] = m_numParticles;
+				gdata->s_dCellEnds[m_deviceIndex][cell] = m_numParticles + numPartsInPeerCell;
+
+				// Update device copy of cellStart (later cellEnd). This allows for building the
+				// neighbor list directly, without the need of running again calchash, sort and reorder
+				// Is cudaMemcpyToSymbol() faster here?
+				CUDA_SAFE_CALL(cudaMemcpy((m_dCellStart + cell), &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
+
+				// update the total number of particles
 				m_numParticles += numPartsInPeerCell;
 
+				// now m_numParticles corresponds to cell's cellEnd. Upload it
+				CUDA_SAFE_CALL(cudaMemcpy((m_dCellEnd + cell), &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 			} // if cell is not empty
 		} // if cell is external edge
 
