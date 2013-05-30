@@ -294,6 +294,10 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hTurbVisc, 0, memSize);
 	memory += memSize;
 
+	m_hStrainRate = new float[m_numParticles]; //TODO: delete it later, used for debugging
+	memset(m_hStrainRate, 0, memSize);
+	memory += memSize;
+
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
@@ -423,6 +427,13 @@ ParticleSystem::allocate(uint numParticles)
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTurbVisc[1], memSize));
 	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dStrainRate, memSize));
+	CUDA_SAFE_CALL(cudaMemset(m_dStrainRate, 0, memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dDkDe, memSize2));
+	memory += memSize2;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
 	memory += hashSize;
@@ -671,7 +682,7 @@ ParticleSystem::printPhysParams(FILE *summary)
 			fprintf(summary, "\tSmagFactor = %g\n", m_physparams->smagfactor);
 			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams->kspsfactor);
 			break;
-		case KEPS:
+		case KEPSVISC:
 			fprintf(summary, "\tk-e model: kinematicvisc = %g m^2/s\n",
 					m_physparams->kinematicvisc);
 			break;
@@ -1010,6 +1021,11 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hTurbVisc;
 			ddata = (void*) m_dTurbVisc[m_currentTurbViscRead];
+
+		case STRAINRATE:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hStrainRate;
+			ddata = (void*) m_dStrainRate;
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -1086,6 +1102,12 @@ ParticleSystem::setArray(ParticleArray array)
 			size = m_numParticles*sizeof(float);
 			break;
 
+		case STRAINRATE:
+			hdata = m_hStrainRate;
+			ddata = m_dStrainRate;
+			size = m_numParticles*sizeof(float);
+			break;
+
 		default:
 			fprintf(stderr, "Trying to upload unknown array %d\n", array);
 			return;
@@ -1109,7 +1131,7 @@ void
 ParticleSystem::writeToFile()
 {
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hTurbVisc);
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hStrainRate); //FIXME: TurbVisc instead of StrainRate
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
@@ -1623,6 +1645,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_influenceRadius,
 					m_simparams->visctype,
 					m_physparams->visccoeff,
+					m_dStrainRate,
+					m_dTurbVisc[m_currentTurbViscRead],
+					m_dTKE[m_currentTKERead],
+					m_dEps[m_currentEpsRead],
+					m_dDkDe,
 					m_dCfl,
 					m_dCflGamma,
 					m_dTempCfl,
@@ -1770,6 +1797,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_influenceRadius,
 					m_simparams->visctype,
 					m_physparams->visccoeff,
+					m_dStrainRate,
+					m_dTurbVisc[m_currentTurbViscWrite],
+					m_dTKE[m_currentTKEWrite],
+					m_dEps[m_currentEpsWrite],
+					m_dDkDe,
 					m_dCfl,
 					m_dCflGamma,
 					m_dTempCfl,
@@ -1860,6 +1892,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
+
+	std::swap(m_currentTurbViscRead, m_currentTurbViscWrite);
+	std::swap(m_currentTKERead, m_currentTKEWrite);
+	std::swap(m_currentEpsRead, m_currentEpsWrite);
 
 	// Free surface detection (Debug)
 	//savenormals();

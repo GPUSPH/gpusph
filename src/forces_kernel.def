@@ -50,6 +50,8 @@ FORCES_CUDA_KERNEL
 (	
 	float4*		posArray,
 	float4*		forces,
+	float2*		keps_dkde,
+	float*		turbvisc,
 	# ifdef XSPH_KERNEL
 	float4*		xsph,
 	# endif
@@ -106,6 +108,19 @@ FORCES_CUDA_KERNEL
 			tau.a23 = temp.x;
 			tau.a33 = temp.y;
 			# endif
+
+			# ifdef VISC_KEPS
+			const float Strain = tex1Dfetch(strainTex, index);
+			const float keps_k = tex1Dfetch(keps_kTex, index);
+			const float keps_e = tex1Dfetch(keps_eTex, index);
+			const float TurbVisc = turbvisc[index];						// eddy viscosity
+			float Pturb = TurbVisc*Strain*Strain;						// production of turbulent kinetic energy (TKE)
+			float dkdt = Pturb - keps_e;								// dk/dt, simplified equation for homogeneous turbulence, will be extended with diffusion term later
+			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e);	// de/dt, simplified equation ...
+			keps_dkde[index].x = dkdt;
+			keps_dkde[index].y = dedt;
+			# endif
+
 			// force and density derivative
 			float4 force = make_float4(0.0f);
 
@@ -257,6 +272,10 @@ FORCES_CUDA_KERNEL
 						if (vel_dot_pos < 0.0f)
 							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
 										neib_sspeed, r, slength);
+						# elif defined(VISC_KEPS)
+						//FIXME: Stub based on DYNAMICVISC
+						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
+										d_visccoeff*neib_vel.w);
 						# else
 						# error Unknown viscosity!
 						# endif // VISC_*
@@ -333,6 +352,8 @@ FORCES_CUDA_KERNEL
 			# elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
 			const float dynvisc = d_visccoeff*vel.w/4.0f;				// FXME: check????????
 			# elif defined(VISC_ARTVISC)
+			const float dynvisc = 0.0;
+			# elif defined(VISC_KEPS)
 			const float dynvisc = 0.0;
 			# else
 			# error Unknown viscosity!

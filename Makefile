@@ -344,7 +344,7 @@ $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
 	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[CU] $(@F)" && \
+	printf "[CU] $(@F)\n" && \
 	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
 
 # create distdir

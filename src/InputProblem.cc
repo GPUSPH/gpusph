@@ -98,7 +98,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 1.0;
-	m_simparams.visctype = KEPS;
+	m_simparams.visctype = KEPSVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = MF_BOUNDARY;
 
@@ -130,7 +130,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
-	m_writefreq = 500;
+	m_writefreq = 100;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation

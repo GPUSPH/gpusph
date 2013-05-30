@@ -84,6 +84,7 @@ class ParticleSystem
 			TKE,
 			EPSILON,
 			TURBVISC,
+			STRAINRATE, //TODO: delete it later, used for debugging
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -198,8 +199,9 @@ class ParticleSystem
 		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
 		float*		m_hPressure;			// stores pressure, used only for vertex and boundary particles
 		float*		m_hTKE;					// k - turbulent kinetic energy
-		float*		m_hEps;					// e - turbulent kinetic energy dissipation rate
+		float*		m_hEps;					// e - turbulent kinetic energy dissipation rate //TODO: delete it later, used for debugging
 		float*		m_hTurbVisc;			// nu_t - kinematic eddy viscosity
+		float*		m_hStrainRate;			// S - mean scalar strain rate //TODO: delete it later, used for debugging
 
 		// CPU arrays used for debugging
 		uint*		m_hNeibsList;
@@ -232,6 +234,8 @@ class ParticleSystem
 		float*		m_dTKE[2];					// k - turbulent kinetic energy
 		float*		m_dEps[2];					// e - turbulent kinetic energy dissipation rate
 		float*		m_dTurbVisc[2];				// nu_t - kinematic eddy viscosity
+		float*		m_dStrainRate;				// S - mean scalar strain rate
+		float2*		m_dDkDe;					// dk/dt and de/dt for k-e model
 
 		// TODO: profile with float3
 		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
