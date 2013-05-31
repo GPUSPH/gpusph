@@ -50,6 +50,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
+	//m_writerType = UDPWRITER;
 
 	// SPH parameters
 	set_deltap(0.02f);

@@ -66,7 +66,8 @@ class Problem {
 			TEXTWRITER,
 			VTKWRITER,
 			VTKLEGACYWRITER,
-			CUSTOMTEXTWRITER
+			CUSTOMTEXTWRITER,
+			UDPWRITER
 		};
 
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize

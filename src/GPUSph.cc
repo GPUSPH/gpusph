@@ -74,6 +74,7 @@
 #include "VTKWriter.h"
 #include "VTKLegacyWriter.h"
 #include "CustomTextWriter.h"
+#include "UDPWriter.h"
 
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
@@ -1051,6 +1052,11 @@ void GPUSPH::createWriter()
 		case Problem::CUSTOMTEXTWRITER:
 			gdata->writerType = CUSTOMTEXTWRITER;
 			gdata->writer = new CustomTextWriter(gdata->problem);
+			break;
+
+		case Problem::UDPWRITER:
+			gdata->writerType = UDPWRITER;
+			gdata->writer = new UDPWriter(gdata->problem);
 			break;
 
 		default:

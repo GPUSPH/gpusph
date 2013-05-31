@@ -49,7 +49,8 @@ enum WriterType
 	TEXTWRITER,
 	VTKWRITER,
 	VTKLEGACYWRITER,
-	CUSTOMTEXTWRITER
+	CUSTOMTEXTWRITER,
+	UDPWRITER
 };
 
 // forward declaration of Writer
