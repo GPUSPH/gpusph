@@ -376,3 +376,12 @@ Problem::draw_axis()
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z + axis_length);
 	glEnd();
 }
+
+void
+Problem::init_keps(float* k, float* e, int numpart, particleinfo* info)
+{
+	for (uint i = 0; i < numpart; i++) {
+		k[i] = 0.01f;
+		e[i] = 0.008f;
+	}
+}

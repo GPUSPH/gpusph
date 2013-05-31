@@ -323,6 +323,10 @@ void init(const char *arg)
 		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
 	}
 
+	// initialize values of k and e for k-e model
+	if(problem->m_simparams.visctype == KEPSVISC)
+		problem->init_keps(psystem->m_hTKE, psystem->m_hEps, numParticles, psystem->m_hInfo);
+
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);

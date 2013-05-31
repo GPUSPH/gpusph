@@ -1006,26 +1006,31 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hPressure;
 			ddata = (void*) m_dPressure[m_currentPressureRead];
+			break;
 
 		case TKE:
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hTKE;
 			ddata = (void*) m_dTKE[m_currentTKERead];
+			break;
 
 		case EPSILON:
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hEps;
 			ddata = (void*) m_dEps[m_currentEpsRead];
+			break;
 
 		case TURBVISC:
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hTurbVisc;
 			ddata = (void*) m_dTurbVisc[m_currentTurbViscRead];
+			break;
 
 		case STRAINRATE:
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hStrainRate;
 			ddata = (void*) m_dStrainRate;
+			break;
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
@@ -1131,7 +1136,7 @@ void
 ParticleSystem::writeToFile()
 {
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hStrainRate); //FIXME: TurbVisc instead of StrainRate
+	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hTurbVisc);
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
@@ -1656,9 +1661,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams->visctype,
 					m_physparams->visccoeff,
 					m_dStrainRate,
-					m_dTurbVisc[m_currentTurbViscRead],
-					m_dTKE[m_currentTKERead],
-					m_dEps[m_currentEpsRead],
+					m_dTurbVisc[m_currentTurbViscRead],	// nu_t(n)
+					m_dTKE[m_currentTKERead],	// k(n)
+					m_dEps[m_currentEpsRead],	// e(n)
 					m_dDkDe,
 					m_dCfl,
 					m_dCflGamma,
@@ -1695,11 +1700,16 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
+			m_dTKE[m_currentTKERead],	// k(n)
+			m_dEps[m_currentEpsRead],	// e(n)
 			m_dInfo[m_currentInfoRead], //particleInfo(n)
 			m_dForces,					// f(n)
+			m_dDkDe,					// dkde(n)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1/2) = pos(n) + vel(n)*dt/2
 			m_dVel[m_currentVelWrite],  // vel(n+1/2) = vel(n) + f(n)*dt/2
+			m_dTKE[m_currentTKEWrite],	// k(n+1/2) = k(n) + dkde(n).x*dt/2
+			m_dEps[m_currentEpsWrite],	// e(n+1/2) = e(n) + dkde(n).y*dt/2
 			m_numParticles,
 			m_dt,
 			m_dt/2.0,
@@ -1713,6 +1723,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dForces = f(n)
 	//  m_dPos[m_currentPosWrite] = pos(n+1/2) = pos(n) + vel(n)*dt/2
 	//  m_dVel[m_currentVelWrite] =  vel(n+1/2) = vel(n) + f(n)*dt/2
+	//  m_DkDe = dkde(n)
+	//	m_dTKE[m_currentTKERead] = k(n)
+	//  m_dEps[m_currentEpsRead] = e(n)
+	//  m_dTKE[m_currentTKEWrite] = k(n+1/2) = k(n) + dkde(n).x*dt/2
+	//  m_dEps[m_currentEpsWrite] = e(n+1/2) = e(n) + dkde(n).y*dt/2
 
 	if (timing) {
 		cudaEventRecord(stop_euler, 0);
@@ -1808,9 +1823,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams->visctype,
 					m_physparams->visccoeff,
 					m_dStrainRate,
-					m_dTurbVisc[m_currentTurbViscWrite],
-					m_dTKE[m_currentTKEWrite],
-					m_dEps[m_currentEpsWrite],
+					m_dTurbVisc[m_currentTurbViscWrite],	// nu_t(n+1/2)
+					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
+					m_dEps[m_currentEpsWrite],	// e(n+1/2)
 					m_dDkDe,
 					m_dCfl,
 					m_dCflGamma,
@@ -1834,11 +1849,16 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dVel[m_currentVelRead],   // vel(n)
+			m_dTKE[m_currentTKERead],	// k(n)
+			m_dEps[m_currentEpsRead],	// e(n)
 			m_dInfo[m_currentInfoRead], //particleInfo
 			m_dForces,					// f(n+1/2)
+			m_dDkDe,					// dkde(n+1/2)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 			m_dVel[m_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+			m_dTKE[m_currentTKEWrite],	// k(n+1) = k(n) + dkde(n+1/2).x*dt
+			m_dEps[m_currentEpsWrite],	// e(n+1) = e(n) + dkde(n+1/2).y*dt
 			m_numParticles,
 			m_dt,
 			m_dt/2.0,
