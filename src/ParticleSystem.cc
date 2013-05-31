@@ -1308,6 +1308,9 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dGradGamma[m_currentGradGammaWrite],		// output: sorted gradient gamma
 			m_dVertices[m_currentVerticesWrite],		// output: sorted vertices
 			m_dPressure[m_currentPressureWrite],		// output: sorted pressure
+			m_dTKE[m_currentTKEWrite],				// output: k for k-e model
+			m_dEps[m_currentEpsWrite],				// output: e for k-e model
+			m_dTurbVisc[m_currentTurbViscWrite],	// output: eddy viscosity
 			m_dParticleHash,				// input: sorted grid hashes
 			m_dParticleIndex,				// input: sorted particle indices
 			m_dPos[m_currentPosRead],			// input: sorted position array
@@ -1317,6 +1320,9 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dGradGamma[m_currentGradGammaRead],		// input: sorted gradient gamma
 			m_dVertices[m_currentVerticesRead],		// input: sorted vertices
 			m_dPressure[m_currentPressureRead],		// input: sorted pressure
+			m_dTKE[m_currentTKERead],				// input: k for k-e model
+			m_dEps[m_currentEpsRead],				// input: e for k-e model
+			m_dTurbVisc[m_currentTurbViscRead],		// input: eddy viscosity
 			m_dNewNumParticles,				// output: number of active particles
 			m_numParticles,
 			m_nGridCells,
@@ -1338,6 +1344,10 @@ ParticleSystem::buildNeibList(bool timing)
 	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 	std::swap(m_currentVerticesRead, m_currentVerticesWrite);
 	std::swap(m_currentPressureRead, m_currentPressureWrite);
+
+	std::swap(m_currentTKERead, m_currentTKEWrite);
+	std::swap(m_currentEpsRead, m_currentEpsWrite);
+	std::swap(m_currentTurbViscRead, m_currentTurbViscWrite);
 
 	m_timingInfo.numInteractions = 0;
 	m_timingInfo.maxNeibs = 0;
