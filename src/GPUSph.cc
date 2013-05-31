@@ -652,10 +652,13 @@ bool GPUSPH::runSimulation() {
 			// if running on multiple GPUs, update the external cells
 			if (gdata->devices > 1) {
 				// TODO: make all possible transfers async
+				// download updated cellStarts, cellEnds and segments
 				doCommand(DUMP_CELLS);
+				// update particle offsets
 				updateArrayIndices();
+				// crop external cells
 				doCommand(CROP);
-				// append the fresh copies
+				// append fresh copies of the externals
 				doCommand(APPEND_EXTERNAL);
 			}
 
