@@ -550,7 +550,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
 	// not before allocating the host buffers
-	if (gdata->devices>1)
+	if (gdata->devices > 1)
 		gdata->problem->fillDeviceMap(gdata);
 
 	// Check: is this mandatory? this requires double the memory!
@@ -576,7 +576,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO: read DEM file. setDemTexture() will be called from the GPUWokers instead
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
-	gdata->threadSynchronizer = new Synchronizer(gdata->devices+1);
+	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
 
 	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
@@ -815,7 +815,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	memset(dump_hInfo, 0, infoSize);
 	totCPUbytes += infoSize;*/
 
-	if (gdata->devices>1) {
+	if (gdata->devices > 1) {
 		// deviceMap
 		gdata->s_hDeviceMap = new uchar[numcells];
 		memset(gdata->s_hDeviceMap, 0, ucharCellSize);

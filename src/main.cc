@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
 	if (!parse_options(argc, argv, &gdata))
 		exit(1);
 
-	// TODO: check options, i.e. coherency
+	// TODO: check options, i.e. consistency
 
 	// NOTE: Although GPUSPH has been designed to be run with one multi-threaded process per node, it is important not to create
 	// any file or lock singleton resources before initializing the network, as the process might be forked
