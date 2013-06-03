@@ -470,6 +470,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
 
+	// set the tend passed by command line, if any
+	if (isfinite(clOptions->tend))
+		_sp-> tend = clOptions->tend;
+
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = problem->get_worldorigin();
 	gdata->worldSize = problem->get_worldsize();
