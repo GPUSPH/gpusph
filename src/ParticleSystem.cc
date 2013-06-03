@@ -1087,6 +1087,7 @@ ParticleSystem::buildNeibList(bool timing)
 			cellSize,
 			worldOrigin,
 			m_numParticles,
+			m_numParticles,
 			m_nGridCells,
 			m_nlSqInfluenceRadius,
 			m_simparams->periodicbound);
@@ -1213,6 +1214,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
+					m_numParticles,
 					m_simparams->slength,
 					m_dt,
 					m_simparams->dtadapt,
@@ -1261,6 +1263,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1/2) = pos(n) + vel(n)*dt/2
 			m_dVel[m_currentVelWrite],  // vel(n+1/2) = vel(n) + f(n)*dt/2
+			m_numParticles,
 			m_numParticles,
 			m_dt,
 			m_dt/2.0,
@@ -1311,6 +1314,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
+					m_numParticles,
 					m_simparams->slength,
 					m_dt,
 					m_simparams->dtadapt,
@@ -1346,6 +1350,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 			m_dVel[m_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+			m_numParticles,
 			m_numParticles,
 			m_dt,
 			m_dt/2.0,

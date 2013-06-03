@@ -63,7 +63,7 @@ void*	reduce_buffer = NULL;
 						/* (pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); */ \
 		/* else */ if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+						(pos, forces, neibsList, particleRangeEnd, slength, influenceradius, rbforces, rbtorques, cfl); \
 		/* else if (dtadapt && xsphcorr) */ \
 				/* cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>*/ \
 						/* (pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); */ \
@@ -300,6 +300,7 @@ forces(	float4*			pos,
 		particleinfo	*info,
 		uint*			neibsList,
 		uint			numParticles,
+		uint			particleRangeEnd,
 		float			slength,
 		float			dt,
 		bool			dtadapt,
@@ -318,6 +319,7 @@ forces(	float4*			pos,
 		bool			usedem)
 {
 	int dummy_shared = 0;
+	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
@@ -326,8 +328,8 @@ forces(	float4*			pos,
 
 	// execute the kernel for computing SPS stress matrix, if needed
 	if (visctype == SPSVISC) {	// thread per particle
-		int numThreads = min(BLOCK_SIZE_SPS, numParticles);
-		int numBlocks = (int) ceil(numParticles / (float) numThreads);
+		int numThreads = min(BLOCK_SIZE_SPS, particleRangeEnd);
+		int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
 		#if (__COMPUTE__ == 20)
 		dummy_shared = 2560;
 		#endif
@@ -347,14 +349,15 @@ forces(	float4*			pos,
 		// check if kernel invocation generated an error
 		CUT_CHECK_ERROR("SPS kernel execution failed");
 		
+		// ditto, textures for all particles
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 	}
 	
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);		
+	int numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
 	#if (__COMPUTE__ == 20)
 	if (visctype == SPSVISC)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;

@@ -110,6 +110,7 @@ euler(	float4*		oldPos,
 		float4*		newPos,
 		float4*		newVel,
 		uint		numParticles,
+		uint		particleRangeEnd,
 		float		dt,
 		float		dt2,
 		int			step,
@@ -118,8 +119,8 @@ euler(	float4*		oldPos,
 		bool		periodicbound)
 {
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	int numThreads = min(BLOCK_SIZE_INTEGRATE, particleRangeEnd);
+	int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
 
 	// execute the kernel
 	if (xsphcorr) {
@@ -128,7 +129,7 @@ euler(	float4*		oldPos,
 					oldPos, oldVel, info, \
 					forces, xsph, \
 					newPos, newVel, \
-					numParticles, dt, dt2, t
+					particleRangeEnd, dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
 #undef EULER_KERNEL_ARGS
@@ -138,7 +139,7 @@ euler(	float4*		oldPos,
 					oldPos, oldVel, info, \
 					forces, \
 					newPos, newVel, \
-					numParticles, dt, dt2, t
+					particleRangeEnd, dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
 #undef EULER_KERNEL_ARGS

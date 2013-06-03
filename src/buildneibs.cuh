@@ -148,6 +148,7 @@ buildNeibsList( uint*				neibsList,
 				const float3		cellSize,
 				const float3		worldOrigin,
 				const uint			numParticles,
+				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const bool			periodicbound);

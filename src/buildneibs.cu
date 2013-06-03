@@ -151,13 +151,15 @@ buildNeibsList(	uint*				neibsList,
 				const float3		cellSize,
 				const float3		worldOrigin,
 				const uint			numParticles,
+				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const bool			periodicbound)
 {
-	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
-	const int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
+	const int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
 
+	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
@@ -170,13 +172,13 @@ buildNeibsList(	uint*				neibsList,
 			#if (__COMPUTE__ >= 20)			
 			pos, 
 			#endif
-			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
+			neibsList, gridSize, cellSize, worldOrigin, particleRangeEnd, sqinfluenceradius);
 	else
 		cuneibs::buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
 			#if (__COMPUTE__ >= 20)			
 			pos, 
 			# endif
-			neibsList, gridSize, cellSize, worldOrigin, numParticles, sqinfluenceradius);
+			neibsList, gridSize, cellSize, worldOrigin, particleRangeEnd, sqinfluenceradius);
 		
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
