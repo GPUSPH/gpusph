@@ -351,13 +351,15 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	allocated += neibslistSize;
 
 	// TODO: an array of uchar would suffice
-	if (gdata->devices > 1) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
-		allocated += uintCellsSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
+	// initialize anyway for single-GPU simulations
+	CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
+	allocated += uintCellsSize;
 
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSegmentStart, segmentsSize));
-		allocated += segmentsSize;
-	}
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSegmentStart, segmentsSize));
+	// ditto
+	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
+	allocated += segmentsSize;
 
 	// TODO: allocation for rigid bodies
 
@@ -429,10 +431,8 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
 
-	if (gdata->devices > 1) {
-		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
-		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
-	}
+	CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
+	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 
 	// TODO: deallocation for rigid bodies
 
