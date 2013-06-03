@@ -9,6 +9,8 @@
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
+// ostringstream
+#include <sstream>
 
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	gdata = _gdata;
@@ -610,6 +612,25 @@ void GPUWorker::createCompactDeviceMap() {
 void GPUWorker::uploadCompactDeviceMap() {
 	size_t _size = m_nGridCells * sizeof(uint);
 	CUDA_SAFE_CALL(cudaMemcpy(m_dCompactDeviceMap, m_hCompactDeviceMap, _size, cudaMemcpyHostToDevice));
+}
+
+// Write compact device map to a CSV file.
+// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
+// set the correct fields; apply and enable visibility
+void GPUWorker::saveCompactDeviceMapTofile(std::string prefix)
+{
+	std::ostringstream oss;
+	oss << prefix << "_" << m_deviceIndex << ".csv";
+	std::string fname = oss.str();
+	FILE *fid = fopen(fname.c_str(), "w");
+	fprintf(fid,"X, Y, Z, VALUE\n");
+	for (int ix=0; ix < gdata->gridSize.x; ix++)
+			for (int iy=0; iy < gdata->gridSize.y; iy++)
+				for (int iz=0; iz < gdata->gridSize.z; iz++) {
+					uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
+					fprintf(fid,"%u, %u, %u, %u\n", ix, iy, iz, m_hCompactDeviceMap[cell_lin_idx] >> 30);
+				}
+	fclose(fid);
 }
 
 // this should be singleton, i.e. should check that no other thread has been started (mutex + counter or bool)
