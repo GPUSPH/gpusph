@@ -84,7 +84,7 @@ void*	reduce_buffer = NULL;
 #define FORMULATION_SWITCH(boundarytype, periodic, visc, dem) \
 	switch (sph_formulation) { \
 		FORMULATION_CHECK(SPH_F1, boundarytype, periodic, visc, dem); \
-		FORMULATION_CHECK(SPH_F2, boundarytype, periodic, visc, dem); \
+		/*FORMULATION_CHECK(SPH_F2, boundarytype, periodic, visc, dem);*/ \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
