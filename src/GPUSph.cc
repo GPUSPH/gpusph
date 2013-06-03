@@ -648,32 +648,24 @@ bool GPUSPH::runSimulation() {
 			// run most of the following commands on all particles
 			gdata->only_internal = false;
 
+			doCommand(CALCHASH);
+			doCommand(SORT);
+			doCommand(REORDER);
+			// swap pos, vel and info double buffers
+			gdata->swapDeviceBuffers(true);
+
 			// if running on multiple GPUs, update the external cells
 			if (gdata->devices > 1) {
-				// we need extra calchash, sort, reorder, etc. This will be later optimized
-				doCommand(CALCHASH);
-				doCommand(SORT);
-				doCommand(REORDER);
-				gdata->swapDeviceBuffers(true);
+				// TODO: make all possible transfers async
+				// download updated cellStarts, cellEnds and segments
 				doCommand(DUMP_CELLS);
 				// update particle offsets
 				updateArrayIndices();
-				// crop away the obsolete copy of the external (edge and non-edge) cells
+				// crop external cells
 				doCommand(CROP);
 				// append fresh copies of the externals
 				doCommand(APPEND_EXTERNAL);
 			}
-
-			doCommand(CALCHASH);
-			doCommand(SORT);
-			doCommand(REORDER);
-			if (gdata->devices > 1) {
-				// TODO: make async
-				doCommand(DUMP_CELLS);
-				updateArrayIndices();
-			}
-			// swap pos, vel and info double buffers
-			gdata->swapDeviceBuffers(true);
 
 			// build neib lists only for internal particles
 			gdata->only_internal = true;
