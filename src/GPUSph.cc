@@ -690,7 +690,8 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 		doCommand(EULER);
 
-		doCommand(UPDATE_EXTERNAL);
+		if (gdata->devices > 1)
+			doCommand(UPDATE_EXTERNAL);
 
 	//			//reduce bodies
 	//			//callbacks (bounds, gravity)
@@ -706,7 +707,8 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 		doCommand(EULER);
 
-		doCommand(UPDATE_EXTERNAL);
+		if (gdata->devices > 1)
+			doCommand(UPDATE_EXTERNAL);
 
 	//			//reduce bodies
 
