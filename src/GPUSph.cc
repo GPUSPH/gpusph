@@ -667,9 +667,11 @@ bool GPUSPH::runSimulation() {
 			doCommand(CALCHASH);
 			doCommand(SORT);
 			doCommand(REORDER);
-			// TODO: make async
-			doCommand(DUMP_CELLS);
-			updateArrayIndices();
+			if (gdata->devices > 1) {
+				// TODO: make async
+				doCommand(DUMP_CELLS);
+				updateArrayIndices();
+			}
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(true);
 
