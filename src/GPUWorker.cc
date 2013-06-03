@@ -28,7 +28,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	// we also know Problem::fillparts() has already been called
 	m_numInternalParticles = m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
-	uint _estROParts = estimateROParticles();
+
+	uint _estROParts = 0;
+	if (gdata->devices > 1)
+		_estROParts = estimateROParticles();
+
 	m_numAlocatedParticles = m_numParticles + _estROParts;
 	m_nGridCells = gdata->nGridCells;
 
