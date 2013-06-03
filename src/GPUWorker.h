@@ -56,6 +56,10 @@ private:
 	// number of internal particles, used for multi-GPU
 	uint m_numInternalParticles;
 
+	// range of particles the kernels should write to
+	uint m_particleRangeBegin; // inclusive
+	uint m_particleRangeEnd;   // exclusive
+
 	// memory allocate
 	unsigned long m_hostMemory;
 	unsigned long m_deviceMemory;

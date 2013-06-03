@@ -29,6 +29,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	// we also know Problem::fillparts() has already been called
 	m_numInternalParticles = m_numParticles = gdata->s_hPartsPerDevice[m_deviceIndex];
 
+	m_particleRangeBegin = 0;
+	m_particleRangeEnd = m_numInternalParticles;
+
 	uint _estROParts = 0;
 	if (gdata->devices > 1)
 		_estROParts = estimateROParticles();
@@ -845,12 +848,13 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 #if HASH_KEY_SIZE >= 64
 							m_dSegmentStart,
 #endif
-							(gdata->only_internal ? m_numInternalParticles : m_numParticles),
+							m_numParticles,
 							m_nGridCells);
 	// if multi-GPU, update the number of internal particles
 	if (gdata->devices > 1)
-		m_numInternalParticles = min( gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
-				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
+		m_particleRangeEnd = m_numInternalParticles =
+			min(	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
+					gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
 }
 
 void GPUWorker::kernel_buildNeibsList()
