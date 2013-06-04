@@ -135,7 +135,7 @@ void*	reduce_buffer = NULL;
 #define MLS_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::MlsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, newVel, neibsList, numParticles, slength, influenceradius); \
+				(pos, newVel, neibsList, particleRangeEnd, slength, influenceradius); \
 	break
 
 #define VORT_CHECK(kernel, periodic) \
@@ -481,6 +481,7 @@ mls(float4*		pos,
 	particleinfo	*info,
 	uint*		neibsList,
 	uint		numParticles,
+	uint		particleRangeEnd,
 	float		slength,
 	int			kerneltype,
 	float		influenceradius,
@@ -488,8 +489,8 @@ mls(float4*		pos,
 {
 	int dummy_shared = 0;
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_MLS, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	int numThreads = min(BLOCK_SIZE_MLS, particleRangeEnd);
+	int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));

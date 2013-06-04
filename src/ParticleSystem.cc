@@ -1152,6 +1152,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dInfo[m_currentInfoRead],
 				m_dNeibsList,
 				m_numParticles,
+				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_influenceRadius,
