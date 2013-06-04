@@ -129,7 +129,7 @@ void*	reduce_buffer = NULL;
 #define SHEPARD_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::shepardDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				 (pos, newVel, neibsList, numParticles, slength, influenceradius); \
+				 (pos, newVel, neibsList, particleRangeEnd, slength, influenceradius); \
 	break
 
 #define MLS_CHECK(kernel, periodic) \
@@ -428,6 +428,7 @@ shepard(float4*		pos,
 		particleinfo	*info,
 		uint*		neibsList,
 		uint		numParticles,
+		uint		particleRangeEnd,
 		float		slength,
 		int			kerneltype,
 		float		influenceradius,
@@ -435,8 +436,8 @@ shepard(float4*		pos,
 {
 	int dummy_shared = 0;
 	// thread per particle
-	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	int numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));

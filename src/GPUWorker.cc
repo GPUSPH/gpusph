@@ -1012,6 +1012,7 @@ void GPUWorker::kernel_shepard()
 			m_dInfo[gdata->currentInfoRead],
 			m_dNeibsList,
 			m_numParticles,
+			(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
 			m_simparams->slength,
 			m_simparams->kerneltype,
 			m_simparams->influenceRadius,
