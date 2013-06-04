@@ -223,17 +223,6 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_dt = m_simparams->dt;
 
 	m_timingInfo.dt = m_dt;
-	m_timingInfo.t = 0.0f;
-	m_timingInfo.maxNeibs = 0;
-	m_timingInfo.numInteractions = 0.0f;
-	m_timingInfo.meanNumInteractions = 0;
-	m_timingInfo.iterations = 0;
-	m_timingInfo.timeNeibsList = 0.0f;
-	m_timingInfo.meanTimeNeibsList = 0.0f;
-	m_timingInfo.timeInteract = 0.0f;
-	m_timingInfo.meanTimeInteract = 0.0f;
-	m_timingInfo.timeEuler = 0.0f;
-	m_timingInfo.meanTimeEuler = 0.0f;
 
 	// CHecking number of moving boundaries
 	if (m_problem->m_mbnumber > MAXMOVINGBOUND) {
@@ -1114,13 +1103,21 @@ ParticleSystem::buildNeibList(bool timing)
 	m_neiblist_built = true;
 }
 
+TimingInfo const*
+ParticleSystem::markStart(void)
+{
+	m_timingInfo.start();
+	return &m_timingInfo;
+}
 
-TimingInfo
+
+
+TimingInfo const*
 ParticleSystem::PredcorrTimeStep(bool timing)
 {
 	// do nothing if the simulation is over
 	if (m_problem->finished(m_simTime))
-		return m_timingInfo;
+		return &m_timingInfo;
 
 	cudaEvent_t start_interactions, stop_interactions;
 	cudaEvent_t start_euler, stop_euler;
@@ -1407,8 +1404,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	m_timingInfo.dt = m_dt;
 	m_timingInfo.t = m_simTime;
 	m_timingInfo.iterations++;
+	m_timingInfo.iterTimesParts += m_numParticles;
 
-	return m_timingInfo;
+	return &m_timingInfo;
 }
 
 

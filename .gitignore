@@ -14,6 +14,9 @@ TODO
 .DS_Store
 .*.swp
 ~
+*~
+.project
+.cproject
 html
 latex
 Manual

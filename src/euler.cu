@@ -61,6 +61,7 @@ seteulerconstants(const PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_dispvect, &physparams->dispvect, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_minlimit, &physparams->minlimit, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_maxlimit, &physparams->maxlimit, sizeof(float3)));
 }
 
 

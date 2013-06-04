@@ -27,6 +27,7 @@
 #define __PARTICLESYSTEM_H__
 
 #include "buildneibs.cuh" // hashKey
+#include "timing.h"
 #include "Problem.h"
 #include "Writer.h"
 #include "GlobalData.h"
@@ -100,10 +101,12 @@ class ParticleSystem
 		void	getPhysParams(void);
 		void	printPhysParams(FILE *summary = NULL);
 		void	printSimParams(FILE *summary = NULL);
+		// mark the beginning of the simulation
+		TimingInfo const*	markStart(void);
 
 		void	buildNeibList(bool timing);
 
-		TimingInfo	PredcorrTimeStep(bool);
+		TimingInfo	const* PredcorrTimeStep(bool);
 
 		void*	getArray(ParticleArray, bool);
 		void	setArray(ParticleArray);

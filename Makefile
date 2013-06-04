@@ -78,6 +78,9 @@ endif
 # nvcc info
 NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
+versions_tmp  := $(subst ., ,$(NVCC_VER))
+CUDA_MAJOR := $(firstword  $(versions_tmp))
+#CUDA_MINOR := $(lastword  $(versions_tmp))
 
 # files to store last compile options: problem, dbg, compute
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
@@ -194,7 +197,10 @@ endif
 # architecture switch. The *_SFX vars will be used later.
 ifeq ($(arch), x86_64)
 	_CFLAGS_ARCH += -m64
-	#GLEW_ARCH_SFX=_x86_64
+	# cuda 5.0 with 64bit libs does not require the suffix anymore
+	ifneq ($(CUDA_MAJOR), 5)
+		GLEW_ARCH_SFX=_x86_64
+	endif
 else # i386 or i686
 	_CFLAGS_ARCH += -m32
 	GLEW_ARCH_SFX=

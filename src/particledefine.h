@@ -232,33 +232,6 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
 
-typedef unsigned int uint;
-typedef unsigned char uchar;
-
-typedef struct TimingInfo {
-	float   t;
-	float   dt;
-	uint	numParticles;
-	uint	maxNeibs;
-	uint	numInteractions;
-	long	iterations;
-	long	meanNumInteractions;
-	float   timeNeibsList;
-	float   meanTimeNeibsList;
-	float   timeInteract;
-	float   meanTimeInteract;
-	float   timeEuler;
-	double  meanTimeEuler;
-} TimingInfo;
-
-
-struct SavingInfo {
-	float   displayfreq;		// unit time
-	uint	screenshotfreq;		// unit displayfreq
-	uint	writedatafreq;		// unit displayfreq
-};
-
-
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
