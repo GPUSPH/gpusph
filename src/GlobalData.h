@@ -42,6 +42,7 @@ enum CommandType {
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	MLS,				// MLS correction
+	SHEPARD,			// SHEPARD correction
 	QUIT				// quits the simulation cycle
 };
 

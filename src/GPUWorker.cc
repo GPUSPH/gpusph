@@ -792,6 +792,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing MLS\n", deviceIndex);
 				instance->kernel_mls();
 				break;
+			case SHEPARD:
+				//printf(" T %d issuing SHEPARD\n", deviceIndex);
+				instance->kernel_shepard();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -988,6 +992,20 @@ void GPUWorker::kernel_euler()
 void GPUWorker::kernel_mls()
 {
 	mls(	m_dPos[gdata->currentPosRead],
+			m_dVel[gdata->currentVelRead],
+			m_dVel[gdata->currentVelWrite],
+			m_dInfo[gdata->currentInfoRead],
+			m_dNeibsList,
+			m_numParticles,
+			m_simparams->slength,
+			m_simparams->kerneltype,
+			m_simparams->influenceRadius,
+			m_simparams->periodicbound);
+}
+
+void GPUWorker::kernel_shepard()
+{
+	shepard(m_dPos[gdata->currentPosRead],
 			m_dVel[gdata->currentVelRead],
 			m_dVel[gdata->currentVelWrite],
 			m_dInfo[gdata->currentInfoRead],

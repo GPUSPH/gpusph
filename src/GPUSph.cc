@@ -686,6 +686,12 @@ bool GPUSPH::runSimulation() {
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
+		uint shepardfreq = problem->get_simparams()->shepardfreq;
+		if (shepardfreq > 0 && gdata->iterations > 0 && (gdata->iterations % shepardfreq == 0)) {
+			doCommand(SHEPARD);
+			gdata->swapDeviceBuffers(BUFFER_VEL);
+		}
+
 	//			k>  shepard && swap1
 	//			k>  mls && swap
 	//			//set mvboundaries and gravity
