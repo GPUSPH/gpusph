@@ -15,6 +15,8 @@
 // Including Synchronizer.h is acutally needed only in GPUSPH.cc.
 // Should be follow our unusual convention to include in headers, or not?
 #include "Synchronizer.h"
+// IPPSCounter
+#include "timing.h"
 
 // The GPUSPH class is singleton. Wise tips about a correct singleton implementation are give here:
 // http://stackoverflow.com/questions/1008019/c-singleton-design-pattern
@@ -28,7 +30,8 @@ private:
 	Options* clOptions;
 	GlobalData* gdata;
 	Problem* problem;
-	ParticleSystem* psystem;
+	//ParticleSystem* psystem;
+	IPPSCounter *m_performanceCounter;
 
 	// other vars
 	bool initialized;

@@ -501,6 +501,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
+	m_performanceCounter = new IPPSCounter();
+
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
 
@@ -653,6 +655,8 @@ bool GPUSPH::finalize() {
 
 	// ...anything else?
 
+	delete m_performanceCounter;
+
 	initialized = false;
 
 	return true;
@@ -671,6 +675,9 @@ bool GPUSPH::runSimulation() {
 	gdata->nextCommand = IDLE;
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 1
+
+	//  IPPS counter does not take the initial uploads into consideration
+	m_performanceCounter->start();
 
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will
@@ -796,6 +803,7 @@ bool GPUSPH::runSimulation() {
 
 
 		if (need_write) {
+			// TODO: the performanceCounter could be "paused" here
 			// ask workers to dump their subdomains and wait for it to complete
 			doCommand(DUMP);
 			// triggers Writer->write()
@@ -1140,11 +1148,11 @@ void GPUSPH::doWrite()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%ld, dt=%es, %u parts\n",
+	printf(	"Simulation time t=%es, iteration=%ld, dt=%es, %u parts (%.2g MIPPS)\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
-			gdata->t, gdata->iterations, gdata->dt, gdata->totParticles
+			gdata->t, gdata->iterations, gdata->dt, gdata->totParticles, m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles)
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,
