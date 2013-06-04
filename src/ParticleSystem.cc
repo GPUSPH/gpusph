@@ -1508,6 +1508,8 @@ ParticleSystem::updateValuesAtBoundaryElements(void)
 {
 	updateBoundValues(	m_dVel[m_currentVelRead],
 				m_dPressure[m_currentPressureRead],
+				m_dTKE[m_currentTKERead],
+				m_dEps[m_currentEpsRead],
 				m_dVertices[m_currentVerticesRead],
 				m_dInfo[m_currentInfoRead],
 				m_numParticles,
@@ -1520,9 +1522,12 @@ ParticleSystem::imposeDynamicBoundaryConditions(void)
 	dynamicBoundConditions(	m_dPos[m_currentPosRead],
 				m_dVel[m_currentVelRead],
 				m_dPressure[m_currentPressureRead],
+				m_dTKE[m_currentTKERead],
+				m_dEps[m_currentEpsRead],
 				m_dInfo[m_currentInfoRead],
 				m_dNeibsList,
 				m_numParticles,
+				m_problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_influenceRadius,
@@ -1624,9 +1629,12 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		dynamicBoundConditions(	m_dPos[m_currentPosRead], 		//pos(n)
 					m_dVel[m_currentVelRead], 		//vel(n)
 					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKERead],		//k(n)
+					m_dEps[m_currentEpsRead],		//e(n)
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
+					m_problem->m_deltap,
 					m_simparams->slength,
 					m_simparams->kerneltype,
 					m_influenceRadius,
@@ -1634,6 +1642,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 		updateBoundValues(	m_dVel[m_currentVelRead],		//vel(n)
 					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKERead],		//k(n)
+					m_dEps[m_currentEpsRead],		//e(n)
 					m_dVertices[m_currentVerticesRead],
 					m_dInfo[m_currentInfoRead],
 					m_numParticles,
@@ -1763,9 +1773,12 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		dynamicBoundConditions(	m_dPos[m_currentPosWrite], 		//pos(n+1/2)
 					m_dVel[m_currentVelWrite], 		//vel(n+1/2)
 					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
+					m_dEps[m_currentEpsWrite],	// e(n+1/2)
 					m_dInfo[m_currentInfoRead],
 					m_dNeibsList,
 					m_numParticles,
+					m_problem->m_deltap,
 					m_simparams->slength,
 					m_simparams->kerneltype,
 					m_influenceRadius,
@@ -1773,6 +1786,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 		updateBoundValues(	m_dVel[m_currentVelWrite],		//vel(n+1/2)
 					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
+					m_dEps[m_currentEpsWrite],	// e(n+1/2)
 					m_dVertices[m_currentVerticesRead],
 					m_dInfo[m_currentInfoRead],
 					m_numParticles,

@@ -1092,6 +1092,8 @@ updatePositionsDevice(	float4*	newPos,
 __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
 				float*		oldPressure,
+				float*		oldTKE,
+				float*		oldEps,
 				const uint	numParticles,
 				bool		initStep)
 {
@@ -1106,10 +1108,18 @@ updateBoundValuesDevice(	float4*		oldVel,
 		const float pres1 = oldPressure[vertices.x];
 		const float pres2 = oldPressure[vertices.y];
 		const float pres3 = oldPressure[vertices.z];
+		const float k1 = oldTKE[vertices.x];
+		const float k2 = oldTKE[vertices.y];
+		const float k3 = oldTKE[vertices.z];
+		const float eps1 = oldEps[vertices.x];
+		const float eps2 = oldEps[vertices.y];
+		const float eps3 = oldEps[vertices.z];
 
 		if (BOUNDARY(info)) {
 			oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
 			oldPressure[index] = (pres1 + pres2 + pres3)/3.f;
+			oldTKE[index] = (k1 + k2 + k3)/3.f;
+			oldEps[index] = (eps1 + eps2 + eps3)/3.f;
 		}
 		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
 		//FIXME: keeping initial velocity values, if given
@@ -1127,8 +1137,11 @@ __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 dynamicBoundConditionsDevice(	const float4*	oldPos,
 				float4*		oldVel,
 				float*		oldPressure,
+				float*		oldTKE,
+				float*		oldEps,
 				const uint*	neibsList,
 				const uint	numParticles,
+				const float deltap,
 				const float	slength,
 				const float	influenceradius)
 {
@@ -1155,7 +1168,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	// in contrast to Shepard filter particle itself doesn't contribute into summation
 	float temp1 = 0;
-	float temp2 = 0;
+	float temp2 = 0; // summation for computing density
+	float temp3 = 0; // summation for computing TKE
 	float alpha = 0;
 
 	// loop over all the neighbors
@@ -1179,11 +1193,13 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 		const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 		const float neib_vel = length(make_float3(oldVel[neib_index]));
+		const float neib_k = oldTKE[neib_index];
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
 			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,relPos) + 0.5*(neib_vel*neib_vel-vel*vel));
+			temp3 += w/neib_rho*neib_k;
 			alpha += w/neib_rho;
 		}
 	}
@@ -1193,6 +1209,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
 		oldPressure[index] = temp2*oldVel[index].w/alpha;
 		oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
+		oldTKE[index] = temp3/alpha;
+		oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
 }
 

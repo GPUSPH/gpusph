@@ -186,7 +186,7 @@ void*	reduce_buffer = NULL;
 #define DYNBOUNDARY_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldPressure, neibsList, numParticles, slength, influenceradius); \
+				 (oldPos, oldVel, oldPressure, oldTKE, oldEps, neibsList, numParticles, deltap, slength, influenceradius); \
 	break
 
 #define CALCPROBE_CHECK(kernel, periodic) \
@@ -1120,6 +1120,8 @@ updatePositions(	float4*		oldPos,
 void
 updateBoundValues(	float4*		oldVel,
 			float*		oldPressure,
+			float*		oldTKE,
+			float*		oldEps,
 			vertexinfo*	vertices,
 			particleinfo*	info,
 			uint		numParticles,
@@ -1132,7 +1134,7 @@ updateBoundValues(	float4*		oldVel,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	//execute kernel
-	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldPressure, numParticles, initStep);
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldPressure, oldTKE, oldEps, numParticles, initStep);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
@@ -1145,9 +1147,12 @@ void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
 			float*			oldPressure,
+			float*			oldTKE,
+			float*			oldEps,
 			const particleinfo*	info,
 			const uint*		neibsList,
 			const uint		numParticles,
+			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
 			const float		influenceradius,
