@@ -680,6 +680,12 @@ bool GPUSPH::runSimulation() {
 			doCommand(BUILDNEIBS);
 		}
 
+		uint mlsfreq = problem->get_simparams()->mlsfreq;
+		if (mlsfreq > 0 && gdata->iterations > 0 && (gdata->iterations % mlsfreq == 0)) {
+			doCommand(MLS);
+			gdata->swapDeviceBuffers(BUFFER_VEL);
+		}
+
 	//			k>  shepard && swap1
 	//			k>  mls && swap
 	//			//set mvboundaries and gravity

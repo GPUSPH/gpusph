@@ -41,6 +41,7 @@ enum CommandType {
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
+	MLS,				// MLS correction
 	QUIT				// quits the simulation cycle
 };
 
