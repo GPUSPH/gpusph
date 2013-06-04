@@ -110,18 +110,17 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			# ifdef VISC_KEPS
-			const float Strain = tex1Dfetch(strainTex, index);
+			const float strain = tex1Dfetch(strainTex, index);
 			const float keps_k = tex1Dfetch(keps_kTex, index);
 			const float keps_e = tex1Dfetch(keps_eTex, index);
-			const float TurbVisc = 0.09f*keps_k*keps_k/keps_e;			// eddy viscosity
-			float Pturb = TurbVisc*Strain*Strain;						// production of turbulent kinetic energy (TKE)
-			float dkdt = Pturb - keps_e;								// dk/dt, simplified equation for homogeneous turbulence, will be extended with diffusion term later
-			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e);	// de/dt, simplified equation ...
+			const float turbVisc = 0.09f*keps_k*keps_k/keps_e;			// eddy viscosity
+			float Pturb = turbVisc*strain*strain;						// production of turbulent kinetic energy (TKE)
+			turbvisc[index] = turbVisc;
 
-			keps_dkde[index].x = dkdt;
-			keps_dkde[index].y = dedt;
-			turbvisc[index] = TurbVisc;
-
+			float diff_term_k = 0;
+			float diff_term_e = 0;
+			const float dkdt_precalc = vel.w*(d_visccoeff + turbVisc);
+			const float dedt_precalc = vel.w*(d_visccoeff + turbVisc/1.3f);
 			// DEBUG OUTPUT
 //			if(index == 100000) {
 //				printf("Strain = %g\n", Strain);
@@ -184,7 +183,12 @@ FORCES_CUDA_KERNEL
 				#endif
 
 				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				# ifdef VISC_KEPS
+				const float neib_keps_k = tex1Dfetch(keps_kTex, neib_index);
+				const float neib_keps_e = tex1Dfetch(keps_eTex, neib_index);
+				const float neib_tvisc = 0.09f*neib_keps_k*neib_keps_k/neib_keps_e;
+				# endif
 
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
@@ -274,6 +278,12 @@ FORCES_CUDA_KERNEL
 							force.x += visc*relVel.x/gradgamma.w;
 							force.y += visc*relVel.y/gradgamma.w;
 							force.z += visc*relVel.z/gradgamma.w;
+
+							# ifdef VISC_KEPS
+							//to be divided later by rho_a and gamma_a
+							diff_term_k += neib_pos.w*(dkdt_precalc + neib_vel.w*(d_visccoeff + neib_tvisc))*(keps_k - neib_keps_k)*f/neib_vel.w;
+							diff_term_e += neib_pos.w*(dedt_precalc + neib_vel.w*(d_visccoeff + neib_tvisc/1.3f))*(keps_e - neib_keps_e)*f/neib_vel.w;
+							# endif
 						}
 						else {
 							force.x += visc*relVel.x;
@@ -368,6 +378,12 @@ FORCES_CUDA_KERNEL
 			const float dynvisc = 0.0;
 			# elif defined(VISC_KEPS)
 			const float dynvisc = 0.0;
+
+			float dkdt = Pturb - keps_e + diff_term_k/vel.w/gradgamma.w;								// dk/dt
+			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e) + diff_term_e/vel.w/gradgamma.w;	// de/dt
+
+			keps_dkde[index].x = dkdt;
+			keps_dkde[index].y = dedt;
 			# else
 			# error Unknown viscosity!
 			# endif

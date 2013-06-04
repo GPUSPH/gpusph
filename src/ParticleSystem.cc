@@ -596,6 +596,7 @@ ParticleSystem::setPhysParams(void)
 			m_physparams->visccoeff = 4.0*m_physparams->kinematicvisc;
 			break;
 
+		case KEPSVISC:
 		case DYNAMICVISC:
 			m_physparams->visccoeff = m_physparams->kinematicvisc;
 			break;
@@ -1823,7 +1824,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams->visctype,
 					m_physparams->visccoeff,
 					m_dStrainRate,
-					m_dTurbVisc[m_currentTurbViscWrite],	// nu_t(n+1/2)
+					m_dTurbVisc[m_currentTurbViscRead],	// nu_t(n+1/2)
 					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
 					m_dEps[m_currentEpsWrite],	// e(n+1/2)
 					m_dDkDe,
@@ -1923,7 +1924,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
-	std::swap(m_currentTurbViscRead, m_currentTurbViscWrite);
 	std::swap(m_currentTKERead, m_currentTKEWrite);
 	std::swap(m_currentEpsRead, m_currentEpsWrite);
 
