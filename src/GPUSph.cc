@@ -82,29 +82,6 @@ using namespace std;
 
 FILE *timing_log = NULL;
 
-int ox, oy; float oz = 0.9;
-
-GLdouble oldx, oldy, oldz;
-GLdouble newx, newy, newz;
-GLdouble modelview[16];
-GLdouble projection[16];
-GLint viewport[4];
-
-int buttonState = 0;
-const float inertia = 0.5;
-
-int mode = 0;
-bool displayEnabled = true;
-bool bPause = true;
-bool stepping_mode = false;
-bool show_boundary = false;
-bool show_floating = false;
-
-enum { M_VIEW = 0, M_MOVE};
-int view_field = ParticleSystem::VM_NORMAL;
-enum { M_INTERACTION = 0, M_NEIBSLIST, M_EULER, M_MEAN, M_IPPS, M_NOTIMING};
-int timing = M_IPPS;
-
 ParticleSystem *psystem = 0;
 
 // timing
@@ -278,8 +255,6 @@ void init(const char *arg)
 		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
 		psystem->setPlanes();
 	}
-
-	glscreenshot = new CScreenshot(problem->get_dirname());
 
 	timingInfo = psystem->markStart();
 }

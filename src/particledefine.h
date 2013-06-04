@@ -232,6 +232,11 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
 
+// define uint, uchar, ulong
+typedef unsigned long ulong; // only used in timing
+typedef unsigned int uint;
+typedef unsigned char uchar;
+
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
