@@ -103,4 +103,36 @@ struct SavingInfo {
 	uint	writedatafreq;		// unit displayfreq
 };
 
+class IPPSCounter
+{
+	private:
+		clock_t	startTime;
+	public:
+		IPPSCounter():
+			startTime(0)
+		{};
+
+		// start the counter
+		clock_t start() {
+			startTime = clock();
+			return startTime;
+		}
+
+		// reset the counter
+		clock_t restart() {
+			return start();
+		}
+
+		// return the throughput computed as iterations times particles per second
+		double getIPPS(ulong iterTimesParts) const {
+			if (startTime == 0) return 0;
+			return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;
+		}
+
+		// almost all devices get at least 1MIPPS, so:
+		inline double getMIPPS(ulong iterTimesParts) const {
+			return getIPPS(iterTimesParts)/1000000.0;
+		}
+};
+
 #endif
