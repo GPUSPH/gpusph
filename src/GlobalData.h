@@ -53,6 +53,14 @@ enum WriterType
 	UDPWRITER
 };
 
+enum Buffer
+{
+	POS,
+	VEL,
+	INFO,
+	POS_VEL_INFO
+};
+
 // forward declaration of Writer
 class Writer;
 
@@ -324,11 +332,23 @@ struct GlobalData {
 	}
 
 	// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
-	void swapDeviceBuffers(bool alsoInfo) {
-		std::swap(currentPosRead, currentPosWrite);
-		std::swap(currentVelRead, currentVelWrite);
-		if (alsoInfo)
-			std::swap(currentInfoRead, currentInfoWrite);
+	void swapDeviceBuffers(Buffer whichBuffer) {
+		switch (whichBuffer) {
+			case POS:
+				std::swap(currentPosRead, currentPosWrite);
+				break;
+			case VEL:
+				std::swap(currentVelRead, currentVelWrite);
+				break;
+			case INFO:
+				std::swap(currentInfoRead, currentInfoWrite);
+				break;
+			case POS_VEL_INFO:
+				std::swap(currentPosRead, currentPosWrite);
+				std::swap(currentVelRead, currentVelWrite);
+				std::swap(currentInfoRead, currentInfoWrite);
+				break;
+		} // switch
 	}
 };
 

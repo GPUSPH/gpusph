@@ -654,7 +654,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(CALCHASH);
 				doCommand(SORT);
 				doCommand(REORDER);
-				gdata->swapDeviceBuffers(true);
+				gdata->swapDeviceBuffers(POS_VEL_INFO);
 				doCommand(DUMP_CELLS);
 				// update particle offsets
 				updateArrayIndices();
@@ -673,7 +673,7 @@ bool GPUSPH::runSimulation() {
 				updateArrayIndices();
 			}
 			// swap pos, vel and info double buffers
-			gdata->swapDeviceBuffers(true);
+			gdata->swapDeviceBuffers(POS_VEL_INFO);
 
 			// build neib lists only for internal particles
 			gdata->only_internal = true;
@@ -721,7 +721,8 @@ bool GPUSPH::runSimulation() {
 
 	//			//reduce bodies
 
-		gdata->swapDeviceBuffers(false);
+		gdata->swapDeviceBuffers(POS);
+		gdata->swapDeviceBuffers(VEL);
 
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
