@@ -744,90 +744,6 @@ SPSstressMatrixDevice(	const float4* posArray,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
-/*		                  Computes mean strain rate tensor for k-e model									*/
-/************************************************************************************************************/
-template<KernelType kerneltype, bool periodicbound>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-MeanScalarStrainRateDevice(	const float4* posArray,
-							float* strainRate,
-							const uint*	neibsList,
-							const uint	numParticles,
-							const float	slength,
-							const float	influenceradius)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-
-	if (index >= numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
-		return;
-
-	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
-	const float4 vel = tex1Dfetch(velTex, index);
-
-	// Gradients of the the velocity components
-	float3 dvx = make_float3(0.0f);
-	float3 dvy = make_float3(0.0f);
-	float3 dvz = make_float3(0.0f);
-
-	// first loop over all the neighbors for the Velocity Gradients
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
-		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-
-		if (neib_index == 0xffffffff) break;
-
-		float4 neib_pos;
-		float3 relPos;
-		float r;
-
-		#if( __COMPUTE__ >= 20)
-		getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
-		#else
-		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
-		#endif
-		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-		if (r < influenceradius && FLUID(neib_info)) {
-			const float f = F<kerneltype>(r, slength)*neib_pos.w/neib_vel.w;	// 1/r ∂Wij/∂r Vj
-
-			float3 relVel;
-			relVel.x = vel.x - neib_vel.x;
-			relVel.y = vel.y - neib_vel.y;
-			relVel.z = vel.z - neib_vel.z;
-
-			// Velocity Gradients (Wall-corrected)
-			dvx -= relVel.x*relPos*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
-			dvy -= relVel.y*relPos*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-			dvz -= relVel.y*relPos*f;	// dvy = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
-		} // end if
-	} // end of loop through neighbors
-
-	// Calculate norm of the mean strain rate tensor
-	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-	float temp = dvx.y + dvy.x;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	temp = dvx.z + dvz.x;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	temp = dvy.z + dvz.y;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-	float S = sqrtf(SijSij_bytwo);
-	strainRate[index] = S;
-}
-/************************************************************************************************************/
-
-/************************************************************************************************************/
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
 template<KernelType kerneltype>
@@ -1286,6 +1202,110 @@ calcProbeDevice(	float4*		oldPos,
 		oldPressure[index] = 0;
 }
 /************************************************************************************************************/
+
+
+/************************************************************************************************************/
+/*		                  Computes mean strain rate tensor for k-e model									*/
+/************************************************************************************************************/
+template<KernelType kerneltype, bool periodicbound>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+MeanScalarStrainRateDevice(	const float4* posArray,
+							float* strainRate,
+							const uint*	neibsList,
+							const uint	numParticles,
+							const float	slength,
+							const float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
+		return;
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+	const float4 vel = tex1Dfetch(velTex, index);
+	const float4 gradgamma = tex1Dfetch(gamTex, index);
+
+	// Gradients of the the velocity components
+	float3 dvx = make_float3(0.0f);
+	float3 dvy = make_float3(0.0f);
+	float3 dvz = make_float3(0.0f);
+
+	// first loop over all the neighbors for the Velocity Gradients
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		#if( __COMPUTE__ >= 20)
+		getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
+		#endif
+		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (r < influenceradius) {
+
+			float3 relVel;
+			relVel.x = vel.x - neib_vel.x;
+			relVel.y = vel.y - neib_vel.y;
+			relVel.z = vel.z - neib_vel.z;
+
+			// first term, interaction with fluid and vertex particles
+			if(FLUID(neib_info) || VERTEX(neib_info)) {
+				const float f = F<kerneltype>(r, slength)*neib_pos.w;	// 1/r ∂Wab/∂r * mb
+
+				// Velocity Gradients (Wall-corrected)
+				dvx -= relVel.x*relPos*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+				dvy -= relVel.y*relPos*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+				dvz -= relVel.z*relPos*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
+			}
+			// second term, interaction with boundary elements
+			if(BOUNDARY(neib_info)) {
+				const float4 belem = tex1Dfetch(boundTex, neib_index);
+				const float3 gradgam_as = make_float3(gradGamma<kerneltype>(slength, r, belem));
+
+				dvx += neib_vel.w*relVel.x*gradgam_as;	// dvx = ∑ρs vxas ∇ɣas
+				dvy += neib_vel.w*relVel.y*gradgam_as;	// dvy = ∑ρs vyas ∇ɣas
+				dvz += neib_vel.w*relVel.z*gradgam_as;	// dvz = ∑ρs vzas ∇ɣas
+			}
+		} // end if
+	} // end of loop through neighbors
+
+	dvx /= vel.w * gradgamma.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+	dvy /= vel.w * gradgamma.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+	dvz /= vel.w * gradgamma.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+
+	// Calculate norm of the mean strain rate tensor
+	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+	float temp = dvx.y + dvy.x;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+	temp = dvx.z + dvz.x;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+	temp = dvy.z + dvz.y;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+	float S = sqrtf(SijSij_bytwo);
+	strainRate[index] = S;
+}
+/************************************************************************************************************/
+
 
 /************************************************************************************************************/
 /*					   Kernels for computing acceleration without gradient correction					 */
