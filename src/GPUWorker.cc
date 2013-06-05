@@ -36,7 +36,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	if (gdata->devices > 1)
 		_estROParts = estimateROParticles();
 
-	m_numAlocatedParticles = m_numParticles + _estROParts;
+	m_numAllocatedParticles = m_numParticles + _estROParts;
 	m_nGridCells = gdata->nGridCells;
 
 	m_hostMemory = m_deviceMemory = 0;
@@ -61,7 +61,7 @@ uint GPUWorker::getNumInternalParticles() {
 // Return the maximum number of particles the worker can handled (allocated)
 uint GPUWorker::getMaxParticles()
 {
-	return m_numAlocatedParticles;
+	return m_numAllocatedParticles;
 }
 
 // Estimate the number of r.o. particles the worker might need
@@ -249,22 +249,22 @@ void GPUWorker::updatePeerEdgeCells()
 // Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {
 	// common sizes
-	const uint float3Size = sizeof(float3) * m_numAlocatedParticles;
-	const uint float4Size = sizeof(float4) * m_numAlocatedParticles;
-	const uint infoSize = sizeof(particleinfo) * m_numAlocatedParticles;
+	const uint float3Size = sizeof(float3) * m_numAllocatedParticles;
+	const uint float4Size = sizeof(float4) * m_numAllocatedParticles;
+	const uint infoSize = sizeof(particleinfo) * m_numAllocatedParticles;
 	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
 
 	size_t allocated = 0;
 
-	m_hPos = new float4[m_numAlocatedParticles];
+	m_hPos = new float4[m_numAllocatedParticles];
 	memset(m_hPos, 0, float4Size);
 	allocated += float4Size;
 
-	m_hVel = new float4[m_numAlocatedParticles];
+	m_hVel = new float4[m_numAllocatedParticles];
 	memset(m_hVel, 0, float4Size);
 	allocated += float4Size;
 
-	m_hInfo = new particleinfo[m_numAlocatedParticles];
+	m_hInfo = new particleinfo[m_numAllocatedParticles];
 	memset(m_hInfo, 0, infoSize);
 	allocated += infoSize;
 
@@ -284,7 +284,7 @@ size_t GPUWorker::allocateHostBuffers() {
 	}
 
 	if (m_simparams->vorticity) {
-		m_hVort = new float3[m_numAlocatedParticles];
+		m_hVort = new float3[m_numAllocatedParticles];
 		allocated += float3Size;
 		// NOTE: *not* memsetting, as in master branch
 	}
@@ -297,14 +297,14 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	// common sizes
 	// compute common sizes (in bytes)
 	//const uint floatSize = sizeof(float) * m_numAlocatedParticles;
-	const uint float2Size = sizeof(float2) * m_numAlocatedParticles;
-	const uint float3Size = sizeof(float3) * m_numAlocatedParticles;
-	const uint float4Size = sizeof(float4) * m_numAlocatedParticles;
-	const uint infoSize = sizeof(particleinfo) * m_numAlocatedParticles;
-	const uint intSize = sizeof(uint) * m_numAlocatedParticles;
+	const uint float2Size = sizeof(float2) * m_numAllocatedParticles;
+	const uint float3Size = sizeof(float3) * m_numAllocatedParticles;
+	const uint float4Size = sizeof(float4) * m_numAllocatedParticles;
+	const uint infoSize = sizeof(particleinfo) * m_numAllocatedParticles;
+	const uint intSize = sizeof(uint) * m_numAllocatedParticles;
 	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
-	const uint neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numAlocatedParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
-	const uint hashSize = sizeof(hashKey) * m_numAlocatedParticles;
+	const uint neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numAllocatedParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint hashSize = sizeof(hashKey) * m_numAllocatedParticles;
 	const uint segmentsSize = sizeof(uint) * 4; // 4 = types of cells
 	//const uint neibslistSize = sizeof(uint) * 128 * m_numAlocatedParticles;
 	//const uint sliceArraySize = sizeof(uint) * m_gridSize.PSA;
@@ -393,7 +393,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	if (m_simparams->dtadapt) {
 		// for the allocation we use m_numPartsFmax computed from m_numAlocatedParticles;
 		// after forces we use an updated value instead (the numblocks of forces)
-		uint m_numPartsFmax = getNumPartsFmax(m_numAlocatedParticles);
+		uint m_numPartsFmax = getNumPartsFmax(m_numAllocatedParticles);
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
@@ -473,11 +473,11 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 void GPUWorker::printAllocatedMemory()
 {
-	uint _estROParts = m_numAlocatedParticles - m_numParticles;
+	uint _estROParts = m_numAllocatedParticles - m_numParticles;
 	printf("Device idx %u (CUDA: %u) allocated %.1f Mb on host, %.1f Mb on device\n"
 			"  for %u (assigned) + %u (estimated r.o.) = %u particles\n",
 			m_deviceIndex, m_cudaDeviceNumber, getHostMemory()/1000000.0, getDeviceMemory()/1000000.0,
-			m_numParticles, _estROParts, m_numAlocatedParticles);
+			m_numParticles, _estROParts, m_numAllocatedParticles);
 }
 
 // upload subdomain, just allocated and sorted by main thread

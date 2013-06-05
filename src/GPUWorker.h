@@ -52,7 +52,7 @@ private:
 	// number of cells of the grid of the whole world
 	uint m_nGridCells;
 	// number of allocated particles (includes internal, external and unused slots)
-	uint m_numAlocatedParticles;
+	uint m_numAllocatedParticles;
 	// number of internal particles, used for multi-GPU
 	uint m_numInternalParticles;
 
