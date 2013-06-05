@@ -145,6 +145,8 @@ private:
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
 
+	void printAllocatedMemory();
+
 	void uploadSubdomain();
 	void downloadSubdomain();
 	void downloadSubdomainToGlobalBuffer();
