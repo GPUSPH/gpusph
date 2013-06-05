@@ -76,7 +76,10 @@ uint GPUWorker::estimateROParticles()
 }
 
 // Cut all particles that are not internal.
-// Assuming segments have already been filled and downloaded to the shared array
+// Assuming segments have already been filled and downloaded to the shared array.
+// NOTE: here it would be logical to reset the cellStarts of the cells being cropped
+// out. However, this would be quite inefficient. We leave them inconsistent for a
+// few time and we will update them when importing peer cells.
 void GPUWorker::dropExternalParticles()
 {
 	// We would like to trim out all external particles. According to the sorting criteria,
