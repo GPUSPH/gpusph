@@ -835,6 +835,11 @@ bool GPUSPH::runSimulation() {
 			gdata->keep_going = false;
 	}
 
+	// regardless --nosave is enabled
+	printf("Issuing final save...\n");
+	doCommand(DUMP);
+	doWrite();
+
 	printf("Simulation end, cleaning up...\n");
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
