@@ -831,14 +831,17 @@ bool GPUSPH::runSimulation() {
 			printStatus();
 		}
 
-		if (finished || gdata->quit_request)
+		if (finished || gdata->quit_request) {
+			// regardless --nosave is enabled
+			printf("Issuing final save...\n");
+			doCommand(DUMP);
+			doWrite();
+			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
+		}
 	}
 
-	// regardless --nosave is enabled
-	printf("Issuing final save...\n");
-	doCommand(DUMP);
-	doWrite();
+	// NO doCommand() nor other barriers than the standard ones after the
 
 	printf("Simulation end, cleaning up...\n");
 
