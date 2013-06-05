@@ -43,13 +43,14 @@ UDPWRITER_HOST and/or UDPWRITER_PORT.
 class UDPWriter : public Writer
 {
 public:
-	UDPWriter(const Problem *problem);
+	UDPWriter(Problem *problem);
 	~UDPWriter();
 
 	void write(uint numParts, const float4 *pos, const float4 *vel,
 		const particleinfo *info, const float3 *vort, float t, const bool
         testpoints, const float4 *normals);
 protected:
+    float3 world_origin, world_size;
     pthread_t heartbeat_thread;
     /** buffer for composing packet */
     char mBuf[UDP_PACKET_SIZE];

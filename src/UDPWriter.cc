@@ -171,7 +171,7 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
         fprintf(stderr, "%s: %s\n", str, strerror(code)); \
 }
 
-UDPWriter::UDPWriter(const Problem *problem) : Writer(problem) {
+UDPWriter::UDPWriter(Problem *problem) : Writer(problem) {
     // if UDPWRITER_HOST or UDPWRITER_PORT environment variables are set,
     // use those values, otherwise defaults
     mPort = PTP_DEFAULT_SERVER_PORT;
@@ -181,6 +181,8 @@ UDPWriter::UDPWriter(const Problem *problem) : Writer(problem) {
     } else {
         mHost[0] = '\0';
     }
+    world_origin = problem->get_worldorigin();
+    world_size =  problem->get_worldsize();
     if((p = getenv("UDPWRITER_PORT"))) {
         mPort = atoi(p);
     }
@@ -223,6 +225,12 @@ void UDPWriter::write(uint numParts, const float4 *pos, const float4 *vel,
     
         // Initialize common packet data
         packet.total_particle_count = numParts;
+        packet.world_size[0] = world_size.x;
+        packet.world_size[1] = world_size.y;
+        packet.world_size[2] = world_size.z;
+        packet.world_origin[0] = world_origin.x;
+        packet.world_origin[1] = world_origin.y;
+        packet.world_origin[2] = world_origin.z;
     }
     if(client_address_len == 0) {
         cout << "No client available, no data sent." << endl;
@@ -252,7 +260,10 @@ void UDPWriter::write(uint numParts, const float4 *pos, const float4 *vel,
         for(int i = 0; i < packet.particle_count; i++) {
             int offset = (pi * PTP_PARTICLES_PER_PACKET) + i;
             packet.data[i].id = offset;
-            packet.data[i].flag = 0;
+            packet.data[i].particle_type = info[i].x;
+            if(packet.data[i].particle_type != 48) {
+                printf("type=%i\n", packet.data[i].particle_type);
+            }
             memcpy(&packet.data[i].position, &pos[offset], sizeof(float4));
         }
 
