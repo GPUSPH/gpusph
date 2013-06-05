@@ -567,8 +567,12 @@ void GPUWorker::downloadCellsIndices()
 								_size, cudaMemcpyDeviceToHost));
 	_size = 4 * sizeof(uint);
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
-									m_dSegmentStart,
-									_size, cudaMemcpyDeviceToHost));
+								m_dSegmentStart,
+								_size, cudaMemcpyDeviceToHost));
+	// update the number of internal particles
+	m_particleRangeEnd = m_numInternalParticles =
+		min(	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
+				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
 }
 
 // create a compact device map, for this device, from the global one,
@@ -894,11 +898,6 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 #endif
 							m_numParticles,
 							m_nGridCells);
-	// if multi-GPU, update the number of internal particles
-	if (gdata->devices > 1)
-		m_particleRangeEnd = m_numInternalParticles =
-			min(	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
-					gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
 }
 
 void GPUWorker::kernel_buildNeibsList()
