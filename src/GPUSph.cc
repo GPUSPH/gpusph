@@ -816,8 +816,8 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
-		//bool need_write = gdata->problem->need_write(gdata->t) || finished;
-		bool need_write = gdata->iterations % 10 == 0;
+		bool need_write = (!gdata->nosave) && (gdata->problem->need_write(gdata->t) || finished);
+		//bool need_write = (!nosave) && gdata->iterations % 10 == 0;
 		need_write &= (!gdata->nosave);
 
 
