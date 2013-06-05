@@ -497,6 +497,9 @@ GPUSPH::~GPUSPH() {
 }
 
 bool GPUSPH::initialize(GlobalData *_gdata) {
+
+	printf("Initializing...\n");
+
 	gdata = _gdata;
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
@@ -534,6 +537,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->cellSize.y = gdata->worldSize.y / gdata->gridSize.y;
 	gdata->cellSize.z = gdata->worldSize.z / gdata->gridSize.z;
 
+	printf(" - World origin: %g , %g , %g\n", gdata->worldOrigin.x, gdata->worldOrigin.y, gdata->worldOrigin.z);
+	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
+	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
+	printf(" - Grid size:    %u x %u x %u (%u cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->nGridCells);
+
+
 	// initial dt (or, just dt in case adaptive is enabled)
 	gdata->dt = _sp->dt;
 
@@ -559,6 +568,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// no: done
 	//		> new Problem
 
+	printf("Generating problem particles...\n");
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
@@ -580,28 +590,35 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		return false;
 	}
 
+	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
-	allocateGlobalHostBuffers(); // TODO was partially implemented
+	size_t totCPUbytes = allocateGlobalHostBuffers(); // TODO was partially implemented
+	printf("  allocated %lu bytes on host for %lu particles\n", totCPUbytes, gdata->totParticles);
 
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
 	// not before allocating the host buffers
-	if (gdata->devices > 1)
+	if (gdata->devices > 1) {
+		printf("Splitting the domain in %u partitions...\n", gdata->devices);
 		gdata->problem->fillDeviceMap(gdata);
+	}
 
+	printf("Copying the particles to shared arrays...\n");
+	printf("---\n");
 	// Check: is this mandatory? this requires double the memory!
 	// copy particles from problem to GPUSPH buffers
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
+	printf("---\n");
 
-	if (gdata->devices > 1)
+	if (gdata->devices > 1) {
+		printf("Sorting the particles per device...\n");
 		sortParticlesByHash();
-	else {
+	} else {
 		// if there is something more to do, encapsulate in a dedicated method please
 		gdata->s_hStartPerDevice[0] = 0;
 		gdata->s_hPartsPerDevice[0] = gdata->totParticles;
 	}
 
-	printf("Host arrays after sorting the particles:\n");
 	for (uint d=0; d < gdata->devices; d++)
 		printf(" - device at index %u has %u particles assigned and offset %u\n",
 			d, gdata->s_hPartsPerDevice[d], gdata->s_hStartPerDevice[d]);
@@ -613,6 +630,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
+
+	printf("Starting workers...\n");
 
 	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
@@ -635,6 +654,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 bool GPUSPH::finalize() {
 	// TODO here, when there will be the Integrator
 	// delete Integrator
+
+	printf("Deallocating...\n");
 
 	// workers
 	for (int d=0; d < gdata->devices; d++)
@@ -665,6 +686,11 @@ bool GPUSPH::finalize() {
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
+	// doing first write
+	printf("Performing first write...\n");
+	doWrite();
+
+	printf("Asking threads to upload the subdomains...\n");
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
 	// here the Workers are uploading their subdomains
@@ -807,12 +833,12 @@ bool GPUSPH::runSimulation() {
 			gdata->keep_going = false;
 	}
 
+	printf("Simulation end, cleaning up...\n");
+
 	// doCommand(QUIT) would be equivalent, but this is more clear
 	gdata->nextCommand = QUIT;
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
-
-	printf("Simulation end, cleaning up...\n");
 
 	// just wait or...?
 
@@ -893,8 +919,6 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 			totCPUbytes += sizeof(uint) * 4;
 		}
 	}
-
-	printf("Allocated %lu bytes on host for %lu particles\n", totCPUbytes, numparts);
 	return totCPUbytes;
 }
 

@@ -39,9 +39,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_numAlocatedParticles = m_numParticles + _estROParts;
 	m_nGridCells = gdata->nGridCells;
 
-	printf("Device idx %u (CUDA: %u) will allocate %u (assigned) + %u (estimated r.o.) = %u particles\n",
-		m_deviceIndex, m_cudaDeviceNumber, m_numParticles, _estROParts, m_numAlocatedParticles);
-
 	m_hostMemory = m_deviceMemory = 0;
 }
 
@@ -765,9 +762,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
 	instance->allocateDeviceBuffers();
-
-	printf("Thread %u allocated %lu Kb on host, %lu Kb on device %u\n",
-		deviceIndex, instance->getHostMemory()/1000, instance->getDeviceMemory()/1000, cudaDeviceNumber);
+	instance->printAllocatedMemory();
 
 	// create and upload the compact device map (2 bits per cell)
 	if (gdata->devices > 1) {
