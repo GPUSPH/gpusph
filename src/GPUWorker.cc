@@ -161,6 +161,10 @@ void GPUWorker::importPeerEdgeCells()
 				gdata->s_dCellStarts[m_deviceIndex][cell] = m_numParticles;
 				gdata->s_dCellEnds[m_deviceIndex][cell] = m_numParticles + numPartsInPeerCell;
 
+				// update segments
+				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles; // should be already correct
+				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = m_numParticles + numPartsInPeerCell;
+
 				// Update device copy of cellStart (later cellEnd). This allows for building the
 				// neighbor list directly, without the need of running again calchash, sort and reorder
 				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellStart + cell),
