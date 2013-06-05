@@ -557,7 +557,7 @@ getNeibData<false>(	const float4	pos,
 					float&			r,
 					const uint numParticles)
 {
-	if (neib_data.cell != neib_cellnum) {
+	/*if (neib_data.cell != neib_cellnum) {
 		// Update current neib cell number
 		neib_cellnum = neib_data.cell;
 		// Compute new neib base cell index
@@ -568,12 +568,14 @@ getNeibData<false>(	const float4	pos,
 
 	// Compute neib index
 	neib_index = neib_cell_base_index + neib_data.offset;
+	*/
 	// DEBUG: safe guard
 	// TODO: to be removed
-	if (neib_index >= numParticles) {
+	/*if (neib_index >= numParticles) {
 		printf("neib index %d >= num particles %d \n", neib_index, numParticles);
 		neib_index = 0;
-	}
+	}*/
+
 	// Get neib pos
 	neib_pos = posArray[neib_index];
 

@@ -362,10 +362,6 @@ neibsInCell(
 				return;
 	}
 
-	neibdata neib;
-	neib.cell = cell;
-	neib.offset = 0;
-
 	// Get hash value from grid position
 	const uint gridHash = calcGridHash(gridPos, gridSize);
 
@@ -379,6 +375,7 @@ neibsInCell(
 	// Get the last particle index of the cell
 	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	// Iterate over all particles in the cell
+	bool encode_cell = true;
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
 		// Testpoints are not considered in neighboring list of other particles since they are imaginary particles.
@@ -422,8 +419,9 @@ neibsInCell(
 					}
 
 					if (neibs_num < d_maxneibsnum) {
-						neib.offset = neib_index - bucketStart;
-						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = neib;
+						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] =
+								neib_index - bucketStart + ((encode_cell) ? ((cell + 1) << 11) : 0);
+						encode_cell = false;
 					}
 					neibs_num++;
 				}
@@ -514,7 +512,7 @@ buildNeibsListDevice(
 		
 		// Setting the end marker
 		if (neibs_num < d_maxneibsnum)
-			*((ushort*) &neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset]) = 0xffff;
+			neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffff;
 	}
 	
 	if (neibcount) {

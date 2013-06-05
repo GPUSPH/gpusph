@@ -39,13 +39,16 @@
 #	endif
 #endif
 
+#define CELLNUMENCODED		(1U<<11)
+#define NEIBINDEXMASK		(0x7FF)
+
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
 template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, bool usedem,
 		 SPHFormulation sph_formulation>
 __global__ void
-__launch_bounds__(BLOCK_SIZE_FORCES, MIN_BLOCKS_FORCES)
+//__launch_bounds__(BLOCK_SIZE_FORCES, MIN_BLOCKS_FORCES)
 FORCES_CUDA_KERNEL
 (	
 	const float4*	posArray,
@@ -92,7 +95,7 @@ FORCES_CUDA_KERNEL
 			const float4 vel = tex1Dfetch(velTex, index);
 
 			// Compute grid position of current particle
-			int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -136,16 +139,16 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			// persistent variables across getNeibData calls
-			char neib_cellnum = -1;
+			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-				const neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+				neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-				if (*((ushort*) & neib_data) == 0xffff) break;
+				if (neib_data == 0xffff) break;
 
-				uint neib_index;
+				/*uint neib_index;
 				float4 neib_pos;
 				float3 relPos;
 				float r;
@@ -156,7 +159,31 @@ FORCES_CUDA_KERNEL
 				#else
 				getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
 						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-				#endif
+				#endif*/
+
+				if (neib_data >= CELLNUMENCODED) {
+					// Update current neib cell number
+					neib_cellnum = (neib_data >> 11) - 1;
+					neib_data &= NEIBINDEXMASK;
+					// Compute new neib base cell index
+					//gridPos += d_cell_to_offset[neib_cellnum];
+					neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
+				}
+
+				// Compute neib index
+				const uint neib_index = neib_cell_base_index + neib_data;
+				// DEBUG: safe guard
+				// TODO: to be removed
+				/*if (neib_index >= numParticles) {
+					printf("neib index %d >= num particles %d \n", neib_index, numParticles);
+					neib_index = 0;
+				}*/
+				// Get neib pos
+				const float4 neib_pos = posArray[neib_index];
+
+				// Compute relative position vector and distance
+				const float3 relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
+				const float r = length(relPos);
 
 				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
     	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
@@ -317,29 +344,54 @@ FORCES_CUDA_KERNEL
 			int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			// persistent variables across getNeibData calls
-			char neib_cellnum = -1;
+			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
 				neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-			if (*((ushort*) & neib_data) == 0xffff) break;
+				if (neib_data == 0xffff) break;
 
-			uint neib_index;
-			float4 neib_pos;
-			float3 relPos;
-			float r;
+				/*uint neib_index;
+				float4 neib_pos;
+				float3 relPos;
+				float r;
 
-			#if( __COMPUTE__ >= 20)
-			getNeibData<periodicbound>(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
-					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-			#else
-			getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
-					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-			#endif
+				#if( __COMPUTE__ >= 20)
+				getNeibData<periodicbound>(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
+				#else
+				getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
+				#endif*/
 
-    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				if (neib_data >= CELLNUMENCODED) {
+					// Update current neib cell number
+					neib_cellnum = (neib_data >> 11) -1;
+					neib_data &= NEIBINDEXMASK;
+					// Compute new neib base cell index
+					//gridPos += d_cell_to_offset[neib_cellnum];
+					neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
+				}
+
+
+				// Compute neib index
+				const uint neib_index = neib_cell_base_index + neib_data;
+				// DEBUG: safe guard
+				// TODO: to be removed
+				/*if (neib_index >= numParticles) {
+					printf("neib index %d >= num particles %d \n", neib_index, numParticles);
+					neib_index = 0;
+				}*/
+				// Get neib pos
+				const float4 neib_pos = posArray[neib_index];
+
+				// Compute relative position vector and distance
+				const float3 relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
+				const float r = length(relPos);
+
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				// TODO: improve multi objects
 				if (r < influenceradius) {
