@@ -594,7 +594,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers(); // TODO was partially implemented
-	printf("  allocated %lu bytes on host for %lu particles\n", totCPUbytes, gdata->totParticles);
+	printf("  allocated %lu bytes on host for %u particles\n", (ulong)totCPUbytes, gdata->totParticles);
 
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
