@@ -116,8 +116,15 @@ void GPUWorker::importPeerEdgeCells()
 			// find its cellStart and cellEnd
 			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
 			uint peerCellEnd = gdata->s_dCellEnds[peerDevIndex][cell];
-			// if it is not empty...
-			if (peerCellStart != 0xFFFFFFFF) {
+			// if it is empty, update cellStarts; otherwise...
+			if (peerCellStart == 0xFFFFFFFF) {
+				// set the cell as empty
+				gdata->s_dCellStarts[m_deviceIndex][cell] = 0xFFFFFFFF;
+				// update device array
+				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellStart + cell),
+											(gdata->s_dCellStarts[m_deviceIndex] + cell),
+											sizeof(uint), cudaMemcpyHostToDevice));
+			} else {
 				// cellEnd is exclusive
 				uint numPartsInPeerCell = peerCellEnd - peerCellStart;
 				// retrieve device pointers of peer device
