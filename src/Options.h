@@ -38,13 +38,15 @@ struct Options {
 	string custom_dir; // custom directory for dumps
 	float deltap; // deltap
 	float tend; // simulation end
+	bool nosave; // disable saving
 	Options(void) :
 		problem(),
 		device(-1),
 		dem(),
 		custom_dir(),
 		deltap(NAN),
-		tend(NAN)
+		tend(NAN),
+		nosave(false)
 	{};
 };
 

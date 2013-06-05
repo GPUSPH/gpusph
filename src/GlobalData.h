@@ -187,6 +187,9 @@ struct GlobalData {
 	WriterType writerType;
 	Writer *writer;
 
+	// disable saving (for timing, or only for the last)
+	bool nosave;
+
 	// ids, tdatas and ranges of each cpu thread
 	//pthread_t *cpuThreadIds;
 	//dataForCPUThread *tdatas;
@@ -270,7 +273,8 @@ struct GlobalData {
 		step(0),
 		only_internal(false),
 		writerType(VTKWRITER),
-		writer(NULL)
+		writer(NULL),
+		nosave(false)
 		//tdatas(NULL),
 		//cpuThreadFromParticle(NULL),
 		//cpuThreadToParticle(NULL),
@@ -280,7 +284,6 @@ struct GlobalData {
 		//buildNeibs(false),
 		//balancing_request(false),
 		//balancing_operations(0),
-		//nosave(false),
 		//nobalance(false),
 		//custom_lb_threshold(0.0f),
 		//alloc_max(false)

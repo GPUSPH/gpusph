@@ -509,7 +509,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
 
-	// set the tend passed by command line, if any
+	// copy the options passed by command line to GlobalData
+	gdata->nosave = clOptions->nosave;
 	if (isfinite(clOptions->tend))
 		_sp-> tend = clOptions->tend;
 
@@ -817,6 +818,7 @@ bool GPUSPH::runSimulation() {
 		bool finished = gdata->problem->finished(gdata->t);
 		//bool need_write = gdata->problem->need_write(gdata->t) || finished;
 		bool need_write = gdata->iterations % 10 == 0;
+		need_write &= (!gdata->nosave);
 
 
 		if (need_write) {

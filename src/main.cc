@@ -113,10 +113,10 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--single")) {
 			gdata->single_inter = true;
-		} else if (!strcmp(arg, "--nosave")) {
+		} */ else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
 			gdata->nosave = true;
-		} else if (!strcmp(arg, "--nobalance")) {
+		} /*else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
 			gdata->nobalance = true;
 		} else if (!strcmp(arg, "--alloc-max")) {
