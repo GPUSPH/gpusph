@@ -121,7 +121,7 @@ void GPUWorker::importPeerEdgeCells()
 				// set the cell as empty
 				gdata->s_dCellStarts[m_deviceIndex][cell] = 0xFFFFFFFF;
 				// update device array
-				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellStart + cell),
+				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellStart + cell),
 											(gdata->s_dCellStarts[m_deviceIndex] + cell),
 											sizeof(uint), cudaMemcpyHostToDevice));
 			} else {
@@ -133,19 +133,19 @@ void GPUWorker::importPeerEdgeCells()
 				const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
 				// append pos, vel and info data
 				size_t _size = numPartsInPeerCell * sizeof(float4);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dPos[ gdata->currentPosRead ] + m_numParticles,
+				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dPos[ gdata->currentPosRead ] + m_numParticles,
 												m_cudaDeviceNumber,
 												peer_dPos[ gdata->currentPosRead ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
 				// _size = numPartsInPeerCell * sizeof(float4);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dVel[ gdata->currentVelRead ] + m_numParticles,
+				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dVel[ gdata->currentVelRead ] + m_numParticles,
 												m_cudaDeviceNumber,
 												peer_dVel[ gdata->currentVelRead ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
 				_size = numPartsInPeerCell * sizeof(particleinfo);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dInfo[ gdata->currentInfoRead ] + m_numParticles,
+				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dInfo[ gdata->currentInfoRead ] + m_numParticles,
 												m_cudaDeviceNumber,
 												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
 												peerCudaDevNum,
@@ -167,10 +167,10 @@ void GPUWorker::importPeerEdgeCells()
 
 				// Update device copy of cellStart (later cellEnd). This allows for building the
 				// neighbor list directly, without the need of running again calchash, sort and reorder
-				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellStart + cell),
+				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellStart + cell),
 											(gdata->s_dCellStarts[m_deviceIndex] + cell),
 											sizeof(uint), cudaMemcpyHostToDevice));
-				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellEnd + cell),
+				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellEnd + cell),
 											(gdata->s_dCellEnds[m_deviceIndex] + cell),
 											sizeof(uint), cudaMemcpyHostToDevice));
 
@@ -179,7 +179,7 @@ void GPUWorker::importPeerEdgeCells()
 			} // if cell is not empty
 		} // if cell is external edge
 
-	// cudaMemcpyPeer() is asynchronous with the host. We synchronize at the end to wait for the
+	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
 	cudaDeviceSynchronize();
 }
@@ -219,19 +219,19 @@ void GPUWorker::updatePeerEdgeCells()
 				//const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
 				// append pos, vel and info data
 				size_t _size = numPartsInPeerCell * sizeof(float4);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dPos[ gdata->currentPosWrite ] + selfCellStart,
+				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dPos[ gdata->currentPosWrite ] + selfCellStart,
 												m_cudaDeviceNumber,
 												peer_dPos[ gdata->currentPosWrite ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
 				// _size = numPartsInPeerCell * sizeof(float4);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dVel[ gdata->currentVelWrite ] + selfCellStart,
+				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dVel[ gdata->currentVelWrite ] + selfCellStart,
 												m_cudaDeviceNumber,
 												peer_dVel[ gdata->currentVelWrite ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
 				/*_size = numPartsInPeerCell * sizeof(particleinfo);
-				CUDA_SAFE_CALL( cudaMemcpyPeer(	m_dInfo[ gdata->currentInfoRead ] + selfCellStart,
+				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dInfo[ gdata->currentInfoRead ] + selfCellStart,
 												m_cudaDeviceNumber,
 												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
 												peerCudaDevNum,
@@ -240,7 +240,7 @@ void GPUWorker::updatePeerEdgeCells()
 			} // if cell is not empty
 		} // if cell is external edge
 
-	// cudaMemcpyPeer() is asynchronous with the host. We synchronize at the end to wait for the
+	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
 	cudaDeviceSynchronize();
 }
