@@ -87,11 +87,17 @@ void GPUWorker::dropExternalParticles()
 	if (external_start_at > m_numParticles)
 		printf("WARNING: thread %u: first outer particle (%u) beyond active particles (%u)! Not cropping\n",
 				m_deviceIndex, external_start_at, m_numParticles);
-	else
+	else {
 		m_numParticles = external_start_at;
+		// one of the two might still be ahead
+		gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
+		gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = m_numParticles;
+	}
+
 }
 
 // append a copy of the external edge cells of other devices to the self device arrays
+// and update cellStarts, cellEnds and segmentStarts
 void GPUWorker::importPeerEdgeCells()
 {
 	// at the moment, the cells are imported in the same order they are encountered iterating
@@ -110,8 +116,15 @@ void GPUWorker::importPeerEdgeCells()
 			// find its cellStart and cellEnd
 			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
 			uint peerCellEnd = gdata->s_dCellEnds[peerDevIndex][cell];
-			// if it is not empty...
-			if (peerCellStart != 0xFFFFFFFF) {
+			// if it is empty, update cellStarts; otherwise...
+			if (peerCellStart == 0xFFFFFFFF) {
+				// set the cell as empty
+				gdata->s_dCellStarts[m_deviceIndex][cell] = 0xFFFFFFFF;
+				// update device array
+				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellStart + cell),
+											(gdata->s_dCellStarts[m_deviceIndex] + cell),
+											sizeof(uint), cudaMemcpyHostToDevice));
+			} else {
 				// cellEnd is exclusive
 				uint numPartsInPeerCell = peerCellEnd - peerCellStart;
 				// retrieve device pointers of peer device
@@ -137,9 +150,28 @@ void GPUWorker::importPeerEdgeCells()
 												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
 												peerCudaDevNum,
 												_size));
-				// update the number of particles
-				m_numParticles += numPartsInPeerCell;
+				// now we should write
+				// cellStart[cell] = m_numParticles
+				// cellEnd[cell] = m_numParticles + numPartsInPeerCell
+				// in both device memory and host buffers (although will not be used)
 
+				// Update host copy of cellStart and cellEnd. Since it is an external cell,
+				// it is unlikely that the host copy will be used, but it is always good to keep
+				// indices consistent
+				gdata->s_dCellStarts[m_deviceIndex][cell] = m_numParticles;
+				gdata->s_dCellEnds[m_deviceIndex][cell] = m_numParticles + numPartsInPeerCell;
+
+				// Update device copy of cellStart (later cellEnd). This allows for building the
+				// neighbor list directly, without the need of running again calchash, sort and reorder
+				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellStart + cell),
+											(gdata->s_dCellStarts[m_deviceIndex] + cell),
+											sizeof(uint), cudaMemcpyHostToDevice));
+				CUDA_SAFE_CALL(cudaMemcpy(	(m_dCellEnd + cell),
+											(gdata->s_dCellEnds[m_deviceIndex] + cell),
+											sizeof(uint), cudaMemcpyHostToDevice));
+
+				// update the total number of particles
+				m_numParticles += numPartsInPeerCell;
 			} // if cell is not empty
 		} // if cell is external edge
 
