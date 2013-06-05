@@ -922,6 +922,7 @@ void GPUSPH::deallocateGlobalHostBuffers()
 
 // Sort the particles in-place (pos, vel, info) according to the device number;
 // update counters s_hPartsPerDevice and s_hStartPerDevice, which will be used to upload
+// and download the buffers. Finally, initialize s_dSegmentsStart
 // Assumptions: problem already filled, deviceMap filled, particles copied in shared arrays
 void GPUSPH::sortParticlesByHash() {
 	// DEBUG: print the list of particles before sorting
@@ -1001,8 +1002,14 @@ void GPUSPH::sortParticlesByHash() {
 			leftB++;
 		}
 	}
-	// delete array of keys (might be recycle instead?)
+	// delete array of keys (might be recycled instead?)
 	delete [] m_hParticleHashes;
+
+	// initialize the outer cells values in s_dSegmentsStart. The inner_edge are still uninitialized
+	for (uint currentDevice=0; currentDevice < gdata->devices; currentDevice++)
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_EDGE_CELL] =
+			gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_CELL]  =
+			gdata->s_hPartsPerDevice[currentDevice];
 
 	// DEBUG: check if the sort was correct
 	/*bool monotonic = true;
