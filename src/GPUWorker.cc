@@ -88,7 +88,7 @@ void GPUWorker::dropExternalParticles()
 		printf("WARNING: thread %u: first outer particle (%u) beyond active particles (%u)! Not cropping\n",
 				m_deviceIndex, external_start_at, m_numParticles);
 	else {
-		m_numParticles = external_start_at;
+		m_particleRangeEnd =  m_numInternalParticles = m_numParticles = external_start_at;
 		// one of the two might still be ahead
 		gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
 		gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = m_numParticles;
