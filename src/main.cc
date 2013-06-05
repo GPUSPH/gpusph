@@ -42,6 +42,7 @@ void print_usage() {
 	//exit(-1);
 }
 
+// if some option needs to be passed to GlobalData, remember to set it in GPUSPH::initialize()
 bool parse_options(int argc, char **argv, GlobalData *gdata)
 {
 	const char *arg(NULL);
