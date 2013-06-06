@@ -691,7 +691,7 @@ bool GPUSPH::runSimulation() {
 	printf("Performing first write...\n");
 	doWrite();
 
-	printf("Asking threads to upload the subdomains...\n");
+	printf("Letting threads upload the subdomains...\n");
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
 	// here the Workers are uploading their subdomains
