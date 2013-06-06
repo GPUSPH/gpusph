@@ -24,6 +24,8 @@
 #include "Synchronizer.h"
 // Writer
 #include "Writer.h"
+// ostringstream
+#include <sstream>
 
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
@@ -340,6 +342,30 @@ struct GlobalData {
 		if (buffers & BUFFER_POS)	std::swap(currentPosRead, currentPosWrite);
 		if (buffers & BUFFER_VEL)	std::swap(currentVelRead, currentVelWrite);
 		if (buffers & BUFFER_INFO)	std::swap(currentInfoRead, currentInfoWrite);
+	}
+
+	// convert to string and add separators
+	string addSeparators(long int number) {
+		std::ostringstream oss;
+		ulong mod, div;
+		uchar separator = ',';
+		// minus
+		if (number < 0) {
+			oss << "-";
+			number *= -1;
+		}
+		uint magnitude = 1000000000;
+		while (number >= 1000) {
+			if (number >= magnitude) {
+				div = number / magnitude;
+				mod = number % magnitude;
+				oss << div << separator;
+				number = mod;
+			}
+			magnitude /= 1000;
+		}
+		oss << number;
+		return oss.str();
 	}
 };
 
