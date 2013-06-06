@@ -174,12 +174,16 @@ public:
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
 	~GPUWorker();
 
-	// methods to handle the number of particles
+	// getters of the number of particles
 	uint getNumParticles();
 	uint getNumInternalParticles();
 	uint getMaxParticles();
-	uint estimateROParticles();
-	uint computeNumAllocatedParticles();
+
+	// compute the bytes required for each particle/cell
+	size_t computeMemoryPerParticle();
+	size_t computeMemoryPerCell();
+	// check how many particles we can allocate at most
+	void computeAndSetAllocableParticles();
 
 	// thread management
 	void run_worker();

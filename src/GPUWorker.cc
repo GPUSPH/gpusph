@@ -60,33 +60,60 @@ uint GPUWorker::getMaxParticles()
 	return m_numAllocatedParticles;
 }
 
-// Estimate the number of r.o. particles the worker might need
-// Algorithm: 1. estimate max parts per cell 2. estimate num cells per widest section 3. multiply this by a factor
-// NOTE: assuming GlobalData::totParticles, deviceMap, etc. have been already filled
-// TODO: make a more realisti estimation, e.g. by counting the neighbor cells
-uint GPUWorker::estimateROParticles()
+// Compute the bytes required for each particle.
+// NOTE: this should be updated for each new device array!
+size_t GPUWorker::computeMemoryPerParticle()
 {
-	float deltap = gdata->problem->m_deltap;
-	uint parts_per_cell = (uint)((gdata->cellSize.x / deltap + 0.5) *
-								 (gdata->cellSize.y / deltap + 0.5) *
-								 (gdata->cellSize.z / deltap + 0.5));
-	uint gx = gdata->gridSize.x;
-	uint gy = gdata->gridSize.x;
-	uint gz = gdata->gridSize.x;
-	uint max_cells_per_section = max( gx*gy, max(gx*gz, gy*gz) );
+	size_t tot = 0;
 
-	uint max_parts_per_section = parts_per_cell * max_cells_per_section;
+	tot += sizeof(m_dPos[0][0]) * 2; // double buffered
+	tot += sizeof(m_dVel[0][0]) * 2; // double buffered
+	tot += sizeof(m_dInfo[0][0]) * 2; // double buffered
+	tot += sizeof(m_dForces[0]);
+	tot += sizeof(m_dParticleHash[0]);
+	tot += sizeof(m_dParticleIndex[0]);
+	tot += sizeof(m_dNeibsList[0]) * m_simparams->maxneibsnum; // underestimated: the total is rounded up to next multiple of NEIBINDEX_INTERLEAVE
+	// Memory for the cfl reduction is widely overestimated: there are actually 2 arrays of float but one should then divide by BLOCK_SIZE_FORCES.
+	// We consider instead a fourth of one array only, so roughly 1/8 instead of 1/128 or 1/256. It's still about 8 times more.
+	tot += sizeof(m_dCfl[0])/4;
+	// conditional here?
+	tot += sizeof(m_dXsph[0]);
 
-	// another constant we might need to tune
-	return max_parts_per_section * 0.2f;
+	// optional arrays
+	if (m_simparams->savenormals) tot += sizeof(m_dNormals[0]);
+	if (m_simparams->vorticity) tot += sizeof(m_dVort[0]);
+	if (m_simparams->visctype == SPSVISC) tot += sizeof(m_dTau[0][0]) * 3; // 6 tau per part
+
+	// TODO
+	//float4*		m_dRbForces;
+	//float4*		m_dRbTorques;
+	//uint*		m_dRbNum;
+
+	// round up to next multiple of 4
+
+	return (tot/4 + 1) * 4;
 }
 
-uint GPUWorker::computeNumAllocatedParticles()
+// Compute the bytes required for each cell.
+// NOTE: this should be update for each new device array!
+size_t GPUWorker::computeMemoryPerCell()
 {
-	uint _estROParts = 0;
-	if (gdata->devices > 1)
-		_estROParts = estimateROParticles();
-	m_numAllocatedParticles = m_numParticles + _estROParts;
+	size_t tot = 0;
+	tot += sizeof(m_dCellStart[0]);
+	tot += sizeof(m_dCellEnd[0]);
+	tot += sizeof(m_dCompactDeviceMap[0]);
+	return tot;
+}
+
+// Compute the maximum number of particles we can allocate according to the available device memory
+void GPUWorker::computeAndSetAllocableParticles()
+{
+	size_t totMemory, freeMemory;
+	cudaMemGetInfo(&freeMemory, &totMemory);
+	freeMemory -= gdata->nGridCells * computeMemoryPerCell();
+	freeMemory -= 16; // segments
+	freeMemory -= 50*1024*1024; // leave 50Mb as safety margin
+	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
 }
 
 // Cut all particles that are not internal.
@@ -492,9 +519,8 @@ void GPUWorker::printAllocatedMemory()
 {
 	uint _estROParts = m_numAllocatedParticles - m_numParticles;
 	printf("Device idx %u (CUDA: %u) allocated %.1f Mb on host, %.1f Mb on device\n"
-			"  for %u (assigned) + %u (estimated r.o.) = %u particles (%.2g\% r.o.)\n",
-			m_deviceIndex, m_cudaDeviceNumber, getHostMemory()/1000000.0, getDeviceMemory()/1000000.0,
-			m_numParticles, _estROParts, m_numAllocatedParticles, _estROParts/(float)m_numAllocatedParticles*100);
+			"  assigned particles: %u; allocated: %u\n", m_deviceIndex, m_cudaDeviceNumber,
+			getHostMemory()/1000000.0, getDeviceMemory()/1000000.0, m_numParticles, m_numAllocatedParticles);
 }
 
 // upload subdomain, just allocated and sorted by main thread
@@ -776,8 +802,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
 
-	// compute #parts to allocate
-	instance->computeNumAllocatedParticles();
+	// compute #parts to allocate according to the free memory on the device
+	instance->computeAndSetAllocableParticles();
 
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
