@@ -752,8 +752,6 @@ bool GPUSPH::runSimulation() {
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
-	//			k>  shepard && swap1
-	//			k>  mls && swap
 	//			//set mvboundaries and gravity
 	//			//(init bodies)
 
