@@ -179,6 +179,7 @@ public:
 	uint getNumInternalParticles();
 	uint getMaxParticles();
 	uint estimateROParticles();
+	uint computeNumAllocatedParticles();
 
 	// thread management
 	void run_worker();

@@ -32,11 +32,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_particleRangeBegin = 0;
 	m_particleRangeEnd = m_numInternalParticles;
 
-	uint _estROParts = 0;
-	if (gdata->devices > 1)
-		_estROParts = estimateROParticles();
-
-	m_numAllocatedParticles = m_numParticles + _estROParts;
+	m_numAllocatedParticles = 0;
 	m_nGridCells = gdata->nGridCells;
 
 	m_hostMemory = m_deviceMemory = 0;
@@ -65,11 +61,32 @@ uint GPUWorker::getMaxParticles()
 }
 
 // Estimate the number of r.o. particles the worker might need
+// Algorithm: 1. estimate max parts per cell 2. estimate num cells per widest section 3. multiply this by a factor
 // NOTE: assuming GlobalData::totParticles, deviceMap, etc. have been already filled
 // TODO: make a more realisti estimation, e.g. by counting the neighbor cells
 uint GPUWorker::estimateROParticles()
 {
-	return gdata->s_hPartsPerDevice[m_deviceIndex] * 1.5f;
+	float deltap = gdata->problem->m_deltap;
+	uint parts_per_cell = (uint)((gdata->cellSize.x / deltap + 0.5) *
+								 (gdata->cellSize.y / deltap + 0.5) *
+								 (gdata->cellSize.z / deltap + 0.5));
+	uint gx = gdata->gridSize.x;
+	uint gy = gdata->gridSize.x;
+	uint gz = gdata->gridSize.x;
+	uint max_cells_per_section = max( gx*gy, max(gx*gz, gy*gz) );
+
+	uint max_parts_per_section = parts_per_cell * max_cells_per_section;
+
+	// another constant we might need to tune
+	return max_parts_per_section * 0.2f;
+}
+
+uint GPUWorker::computeNumAllocatedParticles()
+{
+	uint _estROParts = 0;
+	if (gdata->devices > 1)
+		_estROParts = estimateROParticles();
+	m_numAllocatedParticles = m_numParticles + _estROParts;
 }
 
 // Cut all particles that are not internal.
@@ -758,6 +775,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
+
+	// compute #parts to allocate
+	instance->computeNumAllocatedParticles();
 
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
