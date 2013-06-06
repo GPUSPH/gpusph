@@ -61,10 +61,18 @@ enum WriterType
 	UDPWRITER
 };
 
-// buffer constants for swapDeviceBuffers()
+// buffer constants for swapDeviceBuffers() - serving also as flags for DUMP command
 #define BUFFER_POS	((uint)1 << 0)
 #define BUFFER_VEL	((uint)1 << 1)
 #define BUFFER_INFO	((uint)1 << 2)
+// only flags for DUMP
+#define BUFFER_VORTICITY	((uint)1 << 3)
+#define BUFFER_NORMALS		((uint)1 << 4)
+
+// the selection of the double buffers is also encoded (in high bits)
+#define DBLBUFFER_READ		((uint)1 << 30)
+#define DBLBUFFER_WRITE		((uint)1 << 31)
+
 // common shortcut
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
 
