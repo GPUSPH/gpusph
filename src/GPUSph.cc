@@ -703,6 +703,8 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 1
 
+	printf("Entering the main simulation cycle\n");
+
 	//  IPPS counter does not take the initial uploads into consideration
 	m_performanceCounter->start();
 
