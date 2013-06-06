@@ -541,7 +541,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World origin: %g , %g , %g\n", gdata->worldOrigin.x, gdata->worldOrigin.y, gdata->worldOrigin.z);
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
-	printf(" - Grid size:    %u x %u x %u (%u cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->nGridCells);
+	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
 
 
 	// initial dt (or, just dt in case adaptive is enabled)
@@ -594,7 +594,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers(); // TODO was partially implemented
-	printf("  allocated %lu bytes on host for %u particles\n", (ulong)totCPUbytes, gdata->totParticles);
+	printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->totParticles).c_str());
 
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
@@ -621,8 +621,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	}
 
 	for (uint d=0; d < gdata->devices; d++)
-		printf(" - device at index %u has %u particles assigned and offset %u\n",
-			d, gdata->s_hPartsPerDevice[d], gdata->s_hStartPerDevice[d]);
+		printf(" - device at index %u has %s particles assigned and offset %s\n",
+			d, gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(), gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str());
 
 	// TODO
 	//		// > new Integrator
@@ -1180,11 +1180,12 @@ void GPUSPH::doWrite()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%ld, dt=%es, %u parts (%.2g MIPPS)\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS)\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
-			gdata->t, gdata->iterations, gdata->dt, gdata->totParticles, m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles)
+			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
+			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles)
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,

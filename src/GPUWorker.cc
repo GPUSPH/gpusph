@@ -518,9 +518,10 @@ void GPUWorker::deallocateDeviceBuffers() {
 void GPUWorker::printAllocatedMemory()
 {
 	uint _estROParts = m_numAllocatedParticles - m_numParticles;
-	printf("Device idx %u (CUDA: %u) allocated %.1f Mb on host, %.1f Mb on device\n"
-			"  assigned particles: %u; allocated: %u\n", m_deviceIndex, m_cudaDeviceNumber,
-			getHostMemory()/1000000.0, getDeviceMemory()/1000000.0, m_numParticles, m_numAllocatedParticles);
+	printf("Device idx %u (CUDA: %u) allocated %.2f Gb on host, %.2f Gb on device\n"
+			"  assigned particles: %s; allocated: %s\n", m_deviceIndex, m_cudaDeviceNumber,
+			getHostMemory()/1000000000.0, getDeviceMemory()/1000000000.0,
+			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
 // upload subdomain, just allocated and sorted by main thread
