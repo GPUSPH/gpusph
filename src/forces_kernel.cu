@@ -702,7 +702,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 			// Velocity Gradients
 			dvx -= relVel.x*relPos*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
 			dvy -= relVel.y*relPos*f;	// dvy = -∑mj/ρj vyij (ri - rj)/r ∂Wij/∂r
-			dvz -= relVel.y*relPos*f;	// dvy = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
+			dvz -= relVel.z*relPos*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
 			}
 		} // end of loop through neighbors
 
