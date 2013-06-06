@@ -180,6 +180,8 @@ struct GlobalData {
 	// next command to be executed by workers
 	CommandType nextCommand;
 	// step parameter, e.g. for predictor/corrector scheme
+	// command flags, i.e. parameter for the command
+	uint commandFlags;
 	uint step;
 	// set to true if next kernel has to be run only on internal particles
 	// (need support of the worker and/or the kernel)
@@ -272,6 +274,7 @@ struct GlobalData {
 		//numCpuThreads(0),
 		//cpuThreadIds(NULL),
 		nextCommand(IDLE),
+		commandFlags(0),
 		step(0),
 		only_internal(false),
 		writerType(VTKWRITER),
