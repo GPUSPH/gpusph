@@ -48,6 +48,10 @@ enum CommandType {
 	QUIT				// quits the simulation cycle
 };
 
+// flags for forces and euler kernels
+#define INTEGRATOR_STEP_1	0
+#define INTEGRATOR_STEP_2	1
+
 enum WriterType
 {
 	TEXTWRITER,
@@ -182,7 +186,6 @@ struct GlobalData {
 	// step parameter, e.g. for predictor/corrector scheme
 	// command flags, i.e. parameter for the command
 	uint commandFlags;
-	uint step;
 	// set to true if next kernel has to be run only on internal particles
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
@@ -275,7 +278,6 @@ struct GlobalData {
 		//cpuThreadIds(NULL),
 		nextCommand(IDLE),
 		commandFlags(0),
-		step(0),
 		only_internal(false),
 		writerType(VTKWRITER),
 		writer(NULL),

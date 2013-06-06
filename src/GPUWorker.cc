@@ -975,7 +975,7 @@ void GPUWorker::kernel_buildNeibsList()
 void GPUWorker::kernel_forces()
 {
 	float returned_dt = 0.0F;
-	bool firstStep = (gdata->step == 1);
+	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
 	if (firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 						m_dVel[gdata->currentVelRead],   // vel(n)
@@ -1043,7 +1043,7 @@ void GPUWorker::kernel_forces()
 
 void GPUWorker::kernel_euler()
 {
-	if (gdata->step == 1)
+	if (gdata->commandFlags == INTEGRATOR_STEP_1)
 
 		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
 				m_dVel[gdata->currentVelRead],   // vel(n)

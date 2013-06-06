@@ -757,8 +757,7 @@ bool GPUSPH::runSimulation() {
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
-		gdata->step = 1;
-		doCommand(FORCES);
+		doCommand(FORCES, INTEGRATOR_STEP_1);
 
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
 	//				initially done trivial and slow: stop and read
@@ -767,7 +766,7 @@ bool GPUSPH::runSimulation() {
 		// at the moment, only run euler on internal. If we exchange the forces instead of
 		// the positions and velocities, we need to change this
 		gdata->only_internal = true;
-		doCommand(EULER);
+		doCommand(EULER, INTEGRATOR_STEP_1);
 
 		if (gdata->devices > 1)
 			doCommand(UPDATE_EXTERNAL);
@@ -777,14 +776,13 @@ bool GPUSPH::runSimulation() {
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
 	//				initially done trivial and slow: stop and read
 
-		gdata->step = 2;
 		gdata->only_internal = true;
-		doCommand(FORCES);
+		doCommand(FORCES, INTEGRATOR_STEP_2);
 
 	//			//reduce bodies
 
 		gdata->only_internal = true;
-		doCommand(EULER);
+		doCommand(EULER, INTEGRATOR_STEP_2);
 
 		if (gdata->devices > 1)
 			doCommand(UPDATE_EXTERNAL);
