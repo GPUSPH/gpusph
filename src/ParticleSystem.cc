@@ -111,7 +111,9 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentEpsRead(0),
 	m_currentEpsWrite(1),
 	m_currentTurbViscRead(0),
-	m_currentTurbViscWrite(1)
+	m_currentTurbViscWrite(1),
+	m_currentStrainRateRead(0),
+	m_currentStrainRateWrite(1)
 {
 	m_worldOrigin = problem->get_worldorigin();
 	m_worldSize = problem->get_worldsize();
@@ -428,8 +430,12 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTurbVisc[1], memSize));
 	memory += memSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dStrainRate, memSize));
-	CUDA_SAFE_CALL(cudaMemset(m_dStrainRate, 0, memSize));
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dStrainRate[0], memSize));
+	CUDA_SAFE_CALL(cudaMemset(m_dStrainRate[0], 0, memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dStrainRate[1], memSize));
+	CUDA_SAFE_CALL(cudaMemset(m_dStrainRate[1], 0, memSize));
 	memory += memSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dDkDe, memSize2));
@@ -1030,7 +1036,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 		case STRAINRATE:
 			size = m_numParticles*sizeof(float);
 			hdata = (void*) m_hStrainRate;
-			ddata = (void*) m_dStrainRate;
+			ddata = (void*) m_dStrainRate[m_currentStrainRateRead];
 			break;
 	}
 
@@ -1317,6 +1323,7 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dTKE[m_currentTKEWrite],				// output: k for k-e model
 			m_dEps[m_currentEpsWrite],				// output: e for k-e model
 			m_dTurbVisc[m_currentTurbViscWrite],	// output: eddy viscosity
+			m_dStrainRate[m_currentStrainRateWrite],	// output: strain rate
 			m_dParticleHash,				// input: sorted grid hashes
 			m_dParticleIndex,				// input: sorted particle indices
 			m_dPos[m_currentPosRead],			// input: sorted position array
@@ -1329,6 +1336,7 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dTKE[m_currentTKERead],				// input: k for k-e model
 			m_dEps[m_currentEpsRead],				// input: e for k-e model
 			m_dTurbVisc[m_currentTurbViscRead],		// input: eddy viscosity
+			m_dStrainRate[m_currentStrainRateRead],	// output: strain rate
 			m_dNewNumParticles,				// output: number of active particles
 			m_numParticles,
 			m_nGridCells,
@@ -1354,6 +1362,7 @@ ParticleSystem::buildNeibList(bool timing)
 	std::swap(m_currentTKERead, m_currentTKEWrite);
 	std::swap(m_currentEpsRead, m_currentEpsWrite);
 	std::swap(m_currentTurbViscRead, m_currentTurbViscWrite);
+	std::swap(m_currentStrainRateRead, m_currentStrainRateWrite);
 
 	m_timingInfo.numInteractions = 0;
 	m_timingInfo.maxNeibs = 0;
@@ -1671,7 +1680,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_influenceRadius,
 					m_simparams->visctype,
 					m_physparams->visccoeff,
-					m_dStrainRate,
+					m_dStrainRate[m_currentStrainRateRead],
 					m_dTurbVisc[m_currentTurbViscRead],	// nu_t(n)
 					m_dTKE[m_currentTKERead],	// k(n)
 					m_dEps[m_currentEpsRead],	// e(n)
@@ -1838,7 +1847,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_influenceRadius,
 					m_simparams->visctype,
 					m_physparams->visccoeff,
-					m_dStrainRate,
+					m_dStrainRate[m_currentStrainRateRead], // pointer to ...Read is always used
 					m_dTurbVisc[m_currentTurbViscRead],	// nu_t(n+1/2)
 					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
 					m_dEps[m_currentEpsWrite],	// e(n+1/2)

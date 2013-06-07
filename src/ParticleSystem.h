@@ -234,7 +234,7 @@ class ParticleSystem
 		float*		m_dTKE[2];					// k - turbulent kinetic energy
 		float*		m_dEps[2];					// e - turbulent kinetic energy dissipation rate
 		float*		m_dTurbVisc[2];				// nu_t - kinematic eddy viscosity
-		float*		m_dStrainRate;				// S - mean scalar strain rate
+		float*		m_dStrainRate[2];			// S - mean scalar strain rate
 		float2*		m_dDkDe;					// dk/dt and de/dt for k-e model
 
 		// TODO: profile with float3
@@ -277,6 +277,8 @@ class ParticleSystem
 		uint		m_currentEpsWrite;		// current index in m_dEps for writing (0 or 1)
 		uint		m_currentTurbViscRead;		// current index in m_dTurbVisc for pressure reading (0 or 1)
 		uint		m_currentTurbViscWrite;		// current index in m_dTurbVisc for writing (0 or 1)
+		uint		m_currentStrainRateRead;
+		uint		m_currentStrainRateWrite;
 
 		// CUDA device properties
 		cudaDeviceProp	m_device;

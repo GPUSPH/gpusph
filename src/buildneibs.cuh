@@ -138,6 +138,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float*			newTKE,				// output: k for k-e model
 							float*			newEps,				// output: e for k-e model
 							float*			newTurbVisc,		// output: eddy viscosity
+							float*			newStrainRate,		// output: strain rate
 							hashKey*		particleHash,		// input: sorted grid hashes
 							uint*			particleIndex,		// input: sorted particle indices
 							float4*			oldPos,			// input: sorted position array
@@ -150,6 +151,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float*			oldTKE,				// input: k for k-e model
 							float*			oldEps,				// input: e for k-e model
 							float*			oldTurbVisc,		// input: eddy viscosity
+							float*			oldStrainRate,		// input: strain rate
 							uint*			newNumParticles,	// output: number of active particles found
 							uint			numParticles,
 							uint			numGridCells,
