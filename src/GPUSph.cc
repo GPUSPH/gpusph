@@ -820,7 +820,7 @@ bool GPUSPH::runSimulation() {
 		if (need_write) {
 			// TODO: the performanceCounter could be "paused" here
 			// ask workers to dump their subdomains and wait for it to complete
-			doCommand(DUMP);
+			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO );
 			// triggers Writer->write()
 			doWrite();
 			// usual status
@@ -830,7 +830,7 @@ bool GPUSPH::runSimulation() {
 		if (finished || gdata->quit_request) {
 			// regardless --nosave is enabled
 			printf("Issuing final save...\n");
-			doCommand(DUMP);
+			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO );
 			doWrite();
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;

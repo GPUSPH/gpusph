@@ -555,57 +555,47 @@ void GPUWorker::uploadSubdomain() {
 								_size, cudaMemcpyHostToDevice));
 }
 
-// DEPRECATED download the subdomain to the private member arrays
-void GPUWorker::downloadSubdomain() {
+// Download the subset of the specified buffer to the correspondent shared CPU array.
+// Makes multiple transfers. Only downloads the subset relative to the internal particles.
+// TODO: write a macro to encapsulate all memcpys
+// TODO: use sizeof(array[0]) to make it general purpose?
+void GPUWorker::dumpBuffers() {
 	// indices
 	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
 	size_t _size = 0;
+	uint flags = gdata->commandFlags;
 
-	// memcpys - recalling GPU arrays are double buffered
-	_size = howManyParticles * sizeof(float4);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_hPos,
-								m_dPos[ gdata->currentPosRead ],
-								_size, cudaMemcpyDeviceToHost));
+	if (flags & BUFFER_POS) {
+		_size = howManyParticles * sizeof(float4);
+		uchar dbl_buffer_pointer = 0;
+		if (flags | DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentPosRead; else
+		if (flags | DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentPosWrite;
+		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hPos + firstInnerParticle,
+									m_dPos[dbl_buffer_pointer],
+									_size, cudaMemcpyDeviceToHost));
+	}
 
-	_size = howManyParticles * sizeof(float4);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_hVel,
-								m_dVel[ gdata->currentVelRead ],
-								_size, cudaMemcpyDeviceToHost));
+	if (flags & BUFFER_VEL) {
+		_size = howManyParticles * sizeof(float4);
+		uchar dbl_buffer_pointer = 0;
+		if (flags | DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentVelRead; else
+		if (flags | DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentVelWrite;
+		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVel + firstInnerParticle,
+									m_dVel[dbl_buffer_pointer],
+									_size, cudaMemcpyDeviceToHost));
+	}
 
-	_size = howManyParticles * sizeof(particleinfo);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_hInfo,
-								m_dInfo[ gdata->currentInfoRead ],
-								_size, cudaMemcpyDeviceToHost));
-}
-
-// download the subdomain to the shared CPU arrays
-void GPUWorker::downloadSubdomainToGlobalBuffer() {
-	// indices
-	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
-	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
-
-	size_t _size = 0;
-
-	//if (m_deviceIndex==1) return;
-	//printf(" - thread %d downloading stuff\n", m_deviceIndex);
-
-	// memcpys - recalling GPU arrays are double buffered
-	_size = howManyParticles * sizeof(float4);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hPos + firstInnerParticle,
-								m_dPos[ gdata->currentPosRead ],
-								_size, cudaMemcpyDeviceToHost));
-
-	_size = howManyParticles * sizeof(float4);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVel + firstInnerParticle,
-								m_dVel[ gdata->currentVelRead ],
-								_size, cudaMemcpyDeviceToHost));
-
-	_size = howManyParticles * sizeof(particleinfo);
-	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hInfo + firstInnerParticle,
-								m_dInfo[ gdata->currentInfoRead ],
-								_size, cudaMemcpyDeviceToHost));
+	if (flags & BUFFER_INFO) {
+		_size = howManyParticles * sizeof(particleinfo);
+		uchar dbl_buffer_pointer = 0;
+		if (flags | DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentInfoRead; else
+		if (flags | DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentInfoWrite;
+		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hInfo + firstInnerParticle,
+									m_dInfo[dbl_buffer_pointer],
+									_size, cudaMemcpyDeviceToHost));
+	}
 }
 
 // download cellStart and cellEnd to the shared arrays
@@ -868,7 +858,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case DUMP:
 				//printf(" T %d issuing DUMP\n", deviceIndex);
-				instance->downloadSubdomainToGlobalBuffer();
+				instance->dumpBuffers();
 				break;
 			case DUMP_CELLS:
 				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);

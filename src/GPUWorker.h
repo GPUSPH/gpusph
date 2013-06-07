@@ -148,8 +148,7 @@ private:
 	void printAllocatedMemory();
 
 	void uploadSubdomain();
-	void downloadSubdomain();
-	void downloadSubdomainToGlobalBuffer();
+	void dumpBuffers();
 	void downloadCellsIndices();
 
 	void createCompactDeviceMap();
