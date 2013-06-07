@@ -362,6 +362,8 @@ struct GlobalData {
 		std::ostringstream oss;
 		ulong mod, div;
 		uchar separator = ',';
+		// last triplet need 0 padding, if it is not the only one
+		bool need_padding = false;
 		// minus
 		if (number < 0) {
 			oss << "-";
@@ -376,6 +378,11 @@ struct GlobalData {
 				number = mod;
 			}
 			magnitude /= 1000;
+			need_padding = true;
+		}
+		if (need_padding) {
+			if (number <= 99) oss << "0";
+			if (number <= 9) oss << "0";
 		}
 		oss << number;
 		return oss.str();
