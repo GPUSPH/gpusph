@@ -708,6 +708,9 @@ bool GPUSPH::runSimulation() {
 	//  IPPS counter does not take the initial uploads into consideration
 	m_performanceCounter->start();
 
+	// write some info. This could replace "Entering the main simulation cycle"
+	printStatus();
+
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
