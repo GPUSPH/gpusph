@@ -654,23 +654,40 @@ void GPUWorker::createCompactDeviceMap() {
 				// iterate on neighbors
 				for (int dx=-1; dx <= 1 && !enough_info; dx++)
 					for (int dy=-1; dy <= 1 && !enough_info; dy++)
-						for (int dz=-1; dz <= 1 && !enough_info; dz++)
-							// check we are in the grid
-							// TODO: modulus for periodic boundaries
-							if (ix + dx < 0 || ix + dx >= gdata->gridSize.x ||
-								iy + dy < 0 || iy + dy >= gdata->gridSize.y ||
-								iz + dz < 0 || iz + dz >= gdata->gridSize.z) continue;
-							else
+						for (int dz=-1; dz <= 1 && !enough_info; dz++) {
 							// do not iterate on self
-							if (!(dx == 0 && dy == 0 && dz == 0)) {
-								// data of neib cell
-								uint neib_lin_idx = gdata->calcGridHashHost(ix + dx, iy + dy, iz + dz);
-								uint neib_devidx = gdata->s_hDeviceMap[neib_lin_idx];
-								any_mine_neib	 |= (neib_devidx == m_deviceIndex);
-								any_foreign_neib |= (neib_devidx != m_deviceIndex);
-								// did we read enough to decide for current cell?
-								enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
+							if (dx == 0 && dy == 0 && dz == 0) continue;
+							// explicit cell coordinates for readability
+							int cx = ix + dx;
+							int cy = iy + dy;
+							int cz = iz + dz;
+							// warp periodic boundaries
+							if (m_simparams->periodicbound) {
+								if (m_physparams->dispvect.x) {
+									if (cx >= gdata->gridSize.x) cx = 0; else
+									if (cx < 0) cx = gdata->gridSize.x - 1;
+								}
+								if (m_physparams->dispvect.y) {
+									if (cy >= gdata->gridSize.y) cy = 0; else
+									if (cy < 0) cy = gdata->gridSize.y - 1;
+								}
+								if (m_physparams->dispvect.z) {
+									if (cz >= gdata->gridSize.x) cx = 0; else
+									if (cz < 0) cz = gdata->gridSize.z - 1;
+								}
 							}
+							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
+							if (cx < 0 || cx >= gdata->gridSize.x ||
+								cy < 0 || cy >= gdata->gridSize.y ||
+								cz < 0 || cz >= gdata->gridSize.z) continue;
+							// data of neib cell
+							uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz);
+							uint neib_devidx = gdata->s_hDeviceMap[neib_lin_idx];
+							any_mine_neib	 |= (neib_devidx == m_deviceIndex);
+							any_foreign_neib |= (neib_devidx != m_deviceIndex);
+							// did we read enough to decide for current cell?
+							enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
+						} // iterating on offsets of neighbor cells
 				uint cellType;
 				if (is_mine && !any_foreign_neib)	cellType = CELLTYPE_INNER_CELL_SHIFTED;
 				if (is_mine && any_foreign_neib)	cellType = CELLTYPE_INNER_EDGE_CELL_SHIFTED;
