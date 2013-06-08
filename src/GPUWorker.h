@@ -78,17 +78,13 @@ private:
 	SimParams*	m_simparams;
 
 	// CPU arrays
-	float4*		m_hPos;					// postions array
-	float4*		m_hVel;					// velocity array
+	//float4*			m_hPos;					// postions array
+	//float4*			m_hVel;					// velocity array
 	//float4*		m_hForces;				// forces array
-	particleinfo*	m_hInfo;			// info array
-	float3*		m_hVort;				// vorticity
+	//particleinfo*	m_hInfo;				// info array
+	//float3*		m_hVort;				// vorticity
 	//float*		m_hVisc;				// viscosity
-	//float4*     m_hNormals;				// normals at free surface
-
-	// copy of CellStart and CellEnd on host, to be accessed by GPUSPH and/or by other workers
-	uint*		m_hCellStart;			// index of cell start in sorted order
-	uint*		m_hCellEnd;				// index of cell end in sorted order
+	//float4*   	m_hNormals;				// normals at free surface
 
 	// TODO: CPU arrays used for debugging
 

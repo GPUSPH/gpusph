@@ -17,11 +17,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
 
-	m_hPos = NULL;
-	m_hVel = NULL;
-	m_hInfo = NULL;
-	m_hVort = NULL;
-
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->get_simparams();
 	m_physparams = gdata->problem->get_physparams();
@@ -300,7 +295,7 @@ size_t GPUWorker::allocateHostBuffers() {
 
 	size_t allocated = 0;
 
-	m_hPos = new float4[m_numAllocatedParticles];
+	/*m_hPos = new float4[m_numAllocatedParticles];
 	memset(m_hPos, 0, float4Size);
 	allocated += float4Size;
 
@@ -310,15 +305,7 @@ size_t GPUWorker::allocateHostBuffers() {
 
 	m_hInfo = new particleinfo[m_numAllocatedParticles];
 	memset(m_hInfo, 0, infoSize);
-	allocated += infoSize;
-
-	m_hCellStart = new uint[m_nGridCells];
-	memset(m_hCellStart, 0, uintCellsSize);
-	allocated += uintCellsSize;
-
-	m_hCellEnd = new uint[m_nGridCells];
-	memset(m_hCellEnd, 0, uintCellsSize);
-	allocated += uintCellsSize;
+	allocated += infoSize; */
 
 	// TODO: only allocate when multi-GPU
 	if (gdata->devices > 1) {
@@ -327,11 +314,11 @@ size_t GPUWorker::allocateHostBuffers() {
 		allocated += uintCellsSize;
 	}
 
-	if (m_simparams->vorticity) {
+	/*if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numAllocatedParticles];
 		allocated += float3Size;
 		// NOTE: *not* memsetting, as in master branch
-	}
+	}*/
 
 	m_hostMemory += allocated;
 	return allocated;
@@ -462,15 +449,13 @@ size_t GPUWorker::allocateDeviceBuffers() {
 }
 
 void GPUWorker::deallocateHostBuffers() {
-	delete [] m_hPos;
-	delete [] m_hVel;
-	delete [] m_hInfo;
-	delete [] m_hCellStart;
-	delete [] m_hCellEnd;
+	//delete [] m_hPos;
+	//delete [] m_hVel;
+	//delete [] m_hInfo;
 	if (gdata->devices > 1)
 		delete [] m_hCompactDeviceMap;
-	if (m_simparams->vorticity)
-		delete [] m_hVort;
+	/*if (m_simparams->vorticity)
+		delete [] m_hVort;*/
 	// here: dem host buffers?
 }
 
