@@ -121,6 +121,8 @@ struct GlobalData {
 	float4*			s_hPos;  // position array
 	float4*			s_hVel;  // velocity array
 	particleinfo*	s_hInfo; // particle info array
+	float3*			s_hVorticity; // vorticity
+	float4*			s_hNormals; // surface normals
 	float4*			s_hForces;  // forces (alloc by 1st thread, for striping)
 	uchar* 			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
@@ -261,6 +263,8 @@ struct GlobalData {
 		s_hPos(NULL),
 		s_hVel(NULL),
 		s_hInfo(NULL),
+		s_hVorticity(NULL),
+		s_hNormals(NULL),
 		s_hForces(NULL),
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),
