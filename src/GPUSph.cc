@@ -869,6 +869,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 
 	long unsigned int numparts = gdata->totParticles;
 	unsigned int numcells = gdata->nGridCells;
+	const uint float3Size = sizeof(float3) * numparts;
 	const uint float4Size = sizeof(float4) * numparts;
 	const uint infoSize = sizeof(particleinfo) * numparts;
 	const uint ucharCellSize = sizeof(uchar) * numcells;
@@ -892,6 +893,18 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hInfo = new particleinfo[numparts];
 	memset(gdata->s_hInfo, 0, infoSize);
 	totCPUbytes += infoSize;
+
+	if (problem->m_simparams.vorticity) {
+		gdata->s_hVorticity = new float3[numparts];
+		memset(gdata->s_hVorticity, 0, float3Size);
+		totCPUbytes += float3Size;
+	}
+
+	if (problem->m_simparams.surfaceparticle) {
+		gdata->s_hNormals = new float4[numparts];
+		memset(gdata->s_hNormals, 0, float4Size);
+		totCPUbytes += float4Size;
+	}
 
 	/*dump_hPos = new float4[numparts];
 	memset(dump_hPos, 0, float4Size);
@@ -938,6 +951,10 @@ void GPUSPH::deallocateGlobalHostBuffers()
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;
 	delete [] gdata->s_hInfo;
+	if (problem->m_simparams.vorticity)
+		delete [] gdata->s_hVorticity;
+	if (problem->m_simparams.surfaceparticle)
+		delete [] gdata->s_hNormals;
 	// multi-GPU specific arrays
 	if (gdata->devices>1) {
 		delete [] gdata->s_hDeviceMap;
