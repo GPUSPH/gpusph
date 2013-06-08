@@ -638,6 +638,19 @@ void GPUWorker::createCompactDeviceMap() {
 	// One minor optimization has been implemented: iterating on neighbors stops as soon as there are enough information (e.g. cell belongs to self and there is
 	// at least one neib which does not ==> inner_edge). Another optimization would be to avoid linearizing all cells but exploit burst of consecutive indices. This
 	// reduces the computations but not the read/write operations.
+	int3 extra_offset;
+	extra_offset.x = (int) (m_physparams->dispOffset.x / gdata->cellSize.x);
+	extra_offset.y = (int) (m_physparams->dispOffset.y / gdata->cellSize.y);
+	extra_offset.z = (int) (m_physparams->dispOffset.z / gdata->cellSize.z);
+
+#define CHECK_CURRENT_CELL \
+	/* data of neib cell */ \
+	uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz); \
+	uint neib_devidx = gdata->s_hDeviceMap[neib_lin_idx]; \
+	any_mine_neib	 |= (neib_devidx == m_deviceIndex); \
+	any_foreign_neib |= (neib_devidx != m_deviceIndex); \
+	/* did we read enough to decide for current cell? */ \
+	enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 
 	// iterate on all cells of the world
 	for (int ix=0; ix < gdata->gridSize.x; ix++)
@@ -664,29 +677,65 @@ void GPUWorker::createCompactDeviceMap() {
 							// warp periodic boundaries
 							if (m_simparams->periodicbound) {
 								if (m_physparams->dispvect.x) {
-									if (cx >= gdata->gridSize.x) cx = 0; else
-									if (cx < 0) cx = gdata->gridSize.x - 1;
-								}
+									if (cx >= gdata->gridSize.x) {
+										cx = 0;
+										// apply extra displacement (e.g. zlift)
+										cy -= extra_offset.y;
+										cz -= extra_offset.z;
+									} else
+									if (cx < 0) {
+										cx = gdata->gridSize.x - 1;
+										// ditto
+										cy += extra_offset.y;
+										cz += extra_offset.z;
+									}
+								} // if dispvect.x
 								if (m_physparams->dispvect.y) {
-									if (cy >= gdata->gridSize.y) cy = 0; else
-									if (cy < 0) cy = gdata->gridSize.y - 1;
-								}
+									if (cy >= gdata->gridSize.y) {
+										cy = 0;
+										// apply extra displacement (e.g. zlift)
+										cx -= extra_offset.x;
+										cz -= extra_offset.z;
+									} else
+									if (cy < 0) {
+										cy = gdata->gridSize.y - 1;
+										// ditto
+										cx += extra_offset.x;
+										cz += extra_offset.z;
+									}
+								} // if dispvect.y
 								if (m_physparams->dispvect.z) {
-									if (cz >= gdata->gridSize.x) cx = 0; else
-									if (cz < 0) cz = gdata->gridSize.z - 1;
-								}
+									if (cz >= gdata->gridSize.z) {
+										cz = 0;
+										// apply extra displacement (e.g. zlift)
+										cx -= extra_offset.x;
+										cy -= extra_offset.y;
+									} else
+									if (cz < 0) {
+										cz = gdata->gridSize.z - 1;
+										// ditto
+										cx += extra_offset.x;
+										cy += extra_offset.y;
+									}
+								} // if dispvect.z
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||
 								cy < 0 || cy >= gdata->gridSize.y ||
 								cz < 0 || cz >= gdata->gridSize.z) continue;
-							// data of neib cell
-							uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz);
-							uint neib_devidx = gdata->s_hDeviceMap[neib_lin_idx];
-							any_mine_neib	 |= (neib_devidx == m_deviceIndex);
-							any_foreign_neib |= (neib_devidx != m_deviceIndex);
-							// did we read enough to decide for current cell?
-							enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
+							// check current cell and if we have already enough information
+							CHECK_CURRENT_CELL
+							bool need_second_step = false;
+							if (extra_offset.x > 0) { cx++; need_second_step = true; }
+							if (extra_offset.x < 0) { cx--; need_second_step = true; }
+							if (extra_offset.y > 0) { cy++; need_second_step = true; }
+							if (extra_offset.y < 0) { cy--; need_second_step = true; }
+							if (extra_offset.z > 0) { cz++; need_second_step = true; }
+							if (extra_offset.z < 0) { cz--; need_second_step = true; }
+							if (need_second_step) {
+								// check also cells for extra displacement offset (e.g. zlift)
+								CHECK_CURRENT_CELL
+							}
 						} // iterating on offsets of neighbor cells
 				uint cellType;
 				if (is_mine && !any_foreign_neib)	cellType = CELLTYPE_INNER_CELL_SHIFTED;
