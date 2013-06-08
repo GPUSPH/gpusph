@@ -581,6 +581,20 @@ void GPUWorker::dumpBuffers() {
 									m_dInfo[dbl_buffer_pointer],
 									_size, cudaMemcpyDeviceToHost));
 	}
+
+	if (flags & BUFFER_VORTICITY) {
+		_size = howManyParticles * sizeof(float3);
+		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVorticity + firstInnerParticle,
+									m_dVort,
+									_size, cudaMemcpyDeviceToHost));
+	}
+
+	if (flags & BUFFER_NORMALS) {
+		_size = howManyParticles * sizeof(float3);
+		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hNormals + firstInnerParticle,
+									m_dNormals,
+									_size, cudaMemcpyDeviceToHost));
+	}
 }
 
 // download cellStart and cellEnd to the shared arrays
