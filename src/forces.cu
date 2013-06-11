@@ -57,16 +57,16 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
+						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
+						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -340,6 +340,7 @@ forces(	float4*			pos,
 		particleinfo	*info,
 		uint*			neibsList,
 		uint			numParticles,
+		float			deltap,
 		float			slength,
 		float			dt,
 		bool			dtadapt,

@@ -57,6 +57,7 @@ FORCES_CUDA_KERNEL
 	# endif
 	const uint*	neibsList,
 	const uint	numParticles,
+	const float deltap,
 	const float	slength,
 	const float	influenceradius,
 	float4*		rbforces,
@@ -290,15 +291,6 @@ FORCES_CUDA_KERNEL
 							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
 										neib_sspeed, r, slength);
 						# elif defined(VISC_KEPS)
-						if(BOUNDARY(neib_info)) {
-
-						}
-						else {
-							//to be divided later by rho_a and gamma_a
-							diff_term_k += neib_pos.w*(dkdt_precalc + neib_vel.w*(d_visccoeff + neib_tvisc))*(keps_k - neib_keps_k)*f/neib_vel.w;
-							diff_term_e += neib_pos.w*(dedt_precalc + neib_vel.w*(d_visccoeff + neib_tvisc/1.3f))*(keps_e - neib_keps_e)*f/neib_vel.w;
-						}
-
 						//FIXME: Stub based on DYNAMICVISC
 						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
 										d_visccoeff*neib_vel.w);
@@ -310,32 +302,48 @@ FORCES_CUDA_KERNEL
 						mean_vel -= neib_pos.w*W<kerneltype>(r, slength)*relVel/(vel.w + neib_vel.w);
 						# endif
 
-						if(boundarytype == MF_BOUNDARY && BOUNDARY(neib_info)) {
-							const float4 gradgam_as = gradGamma<kerneltype>(slength, r, belem);
-							bound_term_pres = DvDt*neib_vel.w*gradgam_as;
+						if(boundarytype == MF_BOUNDARY) {
+							if(BOUNDARY(neib_info)) {
+								const float4 gradgam_as = gradGamma<kerneltype>(slength, r, belem);
+								const float abs_gradgam_as = length(make_float3(gradgam_as));
+								bound_term_pres = DvDt*neib_vel.w*gradgam_as;
 
-							// normal vector
-							const float3 normal_s = make_float3(belem.x, belem.y, belem.z);
-							// z_as - distance between fluid particle and boundary element along the normal
-							float z_as = dot(relPos, normal_s);
-							const float deltap = slength/1.3f; //FIXME: deltap should be an input parameter for this kernel
-							if (z_as < deltap)
-								z_as = deltap;
-							// velocity of fluid particle along the wall
-							const float3 vel_tau = relVel - dot(relVel, normal_s)*normal_s;
-							// This expression is correct only when used together with DYNAMICVISC model
-							bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + neib_vel.w)/z_as*vel_tau;
+								// normal vector
+								const float3 normal_s = make_float3(belem.x, belem.y, belem.z);
+								// r_as - distance between fluid particle and boundary element along the normal
+								float r_as = dot(relPos, normal_s);
+								if (r_as < deltap)
+									r_as = deltap;
 
-							//DEBUG output
-//							if (length(bound_term_visc) > length(bound_term_pres))
+								// velocity of fluid particle along the wall
+								const float3 vel_tau = relVel - dot(relVel, normal_s)*normal_s;
+								// This expression is correct only when used together with DYNAMICVISC model
+								bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + neib_vel.w)/r_as*vel_tau;
+
+								//DEBUG output
+//								if (length(bound_term_visc) > length(bound_term_pres))
 //								printf("Utau_x: %g, Utau_y: %g, Utau_z %g\n", bound_term_visc.x, bound_term_visc.y, bound_term_visc.z);
 
-							# ifdef DT_KERNEL
-							float tmp = abs(dot(make_float3(gradgam_as.x, gradgam_as.y, gradgam_as.z), make_float3(vel.x, vel.y, vel.z)));
-							if (tmp > gradgamU)
-								gradgamU = tmp;
+								# ifdef VISC_KEPS
+								//to be divided later by rho_a and gamma_a
+								diff_term_e += pow(0.09f, 0.75f)/0.41f * (dedt_precalc*pow(keps_k,1.5f)/(r_as*r_as) +
+											neib_vel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(deltap*deltap)) * abs_gradgam_as;
+								# endif
+
+								# ifdef DT_KERNEL
+								float tmp = abs(dot(make_float3(gradgam_as.x, gradgam_as.y, gradgam_as.z), make_float3(vel.x, vel.y, vel.z)));
+								if (tmp > gradgamU)
+									gradgamU = tmp;
+								# endif
+							}
+							# ifdef VISC_KEPS
+							else {
+								//to be divided later by rho_a and gamma_a
+								diff_term_k += neib_pos.w*(dkdt_precalc + neib_vel.w*(d_visccoeff + neib_tvisc))*(keps_k - neib_keps_k)*f/neib_vel.w;
+								diff_term_e += neib_pos.w*(dedt_precalc + neib_vel.w*(d_visccoeff + neib_tvisc/1.3f))*(keps_e - neib_keps_e)*f/neib_vel.w;
+							}
 							# endif
-						}
+						} // endif (boundarytype)
 						
 						DvDt *= neib_pos.w*f;
 					} else
