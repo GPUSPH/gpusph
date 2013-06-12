@@ -162,6 +162,7 @@ private:
 	void kernel_mls();
 	void kernel_shepard();
 	void kernel_vorticity();
+	void kernel_surfaceParticles();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

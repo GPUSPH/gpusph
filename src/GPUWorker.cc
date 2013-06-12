@@ -952,6 +952,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing VORTICITY\n", deviceIndex);
 				instance->kernel_vorticity();
 				break;
+			case SURFACE_PARTICLES:
+				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
+				instance->kernel_surfaceParticles();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -1183,6 +1187,22 @@ void GPUWorker::kernel_vorticity()
 				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
 				m_simparams->periodicbound);
+}
+
+void GPUWorker::kernel_surfaceParticles()
+{
+	surfaceparticle( m_dPos[gdata->currentPosRead],
+					 m_dVel[gdata->currentVelRead],
+					 m_dNormals,
+					 m_dInfo[gdata->currentInfoRead],
+					 m_dInfo[gdata->currentInfoWrite],
+					 m_dNeibsList,
+					 m_numParticles,
+					 m_simparams->slength,
+					 m_simparams->kerneltype,
+					 m_simparams->influenceRadius,
+					 m_simparams->periodicbound,
+					 m_simparams->savenormals);
 }
 
 void GPUWorker::uploadConstants()

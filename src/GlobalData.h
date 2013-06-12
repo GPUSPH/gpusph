@@ -46,6 +46,7 @@ enum CommandType {
 	MLS,				// MLS correction
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
+	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	QUIT				// quits the simulation cycle
 };
 
