@@ -110,7 +110,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 	cudaMemGetInfo(&freeMemory, &totMemory);
 	freeMemory -= gdata->nGridCells * computeMemoryPerCell();
 	freeMemory -= 16; // segments
-	freeMemory -= 50*1024*1024; // leave 50Mb as safety margin
+	freeMemory -= 100*1024*1024; // leave 100Mb as safety margin
 	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
 }
 
