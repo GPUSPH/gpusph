@@ -45,6 +45,7 @@ enum CommandType {
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	MLS,				// MLS correction
 	SHEPARD,			// SHEPARD correction
+	VORTICITY,			// vorticity computation
 	QUIT				// quits the simulation cycle
 };
 

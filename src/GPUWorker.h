@@ -161,6 +161,7 @@ private:
 	void kernel_euler();
 	void kernel_mls();
 	void kernel_shepard();
+	void kernel_vorticity();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

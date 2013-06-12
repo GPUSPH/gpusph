@@ -948,6 +948,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SHEPARD\n", deviceIndex);
 				instance->kernel_shepard();
 				break;
+			case VORTICITY:
+				//printf(" T %d issuing VORTICITY\n", deviceIndex);
+				instance->kernel_vorticity();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -1164,6 +1168,21 @@ void GPUWorker::kernel_shepard()
 			m_simparams->kerneltype,
 			m_simparams->influenceRadius,
 			m_simparams->periodicbound);
+}
+
+void GPUWorker::kernel_vorticity()
+{
+	// Calling vorticity computation kernel
+	vorticity(	m_dPos[gdata->currentPosRead],
+				m_dVel[gdata->currentVelRead],
+				m_dVort,
+				m_dInfo[gdata->currentInfoRead],
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius,
+				m_simparams->periodicbound);
 }
 
 void GPUWorker::uploadConstants()
