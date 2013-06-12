@@ -833,12 +833,21 @@ bool GPUSPH::runSimulation() {
 		if (finished || gdata->quit_request) {
 			// regardless --nosave is enabled
 			printf("Issuing final save...\n");
-			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO );
 			// compute and dump voriticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
 				doCommand(VORTICITY);
 				doCommand(DUMP, BUFFER_VORTICITY);
 			}
+			// compute and dump normals if set
+			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
+			// not to call, since it has been called at least once for sure
+			if (gdata->problem->get_simparams()->surfaceparticle) {
+				doCommand(SURFACE_PARTICLES);
+				doCommand(DUMP, BUFFER_NORMALS);
+				gdata->swapDeviceBuffers(BUFFER_INFO);
+			}
+			// dumping AFTER normals, since it also affects the particleInfo
+			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO );
 			doWrite();
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
@@ -1187,7 +1196,7 @@ void GPUSPH::doWrite()
 {
 	gdata->writer->write(gdata->totParticles, gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo,
 		gdata->s_hVorticity, gdata->t, gdata->problem->get_simparams()->testpoints,
-		/*m_hNormals*/ NULL);
+		gdata->s_hNormals);
 	gdata->problem->mark_written(gdata->t);
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
