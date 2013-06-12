@@ -283,6 +283,37 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 			}
 }
 
+void Problem::fillDeviceMapByEquation(GlobalData* gdata)
+{
+	// 1st equation: (x+y+z / #devices)
+	uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
+	uint coeff = longest_grid_size /  (gdata->devices + 1);
+	// 2nd equation: spheres
+	uint diagonal = (uint) sqrt(	gdata->gridSize.x * gdata->gridSize.x +
+									gdata->gridSize.y * gdata->gridSize.y +
+									gdata->gridSize.z * gdata->gridSize.z) / 2;
+	uint radius_part = diagonal /  gdata->devices;
+	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
+		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
+			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
+				uint dstDevice;
+				// 1st equation: rough oblique plane split --
+				dstDevice = (cx + cy + cz) / longest_grid_size;
+				// -- end of 1st eq.
+				// 2nd equation: spheres --
+				//uint distance_from_origin = (uint) sqrt( cx * cx + cy * cy + cz * cz);
+				// comparing directly the square would be more efficient but could require long uints
+				//dstDevice = distance_from_origin / radius_part;
+				// -- end of 2nd eq.
+				// handle the case when cells_per_device multiplies cells_per_longest_axis
+				dstDevice = min(dstDevice, gdata->devices - 1);
+				// compute cell address
+				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = (uchar)dstDevice;
+			}
+}
+
 void 
 Problem::allocate_bodies(const int i)
 {

@@ -216,6 +216,8 @@ class Problem {
 		void fillDeviceMapByCellHash(GlobalData* gdata);
 		// partition by splitting along an axis. Default: along the longest
 		void fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis);
+		// partition by coordinates satistfying an example equation
+		void fillDeviceMapByEquation(GlobalData* gdata);
 
 		void allocate_bodies(const int);
 		RigidBody* get_body(const int);
