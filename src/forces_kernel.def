@@ -65,7 +65,8 @@ FORCES_CUDA_KERNEL
 	# ifdef DT_KERNEL
 	,
 	float*		cfl,
-	float*		cflGamma
+	float*		cflGamma,
+	float*		cfltvisc
 	# endif
 )
 {
@@ -78,6 +79,10 @@ FORCES_CUDA_KERNEL
 	sm_max[threadIdx.x] = 0.0f;
 	__shared__ float sm_max_g[BLOCK_SIZE_FORCES];
 	sm_max_g[threadIdx.x] = 0.0f;
+	# ifdef VISC_KEPS
+	__shared__ float sm_max_nut[BLOCK_SIZE_FORCES];
+	sm_max_nut[threadIdx.x] = 0.0f;
+	# endif
 	# endif
 
 	if (index < numParticles) {
@@ -149,6 +154,10 @@ FORCES_CUDA_KERNEL
 				   we precompute p/rho^2 for the current particle */
 				case SPH_F1:
 					p_precalc = P(vel.w, PART_FLUID_NUM(info))/(vel.w*vel.w);                      //
+					//in case of k-e model we use p~ = p + 2/3*rho*k
+					# ifdef VISC_KEPS
+					p_precalc += 2*keps_k/vel.w/3.f;
+					# endif
 					break;
 				/* when using SPH formulation 2
 				   we precompute the pressure for the current particle */
@@ -251,6 +260,9 @@ FORCES_CUDA_KERNEL
 						switch (sph_formulation) {
 							case SPH_F1:
 								DvDt = -(p_precalc + neib_pres/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
+								# ifdef VISC_KEPS
+								DvDt -= 2*neib_keps_k/neib_vel.w/3.f;
+								# endif
 								break;
 							case SPH_F2:
 								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info)))/(vel.w*neib_vel.w);
@@ -258,7 +270,7 @@ FORCES_CUDA_KERNEL
 						}
 
 						/* Viscous forces */
-						# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS)
+						# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS) || defined(VISC_KEPS)
 						# if defined(VISC_DYNAMIC)
 						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
 										d_visccoeff*neib_vel.w);
@@ -272,6 +284,9 @@ FORCES_CUDA_KERNEL
 										(tau.a23 + neib_tau.a23)*relPos.z);
 						force.z += neib_pos.w*f*((tau.a13 + neib_tau.a13)*relPos.x + (tau.a23 + neib_tau.a23)*relPos.y +
 										(tau.a33 + neib_tau.a33)*relPos.z);
+						# elif defined(VISC_KEPS)
+						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, (d_visccoeff+turbVisc)*vel.w,
+										(d_visccoeff+neib_tvisc)*neib_vel.w);
 						# endif // VISC_DYNAMIC + elif*
 
 						if(!BOUNDARY(neib_info))
@@ -290,10 +305,6 @@ FORCES_CUDA_KERNEL
 						if (vel_dot_pos < 0.0f)
 							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
 										neib_sspeed, r, slength);
-						# elif defined(VISC_KEPS)
-						//FIXME: Stub based on DYNAMICVISC
-						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
-										d_visccoeff*neib_vel.w);
 						# else
 						# error Unknown viscosity!
 						# endif // VISC_*
@@ -317,8 +328,12 @@ FORCES_CUDA_KERNEL
 
 								// velocity of fluid particle along the wall
 								const float3 vel_tau = relVel - dot(relVel, normal_s)*normal_s;
-								// This expression is correct only when used together with DYNAMICVISC model
+								// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
+								# ifdef VISC_KEPS
+								bound_term_visc = length(gradgam_as)*(d_visccoeff*(vel.w + neib_vel.w) + turbVisc*vel.w + neib_tvisc*neib_vel.w)/r_as*vel_tau;
+								# else
 								bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + neib_vel.w)/r_as*vel_tau;
+								# endif
 
 								//DEBUG output
 //								if (length(bound_term_visc) > length(bound_term_pres))
@@ -429,6 +444,9 @@ FORCES_CUDA_KERNEL
 			sm_max[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)), sspeed*sspeed/slength);
 			if(boundarytype == MF_BOUNDARY)
 				sm_max_g[threadIdx.x] = gradgamU;
+			# ifdef VISC_KEPS
+			sm_max_nut[threadIdx.x] = turbVisc;
+			# endif
 			# endif
 
 			# ifdef XSPH_KERNEL
@@ -492,6 +510,9 @@ FORCES_CUDA_KERNEL
 	dtadaptBlockReduce(sm_max, cfl);
 	if(boundarytype == MF_BOUNDARY)
 		dtadaptBlockReduce(sm_max_g, cflGamma);
+	# ifdef VISC_KEPS
+	dtadaptBlockReduce(sm_max_nut, cfltvisc);
+	# endif
 	# endif
 }
 /************************************************************************************************************/

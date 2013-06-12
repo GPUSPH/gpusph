@@ -63,10 +63,10 @@ void*	reduce_buffer = NULL;
 						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
+						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma, cflTVisc); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
+						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma, cflTVisc); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -357,6 +357,7 @@ forces(	float4*			pos,
 		float2*			keps_dkde,
 		float*			cfl,
 		float*			cflGamma,
+		float*			cflTVisc,
 		float*			tempCfl,
 		uint			numPartsFmax,
 		float2*			tau[],
@@ -493,6 +494,9 @@ forces(	float4*			pos,
 
 				case DYNAMICVISC:
 				/* ν = visccoeff for dynamic viscosity */
+					break;
+				case KEPSVISC:
+					dt_visc = slength*slength/(visccoeff + cflmax(numPartsFmax, cflTVisc, tempCfl));
 					break;
 				}
 			dt_visc *= 0.125;
@@ -916,7 +920,7 @@ cflmax( const uint	n,
 		uint threads = 0, blocks = 0;
 		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
 
-		reducefmax(s, threads, blocks, tempCfl, tempCfl); //FIXME: incorrect parameters
+		reducefmax(s, threads, blocks, tempCfl, tempCfl);
 		CUT_CHECK_ERROR("fmax kernel execution failed");
 
 		s = (s + (threads*2-1)) / (threads*2);

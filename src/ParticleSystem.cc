@@ -515,6 +515,11 @@ ParticleSystem::allocate(uint numParticles)
 			CUDA_SAFE_CALL(cudaMemset(m_dCflGamma, 0, fmaxTableSize));
 		}
 
+		if(m_simparams->visctype == KEPSVISC) {
+			CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCflTVisc, fmaxTableSize));
+			CUDA_SAFE_CALL(cudaMemset(m_dCflTVisc, 0, fmaxTableSize));
+		}
+
 		const uint tempCflSize = getFmaxTempStorageSize(m_numPartsFmax);
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
@@ -853,6 +858,9 @@ ParticleSystem::~ParticleSystem()
 
 		if (m_simparams->boundarytype == MF_BOUNDARY)
 			CUDA_SAFE_CALL(cudaFree(m_dCflGamma));
+
+		if (m_simparams->visctype == KEPSVISC)
+			CUDA_SAFE_CALL(cudaFree(m_dCflTVisc));
 		}
 
 	printf("GPU and CPU memory released\n\n");
@@ -1688,6 +1696,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dDkDe,
 					m_dCfl,
 					m_dCflGamma,
+					m_dCflTVisc,
 					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
@@ -1856,6 +1865,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dDkDe,
 					m_dCfl,
 					m_dCflGamma,
+					m_dCflTVisc,
 					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
