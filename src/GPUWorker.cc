@@ -67,6 +67,9 @@ size_t GPUWorker::computeMemoryPerParticle()
 	tot += sizeof(m_dForces[0]);
 	tot += sizeof(m_dParticleHash[0]);
 	tot += sizeof(m_dParticleIndex[0]);
+	// Now we estimate the memory consumption of thrust::sort() by simply assuming another m_dParticleIndex is allocated. This might be totally different
+	// (in loco? logarithmic?), but it happened that a thrust alloc went out of memory even with 50Mb safety buffer.
+	tot += sizeof(m_dParticleIndex[0]);
 	tot += sizeof(m_dNeibsList[0]) * m_simparams->maxneibsnum; // underestimated: the total is rounded up to next multiple of NEIBINDEX_INTERLEAVE
 	// Memory for the cfl reduction is widely overestimated: there are actually 2 arrays of float but one should then divide by BLOCK_SIZE_FORCES.
 	// We consider instead a fourth of one array only, so roughly 1/8 instead of 1/128 or 1/256. It's still about 8 times more.
