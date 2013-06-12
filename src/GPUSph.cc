@@ -834,6 +834,11 @@ bool GPUSPH::runSimulation() {
 			// regardless --nosave is enabled
 			printf("Issuing final save...\n");
 			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO );
+			// compute and dump voriticity if set
+			if (gdata->problem->get_simparams()->vorticity) {
+				doCommand(VORTICITY);
+				doCommand(DUMP, BUFFER_VORTICITY);
+			}
 			doWrite();
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
@@ -1181,7 +1186,7 @@ void GPUSPH::createWriter()
 void GPUSPH::doWrite()
 {
 	gdata->writer->write(gdata->totParticles, gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo,
-		/*m_hVort*/NULL, gdata->t, gdata->problem->get_simparams()->testpoints,
+		gdata->s_hVorticity, gdata->t, gdata->problem->get_simparams()->testpoints,
 		/*m_hNormals*/ NULL);
 	gdata->problem->mark_written(gdata->t);
 	// TODO: enable energy computation and dump
