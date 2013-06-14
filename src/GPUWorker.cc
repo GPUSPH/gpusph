@@ -828,6 +828,11 @@ const particleinfo** GPUWorker::getDInfoBuffers()
 	return (const particleinfo**)m_dInfo;
 }
 
+const float4* GPUWorker::getDForceBuffer()
+{
+	return (const float4*)m_dForces;
+}
+
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
