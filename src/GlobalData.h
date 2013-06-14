@@ -363,14 +363,14 @@ struct GlobalData {
 		if (buffers & BUFFER_INFO)	std::swap(currentInfoRead, currentInfoWrite);
 	}
 
-	// convert to string and add separators
+	// convert to string and add thousand separators
 	string addSeparators(long int number) {
 		std::ostringstream oss;
 		ulong mod, div;
 		uchar separator = ',';
 		// last triplet need 0 padding, if it is not the only one
-		bool need_padding = false;
-		// minus
+		bool padding_needed = false;
+		// negative?
 		if (number < 0) {
 			oss << "-";
 			number *= -1;
@@ -380,13 +380,18 @@ struct GlobalData {
 			if (number >= magnitude) {
 				div = number / magnitude;
 				mod = number % magnitude;
+				// padding
+				if (padding_needed) {
+					if (div <= 99) oss << "0";
+					if (div <= 9) oss << "0";
+				}
 				oss << div << separator;
 				number = mod;
+				padding_needed = true;
 			}
 			magnitude /= 1000;
-			need_padding = true;
 		}
-		if (need_padding) {
+		if (padding_needed) {
 			if (number <= 99) oss << "0";
 			if (number <= 9) oss << "0";
 		}
