@@ -831,6 +831,7 @@ bool GPUSPH::runSimulation() {
 		}
 
 		if (finished || gdata->quit_request) {
+			printStatus();
 			// regardless --nosave is enabled
 			printf("Issuing final save...\n");
 			// set the buffers to be dumped
