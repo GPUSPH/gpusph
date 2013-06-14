@@ -762,7 +762,8 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_1);
 		// update forces of external particles
-		doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+		if (gdata->devices > 1)
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
 	//				initially done trivial and slow: stop and read
@@ -784,7 +785,8 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_2);
 		// update forces of external particles
-		doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+		if (gdata->devices > 1)
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
 	//			//reduce bodies
 
