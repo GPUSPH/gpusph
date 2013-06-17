@@ -41,6 +41,12 @@ void
 geteulerconstants(PhysParams *physparams);
 
 void
+setinleteuler(int numInlets, const float4* inletMin, const float4* inletMax, const float4* inletDisp, const float4 *inletVel);
+
+void
+setoutleteuler(const PhysParams *phys);
+
+void
 setmbdata(const float4* MbData, uint size);
 
 void
@@ -53,14 +59,16 @@ void
 seteulerrbsteprot(const float* rot, int numbodies);
 
 void
-euler(	float4*		oldPos,
-		float4*		oldVel,
-		particleinfo* info,
-		float4*		forces,
-		float4*		xsph,
-		float4*		newPos,
-		float4*		newVel,
+euler(	const float4	*oldPos,
+		const float4	*oldVel,
+		particleinfo	*info,
+		const float4	*forces,
+		const float4	*xsph,
+		float4		*newPos,
+		float4		*newVel,
 		uint		numParticles,
+		uint		*newNumParts,
+		uint		maxParticles,
 		uint		particleRangeEnd,
 		float		dt,
 		float		dt2,

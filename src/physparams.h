@@ -76,6 +76,19 @@ typedef struct PhysParams {
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
 	float	objectobjectdf;	// damping factor for object-object interaction 
 	float	objectboundarydf;	// damping factor for object-boundary interaction 
+
+	uint	outlets;		// number of outlets
+	float4	outlet_min[MAXOUTLETS]; // minimum coordinates of the outlet box
+	float4	outlet_max[MAXOUTLETS]; // max coordinates of the outlet box + outlet plane
+	float4	outlet_disp[MAXOUTLETS]; // vector as long as the outlet in the outflow direction
+	float4	outlet_plane[MAXOUTLETS]; // symmetry plane for outlet ghosts
+
+	uint	inlets;		// number of inlets
+	float4	inlet_min[MAXOUTLETS]; // minimum coordinates of the inlet box
+	float4	inlet_max[MAXOUTLETS]; // max coordinates of the inlet box + inlet plane
+	float4	inlet_disp[MAXOUTLETS]; // displacement to be added for regenerated particles
+	float4	inlet_vel[MAXOUTLETS]; // velocity assigned inside the inlet
+
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
@@ -85,8 +98,9 @@ typedef struct PhysParams {
 		cosconeanglefluid(0.86),
 		cosconeanglenonfluid (0.5),
 		objectobjectdf (1.0),
-		objectboundarydf (1.0)
-
+		objectboundarydf (1.0),
+		outlets(0),
+		inlets(0)
 	{};
 	/*! Set density parameters
 	  @param i	index in the array of materials

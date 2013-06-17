@@ -112,7 +112,7 @@ class Object {
 		 *  \param ep : Euler parameters defining the rotation around center of gravity
 		 *	\param cg : position of center of gravity
 		 * 
-		 *  This function is pure virtual and then as to be defined at child level
+		 *  This function is pure virtual and then has to be defined at child level
 		 */
 		virtual void GLDraw(const EulerParameters& ep, const Point& cg) const = 0;
 		//@}

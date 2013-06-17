@@ -239,7 +239,8 @@ void init(const char *arg)
 
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
-	psystem->allocate(numParticles);
+	uint maxParticles = problem->max_parts(numParticles);
+	psystem->allocate(numParticles, maxParticles);
 	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
@@ -255,6 +256,8 @@ void init(const char *arg)
 		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
 		psystem->setPlanes();
 	}
+	psystem->setOutlets();
+	psystem->setInlets();
 
 	timingInfo = psystem->markStart();
 }
@@ -338,6 +341,8 @@ void do_write()
 		psystem->drawParts(show_boundary, show_floating, view_field);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
+		problem->draw_inlets();
+		problem->draw_outlets();
 		problem->draw_axis();
 
 		char s[1024];

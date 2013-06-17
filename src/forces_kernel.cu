@@ -35,6 +35,7 @@
 
 #define GPU_CODE
 #include "kahan.h"
+#include "tensor.cu"
 #undef GPU_CODE
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
@@ -113,16 +114,10 @@ __constant__ uint	d_rbstartindex[MAXBODIES];
 __constant__ float d_objectobjectdf;
 __constant__ float d_objectboundarydf;
 
-
-typedef struct sym33mat {
-	float a11;
-	float a12;
-	float a13;
-	float a22;
-	float a23;
-	float a33;
-} sym33mat;
-
+// Include definitions and aux functions for outlets
+#define NO_INLET
+#include "inoutlet.cuh"
+#undef NO_INLET
 
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
@@ -287,6 +282,34 @@ MKForce(const float r, const float slength,
 	return force;
 }
 /************************************************************************************************************/
+
+/************************************************************************************************************/
+/*					   Reflect position or velocity wrt to a plane										    */
+/************************************************************************************************************/
+
+// opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
+// normal vector norm div
+__device__ __forceinline__ float4
+reflectPoint(const float4 &pos, const float4 &plane, float pdiv)
+{
+	// we only care about the 4th component of pos in the dot product to get
+	// a*x_0 + b*y_0 + c*z_0 + d*1, so:
+	float4 ret = make_float4(pos.x, pos.y, pos.z, 1);
+	ret = ret - 2*plane*dot(ret,plane)/(pdiv*pdiv);
+	// the fourth component will be whatever, we don't care
+	return ret;
+}
+
+// opposite of a point wrt to the nplane-th plane; the content of the 4th component is
+// undefined
+__device__ __forceinline__ float4
+reflectPoint(const float4 &pos, uint nplane)
+{
+	float4 plane = d_planes[nplane];
+	float pdiv = d_plane_div[nplane];
+
+	return reflectPoint(pos, plane, pdiv);
+}
 
 
 /***************************************** Viscosities *******************************************************/
@@ -532,6 +555,12 @@ getNeibData<false>(	const float4	pos,
 /************************************************************************************************************/
 
 
+
+
+
+
+
+
 /******************** Functions for computing repulsive force directly from DEM *****************************/
 // TODO: check for the maximum timestep
 
@@ -594,7 +623,7 @@ GeometryForce(	const float4	pos,
 				float4&			force)
 {
 	float coeff_max = 0.0f;
-	for (uint i = 0; i < d_numplanes; ++i) {
+	for (int i = 0; i < d_numplanes; ++i) {
 		float coeff = PlaneForce(pos, d_planes[i], d_plane_div[i], vel, dynvisc, force);
 		if (coeff > coeff_max)
 			coeff_max = coeff;
@@ -681,13 +710,13 @@ SPSstressMatrixDevice(	const float4* posArray,
 	const float4 vel = tex1Dfetch(velTex, index);
 
 	// SPS stress matrix elements
-	sym33mat tau;
-//	tau.a11 = 0.0f;   // tau11 = tau_xx
-//	tau.a12 = 0.0f;   // tau12 = tau_xy
-//	tau.a13 = 0.0f;   // tau13 = tau_xz
-//	tau.a22 = 0.0f;   // tau22 = tau_yy
-//	tau.a23 = 0.0f;   // tau23 = tau_yz
-//	tau.a33 = 0.0f;   // tau33 = tau_zz
+	symtensor3 tau;
+//	tau.xx = 0.0f;   // tau11 = tau_xx
+//	tau.xy = 0.0f;   // tau12 = tau_xy
+//	tau.xz = 0.0f;   // tau13 = tau_xz
+//	tau.yy = 0.0f;   // tau22 = tau_yy
+//	tau.yz = 0.0f;   // tau23 = tau_yz
+//	tau.zz = 0.0f;   // tau33 = tau_zz
 
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
@@ -731,13 +760,13 @@ SPSstressMatrixDevice(	const float4* posArray,
 	// and special turbulent terms
 	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
 	float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	tau.a12 = temp;
+	tau.xy = temp;
 	SijSij_bytwo += temp*temp;
 	temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	tau.a13 = temp;
+	tau.xz = temp;
 	SijSij_bytwo += temp*temp;
 	temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-	tau.a23 = temp;
+	tau.yz = temp;
 	SijSij_bytwo += temp*temp;
 	float S = sqrtf(SijSij_bytwo);
 	float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
@@ -746,19 +775,19 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	// Shear Stress matrix = TAU (pronounced taf)
 	// Dalrymple & Rogers (2006): eq. (10)
-	tau.a11 = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-	tau.a11 /= vel.w;
-	tau.a12 *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-	tau.a13 *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
-	tau.a22 = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-	tau.a22 /= vel.w;
-	tau.a23 *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
-	tau.a33 = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-	tau.a33 /= vel.w;
+	tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
+	tau.xx /= vel.w;
+	tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
+	tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+	tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
+	tau.yy /= vel.w;
+	tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+	tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
+	tau.zz /= vel.w;
 
-	tau0[index] = make_float2(tau.a11, tau.a12);
-	tau1[index] = make_float2(tau.a13, tau.a22);
-	tau2[index] = make_float2(tau.a23, tau.a33);
+	tau0[index] = make_float2(tau.xx, tau.xy);
+	tau1[index] = make_float2(tau.xz, tau.yy);
+	tau2[index] = make_float2(tau.yz, tau.zz);
 }
 /************************************************************************************************************/
 
@@ -790,7 +819,7 @@ shepardDevice(	const float4*	posArray,
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -805,6 +834,9 @@ shepardDevice(	const float4*	posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
+	if (INACTIVE(pos))
+		return;
+
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// taking into account self contribution in summation
@@ -830,7 +862,7 @@ shepardDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && FLUID(neib_info)) {
+		if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
@@ -839,6 +871,33 @@ shepardDevice(	const float4*	posArray,
 
 	vel.w = temp1/temp2;
 	newVel[index] = vel;
+}
+
+// contribution of neighbor at relative position relPos with weight w to the
+// MLS matrix mls
+__device__ __forceinline__ void
+MlsMatrixContrib(symtensor4 &mls, float3 const& relPos, float w)
+{
+	mls.xx += w;						// xx = ∑Wij*Vj
+	mls.xy += relPos.x*w;				// xy = ∑(xi - xj)*Wij*Vj
+	mls.xz += relPos.y*w;				// xz = ∑(yi - yj)*Wij*Vj
+	mls.xw += relPos.z*w;				// xw = ∑(zi - zj)*Wij*Vj
+	mls.yy += relPos.x*relPos.x*w;		// yy = ∑(xi - xj)^2*Wij*Vj
+	mls.yz += relPos.x*relPos.y*w;		// yz = ∑(xi - xj)(yi - yj)*Wij*Vj
+	mls.yw += relPos.x*relPos.z*w;		// yz = ∑(xi - xj)(zi - zj)*Wij*Vj
+	mls.zz += relPos.y*relPos.y*w;		// zz = ∑(yi - yj)^2*Wij*Vj
+	mls.zw += relPos.y*relPos.z*w;		// zz = ∑(yi - yj)(zi - zj)*Wij*Vj
+	mls.ww += relPos.z*relPos.z*w;		// zz = ∑(yi - yj)^2*Wij*Vj
+
+}
+
+// contribution of neighbor at relative position relPos with weight w to the
+// MLS correction when B is the first row of the inverse MLS matrix
+__device__ __forceinline__ float
+MlsCorrContrib(float4 const& B, float3 const& relPos, float w)
+{
+	return (B.x + B.y*relPos.x + B.z*relPos.y + B.w*relPos.z)*w;
+	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
 }
 
 
@@ -856,7 +915,7 @@ MlsDevice(	const float4*	posArray,
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
 	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -871,19 +930,38 @@ MlsDevice(	const float4*	posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
+	if (INACTIVE(pos))
+		return;
+
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// MLS matrix elements
-	float a11 = 0.0f, a12 = 0.0f, a13 = 0.0f, a14 = 0.0f;
-	float a22 = 0.0f, a23 = 0.0f, a24 = 0.0f;
-	float a33 = 0.0f, a34 = 0.0f;
-	float a44 = 0.0f;
+	symtensor4 mls;
+	mls.xx = mls.xy = mls.xz = mls.xw =
+		mls.yy = mls.yz = mls.yw =
+		mls.zz = mls.zw = mls.ww = 0;
 
 	// number of neighbors
 	int neibs_num = 0;
 
 	// taking into account self contribution in MLS matrix construction
-	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
+	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
+
+	// check if we are in an outlet
+	int outlet = find_outlet(pos);
+
+	// if we are in an outlet, all our neighbors (including us) are reflected through the
+	// outlet plane, keeping the same velocity
+	if (outlet >= 0) {
+		float4 ghost_pos = reflectPoint(pos, d_outlet_plane[outlet], 1);
+		float3 relPos = as_float3(pos) - as_float3(ghost_pos);
+		float r = length(relPos);
+		if (r < influenceradius) {
+			neibs_num ++;
+			float w = W<kerneltype>(r, slength)*pos.w/vel.w;	// Wij*Vj
+			MlsMatrixContrib(mls, relPos, w);
+		}
+	}
 
 	// first loop over all the neighbors for the MLS matrix
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
@@ -905,19 +983,21 @@ MlsDevice(	const float4*	posArray,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// interaction between two particles
-		if (r < influenceradius && FLUID(neib_info)) {
+		if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
 			neibs_num ++;
-			const float w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
-			a11 += w;						// a11 = ∑Wij*Vj
-			a12 += relPos.x*w;				// a12 = ∑(xi - xj)*Wij*Vj
-			a13 += relPos.y*w;				// a13 = ∑(yi - yj)*Wij*Vj
-			a14 += relPos.z*w;				// a14 = ∑(zi - zj)*Wij*Vj
-			a22 += relPos.x*relPos.x*w;		// a22 = ∑(xi - xj)^2*Wij*Vj
-			a23 += relPos.x*relPos.y*w;		// a23 = ∑(xi - xj)(yi - yj)*Wij*Vj
-			a24 += relPos.x*relPos.z*w;		// a23 = ∑(xi - xj)(zi - zj)*Wij*Vj
-			a33 += relPos.y*relPos.y*w;		// a33 = ∑(yi - yj)^2*Wij*Vj
-			a34 += relPos.y*relPos.z*w;		// a33 = ∑(yi - yj)(zi - zj)*Wij*Vj
-			a44 += relPos.z*relPos.z*w;		// a33 = ∑(yi - yj)^2*Wij*Vj
+			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
+			MlsMatrixContrib(mls, relPos, w);
+			// outlet ghost reflections
+			if (outlet >= 0) {
+				float4 ghost_pos =  reflectPoint(neib_pos, d_outlet_plane[outlet], 1);
+				relPos = as_float3(pos) - as_float3(ghost_pos);
+				r = length(relPos);
+				if (r < influenceradius) {
+					neibs_num ++;
+					w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
+					MlsMatrixContrib(mls, relPos, w);
+				}
+			}
 		}
 	} // end of first loop trough neighbors
 
@@ -925,31 +1005,33 @@ MlsDevice(	const float4*	posArray,
 	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
 	// and if the number of fluids neighbors if above a minimum
 	// value, otherwise no correction is applied
-	float maxa = fmaxf(fabsf(a11), fabsf(a12));
-	maxa = fmaxf(maxa, fabsf(a13));
-	maxa = fmaxf(maxa, fabsf(a14));
-	maxa = fmaxf(maxa, fabsf(a22));
-	maxa = fmaxf(maxa, fabsf(a23));
-	maxa = fmaxf(maxa, fabsf(a24));
-	maxa = fmaxf(maxa, fabsf(a33));
-	maxa = fmaxf(maxa, fabsf(a34));
-	maxa = fmaxf(maxa, fabsf(a44));
+	float maxa = norm_inf(mls);
 	maxa *= maxa;
 	maxa *= maxa;
-	float det = a11*(a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)
-			  + a12*(a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)
-			  + a13*(a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)
-			  + a14*(a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24);
-	if (det > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
+	float D = det(mls);
+	if (D > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
 		// first row of inverse matrix
-		det = 1/det;
-		const float b11 = (a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)*det;
-		const float b21 = (a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)*det;
-		const float b31 = (a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)*det;
-		const float b41 = (a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24)*det;
+		D = 1/D;
+		float4 B;
+		B.x = (mls.yy*mls.zz*mls.ww + mls.yz*mls.zw*mls.yw + mls.yw*mls.yz*mls.zw - mls.yy*mls.zw*mls.zw - mls.yz*mls.yz*mls.ww - mls.yw*mls.zz*mls.yw)*D;
+		B.y = (mls.xy*mls.zw*mls.zw + mls.yz*mls.xz*mls.ww + mls.yw*mls.zz*mls.xw - mls.xy*mls.zz*mls.ww - mls.yz*mls.zw*mls.xw - mls.yw*mls.xz*mls.zw)*D;
+		B.z = (mls.xy*mls.yz*mls.ww + mls.yy*mls.zw*mls.xw + mls.yw*mls.xz*mls.yw - mls.xy*mls.zw*mls.yw - mls.yy*mls.xz*mls.ww - mls.yw*mls.yz*mls.xw)*D;
+		B.w = (mls.xy*mls.zz*mls.yw + mls.yy*mls.xz*mls.zw + mls.yz*mls.yz*mls.xw - mls.xy*mls.yz*mls.zw - mls.yy*mls.zz*mls.xw - mls.yz*mls.xz*mls.yw)*D;
 
 		// taking into account self contribution in density summation
-		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
+		vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
+
+		// outlet ghost reflections
+		if (outlet >= 0) {
+			float4 ghost_pos =  reflectPoint(pos, d_outlet_plane[outlet], 1);
+			float3 relPos = as_float3(pos) - as_float3(ghost_pos);
+			float r = length(relPos);
+			if (r < influenceradius) {
+				neibs_num ++;
+				float w = W<kerneltype>(r, slength)*pos.w;
+				vel.w += MlsCorrContrib(B, relPos, w);
+			}
+		}
 
 		// second loop over all the neighbors for correction
 		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
@@ -970,18 +1052,27 @@ MlsDevice(	const float4*	posArray,
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
-				const float w = W<kerneltype>(r, slength)*neib_pos.w;	 // ρj*Wij*Vj = mj*Wij
-				vel.w += (b11 + b21*relPos.x + b31*relPos.y
-							+ b41*relPos.z)*w;	 // ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
+			if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
+				float w = W<kerneltype>(r, slength)*neib_pos.w;	 // ρj*Wij*Vj = mj*Wij
+				vel.w += MlsCorrContrib(B, relPos, w);
+				// outlet ghost reflections
+				if (outlet >= 0) {
+					float4 ghost_pos =  reflectPoint(neib_pos, d_outlet_plane[outlet], 1);
+					relPos = as_float3(pos) - as_float3(ghost_pos);
+					r = length(relPos);
+					if (r < influenceradius) {
+						neibs_num ++;
+						w = W<kerneltype>(r, slength)*neib_pos.w;	// Wij*Vj
+						vel.w += MlsCorrContrib(B, relPos, w);
+					}
+				}
 			}
 		}  // end of second loop trough neighbors
 	} else {
 		// Resort to Shepard filter in absence of invertible matrix
 		// see also shepardDevice. TODO: share the code
-		// we use a11 and a12 for temp1, temp2
-		a11 = pos.w*W<kerneltype>(0, slength);
-		a12 = a11/vel.w;
+		float temp1 = pos.w*W<kerneltype>(0, slength);
+		float temp2 = temp1/vel.w;
 
 			// loop over all neighbors
 		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
@@ -1001,17 +1092,14 @@ MlsDevice(	const float4*	posArray,
 				const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-				// interaction between two particles
-				if (r < influenceradius && FLUID(neib_info)) {
-						// ρj*Wij*Vj = mj*Wij
+				if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
 						const float w = W<kerneltype>(r, slength)*neib_pos.w;
-						// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
-						a11 += w;
-						a12 +=w/neib_rho;
+						temp1 += w;
+						temp2 += w/neib_rho;
 				}
 		}  // end of second loop through neighbors
 
-		vel.w = a11/a12;
+		vel.w = temp1/temp2;
 	}
 
 	newVel[index] = vel;

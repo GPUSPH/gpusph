@@ -52,19 +52,22 @@
 template<int step, int periodicbound>
 __global__ void
 EULER_KERNEL_NAME(
-	float4*	oldPos,
-	float4*	oldVel,
-	particleinfo* info,
-	float4*	forces,
+	const	float4	*oldPos,
+	const	float4	*oldVel,
+	particleinfo	*info,
+	const	float4	*forces,
 #if XSPH_KERNEL
-	float4*	xsph,
+	const	float4	*xsph,
 #endif
-	float4*	newPos,
-	float4*	newVel,
-	uint	numParticles,
-	float	dt,
-	float	dt2,
-	float	t)
+			float4	*newPos,
+			float4	*newVel,
+			uint	*newNumParts,
+			uint	numParticles,
+			// TODO make it a const instead?
+			uint	maxParticles,
+			float	dt,
+			float	dt2,
+			float	t)
 {
 	int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -106,16 +109,101 @@ EULER_KERNEL_NAME(
 		float4 velc = vel + (step - 1)*forces[index]*dt2;
 
 		// Updating particle position
-		if (FLUID(pinfo)) {
+		if (FLUID(pinfo) && ACTIVE(pos)) {
+			// check to see if the particle is in an outlet
+			int outlet = find_outlet(pos);
+
+			// which inlent is the particle in?
+			int inlet = -1;
+			// is the particle in the first half of the inlet?
+			bool half_inlet = false;
+			if (outlet < 0) {
+				// if the particle is NOT inside an outlet, check if it's in an inlet
+				inlet = find_inlet(pos);
+			} else {
+				// otherwise, freeze the velocity parallel to the outlet direction
+				if (d_outlet_disp[outlet].x != 0) {
+					force.x = 0;
+				}
+				if (d_outlet_disp[outlet].y != 0) {
+					force.y = 0;
+				}
+				if (d_outlet_disp[outlet].z != 0) {
+					force.z = 0;
+				}
+			}
+
+			// if the fluid particle is in an inlet, its motion is prescribed
+			// by the corresponding fixed velocity
+			if (inlet >= 0) {
+				// if pos - disp is inside the inlet, we are in the first
+				// half of the inlet
+				half_inlet = inside_inlet(inlet, pos - d_inlet_disp[inlet]);
+
+				// (inverse) weights for the influence of the fields - linear from low to high coords
+				float weight_x = 0.0F;
+				float weight_y = 0.0F;
+				float weight_z = 0.0F;
+				float weight_w = 0.0F;
+				// are we in the second half? Then fade the effect of the field (0 when the field is strong, 1 where it's null)
+				if (!half_inlet) {
+					weight_x = weight_y = weight_z = weight_w =
+							(pos.y - d_inlet_min[inlet].y + d_inlet_disp[inlet].y) / (- d_inlet_disp[inlet].y);
+				}
+
+				// it is possible to only prescribe specific
+				// components in a velocity field, by setting the other
+				// components to NaN: the non-prescribed components
+				// will be left to evole naturally
+				if (isfinite(d_inlet_vel[inlet].x)) {
+					vel.x = weight_x * vel.x + (1-weight_x) * d_inlet_vel[inlet].x;
+					velc.x = weight_x * velc.x + (1-weight_x) * d_inlet_vel[inlet].x;
+					force.x *= weight_x;
+				}
+				if (isfinite(d_inlet_vel[inlet].y)) {
+					vel.y = weight_y * vel.y + (1-weight_y) * d_inlet_vel[inlet].y;
+					velc.y = weight_y * velc.y + (1-weight_y) * d_inlet_vel[inlet].y;
+					force.y *= weight_y;
+				}
+				if (isfinite(d_inlet_vel[inlet].z)) {
+					vel.z = weight_z * vel.z + (1-weight_z) * d_inlet_vel[inlet].z;
+					velc.z = weight_z * velc.z + (1-weight_z) * d_inlet_vel[inlet].z;
+					force.z *= weight_z;
+				}
+				if (isfinite(d_inlet_vel[inlet].w)) {
+					vel.w = weight_w * vel.w + (1-weight_w) * d_inlet_vel[inlet].w;
+					velc.w = weight_w * velc.w + (1-weight_w) * d_inlet_vel[inlet].w;
+					force.w *= weight_w;
+				}
+				# ifdef XSPH_KERNEL
+				mean_vel.x = mean_vel.y = mean_vel.z = 0;
+				# endif
+			}
+
+			// new position is given by pos + pos_corr, with pos_corr given by
+			// velc [ + optional xsph correction ] * dt
+			float3 pos_corr = as_float3(velc);
 			# ifdef XSPH_KERNEL
-			pos.x +=  (velc.x + d_epsxsph*mean_vel.x)*dt;
-			pos.y +=  (velc.y + d_epsxsph*mean_vel.y)*dt;
-			pos.z +=  (velc.z + d_epsxsph*mean_vel.z)*dt;
-			# else
-			pos.x +=  velc.x*dt;
-			pos.y +=  velc.y*dt;
-			pos.z +=  velc.z*dt;
+			pos_corr += d_epsxsph*as_float3(mean_vel);
 			# endif
+			pos_corr *= dt;
+
+#if 0
+			// check if particle would get inside an inlet, and if it happens,
+			// push it out
+			// TODO: find a smarter way to handle this case
+			int new_inlet = find_inlet(pos+pos_corr);
+			if (inlet < 0 && new_inlet >= 0) {
+				pos_corr = -pos_corr;
+				vel.x = -vel.x;
+				vel.y = -vel.y;
+				vel.z = -vel.z;
+			}
+#endif
+
+			pos.x += pos_corr.x;
+			pos.y += pos_corr.y;
+			pos.z += pos_corr.z;
 
 			// Updating particle velocity
 			// For step 1:
@@ -123,6 +211,45 @@ EULER_KERNEL_NAME(
 			// For step 2:
 			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
 			vel += dt*force;
+
+			// if the particle was inside an outlet, and it got out
+			// in the correct direction, disable it. Otherwise, if it
+			// was in the first half of an inlet and it got out (of that
+			// half), replicate it at the beginning of the inlet
+			// (on the second integration step only)
+			if (outlet >= 0	&& !inside_outlet(outlet, pos)
+							&& dot(pos_corr, as_float3(d_outlet_disp[outlet])) > 0) {
+				disable_particle(pos);
+			} else if ((step == 2) && half_inlet) {
+				// the new particle is to be created only if its potential
+				// new position clone_pos would be inside the inlet
+				float4 clone_pos = pos + d_inlet_disp[inlet];
+				if (inside_inlet(inlet, clone_pos)) {
+					// create a new particle
+					float4 clone_vel = vel;
+					particleinfo clone_info = pinfo;
+
+					// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),
+					// so we need a GPU-safe way to do this. The current code is little-endian
+					// only, so it's bound to break on other archs. I'm seriously starting to think
+					// that we can drop the stupid particleinfo ushort4 typedef and we should just
+					// define particleinfo as a ushort ushort uint struct, with proper alignment.
+					// FIXME endianness
+					uint clone_id = id(pinfo) + maxParticles;
+					clone_info.z = (clone_id & 0xffff);
+					clone_info.w = ((clone_id >> 16) & 0xffff);
+
+					// TODO optimize by having only one thread calling atomicAdd,
+					// adding enough for all threads in the block
+					int clone_idx = atomicAdd(newNumParts, 1);
+					if (clone_idx < maxParticles) {
+						newPos[clone_idx] = clone_pos;
+						newVel[clone_idx] = clone_vel;
+						info[clone_idx] = clone_info;
+					}
+				}
+			}
+
 		}
 		// Updating postions for Piston particles
 		else if (type(pinfo) == PISTONPART) {
@@ -196,6 +323,7 @@ EULER_KERNEL_NAME(
 			}
 		}
 	}
+
 	newPos[index] = pos;
 	newVel[index] = vel;
 }

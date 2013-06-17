@@ -519,6 +519,16 @@ inline __host__ __device__ void operator+=(float4 &a, const float4 &b)
 	a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w;
 }
 
+// addition with a float3
+inline __host__ __device__ float4 operator+(const float4 &a, const float3 &b)
+{
+	return make_float4(a.x + b.x, a.y + b.y, a.z + b.z,  a.w);
+}
+inline __host__ __device__ void operator+=(float4 &a, const float3 &b)
+{
+	a.x += b.x; a.y += b.y; a.z += b.z;
+}
+
 // subtract
 inline __host__ __device__ float4 operator-(const float4 &a, const float4 &b)
 {
@@ -541,6 +551,10 @@ inline __host__ __device__ float4 operator*(const float &s, const float4 &a)
 inline __host__ __device__ void operator*=(float4 &a, const float &s)
 {
 	a.x *= s; a.y *= s; a.z *= s; a.w *= s;
+}
+inline __host__ __device__ float4 operator*(const float4 &a, const float4 &b)
+{
+	return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w);
 }
 
 // divide

@@ -37,14 +37,16 @@ namespace cueuler {
 __constant__ float	d_epsxsph;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
-__constant__ float3 d_dispvect;
-__constant__ float3 d_dispOffset;
+__constant__ float3	d_dispvect;
+__constant__ float3	d_dispOffset;
 __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 
-__constant__ float3 d_rbcg[MAXBODIES];
-__constant__ float3 d_rbtrans[MAXBODIES];
+__constant__ float3	d_rbcg[MAXBODIES];
+__constant__ float3	d_rbtrans[MAXBODIES];
 __constant__ float	d_rbsteprot[9*MAXBODIES];
 
+// Include definitions and aux functions for inlet/outlet
+#include "inoutlet.cuh"
 
 /*
  * Device code.

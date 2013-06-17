@@ -46,6 +46,9 @@ void*	reduce_buffer = NULL;
 #define _FORCES_KERNEL_NAME(visc, xsph, dt) forces_##visc##_##xsph##dt##Device
 #define FORCES_KERNEL_NAME(visc, xsph, dt) _FORCES_KERNEL_NAME(visc, xsph, dt)
 
+#define _FORCE_PAIR_NAME(visc, xsph) force_pair_##visc##_##xsph
+#define FORCE_PAIR_NAME(visc, xsph) _FORCE_PAIR_NAME(visc, xsph)
+
 #include "forces_kernel.cu"
 
 #define NOT_IMPLEMENTED_CHECK(what, arg) \
@@ -260,13 +263,27 @@ getforcesconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->kspsfactor, cuforces::d_kspsfactor, sizeof(float)));
 }
 
-
 void
 setplaneconstants(int numPlanes, const float* PlanesDiv, const float4* Planes)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planes, Planes, numPlanes*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_plane_div, PlanesDiv, numPlanes*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numplanes, &numPlanes, sizeof(uint)));
+}
+
+void
+setoutletforces(const PhysParams *phys)
+{
+	uint numOutlets = phys->outlets;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_outlets, &numOutlets, sizeof(numOutlets)));
+#define COPY_UP(field) \
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_##field, phys->field, numOutlets*sizeof(float4)))
+
+	COPY_UP(outlet_min);
+	COPY_UP(outlet_max);
+	COPY_UP(outlet_disp);
+	COPY_UP(outlet_plane);
+#undef COPY_UP
 }
 
 
@@ -447,7 +464,7 @@ shepard(float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	
 	// execute the kernel
-	#if (__COMPUTE__ == 20)
+	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
 	if (periodicbound) {
@@ -499,7 +516,7 @@ mls(float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel		
-	#if (__COMPUTE__ == 20)
+	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
 	if (periodicbound) {

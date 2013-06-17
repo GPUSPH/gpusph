@@ -76,6 +76,31 @@ geteulerconstants(PhysParams *physparams)
 
 
 void
+setinleteuler(int numInlets, const float4* inletMin, const float4* inletMax, const float4* inletDisp, const float4 *inletVel)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlets, &numInlets, sizeof(numInlets)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_min, inletMin, numInlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_max, inletMax, numInlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_disp, inletDisp, numInlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_vel, inletVel, numInlets*sizeof(float4)));
+}
+
+void
+setoutleteuler(const PhysParams *phys)
+{
+	uint numOutlets = phys->outlets;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_outlets, &numOutlets, sizeof(numOutlets)));
+#define COPY_UP(field) \
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_##field, phys->field, numOutlets*sizeof(float4)))
+
+	COPY_UP(outlet_min);
+	COPY_UP(outlet_max);
+	COPY_UP(outlet_disp);
+	COPY_UP(outlet_plane);
+#undef COPY_UP
+}
+
+void
 setmbdata(const float4* MbData, uint size)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_mbdata, MbData, size));
@@ -104,14 +129,16 @@ seteulerrbsteprot(const float* rot, int numbodies)
 
 
 void
-euler(	float4*		oldPos,
-		float4*		oldVel,
-		particleinfo* info,
-		float4*		forces,
-		float4*		xsph,
-		float4*		newPos,
-		float4*		newVel,
+euler(	const float4	*oldPos,
+		const float4	*oldVel,
+		particleinfo	*info,
+		const float4	*forces,
+		const float4	*xsph,
+		float4		*newPos,
+		float4		*newVel,
 		uint		numParticles,
+		uint		*newNumParts,
+		uint		maxParticles,
 		uint		particleRangeEnd,
 		float		dt,
 		float		dt2,
@@ -131,7 +158,8 @@ euler(	float4*		oldPos,
 					oldPos, oldVel, info, \
 					forces, xsph, \
 					newPos, newVel, \
-					particleRangeEnd, dt, dt2, t
+					newNumParts, numParticles, maxParticles, \
+					dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
 #undef EULER_KERNEL_ARGS
@@ -141,7 +169,8 @@ euler(	float4*		oldPos,
 					oldPos, oldVel, info, \
 					forces, \
 					newPos, newVel, \
-					particleRangeEnd, dt, dt2, t
+					newNumParts, numParticles, maxParticles, \
+					dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
 #undef EULER_KERNEL_ARGS

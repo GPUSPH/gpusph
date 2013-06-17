@@ -31,23 +31,134 @@
 #	else
 #		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph,)
 #	endif
+#	define FORCE_PAIR_DEVICE	FORCE_PAIR_NAME(VISC_TYPE, Xsph)
 #else
 #	ifdef DT_KERNEL
 #		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,, Dt)
 #	else
 #		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,,)
 #	endif
+#	define FORCE_PAIR_DEVICE	FORCE_PAIR_NAME(VISC_TYPE,)
 #endif
 
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
+// since particle-particle forces are computed the same regardless of whether
+// the kernel has dynamic or fixed timestepping, and since this file is include in both cases, we must ensure that
+// the particle-particle function is only defined once. Since the fixed dt inclusion happens first, we wrap
+// the function definition in a check for undefined DT_KERNEL
+# ifndef DT_KERNEL
+template<KernelType kerneltype, SPHFormulation sph_formulation>
+__device__ void
+FORCE_PAIR_DEVICE
+(
+	// SPH kernel related
+			float	slength,
+	// position
+	const	float3	&relPos,
+			float	r,
+	// velocity
+	const	float4	&vel,
+	const	float4	&neib_vel,
+	// info
+	const	particleinfo &info,
+	const	particleinfo &neib_info,
+	// mass and pressure
+			float	mass,
+			float	neib_mass,
+			float	p_precalc,
+	// viscosity
+# if defined(VISC_ARTVISC)
+			float	sspeed,
+# elif defined(VISC_SPS)
+	const	symtensor3	&tau,
+	const	symtensor3	&neib_tau,
+# elif defined(VISC_DYNAMIC)
+			float visccoeff,
+			float neib_visccoeff,
+# endif
+	// output: mean_vel, force
+# ifdef XSPH_KERNEL
+			float3	&mean_vel,
+# endif
+			float4	&force
+)
+{
+	float3 relVel;
+	relVel.x = vel.x - neib_vel.x;
+	relVel.y = vel.y - neib_vel.y;
+	relVel.z = vel.z - neib_vel.z;
+
+	const float vel_dot_pos = dot(relVel, relPos);	// x.u
+	const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
+
+	// density derivative
+	float DrDt = neib_mass*vel_dot_pos*f;
+	/* The second formulation takes into consideration the density ratio */
+	if (sph_formulation == SPH_F2)
+		DrDt *= vel.w/neib_vel.w;
+	force.w += DrDt;
+
+	// pressure part of acceleration (to be multiplied by neib_mass*f)
+	float DvDt;
+	switch (sph_formulation) {
+	case SPH_F1:
+		DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info))/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
+		break;
+	case SPH_F2:
+		DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info)))/(vel.w*neib_vel.w);
+		break;
+	}
+
+	/* Viscous forces */
+# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS)
+# if defined(VISC_DYNAMIC)
+	const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_mass, f, visccoeff,
+		neib_visccoeff);
+# elif defined(VISC_KINEMATIC)
+	const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_mass, f);
+# elif defined(VISC_SPS)
+	const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_mass, f);
+	force.x += neib_mass*f*((tau.xx + neib_tau.xx)*relPos.x + (tau.xy + neib_tau.xy)*relPos.y +
+		(tau.xz + neib_tau.xz)*relPos.z);
+	force.y += neib_mass*f*((tau.xy + neib_tau.xy)*relPos.x + (tau.yy + neib_tau.yy)*relPos.y +
+		(tau.yz + neib_tau.yz)*relPos.z);
+	force.z += neib_mass*f*((tau.xz + neib_tau.xz)*relPos.x + (tau.yz + neib_tau.yz)*relPos.y +
+		(tau.zz + neib_tau.zz)*relPos.z);
+# endif // VISC_DYNAMIC + elif*
+
+	force.x += visc*relVel.x;
+	force.y += visc*relVel.y;
+	force.z += visc*relVel.z;
+
+# elif defined(VISC_ARTVISC)
+	if (vel_dot_pos < 0.0f)
+		DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed,
+			soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
+# else
+# error Unknown viscosity!
+# endif // VISC_*
+
+# ifdef XSPH_KERNEL
+	mean_vel -= neib_mass*W<kerneltype>(r, slength)*relVel/(vel.w + neib_vel.w);
+# endif
+
+	DvDt *= neib_mass*f;
+
+	force.x += DvDt*relPos.x;
+	force.y += DvDt*relPos.y;
+	force.z += DvDt*relPos.z;
+}
+#endif
+
+
 template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound, bool usedem,
 		 SPHFormulation sph_formulation>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_FORCES, MIN_BLOCKS_FORCES)
 FORCES_CUDA_KERNEL
-(	
+(
 	float4*		posArray,
 	float4*		forces,
 	# ifdef XSPH_KERNEL
@@ -76,7 +187,7 @@ FORCES_CUDA_KERNEL
 
 	if (index < numParticles) {
 		// read particle info from texture
-    	const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
@@ -87,20 +198,26 @@ FORCES_CUDA_KERNEL
 			#else
 			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
+
+			// yeah, goto in the XXI century. Find me a way to do this without
+			// adding _another_ layer of ifs and I'll glady use that
+			if (INACTIVE(pos))
+				goto reduce;
+
 			const float4 vel = tex1Dfetch(velTex, index);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
-			sym33mat tau;
+			symtensor3 tau;
 			float2 temp = tex1Dfetch(tau0Tex, index);
-			tau.a11 = temp.x;
-			tau.a12 = temp.y;
+			tau.xx = temp.x;
+			tau.xy = temp.y;
 			temp = tex1Dfetch(tau1Tex, index);
-			tau.a13 = temp.x;
-			tau.a22 = temp.y;
+			tau.xz = temp.x;
+			tau.yy = temp.y;
 			temp = tex1Dfetch(tau2Tex, index);
-			tau.a23 = temp.x;
-			tau.a33 = temp.y;
+			tau.yz = temp.x;
+			tau.zz = temp.y;
 			# endif
 			// force and density derivative
 			float4 force = make_float4(0.0f);
@@ -130,6 +247,41 @@ FORCES_CUDA_KERNEL
 			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
 			# endif
 
+			# if defined(VISC_DYNAMIC)
+			const float visccoeff = d_visccoeff*vel.w;
+			# endif
+
+#if 0
+			// check if we are in an outlet
+			int outlet = find_outlet(pos);
+
+			// if we are in an outlet, all our neighbors (including us) are reflected through the
+			// outlet plane, keeping the same velocity
+			if (outlet >= 0) {
+				float4 ghost_pos = reflectPoint(pos, d_outlet_plane[outlet], 1);
+				float3 relPos = as_float3(pos) - as_float3(ghost_pos);
+				float r = length(relPos);
+
+				if (r < influenceradius) {
+					FORCE_PAIR_DEVICE<kerneltype, sph_formulation>(
+						slength, relPos, r, vel, vel,
+						info, info,
+						pos.w, pos.w, p_precalc,
+# if defined(VISC_ARTVISC)
+						sspeed,
+# elif defined(VISC_SPS)
+						tau, tau,
+# elif defined(VISC_DYNAMIC)
+						visccoeff, visccoeff,
+# endif
+# ifdef XSPH_KERNEL
+						mean_vel,
+# endif
+						force);
+				}
+			}
+#endif
+
 			// loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
 				uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
@@ -147,87 +299,74 @@ FORCES_CUDA_KERNEL
 				#endif
 
 				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
 
 					if (FLUID(neib_info)) {
+						if (INACTIVE(neib_pos))
+							continue;
 
 						# ifdef VISC_SPS
-						sym33mat neib_tau;
+						symtensor3 neib_tau;
 						temp = tex1Dfetch(tau0Tex, neib_index);
-						neib_tau.a11 = temp.x;
-						neib_tau.a12 = temp.y;
+						neib_tau.xx = temp.x;
+						neib_tau.xy = temp.y;
 						temp = tex1Dfetch(tau1Tex, neib_index);
-						neib_tau.a13 = temp.x;
-						neib_tau.a22 = temp.y;
+						neib_tau.xz = temp.x;
+						neib_tau.yy = temp.y;
 						temp = tex1Dfetch(tau2Tex, neib_index);
-						neib_tau.a23 = temp.x;
-						neib_tau.a33 = temp.y;
+						neib_tau.yz = temp.x;
+						neib_tau.zz = temp.y;
 						# endif
 
-						float3 relVel;
-						relVel.x = vel.x - neib_vel.x;
-						relVel.y = vel.y - neib_vel.y;
-						relVel.z = vel.z - neib_vel.z;
+#if defined(VISC_DYNAMIC)
+						const float neib_visccoeff = d_visccoeff*neib_vel.w;
+#endif
 
-						const float vel_dot_pos = dot(relVel, relPos);	// x.u
-						const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
-
-						// density derivative
-						float DrDt = neib_pos.w*vel_dot_pos*f;
-						/* The second formulation takes into consideration the density ratio */
-						if (sph_formulation == SPH_F2)
-							DrDt *= vel.w/neib_vel.w;
-						force.w += DrDt;
-
-						// pressure part of acceleration (to be multiplied by neib_mass*f)
-						switch (sph_formulation) {
-							case SPH_F1:
-								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info))/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
-								break;
-							case SPH_F2:
-								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info)))/(vel.w*neib_vel.w);
-								break;
+						FORCE_PAIR_DEVICE<kerneltype, sph_formulation>(
+							slength, relPos, r, vel, neib_vel,
+							info, neib_info,
+							pos.w, neib_pos.w, p_precalc,
+# if defined(VISC_ARTVISC)
+							sspeed,
+# elif defined(VISC_SPS)
+							tau, neib_tau,
+# elif defined(VISC_DYNAMIC)
+							visccoeff, neib_visccoeff,
+# endif
+# ifdef XSPH_KERNEL
+							mean_vel,
+# endif
+							force);
+#if 0
+						// outlet ghost reflections
+						if (outlet >= 0) {
+							float4 ghost_pos =  reflectPoint(neib_pos, d_outlet_plane[outlet], 1);
+							relPos = as_float3(pos) - as_float3(ghost_pos);
+							float r = length(relPos);
+							if (r < influenceradius) {
+								FORCE_PAIR_DEVICE<kerneltype, sph_formulation>(
+									slength, relPos, r, vel, neib_vel,
+									info, neib_info,
+									pos.w, neib_pos.w, p_precalc,
+# if defined(VISC_ARTVISC)
+									sspeed,
+# elif defined(VISC_SPS)
+									tau, neib_tau,
+# elif defined(VISC_DYNAMIC)
+									visccoeff, neib_visccoeff,
+# endif
+# ifdef XSPH_KERNEL
+									mean_vel,
+# endif
+									force);
+							}
 						}
-
-						/* Viscous forces */
-						# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS)
-						# if defined(VISC_DYNAMIC)
-						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
-										d_visccoeff*neib_vel.w);
-						# elif defined(VISC_KINEMATIC)
-						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
-						# elif defined(VISC_SPS)
-						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
-						force.x += neib_pos.w*f*((tau.a11 + neib_tau.a11)*relPos.x + (tau.a12 + neib_tau.a12)*relPos.y +
-										(tau.a13 + neib_tau.a13)*relPos.z);
-						force.y += neib_pos.w*f*((tau.a12 + neib_tau.a12)*relPos.x + (tau.a22 + neib_tau.a22)*relPos.y +
-										(tau.a23 + neib_tau.a23)*relPos.z);
-						force.z += neib_pos.w*f*((tau.a13 + neib_tau.a13)*relPos.x + (tau.a23 + neib_tau.a23)*relPos.y +
-										(tau.a33 + neib_tau.a33)*relPos.z);
-						# endif // VISC_DYNAMIC + elif*
-
-						force.x += visc*relVel.x;
-						force.y += visc*relVel.y;
-						force.z += visc*relVel.z;
-
-						# elif defined(VISC_ARTVISC)
-						if (vel_dot_pos < 0.0f)
-							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed, 
-										soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
-						# else
-						# error Unknown viscosity!
-						# endif // VISC_*
-
-						# ifdef XSPH_KERNEL
-						mean_vel -= neib_pos.w*W<kerneltype>(r, slength)*relVel/(vel.w + neib_vel.w);
-						# endif
-
-						DvDt *= neib_pos.w*f;
-					} else
-					switch (boundarytype) {
+#endif
+					} else {
+						switch (boundarytype) {
 						case LJ_BOUNDARY:
 							DvDt = LJForce(r);
 							break;
@@ -236,11 +375,12 @@ FORCES_CUDA_KERNEL
 							break;
 						default:
 							DvDt = 1.0/0.0;
+						}
+						// interaction between two particles
+						force.x += DvDt*relPos.x;
+						force.y += DvDt*relPos.y;
+						force.z += DvDt*relPos.z;
 					}
-					// interaction between two particles
-					force.x += DvDt*relPos.x;
-					force.y += DvDt*relPos.y;
-					force.z += DvDt*relPos.z;
 				} // r < influenceradius
 			} // end of loop over neighbors
 
@@ -278,7 +418,7 @@ FORCES_CUDA_KERNEL
 			if (d_numplanes) {
 				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, force));
 			}
-			
+
 			# ifdef DT_KERNEL
 			// storing data for cfl condition in shared memory			
 			sm_max[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)), sspeed*sspeed/slength);		
@@ -309,20 +449,20 @@ FORCES_CUDA_KERNEL
 				float4 neib_pos;
 				float3 relPos;
 				float r;
-				
+
 				#if( __COMPUTE__ >= 20)							
 				getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 				#else
 				getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 				#endif
 
-    	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				// TODO: improve multi objects
 				if (r < influenceradius) {
 					float DvDt = 0.0;
 
-					if (FLUID(neib_info) && !OBJECT(neib_info))
+					if (FLUID(neib_info) && !OBJECT(neib_info) && ACTIVE(neib_pos))
 						DvDt = neib_pos.w*LJForce(r);
 					if (OBJECT(neib_info) && (object(info) != object(neib_info)))
 						DvDt = d_objectobjectdf*LJForce(r);		// TODO: apply friction between objects
@@ -341,12 +481,17 @@ FORCES_CUDA_KERNEL
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 
+reduce:
+
 	# ifdef DT_KERNEL
 	dtadaptBlockReduce(sm_max, cfl);
 	# endif
+
+	return;
 }
 /************************************************************************************************************/
 
 #undef FORCES_CUDA_KERNEL
+#undef FORCE_PAIR_DEVICE
 
 /* vi:set ft=cuda: */

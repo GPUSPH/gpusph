@@ -113,6 +113,9 @@ calcHashDevice(const float4*	posArray,
 	gridHash |= ((long unsigned int)compactDeviceMap[shortGridHash]) << GRIDHASH_BITSHIFT;
 #endif
 
+	if (INACTIVE(pos))
+		gridHash = HASH_KEY_MAX;
+
 	// store grid hash and particle index
 	particleHash[index] = gridHash;
 	particleIndex[index] = index;
@@ -131,7 +134,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #if HASH_KEY_SIZE >= 64
 										uint*			segmentStart,
 #endif
-										uint			numParticles)
+										uint			numParticles,
+										uint*			newNumParticles)	// output: number of active particles found
 {
 	extern __shared__ uint sharedHash[];	// blockSize + 1 elements
 
@@ -164,20 +168,26 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 	if (index < numParticles) {
 		// If this particle has a different cell index to the previous
-		// particle then it must be the first particle in the cell,
-		// so store the index of this particle in the cell.
-		// As it isn't the first particle, it must also be the cell end of
-		// the previous particle's cell
+		// particle then it must be the first particle in the cell
+		// or the first inactive particle.
+		// Store the index of this particle as the new cell start and as
+		// the previous cell end
 
 		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
 		// everytime we use a cell hash to access an element of CellStart or CellEnd
 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
+			// new cell, otherwise, it's the number of active particles
+			if (hash != HASH_KEY_MAX)
+				// if it isn't an inactive particle, it is also the start of the cell
 #if HASH_KEY_SIZE >= 64
-			cellStart[hash & CELLTYPE_BITMASK_32] = index;
+				cellStart[hash & CELLTYPE_BITMASK_32] = index;
 #else
-			cellStart[hash] = index;
+				cellStart[hash] = index;
 #endif
+			else
+				*newNumParticles = index;
+			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
 #if HASH_KEY_SIZE >= 64
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK_32] = index;
@@ -186,6 +196,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #endif
 		}
 
+		// if we are an inactive particle, we're done
+		if (hash == HASH_KEY_MAX)
+			return;
+
 		if (index == numParticles - 1) {
 			// ditto
 #if HASH_KEY_SIZE >= 64
@@ -193,6 +207,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #else
 			cellEnd[hash] = index + 1;
 #endif
+			*newNumParticles = numParticles;
 		}
 
 #if HASH_KEY_SIZE >= 64

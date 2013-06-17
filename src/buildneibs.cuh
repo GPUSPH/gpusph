@@ -51,8 +51,10 @@
 #error "Hash keys should be at least 32-bit wide"
 #elif HASH_KEY_SIZE == 32
 typedef unsigned int hashKey;
+#define HASH_KEY_MAX UINT_MAX
 #elif HASH_KEY_SIZE == 64
 typedef unsigned long hashKey;
+#define HASH_KEY_MAX ULONG_MAX
 #else
 #error "unmanaged hash key size"
 #endif
@@ -70,14 +72,7 @@ typedef unsigned long hashKey;
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 30)
-	#define BLOCK_SIZE_CALCHASH		256
-	#define MIN_BLOCKS_CALCHASH		8
-	#define BLOCK_SIZE_REORDERDATA	256
-	#define MIN_BLOCKS_REORDERDATA	8
-	#define BLOCK_SIZE_BUILDNEIBS	256
-	#define MIN_BLOCKS_BUILDNEIBS	8
-#elif (__COMPUTE__ == 20 || __COMPUTE__ == 21)
+#if (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
 	#define BLOCK_SIZE_REORDERDATA	256
@@ -136,6 +131,7 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							uint*			segmentStart,
 #endif
 							uint			numParticles,
+							uint*			newNumParticles,	// output: number of active particles found
 							uint			numGridCells);
 
 void

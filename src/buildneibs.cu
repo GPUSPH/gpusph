@@ -114,6 +114,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									uint*			segmentStart,
 #endif
 									uint			numParticles,
+									uint*			newNumParticles,	// output: number of active particles found
 									uint			numGridCells)
 {
 	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
@@ -131,7 +132,7 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 #if HASH_KEY_SIZE >= 64
 													segmentStart,
 #endif
-													numParticles);
+													numParticles, newNumParticles);
 	
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");

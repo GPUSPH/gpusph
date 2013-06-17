@@ -291,9 +291,15 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 
 
 void
-ParticleSystem::allocate(uint numParticles)
+ParticleSystem::allocate(uint numParticles, uint maxParticles)
 {
-	if (numParticles >= MAXPARTICLES) {
+	if (numParticles > maxParticles) {
+		fprintf(stderr, "We were asked to allocate %1$u maximum particles with %2$u active particles, and %1$u < %2$u\n",
+				maxParticles, numParticles);
+		exit(1);
+	}
+
+	if (maxParticles >= MAXPARTICLES) {
 		fprintf(stderr, "Cannot handle %u > %u particles, sorry\n",
 				numParticles, MAXPARTICLES);
 		exit(1);
@@ -305,30 +311,31 @@ ParticleSystem::allocate(uint numParticles)
 		exit(1);
 	}
 	m_numParticles = numParticles;
+	m_maxParticles = maxParticles;
 	m_timingInfo.numParticles = numParticles;
 
 	// allocate host storage
-	const uint memSize = sizeof(float)*m_numParticles;
-	const uint memSize2 = sizeof(float2)*m_numParticles;
-	const uint memSize3 = sizeof(float3)*m_numParticles;
-	const uint memSize4 = sizeof(float4)*m_numParticles;
-	const uint infoSize = sizeof(particleinfo)*m_numParticles;
-	const uint hashSize = sizeof(hashKey)*m_numParticles;
-	const uint idxSize = sizeof(uint)*m_numParticles;
+	const uint memSize = sizeof(float)*m_maxParticles;
+	const uint memSize2 = sizeof(float2)*m_maxParticles;
+	const uint memSize3 = sizeof(float3)*m_maxParticles;
+	const uint memSize4 = sizeof(float4)*m_maxParticles;
+	const uint infoSize = sizeof(particleinfo)*m_maxParticles;
+	const uint hashSize = sizeof(hashKey)*m_maxParticles;
+	const uint idxSize = sizeof(uint)*m_maxParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_maxParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 
 	uint memory = 0;
 
-	m_hPos = new float4[m_numParticles];
+	m_hPos = new float4[m_maxParticles];
 	memset(m_hPos, 0, memSize4);
 	memory += memSize4;
 
-	m_hVel = new float4[m_numParticles];
+	m_hVel = new float4[m_maxParticles];
 	memset(m_hVel, 0, memSize4);
 	memory += memSize4;
 
-	m_hInfo = new particleinfo[m_numParticles];
+	m_hInfo = new particleinfo[m_maxParticles];
 	memset(m_hInfo, 0, infoSize);
 	memory += infoSize;
 
@@ -338,21 +345,21 @@ ParticleSystem::allocate(uint numParticles)
 
 	m_hVort = NULL;
 	if (m_simparams->vorticity) {
-		m_hVort = new float3[m_numParticles];
+		m_hVort = new float3[m_maxParticles];
 		memory += memSize3;
-		}
+	}
 
 
 #ifdef PSYSTEM_DEBUG
-	m_hForces = new float4[m_numParticles];
+	m_hForces = new float4[m_maxParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
 
-	m_hParticleHash = new hashKey[m_numParticles];
+	m_hParticleHash = new hashKey[m_maxParticles];
 	memset(m_hParticleHash, 0, hashSize);
 	memory += hashSize;
 
-	m_hParticleIndex = new uint[m_numParticles];
+	m_hParticleIndex = new uint[m_maxParticles];
 	memset(m_hParticleIndex, 0, idxSize);
 	memory += idxSize;
 
@@ -364,7 +371,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
+	m_hNeibsList = new uint[m_simparams->maxneibsnum*(m_maxParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 #endif
@@ -372,13 +379,13 @@ ParticleSystem::allocate(uint numParticles)
 	// Free surface detection
 	m_hNormals = NULL;
 	if (m_simparams->savenormals) {
-		m_hNormals = new float4[m_numParticles];
+		m_hNormals = new float4[m_maxParticles];
 		memset(m_hNormals, 0, memSize4);
 		memory += memSize4;
 	}
 
 	printf("\nCPU memory allocated\n");
-	printf("Number of particles : %d\n", m_numParticles);
+	printf("Number of particles : %u max %u\n", m_numParticles, m_maxParticles);
 	printf("CPU memory used : %.2f MB\n", memory/(1024.0*1024.0));
 	fflush(stdout);
 
@@ -445,6 +452,9 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
 	memory += neibslistSize;
 
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
+	memory += sizeof(uint);
+
 	// Allocate storage for rigid bodies forces and torque computation
 	if (m_simparams->numbodies) {
 		m_numBodiesParticles = m_problem->get_bodies_numparts();
@@ -487,7 +497,7 @@ ParticleSystem::allocate(uint numParticles)
 	}
 
 	if (m_simparams->dtadapt) {
-		m_numPartsFmax = getNumPartsFmax(numParticles);
+		m_numPartsFmax = getNumPartsFmax(maxParticles);
 		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
@@ -994,6 +1004,23 @@ ParticleSystem::setPlanes(void)
 	setplaneconstants(m_numPlanes, m_hPlanesDiv, m_hPlanes);
 }
 
+void
+ParticleSystem::setOutlets(void)
+{
+	printf("Uploading %u outlets\n", m_physparams->outlets);
+	setoutletforces(m_physparams);
+	setoutleteuler(m_physparams);
+}
+
+void
+ParticleSystem::setInlets(void)
+{
+	printf("Uploading %u inlets\n", m_physparams->inlets);
+	setinleteuler(m_physparams->inlets,
+		m_physparams->inlet_min, m_physparams->inlet_max, m_physparams->inlet_disp,
+		m_physparams->inlet_vel);
+}
+
 
 // TODO: check writer for testpoints
 void
@@ -1009,6 +1036,25 @@ ParticleSystem::writeToFile()
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);
+}
+
+void
+ParticleSystem::updateNumParticles()
+{
+
+	uint activeParticles;
+	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles,
+			sizeof(uint), cudaMemcpyDeviceToHost));
+	if (activeParticles > m_maxParticles) {
+		fprintf(stderr, "Number of particles grew to %u > %u\n",
+			activeParticles, m_maxParticles);
+		throw runtime_error("Too many particles");
+	}
+
+	if (activeParticles != m_numParticles) {
+		printf("particles: %d => %d\n", m_numParticles, activeParticles);
+		m_numParticles = activeParticles;
+	}
 }
 
 void
@@ -1057,7 +1103,11 @@ ParticleSystem::buildNeibList(bool timing)
 			NULL, // WARNING: this is only to allow for compiling. DO NOT DO THIS
 #endif
 			m_numParticles,
+			m_dNewNumParticles,				// output: number of active particles
 			m_nGridCells);
+
+	updateNumParticles();
+
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
@@ -1066,6 +1116,9 @@ ParticleSystem::buildNeibList(bool timing)
 	m_timingInfo.numInteractions = 0;
 	m_timingInfo.maxNeibs = 0;
 	resetneibsinfo();
+
+	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*(m_maxParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	CUDA_SAFE_CALL(cudaMemset(m_dNeibsList, -1, neibslistSize));
 
 	// Build the neibghours list
 	buildNeibsList(	m_dNeibsList,
@@ -1265,7 +1318,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dPos[m_currentPosWrite],  // pos(n+1/2) = pos(n) + vel(n)*dt/2
 			m_dVel[m_currentVelWrite],  // vel(n+1/2) = vel(n) + f(n)*dt/2
 			m_numParticles,
-			m_numParticles,
+			NULL,			// new number of particles, but not on this step
+			m_maxParticles,
+			m_numParticles,			// range end; to compile
 			m_dt,
 			m_dt/2.0,
 			1,
@@ -1352,7 +1407,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dPos[m_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 			m_dVel[m_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 			m_numParticles,
-			m_numParticles,
+			m_dNewNumParticles,
+			m_maxParticles,
+			m_numParticles,			// range end; to compile
 			m_dt,
 			m_dt/2.0,
 			2,
@@ -1375,6 +1432,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
+
+	updateNumParticles();
 
 	// Free surface detection (Debug)
 	//savenormals();

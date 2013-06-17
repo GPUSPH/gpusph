@@ -77,7 +77,7 @@ Waterfall::Waterfall(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
 	m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 3.0f;
+	m_simparams.tend = 5.0f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -90,7 +90,7 @@ Waterfall::Waterfall(const Options &options) : Problem(options)
 	H = WATER_LEVEL;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
+	//m_physparams.set_density(0,1000.0, 7.0f, 20.f);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
@@ -111,8 +111,9 @@ Waterfall::Waterfall(const Options &options) : Problem(options)
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
+	m_maxvel = sqrt(g*H);
+	//m_maxvel = 3.0f;
+	m_physparams.set_density(0,1000.0, 7.0f, 20.0f*m_maxvel);
 
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
@@ -230,7 +231,7 @@ void Waterfall::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	for (uint i = j; i < j + walls_parts.size(); i++) {
 		pos[i] = make_float4(walls_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,0,i);
+		info[i]= make_particleinfo(BOUNDPART,1,i);
 	}
 	j += walls_parts.size();
 	std::cout << "Walls part mass:" << pos[j-1].w << "\n";
