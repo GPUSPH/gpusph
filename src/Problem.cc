@@ -48,6 +48,7 @@ Problem::Problem(const Options &options)
 	m_last_screenshot_time = 0.0;
 	m_mbnumber = 0;
 	m_rbdatafile = NULL;
+	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_bodies = NULL;
 	if (options.custom_dir.length()>0)
