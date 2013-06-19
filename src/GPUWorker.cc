@@ -802,14 +802,15 @@ void GPUWorker::saveCompactDeviceMapTofile(std::string prefix)
 	oss << prefix << "_" << m_deviceIndex << ".csv";
 	std::string fname = oss.str();
 	FILE *fid = fopen(fname.c_str(), "w");
-	fprintf(fid,"X, Y, Z, VALUE\n");
+	fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
 	for (int ix=0; ix < gdata->gridSize.x; ix++)
 			for (int iy=0; iy < gdata->gridSize.y; iy++)
 				for (int iz=0; iz < gdata->gridSize.z; iz++) {
 					uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
-					fprintf(fid,"%u, %u, %u, %u\n", ix, iy, iz, m_hCompactDeviceMap[cell_lin_idx] >> 30);
+					fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, m_hCompactDeviceMap[cell_lin_idx] >> 30);
 				}
 	fclose(fid);
+	printf(" > compact device map dumped to file %s\n",fname.c_str());
 }
 
 // this should be singleton, i.e. should check that no other thread has been started (mutex + counter or bool)
