@@ -692,6 +692,9 @@ bool GPUSPH::finalize() {
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
+	// short form
+	bool inoutlets = (gdata->problem->get_physparams()->inlets > 0 || gdata->problem->get_physparams()->outlets > 0);
+
 	// doing first write
 	printf("Performing first write...\n");
 	doWrite();
@@ -728,6 +731,8 @@ bool GPUSPH::runSimulation() {
 			doCommand(CALCHASH);
 			doCommand(SORT);
 			doCommand(REORDER);
+			if (inoutlets)
+				doCommand(DUMP_NEWNUMPARTS);
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_INFO);
 
@@ -798,6 +803,9 @@ bool GPUSPH::runSimulation() {
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
+		// update inlet/outlet changes only after step 2
+		if (inoutlets)
+			doCommand(DUMP_NEWNUMPARTS);
 
 		// this made sense for testing and running EULER on internals only
 		//if (gdata->devices > 1)

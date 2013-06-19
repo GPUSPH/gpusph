@@ -980,6 +980,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
 				instance->downloadCellsIndices();
 				break;
+			case DUMP_NEWNUMPARTS:
+				//printf(" T %d issuing DUMP_NEWNUMPARTS\n", deviceIndex);
+				instance->downloadNewNumParticles();
+				break;
 			case APPEND_EXTERNAL:
 				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
 				instance->importPeerEdgeCells();
