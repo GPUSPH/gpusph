@@ -1065,6 +1065,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dSegmentStart,
 #endif
 							m_numParticles,
+							m_dNewNumParticles,
 							m_nGridCells);
 }
 
@@ -1159,14 +1160,17 @@ void GPUWorker::kernel_euler()
 {
 	if (gdata->commandFlags == INTEGRATOR_STEP_1)
 
-		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
-				m_dVel[gdata->currentVelRead],   // vel(n)
+
+		euler(  m_dPos[gdata->currentPosRead],	// pos(n)
+				m_dVel[gdata->currentVelRead],	// vel(n)
 				m_dInfo[gdata->currentInfoRead], //particleInfo
-				m_dForces,					// f(n+1/2)
+				m_dForces,						// f(n+1/2)
 				m_dXsph,
-				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
-				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+				m_dPos[gdata->currentPosWrite],	// pos(n+1) = pos(n) + velc(n+1/2)*dt
+				m_dVel[gdata->currentVelWrite],	// vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
+				NULL,							// no m_dNewNumParticles at this step
+				m_numAllocatedParticles,
 				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
@@ -1183,6 +1187,8 @@ void GPUWorker::kernel_euler()
 				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
+				m_dNewNumParticles,
+				m_numAllocatedParticles,
 				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
