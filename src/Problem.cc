@@ -360,12 +360,12 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 	if (preferred_split_axis == LONGEST_AXIS) {
 		if (	gdata->worldSize.x >= gdata->worldSize.y &&
 				gdata->worldSize.x >= gdata->worldSize.z)
-			preferred_split_axis == X_AXIS;
+			preferred_split_axis = X_AXIS;
 		else
 		if (	gdata->worldSize.y >= gdata->worldSize.z)
-			preferred_split_axis == Y_AXIS;
+			preferred_split_axis = Y_AXIS;
 		else
-			preferred_split_axis == Z_AXIS;
+			preferred_split_axis = Z_AXIS;
 	}
 	uint cells_per_longest_axis;
 	switch (preferred_split_axis) {
