@@ -152,6 +152,10 @@ private:
 	void saveCompactDeviceMapTofile(std::string prefix);
 	void uploadConstants();
 
+	// upload inlets and outlets
+	void uploadInlets();
+	void uploadOutlets();
+
 	// kernels
 	void kernel_calcHash();
 	void kernel_sort();

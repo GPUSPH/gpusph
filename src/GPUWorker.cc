@@ -883,6 +883,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
 
+	// upload inlets and outlets
+	instance->uploadInlets();
+	instance->uploadOutlets();
+
 	// compute #parts to allocate according to the free memory on the device
 	instance->computeAndSetAllocableParticles();
 
@@ -1237,4 +1241,21 @@ void GPUWorker::uploadConstants()
 	setneibsconstants(m_simparams, m_physparams);
 }
 
+void GPUWorker::uploadInlets()
+{
+	if (m_physparams->inlets == 0)
+		return;
+	printf("Dev idx %u uploading %u intlets\n", m_deviceIndex, m_physparams->inlets);
+	setoutletforces(m_physparams);
+	setoutleteuler(m_physparams);
+}
+
+void GPUWorker::uploadOutlets()
+{
+	if (m_physparams->outlets == 0)
+			return;
+	printf("Dev idx %u uploading %u outlets\n", m_deviceIndex, m_physparams->outlets);
+	setoutletforces(m_physparams);
+	setoutleteuler(m_physparams);
+}
 
