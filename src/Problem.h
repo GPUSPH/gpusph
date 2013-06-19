@@ -180,7 +180,7 @@ class Problem {
 		// ditto, vector form
 		inline bool add_outlet(float3 const& omin, float3 const& omax, float3 const& dir)
 		{
-			add_outlet(omin.x, omin.y, omin.z,
+			return add_outlet(omin.x, omin.y, omin.z,
 				omax.x, omax.y, omax.z,
 				dir.x, dir.y, dir.z);
 		}
@@ -197,7 +197,7 @@ class Problem {
 		// ditto, vector form
 		inline bool add_inlet(float3 const& omin, float3 const& omax, float4 const& vel)
 		{
-			add_inlet(omin.x, omin.y, omin.z,
+			return add_inlet(omin.x, omin.y, omin.z,
 				omax.x, omax.y, omax.z,
 				vel.x, vel.y, vel.z, vel.w);
 		}
