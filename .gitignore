@@ -27,4 +27,5 @@ mpitests/
 .settings/
 deviceQuery
 seewaves/
+*.csv
 
