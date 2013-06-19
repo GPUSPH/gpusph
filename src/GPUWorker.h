@@ -128,6 +128,9 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
+	// "new" number of particles for inlet
+	uint*		m_dNewNumParticles;
+
 	// cuts all external particles
 	void dropExternalParticles();
 
@@ -146,6 +149,7 @@ private:
 	void uploadSubdomain();
 	void dumpBuffers();
 	void downloadCellsIndices();
+	void downloadNewNumParticles();
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();

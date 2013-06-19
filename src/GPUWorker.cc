@@ -439,6 +439,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
 	allocated += segmentsSize;
 
+	// newNumParticles for inlets
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
+	allocated += sizeof(uint);
+
 	// TODO: allocation for rigid bodies
 
 	if (m_simparams->dtadapt) {
@@ -509,6 +513,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
 	// TODO: deallocation for rigid bodies
 
@@ -637,8 +642,25 @@ void GPUWorker::downloadCellsIndices()
 				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
 }
 
+// download the updated number of particles (update by reorder and euler)
+void GPUWorker::downloadNewNumParticles()
+{
+	uint activeParticles;
+	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
+
+	if (activeParticles > m_numAllocatedParticles) {
+		fprintf(stderr, "ERROR: Number of particles grew too much: %u > %u\n", activeParticles, m_numAllocatedParticles);
+		gdata->quit_request = true;
+	}
 // create a compact device map, for this device, from the global one,
 // with each cell being marked in the high bits
+
+	if (activeParticles != m_numParticles) {
+		printf("  particles: %d => %d\n", m_numParticles, activeParticles);
+		m_numParticles = activeParticles;
+	}
+}
+
 void GPUWorker::createCompactDeviceMap() {
 	// Here we have several possibilities:
 	// 1. dynamic programming - visit each cell and half of its neighbors once, only write self
