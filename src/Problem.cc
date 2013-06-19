@@ -644,7 +644,7 @@ Problem::draw_axis()
 	glEnd();
 }
 
-void
+/* void
 Problem::draw_inlets()
 {
 	glColor3f(1, 0, 1);
@@ -721,4 +721,5 @@ Problem::draw_outlets()
 		glEnd();
 	}
 }
+*/
 

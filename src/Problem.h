@@ -238,8 +238,8 @@ class Problem {
 		virtual uint fill_planes(void);
 		virtual void draw_boundary(float) = 0;
 		virtual void draw_axis(void);
-		virtual void draw_inlets(void);
-		virtual void draw_outlets(void);
+		/*virtual void draw_inlets(void);
+		virtual void draw_outlets(void);*/
 
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);
