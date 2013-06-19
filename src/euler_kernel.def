@@ -49,6 +49,8 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
+// WARNING: in first step, NULL is passed in place of newNumParts!
+
 template<int step, int periodicbound>
 __global__ void
 EULER_KERNEL_NAME(
