@@ -101,7 +101,7 @@ EULER_KERNEL_NAME(
 	particleinfo pinfo = info[index];
 	#endif
 
-	if(type(pinfo) != BOUNDPART && type(pinfo) != VERTEXPART) {
+	if(type(pinfo) != BOUNDPART) {
 		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 		# ifdef XSPH_KERNEL
 		float4 mean_vel = xsph[index];
@@ -135,6 +135,10 @@ EULER_KERNEL_NAME(
 			const float2 dkde = keps_dkde[index];
 			keps_k += dt*dkde.x;
 			keps_e += dt*dkde.y;
+		}
+		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
+		else if (VERTEX(pinfo)) {
+			vel += dt*force;
 		}
 		// Updating postions for Piston particles
 		else if (type(pinfo) == PISTONPART) {
