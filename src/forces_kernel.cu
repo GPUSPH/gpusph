@@ -781,8 +781,8 @@ initGradGammaDevice(	float4*		newPos,
 		float4 gGam = make_float4(0.0f);
 		float4 virtVel = make_float4(0.0f);
 		
-		// Compute gradient of gamma for fluid only
-		if(FLUID(info)) {
+		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
+		if(FLUID(info) || VERTEX(info)) {
 			//uint counter = 0; //DEBUG
 			float rmin = inflRadius;
 
@@ -809,7 +809,7 @@ initGradGammaDevice(	float4*		newPos,
 				}
 			}
 
-			if(rmin < 0.8*deltap)
+			if(rmin < 0.8*deltap && FLUID(info))
 				disable_particle(pos);
 
 			//DEBUG output
@@ -858,8 +858,8 @@ updateGammaDevice(	float4*		newGam,
 		float4 gGam = make_float4(0.0f);
 		float deltaGam = 0.0;
 
-		// Compute gradient of gamma for fluid only
-		if(FLUID(info)) {
+		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
+		if(FLUID(info) || VERTEX(info)) {
 			// Loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
 				uint neibIndex = neibsList[d_maxneibsnum_time_neibindexinterleave * lane + offset + i];
@@ -917,7 +917,7 @@ updateGammaPrCorDevice( float4*		newPos,
 		float3 vel = make_float3(tex1Dfetch(velTex, index));
 		float4 oldGam = tex1Dfetch(gamTex, index);
 
-		float4 gGam = make_float4(0.0f);
+		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGam.w);
 		float deltaGam = 0.0;
 		deltaGam += dot(make_float3(oldGam), vel); //FIXME: It is incorrect for moving boundaries
 
@@ -974,7 +974,7 @@ updatePositionsDevice(	float4*	newPos,
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		float4 vel = tex1Dfetch(velTex, index);
 
-		if(FLUID(info)) {
+		if(FLUID(info) || VERTEX(info)) {
 			pos.x += virtDt * vel.x;
 			pos.y += virtDt * vel.y;
 			pos.z += virtDt * vel.z;
@@ -1039,7 +1039,7 @@ updateBoundValuesDevice(	float4*		oldVel,
 		}
 		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
 		//FIXME: keeping initial velocity values, if given
-		if (initStep && FLUID(info)) {
+		if (initStep && (FLUID(info) || VERTEX(info))) {
 			oldVel[index].x = 0;
 			oldVel[index].y = 0;
 			oldVel[index].z = 0;
