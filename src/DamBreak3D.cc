@@ -49,8 +49,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
-	//m_writerType = VTKWRITER;
-	m_writerType = UDPWRITER;
+	m_writerType = VTKWRITER;
+	//m_writerType = UDPWRITER;
 
 	// SPH parameters
 	set_deltap(0.02f);
@@ -180,7 +180,9 @@ void DamBreak3D::draw_boundary(float t)
 
 void DamBreak3D::fillDeviceMap(GlobalData* gdata)
 {
+	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
 	fillDeviceMapByAxis(gdata, Y_AXIS);
+	//fillDeviceMapByEquation(gdata);
 }
 
 void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
