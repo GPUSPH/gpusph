@@ -45,8 +45,7 @@ uint GPUWorker::getNumParticles()
 }
 
 uint GPUWorker::getNumInternalParticles() {
-	return min( gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
-				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
+	return m_numInternalParticles;
 }
 
 // Return the maximum number of particles the worker can handled (allocated)
@@ -121,25 +120,11 @@ void GPUWorker::computeAndSetAllocableParticles()
 // few time and we will update them when importing peer cells.
 void GPUWorker::dropExternalParticles()
 {
-	// We would like to trim out all external particles. According to the sorting criteria,
-	// they should be compacted last. If there are no external particles, their segmentStart
-	// is equal to m_numParticles
-	uint external_start_at = min( gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
-			gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
-	if (external_start_at > m_numParticles)
-		printf("WARNING: thread %u: first outer particle (%u) beyond active particles (%u)! Not cropping\n",
-				m_deviceIndex, external_start_at, m_numParticles);
-	else {
-		m_particleRangeEnd =  m_numInternalParticles = m_numParticles = external_start_at;
-		// one of the two might still be ahead
-		gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
-		gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = m_numParticles;
-	}
-
+	m_particleRangeEnd =  m_numParticles = m_numInternalParticles;
 }
 
 // append a copy of the external edge cells of other devices to the self device arrays
-// and update cellStarts, cellEnds and segmentStarts
+// and update cellStarts, cellEnds and segments
 void GPUWorker::importPeerEdgeCells()
 {
 	// at the moment, the cells are imported in the same order they are encountered iterating
@@ -203,9 +188,6 @@ void GPUWorker::importPeerEdgeCells()
 				gdata->s_dCellStarts[m_deviceIndex][cell] = m_numParticles;
 				gdata->s_dCellEnds[m_deviceIndex][cell] = m_numParticles + numPartsInPeerCell;
 
-				// update segments
-				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles; // should be already correct
-				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = m_numParticles + numPartsInPeerCell;
 
 				// Update device copy of cellStart (later cellEnd). This allows for building the
 				// neighbor list directly, without the need of running again calchash, sort and reorder
@@ -215,6 +197,10 @@ void GPUWorker::importPeerEdgeCells()
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellEnd + cell),
 											(gdata->s_dCellEnds[m_deviceIndex] + cell),
 											sizeof(uint), cudaMemcpyHostToDevice));
+				// update outer edge segment
+				// NOTE: keeping correctness only if there are no OUTER particles (which we assume)
+				if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
+					gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
 
 				// update the total number of particles
 				m_numParticles += numPartsInPeerCell;
@@ -636,10 +622,7 @@ void GPUWorker::downloadCellsIndices()
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
 								m_dSegmentStart,
 								_size, cudaMemcpyDeviceToHost));
-	// update the number of internal particles
-	m_particleRangeEnd = m_numInternalParticles =
-		min(	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
-				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
+}
 
 void GPUWorker::downloadSegments()
 {

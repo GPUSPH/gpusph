@@ -21,6 +21,9 @@
 #define CELLTYPE_BITMASK_32 (~( (unsigned int)3 << 30))
 #define CELLTYPE_BITMASK_64 (~( (long unsigned int)3 << 62))
 
+// empty segment (uint)
+#define EMPTY_SEGMENT ((uint)0xFFFFFFFF)
+
 #endif // _MULTIGPU_DEFINES_
 
 

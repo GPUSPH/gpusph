@@ -740,6 +740,7 @@ bool GPUSPH::runSimulation() {
 			if (gdata->devices > 1) {
 				// copy cellStarts, cellEnds and segments on host
 				doCommand(DUMP_CELLS);
+				doCommand(UPDATE_SEGMENTS);
 				// update particle offsets
 				updateArrayIndices();
 				// crop external cells
@@ -1094,10 +1095,18 @@ void GPUSPH::sortParticlesByHash() {
 	delete [] m_hParticleHashes;
 
 	// initialize the outer cells values in s_dSegmentsStart. The inner_edge are still uninitialized
-	for (uint currentDevice=0; currentDevice < gdata->devices; currentDevice++)
-		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_EDGE_CELL] =
-			gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_CELL]  =
-			gdata->s_hPartsPerDevice[currentDevice];
+	for (uint currentDevice=0; currentDevice < gdata->devices; currentDevice++) {
+		uint assigned_parts = gdata->s_hPartsPerDevice[currentDevice];
+		printf("    d%u  p %u\n", currentDevice, assigned_parts);
+		// this should always hold according to the current CELL_TYPE values
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_INNER_CELL]			= EMPTY_SEGMENT;
+		// this is usually not true, since a device usually has neighboring cells; will be updated at first reorder
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_INNER_EDGE_CELL]	= EMPTY_SEGMENT;
+		// this is true and will change at first APPEND
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_EDGE_CELL]	= EMPTY_SEGMENT;
+		// this is true and might change between a reorder and the following crop
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_CELL]			= EMPTY_SEGMENT;
+	}
 
 	// DEBUG: check if the sort was correct
 	/*bool monotonic = true;

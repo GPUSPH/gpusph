@@ -143,7 +143,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 #if HASH_KEY_SIZE >= 64
 	// initialize segmentStarts
-	if (index < 4) segmentStart[index] = numParticles;
+	if (index < 4) segmentStart[index] = EMPTY_SEGMENT;
 #endif
 
 	uint hash;
