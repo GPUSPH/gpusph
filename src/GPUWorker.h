@@ -151,6 +151,7 @@ private:
 	void downloadCellsIndices();
 	void downloadSegments();
 	void uploadSegments();
+	void updateSegments();
 	void downloadNewNumParticles();
 
 	void createCompactDeviceMap();
