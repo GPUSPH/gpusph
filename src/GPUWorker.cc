@@ -580,8 +580,8 @@ void GPUWorker::dumpBuffers() {
 	if (flags & BUFFER_POS) {
 		_size = howManyParticles * sizeof(float4);
 		uchar dbl_buffer_pointer = 0;
-		if (flags | DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentPosRead; else
-		if (flags | DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentPosWrite;
+		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentPosRead; else
+		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentPosWrite;
 		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hPos + firstInnerParticle,
 									m_dPos[dbl_buffer_pointer],
 									_size, cudaMemcpyDeviceToHost));
@@ -590,8 +590,8 @@ void GPUWorker::dumpBuffers() {
 	if (flags & BUFFER_VEL) {
 		_size = howManyParticles * sizeof(float4);
 		uchar dbl_buffer_pointer = 0;
-		if (flags | DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentVelRead; else
-		if (flags | DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentVelWrite;
+		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentVelRead; else
+		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentVelWrite;
 		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVel + firstInnerParticle,
 									m_dVel[dbl_buffer_pointer],
 									_size, cudaMemcpyDeviceToHost));
@@ -600,8 +600,8 @@ void GPUWorker::dumpBuffers() {
 	if (flags & BUFFER_INFO) {
 		_size = howManyParticles * sizeof(particleinfo);
 		uchar dbl_buffer_pointer = 0;
-		if (flags | DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentInfoRead; else
-		if (flags | DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentInfoWrite;
+		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentInfoRead; else
+		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentInfoWrite;
 		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hInfo + firstInnerParticle,
 									m_dInfo[dbl_buffer_pointer],
 									_size, cudaMemcpyDeviceToHost));
