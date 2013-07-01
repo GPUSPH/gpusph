@@ -844,7 +844,7 @@ bool GPUSPH::runSimulation() {
 		if (need_write) {
 			// TODO: the performanceCounter could be "paused" here
 			// ask workers to dump their subdomains and wait for it to complete
-			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO );
+			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ );
 			// triggers Writer->write()
 			doWrite();
 			// usual status
