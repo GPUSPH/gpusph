@@ -335,16 +335,16 @@ struct GlobalData {
 
 	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int3 gridPos) {
-		gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
-		gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
-		gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+		gridPos.x = min( max(0, gridPos.x), gridSize.x-1);
+		gridPos.y = min( max(0, gridPos.y), gridSize.y-1);
+		gridPos.z = min( max(0, gridPos.z), gridSize.z-1);
 		return ( (gridPos.z * gridSize.y) * gridSize.x ) + (gridPos.y * gridSize.x) + gridPos.x;
 	}
 	// overloaded
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) {
-		int trimmedX = max(0, min(cellX, gridSize.x-1));
-		int trimmedY = max(0, min(cellY, gridSize.y-1));
-		int trimmedZ = max(0, min(cellZ, gridSize.z-1));
+		int trimmedX = min( max(0, cellX), gridSize.x-1);
+		int trimmedY = min( max(0, cellY), gridSize.y-1);
+		int trimmedZ = min( max(0, cellZ), gridSize.z-1);
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
 

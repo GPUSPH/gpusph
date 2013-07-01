@@ -69,9 +69,9 @@ __device__ __forceinline__ uint
 calcGridHash(int3			gridPos,
 			 const uint3	gridSize)
 {
-	gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
-	gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
-	gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+	gridPos.x = min( max(0, gridPos.x), gridSize.x-1);
+	gridPos.y = min( max(0, gridPos.y), gridSize.y-1);
+	gridPos.z = min( max(0, gridPos.z), gridSize.z-1);
 	return INTMUL(INTMUL(gridPos.z, gridSize.y), gridSize.x) + INTMUL(gridPos.y, gridSize.x) + gridPos.x;
 }
 
