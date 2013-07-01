@@ -1043,9 +1043,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
 				instance->downloadCellsIndices();
 				break;
-			case DOWNLOAD_SEGMENTS:
-				//printf(" T %d issuing DOWNLOAD_SEGMENTS\n", deviceIndex);
-				instance->downloadSegments();
+			case UPDATE_SEGMENTS:
+				//printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
+				instance->updateSegments();
 				break;
 			case DUMP_NEWNUMPARTS:
 				//printf(" T %d issuing DUMP_NEWNUMPARTS\n", deviceIndex);

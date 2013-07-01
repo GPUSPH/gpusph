@@ -41,7 +41,7 @@ enum CommandType {
 	EULER,				// run euler kernel
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
-	DOWNLOAD_SEGMENTS,	// dump segments to shared host array
+	UPDATE_SEGMENTS,	// dump segments to shared host array, then update the number of internal parts
 	DUMP_NEWNUMPARTS,	// dump the updated number of particles (in case of inlets/outlets)
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
