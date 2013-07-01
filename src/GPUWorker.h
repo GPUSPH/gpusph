@@ -149,6 +149,8 @@ private:
 	void uploadSubdomain();
 	void dumpBuffers();
 	void downloadCellsIndices();
+	void downloadSegments();
+	void uploadSegments();
 	void downloadNewNumParticles();
 
 	void createCompactDeviceMap();

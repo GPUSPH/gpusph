@@ -640,6 +640,24 @@ void GPUWorker::downloadCellsIndices()
 	m_particleRangeEnd = m_numInternalParticles =
 		min(	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL],
 				gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] );
+
+void GPUWorker::downloadSegments()
+{
+	size_t _size = 4 * sizeof(uint);
+	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
+								m_dSegmentStart,
+								_size, cudaMemcpyDeviceToHost));
+	/* printf("  T%d downloaded segs: (I) %u (IE) %u (OE) %u (O) %u\n", m_deviceIndex,
+			gdata->s_dSegmentsStart[m_deviceIndex][0], gdata->s_dSegmentsStart[m_deviceIndex][1],
+			gdata->s_dSegmentsStart[m_deviceIndex][2], gdata->s_dSegmentsStart[m_deviceIndex][3]); */
+}
+
+void GPUWorker::uploadSegments()
+{
+	size_t _size = 4 * sizeof(uint);
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dSegmentStart,
+								gdata->s_dSegmentsStart[m_deviceIndex],
+								_size, cudaMemcpyHostToDevice));
 }
 
 // download the updated number of particles (update by reorder and euler)
