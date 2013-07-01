@@ -154,6 +154,12 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
+	// cell index
+	if (m_gdata) {
+		scalar_array(fid, "UInt32", "CellIndex", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
@@ -277,6 +283,14 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 			uint value = m_gdata->calcDevice(pos[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
+	}
+
+	// linearized cell index (NOTE: computed on host)
+	numbytes = sizeof(uint)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		uint value = m_gdata->calcGridHashHost( m_gdata->calcGridPosHost(pos[i].x, pos[i].y, pos[i].z) );
+		fwrite(&value, sizeof(value), 1, fid);
 	}
 
 	numbytes=sizeof(float)*3*numParts;
