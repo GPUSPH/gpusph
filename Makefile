@@ -167,7 +167,13 @@ endif
 # -------------------------- CFLAGS section -------------------------- #
 
 # nvcc-specific CFLAGS
-CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE)
+CFLAGS_GPU = -arch=sm_$(COMPUTE) -D__COMPUTE__=$(COMPUTE)
+# uncomment to use --fast-math again (not recommended for multigpu)
+#CFLAGS_GPU += --use_fast_math
+# maximum precision (default?)
+#CFLAGS_GPU += -prec-div=true
+# disable multiply-add optimizations
+#CFLAGS_GPU += --fmad false
 
 # add debug flag -G
 ifeq ($(dbg), 1)
