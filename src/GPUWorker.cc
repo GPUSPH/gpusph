@@ -156,8 +156,8 @@ void GPUWorker::importPeerEdgeCells()
 				gdata->s_dCellStarts[m_deviceIndex][cell] = 0xFFFFFFFF;
 				// update device array
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellStart + cell),
-											(gdata->s_dCellStarts[m_deviceIndex] + cell),
-											sizeof(uint), cudaMemcpyHostToDevice));
+													(gdata->s_dCellStarts[m_deviceIndex] + cell),
+													sizeof(uint), cudaMemcpyHostToDevice));
 			} else {
 				// cellEnd is exclusive
 				uint numPartsInPeerCell = peerCellEnd - peerCellStart;
@@ -195,15 +195,15 @@ void GPUWorker::importPeerEdgeCells()
 				gdata->s_dCellStarts[m_deviceIndex][cell] = m_numParticles;
 				gdata->s_dCellEnds[m_deviceIndex][cell] = m_numParticles + numPartsInPeerCell;
 
-
 				// Update device copy of cellStart (later cellEnd). This allows for building the
 				// neighbor list directly, without the need of running again calchash, sort and reorder
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellStart + cell),
-											(gdata->s_dCellStarts[m_deviceIndex] + cell),
-											sizeof(uint), cudaMemcpyHostToDevice));
+													(gdata->s_dCellStarts[m_deviceIndex] + cell),
+													sizeof(uint), cudaMemcpyHostToDevice));
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellEnd + cell),
-											(gdata->s_dCellEnds[m_deviceIndex] + cell),
-											sizeof(uint), cudaMemcpyHostToDevice));
+													(gdata->s_dCellEnds[m_deviceIndex] + cell),
+													sizeof(uint), cudaMemcpyHostToDevice));
+
 				// update outer edge segment
 				// NOTE: keeping correctness only if there are no OUTER particles (which we assume)
 				if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)

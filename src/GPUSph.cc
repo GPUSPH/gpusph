@@ -804,6 +804,7 @@ bool GPUSPH::runSimulation() {
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
+
 		// update inlet/outlet changes only after step 2
 		if (inoutlets)
 			doCommand(DUMP_NEWNUMPARTS);
