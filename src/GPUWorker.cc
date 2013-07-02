@@ -139,6 +139,13 @@ void GPUWorker::importPeerEdgeCells()
 		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
 			// check in which device it is
 			uchar peerDevIndex = gdata->s_hDeviceMap[cell];
+			if (peerDevIndex == m_deviceIndex)
+				printf("WARNING: cell %u is outer edge for thread %u, but SELF in the device map!\n", cell, m_deviceIndex);
+			if (peerDevIndex >= gdata->devices) {
+				printf("FATAL: cell %u has peer index %u, probable memory corruption\n", cell, peerDevIndex);
+				gdata->quit_request = true;
+				return;
+			}
 			uint peerCudaDevNum = gdata->device[peerDevIndex];
 			// find its cellStart and cellEnd
 			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
