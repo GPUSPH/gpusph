@@ -1259,15 +1259,26 @@ void GPUSPH::printStatus()
 //#undef ti
 }
 
-// update s_hStartPerDevice and s_hPartsPerDevice.
+// update s_hStartPerDevice, s_hPartsPerDevice and totParticles
 // Could go in GlobalData but would need another forward-declaration
 void GPUSPH::updateArrayIndices() {
+	uint count = 0;
 	// this should always hold
 	gdata->s_hStartPerDevice[0] = 0;
 	// just store an incremental counter
 	for (int d=0; d < gdata->devices; d++) {
-		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+		count += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
 		if (d > 0)
 			gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
+	}
+	// number of particle may increase or decrease if there are respectively inlets or outlets
+	if ( (count < gdata->totParticles && gdata->problem->get_physparams()->outlets > 0) ||
+		 (count > gdata->totParticles && gdata->problem->get_physparams()->inlets > 0) ) {
+		printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, count);
+		gdata->totParticles = count;
+	} else
+	if (count != gdata->totParticles) {
+		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no unknown reason!\n", gdata->iterations, gdata->totParticles, count);
+		// print also the number of particles for each device?
 	}
 }
