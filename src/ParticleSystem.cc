@@ -781,6 +781,17 @@ ParticleSystem::~ParticleSystem()
 	if (m_hPressure)
 		delete [] m_hPressure;
 
+//	if (m_simparams->visctype == KEPSVISC) {
+		if (m_hTKE)
+			delete [] m_hTKE;
+		if (m_hEps)
+			delete [] m_hEps;
+		if (m_hTurbVisc)
+			delete [] m_hTurbVisc;
+		if (m_hStrainRate)
+			delete [] m_hStrainRate;
+//	}
+
 	delete [] m_hForces;
 #ifdef _DEBUG_
 	delete [] m_hNeibsList;
@@ -824,7 +835,20 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dVertices[1]));
 	CUDA_SAFE_CALL(cudaFree(m_dPressure[0]));
 	CUDA_SAFE_CALL(cudaFree(m_dPressure[1]));
-	
+
+//	if (m_simparams->visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaFree(m_dTKE[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dTKE[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dEps[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dEps[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dTurbVisc[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dTurbVisc[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dStrainRate[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dStrainRate[1]));
+
+		CUDA_SAFE_CALL(cudaFree(m_dDkDe));
+//	}
+
 	// Free surface detection
 	if (m_simparams->savenormals)
 		CUDA_SAFE_CALL(cudaFree(m_dNormals));
