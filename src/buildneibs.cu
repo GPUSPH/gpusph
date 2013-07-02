@@ -134,8 +134,8 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									float*			oldPressure,		// input: sorted pressure
 									float*			oldTKE,				// input: k for k-e model
 									float*			oldEps,				// input: e for k-e model
-									float*			oldStrainRate,		// input: strain rate
 									float*			oldTurbVisc,		// input: eddy viscosity
+									float*			oldStrainRate,		// input: strain rate
 									uint*			newNumParticles,	// output: number of active particles found
 									uint			numParticles,
 									uint			numGridCells,

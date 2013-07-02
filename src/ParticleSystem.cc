@@ -1148,7 +1148,7 @@ ParticleSystem::setArray(ParticleArray array)
 
 		case STRAINRATE:
 			hdata = m_hStrainRate;
-			ddata = m_dStrainRate;
+			ddata = m_dStrainRate[m_currentStrainRateRead];
 			size = m_numParticles*sizeof(float);
 			break;
 
@@ -1194,6 +1194,10 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 	float maxrho = m_problem->get_maxrho();
 	float minvel = m_problem->get_minvel();
 	float maxvel = m_problem->get_maxvel();
+
+	//FIXME: Workaround for some time...
+	if(minrho == maxrho)
+		maxrho =1.01*minrho;
 
 	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
 	float maxp = m_problem->pressure(maxrho,0);
