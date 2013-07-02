@@ -1332,8 +1332,7 @@ void GPUWorker::uploadConstants()
 
 void GPUWorker::uploadInlets()
 {
-	if (m_physparams->inlets == 0)
-		return;
+	//if (m_physparams->inlets == 0) return;
 	printf("Dev idx %u uploading %u intlets\n", m_deviceIndex, m_physparams->inlets);
 	setoutletforces(m_physparams);
 	setoutleteuler(m_physparams);
@@ -1341,8 +1340,7 @@ void GPUWorker::uploadInlets()
 
 void GPUWorker::uploadOutlets()
 {
-	if (m_physparams->outlets == 0)
-			return;
+	//if (m_physparams->outlets == 0 ) return;
 	printf("Dev idx %u uploading %u outlets\n", m_deviceIndex, m_physparams->outlets);
 	setoutletforces(m_physparams);
 	setoutleteuler(m_physparams);
