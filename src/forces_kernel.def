@@ -456,11 +456,12 @@ FORCES_CUDA_KERNEL
 			forces[index] = force;
 		}	// if (FLUID(info))
 
-		# ifdef VISC_KEPS
-		// It is suggested that k-e model is working only with semi-analytical boundary model.
-		// Add addtional condition on boundary_type if it isn't.
 		else if (VERTEX(info)) {
 			float4 force = make_float4(0.0f);
+
+			// It is suggested that k-e model is working only with semi-analytical boundary model.
+			// Add addtional condition on boundary_type if it isn't.
+			# ifdef VISC_KEPS
 
 			// read other particle data from textures or global mem
 			#if( __COMPUTE__ >= 20)
@@ -518,6 +519,8 @@ FORCES_CUDA_KERNEL
 				} // r < influenceradius
 			} // end of loop over neighbors
 
+			# endif
+
 			forces[index] = force;
 ////DEBUG OUTPUT
 //			if(index == 8732) {
@@ -532,7 +535,6 @@ FORCES_CUDA_KERNEL
 //				printf("\tforce.w = %g\n", force.w);
 //			}
 		}
-		# endif
 
 		else if (OBJECT(info)) {
 			float4 force = make_float4(0.0f);
