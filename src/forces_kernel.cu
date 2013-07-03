@@ -1018,9 +1018,12 @@ updateBoundValuesDevice(	float4*		oldVel,
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		const vertexinfo vertices = tex1Dfetch(vertTex, index);
-		const float ro1 = oldVel[vertices.x].w;
-		const float ro2 = oldVel[vertices.y].w;
-		const float ro3 = oldVel[vertices.z].w;
+		//const float ro1 = oldVel[vertices.x].w;
+		//const float ro2 = oldVel[vertices.y].w;
+		//const float ro3 = oldVel[vertices.z].w;
+		const float4 vel1 = oldVel[vertices.x];
+		const float4 vel2 = oldVel[vertices.y];
+		const float4 vel3 = oldVel[vertices.z];
 		const float pres1 = oldPressure[vertices.x];
 		const float pres2 = oldPressure[vertices.y];
 		const float pres3 = oldPressure[vertices.z];
@@ -1032,7 +1035,8 @@ updateBoundValuesDevice(	float4*		oldVel,
 		const float eps3 = oldEps[vertices.z];
 
 		if (BOUNDARY(info)) {
-			oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+			//oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+			oldVel[index] = (vel1 + vel2 + vel3)/3.f;
 			oldPressure[index] = (pres1 + pres2 + pres3)/3.f;
 			oldTKE[index] = (k1 + k2 + k3)/3.f;
 			oldEps[index] = (eps1 + eps2 + eps3)/3.f;
