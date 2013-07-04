@@ -499,8 +499,36 @@ FORCES_CUDA_KERNEL
 				const float neib_tvisc = 0.09f*neib_keps_k*neib_keps_k/neib_keps_e;
 
 				if (r < influenceradius) {
+					if (BOUNDARY(neib_info)) {
+						const float4 belem = tex1Dfetch(boundTex, neib_index);
+						const float3 normal_s = make_float3(belem.x, belem.y, belem.z);	// normal vector
+						// r_es - distance between vertex particle and boundary element along the normal
+						float r_es = dot(relPos, normal_s);
+						if (r_es < deltap)
+							r_es = deltap;
 
-					if (FLUID(neib_info)) {
+						const float abs_gradgam_es = length(gradGamma<kerneltype>(slength, r, belem));
+
+						// velocity of vertex particle along the wall
+						const float3 u_t = make_float3(vel) - dot(make_float3(vel), normal_s)*normal_s; //FIXME: check which velocity should be used here
+						const float abs_u_t = length(u_t);
+						float y_plus = deltap;
+
+						// we solve iteratively the wall law equation to obtain y+ value
+						float u_star = exp(-2.132f)*d_visccoeff/r_es;
+						for(int i=0; i<10; i++) {
+							y_plus = max(r_es*u_star/d_visccoeff, 11.f);
+							u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+						}
+						y_plus = max(r_es*u_star/d_visccoeff, 11.f);
+
+						const float denom_term = pow(log(y_plus)/0.41f + 5.2, 2)*gradgamma.w;
+
+						force.x -= 2*abs_u_t*abs_gradgam_es*u_t.x/denom_term;
+						force.y -= 2*abs_u_t*abs_gradgam_es*u_t.y/denom_term;
+						force.z -= 2*abs_u_t*abs_gradgam_es*u_t.z/denom_term;
+					}
+					else {
 						float3 relVel;
 						relVel.x = vel.x - neib_vel.x;
 						relVel.y = vel.y - neib_vel.y;
@@ -514,8 +542,7 @@ FORCES_CUDA_KERNEL
 						force.x += visc*relVel.x/gradgamma.w;
 						force.y += visc*relVel.y/gradgamma.w;
 						force.z += visc*relVel.z/gradgamma.w;
-					} //end if FLUID(neib_info)
-
+					} //end if BOUNDARY(neib_info)
 				} // r < influenceradius
 			} // end of loop over neighbors
 
