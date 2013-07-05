@@ -328,9 +328,24 @@ FORCES_CUDA_KERNEL
 
 								// velocity of fluid particle along the wall
 								const float3 vel_tau = relVel - dot(relVel, normal_s)*normal_s;
+
 								// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
 								# ifdef VISC_KEPS
-								bound_term_visc = length(gradgam_as)*(d_visccoeff*(vel.w + neib_vel.w) + turbVisc*vel.w + neib_tvisc*neib_vel.w)/r_as*vel_tau;
+								// a component of fluid paricle velocity tangential to the wall
+								const float3 u_t = make_float3(vel) - dot(make_float3(vel), normal_s)*normal_s;
+								const float abs_u_t = length(u_t);
+								float y_plus = deltap;
+
+								// we solve iteratively the wall law equation to obtain y+ value
+								float u_star = exp(-2.132f)*d_visccoeff/r_as;
+								for(int i=0; i<10; i++) {
+									y_plus = max(r_as*u_star/d_visccoeff, 11.f);
+									u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+								}
+								y_plus = max(r_as*u_star/d_visccoeff, 11.f);
+
+								const float denom_term = pow(log(y_plus)/0.41f + 5.2, 2);
+								bound_term_visc = 2*vel.w*abs_u_t*abs_gradgam_as*u_t/denom_term;
 								# else
 								bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + neib_vel.w)/r_as*vel_tau;
 								# endif
