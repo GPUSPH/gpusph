@@ -701,7 +701,7 @@ bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
 	// short form
-	bool inoutlets = (gdata->problem->get_physparams()->inlets > 0 || gdata->problem->get_physparams()->outlets > 0);
+	const bool inoutlets = (gdata->problem->get_physparams()->inlets > 0 || gdata->problem->get_physparams()->outlets > 0);
 
 	// doing first write
 	printf("Performing first write...\n");
