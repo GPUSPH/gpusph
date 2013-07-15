@@ -527,7 +527,7 @@ Problem::max_parts(uint numParts)
 		float3 range = as_float3(m_physparams.inlet_max[inlet]) - as_float3(m_physparams.inlet_min[inlet]);
 		range /= m_deltap; // regular fill
 		uint iparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
-		printf("Estimating %u particles in inlet %u\n", iparts, inlet);
+		printf("  estimating %u particles in inlet %u\n", iparts, inlet);
 
 		// number of 'fills', computed (if possible) from (inlet vel)*tend/(inlet disp)
 		float3 vel = as_float3(m_physparams.inlet_vel[inlet]);
@@ -536,7 +536,7 @@ Problem::max_parts(uint numParts)
 		if (!isfinite(vel.z)) vel.z = 0;
 		uint fills = length(vel)*m_simparams.tend/length(m_physparams.inlet_disp[inlet]);
 		if (fills > 0) {
-			printf("Estimating %u fills for inlet %u (%gs at %gm/s over %gm)\n", fills, inlet,
+			printf("  estimating %u fills for inlet %u (%gs at %gm/s over %gm)\n", fills, inlet,
 				m_simparams.tend, length(vel), length(m_physparams.inlet_disp[inlet]));
 		} else {
 			fills = 2;
@@ -551,7 +551,7 @@ Problem::max_parts(uint numParts)
 	float3 range = get_worldsize();
 	range /= m_deltap; // regular fill
 	uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
-	printf("Estimating %u particles to fill the world\n", wparts);
+	printf("  estimating %u particles to fill the world\n", wparts);
 
 	uint maxparts = min(wparts, numParts + inletParts);
 
