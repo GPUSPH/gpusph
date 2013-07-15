@@ -739,7 +739,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(CALCHASH);
 			doCommand(SORT);
 			doCommand(REORDER);
-			if (inoutlets)
+			if (inoutlets && gdata->iterations > 0)
 				doCommand(DUMP_NEWNUMPARTS);
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_INFO);
