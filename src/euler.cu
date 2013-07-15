@@ -158,7 +158,7 @@ euler(	const float4	*oldPos,
 					oldPos, oldVel, info, \
 					forces, xsph, \
 					newPos, newVel, \
-					newNumParts, numParticles, maxParticles, \
+					newNumParts, particleRangeEnd, maxParticles, \
 					dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
@@ -169,7 +169,7 @@ euler(	const float4	*oldPos,
 					oldPos, oldVel, info, \
 					forces, \
 					newPos, newVel, \
-					newNumParts, numParticles, maxParticles, \
+					newNumParts, particleRangeEnd, maxParticles, \
 					dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
