@@ -674,7 +674,7 @@ void GPUWorker::downloadNewNumParticles()
 	}
 
 	if (activeParticles != m_numParticles) {
-		printf("  particles: %d => %d\n", m_numParticles, activeParticles);
+		printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
 		m_numParticles = activeParticles;
 	}
 }
