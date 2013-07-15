@@ -578,6 +578,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
+	// the number of allocated particles will be bigger, to be sure it can contain particles being created
+	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
+
 	// TODO:  before allocating everything else we should check if the number of particles is too high.
 	// Not only the mere number of particles should be compared to a hardcoded system limit, but a good
 	// estimation of the required memory should be computed
@@ -599,7 +602,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers(); // TODO was partially implemented
-	printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->totParticles).c_str());
+	uint extra = gdata->allocatedParticles - gdata->totParticles;
+	if (extra == 0)
+		printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->allocatedParticles).c_str());
+	else
+		printf("  allocated %.2g Gb on host for %s particles (%s for initial filling + %s for particle creation)\n", (ulong)totCPUbytes/1000000000.0F,
+			gdata->addSeparators(gdata->allocatedParticles).c_str(), gdata->addSeparators(gdata->totParticles).c_str(), gdata->addSeparators(extra).c_str());
 
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
@@ -913,7 +921,7 @@ bool GPUSPH::runSimulation() {
 long unsigned int GPUSPH::allocateGlobalHostBuffers()
 {
 
-	long unsigned int numparts = gdata->totParticles;
+	long unsigned int numparts = gdata->allocatedParticles;
 	unsigned int numcells = gdata->nGridCells;
 	const uint float3Size = sizeof(float3) * numparts;
 	const uint float4Size = sizeof(float4) * numparts;
@@ -1287,5 +1295,11 @@ void GPUSPH::updateArrayIndices() {
 	if (count != gdata->totParticles) {
 		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no unknown reason!\n", gdata->iterations, gdata->totParticles, count);
 		// print also the number of particles for each device?
+	}
+	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
+	if (count > gdata->allocatedParticles) {
+		printf("FATAL: Number of total particles at iteration %u (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
+			gdata->iterations, count, gdata->allocatedParticles);
+		gdata->quit_request = true;
 	}
 }
