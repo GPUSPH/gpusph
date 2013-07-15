@@ -756,13 +756,19 @@ bool GPUSPH::runSimulation() {
 
 		uint mlsfreq = problem->get_simparams()->mlsfreq;
 		if (mlsfreq > 0 && gdata->iterations > 0 && (gdata->iterations % mlsfreq == 0)) {
+			gdata->only_internal = true;
 			doCommand(MLS);
+			// update before swapping, since UPDATE_EXTERNAL works on write buffers
+			doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
 		uint shepardfreq = problem->get_simparams()->shepardfreq;
 		if (shepardfreq > 0 && gdata->iterations > 0 && (gdata->iterations % shepardfreq == 0)) {
+			gdata->only_internal = true;
 			doCommand(SHEPARD);
+			// update before swapping, since UPDATE_EXTERNAL works on write buffers
+			doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
