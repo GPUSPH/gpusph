@@ -520,7 +520,6 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 void GPUWorker::printAllocatedMemory()
 {
-	uint _estROParts = m_numAllocatedParticles - m_numParticles;
 	printf("Device idx %u (CUDA: %u) allocated %.2f Gb on host, %.2f Gb on device\n"
 			"  assigned particles: %s; allocated: %s\n", m_deviceIndex, m_cudaDeviceNumber,
 			getHostMemory()/1000000000.0, getDeviceMemory()/1000000000.0,
