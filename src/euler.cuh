@@ -41,7 +41,7 @@ void
 geteulerconstants(PhysParams *physparams);
 
 void
-setinleteuler(int numInlets, const float4* inletMin, const float4* inletMax, const float4* inletDisp, const float4 *inletVel);
+setinleteuler(const PhysParams *phys);
 
 void
 setoutleteuler(const PhysParams *phys);

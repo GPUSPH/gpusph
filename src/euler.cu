@@ -76,13 +76,13 @@ geteulerconstants(PhysParams *physparams)
 
 
 void
-setinleteuler(int numInlets, const float4* inletMin, const float4* inletMax, const float4* inletDisp, const float4 *inletVel)
+setinleteuler(const PhysParams *phys)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlets, &numInlets, sizeof(numInlets)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_min, inletMin, numInlets*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_max, inletMax, numInlets*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_disp, inletDisp, numInlets*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_vel, inletVel, numInlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlets, &(phys->inlets), sizeof(phys->inlets)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_min, phys->inlet_min, phys->inlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_max, phys->inlet_max, phys->inlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_disp, phys->inlet_disp, phys->inlets*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_vel, phys->inlet_vel, phys->inlets*sizeof(float4)));
 }
 
 void

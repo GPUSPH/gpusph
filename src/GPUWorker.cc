@@ -1342,8 +1342,8 @@ void GPUWorker::uploadInlets()
 {
 	//if (m_physparams->inlets == 0) return;
 	printf("Dev idx %u uploading %u intlets\n", m_deviceIndex, m_physparams->inlets);
-	setoutletforces(m_physparams);
-	setoutleteuler(m_physparams);
+	// no need for letting the forces kernel know about the inlets
+	setinleteuler(m_physparams);
 }
 
 void GPUWorker::uploadOutlets()

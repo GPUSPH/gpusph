@@ -1016,9 +1016,7 @@ void
 ParticleSystem::setInlets(void)
 {
 	printf("Uploading %u inlets\n", m_physparams->inlets);
-	setinleteuler(m_physparams->inlets,
-		m_physparams->inlet_min, m_physparams->inlet_max, m_physparams->inlet_disp,
-		m_physparams->inlet_vel);
+	setinleteuler(m_physparams);
 }
 
 
