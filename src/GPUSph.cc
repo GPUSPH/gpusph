@@ -740,7 +740,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(SORT);
 			doCommand(REORDER);
 			if (inoutlets && gdata->iterations > 0)
-				doCommand(DUMP_NEWNUMPARTS);
+				doCommand(DOWNLOAD_NEWNUMPARTS);
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_INFO);
 
@@ -821,7 +821,7 @@ bool GPUSPH::runSimulation() {
 
 		// update inlet/outlet changes only after step 2
 		if (inoutlets)
-			doCommand(DUMP_NEWNUMPARTS);
+			doCommand(DOWNLOAD_NEWNUMPARTS);
 
 		// this made sense for testing and running EULER on internals only
 		//if (gdata->devices > 1)

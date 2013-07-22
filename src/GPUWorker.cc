@@ -1036,8 +1036,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
 				break;
-			case DUMP_NEWNUMPARTS:
-				//printf(" T %d issuing DUMP_NEWNUMPARTS\n", deviceIndex);
+			case DOWNLOAD_NEWNUMPARTS:
+				//printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
 				instance->downloadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
