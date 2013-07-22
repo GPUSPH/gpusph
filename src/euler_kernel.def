@@ -253,19 +253,19 @@ EULER_KERNEL_NAME(
 			}
 
 		}
-		// Updating postions for Piston particles
+		// Updating positions for Piston particles
 		else if (type(pinfo) == PISTONPART) {
 			const int i = object(pinfo);
 			pos.x = d_mbdata[i].x;
 		}
-		// Updating postions for Paddle particles
+		// Updating positions for Paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
 			const int i = object(pinfo);
 			const float r = length(make_float2(pos.x - d_mbdata[i].x, pos.z - d_mbdata[i].y));
 			pos.x = d_mbdata[i].x + r*d_mbdata[i].z;	// r*sin(theta(t))
 			pos.z = d_mbdata[i].y + r*d_mbdata[i].w;	// r*cos(theta(t))
 		}
-		// Updating postions for Gate particles
+		// Updating positions for Gate particles
 		// At each substep the gate part covers a distance equals to v*dt/2.0
 		// so in 2 substep the gate covers v*dt BUT pos is always pos(n) so
 		// at step 1 we have pos += v*dt with dt=dt/2 and at step 2 we have
