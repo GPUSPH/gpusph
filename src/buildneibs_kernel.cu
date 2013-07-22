@@ -114,7 +114,11 @@ calcHashDevice(const float4*	posArray,
 #endif
 
 	if (INACTIVE(pos))
-		gridHash = HASH_KEY_MAX;
+#if HASH_KEY_SIZE >= 64
+		gridHash = HASH_KEY_MAX_64;
+#else
+		gridHash = HASH_KEY_MAX_32;
+#endif
 
 	// store grid hash and particle index
 	particleHash[index] = gridHash;
@@ -177,8 +181,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		// everytime we use a cell hash to access an element of CellStart or CellEnd
 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
-			// new cell, otherwise, it's the number of active particles
-			if (hash != HASH_KEY_MAX)
+			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
+			if (hash != HASH_KEY_MAX_32)
 				// if it isn't an inactive particle, it is also the start of the cell
 #if HASH_KEY_SIZE >= 64
 				cellStart[hash & CELLTYPE_BITMASK_32] = index;
@@ -196,8 +200,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #endif
 		}
 
-		// if we are an inactive particle, we're done
-		if (hash == HASH_KEY_MAX)
+		// if we are an inactive particle, we're done (short hash: compare with 32 bits max)
+		if (hash == HASH_KEY_MAX_32)
 			return;
 
 		if (index == numParticles - 1) {

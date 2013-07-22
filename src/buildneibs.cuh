@@ -47,14 +47,25 @@
 #define HASH_KEY_SIZE 64
 #endif
 
+/* Either the hash is 32 or 64 bits long, in reorder kernel we work with the "short hash"
+ * (i.e. only the cell hash part, without the particle id) and we need to check it to detect
+ * if the current particle is inactive or not. In the calchash, however, we need a long hash
+ * if the key is 64 bits wide. So we define the 32 bit HASH_KEY_MAX anyway, and the 64 bits
+ * one only if HASH_KEY_SIZE == 64
+ */
+#ifndef HASH_KEY_MAX
+#define HASH_KEY_MAX_32 UINT_MAX
+#endif
+
+#define HASH_KEY_MAX UINT_MAX
+
 #if HASH_KEY_SIZE < 32
 #error "Hash keys should be at least 32-bit wide"
 #elif HASH_KEY_SIZE == 32
 typedef unsigned int hashKey;
-#define HASH_KEY_MAX UINT_MAX
 #elif HASH_KEY_SIZE == 64
 typedef unsigned long hashKey;
-#define HASH_KEY_MAX ULONG_MAX
+#define HASH_KEY_MAX_64 ULONG_MAX
 #else
 #error "unmanaged hash key size"
 #endif
