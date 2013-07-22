@@ -153,6 +153,7 @@ private:
 	void uploadSegments();
 	void updateSegments();
 	void downloadNewNumParticles();
+	void uploadNewNumParticles();
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();

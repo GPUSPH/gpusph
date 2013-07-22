@@ -677,6 +677,11 @@ void GPUWorker::downloadNewNumParticles()
 		printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
 		m_numParticles = activeParticles;
 	}
+
+// upload the value m_numParticles to "newNumParticles" on device
+void GPUWorker::uploadNewNumParticles()
+{
+	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
 // Create a compact device map, for this device, from the global one,
