@@ -1244,7 +1244,7 @@ void GPUWorker::kernel_euler()
 				m_dVel[gdata->currentVelWrite],	// vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
 				NULL,							// no m_dNewNumParticles at this step
-				m_numAllocatedParticles,
+				gdata->allocatedParticles,
 				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
@@ -1262,7 +1262,7 @@ void GPUWorker::kernel_euler()
 				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
 				m_dNewNumParticles,
-				m_numAllocatedParticles,
+				gdata->allocatedParticles,
 				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
