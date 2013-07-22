@@ -675,9 +675,13 @@ void GPUWorker::downloadNewNumParticles()
 	}
 
 	if (activeParticles != m_numParticles) {
-		printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
+		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
+		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
 		m_numParticles = activeParticles;
 	}
+
+
+}
 
 // upload the value m_numParticles to "newNumParticles" on device
 void GPUWorker::uploadNewNumParticles()
