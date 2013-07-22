@@ -755,6 +755,9 @@ bool GPUSPH::runSimulation() {
 				doCommand(CROP);
 				// append fresh copies of the externals
 				doCommand(APPEND_EXTERNAL);
+				// update the newNumParticles device counter
+				if (inoutlets)
+					doCommand(UPLOAD_NEWNUMPARTS);
 			}
 
 			// build neib lists only for internal particles
