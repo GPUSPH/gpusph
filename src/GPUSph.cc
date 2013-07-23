@@ -770,7 +770,8 @@ bool GPUSPH::runSimulation() {
 			gdata->only_internal = true;
 			doCommand(MLS);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+			if (gdata->devices > 1)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
@@ -779,7 +780,8 @@ bool GPUSPH::runSimulation() {
 			gdata->only_internal = true;
 			doCommand(SHEPARD);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+			if (gdata->devices > 1)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
