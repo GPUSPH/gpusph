@@ -387,12 +387,14 @@ calcGridHash(const int3 gridPos)
 
 
 // Function returning the neighbor index, position, relative distance and velocity
-template<bool periodicbound>
+#define CELLNUMENCODED		(1U<<11)
+#define NEIBINDEXMASK		(0x7FF)
+
 __device__ __forceinline__ void
 getNeibData(const float4	pos,
 			const uint*		cellStart,
 			const float		influenceradius,
-			const neibdata	neib_data,
+			neibdata		neib_data,
 			int3			gridPos,
 			uint&			neib_index,
 			char&			neib_cellnum,
@@ -400,175 +402,137 @@ getNeibData(const float4	pos,
 			float4&			neib_pos,
 			float3&			relPos,
 			float&			r,
-			const uint index);
-
-
-// In case of periodic boundaries we add the displacement
-// vector when needed
-template<>
-__device__ __forceinline__ void
-getNeibData<true>(	const float4	pos,
-					const uint*		cellStart,
-					const float		influenceradius,
-					const neibdata	neib_data,
-					int3			gridPos,
-					uint&			neib_index,
-					char&			neib_cellnum,
-					uint&			neib_cell_base_index,
-					float4&			neib_pos,
-					float3&			relPos,
-					float&			r,
-					const uint index)
+			const uint numParticles)
 {
-	int3 periodic = make_int3(0);
-	if (neib_index & WARPXPLUS)
-		periodic.x = 1;
-	else if (neib_index & WARPXMINUS)
-		periodic.x = -1;
-	if (neib_index & WARPYPLUS)
-		periodic.y = 1;
-	else if (neib_index & WARPYMINUS)
-		periodic.y = -1;
-	if (neib_index & WARPZPLUS)
-		periodic.z = 1;
-	else if (neib_index & WARPZMINUS)
-		periodic.z = -1;
-
-	neib_index &= NOWARP;
-
-	neib_pos = tex1Dfetch(posTex, neib_index);
-
-	relPos.x = pos.x - neib_pos.x;
-	relPos.y = pos.y - neib_pos.y;
-	relPos.z = pos.z - neib_pos.z;
-	r = length(relPos);
-	if (periodic.x || periodic.y || periodic.z) {
-		if (r > influenceradius) {
-			relPos += periodic*d_dispvect;
-			r = length(relPos);
-		}
+	if (neib_data >= CELLNUMENCODED) {
+		// Update current neib cell number
+		if (neib_cellnum >= 0)
+			as_float3(pos) += d_cell_to_offset[neib_cellnum]*d_cellSize;
+		neib_cellnum = (neib_data >> 11) - 1;
+		as_float3(pos) -= d_cell_to_offset[neib_cellnum]*d_cellSize;
+		neib_data &= NEIBINDEXMASK;
+		// Compute new neib base cell index
+		//gridPos += d_cell_to_offset[neib_cellnum];
+		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
 	}
-}
 
-
-template<>
-__device__ __forceinline__ void
-getNeibData<false>(	const float4	pos,
-					const uint*		cellStart,
-					const float		influenceradius,
-					const neibdata	neib_data,
-					int3			gridPos,
-					uint&			neib_index,
-					char&			neib_cellnum,
-					uint&			neib_cell_base_index,
-					float4&			neib_pos,
-					float3&			relPos,
-					float&			r,
-					const uint index)
-{
+	// Compute neib index
+	neib_index = neib_cell_base_index + neib_data;
+	// DEBUG: safe guard
+	// TODO: to be removed
+	/*if (neib_index >= numParticles) {
+		printf("neib index %d >= num particles %d \n", neib_index, numParticles);
+		neib_index = 0;
+	}*/
+	// Get neib pos
 	neib_pos = tex1Dfetch(posTex, neib_index);
 
-	relPos.x = pos.x - neib_pos.x;
-	relPos.y = pos.y - neib_pos.y;
-	relPos.z = pos.z - neib_pos.z;
+	// Compute relative position vector and distance
+	relPos = as_float3(pos) - as_float3(neib_pos);
 	r = length(relPos);
 }
 
 
-template<bool periodicbound>
+__device__ __forceinline__ void
+getNeibData(const float4	pos,
+		const float4*	posArray,
+		const uint*		cellStart,
+		const float		influenceradius,
+		neibdata		neib_data,
+		int3			gridPos,
+		uint&			neib_index,
+		char&			neib_cellnum,
+		uint&			neib_cell_base_index,
+		float4&			neib_pos,
+		float3&			relPos,
+		float&			r,
+		const uint numParticles)
+{
+	if (neib_data >= CELLNUMENCODED) {
+		// Update current neib cell number
+		if (neib_cellnum >= 0)
+			as_float3(pos) += d_cell_to_offset[neib_cellnum]*d_cellSize;
+		neib_cellnum = (neib_data >> 11) - 1;
+		as_float3(pos) -= d_cell_to_offset[neib_cellnum]*d_cellSize;
+		neib_data &= NEIBINDEXMASK;
+		// Compute new neib base cell index
+		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
+	}
+
+	// Compute neib index
+	neib_index = neib_cell_base_index + neib_data;
+	// DEBUG: safe guard
+	// TODO: to be removed
+	/*if (neib_index >= numParticles) {
+		printf("neib index %d >= num particles %d \n", neib_index, numParticles);
+		neib_index = 0;
+	}*/
+	// Get neib pos
+	neib_pos = posArray[neib_index];
+
+	// Compute relative position vector and distance
+	relPos = as_float3(pos) - as_float3(neib_pos);
+	r = length(relPos);
+}
+
+__device__ __forceinline__ uint
+getNeibIndex(float4			pos,
+			const uint*		cellStart,
+			neibdata		neib_data,
+			const int3		gridPos,
+			char&			neib_cellnum,
+			uint&			neib_cell_base_index)
+{
+	if (neib_data >= CELLNUMENCODED) {
+		// Add previous cell offset vector to pos
+		if (neib_cellnum >= 0)
+			as_float3(pos) += d_cell_to_offset[neib_cellnum]*d_cellSize;
+
+		// Update current neib cell number
+		neib_cellnum = (neib_data >> 11) - 1;
+
+		// Compute neighbor index relative to belonging cell
+		neib_data &= NEIBINDEXMASK;
+
+		// Substract current cell offset vector to pos
+		as_float3(pos) -= d_cell_to_offset[neib_cellnum]*d_cellSize;
+
+		// Compute index of the first particle in the current cell
+		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
+	}
+
+	// Compute and return neighbor index
+	return neib_cell_base_index + neib_data;
+}
+
+
 __device__ __forceinline__ void
 getNeibData(const float4	pos,
 			const float4*	posArray,
 			const uint*		cellStart,
 			const float		influenceradius,
-			const neibdata	neib_data,
-			int3			gridPos,
+			neibdata		neib_data,
+			const int3		gridPos,
 			uint&			neib_index,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index,
-			float4&			neib_pos,
-			float3&			relPos,
+			float4&			relPos,
 			float&			r,
-			const uint index);
-
-
-// In case of periodic boundaries we add the displacement
-// vector when needed
-template<>
-__device__ __forceinline__ void
-getNeibData<true>(	const float4	pos,
-					const float4*	posArray,
-					const uint*		cellStart,
-					const float		influenceradius,
-					const neibdata	neib_data,
-					int3			gridPos,
-					uint&			neib_index,
-					char&			neib_cellnum,
-					uint&			neib_cell_base_index,
-					float4&			neib_pos,
-					float3&			relPos,
-					float&			r,
-					const uint index)
+			const uint numParticles)
 {
-	int3 periodic = make_int3(0);
-	if (neib_index & WARPXPLUS)
-		periodic.x = 1;
-	else if (neib_index & WARPXMINUS)
-		periodic.x = -1;
-	if (neib_index & WARPYPLUS)
-		periodic.y = 1;
-	else if (neib_index & WARPYMINUS)
-		periodic.y = -1;
-	if (neib_index & WARPZPLUS)
-		periodic.z = 1;
-	else if (neib_index & WARPZMINUS)
-		periodic.z = -1;
-
-	neib_index &= NOWARP;
-
-	neib_pos = posArray[neib_index];
-
-	relPos.x = pos.x - neib_pos.x;
-	relPos.y = pos.y - neib_pos.y;
-	relPos.z = pos.z - neib_pos.z;
-	r = length(relPos);
-	if (periodic.x || periodic.y || periodic.z) {
-		if (r > influenceradius) {
-			relPos += periodic*d_dispvect;
-			r = length(relPos);
-		}
-	}
-}
-
-
-template<>
-__device__ __forceinline__ void
-getNeibData<false>(	const float4	pos,
-					const float4*	posArray,
-					const uint*		cellStart,
-					const float		influenceradius,
-					const neibdata	neib_data,
-					int3			gridPos,
-					uint&			neib_index,
-					char&			neib_cellnum,
-					uint&			neib_cell_base_index,
-					float4&			neib_pos,
-					float3&			relPos,
-					float&			r,
-					const uint numParticles)
-{
-	/*if (neib_data.cell != neib_cellnum) {
+	if (neib_data >= CELLNUMENCODED) {
 		// Update current neib cell number
-		neib_cellnum = neib_data.cell;
+		if (neib_cellnum >= 0)
+			as_float3(pos) += d_cell_to_offset[neib_cellnum]*d_cellSize;
+		neib_cellnum = (neib_data >> 11) - 1;
+		as_float3(pos) -= d_cell_to_offset[neib_cellnum]*d_cellSize;
+		neib_data &= NEIBINDEXMASK;
 		// Compute new neib base cell index
-		gridPos += d_cell_to_offset[neib_cellnum];
-		neib_cell_base_index = cellStart[calcGridHash(gridPos)];
+		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
 	}
-
 
 	// Compute neib index
-	neib_index = neib_cell_base_index + neib_data.offset;
-	*/
+	neib_index = neib_cell_base_index + neib_data;
 	// DEBUG: safe guard
 	// TODO: to be removed
 	/*if (neib_index >= numParticles) {
@@ -576,12 +540,10 @@ getNeibData<false>(	const float4	pos,
 		neib_index = 0;
 	}*/
 
-	// Get neib pos
-	neib_pos = posArray[neib_index];
-
 	// Compute relative position vector and distance
-	relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
-	r = length(relPos);
+	relPos =  posArray[neib_index];
+	as_float3(relPos) = as_float3(pos) - as_float3(relPos);
+	r = length(as_float3(relPos));
 }
 /************************************************************************************************************/
 
@@ -701,13 +663,15 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (2) compute turbulent eddy viscosity (non-dynamic)
 // (3) compute turbulent shear stresses
 // (4) return SPS tensor matrix (tau) divided by rho^2
-template<KernelType kerneltype, bool periodicbound>
+template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 SPSstressMatrixDevice(	const float4* posArray,
 						float2*		tau0,
 						float2*		tau1,
 						float2*		tau2,
+						const uint*	particleHash,
+						const uint*	cellStart,
 						const neibdata*	neibsList,
 						const uint	numParticles,
 						const float	slength,
@@ -748,22 +712,32 @@ SPSstressMatrixDevice(	const float4* posArray,
 	float3 dvy = make_float3(0.0f);
 	float3 dvz = make_float3(0.0f);
 
-	// first loop over all the neighbors for the Velocity Gradients
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
+	// Compute grid position of current particle
+	int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
-		if (neib_index == 0xffffffff) break;
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = -1;
+	uint neib_cell_base_index = 0;
 
+	// loop over all the neighbors
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+
+		if (neib_data == 0xffff) break;
+
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
-		#if( __COMPUTE__ >= 20)							
-		//getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#if( __COMPUTE__ >= 20)
+		getNeibData(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 		#else
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 		#endif
+
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -831,13 +805,15 @@ SPSstressMatrixDevice(	const float4* posArray,
 /*					   Kernels for XSPH, Shepard and MLS corrections									   */
 /************************************************************************************************************/
 
-// This kernel computes the Shepard correction
-template<KernelType kerneltype, bool periodicbound >
+// This kernel computes the Sheppard correction
+template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 shepardDevice(	const float4*	posArray,
 				float4*			newVel,
-				const neibdata*		neibsList,
+				const uint*		particleHash,
+				const uint*		cellStart,
+				const neibdata*	neibsList,
 				const uint		numParticles,
 				const float		slength,
 				const float		influenceradius)
@@ -866,21 +842,30 @@ shepardDevice(	const float4*	posArray,
 	float temp1 = pos.w*W<kerneltype>(0, slength);
 	float temp2 = temp1/vel.w ;
 
+	// Compute grid position of current particle
+	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = -1;
+	uint neib_cell_base_index = 0;
+
 	// loop over all the neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-		if (neib_index == 0xffffffff) break;
+		if (neib_data == 0xffff) break;
 
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
-		#if( __COMPUTE__ >= 20)							
-		//getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#if( __COMPUTE__ >= 20)
+		getNeibData(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 		#else
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 		#endif
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -899,12 +884,14 @@ shepardDevice(	const float4*	posArray,
 
 
 // This kernel computes the MLS correction
-template<KernelType kerneltype, bool periodicbound>
+template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
 MlsDevice(	const float4*	posArray,
 			float4*			newVel,
-			const neibdata*		neibsList,
+			const uint*		particleHash,
+			const uint*		cellStart,
+			const neibdata*	neibsList,
 			const uint		numParticles,
 			const float		slength,
 			const float		influenceradius)
@@ -941,21 +928,30 @@ MlsDevice(	const float4*	posArray,
 	// taking into account self contribution in MLS matrix construction
 	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
 
-	// first loop over all the neighbors for the MLS matrix
+	// Compute grid position of current particle
+	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = -1;
+	uint neib_cell_base_index = 0;
+
+	// First loop over all neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-		if (neib_index == 0xffffffff) break;
+		if (neib_data == 0xffff) break;
 
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
-		#if( __COMPUTE__ >= 20)							
-		//getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		#if( __COMPUTE__ >= 20)
+		getNeibData(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
+				neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 		#else
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+				neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 		#endif
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -977,6 +973,12 @@ MlsDevice(	const float4*	posArray,
 			a44 += relPos.z*relPos.z*w;		// a33 = ∑(yi - yj)^2*Wij*Vj
 		}
 	} // end of first loop trough neighbors
+
+	// Resetting grid position of current particle
+	gridPos = calcGridPosFromHash(particleHash[index]);
+	// Resetting persistent variables across getNeibData
+	neib_cellnum = -1;
+	neib_cell_base_index = 0;
 
 	// safe inverse of MLS matrix
 	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
@@ -1008,22 +1010,25 @@ MlsDevice(	const float4*	posArray,
 		// taking into account self contribution in density summation
 		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
 
-		// second loop over all the neighbors for correction
+		// loop over all the neighbors (Second loop)
 		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-			//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-			uint neib_index = 0xffffffff;
+			neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-			if (neib_index == 0xffffffff) break;
+			if (neib_data == 0xffff) break;
 
+			uint neib_index;
 			float4 neib_pos;
 			float3 relPos;
 			float r;
 
-			#if( __COMPUTE__ >= 20)							
-			//getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			#if( __COMPUTE__ >= 20)
+			getNeibData(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 			#else
-			//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 			#endif
+
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1035,28 +1040,31 @@ MlsDevice(	const float4*	posArray,
 			}
 		}  // end of second loop trough neighbors
 	} else {
-		// Resort to Shepard filter in absence of invertible matrix
+		// Resort to Sheppard filter in absence of invertible matrix
 		// see also shepardDevice. TODO: share the code
 		// we use a11 and a12 for temp1, temp2
 		a11 = pos.w*W<kerneltype>(0, slength);
 		a12 = a11/vel.w;
 
-			// loop over all neighbors
+		// loop over all the neighbors (Second loop)
 		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-			//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-			uint neib_index = 0xffffffff;
+			neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-			if (neib_index == 0xffffffff) break;
+			if (neib_data == 0xffff) break;
 
+			uint neib_index;
 			float4 neib_pos;
 			float3 relPos;
 			float r;
 
 			#if( __COMPUTE__ >= 20)
-			//getNeibData<periodicbound>(pos, posArray, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			getNeibData(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 			#else
-			//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+			getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
 			#endif
+
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1140,9 +1148,11 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
 /************************************************************************************************************/
 
 // This kernel compute the vorticity field
-template<KernelType kerneltype, bool periodicbound>
+template<KernelType kerneltype>
 __global__ void
 calcVortDevice(	float3*		vorticity,
+				const uint*	particleHash,
+				const uint*	cellStart,
 				const neibdata*	neibsList,
 				const uint	numParticles,
 				const float	slength,
@@ -1167,18 +1177,27 @@ calcVortDevice(	float3*		vorticity,
 	// MLS matrix elements
 	float3 vort = make_float3(0.0f);
 
-	// loop over all the neighbors
+	// Compute grid position of current particle
+	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = -1;
+	uint neib_cell_base_index = 0;
+
+	// First loop over all neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-		if (neib_index == 0xffffffff) break;
+		if (neib_data == 0xffff) break;
 
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+				neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
+
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1202,9 +1221,11 @@ calcVortDevice(	float3*		vorticity,
 
 // Testpoints
 // This kernel compute the velocity at testpoints
-template<KernelType kerneltype, bool periodicbound >
+template<KernelType kerneltype>
 __global__ void
 calcTestpointsVelocityDevice(	float4*		newVel,
+								const uint*	particleHash,
+								const uint*	cellStart,
 								const neibdata*	neibsList,
 								const uint	numParticles,
 								const float	slength,
@@ -1227,18 +1248,27 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 	
 	float4 temp = make_float4(0.0f);
 
-	// loop over all the neighbors
+	// Compute grid position of current particle
+	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = -1;
+	uint neib_cell_base_index = 0;
+
+	// First loop over all neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-		if (neib_index == 0xffffffff) break;
+		if (neib_data == 0xffff) break;
 
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+				neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
+
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
         const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -1261,10 +1291,12 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 
 // Free surface detection
 // This kernel detects the surface particles
-template<KernelType kerneltype, bool periodicbound, bool savenormals>
+template<KernelType kerneltype, bool savenormals>
 __global__ void
 calcSurfaceparticleDevice(	float4*			normals,
 							particleinfo*	newInfo,
+							const uint*		particleHash,
+							const uint*		cellStart,
 							const neibdata*	neibsList,
 							const uint		numParticles,
 							const float		slength,
@@ -1288,21 +1320,30 @@ calcSurfaceparticleDevice(	float4*			normals,
 	float4 pos = tex1Dfetch(posTex, index);
 	float4 normal = make_float4(0.0f);
 	
+	// Compute grid position of current particle
+	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
 	info.x &= ~SURFACE_PARTICLE_FLAG;
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
-	// loop over all the neighbors (First loop)
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = -1;
+	uint neib_cell_base_index = 0;
+
+	// First loop over all neighbors
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
-		if (neib_index == 0xffffffff) break;
+		if (neib_data == 0xffff) break;
 
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
+
 		const float neib_density = tex1Dfetch(velTex, neib_index).w;
 
 		if (r < influenceradius) {
@@ -1318,6 +1359,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 	float normal_length = length(as_float3(normal));
 
 	//Checking the planes
+	// TODO: fix me for homogenous precision
 	for (uint i = 0; i < d_numplanes; ++i) {
 		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
 		if (r < influenceradius) {
@@ -1326,21 +1368,32 @@ calcSurfaceparticleDevice(	float4*			normals,
 		}
 	}
 
+	// Second loop over all neighbors
+
+	// Resetting grid position of current particle
+	gridPos = calcGridPosFromHash(particleHash[index]);
+
+	// Resetting persistent variables across getNeibData
+	neib_cellnum = -1;
+	neib_cell_base_index = 0;
+
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		//uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
-		uint neib_index = 0xffffffff;
-		
-		if (neib_index == 0xffffffff) break;
+		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
 
+		if (neib_data == 0xffff) break;
+
+		uint neib_index;
 		float4 neib_pos;
 		float3 relPos;
 		float r;
 
+		getNeibData(pos, cellStart, influenceradius, neib_data, gridPos,
+					neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
+
 		float cosconeangle;
 
-		//getNeibData<periodicbound>(pos, neibsList, influenceradius, neib_index, neib_pos, relPos, r);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius) {
