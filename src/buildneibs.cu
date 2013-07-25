@@ -138,7 +138,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			numParticles,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
-				const bool			periodicbound)
+				const int			periodicbound)
 {
 	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
 	const int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -149,19 +149,72 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
-	
-	if (periodicbound)
-		cuneibs::buildNeibsListDevice<true, true><<< numBlocks, numThreads >>>(
-			#if (__COMPUTE__ >= 20)			
-			pos, 
-			#endif
-			particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
-	else
-		cuneibs::buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
-			#if (__COMPUTE__ >= 20)			
-			pos, 
-			# endif
-			particleHash, neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+
+	switch (periodicbound) {
+		case 0:
+			cuneibs::buildNeibsListDevice<0, true><<< numBlocks, numThreads >>>(
+					#if (__COMPUTE__ >= 20)
+					pos,
+					#endif
+					particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+		break;
+
+		case 1:
+				cuneibs::buildNeibsListDevice<1, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+
+		case 2:
+				cuneibs::buildNeibsListDevice<2, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+
+		case 3:
+				cuneibs::buildNeibsListDevice<3, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+
+		case 4:
+				cuneibs::buildNeibsListDevice<4, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+
+		case 5:
+				cuneibs::buildNeibsListDevice<5, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+
+		case 6:
+				cuneibs::buildNeibsListDevice<6, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+
+		case 7:
+				cuneibs::buildNeibsListDevice<7, true><<< numBlocks, numThreads >>>(
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+				break;
+	}
 		
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");

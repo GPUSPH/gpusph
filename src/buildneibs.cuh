@@ -110,7 +110,7 @@ buildNeibsList( neibdata*			neibsList,
 				const uint			numParticles,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
-				const bool			periodicbound);
+				const int			periodicbound);
 
 void
 sort(	uint*	particleHash,

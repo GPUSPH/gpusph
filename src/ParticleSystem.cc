@@ -170,12 +170,6 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 void
 ParticleSystem::allocate(uint numParticles)
 {
-	if (numParticles >= MAXPARTICLES) {
-		fprintf(stderr, "Cannot handle %u > %u particles, sorry\n",
-				numParticles, MAXPARTICLES);
-		exit(1);
-	}
-
 	if (m_simparams.maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
 		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
 				m_simparams.maxneibsnum, NEIBINDEX_INTERLEAVE);
@@ -777,12 +771,13 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 				testpoints(	m_dPos[m_currentPosRead],
 							m_dVel[m_currentVelRead],
 							m_dInfo[m_currentInfoRead],
+							m_dParticleHash,
+							m_dCellStart,
 							m_dNeibsList,
 							m_numParticles,
 							m_simparams.slength,
 							m_simparams.kerneltype,
-							m_influenceRadius,
-							m_simparams.periodicbound);
+							m_influenceRadius);
 				} // if need_write && m_simparams.testpoints
 
 			size = m_numParticles*sizeof(float4);
@@ -796,15 +791,16 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			if (need_write && m_simparams.surfaceparticle) {
 				surfaceparticle( m_dPos[m_currentPosRead],
 								 m_dVel[m_currentVelRead],
-						         m_dNormals,
+								 m_dNormals,
 								 m_dInfo[m_currentInfoRead],
 								 m_dInfo[m_currentInfoWrite],
+								 m_dParticleHash,
+								 m_dCellStart,
 								 m_dNeibsList,
 								 m_numParticles,
 								 m_simparams.slength,
 								 m_simparams.kerneltype,
 								 m_influenceRadius,
-								 m_simparams.periodicbound,
 								 m_simparams.savenormals);
 				std::swap(m_currentInfoRead, m_currentInfoWrite);
 				} // if need_write && m_simparams.surfaceparticle
@@ -824,12 +820,13 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 						m_dVel[m_currentVelRead],
 						m_dVort,
 						m_dInfo[m_currentInfoRead],
+						m_dParticleHash,
+						m_dCellStart,
 						m_dNeibsList,
 						m_numParticles,
 						m_simparams.slength,
 						m_simparams.kerneltype,
-						m_influenceRadius,
-						m_simparams.periodicbound);
+						m_influenceRadius);
 			break;
 
 		case HASH:
@@ -1155,12 +1152,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dVel[m_currentVelRead],
 				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
+				m_dParticleHash,
+				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams.slength,
 				m_simparams.kerneltype,
-				m_influenceRadius,
-				m_simparams.periodicbound);
+				m_influenceRadius);
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
@@ -1170,12 +1168,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dVel[m_currentVelRead],
 				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
+				m_dParticleHash,
+				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams.slength,
 				m_simparams.kerneltype,
-				m_influenceRadius,
-				m_simparams.periodicbound);
+				m_influenceRadius);
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
@@ -1238,7 +1237,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
-					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
 					m_simparams.boundarytype,
 					m_simparams.usedem);
@@ -1322,7 +1320,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dTempCfl,
 					m_numPartsFmax,
 					m_dTau,
-					m_simparams.periodicbound,
 					m_simparams.sph_formulation,
 					m_simparams.boundarytype,
 					m_simparams.usedem);
@@ -1430,22 +1427,6 @@ ParticleSystem::saveneibs()
 			if (neib_index == 0xffffffff) break;
 
 			int3 periodic = make_int3(0);
-			if (m_simparams.periodicbound) {
-				if (neib_index & WARPXPLUS)
-					periodic.x = 1;
-				else if (neib_index & WARPXMINUS)
-					periodic.x = -1;
-				if (neib_index & WARPYPLUS)
-					periodic.y = 1;
-				else if (neib_index & WARPYMINUS)
-					periodic.y = -1;
-				if (neib_index & WARPZPLUS)
-					periodic.z = 1;
-				else if (neib_index & WARPZMINUS)
-					periodic.z = -1;
-
-				neib_index &= NOWARP;
-			}
 
 			float3 neib_pos;
 			neib_pos.x = m_hPos[neib_index].x;

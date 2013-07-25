@@ -205,15 +205,10 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #endif
 
 
-/* Periodic neighborhood warping */
-#define WARPZMINUS				(1U<<31)
-#define WARPZPLUS				(1U<<30)
-#define WARPYMINUS				(1U<<29)
-#define WARPYPLUS				(1U<<28)
-#define WARPXMINUS				(1U<<27)
-#define WARPXPLUS				(1U<<26)
-#define MAXPARTICLES			WARPXPLUS
-#define NOWARP					~(WARPXPLUS|WARPXMINUS|WARPYPLUS|WARPYMINUS|WARPZPLUS|WARPZMINUS)
+/* Periodic boundary */
+#define XPERIODIC		0x1
+#define YPERIODIC		0x2
+#define ZPERIODIC		0x4
 
 
 /* Maximum number of floating bodies*/
@@ -345,7 +340,7 @@ typedef struct SimParams {
 	int				saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
-	bool			periodicbound;		// true in case of periodic boundary
+	int				periodicbound;		// > 0 in case of periodic boundary
 	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
@@ -369,7 +364,7 @@ typedef struct SimParams {
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
-		periodicbound(false),
+		periodicbound(0),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),

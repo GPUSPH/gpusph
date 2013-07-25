@@ -289,7 +289,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
  * First and last particle index for grid cells and particle's informations
  * are read trough texture fetches.
  */
-template <bool periodicbound>
+template <int periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
 			#if (__COMPUTE__ >= 20)			
@@ -312,50 +312,55 @@ neibsInCell(
 	// Compute the grid position of the current cell
 	gridPos += gridOffset;
 
-	// Deal with periodic boundaries
-	// TODO: fix
-	int3 periodic = make_int3(0);
+	// With periodic boundary when the neighboring cell grid position lies
+	// outside the domain size we wrap it to the gridSize or 0 according
+	// with the choosen periodicity
 	if (periodicbound) {
+		// Periodicity along x axis
 		if (gridPos.x < 0) {
-			if (d_dispvect.x) {
+			if (periodicbound & XPERIODIC)
 				gridPos.x = gridSize.x;
-				periodic.x = 1;
-			} else
+			else
 				return;
-		} else if (gridPos.x >= gridSize.x) {
-			if (d_dispvect.x) {
+		}
+		else if (gridPos.x >= gridSize.x) {
+			if (periodicbound & XPERIODIC)
 				gridPos.x = 0;
-				periodic.x = -1;
-			} else
+			else
 				return;
 		}
+
+		// Periodicity along y axis
 		if (gridPos.y < 0) {
-			if (d_dispvect.y) {
+			if (periodicbound & YPERIODIC)
 				gridPos.y = gridSize.y;
-				periodic.y = 1;
-			} else
+			else
 				return;
-		} else if (gridPos.y >= gridSize.y) {
-			if (d_dispvect.y) {
+		}
+		else if (gridPos.y >= gridSize.y) {
+			if (periodicbound & YPERIODIC)
 				gridPos.y = 0;
-				periodic.y = -1;
-			} else
+			else
 				return;
 		}
+
+		// Periodicity along z axis
 		if (gridPos.z < 0) {
-			if (d_dispvect.z) {
+			if (periodicbound & ZPERIODIC)
 				gridPos.z = gridSize.z;
-				periodic.z = 1;
-			} else
-				return;
-		} else if (gridPos.z >= gridSize.z) {
-			if (d_dispvect.z) {
-				gridPos.z = 0;
-				periodic.z = -1;
-			} else
+			else
 				return;
 		}
-	} else {
+		else if (gridPos.z >= gridSize.z) {
+			if (periodicbound & ZPERIODIC)
+				gridPos.z = 0;
+			else
+				return;
+		}
+	}
+	// Without periodic boundary when the neighboring cell grid position lies
+	// outside the domain size there is nothing to do
+	else {
 		if ((gridPos.x < 0) || (gridPos.x >= gridSize.x) ||
 			(gridPos.y < 0) || (gridPos.y >= gridSize.y) ||
 			(gridPos.z < 0) || (gridPos.z >= gridSize.z))
@@ -385,39 +390,14 @@ neibsInCell(
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
 				#if (__COMPUTE__ >= 20)			
-				float3 relPos = pos - make_float3(posArray[neib_index]);
+				const float3 relPos = pos - make_float3(posArray[neib_index]) - gridOffset*cellSize;
 				#else
-				float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
+				const float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index)) - gridOffset*cellSize;
 				#endif
-				relPos -= gridOffset*cellSize;
-
-				// Deal with periodic boundaries
-				// TODO: fix
-				if (periodicbound)
-					relPos += periodic*d_dispvect;
 
 				// Check if the squared distance is smaller than the squared influence radius
 				// used for neighbor list construction
 				if (sqlength(relPos) < sqinfluenceradius) {
-
-					// Deal with periodic boundaries
-					// TODO: fix
-					if (periodicbound) {
-						uint mod_index = neib_index;
-						if (periodic.x == 1)
-							mod_index |= WARPXPLUS;
-						else if (periodic.x == -1)
-							mod_index |= WARPXMINUS;
-						if (periodic.y == 1)
-							mod_index |= WARPYPLUS;
-						else if (periodic.y == -1)
-							mod_index |= WARPYMINUS;
-						if (periodic.z == 1)
-							mod_index |= WARPZPLUS;
-						else if (periodic.z == -1)
-							mod_index |= WARPZMINUS;
-					}
-
 					if (neibs_num < d_maxneibsnum) {
 						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] =
 								neib_index - bucketStart + ((encode_cell) ? ((cell + 1) << 11) : 0);
@@ -448,13 +428,13 @@ neibsInCell(
  *	\param[in] numParticles : total number of particles
  *	\param[in] sqinfluenceradius : squared value of the influence radius
  *
- *	\pparam periodicbound : use periodic boundaries (0, 1)
+ *	\pparam periodicbound : use periodic boundaries (0, 7)
  *	\pparam neibcount : compute maximum neighbor number (0, 1)
  *
  * First and last particle index for grid cells and particle's informations
  * are read trough texture fetches.
  */
-template<bool periodicbound, bool neibcount>
+template<int periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
 buildNeibsListDevice(   
@@ -469,9 +449,8 @@ buildNeibsListDevice(
 						const float		sqinfluenceradius)		///< squared influence radius (in)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint tid = threadIdx.x;
 	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = tid & (NEIBINDEX_INTERLEAVE - 1);
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 
 	uint neibs_num = 0;		// Number of neighbors for the current particle
 
@@ -511,8 +490,9 @@ buildNeibsListDevice(
 		}
 		
 		// Setting the end marker
-		if (neibs_num < d_maxneibsnum)
+		if (neibs_num < d_maxneibsnum) {
 			neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffff;
+		}
 	}
 	
 	if (neibcount) {
@@ -520,24 +500,24 @@ buildNeibsListDevice(
 		__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
 		__shared__ volatile uint sm_neibs_max[BLOCK_SIZE_BUILDNEIBS];
 
-		sm_neibs_num[tid] = neibs_num;	
-		sm_neibs_max[tid] = neibs_num;
+		sm_neibs_num[threadIdx.x] = neibs_num;
+		sm_neibs_max[threadIdx.x] = neibs_num;
 		__syncthreads();
 
 		uint i = blockDim.x/2;
 		while (i != 0) {
-			if (tid < i) {
-				sm_neibs_num[tid] += sm_neibs_num[tid + i];
-				const float n1 = sm_neibs_max[tid];
-				const float n2 = sm_neibs_max[tid + i];
+			if (threadIdx.x < i) {
+				sm_neibs_num[threadIdx.x] += sm_neibs_num[threadIdx.x + i];
+				const float n1 = sm_neibs_max[threadIdx.x];
+				const float n2 = sm_neibs_max[threadIdx.x + i];
 				if (n2 > n1)
-					sm_neibs_max[tid] = n2;
+					sm_neibs_max[threadIdx.x] = n2;
 			}
 			__syncthreads();
 			i /= 2;
 		}
 
-		if (!tid) {
+		if (!threadIdx.x) {
 			atomicAdd(&d_numInteractions, sm_neibs_num[0]);
 			atomicMax(&d_maxNeibs, sm_neibs_max[0]);
 		}
