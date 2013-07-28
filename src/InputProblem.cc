@@ -15,20 +15,21 @@
 
 InputProblem::InputProblem(const Options &options) : Problem(options)
 {
-	//inputfile = "/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1.h5sph";			//StillWater periodic
-	//inputfile = "/home/vorobyev/Crixus/geometries/opencube/0.opencube_salome.h5sph";			//StillWater (meshed in Salome)
-	//inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.05.h5sph";		//Plane Poiseuille flow
 	numparticles = 0;
 
 	//StillWater periodic (symmetric)
 	//*************************************************************************************
 //	inputfile = "/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph";
+
+//	set_deltap(0.1f);
+
 //	n_probeparts = 0;
 //	H = 2.0;
 //	l = 2.0; w = 2.0; h = 2.2;
 
-//	set_deltap(0.1f);
-//
+//	m_physparams.kinematicvisc = 3.0e-2f;
+//	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+
 //	//periodic boundaries
 //	m_simparams.periodicbound = true;
 //	m_physparams.dispvect = make_float3(l, l, 0.0);
@@ -42,6 +43,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 //	set_deltap(0.02f);
 
+//	m_physparams.kinematicvisc = 1.0e-6f;
 //	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 //	n_probeparts = 208;
@@ -65,25 +67,49 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	// BAW geometry
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.BAW.fishpass.0.01.h5sph";
+//	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.BAW.fishpass.0.01.h5sph";
 
-	set_deltap(0.01f);
+//	set_deltap(0.01f);
+
+//	n_probeparts = 0;
+//	H = 0.25;
+//	l = 1.019; w = 0.785; h = 0.4;
+
+//	float slope = 0.027;
+//	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+//	m_physparams.kinematicvisc = 1.0e-6f;
+//	m_physparams.gravity = make_float3(9.81f*sin(atan(slope)), 0.0, -9.81f*cos(atan(slope)));
+
+//	//periodic boundaries
+//	m_simparams.periodicbound = true;
+//	m_physparams.dispvect = make_float3(l, 0.0f, 0.0f);
+//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
+//	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
+//	//*************************************************************************************
+
+	// Poiseuille flow
+	//*************************************************************************************
+	inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.02.h5sph";
+
+	set_deltap(0.02f);
 
 	n_probeparts = 0;
-	H = 0.25;
-	l = 1.019; w = 0.785; h = 0.4;
+	H = 1.0;
+	l = 0.26; w = 0.26; h = 1.0;
 
-	float slope = 0.027;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	m_physparams.gravity = make_float3(9.81f*sin(atan(slope)), 0.0, -9.81f*cos(atan(slope)));
+	m_physparams.kinematicvisc = 0.1f;
+	m_physparams.gravity = make_float3(0.8, 0.0, 0.0);		// laminar
+	
+	//m_physparams.kinematicvisc = 0.00078125f;
+	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
 
 	//periodic boundaries
 	m_simparams.periodicbound = true;
-	m_physparams.dispvect = make_float3(l, 0.0f, 0.0f);
+	m_physparams.dispvect = make_float3(l, w, 0.0f);
 	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
+	m_physparams.maxlimit = make_float3(l, w, 0.0f);
 	//*************************************************************************************
 
 	// SPH parameters
@@ -97,8 +123,8 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 1;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.ferrari = 1.0;
-	m_simparams.visctype = KEPSVISC;
+	m_simparams.ferrari = 0.1;
+	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = MF_BOUNDARY;
 
@@ -116,8 +142,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_physparams.dcoeff = 5.0f*g*H;
 
 	m_physparams.r0 = m_deltap;
-	//m_physparams.visccoeff = 0.05f;
-	m_physparams.kinematicvisc = 1.0e-6f;
+
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
@@ -126,11 +151,11 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_maxrho = density(H, 0);
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
-	m_maxvel = 0.4f;
+	m_maxvel = 1.0f;
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
-	m_writefreq = 10;
+	m_writefreq = 1000;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
@@ -176,8 +201,8 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
-		float rho = density(H - buf[i].Coords_2, 0);
-		//float rho = m_physparams.rho0[0];
+		//float rho = density(H - buf[i].Coords_2, 0);
+		float rho = m_physparams.rho0[0];
 		pos[i] = make_float4(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
