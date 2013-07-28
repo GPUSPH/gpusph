@@ -134,6 +134,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 										float4*			sortedGradGamma,	// output: sorted gradient gamma
 										vertexinfo*		sortedVertices,		// output: sorted vertices
 										float*			sortedPressure,		// output: sorted pressure
+										float*			sortedTKE,			// output: k for k-e model
+										float*			sortedEps,			// output: e for k-e model
+										float*			sortedTurbVisc,		// output: eddy viscosity
+										float*			sortedStrainRate,	// output: strain rate
 										hashKey*		particleHash,		// input: sorted grid hashes
 										uint*			particleIndex,		// input: sorted particle indices
 										uint*			newNumParticles,	// output: number of active particles found
@@ -202,6 +206,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
 		float pressure = tex1Dfetch(presTex, sortedIndex);
 
+		float keps_k = tex1Dfetch(keps_kTex, sortedIndex);
+		float keps_e = tex1Dfetch(keps_eTex, sortedIndex);
+		float tvisc = tex1Dfetch(tviscTex, sortedIndex);
+		float strainrate = tex1Dfetch(strainTex, sortedIndex);
+
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
@@ -212,6 +221,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 		sortedVertices[index].x = inversedParticleIndex[vertices.x];
 		sortedVertices[index].y = inversedParticleIndex[vertices.y];
 		sortedVertices[index].z = inversedParticleIndex[vertices.z];
+
+		sortedTKE[index] = keps_k;
+		sortedEps[index] = keps_e;
+		sortedTurbVisc[index] = tvisc;
+		sortedStrainRate[index] = strainrate;
 	}
 }
 

@@ -781,8 +781,8 @@ initGradGammaDevice(	float4*		newPos,
 		float4 gGam = make_float4(0.0f);
 		float4 virtVel = make_float4(0.0f);
 		
-		// Compute gradient of gamma for fluid only
-		if(FLUID(info)) {
+		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
+		if(FLUID(info) || VERTEX(info)) {
 			//uint counter = 0; //DEBUG
 			float rmin = inflRadius;
 
@@ -809,7 +809,7 @@ initGradGammaDevice(	float4*		newPos,
 				}
 			}
 
-			if(rmin < 0.8*deltap)
+			if(rmin < 0.8*deltap && FLUID(info))
 				disable_particle(pos);
 
 			//DEBUG output
@@ -858,8 +858,8 @@ updateGammaDevice(	float4*		newGam,
 		float4 gGam = make_float4(0.0f);
 		float deltaGam = 0.0;
 
-		// Compute gradient of gamma for fluid only
-		if(FLUID(info)) {
+		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
+		if(FLUID(info) || VERTEX(info)) {
 			// Loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
 				uint neibIndex = neibsList[d_maxneibsnum_time_neibindexinterleave * lane + offset + i];
@@ -917,7 +917,7 @@ updateGammaPrCorDevice( float4*		newPos,
 		float3 vel = make_float3(tex1Dfetch(velTex, index));
 		float4 oldGam = tex1Dfetch(gamTex, index);
 
-		float4 gGam = make_float4(0.0f);
+		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGam.w);
 		float deltaGam = 0.0;
 		deltaGam += dot(make_float3(oldGam), vel); //FIXME: It is incorrect for moving boundaries
 
@@ -974,7 +974,7 @@ updatePositionsDevice(	float4*	newPos,
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		float4 vel = tex1Dfetch(velTex, index);
 
-		if(FLUID(info)) {
+		if(FLUID(info) || VERTEX(info)) {
 			pos.x += virtDt * vel.x;
 			pos.y += virtDt * vel.y;
 			pos.z += virtDt * vel.z;
@@ -1008,6 +1008,8 @@ updatePositionsDevice(	float4*	newPos,
 __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
 				float*		oldPressure,
+				float*		oldTKE,
+				float*		oldEps,
 				const uint	numParticles,
 				bool		initStep)
 {
@@ -1016,20 +1018,32 @@ updateBoundValuesDevice(	float4*		oldVel,
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		const vertexinfo vertices = tex1Dfetch(vertTex, index);
-		const float ro1 = oldVel[vertices.x].w;
-		const float ro2 = oldVel[vertices.y].w;
-		const float ro3 = oldVel[vertices.z].w;
+		//const float ro1 = oldVel[vertices.x].w;
+		//const float ro2 = oldVel[vertices.y].w;
+		//const float ro3 = oldVel[vertices.z].w;
+		const float4 vel1 = oldVel[vertices.x];
+		const float4 vel2 = oldVel[vertices.y];
+		const float4 vel3 = oldVel[vertices.z];
 		const float pres1 = oldPressure[vertices.x];
 		const float pres2 = oldPressure[vertices.y];
 		const float pres3 = oldPressure[vertices.z];
+		const float k1 = oldTKE[vertices.x];
+		const float k2 = oldTKE[vertices.y];
+		const float k3 = oldTKE[vertices.z];
+		const float eps1 = oldEps[vertices.x];
+		const float eps2 = oldEps[vertices.y];
+		const float eps3 = oldEps[vertices.z];
 
 		if (BOUNDARY(info)) {
-			oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+			//oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+			oldVel[index] = (vel1 + vel2 + vel3)/3.f;
 			oldPressure[index] = (pres1 + pres2 + pres3)/3.f;
+			oldTKE[index] = (k1 + k2 + k3)/3.f;
+			oldEps[index] = (eps1 + eps2 + eps3)/3.f;
 		}
 		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
 		//FIXME: keeping initial velocity values, if given
-		if (initStep && FLUID(info)) {
+		if (initStep && (FLUID(info) || VERTEX(info))) {
 			oldVel[index].x = 0;
 			oldVel[index].y = 0;
 			oldVel[index].z = 0;
@@ -1043,8 +1057,11 @@ __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 dynamicBoundConditionsDevice(	const float4*	oldPos,
 				float4*		oldVel,
 				float*		oldPressure,
+				float*		oldTKE,
+				float*		oldEps,
 				const uint*	neibsList,
 				const uint	numParticles,
+				const float deltap,
 				const float	slength,
 				const float	influenceradius)
 {
@@ -1071,7 +1088,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	// in contrast to Shepard filter particle itself doesn't contribute into summation
 	float temp1 = 0;
-	float temp2 = 0;
+	float temp2 = 0; // summation for computing density
+	float temp3 = 0; // summation for computing TKE
 	float alpha = 0;
 
 	// loop over all the neighbors
@@ -1095,11 +1113,13 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 		const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 		const float neib_vel = length(make_float3(oldVel[neib_index]));
+		const float neib_k = oldTKE[neib_index];
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
-			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,relPos) + 0.5*(neib_vel*neib_vel-vel*vel));
+			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,relPos)/* + 0.5*(neib_vel*neib_vel-vel*vel)*/);
+			temp3 += w/neib_rho*neib_k;
 			alpha += w/neib_rho;
 		}
 	}
@@ -1108,7 +1128,9 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	{
 		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
 		oldPressure[index] = temp2*oldVel[index].w/alpha;
-		oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
+		//oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
+		oldTKE[index] = temp3/alpha;
+		oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
 }
 
@@ -1184,6 +1206,110 @@ calcProbeDevice(	float4*		oldPos,
 		oldPressure[index] = 0;
 }
 /************************************************************************************************************/
+
+
+/************************************************************************************************************/
+/*		                  Computes mean strain rate tensor for k-e model									*/
+/************************************************************************************************************/
+template<KernelType kerneltype, bool periodicbound>
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
+MeanScalarStrainRateDevice(	const float4* posArray,
+							float* strainRate,
+							const uint*	neibsList,
+							const uint	numParticles,
+							const float	slength,
+							const float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const uint lane = index/NEIBINDEX_INTERLEAVE;
+	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	const particleinfo info = tex1Dfetch(infoTex, index);
+	if (NOT_FLUID(info))
+		return;
+
+	// read particle data from sorted arrays
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
+	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
+	const float4 vel = tex1Dfetch(velTex, index);
+	const float4 gradgamma = tex1Dfetch(gamTex, index);
+
+	// Gradients of the the velocity components
+	float3 dvx = make_float3(0.0f);
+	float3 dvy = make_float3(0.0f);
+	float3 dvz = make_float3(0.0f);
+
+	// first loop over all the neighbors for the Velocity Gradients
+	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave; i += NEIBINDEX_INTERLEAVE) {
+		uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+
+		if (neib_index == 0xffffffff) break;
+
+		float4 neib_pos;
+		float3 relPos;
+		float r;
+
+		#if( __COMPUTE__ >= 20)
+		getNeibData<periodicbound>(pos, posArray, influenceradius, neib_index, neib_pos, relPos, r);
+		#else
+		getNeibData<periodicbound>(pos, influenceradius, neib_index, neib_pos, relPos, r);
+		#endif
+		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		if (r < influenceradius) {
+
+			float3 relVel;
+			relVel.x = vel.x - neib_vel.x;
+			relVel.y = vel.y - neib_vel.y;
+			relVel.z = vel.z - neib_vel.z;
+
+			// first term, interaction with fluid and vertex particles
+			if(FLUID(neib_info) || VERTEX(neib_info)) {
+				const float f = F<kerneltype>(r, slength)*neib_pos.w;	// 1/r ∂Wab/∂r * mb
+
+				// Velocity Gradients (Wall-corrected)
+				dvx -= relVel.x*relPos*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+				dvy -= relVel.y*relPos*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+				dvz -= relVel.z*relPos*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
+			}
+			// second term, interaction with boundary elements
+			if(BOUNDARY(neib_info)) {
+				const float4 belem = tex1Dfetch(boundTex, neib_index);
+				const float3 gradgam_as = make_float3(gradGamma<kerneltype>(slength, r, belem));
+
+				dvx += neib_vel.w*relVel.x*gradgam_as;	// dvx = ∑ρs vxas ∇ɣas
+				dvy += neib_vel.w*relVel.y*gradgam_as;	// dvy = ∑ρs vyas ∇ɣas
+				dvz += neib_vel.w*relVel.z*gradgam_as;	// dvz = ∑ρs vzas ∇ɣas
+			}
+		} // end if
+	} // end of loop through neighbors
+
+	dvx /= vel.w * gradgamma.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+	dvy /= vel.w * gradgamma.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+	dvz /= vel.w * gradgamma.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+
+	// Calculate norm of the mean strain rate tensor
+	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+	float temp = dvx.y + dvy.x;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+	temp = dvx.z + dvz.x;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+	temp = dvy.z + dvz.y;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+	float S = sqrtf(SijSij_bytwo);
+	strainRate[index] = S;
+}
+/************************************************************************************************************/
+
 
 /************************************************************************************************************/
 /*					   Kernels for computing acceleration without gradient correction					 */

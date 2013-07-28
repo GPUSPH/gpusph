@@ -57,16 +57,16 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
+						(pos, forces, keps_dkde, turbvisc, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma, cflTVisc); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma); \
+						(pos, forces, keps_dkde, turbvisc, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma, cflTVisc); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
@@ -97,8 +97,8 @@ void*	reduce_buffer = NULL;
 		VISC_CHECK(boundarytype, periodic, ARTVISC, dem); \
 		VISC_CHECK(boundarytype, periodic, DYNAMICVISC, dem); \
 		VISC_CHECK(boundarytype, periodic, KINEMATICVISC, dem);\
-		VISC_CHECK(boundarytype, periodic, SPSVISC, dem);
-
+		VISC_CHECK(boundarytype, periodic, SPSVISC, dem); \
+		VISC_CHECK(boundarytype, periodic, KEPSVISC, dem);
 
 #define VISC_SWITCH(boundarytype, periodic, dem) \
 	switch (visctype) { \
@@ -125,6 +125,12 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		cuforces::SPSstressMatrixDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
 				(pos, tau[0], tau[1], tau[2], neibsList, numParticles, slength, influenceradius); \
+		break
+
+#define KEPS_CHECK(kernel, periodic) \
+	case kernel: \
+		cuforces::MeanScalarStrainRateDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
+				(pos, strainrate, neibsList, numParticles, slength, influenceradius); \
 		break
 
 #define SHEPARD_CHECK(kernel, periodic) \
@@ -180,7 +186,7 @@ void*	reduce_buffer = NULL;
 #define DYNBOUNDARY_CHECK(kernel, periodic) \
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldPressure, neibsList, numParticles, slength, influenceradius); \
+				 (oldPos, oldVel, oldPressure, oldTKE, oldEps, neibsList, numParticles, deltap, slength, influenceradius); \
 	break
 
 #define CALCPROBE_CHECK(kernel, periodic) \
@@ -334,6 +340,7 @@ forces(	float4*			pos,
 		particleinfo	*info,
 		uint*			neibsList,
 		uint			numParticles,
+		float			deltap,
 		float			slength,
 		float			dt,
 		bool			dtadapt,
@@ -343,8 +350,14 @@ forces(	float4*			pos,
 		float			influenceradius,
 		ViscosityType	visctype,
 		float			visccoeff,
+		float*			strainrate,
+		float*			turbvisc,
+		float*			keps_tke,
+		float*			keps_eps,
+		float2*			keps_dkde,
 		float*			cfl,
 		float*			cflGamma,
+		float*			cflTVisc,
 		float*			tempCfl,
 		uint			numPartsFmax,
 		float2*			tau[],
@@ -362,6 +375,8 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, presTex, pressure, numParticles*sizeof(float)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, keps_tke, numParticles*sizeof(float)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
 
 	// execute the kernel for computing SPS stress matrix, if needed
 	if (visctype == SPSVISC) {	// thread per particle
@@ -389,6 +404,32 @@ forces(	float4*			pos,
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
+	}
+
+	// execute the kernel for computing mean scalar strain rate for k-e model
+	if (visctype == KEPSVISC) {
+		int numThreads = min(BLOCK_SIZE_SPS, numParticles);
+		int numBlocks = (int) ceil(numParticles / (float) numThreads);
+		#if (__COMPUTE__ == 20)
+		dummy_shared = 2560;
+		#endif
+		if (periodicbound) {
+			switch (kerneltype) {
+				KEPS_CHECK(CUBICSPLINE, true);
+				//KEPS_CHECK(QUADRATIC, true);
+				KEPS_CHECK(WENDLAND, true);
+			}
+		} else {
+			switch (kerneltype) {
+				KEPS_CHECK(CUBICSPLINE, false);
+				//KEPS_CHECK(QUADRATIC, false);
+				KEPS_CHECK(WENDLAND, false);
+			}
+		}
+		// check if kernel invocation generated an error
+		CUT_CHECK_ERROR("MeanScalarStrainRate kernel execution failed");
+
+		CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, strainrate, numParticles*sizeof(float)));
 	}
 	
 	// thread per particle
@@ -422,6 +463,10 @@ forces(	float4*			pos,
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
 	}
 	
+	if (visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
+	}
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -430,6 +475,8 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 
 	if (dtadapt) {
 		float maxcfl = cflmax(numPartsFmax, cfl, tempCfl);
@@ -447,6 +494,9 @@ forces(	float4*			pos,
 
 				case DYNAMICVISC:
 				/* ν = visccoeff for dynamic viscosity */
+					break;
+				case KEPSVISC:
+					dt_visc = slength*slength/(visccoeff + cflmax(numPartsFmax, cflTVisc, tempCfl));
 					break;
 				}
 			dt_visc *= 0.125;
@@ -870,7 +920,7 @@ cflmax( const uint	n,
 		uint threads = 0, blocks = 0;
 		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
 
-		reducefmax(s, threads, blocks, tempCfl, tempCfl); //FIXME: incorrect parameters
+		reducefmax(s, threads, blocks, tempCfl, tempCfl);
 		CUT_CHECK_ERROR("fmax kernel execution failed");
 
 		s = (s + (threads*2-1)) / (threads*2);
@@ -1075,6 +1125,8 @@ updatePositions(	float4*		oldPos,
 void
 updateBoundValues(	float4*		oldVel,
 			float*		oldPressure,
+			float*		oldTKE,
+			float*		oldEps,
 			vertexinfo*	vertices,
 			particleinfo*	info,
 			uint		numParticles,
@@ -1087,7 +1139,7 @@ updateBoundValues(	float4*		oldVel,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	//execute kernel
-	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldPressure, numParticles, initStep);
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldPressure, oldTKE, oldEps, numParticles, initStep);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
@@ -1100,9 +1152,12 @@ void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
 			float*			oldPressure,
+			float*			oldTKE,
+			float*			oldEps,
 			const particleinfo*	info,
 			const uint*		neibsList,
 			const uint		numParticles,
+			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
 			const float		influenceradius,
@@ -1208,6 +1263,7 @@ calcProbe(	float4*			oldPos,
 #undef SHEPARD_CHECK
 #undef MLS_CHECK
 #undef SPS_CHECK
+#undef KEPS_CHECK
 #undef VORT_CHECK
 #undef TEST_CHECK
 #undef SURFACE_CHECK

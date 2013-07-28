@@ -135,6 +135,10 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			newGradGamma,		// output: sorted gradient gamma
 							vertexinfo*		newVertices,		// output: sorted vertices
 							float*			newPressure,		// output: sorted pressure
+							float*			newTKE,				// output: k for k-e model
+							float*			newEps,				// output: e for k-e model
+							float*			newTurbVisc,		// output: eddy viscosity
+							float*			newStrainRate,		// output: strain rate
 							hashKey*		particleHash,		// input: sorted grid hashes
 							uint*			particleIndex,		// input: sorted particle indices
 							float4*			oldPos,			// input: sorted position array
@@ -144,6 +148,10 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			oldGradGamma,		// input: sorted gradient gamma
 							vertexinfo*		oldVertices,		// input: sorted vertices
 							float*			oldPressure,		// input: sorted pressure
+							float*			oldTKE,				// input: k for k-e model
+							float*			oldEps,				// input: e for k-e model
+							float*			oldTurbVisc,		// input: eddy viscosity
+							float*			oldStrainRate,		// input: strain rate
 							uint*			newNumParticles,	// output: number of active particles found
 							uint			numParticles,
 							uint			numGridCells,

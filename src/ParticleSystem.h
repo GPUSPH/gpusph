@@ -81,6 +81,10 @@ class ParticleSystem
 			GRADGAMMA,
 			VERTICES,
 			PRESSURE,
+			TKE,
+			EPSILON,
+			TURBVISC,
+			STRAINRATE, //TODO: delete it later, used for debugging
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -194,6 +198,10 @@ class ParticleSystem
 		float4*		m_hBoundElement;		// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
 		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
 		float*		m_hPressure;			// stores pressure, used only for vertex and boundary particles
+		float*		m_hTKE;					// k - turbulent kinetic energy
+		float*		m_hEps;					// e - turbulent kinetic energy dissipation rate //TODO: delete it later, used for debugging
+		float*		m_hTurbVisc;			// nu_t - kinematic eddy viscosity
+		float*		m_hStrainRate;			// S - mean scalar strain rate //TODO: delete it later, used for debugging
 
 		// CPU arrays used for debugging
 		uint*		m_hNeibsList;
@@ -214,7 +222,8 @@ class ParticleSystem
 		float3*		m_dVort;				// vorticity
 		uint		m_numPartsFmax;				// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
-		float*		m_dCflGamma;				// analogue of cfl due to gamma integration
+		float*		m_dCflGamma;			// analogue of cfl due to gamma integration
+		float*		m_dCflTVisc;			// analogue of cfl taking into account eddy viscosity
 		float*		m_dTempCfl;				// temporary storage for cfl computation
 		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
@@ -223,6 +232,11 @@ class ParticleSystem
 		float4*		m_dBoundElement[2];			// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
 		vertexinfo*	m_dVertices[2];				// stores indexes of 3 vertex particles for every boundary element
 		float*		m_dPressure[2];				// stores pressure for vertex and boundary particles
+		float*		m_dTKE[2];					// k - turbulent kinetic energy
+		float*		m_dEps[2];					// e - turbulent kinetic energy dissipation rate
+		float*		m_dTurbVisc[2];				// nu_t - kinematic eddy viscosity
+		float*		m_dStrainRate[2];			// S - mean scalar strain rate
+		float2*		m_dDkDe;					// dk/dt and de/dt for k-e model
 
 		// TODO: profile with float3
 		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
@@ -258,7 +272,15 @@ class ParticleSystem
 		uint		m_currentVerticesWrite;		// current index in m_dVertices for writing (0 or 1)
 		uint		m_currentPressureRead;		// current index in m_dPressure for pressure reading (0 or 1)
 		uint		m_currentPressureWrite;		// current index in m_dPressure for writing (0 or 1)
-		
+		uint		m_currentTKERead;		// current index in m_dTKE for pressure reading (0 or 1)
+		uint		m_currentTKEWrite;		// current index in m_dTKE for writing (0 or 1)
+		uint		m_currentEpsRead;		// current index in m_dEps for pressure reading (0 or 1)
+		uint		m_currentEpsWrite;		// current index in m_dEps for writing (0 or 1)
+		uint		m_currentTurbViscRead;		// current index in m_dTurbVisc for pressure reading (0 or 1)
+		uint		m_currentTurbViscWrite;		// current index in m_dTurbVisc for writing (0 or 1)
+		uint		m_currentStrainRateRead;
+		uint		m_currentStrainRateWrite;
+
 		// CUDA device properties
 		cudaDeviceProp	m_device;
 

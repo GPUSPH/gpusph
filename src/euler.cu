@@ -105,11 +105,16 @@ seteulerrbsteprot(const float* rot, int numbodies)
 void
 euler(	float4*		oldPos,
 		float4*		oldVel,
+		float*		oldTKE,
+		float*		oldEps,
 		particleinfo* info,
 		float4*		forces,
+		float2*		keps_dkde,
 		float4*		xsph,
 		float4*		newPos,
 		float4*		newVel,
+		float*		newTKE,
+		float*		newEps,
 		uint		numParticles,
 		float		dt,
 		float		dt2,
@@ -126,9 +131,9 @@ euler(	float4*		oldPos,
 	if (xsphcorr) {
 #define EULER_KERNEL_NAME _EULER_KERNEL_NAME(Xsph)
 #define EULER_KERNEL_ARGS(dt) \
-					oldPos, oldVel, info, \
-					forces, xsph, \
-					newPos, newVel, \
+					oldPos, oldVel, oldTKE, oldEps, info, \
+					forces, keps_dkde, xsph, \
+					newPos, newVel, newTKE, newEps, \
 					numParticles, dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
@@ -136,9 +141,9 @@ euler(	float4*		oldPos,
 	} else {
 #define EULER_KERNEL_NAME _EULER_KERNEL_NAME()
 #define EULER_KERNEL_ARGS(dt) \
-					oldPos, oldVel, info, \
-					forces, \
-					newPos, newVel, \
+					oldPos, oldVel, oldTKE, oldEps, info, \
+					forces, keps_dkde, \
+					newPos, newVel, newTKE, newEps, \
 					numParticles, dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME

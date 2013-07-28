@@ -323,6 +323,10 @@ void init(const char *arg)
 		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
 	}
 
+	// initialize values of k and e for k-e model
+	if(problem->m_simparams.visctype == KEPSVISC)
+		problem->init_keps(psystem->m_hTKE, psystem->m_hEps, numParticles, psystem->m_hInfo);
+
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
@@ -330,6 +334,9 @@ void init(const char *arg)
 	psystem->setArray(ParticleSystem::GRADGAMMA);
 	psystem->setArray(ParticleSystem::VERTICES);
 	psystem->setArray(ParticleSystem::PRESSURE);
+	psystem->setArray(ParticleSystem::TKE);
+	psystem->setArray(ParticleSystem::EPSILON);
+	psystem->setArray(ParticleSystem::TURBVISC);
 
 	uint numPlanes = problem->fill_planes();
 	if (numPlanes > 0) {
@@ -493,6 +500,10 @@ void get_arrays(bool need_write)
 		psystem->getArray(ParticleSystem::VERTICES, need_write);
 		psystem->getArray(ParticleSystem::GRADGAMMA, need_write);
 		psystem->getArray(ParticleSystem::BOUNDELEMENT, need_write);
+		psystem->getArray(ParticleSystem::TKE, need_write);
+		psystem->getArray(ParticleSystem::EPSILON, need_write);
+		psystem->getArray(ParticleSystem::TURBVISC, need_write);
+		psystem->getArray(ParticleSystem::STRAINRATE, need_write); //FIXME: delete it later, used for debug only
 	}
 }
 

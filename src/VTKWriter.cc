@@ -93,7 +93,7 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 
 void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
-				const float4 *normals, const float4 *gradGamma)
+				const float4 *normals, const float4 *gradGamma, const float *tke, const float *turbvisc)
 {
 	string filename, full_filename;
 
@@ -132,9 +132,21 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	scalar_array(fid, "Float32", "Mass", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
-	// mass
+	// gamma
 	if (gradGamma) {
 		scalar_array(fid, "Float32", "Gamma", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// turbulent kinetic energy
+	if (tke) {
+		scalar_array(fid, "Float32", "TKE", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// eddy viscosity
+	if (turbvisc) {
+		scalar_array(fid, "Float32", "Eddy viscosity", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -142,12 +154,12 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	if (info) {
 		scalar_array(fid, "Int16", "Part type", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Part flag", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Fluid number", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Part object", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Part flag", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Fluid number", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Part object", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
 		scalar_array(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
@@ -241,6 +253,24 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 	}
 
+	// turbulent kinetic energy
+	if (tke) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = tke[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// eddy viscosity
+	if (turbvisc) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = turbvisc[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
 	// particle info
 	if (info) {
 		numbytes=sizeof(ushort)*numParts;
@@ -252,26 +282,26 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
-		// flag
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = PART_FLAG(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// flag
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (int i=0; i < numParts; i++) {
+//			ushort value = PART_FLAG(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
-		// fluid number
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = PART_FLUID_NUM(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// fluid number
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (int i=0; i < numParts; i++) {
+//			ushort value = PART_FLUID_NUM(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
-		// object
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = object(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// object
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (int i=0; i < numParts; i++) {
+//			ushort value = object(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
 		numbytes=sizeof(uint)*numParts;
 

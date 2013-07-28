@@ -206,5 +206,7 @@ class Problem {
 									const double, float3 * &, float3 * &, float * &);
 		int	get_bodies_numparts(void);
 		int	get_body_numparts(const int);
+
+		void init_keps(float*, float*, int, particleinfo*);
 };
 #endif

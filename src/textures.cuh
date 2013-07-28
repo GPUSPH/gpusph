@@ -35,6 +35,10 @@ texture<float4, 1, cudaReadModeElementType> gamTex;		// gradient gamma
 texture<particleinfo, 1, cudaReadModeElementType> infoTex;	// info
 texture<vertexinfo, 1, cudaReadModeElementType> vertTex;	// vertices
 texture<float, 1, cudaReadModeElementType> presTex;		// pressure
+texture<float, 1, cudaReadModeElementType> strainTex;	// strain rate
+texture<float, 1, cudaReadModeElementType> keps_kTex;	// k for k-e model
+texture<float, 1, cudaReadModeElementType> keps_eTex;	// e for k-e model
+texture<float, 1, cudaReadModeElementType> tviscTex;	// eddy viscosity
 
 // SPS matrix
 // TODO these should probably be coalesced in a float4 + float2 texture
