@@ -1118,7 +1118,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
-			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,relPos) + 0.5*(neib_vel*neib_vel-vel*vel));
+			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,relPos)/* + 0.5*(neib_vel*neib_vel-vel*vel)*/);
 			temp3 += w/neib_rho*neib_k;
 			alpha += w/neib_rho;
 		}
@@ -1128,7 +1128,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	{
 		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
 		oldPressure[index] = temp2*oldVel[index].w/alpha;
-		oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
+		//oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
 		oldTKE[index] = temp3/alpha;
 		oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
