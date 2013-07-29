@@ -101,7 +101,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	m_physparams.kinematicvisc = 0.1f;
 	m_physparams.gravity = make_float3(0.8, 0.0, 0.0);		// laminar
-	
+
 	//m_physparams.kinematicvisc = 0.00078125f;
 	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
 

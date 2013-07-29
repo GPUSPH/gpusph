@@ -503,7 +503,7 @@ void get_arrays(bool need_write)
 		psystem->getArray(ParticleSystem::TKE, need_write);
 		psystem->getArray(ParticleSystem::EPSILON, need_write);
 		psystem->getArray(ParticleSystem::TURBVISC, need_write);
-		psystem->getArray(ParticleSystem::STRAINRATE, need_write); //FIXME: delete it later, used for debug only
+		//psystem->getArray(ParticleSystem::STRAINRATE, need_write);
 	}
 }
 

@@ -199,7 +199,7 @@ class ParticleSystem
 		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
 		float*		m_hPressure;			// stores pressure, used only for vertex and boundary particles
 		float*		m_hTKE;					// k - turbulent kinetic energy
-		float*		m_hEps;					// e - turbulent kinetic energy dissipation rate //TODO: delete it later, used for debugging
+		float*		m_hEps;					// e - turbulent kinetic energy dissipation rate
 		float*		m_hTurbVisc;			// nu_t - kinematic eddy viscosity
 		float*		m_hStrainRate;			// S - mean scalar strain rate //TODO: delete it later, used for debugging
 

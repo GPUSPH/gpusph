@@ -1041,8 +1041,7 @@ updateBoundValuesDevice(	float4*		oldVel,
 			oldTKE[index] = (k1 + k2 + k3)/3.f;
 			oldEps[index] = (eps1 + eps2 + eps3)/3.f;
 		}
-		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma
-		//FIXME: keeping initial velocity values, if given
+		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma keeping initial velocity values, if given
 		if (initStep && (FLUID(info) || VERTEX(info))) {
 			oldVel[index].x = 0;
 			oldVel[index].y = 0;

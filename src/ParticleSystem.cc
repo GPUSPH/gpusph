@@ -1530,21 +1530,6 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 				m_simparams->periodicbound);
 
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
-
-		//DEBUG output
-//		getArray(POSITION, false);
-//		getArray(INFO, false);
-//		getArray(GRADGAMMA, false);
-//		std::string fname = m_problem->get_dirname() + "/gradgamma_init.csv";
-//		FILE *fp = fopen(fname.c_str(), "a");
-//		for (uint index = 0; index < m_numParticles; index++)
-//			if(FLUID(m_hInfo[index])) {
-//			float4 pos = m_hPos[index];
-//			float4 gradGam = m_hGradGamma[index];
-//		
-//			fprintf(fp, "%f,%f,%f,%f,%f\n", pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w);
-//			}
-//		fclose(fp);
 	}
 }
 
@@ -2221,9 +2206,9 @@ ParticleSystem::savegradgamma()
 	getArray(GRADGAMMA, false);
 	getArray(INFO, false);
 	std::string fname;
-	//fname = m_problem->get_dirname() + "/gradgamma.csv";
 	std::stringstream niter;
 	niter << m_iter;
+	//fname = m_problem->get_dirname() + "/gradgamma.csv";
 	fname = m_problem->get_dirname() + "/gradgamma" + niter.str() + ".dat";
 	FILE *fp = fopen(fname.c_str(), "w");
 
@@ -2259,9 +2244,9 @@ ParticleSystem::saveVelocity()
 	getArray(VELOCITY, false);
 	getArray(INFO, false);
 	std::string fname;
-	//fname = m_problem->get_dirname() + "/velocity.csv";
 	std::stringstream niter;
 	niter << m_iter;
+	//fname = m_problem->get_dirname() + "/velocity.csv";
 	fname = m_problem->get_dirname() + "/velocity" + niter.str() + ".csv";
 	FILE *fp = fopen(fname.c_str(), "w");
 	for (uint index = 0; index < m_numParticles; index++) {
@@ -2296,9 +2281,9 @@ ParticleSystem::saveForces()
 	getArray(INFO, false);
 	getArray(FORCE, false);
 	std::string fname;
-	//fname = m_problem->get_dirname() + "/forces.csv";
 	std::stringstream niter;
 	niter << m_iter;
+	//fname = m_problem->get_dirname() + "/forces.csv";
 	fname = m_problem->get_dirname() + "/forces" + niter.str() + ".csv";
 	FILE *fp = fopen(fname.c_str(), "w");
 	for (uint index = 0; index < m_numParticles; index++)

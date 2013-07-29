@@ -127,16 +127,6 @@ FORCES_CUDA_KERNEL
 			float diff_term_e = 0;
 			const float dkdt_precalc = vel.w*(d_visccoeff + turbVisc);
 			const float dedt_precalc = vel.w*(d_visccoeff + turbVisc/1.3f);
-			// DEBUG OUTPUT
-//			if(index == 100000) {
-//				printf("Strain = %g\n", Strain);
-//				printf("keps_k = %g\n", keps_k);
-//				printf("keps_e = %g\n", keps_e);
-//				printf("TurbVisc = %g\n", TurbVisc);
-//				printf("Pturb = %g\n", Pturb);
-//				printf("keps_dkde[index].x = %g\n", keps_dkde[index].x);
-//				printf("keps_dkde[index].y = %g\n", keps_dkde[index].y);
-//			}
 			# endif
 
 			// force and density derivative
@@ -153,7 +143,7 @@ FORCES_CUDA_KERNEL
 				/* when using SPH formulation 1
 				   we precompute p/rho^2 for the current particle */
 				case SPH_F1:
-					p_precalc = P(vel.w, PART_FLUID_NUM(info))/(vel.w*vel.w);                      //
+					p_precalc = P(vel.w, PART_FLUID_NUM(info))/(vel.w*vel.w);
 					//in case of k-e model we use p~ = p + 2/3*rho*k
 					# ifdef VISC_KEPS
 					p_precalc += 2*keps_k/vel.w/3.f;
@@ -162,7 +152,7 @@ FORCES_CUDA_KERNEL
 				/* when using SPH formulation 2
 				   we precompute the pressure for the current particle */
 				case SPH_F2:
-					p_precalc = P(vel.w, PART_FLUID_NUM(info));                                    //
+					p_precalc = P(vel.w, PART_FLUID_NUM(info));
 					break;
 			}
 
@@ -350,10 +340,6 @@ FORCES_CUDA_KERNEL
 								bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + neib_vel.w)/r_as*vel_tau;
 								# endif
 
-								//DEBUG output
-//								if (length(bound_term_visc) > length(bound_term_pres))
-//								printf("Utau_x: %g, Utau_y: %g, Utau_z %g\n", bound_term_visc.x, bound_term_visc.y, bound_term_visc.z);
-
 								# ifdef VISC_KEPS
 								//to be divided later by rho_a and gamma_a
 								diff_term_e += pow(0.09f, 0.75f)/0.41f * (dedt_precalc*pow(keps_k,1.5f)/(r_as*r_as) +
@@ -525,7 +511,7 @@ FORCES_CUDA_KERNEL
 						const float abs_gradgam_es = length(gradGamma<kerneltype>(slength, r, belem));
 
 						// velocity of vertex particle along the wall
-						const float3 u_t = make_float3(vel) - dot(make_float3(vel), normal_s)*normal_s; //FIXME: check which velocity should be used here
+						const float3 u_t = make_float3(vel) - dot(make_float3(vel), normal_s)*normal_s;
 						const float abs_u_t = length(u_t);
 						float y_plus = deltap;
 
@@ -564,18 +550,6 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			forces[index] = force;
-////DEBUG OUTPUT
-//			if(index == 8732) {
-//				printf("%d\n", index);
-//				printf("\tgamma = %g\n", gradgamma.w);
-//				printf("\tk = %g\n", keps_k);
-//				printf("\te = %g\n", keps_e);
-//				printf("\ttvisc = %g\n", turbVisc);
-//				printf("\tforce.x = %g\n", force.x);
-//				printf("\tforce.y = %g\n", force.y);
-//				printf("\tforce.z = %g\n", force.z);
-//				printf("\tforce.w = %g\n", force.w);
-//			}
 		}
 
 		else if (OBJECT(info)) {
