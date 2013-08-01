@@ -216,9 +216,7 @@ FORCES_CUDA_KERNEL
 										(tau.a33 + neib_tau.a33)*relPos.z);
 						# endif // VISC_DYNAMIC + elif*
 
-						force.x += visc*relVel.x;
-						force.y += visc*relVel.y;
-						force.z += visc*relVel.z;
+						as_float3(force) += visc*as_float3(relVel);
 
 						# elif defined(VISC_ARTVISC)
 						if (vel_dot_pos < 0.0f)
@@ -246,9 +244,8 @@ FORCES_CUDA_KERNEL
 							break;
 					}
 					// interaction between two particles
-					force.x += DvDt*relPos.x;
-					force.y += DvDt*relPos.y;
-					force.z += DvDt*relPos.z;
+					as_float3(force) += DvDt*as_float3(relPos);
+
 				} // r < influenceradius
 			} // end of loop over neighbors
 
@@ -262,10 +259,8 @@ FORCES_CUDA_KERNEL
 			# error Unknown viscosity!
 			# endif
 
-			// gravity
-			force.x += d_gravity.x;
-			force.y += d_gravity.y;
-			force.z += d_gravity.z;
+			// Adding gravity
+			as_float3(force) += d_gravity;
 
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
@@ -275,7 +270,7 @@ FORCES_CUDA_KERNEL
 			if (usedem) {
 				switch (boundarytype) {
 					case LJ_BOUNDARY:
-						geom_coeff = DemLJForce(demTex, pos, make_float3(vel), dynvisc, force);
+						geom_coeff = DemLJForce(demTex, pos, as_float3(vel), dynvisc, force);
 						break;
 					default:
 						break;
@@ -284,12 +279,12 @@ FORCES_CUDA_KERNEL
 
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numplanes) {
-				geom_coeff = max(geom_coeff, GeometryForce(pos, make_float3(vel), dynvisc, force));
+				geom_coeff = max(geom_coeff, GeometryForce(pos, as_float3(vel), dynvisc, force));
 			}
 			
 			# ifdef DT_KERNEL
 			// storing data for cfl condition in shared memory			
-			sm_max[threadIdx.x] = max(length(make_float3(force.x, force.y, force.z)), sspeed*sspeed/slength);		
+			sm_max[threadIdx.x] = max(length(as_float3(force)), sspeed*sspeed/slength);
 			# endif
 
 			# ifdef XSPH_KERNEL
@@ -343,9 +338,7 @@ FORCES_CUDA_KERNEL
 					if (BOUNDARY(neib_info))
 						DvDt = d_objectboundarydf*LJForce(r);		// TODO: choose a better ceofficient ?*/
 
-					force.x += DvDt*relPos.x;
-					force.y += DvDt*relPos.y;
-					force.z += DvDt*relPos.z;
+					as_float3(force) += DvDt*as_float3(relPos);
 				}
 			}
 
