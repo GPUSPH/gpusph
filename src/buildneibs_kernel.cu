@@ -299,7 +299,7 @@ neibsInCell(
 			const int3		gridOffset,
 			const uchar		cell,
 			const uint		index,
-			const float3	pos,
+			float3			pos,
 			const uint3		gridSize,
 			const float3	cellSize,
 			const uint		numParticles,
@@ -377,6 +377,10 @@ neibsInCell(
 	if (bucketStart == 0xffffffff)
 		return;
 
+	// Substract gridOffset*cellsize to pos so we don't need to do it each time
+	// we compute relPos respect to potential neighbor
+	pos -= gridOffset*cellSize;
+
 	// Get the last particle index of the cell
 	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	// Iterate over all particles in the cell
@@ -389,10 +393,11 @@ neibsInCell(
         	// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
+				// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
 				#if (__COMPUTE__ >= 20)			
-				const float3 relPos = pos - make_float3(posArray[neib_index]) - gridOffset*cellSize;
+				const float3 relPos = pos - make_float3(posArray[neib_index]);
 				#else
-				const float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index)) - gridOffset*cellSize;
+				const float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
 				#endif
 
 				// Check if the squared distance is smaller than the squared influence radius
