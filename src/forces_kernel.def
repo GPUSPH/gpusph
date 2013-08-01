@@ -151,14 +151,14 @@ FORCES_CUDA_KERNEL
 				const uint neib_index = getNeibIndex2(cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
-				// Get neib pos
-				const float4 neib_pos = posArray[neib_index];
-
 				// Compute relative position vector and distance
-				const float3 relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
-				const float r = length(relPos);
+				// Now relPos is a float4 and neib mass is stored in relPos.w
+				const float4 relPos = (as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize) - posArray[neib_index];
+				const float r = length(as_float3(relPos));
 
-				const float4 neib_vel = tex1Dfetch(velTex, neib_index);
+				// Compute relative velocity
+				// Now relVel is a float4 and neib density is stored in relVel.w
+				const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
     	        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);	
 
 				if (r < influenceradius) {
@@ -179,45 +179,40 @@ FORCES_CUDA_KERNEL
 						neib_tau.a33 = temp.y;
 						# endif
 
-						float3 relVel;
-						relVel.x = vel.x - neib_vel.x;
-						relVel.y = vel.y - neib_vel.y;
-						relVel.z = vel.z - neib_vel.z;
-
-						const float vel_dot_pos = dot(relVel, relPos);	// x.u
+						const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
 						const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
 
 						// density derivative
-						float DrDt = neib_pos.w*vel_dot_pos*f;
+						float DrDt = relPos.w*vel_dot_pos*f;
 						/* The second formulation takes into consideration the density ratio */
 						if (sph_formulation == SPH_F2)
-							DrDt *= vel.w/neib_vel.w;
+							DrDt *= vel.w/relVel.w;
 						force.w += DrDt;
 
 						// pressure part of acceleration (to be multiplied by neib_mass*f)
 						switch (sph_formulation) {
 							case SPH_F1:
-								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info))/(neib_vel.w*neib_vel.w)); /*I think these are i not index*/
+								DvDt = -(p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info))/(relVel.w*relVel.w)); /*I think these are i not index*/
 								break;
 							case SPH_F2:
-								DvDt = -(p_precalc + P(neib_vel.w, PART_FLUID_NUM(neib_info)))/(vel.w*neib_vel.w);
+								DvDt = -(p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info)))/(vel.w*relVel.w);
 								break;
 						}
 
 						/* Viscous forces */
 						# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS)
 						# if defined(VISC_DYNAMIC)
-						const float visc = laminarvisc_dynamic(vel.w, neib_vel.w, neib_pos.w, f, d_visccoeff*vel.w,
-										d_visccoeff*neib_vel.w);
+						const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, d_visccoeff*vel.w,
+										d_visccoeff*relVel.w);
 						# elif defined(VISC_KINEMATIC)
-						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
+						const float visc = laminarvisc_kinematic(vel.w, relVel.w, relPos.w, f);
 						# elif defined(VISC_SPS)
-						const float visc = laminarvisc_kinematic(vel.w, neib_vel.w, neib_pos.w, f);
-						force.x += neib_pos.w*f*((tau.a11 + neib_tau.a11)*relPos.x + (tau.a12 + neib_tau.a12)*relPos.y +
+						const float visc = laminarvisc_kinematic(vel.w, relVel.w, relPos.w, f);
+						force.x += relPos.w*f*((tau.a11 + neib_tau.a11)*relPos.x + (tau.a12 + neib_tau.a12)*relPos.y +
 										(tau.a13 + neib_tau.a13)*relPos.z);
-						force.y += neib_pos.w*f*((tau.a12 + neib_tau.a12)*relPos.x + (tau.a22 + neib_tau.a22)*relPos.y +
+						force.y += relPos.w*f*((tau.a12 + neib_tau.a12)*relPos.x + (tau.a22 + neib_tau.a22)*relPos.y +
 										(tau.a23 + neib_tau.a23)*relPos.z);
-						force.z += neib_pos.w*f*((tau.a13 + neib_tau.a13)*relPos.x + (tau.a23 + neib_tau.a23)*relPos.y +
+						force.z += relPos.w*f*((tau.a13 + neib_tau.a13)*relPos.x + (tau.a23 + neib_tau.a23)*relPos.y +
 										(tau.a33 + neib_tau.a33)*relPos.z);
 						# endif // VISC_DYNAMIC + elif*
 
@@ -227,17 +222,17 @@ FORCES_CUDA_KERNEL
 
 						# elif defined(VISC_ARTVISC)
 						if (vel_dot_pos < 0.0f)
-							DvDt += artvisc(vel_dot_pos, vel.w, neib_vel.w, sspeed,
-										soundSpeed(neib_vel.w, PART_FLUID_NUM(neib_info)), r, slength);
+							DvDt += artvisc(vel_dot_pos, vel.w, relVel.w, sspeed,
+										soundSpeed(relVel.w, PART_FLUID_NUM(neib_info)), r, slength);
 						# else
 						# error Unknown viscosity!
 						# endif // VISC_*
 
 						# ifdef XSPH_KERNEL
-						mean_vel -= neib_pos.w*W<kerneltype>(r, slength)*relVel/(vel.w + neib_vel.w);
+						mean_vel -= relPos.w*W<kerneltype>(r, slength)*as_float3(relVel)/(vel.w + relVel.w);
 						# endif
 
-						DvDt *= neib_pos.w*f;
+						DvDt *= relPos.w*f;
 					} else
 					switch (boundarytype) {
 						case LJ_BOUNDARY:
@@ -314,7 +309,7 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			// compute grid index of current particle
-			int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			// persistent variables across getNeibData calls
 			char neib_cellnum = 0;
@@ -326,16 +321,13 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-
 				const uint neib_index = getNeibIndex2(cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
-				// Get neib pos
-				const float4 neib_pos = posArray[neib_index];
-
 				// Compute relative position vector and distance
-				const float3 relPos = as_float3(pos) - as_float3(neib_pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
-				const float r = length(relPos);
+				// Now relPos is a float4 and neib mass is stored in relPos.w
+				const float4 relPos = (as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize) - posArray[neib_index];
+				const float r = length(as_float3(relPos));
 
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
@@ -344,7 +336,7 @@ FORCES_CUDA_KERNEL
 					float DvDt = 0.0;
 
 					if (FLUID(neib_info) && !OBJECT(neib_info))
-						DvDt = neib_pos.w*LJForce(r);
+						DvDt = relPos.w*LJForce(r);
 					// Now object-object and objcet boundary forces are computed with ODE
 					/*if (OBJECT(neib_info) && (object(info) != object(neib_info)))
 						DvDt = d_objectobjectdf*LJForce(r);		// TODO: apply friction between objects
