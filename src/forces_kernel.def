@@ -148,36 +148,9 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-				/*uint neib_index;
-				float4 neib_pos;
-				float3 relPos;
-				float r;
+				const uint neib_index = getNeibIndex2(cellStart, neib_data, gridPos,
+							neib_cellnum, neib_cell_base_index);
 
-				#if( __COMPUTE__ >= 20)
-				getNeibData<periodicbound>(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
-						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-				#else
-				getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
-						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-				#endif*/
-
-				if (neib_data >= CELLNUMENCODED) {
-					// Update current neib cell number
-					neib_cellnum = (neib_data >> 11) - 1;
-					neib_data &= NEIBINDEXMASK;
-					// Compute new neib base cell index
-					//gridPos += d_cell_to_offset[neib_cellnum];
-					neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
-				}
-
-				// Compute neib index
-				const uint neib_index = neib_cell_base_index + neib_data;
-				// DEBUG: safe guard
-				// TODO: to be removed
-				/*if (neib_index >= numParticles) {
-					printf("neib index %d >= num particles %d \n", neib_index, numParticles);
-					neib_index = 0;
-				}*/
 				// Get neib pos
 				const float4 neib_pos = posArray[neib_index];
 
@@ -353,37 +326,10 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-				/*uint neib_index;
-				float4 neib_pos;
-				float3 relPos;
-				float r;
 
-				#if( __COMPUTE__ >= 20)
-				getNeibData<periodicbound>(pos, posArray, cellStart, influenceradius, neib_data, gridPos,
-						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-				#else
-				getNeibData<periodicbound>(pos, cellStart, influenceradius, neib_data, gridPos,
-						neib_index, neib_cellnum, neib_cell_base_index, neib_pos, relPos, r, numParticles);
-				#endif*/
+				const uint neib_index = getNeibIndex2(cellStart, neib_data, gridPos,
+							neib_cellnum, neib_cell_base_index);
 
-				if (neib_data >= CELLNUMENCODED) {
-					// Update current neib cell number
-					neib_cellnum = (neib_data >> 11) -1;
-					neib_data &= NEIBINDEXMASK;
-					// Compute new neib base cell index
-					//gridPos += d_cell_to_offset[neib_cellnum];
-					neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
-				}
-
-
-				// Compute neib index
-				const uint neib_index = neib_cell_base_index + neib_data;
-				// DEBUG: safe guard
-				// TODO: to be removed
-				/*if (neib_index >= numParticles) {
-					printf("neib index %d >= num particles %d \n", neib_index, numParticles);
-					neib_index = 0;
-				}*/
 				// Get neib pos
 				const float4 neib_pos = posArray[neib_index];
 

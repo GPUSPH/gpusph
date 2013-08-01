@@ -505,6 +505,24 @@ getNeibIndex(float4			pos,
 	return neib_cell_base_index + neib_data;
 }
 
+__device__ __forceinline__ uint
+getNeibIndex2(	const uint*		cellStart,
+				neibdata		neib_data,
+				const int3		gridPos,
+				char&			neib_cellnum,
+				uint&			neib_cell_base_index)
+{
+	if (neib_data >= CELLNUMENCODED) {
+		// Update current neib cell number
+		neib_cellnum = (neib_data >> 11) - 1;
+		neib_data &= NEIBINDEXMASK;
+		// Compute new neib base cell index
+		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
+	}
+
+	// Compute neib index
+	return neib_cell_base_index + neib_data;
+}
 
 __device__ __forceinline__ void
 getNeibData(const float4	pos,
