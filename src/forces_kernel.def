@@ -70,10 +70,8 @@ FORCES_CUDA_KERNEL
 	# endif
 )
 {
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;   //particle number
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
-
+	// Global particle index
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	# ifdef DT_KERNEL
 	__shared__ float sm_max[BLOCK_SIZE_FORCES];
 	sm_max[threadIdx.x] = 0.0f;
@@ -143,8 +141,8 @@ FORCES_CUDA_KERNEL
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-				neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
 
@@ -311,8 +309,8 @@ FORCES_CUDA_KERNEL
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-				neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
 

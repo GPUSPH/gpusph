@@ -31,6 +31,8 @@
 #include "textures.cuh"
 #include "forces.cuh"
 
+#include "cuda_call.h"
+
 cudaArray*  dDem = NULL;
 
 /* These defines give a shorthand for the kernel with a given correction,
@@ -155,7 +157,8 @@ cudaArray*  dDem = NULL;
 extern "C"
 {
 void
-setforcesconstants(const SimParams & simparams, const PhysParams & physparams, const uint3 gridSize, const float3 cellSize)
+setforcesconstants(const SimParams & simparams, const PhysParams & physparams,
+					const uint3 gridSize, const float3 cellSize, const uint numParticles)
 {
 	// Setting kernels and kernels derivative factors
 	float h = simparams.slength;
@@ -193,7 +196,6 @@ setforcesconstants(const SimParams & simparams, const PhysParams & physparams, c
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_r0, &physparams.r0, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, &physparams.visccoeff, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsartvisc, &physparams.epsartvisc, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dispvect, &physparams.dispvect, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ewres, &physparams.ewres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_nsres, &physparams.nsres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demdx, &physparams.demdx, sizeof(float)));
@@ -216,8 +218,9 @@ setforcesconstants(const SimParams & simparams, const PhysParams & physparams, c
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_objectobjectdf, &physparams.objectobjectdf, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_objectboundarydf, &physparams.objectboundarydf, sizeof(float)));
 
-	uint maxneibs_time_neibinterleave = simparams.maxneibsnum*NEIBINDEX_INTERLEAVE;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
+	uint maxneibsnum_time_numparticles = simparams.maxneibsnum*numParticles;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_numparticles, &maxneibsnum_time_numparticles, sizeof(uint)));
+	std::cout << "maxnribs x numparts" << maxneibsnum_time_numparticles << "\n\n";
 
 	// Neibs cell to offset table
 	int3 cell_to_offset[27];

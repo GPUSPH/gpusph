@@ -287,12 +287,13 @@ void init(const char *arg)
 
 	psystem = new ParticleSystem(problem);
 
-	psystem->printPhysParams();
-	psystem->printSimParams();
-
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
+
+	psystem->printPhysParams();
+	psystem->printSimParams();
+
 	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hParticleHash);
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);

@@ -114,7 +114,7 @@ class ParticleSystem
 		float	getTimestep(void) { return m_dt; }
 		float	getTime(void) { return m_simTime; }
 
-		uint3 calcGridPos(uint);
+		uint3	calcGridPos(uint);
 
 		// DEBUG
 		void saveneibs();

@@ -36,7 +36,7 @@
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
-__constant__ uint d_maxneibsnum_time_neibindexinterleave;
+__constant__ uint d_maxneibsnum_time_numparticles;
 
 __constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
 __constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
@@ -75,7 +75,6 @@ __constant__ float	d_MK_beta;
 __constant__ float	d_visccoeff;
 __constant__ float	d_epsartvisc;
 
-__constant__ float3	d_dispvect;					// displacment vector for periodic boundaries
 
 // Constants used for DEM
 __constant__ float	d_ewres;
@@ -696,8 +695,6 @@ SPSstressMatrixDevice(	const float4* posArray,
 						const float	influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -738,8 +735,8 @@ SPSstressMatrixDevice(	const float4* posArray,
 	uint neib_cell_base_index = 0;
 
 	// loop over all the neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
@@ -837,8 +834,6 @@ shepardDevice(	const float4*	posArray,
 				const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -868,8 +863,8 @@ shepardDevice(	const float4*	posArray,
 	uint neib_cell_base_index = 0;
 
 	// loop over all the neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
@@ -915,8 +910,6 @@ MlsDevice(	const float4*	posArray,
 			const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -954,8 +947,8 @@ MlsDevice(	const float4*	posArray,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
@@ -1029,8 +1022,8 @@ MlsDevice(	const float4*	posArray,
 		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
 
 		// loop over all the neighbors (Second loop)
-		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-			neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+		for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			neibdata neib_data = neibsList[i + index];
 
 			if (neib_data == 0xffff) break;
 
@@ -1065,8 +1058,8 @@ MlsDevice(	const float4*	posArray,
 		a12 = a11/vel.w;
 
 		// loop over all the neighbors (Second loop)
-		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-			neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+		for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			neibdata neib_data = neibsList[i + index];
 
 			if (neib_data == 0xffff) break;
 
@@ -1177,8 +1170,6 @@ calcVortDevice(	float3*		vorticity,
 				const float	influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -1203,8 +1194,8 @@ calcVortDevice(	float3*		vorticity,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
@@ -1250,8 +1241,6 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 								const float	influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -1274,8 +1263,8 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
@@ -1321,8 +1310,6 @@ calcSurfaceparticleDevice(	float4*			normals,
 							const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 	
 	if (index >= numParticles)
 		return;
@@ -1349,8 +1336,8 @@ calcSurfaceparticleDevice(	float4*			normals,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
@@ -1397,8 +1384,8 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
-	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
-		neibdata neib_data = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
+	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 

@@ -42,34 +42,15 @@
 
 namespace cuneibs {
 __constant__ uint d_maxneibsnum;
-__constant__ uint d_maxneibsnum_time_neibindexinterleave;
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
-__constant__ float3 d_dispvect;
-
-// calculate position in uniform grid
-__device__ __forceinline__ int3
-calcGridPos(float3			pos,
-			const float3	worldOrigin,
-			const float3	cellSize)
-{
-	int3 gridPos;
-	gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
-	gridPos.y = floor((pos.y - worldOrigin.y) / cellSize.y);
-	gridPos.z = floor((pos.z - worldOrigin.z) / cellSize.z);
-
-	return gridPos;
-}
 
 
-// calculate address in grid from position (clamping to edges)
+// Compute address in grid from position (clamping to edges)
 __device__ __forceinline__ uint
-calcGridHash(int3			gridPos,
+calcGridHash(const int3		gridPos,
 			 const uint3	gridSize)
 {
-	gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
-	gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
-	gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
 	return INTMUL(INTMUL(gridPos.z, gridSize.y), gridSize.x) + INTMUL(gridPos.y, gridSize.x) + gridPos.x;
 }
 
@@ -156,16 +137,14 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		const int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
 
 		// Computing grid offset from new pos relative to old hash
-		int3 gridOffset = make_int3(make_float3(pos)/cellSize);
+		int3 gridOffset = make_int3(as_float3(pos)/cellSize);
 
 		// Compute new grid pos relative to cell and new cell hash
 		int3 newGridPos = gridPos + gridOffset;
 		clampGridPos(newGridPos, gridSize);
 		gridOffset = newGridPos - gridPos;
 
-		pos.x -= (float) gridOffset.x*cellSize.x;
-		pos.y -= (float) gridOffset.y*cellSize.y;
-		pos.z -= (float) gridOffset.z*cellSize.z;
+		as_float3(pos) -= gridOffset*cellSize;
 
 		// Compute new hash
 		gridHash = calcGridHash(newGridPos, gridSize);
@@ -305,9 +284,7 @@ neibsInCell(
 			const uint		numParticles,
 			const float		sqinfluenceradius,
 			neibdata*		neibsList,
-			uint&			neibs_num,
-			const uint		lane,
-			const uint		offset)
+			uint&			neibs_num)
 {
 	// Compute the grid position of the current cell
 	gridPos += gridOffset;
@@ -404,7 +381,7 @@ neibsInCell(
 				// used for neighbor list construction
 				if (sqlength(relPos) < sqinfluenceradius) {
 					if (neibs_num < d_maxneibsnum) {
-						neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] =
+						neibsList[neibs_num*numParticles + index] =
 								neib_index - bucketStart + ((encode_cell) ? ((cell + 1) << 11) : 0);
 						encode_cell = false;
 					}
@@ -412,7 +389,7 @@ neibsInCell(
 				}
 
 			}
-		} //If  not Testpoints
+		} // if not Testpoints
 	}
 
 	return;
@@ -454,8 +431,8 @@ buildNeibsListDevice(
 						const float		sqinfluenceradius)		///< squared influence radius (in)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	const uint lane = index/NEIBINDEX_INTERLEAVE;
-	const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
+	//const uint lane = index/NEIBINDEX_INTERLEAVE;
+	//const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 
 	uint neibs_num = 0;		// Number of neighbors for the current particle
 
@@ -488,7 +465,7 @@ buildNeibsListDevice(
 							posArray, 
 							#endif
 							gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos, gridSize, cellSize,
-							numParticles, sqinfluenceradius, neibsList, neibs_num, lane, offset);
+							numParticles, sqinfluenceradius, neibsList, neibs_num);
 					}
 				}
 			}
@@ -496,7 +473,7 @@ buildNeibsListDevice(
 		
 		// Setting the end marker
 		if (neibs_num < d_maxneibsnum) {
-			neibsList[d_maxneibsnum_time_neibindexinterleave*lane + neibs_num*NEIBINDEX_INTERLEAVE + offset] = 0xffff;
+			neibsList[neibs_num*numParticles + index] = 0xffff;
 		}
 	}
 	

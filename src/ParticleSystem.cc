@@ -137,7 +137,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	checkCUDA(problem->get_options());
 	printf("\nCuda initialized\n");
 
-	setPhysParams();
+	//setPhysParams();
 
 	switch(m_writerType) {
 		case Problem::TEXTWRITER:
@@ -163,20 +163,17 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 			break;
 	}
 
-	writeSummary();
 }
 
 
 void
 ParticleSystem::allocate(uint numParticles)
 {
-	if (m_simparams.maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
-		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
-				m_simparams.maxneibsnum, NEIBINDEX_INTERLEAVE);
-		exit(1);
-	}
 	m_numParticles = numParticles;
 	m_timingInfo.numParticles = numParticles;
+
+	setPhysParams();
+	writeSummary();
 
 	// allocate host storage
 	const uint memSize = sizeof(float)*m_numParticles;
@@ -186,7 +183,7 @@ ParticleSystem::allocate(uint numParticles)
 	const uint infoSize = sizeof(particleinfo)*m_numParticles;
 	const uint hashSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(neibdata)*m_simparams.maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	const uint neibslistSize = sizeof(neibdata)*m_simparams.maxneibsnum*m_numParticles;
 
 	uint memory = 0;
 
@@ -427,79 +424,9 @@ ParticleSystem::setPhysParams(void)
 			break;
 	}
 
-	setforcesconstants(m_simparams, m_physparams, m_gridSize, m_cellSize);
+	setforcesconstants(m_simparams, m_physparams, m_gridSize, m_cellSize, m_numParticles);
 	seteulerconstants(m_physparams);
 	setneibsconstants(m_simparams, m_physparams);
-
-
-	// Setting kernels and kernels derivative factors
-	/*float h = m_simparams.slength;
-	float h3 = h*h*h;
-	float h4 = h3*h;
-	float h5 = h4*h;
-	float kernelcoeff = 1.0f/(M_PI*h3);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wcoeff_cubicspline, &kernelcoeff, sizeof(float)));
-	kernelcoeff = 15.0f/(16.0f*M_PI*h3);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_wcoeff_quadratic", &kernelcoeff, sizeof(float)));
-	kernelcoeff = 21.0f/(16.0f*M_PI*h3);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_wcoeff_wendland", &kernelcoeff, sizeof(float)));
-
-	kernelcoeff = 3.0f/(4.0f*M_PI*h4);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_fcoeff_cubicspline", &kernelcoeff, sizeof(float)));
-	kernelcoeff = 15.0f/(32.0f*M_PI*h4);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_fcoeff_quadratic", &kernelcoeff, sizeof(float)));
-	kernelcoeff = 105.0f/(128.0f*M_PI*h5);
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_fcoeff_wendland", &kernelcoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_numfluids", &m_physparams.numFluids, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rho0", &m_physparams.rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_bcoeff", &m_physparams.bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gammacoeff", &m_physparams.gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_sscoeff", &m_physparams.sscoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_sspowercoeff", &m_physparams.sspowercoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_gravity", &m_physparams.gravity, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_dcoeff", &m_physparams.dcoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_p1coeff", &m_physparams.p1coeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_p2coeff", &m_physparams.p2coeff, sizeof(float)));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_K", &m_physparams.MK_K, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_d", &m_physparams.MK_d, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_MK_beta", &m_physparams.MK_beta, sizeof(float)));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_r0", &m_physparams.r0, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_visccoeff", &m_physparams.visccoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_epsartvisc", &m_physparams.epsartvisc, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_epsxsph", &m_physparams.epsxsph, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_dispvect", &m_physparams.dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_dispvect", &m_physparams.dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_dispvect", &m_physparams.dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_minlimit", &m_physparams.minlimit, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cueuler::d_maxlimit", &m_physparams.maxlimit, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_ewres", &m_physparams.ewres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_nsres", &m_physparams.nsres, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdx", &m_physparams.demdx, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdy", &m_physparams.demdy, sizeof(float)));
-	float demdxdy = m_physparams.demdx*m_physparams.demdy;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demdxdy", &demdxdy, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_demzmin", &m_physparams.demzmin, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_smagfactor", &m_physparams.smagfactor, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_kspsfactor", &m_physparams.kspsfactor, sizeof(float)));
-
-	float partsurf = m_physparams.partsurf;
-	if (partsurf == 0.0f)
-		partsurf = m_physparams.r0*m_physparams.r0;
-		// partsurf = (6.0 - M_PI)*m_physparams.r0*m_physparams.r0/4;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_partsurf", &partsurf, sizeof(float)));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglefluid", &m_physparams.cosconeanglefluid, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_cosconeanglenonfluid", &m_physparams.cosconeanglenonfluid, sizeof(float)));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectobjectdf", &m_physparams.objectobjectdf, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_objectboundarydf", &m_physparams.objectboundarydf, sizeof(float)));
-
-	uint maxneibs_time_neibinterleave = m_simparams.maxneibsnum*NEIBINDEX_INTERLEAVE;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_maxneibsnum_time_neibindexinterleave", &maxneibs_time_neibinterleave, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum", &m_simparams.maxneibsnum, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuneibs::d_maxneibsnum_time_neibindexinterleave", &maxneibs_time_neibinterleave, sizeof(uint)));*/
 }
 
 
@@ -509,38 +436,6 @@ ParticleSystem::getPhysParams(void)
 	getforcesconstants(m_physparams);
 	geteulerconstants(m_physparams);
 	getneibsconstants(m_simparams, m_physparams);
-	/*
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.numFluids, "cuforces::d_numfluids", sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.rho0, "cuforces::d_rho0", MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.gravity, "cuforces::d_gravity", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.bcoeff, "cuforces::d_bcoeff", MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.gammacoeff, "cuforces::d_gammacoeff", MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.sscoeff, "cuforces::d_sscoeff",MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.sspowercoeff, "cuforces::d_sspowercoeff",MAX_FLUID_TYPES*sizeof(float), 0));
-
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.dcoeff, "cuforces::d_dcoeff", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.p1coeff, "cuforces::d_p1coeff", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.p2coeff, "cuforces::d_p2coeff", sizeof(float), 0));
-
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.MK_K, "cuforces::d_MK_K", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.MK_d, "cuforces::d_MK_d", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.MK_beta, "cuforces::d_MK_beta", sizeof(float), 0));
-
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.r0, "cuforces::d_r0", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.visccoeff, "cuforces::d_visccoeff", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.epsartvisc, "cuforces::d_epsartvisc", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.epsxsph, "cueuler::d_epsxsph", sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.dispvect, "cuneibs::d_dispvect", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.maxlimit, "cueuler::d_maxlimit", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.minlimit, "cueuler::d_minlimit", sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.ewres, "cuforces::d_ewres", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.nsres, "cuforces::d_nsres", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.demdx, "cuforces::d_demdx", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.demdy, "cuforces::d_demdy", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.demzmin, "cuforces::d_demzmin", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.smagfactor, "cuforces::d_smagfactor", sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&m_physparams.kspsfactor, "cuforces::d_kspsfactor", sizeof(float)));
-	*/
 }
 
 
@@ -637,6 +532,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "kernelradius = %g\n", m_simparams.kernelradius);
 	fprintf(summary, "initial dt = %g\n", m_simparams.dt);
 	fprintf(summary, "simulation end time = %g\n", m_simparams.tend);
+	fprintf(summary, "maximum number of neighbors per particle = %d\n", m_simparams.maxneibsnum);
 	fprintf(summary, "neib list construction every %d iteration\n", m_simparams.buildneibsfreq);
 	fprintf(summary, "Shepard filter every %d iteration\n", m_simparams.shepardfreq);
 	fprintf(summary, "MLS filter every %d iteration\n", m_simparams.mlsfreq);
@@ -1128,7 +1024,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		getneibsinfo(m_timingInfo);
 
 		if (m_timingInfo.maxNeibs > m_simparams.maxneibsnum) {
-			printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
+			printf("WARNING: current max. neighbors numbers %d greater than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams.maxneibsnum);
 			fflush(stdout);
 			}
 
@@ -1449,6 +1345,7 @@ ParticleSystem::saveneibs()
 }
 
 
+//TODO: fix for new neib data
 void
 ParticleSystem::savehash()
 {
