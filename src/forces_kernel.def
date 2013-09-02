@@ -86,9 +86,9 @@ FORCES_CUDA_KERNEL
 
 			// Read other particle datas from textures or global mem
 			#if( __COMPUTE__ >= 20)
-			float4 pos = posArray[index];
+			const float4 pos = posArray[index];
 			#else
-			float4 pos = tex1Dfetch(posTex, index);
+			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
 			const float4 vel = tex1Dfetch(velTex, index);
 
@@ -137,7 +137,7 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			// persistent variables across getNeibData calls
-			char neib_cellnum = -1;
+			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
@@ -146,15 +146,16 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-				const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
-											neib_cellnum, neib_cell_base_index);
+				float3 pos_corr;
+				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+													neib_cellnum, neib_cell_base_index);
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				#if( __COMPUTE__ >= 20)
-				const float4 relPos = as_float3(pos) - posArray[neib_index];
+				const float4 relPos = pos_corr - posArray[neib_index];
 				#else
-				const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
 				const float r = length(as_float3(relPos));
 
@@ -300,16 +301,16 @@ FORCES_CUDA_KERNEL
 
 			// read other particle data from textures or global mem
 			#if( __COMPUTE__ >= 20)
-			float4 pos = posArray[index];
+			const float4 pos = posArray[index];
 			#else
-			float4 pos = tex1Dfetch(posTex, index);
+			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
 
 			// compute grid index of current particle
 			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			// persistent variables across getNeibData calls
-			char neib_cellnum = -1;
+			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
@@ -318,31 +319,27 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-				const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+				float3 pos_corr;
+				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				#if( __COMPUTE__ >= 20)
-				const float4 relPos = as_float3(pos) - posArray[neib_index];
+				const float4 relPos = pos_corr - posArray[neib_index];
 				#else
-				const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-				// TODO: improve multi objects
 				if (r < influenceradius) {
 					float DvDt = 0.0;
 
+					// Now object-object and object boundary forces are computed with ODE
 					if (FLUID(neib_info) && !OBJECT(neib_info))
 						DvDt = relPos.w*LJForce(r);
-					// Now object-object and objcet boundary forces are computed with ODE
-					/*if (OBJECT(neib_info) && (object(info) != object(neib_info)))
-						DvDt = d_objectobjectdf*LJForce(r);		// TODO: apply friction between objects
-					if (BOUNDARY(neib_info))
-						DvDt = d_objectboundarydf*LJForce(r);		// TODO: choose a better ceofficient ?*/
 
 					as_float3(force) += DvDt*as_float3(relPos);
 				}

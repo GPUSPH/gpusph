@@ -410,11 +410,12 @@ calcGridHash(const int3 gridPos)
 
 /// Return neighbor index and add cell offset vector to current position
 /*! For given neighbor data this function compute the neighbor index
- *  and add, if necessary, the neighbor cell offset vector to the
+ *  and subtract, if necessary, the neighbor cell offset vector to the
  *  current particle position. This last operation is done only
- *  when the neighbor cell change.
+ *  when the neighbor cell change and result is stored in pos_corr.
  *
- *	\param[in,out] pos : current particle's positions
+ *	\param[in] pos : current particle's positions
+ *	\param[out] pos_corr : pos - current neighbor cell offset
  *	\param[in] cellStart : cells first particle index
  *	\param[in] neibdata : neighbor data
  *	\param[in,out] neib_cellnum : current neighbor cell number (0...27)
@@ -426,7 +427,8 @@ calcGridHash(const int3 gridPos)
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(float4&		pos,
+getNeibIndex(const float4	pos,
+			float3& 		pos_corr,
 			const uint*		cellStart,
 			neibdata		neib_data,
 			const int3		gridPos,
@@ -434,10 +436,6 @@ getNeibIndex(float4&		pos,
 			uint&			neib_cell_base_index)
 {
 	if (neib_data >= CELLNUMENCODED) {
-		// Add previous cell offset vector to pos
-		if (neib_cellnum >= 0)
-			as_float3(pos) += d_cell_to_offset[neib_cellnum]*d_cellSize;
-
 		// Update current neib cell number
 		neib_cellnum = (neib_data >> 11) - 1;
 
@@ -445,7 +443,7 @@ getNeibIndex(float4&		pos,
 		neib_data &= NEIBINDEXMASK;
 
 		// Substract current cell offset vector to pos
-		as_float3(pos) -= d_cell_to_offset[neib_cellnum]*d_cellSize;
+		pos_corr = as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
 
 		// Compute index of the first particle in the current cell
 		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
@@ -599,9 +597,9 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	// read particle data from sorted arrays
 	#if( __COMPUTE__ >= 20)
-	float4 pos = posArray[index];
+	const float4 pos = posArray[index];
 	#else
-	float4 pos = tex1Dfetch(posTex, index);
+	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 	const float4 vel = tex1Dfetch(velTex, index);
 
@@ -632,15 +630,16 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		#if( __COMPUTE__ >= 20)
-		const float4 relPos = as_float3(pos) - posArray[neib_index];
+		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 		const float r = length(as_float3(relPos));
 
@@ -733,9 +732,9 @@ shepardDevice(	const float4*	posArray,
 		return;
 
 	#if( __COMPUTE__ >= 20)
-	float4 pos = posArray[index];
+	const float4 pos = posArray[index];
 	#else
-	float4 pos = tex1Dfetch(posTex, index);
+	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 
@@ -747,7 +746,7 @@ shepardDevice(	const float4*	posArray,
 	int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
+	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 
 	// loop over all the neighbors
@@ -756,15 +755,16 @@ shepardDevice(	const float4*	posArray,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		#if( __COMPUTE__ >= 20)
-		const float4 relPos = as_float3(pos) - posArray[neib_index];
+		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 		const float r = length(as_float3(relPos));
 
@@ -808,9 +808,9 @@ MlsDevice(	const float4*	posArray,
 		return;
 
 	#if( __COMPUTE__ >= 20)
-	float4 pos = posArray[index];
+	const float4 pos = posArray[index];
 	#else
-	float4 pos = tex1Dfetch(posTex, index);
+	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 
@@ -830,7 +830,7 @@ MlsDevice(	const float4*	posArray,
 	int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
+	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
@@ -839,15 +839,16 @@ MlsDevice(	const float4*	posArray,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		#if( __COMPUTE__ >= 20)
-		const float4 relPos = as_float3(pos) - posArray[neib_index];
+		const float4 relPos = pos_corr - posArray[neib_index];
 		#else
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 		const float r = length(as_float3(relPos));
 
@@ -873,8 +874,9 @@ MlsDevice(	const float4*	posArray,
 
 	// Resetting grid position of current particle
 	gridPos = calcGridPosFromHash(particleHash[index]);
+
 	// Resetting persistent variables across getNeibData
-	neib_cellnum = -1;
+	neib_cellnum = 0;
 	neib_cell_base_index = 0;
 
 	// safe inverse of MLS matrix
@@ -913,15 +915,16 @@ MlsDevice(	const float4*	posArray,
 
 			if (neib_data == 0xffff) break;
 
-			const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+			float3 pos_corr;
+			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
 
 			// Compute relative position vector and distance
 			// Now relPos is a float4 and neib mass is stored in relPos.w
 			#if( __COMPUTE__ >= 20)
-			const float4 relPos = as_float3(pos) - posArray[neib_index];
+			const float4 relPos = pos_corr - posArray[neib_index];
 			#else
-			const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 			const float r = length(as_float3(relPos));
 
@@ -948,15 +951,16 @@ MlsDevice(	const float4*	posArray,
 
 			if (neib_data == 0xffff) break;
 
-			const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+			float3 pos_corr;
+			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
 
 			// Compute relative position vector and distance
 			// Now relPos is a float4 and neib mass is stored in relPos.w
 			#if( __COMPUTE__ >= 20)
-			const float4 relPos = as_float3(pos) - posArray[neib_index];
+			const float4 relPos = pos_corr - posArray[neib_index];
 			#else
-			const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 			const float r = length(as_float3(relPos));
 
@@ -1064,7 +1068,7 @@ calcVortDevice(	float3*		vorticity,
 	if (NOT_FLUID(info))
 		return;
 
-	float4 pos = tex1Dfetch(posTex, index);
+	const float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// MLS matrix elements
@@ -1074,7 +1078,7 @@ calcVortDevice(	float3*		vorticity,
 	int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
+	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
@@ -1083,12 +1087,13 @@ calcVortDevice(	float3*		vorticity,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		const float r = length(as_float3(relPos));
 
 		// Compute relative velocity
@@ -1132,7 +1137,7 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 	if(type(info) != TESTPOINTSPART)
 		return;
 	
-	float4 pos = tex1Dfetch(posTex, index);
+	const float4 pos = tex1Dfetch(posTex, index);
 	float4 vel = tex1Dfetch(velTex, index);
 	
 	float4 temp = make_float4(0.0f);
@@ -1141,7 +1146,7 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 	int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
+	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
@@ -1150,12 +1155,13 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		const float r = length(as_float3(relPos));
 
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
@@ -1204,7 +1210,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 		return;
 	}
 
-	float4 pos = tex1Dfetch(posTex, index);
+	const float4 pos = tex1Dfetch(posTex, index);
 	float4 normal = make_float4(0.0f);
 	
 	// Compute grid position of current particle
@@ -1214,7 +1220,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
+	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
@@ -1223,12 +1229,13 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		const float r = length(as_float3(relPos));
 
 		const float neib_density = tex1Dfetch(velTex, neib_index).w;
@@ -1261,7 +1268,7 @@ calcSurfaceparticleDevice(	float4*			normals,
 	gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Resetting persistent variables across getNeibData
-	neib_cellnum = -1;
+	neib_cellnum = 0;
 	neib_cell_base_index = 0;
 
 	// loop over all the neighbors (Second loop)
@@ -1271,12 +1278,13 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+		float3 pos_corr;
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		const float r = length(as_float3(relPos));
 
 		float cosconeangle;
