@@ -113,7 +113,7 @@ __constant__ uint3	d_gridSize;
 __constant__ float3 d_cellSize;
 
 // Neibdata cell number to offset
-__constant__ int3 d_cell_to_offset[27];
+__constant__ char3 d_cell_to_offset[27];
 
 typedef struct sym33mat {
 	float a11;

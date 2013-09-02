@@ -855,6 +855,14 @@ static __inline__ __host__ __device__ float4 fabs(const float4 &v)
 	return make_float4(fabs(v.x), fabs(v.y), fabs(v.z), fabs(v.w));
 }
 
+// char3 functions
+////////////////////////////////////////////////////////////////////////////////
+// multiply
+static __inline__ __host__ __device__ float3 operator*(const char3 &a, const float3 &b)
+{
+	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+
 // int3 functions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -894,6 +902,11 @@ static __inline__ __host__ __device__ int3 max(const int3 &a, const int3 &b)
 
 // addition
 static __inline__ __host__ __device__ int3 operator+(const int3 &a, const int3 &b)
+{
+	return make_int3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+
+static __inline__ __host__ __device__ int3 operator+(const int3 &a, const char3 &b)
 {
 	return make_int3(a.x + b.x, a.y + b.y, a.z + b.z);
 }

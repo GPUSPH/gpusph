@@ -222,16 +222,16 @@ setforcesconstants(const SimParams & simparams, const PhysParams & physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_numparticles, &maxneibsnum_time_numparticles, sizeof(uint)));
 
 	// Neibs cell to offset table
-	int3 cell_to_offset[27];
-	for(int z=-1; z<=1; z++) {
-		for(int y=-1; y<=1; y++) {
-			for(int x=-1; x<=1; x++) {
+	char3 cell_to_offset[27];
+	for(char z=-1; z<=1; z++) {
+		for(char y=-1; y<=1; y++) {
+			for(char x=-1; x<=1; x++) {
 				int i = (x + 1) + (y + 1)*3 + (z + 1)*9;
-				cell_to_offset[i] =  make_int3(x, y, z);
+				cell_to_offset[i] =  make_char3(x, y, z);
 			}
 		}
 	}
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(int3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
 
