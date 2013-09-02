@@ -220,7 +220,6 @@ setforcesconstants(const SimParams & simparams, const PhysParams & physparams,
 
 	uint maxneibsnum_time_numparticles = simparams.maxneibsnum*numParticles;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_numparticles, &maxneibsnum_time_numparticles, sizeof(uint)));
-	std::cout << "maxnribs x numparts" << maxneibsnum_time_numparticles << "\n\n";
 
 	// Neibs cell to offset table
 	int3 cell_to_offset[27];

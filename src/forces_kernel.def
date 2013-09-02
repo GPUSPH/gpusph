@@ -86,9 +86,9 @@ FORCES_CUDA_KERNEL
 
 			// Read other particle datas from textures or global mem
 			#if( __COMPUTE__ >= 20)
-			const float4 pos = posArray[index];
+			float4 pos = posArray[index];
 			#else
-			const float4 pos = tex1Dfetch(posTex, index);
+			float4 pos = tex1Dfetch(posTex, index);
 			#endif
 			const float4 vel = tex1Dfetch(velTex, index);
 
@@ -137,7 +137,7 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			// persistent variables across getNeibData calls
-			char neib_cellnum = 0;
+			char neib_cellnum = -1;
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
@@ -146,12 +146,16 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-				const uint neib_index = getNeibIndex2(cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
+				const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
+											neib_cellnum, neib_cell_base_index);
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
-				const float4 relPos = (as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize) - posArray[neib_index];
+				#if( __COMPUTE__ >= 20)
+				const float4 relPos = as_float3(pos) - posArray[neib_index];
+				#else
+				const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+				#endif
 				const float r = length(as_float3(relPos));
 
 				// Compute relative velocity
@@ -296,16 +300,16 @@ FORCES_CUDA_KERNEL
 
 			// read other particle data from textures or global mem
 			#if( __COMPUTE__ >= 20)
-			const float4 pos = posArray[index];
+			float4 pos = posArray[index];
 			#else
-			const float4 pos = tex1Dfetch(posTex, index);
+			float4 pos = tex1Dfetch(posTex, index);
 			#endif
 
 			// compute grid index of current particle
 			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 			// persistent variables across getNeibData calls
-			char neib_cellnum = 0;
+			char neib_cellnum = -1;
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
@@ -314,12 +318,16 @@ FORCES_CUDA_KERNEL
 
 				if (neib_data == 0xffff) break;
 
-				const uint neib_index = getNeibIndex2(cellStart, neib_data, gridPos,
+				const uint neib_index = getNeibIndex(pos, cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
-				const float4 relPos = (as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize) - posArray[neib_index];
+				#if( __COMPUTE__ >= 20)
+				const float4 relPos = as_float3(pos) - posArray[neib_index];
+				#else
+				const float4 relPos = as_float3(pos) - tex1Dfetch(posTex, neib_index);
+				#endif
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
