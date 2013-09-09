@@ -388,8 +388,10 @@ calcGridPosFromHash(const uint gridHash)
 
 
 /// Compute hash value from grid position
-/*! Compute the hash value corresponding to the given position. The position
- * 	should be in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+/*! Compute the hash value corresponding to the given position. If the position
+ * 	is not in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1]
+ * 	we have periodic boundary and the grid position is updated according to the
+ * 	chosen periodicity.
  *
  *	\param[in] gridPos : grid position
  *
@@ -398,9 +400,12 @@ calcGridPosFromHash(const uint gridHash)
  *	Note : no test is done by this function to ensure that grid position is within the
  *	range and no clamping is done
  */
+//TODO: implement other periodicity than XPERIODIC and templatize
 __device__ __forceinline__ uint
-calcGridHash(const int3 gridPos)
+calcGridHash(int3 gridPos)
 {
+	if (gridPos.x < 0) gridPos.x = d_gridSize.x - 1;
+	if (gridPos.x >= d_gridSize.x) gridPos.x = 0;
 	return INTMUL(INTMUL(gridPos.z, d_gridSize.y), d_gridSize.x) + INTMUL(gridPos.y, d_gridSize.x) + gridPos.x;
 }
 

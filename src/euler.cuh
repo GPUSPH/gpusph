@@ -63,7 +63,6 @@ euler(	float4*		oldPos,
 		float		dt2,
 		int			step,
 		float		t,
-		bool		xsphcorr,
-		bool		periodicbound);
+		bool		xsphcorr);
 }
 #endif

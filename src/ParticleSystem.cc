@@ -507,10 +507,8 @@ ParticleSystem::printPhysParams(FILE *summary)
 	fprintf(summary, "espartvisc = %g\n", m_physparams.epsartvisc);
 	fprintf(summary, "epsxsph = %g\n", m_physparams.epsxsph);
 	if (m_simparams.periodicbound) {
-		fprintf(summary, "Periodic boundary parameters (disp vect, min and max limit) used when x,y or z periodic boundary is set\n");
-		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams.dispvect.x, m_physparams.dispvect.y, m_physparams.dispvect.z);
-		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams.minlimit.x, m_physparams.minlimit.y, m_physparams.minlimit.z);
-		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams.maxlimit.x, m_physparams.maxlimit.y, m_physparams.maxlimit.z);
+		fprintf(summary, "Periodic boundary parameters in x %d, y %d, z %d\n", m_simparams.periodicbound & XPERIODIC,
+				m_simparams.periodicbound & YPERIODIC, m_simparams.periodicbound & ZPERIODIC);
 		}
 	if (m_simparams.usedem) {
 		fprintf(summary, "DEM resolution ew = %g, ns = %g\n", m_physparams.ewres, m_physparams.nsres);
@@ -980,7 +978,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				 gridSize,
 				 cellSize,
 				 worldOrigin,
-				 m_numParticles);
+				 m_numParticles,
+				 m_simparams.periodicbound);
 
 		// hash based particle sort
 		sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
@@ -1163,8 +1162,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dt/2.0,
 			1,
 			m_simTime + m_dt/2.0,
-			m_simparams.xsph,
-			m_simparams.periodicbound);
+			m_simparams.xsph);
 	// At tis point:
 	//  m_dPos[m_currentPosRead] = pos(n)
 	//  m_dVel[m_currentVelRead] =  vel(n)
@@ -1245,8 +1243,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dt/2.0,
 			2,
 			m_simTime + m_dt,
-			m_simparams.xsph,
-			m_simparams.periodicbound);
+			m_simparams.xsph);
 	// At this point:
 	//  m_dPos[m_currentPosRead] = pos(n)
 	//  m_dVel[m_currentVelRead] =  vel(n)

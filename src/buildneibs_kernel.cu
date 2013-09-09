@@ -80,20 +80,70 @@ calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
 }
 
 
-/// Clamp grid position to edges
-/*! Clamp grid position to [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+/// Clamp grid position to edges according to periodicity
+/*! This function clamp grid position to edges according to the chosen periodicity,
+ * returns the new grid position and update the grid offset.
  *
- *	\param[in,out] gridPos : gridPos to be clamped
+ *	\param[in] gridPos : grid position to be clamped
+ *	\param[in] gridOffset : grid offset
  *	\param[in] gridSize : grid size
+ *
+ * 	\pparam periodicbound : use periodic boundaries (0 ... 7)
+ *
+ * 	\return : new grid position
  */
-__device__ __forceinline__ void
-clampGridPos(int3& gridPos, const uint3 gridSize)
+//TODO: implement other periodicity than XPERIODIC
+template <int periodicbound>
+__device__ __forceinline__ int3
+clampGridPos(const int3& gridPos, int3& gridOffset, const uint3& gridSize)
 {
-	gridPos.x = max(0, min(gridPos.x, gridSize.x-1));
-	gridPos.y = max(0, min(gridPos.y, gridSize.y-1));
-	gridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+	int3 newGridPos = gridPos + gridOffset;
+	// For the axis involved in periodicity the new grid position reflects
+	// the periodicity and should not be clamped and the grid offset remains
+	// unchanged
+	if (periodicbound & XPERIODIC) {
+		if (newGridPos.x < 0) newGridPos.x += gridSize.x;
+		if (newGridPos.x >= gridSize.x) newGridPos.x -= gridSize.x;
+	}
+	if (!(periodicbound & XPERIODIC))
+		newGridPos.x = max(0, min(gridPos.x, gridSize.x-1));
+
+	// For the axis not involved in periodicity the new grid position
+	// is equal the clamped old one and the grid offset is updated.
+	newGridPos.y = max(0, min(gridPos.y, gridSize.y-1));
+	gridOffset.y = newGridPos.y - gridPos.y;
+	newGridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+	gridOffset.z = newGridPos.z - gridPos.z;
+
+	return newGridPos;
 }
 
+/// Clamp grid position to edges without
+/*! This function clamp grid position to edges according and
+ * returns the new grid position and an updated grid offset.
+ *
+ *	\param[in] gridPos : grid position to be clamped
+ *	\param[in/out] gridOffset : grid offset
+ *	\param[in] gridSize : grid size
+ *
+ * 	\return : new grid position
+ */
+template <>
+__device__ __forceinline__ int3
+clampGridPos<0>(const int3& gridPos, int3& gridOffset, const uint3& gridSize)
+{
+	int3 newGridPos = gridPos + gridOffset;
+
+	// Without periodicity the new grid position is the clamped old one
+	newGridPos.x = max(0, min(gridPos.x, gridSize.x-1));
+	newGridPos.y = max(0, min(gridPos.y, gridSize.y-1));
+	newGridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+
+	// In case of change in grid position the grid offset is updated
+	gridOffset = newGridPos - gridPos;
+
+	return newGridPos;
+}
 
 /// Updates particles hash value of particles and prepare the index table
 /*! This kernel should be called before the sort. It
@@ -108,16 +158,20 @@ clampGridPos(int3& gridPos, const uint3 gridSize)
  *	\param[in] gridSize : grid size
  *	\param[in] cellSize : cell size
  *	\param[in] numParticles : total number of particles
+ *
+ *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  */
+//TODO: implement other periodicity than XPERIODIC
+template <int periodicbound>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 			   uint*			particleHash,	///< particle's hashes (in, out)
 			   uint*			particleIndex,	///< particle's indexes (out)
-			   particleinfo*	particelInfo,	///< particle's informations (in)
-			   const uint3		gridSize,		///< grid size (in)
-			   const float3		cellSize,		///< cell size (in)
-			   const uint		numParticles)	///< total number of particles (in)
+			   const particleinfo*	particelInfo,	///< particle's informations (in)
+			   const uint3		gridSize,		///< grid size
+			   const float3		cellSize,		///< cell size
+			   const uint		numParticles)	///< total number of particles
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -139,15 +193,11 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		// Computing grid offset from new pos relative to old hash
 		int3 gridOffset = make_int3(as_float3(pos)/cellSize);
 
-		// Compute new grid pos relative to cell and new cell hash
-		int3 newGridPos = gridPos + gridOffset;
-		clampGridPos(newGridPos, gridSize);
-		gridOffset = newGridPos - gridPos;
+		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
+		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, gridSize), gridSize);
 
+		// Adjust position
 		as_float3(pos) -= gridOffset*cellSize;
-
-		// Compute new hash
-		gridHash = calcGridHash(newGridPos, gridSize);
 
 		// Store grid hash, particle index and position relative to cell
 		particleHash[index] = gridHash;
@@ -187,9 +237,9 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float4*			sortedPos,		///< new sorted particle's positions (out)
 										float4*			sortedVel,		///< new sorted particle's velocities (out)
 										particleinfo*	sortedInfo,		///< new sorted particle's informations (out)
-										uint*			particleHash,	///< previously sorted particle's hashes (in)
-										uint*			particleIndex,	///< previously sorted particle's hashes (in)
-										uint			numParticles)
+										const uint*		particleHash,	///< previously sorted particle's hashes (in)
+										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
+										const uint		numParticles)	///< total number of particles
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -260,10 +310,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
  *	\param[in] sqinfluenceradius : squared value of the influence radius
  *	\param[out] neibList : neighbor's list
  *	\param[in, out] neibs_num : current number of neighbors found for current particle
- *	\param[in] lane : lane for write interleaving
- *	\param[in] offset : pffset for write interleaving
  *
- *	\pparam periodicbound : use periodic boundaries (0, 1)
+ *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *
  * First and last particle index for grid cells and particle's informations
  * are read trough texture fetches.
@@ -272,31 +320,32 @@ template <int periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
 			#if (__COMPUTE__ >= 20)			
-			const float4*	posArray,
+			const float4*	posArray,	///< particle's positions (in)
 			#endif
-			int3			gridPos,
-			const int3		gridOffset,
-			const uchar		cell,
-			const uint		index,
-			float3			pos,
-			const uint3		gridSize,
-			const float3	cellSize,
-			const uint		numParticles,
-			const float		sqinfluenceradius,
-			neibdata*		neibsList,
-			uint&			neibs_num)
+			int3			gridPos,	///< current particle grid position
+			const int3		gridOffset,	///< cell offset from current particle grid position
+			const uchar		cell,		///< cell number (0 ... 26)
+			const uint		index,		///< current particle index
+			float3			pos,		///< current particle position
+			const uint3		gridSize,	///< grid size
+			const float3	cellSize,	///< cell size
+			const uint		numParticles,	///< total number of particles
+			const float		sqinfluenceradius,	///< squared value of influence radius
+			neibdata*		neibsList,	///< neighbor's list (out)
+			uint&			neibs_num)	///< number of neighbors for the current particle
 {
 	// Compute the grid position of the current cell
 	gridPos += gridOffset;
 
 	// With periodic boundary when the neighboring cell grid position lies
 	// outside the domain size we wrap it to the gridSize or 0 according
-	// with the choosen periodicity
+	// with the chosen periodicity
+	//TODO: fix periodicity along multiple axis
 	if (periodicbound) {
 		// Periodicity along x axis
 		if (gridPos.x < 0) {
 			if (periodicbound & XPERIODIC)
-				gridPos.x = gridSize.x;
+				gridPos.x = gridSize.x - 1;
 			else
 				return;
 		}
@@ -310,7 +359,7 @@ neibsInCell(
 		// Periodicity along y axis
 		if (gridPos.y < 0) {
 			if (periodicbound & YPERIODIC)
-				gridPos.y = gridSize.y;
+				gridPos.y = gridSize.y - 1;
 			else
 				return;
 		}
@@ -324,7 +373,7 @@ neibsInCell(
 		// Periodicity along z axis
 		if (gridPos.z < 0) {
 			if (periodicbound & ZPERIODIC)
-				gridPos.z = gridSize.z;
+				gridPos.z = gridSize.z - 1;
 			else
 				return;
 		}
@@ -410,7 +459,7 @@ neibsInCell(
  *	\param[in] numParticles : total number of particles
  *	\param[in] sqinfluenceradius : squared value of the influence radius
  *
- *	\pparam periodicbound : use periodic boundaries (0, 7)
+ *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *	\pparam neibcount : compute maximum neighbor number (0, 1)
  *
  * First and last particle index for grid cells and particle's informations
@@ -425,14 +474,12 @@ buildNeibsListDevice(
 						#endif
 						const uint*		particleHash,			///< particle's hashes (in)
 						neibdata*		neibsList,				///< neighbor's list (out)
-						const uint3		gridSize,				///< grid size (in)
-						const float3	cellSize,				///< cell size (in)
-						const uint		numParticles,			///< total number of particles (in)
-						const float		sqinfluenceradius)		///< squared influence radius (in)
+						const uint3		gridSize,				///< grid size
+						const float3	cellSize,				///< cell size
+						const uint		numParticles,			///< total number of particles
+						const float		sqinfluenceradius)		///< squared influence radius
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	//const uint lane = index/NEIBINDEX_INTERLEAVE;
-	//const uint offset = threadIdx.x & (NEIBINDEX_INTERLEAVE - 1);
 
 	uint neibs_num = 0;		// Number of neighbors for the current particle
 

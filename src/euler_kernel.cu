@@ -37,7 +37,6 @@ namespace cueuler {
 __constant__ float	d_epsxsph;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
-__constant__ float3 d_dispvect;
 __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 
 __constant__ float3 d_rbcg[MAXBODIES];

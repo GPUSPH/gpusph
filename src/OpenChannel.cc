@@ -36,54 +36,55 @@
 
 OpenChannel::OpenChannel(const Options &options) : Problem(options)
 {
-	// Size and origin of the simulation domain
-	l = 2.0;
-	a = 1.0;
-	h = 0.7;
-	H = 0.5;
-
-	m_size = make_double3(l, a ,h);
-	m_origin = make_double3(0.0, 0.0, 0.0);
-
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
 	set_deltap(0.05f);
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = QUADRATIC;
-	m_simparams.dt = 0.00004f;
+	m_simparams.kerneltype = WENDLAND;
+	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 15;
+	m_simparams.mlsfreq = 0;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.visctype = KINEMATICVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.tend = 20;
 
+	// Size and origin of the simulation domain
+	a = 1.0;
+	h = 0.7;
+	H = 0.5;
+
+	m_simparams.periodicbound = XPERIODIC;
+	m_gridsize.x = 15;
+	l = m_gridsize.x*m_simparams.kernelradius*m_simparams.slength;
+	m_size.y = a;
+	m_size.z = h;
+	m_origin = make_double3(0.0, 0.0, 0.0);
+
 	// Physical parameters
-	m_physparams.gravity = make_float3(9.81f*sin(3.14159/20.0), 0.0, -9.81f*cos(3.14159/20.0));
+	m_physparams.gravity = make_float3(9.81f*sin(3.14159/40.0), 0.0, -9.81f*cos(3.14159/40.0));
 	float g = length(m_physparams.gravity);
 
 	m_physparams.set_density(0, 2650.0f, 2.0f, 20.f);
 	m_physparams.dcoeff = 5.0f*g*H;
 
 	m_physparams.r0 = m_deltap;
-	m_physparams.kinematicvisc = 1.1e4f/m_physparams.rho0[0];
+	m_physparams.kinematicvisc = 110.f/m_physparams.rho0[0];
 
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_simparams.periodicbound = true;
-	m_physparams.dispvect = make_float3(l, 0.0, 0.0);
 	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
 	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals =true;
+	m_simparams.surfaceparticle = false;
+	m_simparams.savenormals = false;
 
 	// Scales for drawing
 	m_maxrho = density(h,0);
@@ -154,23 +155,32 @@ void OpenChannel::draw_boundary(float t)
 }
 
 
-void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
+	float4 localpos;
+	uint hashvalue;
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
+		hash[i] = hashvalue;
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
+		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	std::flush(std::cout);
 }

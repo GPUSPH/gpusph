@@ -510,14 +510,26 @@ Problem::set_grid_params(void)
 {
 	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
 
-	m_gridsize.x = (uint) (m_size.x / influenceRadius);
-	m_gridsize.y = (uint) (m_size.y / influenceRadius);
-	m_gridsize.z = (uint) (m_size.z / influenceRadius);
+	if (m_simparams.periodicbound & XPERIODIC)
+		m_size.x = m_gridsize.x*influenceRadius;
+	else
+		m_gridsize.x = (uint) (m_size.x / influenceRadius);
 
-	m_cellsize.x = m_size.x / m_gridsize.x;
-	m_cellsize.y = m_size.y / m_gridsize.y;
-	m_cellsize.z = m_size.z / m_gridsize.z;
+	if (m_simparams.periodicbound & YPERIODIC)
+		m_size.y = m_gridsize.y*influenceRadius;
+	else
+		m_gridsize.y = (uint) (m_size.y / influenceRadius);
 
+	if (m_simparams.periodicbound & ZPERIODIC)
+		m_size.z = m_gridsize.z*influenceRadius;
+	else
+		m_gridsize.z = (uint) (m_size.z / influenceRadius);
+
+	m_cellsize.x = (m_simparams.periodicbound & XPERIODIC) ? influenceRadius : m_size.x / m_gridsize.x;
+	m_cellsize.y = (m_simparams.periodicbound & YPERIODIC) ? influenceRadius : m_size.y / m_gridsize.y;
+	m_cellsize.z = (m_simparams.periodicbound & ZPERIODIC) ? influenceRadius : m_size.z / m_gridsize.z;
+
+	printf("set_grid_params :\n");
 	printf("Grid size : (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
 	printf("Cell size : (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
 }

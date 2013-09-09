@@ -77,11 +77,12 @@ void
 calcHash(float4*	pos,
 		 uint*		particleHash,
 		 uint*		particleIndex,
-		 particleinfo* particleInfo,
-		 uint3		gridSize,
-		 float3		cellSize,
-		 float3		worldOrigin,
-		 uint		numParticles);
+		 const particleinfo* particleInfo,
+		 const uint3	gridSize,
+		 const float3	cellSize,
+		 const float3	worldOrigin,
+		 const uint		numParticles,
+		 const int		periodicbound);
 
 void
 reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
@@ -89,13 +90,13 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			newPos,			// output: sorted positions
 							float4*			newVel,			// output: sorted velocities
 							particleinfo*	newInfo,		// output: sorted info
-							uint*			particleHash,   // input: sorted grid hashes
-							uint*			particleIndex,	// input: sorted particle indices
-							float4*			oldPos,			// input: sorted position array
-							float4*			oldVel,			// input: sorted velocity array
-							particleinfo*	oldInfo,		// input: sorted info array
-							uint			numParticles,
-							uint			numGridCells);
+							const uint*		particleHash,   // input: sorted grid hashes
+							const uint*		particleIndex,  // input: sorted particle indices
+							const float4*	oldPos,			// input: unsorted positions
+							const float4*	oldVel,			// input: unsorted velocities
+							const particleinfo*	oldInfo,		// input: unsorted info
+							const uint		numParticles,
+							const uint		numGridCells);
 
 void
 buildNeibsList( neibdata*			neibsList,

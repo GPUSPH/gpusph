@@ -49,7 +49,7 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
-template<int step, int periodicbound>
+template<int step>
 __global__ void
 EULER_KERNEL_NAME(
 	float4*	oldPos,
@@ -156,27 +156,6 @@ EULER_KERNEL_NAME(
 
 			// Applying rotation around center of gravity
 			applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
-		}
-
-		if (periodicbound) {
-			if (d_dispvect.x) {
-				if (pos.x >= d_maxlimit.x)
-					pos.x -= d_dispvect.x;
-				else if (pos.x < d_minlimit.x)
-					pos.x += d_dispvect.x;
-			}
-			if (d_dispvect.y) {
-				if (pos.y >= d_maxlimit.y)
-					pos.y -= d_dispvect.y;
-				else if (pos.y < d_minlimit.y)
-					pos.y += d_dispvect.y;
-			}
-			if (d_dispvect.z) {
-				if (pos.z >= d_maxlimit.z)
-					pos.z -= d_dispvect.z;
-				else if (pos.z < d_minlimit.z)
-					pos.z += d_dispvect.z;
-			}
 		}
 	}
 	newPos[index] = pos;

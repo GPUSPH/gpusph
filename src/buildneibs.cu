@@ -69,17 +69,28 @@ void
 calcHash(float4*	pos,
 		 uint*		particleHash,
 		 uint*		particleIndex,
-		 particleinfo* particleInfo,
-		 uint3		gridSize,
-		 float3		cellSize,
-		 float3		worldOrigin,
-		 uint		numParticles)
+		 const particleinfo* particleInfo,
+		 const uint3	gridSize,
+		 const float3	cellSize,
+		 const float3	worldOrigin,
+		 const uint		numParticles,
+		 const int		periodicbound)
 {
 	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-										   particleInfo, gridSize, cellSize, numParticles);
+	//TODO: implement other peridodicty than XPERIODIC
+	switch (periodicbound) {
+		case 0:
+			cuneibs::calcHashDevice<0><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo, gridSize, cellSize, numParticles);
+			break;
+
+		default:
+			cuneibs::calcHashDevice<XPERIODIC><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+								   particleInfo, gridSize, cellSize, numParticles);
+			break;
+	}
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
@@ -91,13 +102,13 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 									float4*			newPos,			// output: sorted positions
 									float4*			newVel,			// output: sorted velocities
 									particleinfo*	newInfo,		// output: sorted info
-									uint*			particleHash,   // input: sorted grid hashes
-									uint*			particleIndex,  // input: sorted particle indices
-									float4*			oldPos,			// input: unsorted positions
-									float4*			oldVel,			// input: unsorted velocities
-									particleinfo*	oldInfo,		// input: unsorted info
-									uint			numParticles,
-									uint			numGridCells)
+									const uint*		particleHash,   // input: sorted grid hashes
+									const uint*		particleIndex,  // input: sorted particle indices
+									const float4*	oldPos,			// input: unsorted positions
+									const float4*	oldVel,			// input: unsorted velocities
+									const particleinfo*	oldInfo,		// input: unsorted info
+									const uint		numParticles,
+									const uint		numGridCells)
 {
 	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
