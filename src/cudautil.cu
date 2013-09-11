@@ -10,15 +10,17 @@
 cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devidx)
 {
 	int deviceCount;
+
 	CUDA_SAFE_CALL_NOSYNC(cudaGetDeviceCount(&deviceCount));
 	if (deviceCount == 0) {
 		fprintf(stderr, "no CUDA device found!\n");
 		exit(1);
-	}
+	} else
+		if (devidx==0) printf("%d CUDA devices detected\n", deviceCount);
 
 	int cudaDevNum = gdata->device[devidx];
 
-	// it is a semnatic error to correct here the validity of the device num.
+	// it is a semantic error to correct here the validity of the device num.
 	// if a devnum is out of range, program should terminate, not try to "fix" it
 	/* if (cudaDevNum < 0) cudaDevNum = 0;
 	else if (cudaDevNum > deviceCount - 1)
