@@ -112,6 +112,11 @@ void GPUWorker::computeAndSetAllocableParticles()
 	freeMemory -= 16; // segments
 	freeMemory -= 100*1024*1024; // leave 100Mb as safety margin
 	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
+
+	if (m_numAllocatedParticles < m_numParticles) {
+		printf("FATAL: thread %u needs %lu particles, but there is memory for %lu (plus safety margin)\n", m_deviceIndex, m_numParticles, m_numAllocatedParticles);
+		exit(1);
+	}
 }
 
 // Cut all particles that are not internal.
