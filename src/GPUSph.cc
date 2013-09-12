@@ -1300,6 +1300,7 @@ void GPUSPH::updateArrayIndices() {
 	if (count != gdata->totParticles) {
 		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n", gdata->iterations, gdata->totParticles, count);
 		// print also the number of particles for each device?
+		gdata->totParticles = count;
 	}
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
 	if (count > gdata->allocatedParticles) {
