@@ -632,10 +632,10 @@ void GPUWorker::downloadCellsIndices()
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dCellEnds[m_deviceIndex],
 								m_dCellEnd,
 								_size, cudaMemcpyDeviceToHost));
-	_size = 4 * sizeof(uint);
+	/*_size = 4 * sizeof(uint);
 	CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_dSegmentsStart[m_deviceIndex],
 								m_dSegmentStart,
-								_size, cudaMemcpyDeviceToHost));
+								_size, cudaMemcpyDeviceToHost));*/
 }
 
 void GPUWorker::downloadSegments()
