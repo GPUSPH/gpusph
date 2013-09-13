@@ -565,6 +565,8 @@ void GPUWorker::uploadSubdomain() {
 
 // Download the subset of the specified buffer to the correspondent shared CPU array.
 // Makes multiple transfers. Only downloads the subset relative to the internal particles.
+// For doulbe buffered arrays, uses the READ buffers unless otherwise specified. Can be
+// used for either for th read or the write buffers, not both.
 // TODO: write a macro to encapsulate all memcpys
 // TODO: use sizeof(array[0]) to make it general purpose?
 void GPUWorker::dumpBuffers() {
@@ -577,7 +579,7 @@ void GPUWorker::dumpBuffers() {
 
 	if (flags & BUFFER_POS) {
 		_size = howManyParticles * sizeof(float4);
-		uchar dbl_buffer_pointer = 0;
+		uchar dbl_buffer_pointer = gdata->currentPosRead;
 		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentPosRead; else
 		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentPosWrite;
 		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hPos + firstInnerParticle,
@@ -587,7 +589,7 @@ void GPUWorker::dumpBuffers() {
 
 	if (flags & BUFFER_VEL) {
 		_size = howManyParticles * sizeof(float4);
-		uchar dbl_buffer_pointer = 0;
+		uchar dbl_buffer_pointer = gdata->currentVelRead;
 		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentVelRead; else
 		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentVelWrite;
 		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVel + firstInnerParticle,
@@ -597,7 +599,7 @@ void GPUWorker::dumpBuffers() {
 
 	if (flags & BUFFER_INFO) {
 		_size = howManyParticles * sizeof(particleinfo);
-		uchar dbl_buffer_pointer = 0;
+		uchar dbl_buffer_pointer = gdata->currentInfoRead;
 		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentInfoRead; else
 		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentInfoWrite;
 		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hInfo + firstInnerParticle,
