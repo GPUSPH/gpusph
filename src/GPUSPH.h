@@ -32,6 +32,10 @@ private:
 	Problem* problem;
 	//ParticleSystem* psystem;
 	IPPSCounter *m_performanceCounter;
+	// aux arrays for rollCallParticles()
+	bool *m_rcBitmap;
+	bool *m_rcNotified;
+	uint *m_rcAddrs;
 
 	// other vars
 	bool initialized;
@@ -65,6 +69,9 @@ private:
 
 	// print information about the status of the simulation
 	void printStatus();
+
+	// do a roll call of particle IDs
+	void rollCallParticles();
 
 public:
 	// destructor

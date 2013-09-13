@@ -590,6 +590,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		return false;
 	}
 
+	// allocate aux arrays for rollCallParticles()
+	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
+	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
+	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->totParticles );
+
 	// Self-explicative check - but could be moved elsewhere
 	uint _maxneibsnum = gdata->problem->get_simparams()->maxneibsnum;
 	if (_maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
@@ -670,6 +675,11 @@ bool GPUSPH::finalize() {
 	// delete Integrator
 
 	printf("Deallocating...\n");
+
+	// suff for rollCallParticles()
+	free(m_rcBitmap);
+	free(m_rcNotified);
+	free(m_rcAddrs);
 
 	// workers
 	for (int d=0; d < gdata->devices; d++)
@@ -1279,6 +1289,50 @@ void GPUSPH::printStatus()
 //#undef ti
 }
 
+// Do a roll call of particle IDs; useful after dumps if no in/outlets are there and if the filling was uniform.
+// Notifies anomalies only once in the simulation for each particle ID
+void GPUSPH::rollCallParticles()
+{
+	bool all_normal = true;
+
+	// reset bitmap and addrs
+	for (uint idx = 0; idx < gdata->totParticles; idx++) {
+		m_rcBitmap[idx] = false;
+		m_rcAddrs[idx] = -1; // 2^32-1
+	}
+
+	for (uint pos = 0; pos < gdata->totParticles; pos++) {
+		uint idx = id(gdata->s_hInfo[pos]);
+		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
+			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u! Wait for ENTER...\n",
+				gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos );
+			// getchar();
+			all_normal = false;
+			m_rcNotified[idx] = true;
+		}
+		m_rcBitmap[idx] = true;
+		m_rcAddrs[idx] = pos;
+	}
+	for (uint idx = 0; idx < gdata->totParticles; idx++)
+		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
+			printf("WARNING: at iteration %d, time %g particle idx %u was not found! Wait for ENTER...\n",
+				gdata->iterations, gdata->t, idx);
+			// getchar();
+			m_rcNotified[idx] = true;
+			all_normal = false;
+		}
+	if (!all_normal) {
+		printf("Recap of devices after roll call:\n");
+		for (uint d=0; d < gdata->devices; d++) {
+				printf(" - device at index %u has %s particles assigned and offset %s\n",
+					d, gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(), gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str());
+				// extra stuff for deeper debugging
+				// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[gdata->s_hStartPerDevice[d]]),
+				//		id(gdata->s_hInfo[gdata->s_hStartPerDevice[d] + gdata->s_hPartsPerDevice[d] - 1]) );
+		}
+	}
+}
+
 // update s_hStartPerDevice, s_hPartsPerDevice and totParticles
 // Could go in GlobalData but would need another forward-declaration
 void GPUSPH::updateArrayIndices() {
@@ -1301,6 +1355,8 @@ void GPUSPH::updateArrayIndices() {
 		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n", gdata->iterations, gdata->totParticles, count);
 		// print also the number of particles for each device?
 		gdata->totParticles = count;
+		// who is missing?
+		rollCallParticles();
 	}
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
 	if (count > gdata->allocatedParticles) {
