@@ -888,6 +888,8 @@ bool GPUSPH::runSimulation() {
 			printf("Issuing final save...\n");
 			// set the buffers to be dumped
 			uint which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO;
+			// choose the read buffer for the double buffered arrays
+			which_buffers |= DBLBUFFER_READ;
 			// compute and dump voriticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
 				doCommand(VORTICITY);
