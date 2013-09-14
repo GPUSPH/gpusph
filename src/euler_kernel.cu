@@ -42,26 +42,50 @@ __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 __constant__ float3 d_rbcg[MAXBODIES];
 __constant__ float3 d_rbtrans[MAXBODIES];
 __constant__ float	d_rbsteprot[9*MAXBODIES];
+__constant__ float3 d_cellSize;
+__constant__ uint3 d_gridSize;
 
 
-/*
- * Device code.
+/// Compute grid position from hash value
+/*! Compute the grid position corresponding to the given hash. The position
+ * 	should be in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+ *
+ *	\param[in] gridHash : hash value
+ *
+ *	\return grid position
+ *
+ *	Note : no test is done by this function to ensure that hash value is valid.
  */
-
-__device__ __forceinline__ void
-applyrot(float* rot, float4 & pos, const float3 & cg)
+__device__ __forceinline__ int3
+calcGridPosFromHash(const uint gridHash)
 {
-	float3 relpos = as_float3(pos) - cg;
-	float3 new_relpos;
-	
+	int3 gridPos;
+	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
+	gridPos.z = gridHash/temp;
+	temp = gridHash - gridPos.z*temp;
+	gridPos.y = temp/d_gridSize.x;
+	gridPos.x = temp - gridPos.y*d_gridSize.x;
+
+	return gridPos;
+}
+
+/// Apply rotation to a given vector
+/*! Apply the rotation given by the matrix rot to the vector relPos
+ * 	should be in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
+ *
+ *	\param[in] gridHash : hash value
+ *
+ *	\return grid position
+ *
+ *	Note : no test is done by this function to ensure that hash value is valid.
+ */
+__device__ __forceinline__ void
+applyrot(const float* rot, const float3 & relPos, float4 & pos)
+{
 	// Applying rotation
-	new_relpos.x = rot[0]*relpos.x + rot[1]*relpos.y + rot[2]*relpos.z;
-	new_relpos.y = rot[3]*relpos.x + rot[4]*relpos.y + rot[5]*relpos.z;
-	new_relpos.z = rot[6]*relpos.x + rot[7]*relpos.y + rot[8]*relpos.z;
-	
-	pos.x = new_relpos.x + cg.x;	
-	pos.y = new_relpos.y + cg.y;	
-	pos.z = new_relpos.z + cg.z;
+	pos.x += (rot[0] - 1.0f)*relPos.x + rot[1]*relPos.y + rot[2]*relPos.z;
+	pos.y += rot[3]*relPos.x + (rot[4] - 1.0f)*relPos.y + rot[5]*relPos.z;
+	pos.z += rot[6]*relPos.x + rot[7]*relPos.y + (rot[8] - 1.0f)*relPos.z;
 }
 
 

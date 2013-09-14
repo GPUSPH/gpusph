@@ -22,55 +22,34 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-/*
- * File:   OdeObjects.h
- * Author: alexis
- *
- * Created on 9 juin 2012, 12:12
- */
 
-#ifndef _ODEOBJECTS_H
-#define	_ODEOBJECTS_H
+#ifndef _OPENCHANNEL_H
+#define	_OPENCHANNEL_H
 
 #include "Problem.h"
 #include "Point.h"
+#include "Rect.h"
 #include "Cube.h"
-#include "Sphere.h"
-#include "Cone.h"
-#include "Torus.h"
-#include "Cylinder.h"
 
-#include "ode/ode.h"
-
-class OdeObjects: public Problem {
+class Test: public Problem {
 	private:
+		Rect		rect1, rect2, rect3;
 		Cube		experiment_box;
-		Cube		obstacle;
 		PointVect	parts;
 		PointVect	boundary_parts;
-		PointVect	obstacle_parts;
-		double		H;				// still water level
-		double		lx, ly, lz;		// dimension of experiment box
-		bool		wet;			// set wet to true have a wet bed experiment
-		// ODE and rigid body stuff
-		Sphere		sphere;
-		Cube		cube;
-		Cylinder	cylinder;
-		dGeomID		planes[5];
-		dJointID	joint;
-		
+		float		a, h, l;  // experiment box dimension
+		float		H; // still water level
 
 	public:
-		OdeObjects(const Options &);
-		virtual ~OdeObjects(void);
+		Test(const Options &);
+		virtual ~Test(void);
 
 		int fill_parts(void);
 		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
 
-		void ODE_near_callback(void *, dGeomID, dGeomID);
-
 		void release_memory(void);
 };
-#endif	/* _ODEOBJECTS_H */
 
+
+#endif	/* _POWERLAW_H */

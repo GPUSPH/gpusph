@@ -31,10 +31,12 @@
 extern "C"
 {
 void
-seteulerconstants(const PhysParams & physparams)
+seteulerconstants(const PhysParams & physparams, const uint3 gridSize, const float3 cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams.epsxsph, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_minlimit, &physparams.minlimit, sizeof(float3)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 
@@ -42,8 +44,6 @@ void
 geteulerconstants(PhysParams & physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams.epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams.maxlimit, cueuler::d_maxlimit, sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams.minlimit, cueuler::d_minlimit, sizeof(float3), 0));
 }
 
 
@@ -76,19 +76,20 @@ seteulerrbsteprot(float* rot, int numbodies)
 
 
 void
-euler(	float4*		oldPos,
-		float4*		oldVel,
-		particleinfo* info,
-		float4*		forces,
-		float4*		xsph,
-		float4*		newPos,
-		float4*		newVel,
-		uint		numParticles,
-		float		dt,
-		float		dt2,
-		int			step,
-		float		t,
-		bool		xsphcorr)
+euler(	const float4*		oldPos,
+		const uint*			particleHash,
+		const float4*		oldVel,
+		const particleinfo* info,
+		const float4*		forces,
+		const float4*		xsph,
+		float4*				newPos,
+		float4*				newVel,
+		const uint			numParticles,
+		const float			dt,
+		const float			dt2,
+		const int			step,
+		const float			t,
+		const bool			xsphcorr)
 {
 	// thread per particle
 	int numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
@@ -97,26 +98,18 @@ euler(	float4*		oldPos,
 	// execute the kernel
 	if (step == 1) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-								forces, xsph,
-								newPos, newVel,
-								numParticles, dt2, dt2, t);
+			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
 		else
-			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-								forces, xsph,
-								newPos, newVel,
-								numParticles, dt2, dt2, t);
+			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-								forces, xsph,
-								newPos, newVel,
-								numParticles, dt, dt2, t);
+			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
 		else
-			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, oldVel, info,
-								forces, xsph,
-								newPos, newVel,
-								numParticles, dt, dt2, t);
+			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
 	} // if (step == 2)
 
 	// check if kernel invocation generated an error

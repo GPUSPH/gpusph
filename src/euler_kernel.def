@@ -52,19 +52,20 @@
 template<int step>
 __global__ void
 EULER_KERNEL_NAME(
-	float4*	oldPos,
-	float4*	oldVel,
-	particleinfo* info,
-	float4*	forces,
-	float4*	xsph,
+	const float4*	oldPos,
+	const uint* 	particleHash,
+	const float4*	oldVel,
+	const particleinfo* info,
+	const float4*	forces,
+	const float4*	xsph,
 	float4*	newPos,
 	float4*	newVel,
-	uint	numParticles,
-	float	dt,
-	float	dt2,
-	float	t)
+	const uint	numParticles,
+	const float	dt,
+	const float	dt2,
+	const float	t)
 {
-	int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
@@ -75,25 +76,10 @@ EULER_KERNEL_NAME(
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 
-	/* Since we never use the last two components of pinfo, the compiler is
-	   ‘smart’ enough to not load them at all. This kills coalescence on
-	   older hardware, because each thread reads 32 bits, with a 32-bit gap
-	   between one thread and the next.
-	   We can work around this by forcing the compiler to code a read for
-	   a 64-bit word by reading a long int at our interested address,
-	   and then casting the result to particleinfo.
-	   This speeds up the euler kernel by 20% on 1.1 devices, and by
-	   only doing it for older hardware we spare ourselves the very small
-	   performance loss that we'd find on 2.0 devices with the hack. */
-	#if __GPU_ARCH__ < 200
-	long int hack = *reinterpret_cast<long int*>(info + index);
-	particleinfo pinfo = *reinterpret_cast<particleinfo*>(&hack);
-	#else
-	particleinfo pinfo = info[index];
-	#endif
+	const particleinfo pinfo = info[index];
 
 	if(type(pinfo) != BOUNDPART) {
-		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
+		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 		# ifdef XSPH_KERNEL
 		float4 mean_vel = xsph[index];
 		# endif
@@ -101,7 +87,7 @@ EULER_KERNEL_NAME(
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
 		 */
-		float4 velc = vel + (step - 1)*forces[index]*dt2;
+		const float4 velc = vel + (step - 1)*forces[index]*dt2;
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
@@ -155,7 +141,8 @@ EULER_KERNEL_NAME(
 			pos.z += d_rbtrans[i].z;
 
 			// Applying rotation around center of gravity
-			applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
+			const float3 relPos = as_float3(pos) + calcGridPosFromHash(particleHash[i])*d_cellSize - d_rbcg[i];
+			applyrot(&d_rbsteprot[9*i], relPos, pos);
 		}
 	}
 	newPos[index] = pos;

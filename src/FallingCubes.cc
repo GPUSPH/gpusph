@@ -217,13 +217,19 @@ void FallingCubes::draw_boundary(float t)
 }
 
 
-void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
+	float4 localpos;
+	uint hashvalue;
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		hash[i] = hashvalue;
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
@@ -231,9 +237,12 @@ void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 		PointVect & rbparts = get_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
-			pos[i] = make_float4(rbparts[i - j]);
+			calc_localpos_and_hash(rbparts[i - j], localpos, hashvalue);
+
+			pos[i] = localpos;
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(OBJECTPART, k, i - j);
+			hash[i] = hashvalue;
 		}
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
@@ -241,9 +250,12 @@ void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART, 0, i);
+		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";

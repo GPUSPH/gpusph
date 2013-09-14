@@ -33,7 +33,7 @@
 extern "C"
 {
 void
-seteulerconstants(const PhysParams & physparams);
+seteulerconstants(const PhysParams & physparams, const uint3 gridSize, const float3 cellSize);
 
 void
 geteulerconstants(PhysParams & physparams);
@@ -51,18 +51,19 @@ void
 seteulerrbsteprot(float* rot, int numbodies);
 
 void
-euler(	float4*		oldPos,
-		float4*		oldVel,
-		particleinfo* info,
-		float4*		forces,
-		float4*		xsph,
-		float4*		newPos,
-		float4*		newVel,
-		uint		numParticles,
-		float		dt,
-		float		dt2,
-		int			step,
-		float		t,
-		bool		xsphcorr);
+euler(	const float4*		oldPos,
+		const uint*			particleHash,
+		const float4*		oldVel,
+		const particleinfo* info,
+		const float4*		forces,
+		const float4*		xsph,
+		float4*				newPos,
+		float4*				newVel,
+		const uint			numParticles,
+		const float			dt,
+		const float			dt2,
+		const int			step,
+		const float			t,
+		const bool			xsphcorr);
 }
 #endif

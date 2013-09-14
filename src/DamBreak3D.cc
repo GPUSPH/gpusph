@@ -58,7 +58,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00001f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = false;
+	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
@@ -66,7 +66,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 0.00036f;
+	m_simparams.tend = 1.5f; //0.00036f
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
