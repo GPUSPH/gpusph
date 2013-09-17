@@ -39,6 +39,7 @@
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
+#include "vector_math.h"
 
 #include "ode/ode.h"
 

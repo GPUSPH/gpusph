@@ -291,7 +291,7 @@ static __inline__ __host__  float3 make_float3(const double *a)
 	return make_float3(float(a[0]), float(a[1]), float(a[2]));
 }
 
-static __inline__ __host__  float3 make_float3(const double3 &a)
+static __inline__ __host__  __device__  float3 make_float3(const double3 &a)
 {
 	return make_float3(float(a.x), float(a.y), float(a.z));
 }
