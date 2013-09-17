@@ -81,8 +81,8 @@ calcGridPosFromHash(const uint gridHash, const uint3 gridSize)
 
 
 /// Clamp grid position to edges according to periodicity
-/*! This function clamp grid position to edges according to the chosen periodicity,
- * returns the new grid position and update the grid offset.
+/*! This function clamp grid position to edges according to the chosen
+ * periodicity, returns the new grid position and update the grid offset.
  *
  *	\param[in] gridPos : grid position to be clamped
  *	\param[in] gridOffset : grid offset
@@ -110,15 +110,15 @@ clampGridPos(const int3& gridPos, int3& gridOffset, const uint3& gridSize)
 
 	// For the axis not involved in periodicity the new grid position
 	// is equal the clamped old one and the grid offset is updated.
-	newGridPos.y = max(0, min(gridPos.y, gridSize.y-1));
+	newGridPos.y = max(0, min(newGridPos.y, gridSize.y-1));
 	gridOffset.y = newGridPos.y - gridPos.y;
-	newGridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+	newGridPos.z = max(0, min(newGridPos.z, gridSize.z-1));
 	gridOffset.z = newGridPos.z - gridPos.z;
 
 	return newGridPos;
 }
 
-/// Clamp grid position to edges without
+/// Clamp grid position to edges without periodicity
 /*! This function clamp grid position to edges according and
  * returns the new grid position and an updated grid offset.
  *
@@ -134,10 +134,10 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset, const uint3& gridSize)
 {
 	int3 newGridPos = gridPos + gridOffset;
 
-	// Without periodicity the new grid position is the clamped old one
-	newGridPos.x = max(0, min(gridPos.x, gridSize.x-1));
-	newGridPos.y = max(0, min(gridPos.y, gridSize.y-1));
-	newGridPos.z = max(0, min(gridPos.z, gridSize.z-1));
+	// Without periodicity the new grid position is clamped to edges
+	newGridPos.x = max(0, min(newGridPos.x, gridSize.x-1));
+	newGridPos.y = max(0, min(newGridPos.y, gridSize.y-1));
+	newGridPos.z = max(0, min(newGridPos.z, gridSize.z-1));
 
 	// In case of change in grid position the grid offset is updated
 	gridOffset = newGridPos - gridPos;
