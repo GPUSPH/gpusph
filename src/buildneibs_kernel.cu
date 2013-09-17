@@ -191,7 +191,7 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		const int3 gridPos = calcGridPosFromHash(gridHash, gridSize);
 
 		// Computing grid offset from new pos relative to old hash
-		int3 gridOffset = make_int3(as_float3(pos)/cellSize);
+		int3 gridOffset = make_int3(floor((as_float3(pos) + 0.5f*cellSize)/cellSize));
 
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, gridSize), gridSize);
