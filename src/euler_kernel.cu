@@ -88,6 +88,22 @@ applyrot(const float* rot, const float3 & relPos, float4 & pos)
 	pos.z += rot[6]*relPos.x + rot[7]*relPos.y + (rot[8] - 1.0f)*relPos.z;
 }
 
+__device__ __forceinline__ void
+applyrot2(float* rot, float3 & pos, const float3 & cg)
+{
+	float3 relpos = pos - cg;
+	float3 new_relpos;
+
+	// Applying rotation
+	new_relpos.x = rot[0]*relpos.x + rot[1]*relpos.y + rot[2]*relpos.z;
+	new_relpos.y = rot[3]*relpos.x + rot[4]*relpos.y + rot[5]*relpos.z;
+	new_relpos.z = rot[6]*relpos.x + rot[7]*relpos.y + rot[8]*relpos.z;
+
+	pos.x = new_relpos.x + cg.x;
+	pos.y = new_relpos.y + cg.y;
+	pos.z = new_relpos.z + cg.z;
+}
+
 
 #undef XSPH_KERNEL
 #define EULER_KERNEL_NAME eulerDevice
