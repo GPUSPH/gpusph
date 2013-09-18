@@ -52,7 +52,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.008);
+	set_deltap(0.02); //0.008
 	m_simparams.slength = 1.3*m_deltap;
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
@@ -62,9 +62,9 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 0;
-	m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = DYNAMICVISC;
+	m_simparams.mlsfreq = 17;
+	//m_simparams.visctype = ARTVISC;
+	m_simparams.visctype = SPSVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f; //0.00036f
 
@@ -79,7 +79,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
+	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
