@@ -37,9 +37,9 @@
 #include <iostream>
 
 #include "Options.h"
-#include "RigidBody.h"
 #include "particledefine.h"
 #include "vector_math.h"
+#include "Object.h"
 
 #include "ode/ode.h"
 
@@ -96,9 +96,8 @@ class Problem {
 		MbCallBack	m_mbcallbackdata[MAXMOVINGBOUND];	// array of structure for moving boundary data
 		int			m_mbnumber;							// number of moving boundaries
 
-		RigidBody	*m_bodies;							// array of RigidBody objects
-		Object		**m_ODE_bodies;						// array of Objects tat are floating bodies
-		float4		m_mbdata[MAXMOVINGBOUND];			// mb data to be provided by ParticleSystem to euler
+		Object		**m_ODE_bodies;						// array of floating ODE objects
+		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided by ParticleSystem to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
@@ -222,19 +221,14 @@ class Problem {
 			problem->ODE_near_callback(data, o1, o2);
 		}
 
-		void allocate_bodies(const int);
 		void allocate_ODE_bodies(const int);
 		void add_ODE_body(Object* object);
 		Object* get_ODE_body(const int);
-		RigidBody* get_body(const int);
-		void get_rigidbodies_data(float3 * &, float * &);
-		float3* get_rigidbodies_cg(void);
+		void get_ODE_bodies_data(float3 * &, float * &);
 		float3* get_ODE_bodies_cg(void);
-		float* get_rigidbodies_steprot(void);
-		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
+		float* get_ODE_bodies_steprot(void);
+		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &);
-		int	get_bodies_numparts(void);
-		int	get_body_numparts(const int);
 		int	get_ODE_bodies_numparts(void);
 		int	get_ODE_body_numparts(const int);
 };

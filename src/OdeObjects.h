@@ -52,7 +52,7 @@ class OdeObjects: public Problem {
 		double		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
-		// ODE and rigid body stuff
+		// ODE stuff
 		Sphere		sphere;
 		Cube		cube;
 		Cylinder	cylinder;

@@ -33,7 +33,6 @@
 
 #include "OdeObjects.h"
 #include "Point.h"
-#include "RigidBody.h"
 #include "particledefine.h"
 
 

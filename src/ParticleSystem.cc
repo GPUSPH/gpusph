@@ -1224,7 +1224,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
 						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
 
-		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
+		m_problem->ODE_bodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
 		setforcesrbcg(cg, m_simparams.numbodies);
 		seteulerrbcg(cg, m_simparams.numbodies);
 		seteulerrbtrans(trans, m_simparams.numbodies);
