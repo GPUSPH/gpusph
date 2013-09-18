@@ -226,7 +226,7 @@ void FallingCubes::draw_boundary(float t)
 	glColor3f(0.0, 1.0, 0.0);
 	experiment_box.GLDraw();	
 	glColor3f(1.0, 0.0, 0.0);
-	for (int i = 0; i < m_simparams.numbodies; i++)
+	for (int i = 0; i < m_simparams.numODEbodies; i++)
 		get_ODE_body(i)->GLDraw();
 }
 
@@ -248,7 +248,7 @@ void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	for (int k = 0; k < m_simparams.numbodies; k++) {
+	for (int k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {

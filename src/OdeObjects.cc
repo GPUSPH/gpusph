@@ -272,7 +272,7 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	for (int k = 0; k < m_simparams.numbodies; k++) {
+	for (int k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {

@@ -312,7 +312,7 @@ ParticleSystem::allocate(uint numParticles)
 	}
 
 	// Allocate storage for rigid bodies forces and torque computation
-	if (m_simparams.numbodies) {
+	if (m_simparams.numODEbodies) {
 		m_numBodiesParticles = m_problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
 		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
@@ -328,19 +328,19 @@ ParticleSystem::allocate(uint numParticles)
 
 		uint rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
-		m_hRbLastIndex = new uint[m_simparams.numbodies];
-		m_hRbTotalForce = new float3[m_simparams.numbodies];
-		m_hRbTotalTorque = new float3[m_simparams.numbodies];
+		m_hRbLastIndex = new uint[m_simparams.numODEbodies];
+		m_hRbTotalForce = new float3[m_simparams.numODEbodies];
+		m_hRbTotalTorque = new float3[m_simparams.numODEbodies];
 
 		rbfirstindex[0] = 0;
-		for (int i = 1; i < m_simparams.numbodies; i++) {
+		for (int i = 1; i < m_simparams.numODEbodies; i++) {
 			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_ODE_body_numparts(i - 1);
 		}
-		setforcesrbstart(rbfirstindex, m_simparams.numbodies);
-		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbstartindex", rbfirstindex, m_simparams.numbodies*sizeof(uint)));
+		setforcesrbstart(rbfirstindex, m_simparams.numODEbodies);
+		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbstartindex", rbfirstindex, m_simparams.numODEbodies*sizeof(uint)));
 
 		int offset = 0;
-		for (int i = 0; i < m_simparams.numbodies; i++) {
+		for (int i = 0; i < m_simparams.numODEbodies; i++) {
 			m_hRbLastIndex[i] = m_problem->get_ODE_body_numparts(i) - 1 + offset;
 			for (int j = 0; j < m_problem->get_ODE_body_numparts(i); j++) {
 				rbnum[offset + j] = i;
@@ -545,7 +545,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "variable gravity callback function = %d\n",m_simparams.gcallback);
 	fprintf(summary, "periodic boundary = %s\n", m_simparams.periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams.usedem);
-	fprintf(summary, "number of rigid bodies = %d\n", m_simparams.numbodies);
+	fprintf(summary, "number of rigid bodies = %d\n", m_simparams.numODEbodies);
 }
 
 
@@ -611,7 +611,7 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams.savenormals)
 		CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
-	if (m_simparams.numbodies) {
+	if (m_simparams.numODEbodies) {
 		delete [] m_hRbLastIndex;
 		delete [] m_hRbTotalForce;
 		delete [] m_hRbTotalTorque;
@@ -1102,10 +1102,10 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// Copying floating bodies centers of gravity for torque computation in forces (needed only at first
 	// step)
-	if (m_simparams.numbodies && m_iter == 0) {
+	if (m_simparams.numODEbodies && m_iter == 0) {
 		cg = m_problem->get_ODE_bodies_cg();
-		setforcesrbcg(cg, m_simparams.numbodies);
-		seteulerrbcg(cg, m_simparams.numbodies);
+		setforcesrbcg(cg, m_simparams.numODEbodies);
+		seteulerrbcg(cg, m_simparams.numODEbodies);
 		}
 
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
@@ -1220,15 +1220,15 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_simparams.usedem);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
 
-	if (m_simparams.numbodies) {
+	if (m_simparams.numODEbodies) {
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
-						m_hRbTotalTorque, m_simparams.numbodies, m_numBodiesParticles);
+						m_hRbTotalTorque, m_simparams.numODEbodies, m_numBodiesParticles);
 
 		m_problem->ODE_bodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
-		setforcesrbcg(cg, m_simparams.numbodies);
-		seteulerrbcg(cg, m_simparams.numbodies);
-		seteulerrbtrans(trans, m_simparams.numbodies);
-		seteulerrbsteprot(rot, m_simparams.numbodies);
+		setforcesrbcg(cg, m_simparams.numODEbodies);
+		seteulerrbcg(cg, m_simparams.numODEbodies);
+		seteulerrbtrans(trans, m_simparams.numODEbodies);
+		seteulerrbsteprot(rot, m_simparams.numODEbodies);
 	}
 
 
@@ -1474,7 +1474,7 @@ ParticleSystem::reducerbforces(void)
 
 	int firstindex = 0;
 	int lastindex = 0;
-	for (int i = 0; i < m_simparams.numbodies; i++) {
+	for (int i = 0; i < m_simparams.numODEbodies; i++) {
 		lastindex = m_hRbLastIndex[i];
 		float4 force = make_float4(0.0f);
 		float4 torque = make_float4(0.0f);
