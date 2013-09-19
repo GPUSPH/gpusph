@@ -36,6 +36,12 @@
 #include "Point.h"
 #include "Vector.h"
 
+// set to coords (x,y,z) if more accuracy is needed in such point
+// (waiting for relative coordinates)
+#define OFFSET_X (-lx/2)
+#define OFFSET_Y (-ly/2)
+#define OFFSET_Z (-lz/2)
+
 
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
@@ -47,7 +53,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	wet = false;
 	
 	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	//m_origin = make_float3(0.0, 0.0, 0.0);
+	m_origin = make_float3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_writerType = VTKWRITER;
 	//m_writerType = UDPWRITER;
@@ -135,17 +142,17 @@ int DamBreak3D::fill_parts()
 
 	Cube fluid, fluid1;
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
+	experiment_box = Cube(Point(0 + OFFSET_X, 0 + OFFSET_Y, 0 + OFFSET_Z), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
+	obstacle = Cube(Point(0.9 + OFFSET_X, 0.24  + OFFSET_Y, r0 + OFFSET_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
 
-	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
+	fluid = Cube(Point(r0 + OFFSET_X, r0  + OFFSET_Y, r0 + OFFSET_Z), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 	
 	if (wet) {
-		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
+		fluid1 = Cube(Point(H + m_deltap + r0 + OFFSET_X , r0 + OFFSET_Y, r0 + OFFSET_Z), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
 	}
 
