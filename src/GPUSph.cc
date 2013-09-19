@@ -1355,11 +1355,14 @@ void GPUSPH::updateArrayIndices() {
 	} else
 	if (count != gdata->totParticles) {
 		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n", gdata->iterations, gdata->totParticles, count);
-		// print also the number of particles for each device?
-		gdata->totParticles = count;
+
 		// who is missing?
 		doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ );
 		rollCallParticles();
+
+		// update totParticles to avoid dumping an outdated particle (and repeating the warning).
+		// Note: updading *after* the roll call likely shows the missing particle(s) and the duplicate(s). Doing before it only shows the missing one(s)
+		gdata->totParticles = count;
 	}
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
 	if (count > gdata->allocatedParticles) {
