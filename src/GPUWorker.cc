@@ -127,6 +127,8 @@ void GPUWorker::computeAndSetAllocableParticles()
 void GPUWorker::dropExternalParticles()
 {
 	m_particleRangeEnd =  m_numParticles = m_numInternalParticles;
+	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT;
+	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] == EMPTY_SEGMENT;
 }
 
 // append a copy of the external edge cells of other devices to the self device arrays
