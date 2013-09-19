@@ -820,9 +820,10 @@ bool GPUSPH::runSimulation() {
 		// moving boundaries
 		if (problem->get_simparams()->mbcallback) {
 			// ask the Problem to update mbData, one per process
+			gdata->commandFlags = INTEGRATOR_STEP_1;
 			doCallBacks();
 			// upload on the GPU, one per device
-			doCommand(UPLOAD_MBDATA, INTEGRATOR_STEP_1);
+			doCommand(UPLOAD_MBDATA);
 		}
 
 		// variable gravity
@@ -830,7 +831,7 @@ bool GPUSPH::runSimulation() {
 			// ask the Problem to update gravity, one per process
 			doCallBacks();
 			// upload on the GPU, one per device
-			doCommand(UPLOAD_GRAVITY, INTEGRATOR_STEP_1);
+			doCommand(UPLOAD_GRAVITY);
 		}
 
 		// integrate also the externals
@@ -857,9 +858,10 @@ bool GPUSPH::runSimulation() {
 		// moving boundaries
 		if (problem->get_simparams()->mbcallback) {
 			// ask the Problem to update mbData, one per process
+			gdata->commandFlags = INTEGRATOR_STEP_2;
 			doCallBacks();
 			// upload on the GPU, one per device
-			doCommand(UPLOAD_MBDATA, INTEGRATOR_STEP_2);
+			doCommand(UPLOAD_MBDATA);
 		}
 
 		// variable gravity
@@ -867,7 +869,7 @@ bool GPUSPH::runSimulation() {
 			// ask the Problem to update gravity, one per process
 			doCallBacks();
 			// upload on the GPU, one per device
-			doCommand(UPLOAD_GRAVITY, INTEGRATOR_STEP_2);
+			doCommand(UPLOAD_GRAVITY);
 		}
 
 		// integrate also the externals
