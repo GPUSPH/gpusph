@@ -1358,6 +1358,7 @@ void GPUSPH::updateArrayIndices() {
 		// print also the number of particles for each device?
 		gdata->totParticles = count;
 		// who is missing?
+		doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ );
 		rollCallParticles();
 	}
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
