@@ -557,6 +557,15 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->currentPosRead = gdata->currentVelRead = gdata->currentInfoRead = 0;
 	gdata->currentPosWrite = gdata->currentVelWrite = gdata->currentInfoWrite = 1;
 
+	// check the number of moving boundaries
+	if (problem->m_mbnumber > MAXMOVINGBOUND) {
+		printf("FATAL: unsupported number of moving boundaries (%u > %u)\n", problem->m_mbnumber, MAXMOVINGBOUND);
+		return false;
+	}
+
+	// compute mbdata size
+	gdata->s_mbDataSize = problem->m_mbnumber * sizeof(float4);
+
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
 
@@ -809,6 +818,14 @@ bool GPUSPH::runSimulation() {
 	//				initially done trivial and slow: stop and read
 	//			//reduce bodies
 
+		// moving boundaries
+		if (problem->get_simparams()->mbcallback) {
+			// ask the Problem to update mbData, one per process
+			doCallBacks();
+			// upload on the GPU, one per device
+			doCommand(UPLOAD_MBDATA, INTEGRATOR_STEP_1);
+		}
+
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
@@ -829,6 +846,14 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
 	//			//reduce bodies
+
+		// moving boundaries
+		if (problem->get_simparams()->mbcallback) {
+			// ask the Problem to update mbData, one per process
+			doCallBacks();
+			// upload on the GPU, one per device
+			doCommand(UPLOAD_MBDATA, INTEGRATOR_STEP_2);
+		}
 
 		// integrate also the externals
 		gdata->only_internal = false;
@@ -1271,6 +1296,21 @@ void GPUSPH::doWrite()
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
+}
+
+void GPUSPH::doCallBacks()
+{
+	Problem *pb = gdata->problem;
+
+	float addendum = gdata->dt;
+	if (gdata->commandFlags == INTEGRATOR_STEP_1)
+		addendum /= 2.0f;
+
+	if (pb->m_simparams.mbcallback)
+		gdata->s_mbData = pb->get_mbdata(
+			gdata->t + addendum,
+			gdata->dt/2.0f,
+			gdata->iterations == 0);
 }
 
 void GPUSPH::printStatus()

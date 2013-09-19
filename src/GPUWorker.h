@@ -155,6 +155,7 @@ private:
 	void downloadNewNumParticles();
 	void uploadNewNumParticles();
 
+	void uploadMBData();
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void saveCompactDeviceMapTofile(std::string prefix);

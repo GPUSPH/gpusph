@@ -67,6 +67,9 @@ private:
 	// use the writer
 	void doWrite();
 
+	// callbacks fro moving boundaries and variable gravity
+	void doCallBacks();
+
 	// print information about the status of the simulation
 	void printStatus();
 

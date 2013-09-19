@@ -698,6 +698,14 @@ void GPUWorker::uploadNewNumParticles()
 	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
+// upload mbData for moving boundaries
+void GPUWorker::uploadMBData()
+{
+	// check if MB are active and if gdata->s_mbData is not NULL
+	if (m_simparams->mbcallback && gdata->s_mbData)
+		setmbdata(gdata->s_mbData, gdata->s_mbDataSize);
+}
+
 // Create a compact device map, for this device, from the global one,
 // with each cell being marked in the high bits. Correctly handles periodicity.
 // Also handles the optional extra displacement for periodicity. Since the cell
@@ -1086,6 +1094,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case SURFACE_PARTICLES:
 				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
+				break;
+			case UPLOAD_MBDATA:
+				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
+				instance->uploadMBData();
 				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);

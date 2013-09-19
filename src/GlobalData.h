@@ -50,6 +50,7 @@ enum CommandType {
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
+	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	QUIT				// quits the simulation cycle
 };
 
@@ -178,9 +179,9 @@ struct GlobalData {
 	uint currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 	uint currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
 
-	// moving boundaries data
-	//float4* mbData;
-	//uint mbDataSize;
+	// moving boundaries
+	float4* s_mbData;
+	uint s_mbDataSize;
 
 	// variable gravity
 	//float3 var_gravity;
@@ -286,8 +287,8 @@ struct GlobalData {
 		//dump_hPos(NULL),
 		//dump_hVel(NULL),
 		//dump_hInfo(NULL),
-		//mbData(NULL),
-		//mbDataSize(0),
+		s_mbData(NULL),
+		s_mbDataSize(0),
 		keep_going(true),
 		quit_request(false),
 		//save_request(false),
