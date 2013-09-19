@@ -666,9 +666,9 @@ void GPUWorker::updateSegments()
 	// update the number of internal particles
 	uint newNumIntParts = m_numParticles;
 	if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] != EMPTY_SEGMENT)
-		newNumIntParts = min(newNumIntParts, gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL]);
+			newNumIntParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL];
 	if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] != EMPTY_SEGMENT)
-		newNumIntParts = min(newNumIntParts, gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL]);
+		newNumIntParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
 	m_particleRangeEnd = m_numInternalParticles = newNumIntParts;
 }
 
