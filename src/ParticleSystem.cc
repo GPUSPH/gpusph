@@ -716,10 +716,10 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "xsph correction = %d\n", m_simparams->xsph);
 	fprintf(summary, "SPH formulation = %d\n", m_simparams->sph_formulation);
 	fprintf(summary, "viscosity type = %d (%s)\n", m_simparams->visctype, ViscosityName[m_simparams->visctype]);
-	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams->mbcallback);
+	fprintf(summary, "moving boundary velocity callback function = %s\n", (m_simparams->mbcallback ? "enabled" : "none"));
 	if (m_simparams->mbcallback)
 		fprintf(summary, "\tnumber of moving boundaries = %d\n", m_problem->m_mbnumber);
-	fprintf(summary, "variable gravity callback function = %d\n",m_simparams->gcallback);
+	fprintf(summary, "variable gravity callback function = %s\n", (m_simparams->gcallback ? "enabled" : "none"));
 	fprintf(summary, "periodic boundary = %s\n", m_simparams->periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams->usedem);
 	fprintf(summary, "number of rigid bodies = %d\n", m_simparams->numbodies);
