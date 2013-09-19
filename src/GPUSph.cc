@@ -1300,37 +1300,41 @@ void GPUSPH::rollCallParticles()
 	// reset bitmap and addrs
 	for (uint idx = 0; idx < gdata->totParticles; idx++) {
 		m_rcBitmap[idx] = false;
-		m_rcAddrs[idx] = -1; // 2^32-1
+		m_rcAddrs[idx] = 0xFFFFFFFF;
 	}
 
+	// fill out the bitmap and check for duplicates
 	for (uint pos = 0; pos < gdata->totParticles; pos++) {
 		uint idx = id(gdata->s_hInfo[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u! Wait for ENTER...\n",
 				gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos );
-			// getchar();
+			// getchar(); // useful for debugging
 			all_normal = false;
 			m_rcNotified[idx] = true;
 		}
 		m_rcBitmap[idx] = true;
 		m_rcAddrs[idx] = pos;
 	}
+	// now check if someone is missing
 	for (uint idx = 0; idx < gdata->totParticles; idx++)
 		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u was not found! Wait for ENTER...\n",
 				gdata->iterations, gdata->t, idx);
-			// getchar();
+			// getchar(); // useful for debugging
 			m_rcNotified[idx] = true;
 			all_normal = false;
 		}
+	// if there was any warning...
 	if (!all_normal) {
 		printf("Recap of devices after roll call:\n");
 		for (uint d=0; d < gdata->devices; d++) {
 				printf(" - device at index %u has %s particles assigned and offset %s\n",
 					d, gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(), gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str());
 				// extra stuff for deeper debugging
-				// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[gdata->s_hStartPerDevice[d]]),
-				//		id(gdata->s_hInfo[gdata->s_hStartPerDevice[d] + gdata->s_hPartsPerDevice[d] - 1]) );
+				// uint last_idx = gdata->s_hStartPerDevice[d] + gdata->s_hPartsPerDevice[d] - 1;
+				// uint first_idx = gdata->s_hStartPerDevice[d];
+				// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
 		}
 	}
 }
