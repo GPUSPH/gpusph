@@ -804,7 +804,6 @@ bool GPUSPH::runSimulation() {
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
-	//			//set mvboundaries and gravity
 	//			//(init bodies)
 
 		// compute forces only on internal particles
@@ -824,6 +823,14 @@ bool GPUSPH::runSimulation() {
 			doCallBacks();
 			// upload on the GPU, one per device
 			doCommand(UPLOAD_MBDATA, INTEGRATOR_STEP_1);
+		}
+
+		// variable gravity
+		if (problem->get_simparams()->gcallback) {
+			// ask the Problem to update gravity, one per process
+			doCallBacks();
+			// upload on the GPU, one per device
+			doCommand(UPLOAD_GRAVITY, INTEGRATOR_STEP_1);
 		}
 
 		// integrate also the externals
@@ -853,6 +860,14 @@ bool GPUSPH::runSimulation() {
 			doCallBacks();
 			// upload on the GPU, one per device
 			doCommand(UPLOAD_MBDATA, INTEGRATOR_STEP_2);
+		}
+
+		// variable gravity
+		if (problem->get_simparams()->gcallback) {
+			// ask the Problem to update gravity, one per process
+			doCallBacks();
+			// upload on the GPU, one per device
+			doCommand(UPLOAD_GRAVITY, INTEGRATOR_STEP_2);
 		}
 
 		// integrate also the externals
@@ -1311,6 +1326,9 @@ void GPUSPH::doCallBacks()
 			gdata->t + addendum,
 			gdata->dt/2.0f,
 			gdata->iterations == 0);
+
+	if (pb->m_simparams.gcallback)
+		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
 void GPUSPH::printStatus()

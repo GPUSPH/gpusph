@@ -51,6 +51,7 @@ enum CommandType {
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
+	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	QUIT				// quits the simulation cycle
 };
 
@@ -184,7 +185,7 @@ struct GlobalData {
 	uint s_mbDataSize;
 
 	// variable gravity
-	//float3 var_gravity;
+	float3 s_varGravity;
 
 	// simulation time control
 	bool keep_going;

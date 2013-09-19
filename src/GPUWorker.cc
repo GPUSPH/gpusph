@@ -706,6 +706,14 @@ void GPUWorker::uploadMBData()
 		setmbdata(gdata->s_mbData, gdata->s_mbDataSize);
 }
 
+// upload gravity
+void GPUWorker::uploadGravity()
+{
+	// check if variable gravity is enabled
+	if (m_simparams->gcallback)
+		setgravity(gdata->s_varGravity);
+}
+
 // Create a compact device map, for this device, from the global one,
 // with each cell being marked in the high bits. Correctly handles periodicity.
 // Also handles the optional extra displacement for periodicity. Since the cell
@@ -1098,6 +1106,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case UPLOAD_MBDATA:
 				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
 				instance->uploadMBData();
+				break;
+			case UPLOAD_GRAVITY:
+				//printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
+				instance->uploadGravity();
 				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);

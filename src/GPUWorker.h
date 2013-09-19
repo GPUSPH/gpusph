@@ -156,6 +156,8 @@ private:
 	void uploadNewNumParticles();
 
 	void uploadMBData();
+	void uploadGravity();
+
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void saveCompactDeviceMapTofile(std::string prefix);
