@@ -53,10 +53,6 @@ enum CommandType {
 	QUIT				// quits the simulation cycle
 };
 
-// flags for forces and euler kernels
-#define INTEGRATOR_STEP_1	0
-#define INTEGRATOR_STEP_2	1
-
 enum WriterType
 {
 	TEXTWRITER,
@@ -66,15 +62,22 @@ enum WriterType
 	UDPWRITER
 };
 
+// 0 reserved as "no flags"
+#define NO_FLAGS	((uint)0)
+
+// flags for forces and euler kernels
+#define INTEGRATOR_STEP_1	((uint)1 << 0)
+#define INTEGRATOR_STEP_2	((uint)1 << 1)
+
 // buffer constants for swapDeviceBuffers() - serving also as flags for DUMP and UPDATE_INTERNAL commands
-#define BUFFER_POS	((uint)1 << 0)
-#define BUFFER_VEL	((uint)1 << 1)
-#define BUFFER_INFO	((uint)1 << 2)
+#define BUFFER_POS	((uint)1 << 2)
+#define BUFFER_VEL	((uint)1 << 3)
+#define BUFFER_INFO	((uint)1 << 4)
 // only flags for DUMP
-#define BUFFER_VORTICITY	((uint)1 << 3)
-#define BUFFER_NORMALS		((uint)1 << 4)
+#define BUFFER_VORTICITY	((uint)1 << 5)
+#define BUFFER_NORMALS		((uint)1 << 6)
 // only flags for UPDATE_INTERNAL
-#define BUFFER_FORCES	((uint)1 << 5)
+#define BUFFER_FORCES	((uint)1 << 7)
 
 // the selection of the double buffers is also encoded (in high bits)
 #define DBLBUFFER_READ		((uint)1 << 30)
