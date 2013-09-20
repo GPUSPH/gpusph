@@ -698,7 +698,7 @@ void GPUWorker::uploadNewNumParticles()
 	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
-// upload mbData for moving boundaries
+// upload mbData for moving boundaries (possibily called many times)
 void GPUWorker::uploadMBData()
 {
 	// check if MB are active and if gdata->s_mbData is not NULL
@@ -706,7 +706,7 @@ void GPUWorker::uploadMBData()
 		setmbdata(gdata->s_mbData, gdata->mbDataSize);
 }
 
-// upload gravity
+// upload gravity (possibily called many times)
 void GPUWorker::uploadGravity()
 {
 	// check if variable gravity is enabled

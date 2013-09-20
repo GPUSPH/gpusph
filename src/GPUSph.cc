@@ -670,7 +670,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// actually start the threads
 	for (int d=0; d < gdata->devices; d++)
-		gdata->GPUWORKERS[d]->run_worker();
+		gdata->GPUWORKERS[d]->run_worker();  // begin of INITIALIZATION ***
 
 	// The following barrier waits for GPUworkers to complete CUDA init, GPU allocation, subdomain and devmap upload
 
