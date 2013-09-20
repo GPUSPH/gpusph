@@ -195,7 +195,7 @@ void parse_options(int argc, char **argv)
 		} else if (!strcmp(arg, "--")) {
 			cout << "Skipping unsupported option " << arg << endl;
 		} else {
-			cout << "Fatal: Unknown option: " << arg << endl;
+			cout << "FATAL: Unknown option: " << arg << endl;
 			exit(0);
 
 			// Left for future dynamic loading:
@@ -456,7 +456,7 @@ int
 oldMain( int argc, char** argv)
 {
 	if (sizeof(uint) != 2*sizeof(short)) {
-		fprintf(stderr, "Fatal: this architecture does not have uint = 2 short\n");
+		fprintf(stderr, "FATAL: this architecture does not have uint = 2 short\n");
 		exit(1);
 	}
 	signal(SIGINT, quit);
@@ -1368,9 +1368,10 @@ void GPUSPH::rollCallParticles()
 	for (uint pos = 0; pos < gdata->totParticles; pos++) {
 		uint idx = id(gdata->s_hInfo[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u! Wait for ENTER...\n",
+			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u!\n",
 				gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos );
 			// getchar(); // useful for debugging
+			// printf("Press ENTER to continue...\n");
 			all_normal = false;
 			m_rcNotified[idx] = true;
 		}
@@ -1380,8 +1381,9 @@ void GPUSPH::rollCallParticles()
 	// now check if someone is missing
 	for (uint idx = 0; idx < gdata->totParticles; idx++)
 		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %d, time %g particle idx %u was not found! Wait for ENTER...\n",
+			printf("WARNING: at iteration %d, time %g particle idx %u was not found!\n",
 				gdata->iterations, gdata->t, idx);
+			// printf("Press ENTER to continue...\n");
 			// getchar(); // useful for debugging
 			m_rcNotified[idx] = true;
 			all_normal = false;
