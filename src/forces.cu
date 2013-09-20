@@ -529,7 +529,7 @@ vorticity(	float4*		pos,
 	}
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Shepard kernel execution failed");
+	CUT_CHECK_ERROR("Vorticity kernel execution failed");
 	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));

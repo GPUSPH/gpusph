@@ -337,7 +337,6 @@ ParticleSystem::allocate(uint numParticles)
 			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_ODE_body_numparts(i - 1);
 		}
 		setforcesrbstart(rbfirstindex, m_simparams.numODEbodies);
-		//CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_rbstartindex", rbfirstindex, m_simparams.numODEbodies*sizeof(uint)));
 
 		int offset = 0;
 		for (int i = 0; i < m_simparams.numODEbodies; i++) {
@@ -643,12 +642,12 @@ ParticleSystem::~ParticleSystem()
 
 
 // TODO: DEBUG, testpoints, freesurface and size_t
-void*
-ParticleSystem::getArray(ParticleArray array, bool need_write)
+void
+ParticleSystem::getArray(ParticleArray array)
 {
 	void*   hdata = 0;
 	void*   ddata = 0;
-	long	size;
+	long	size = 0;;
 
 	switch (array) {
 		default:
@@ -659,9 +658,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case VELOCITY:
-			{
-			//Testpoints
-			if (need_write && m_simparams.testpoints) {
+			if (m_simparams.testpoints) {
 				testpoints(	m_dPos[m_currentPosRead],
 							m_dVel[m_currentVelRead],
 							m_dInfo[m_currentInfoRead],
@@ -672,17 +669,15 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 							m_simparams.slength,
 							m_simparams.kerneltype,
 							m_influenceRadius);
-				} // if need_write && m_simparams.testpoints
+				}
 
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hVel;
 			ddata = (void*) m_dVel[m_currentVelRead];
-			}
 			break;
 
 		case INFO:
-			// Free surface detection
-			if (need_write && m_simparams.surfaceparticle) {
+			if (m_simparams.surfaceparticle) {
 				surfaceparticle( m_dPos[m_currentPosRead],
 								 m_dVel[m_currentVelRead],
 								 m_dNormals,
@@ -697,7 +692,11 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 								 m_influenceRadius,
 								 m_simparams.savenormals);
 				std::swap(m_currentInfoRead, m_currentInfoWrite);
-				} // if need_write && m_simparams.surfaceparticle
+				if (m_simparams.savenormals) {
+					size = m_numParticles*sizeof(float4);
+					CUDA_SAFE_CALL(cudaMemcpy((void*) m_hNormals, (void*) m_dNormals, size, cudaMemcpyDeviceToHost));
+					}
+				}
 
 			size = m_numParticles*sizeof(particleinfo);
 			hdata = (void*) m_hInfo;
@@ -705,22 +704,26 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case VORTICITY:
-			size = m_numParticles*sizeof(float3);
-			hdata = (void*) m_hVort;
-			ddata = (void*) m_dVort;
+			if (m_simparams.vorticity) {
+				size = m_numParticles*sizeof(float3);
+				hdata = (void*) m_hVort;
+				ddata = (void*) m_dVort;
 
-			// Calling vorticity computation kernel
-			vorticity(	m_dPos[m_currentPosRead],
-						m_dVel[m_currentVelRead],
-						m_dVort,
-						m_dInfo[m_currentInfoRead],
-						m_dParticleHash,
-						m_dCellStart,
-						m_dNeibsList,
-						m_numParticles,
-						m_simparams.slength,
-						m_simparams.kerneltype,
-						m_influenceRadius);
+				// Calling vorticity computation kernel
+				vorticity(	m_dPos[m_currentPosRead],
+							m_dVel[m_currentVelRead],
+							m_dVort,
+							m_dInfo[m_currentInfoRead],
+							m_dParticleHash,
+							m_dCellStart,
+							m_dNeibsList,
+							m_numParticles,
+							m_simparams.slength,
+							m_simparams.kerneltype,
+							m_influenceRadius);
+				}
+			else
+				size = 0;
 			break;
 
 		case HASH:
@@ -760,16 +763,10 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			ddata = (void*) m_dCellEnd;
 			break;
 #endif
-			// Free surface detection (Debug)
-		case NORMALS:
-			size = m_numParticles*sizeof(float4);
-			hdata = (void*) m_hNormals;
-			ddata = (void*) m_dNormals;
-			break;
 	}
 
-	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
-	return hdata;
+	if (size)
+		CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
 }
 
 
@@ -821,11 +818,6 @@ ParticleSystem::setPlanes(void)
 {
 	printf("Uploading %u planes\n", m_numPlanes);
 	setplaneconstants(m_numPlanes, m_hPlanesDiv, m_hPlanes);
-	/*
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_planes", m_hPlanes, m_numPlanes*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_plane_div", m_hPlanesDiv, m_numPlanes*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol("cuforces::d_numplanes", &m_numPlanes, sizeof(uint)));
-	*/
 }
 
 
@@ -840,12 +832,6 @@ ParticleSystem::writeToFile()
 		dpos.x = ((double) m_cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
 		dpos.y = ((double) m_cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
 		dpos.z = ((double) m_cellSize.z)*(gridPos.z + 0.5) + (double) pos.z;
-
-		/*std::cout << "Local position and hash:" << "\n";
-		std::cout << "(" << pos.x << "," << pos.y << "," << pos.z << ")\t" << m_hParticleHash[i] << "\n";
-		std::cout << "Absolute position and grid pos:" << "\n";
-		std::cout << "(" << dpos.x << "," << dpos.y << "," << dpos.z << ")\t"
-				<< "(" << gridPos.x << "," << gridPos.y << "," << gridPos.z << ")\n";*/
 
 		m_hdPos[i] = dpos;
 	}
@@ -872,6 +858,10 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	float maxrho = m_problem->get_maxrho();
 	float minvel = m_problem->get_minvel();
 	float maxvel = m_problem->get_maxvel();
+
+	float minvort = 0.0;
+	float maxvort = 2.0;
+
 
 	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
 	float maxp = m_problem->pressure(maxrho,0);
@@ -933,9 +923,15 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 						glColor3f((v - minp)/(maxp - minp),
 								1 - (v - minp)/(maxp - minp),0.0);
 						break;
+
 					case VM_VORTICITY:
-					    v = length(vort[i]);
-					    glColor3f(1.-(v-minvel)/(maxvel-minvel),1.0,1.0);
+						if (m_simparams.vorticity) {
+							v = length(vort[i]);
+							glColor3f(1.-(v-minvort)/(maxvort-minvort),1.0,1.0);
+						}
+						else
+							glColor3f(1.0, 1.0, 0.0);
+
 					    break;
 				}
 				glVertex3fv((float*)&pos);
@@ -1296,8 +1292,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 void
 ParticleSystem::saveneibs()
 {
-	getArray(POSITION, false);
-	getArray(NEIBSLIST, false);
+	getArray(POSITION);
+	getArray(NEIBSLIST);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/neibs.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1341,8 +1337,8 @@ ParticleSystem::saveneibs()
 void
 ParticleSystem::savehash()
 {
-	getArray(POSITION, false);
-	getArray(HASH, false);
+	getArray(POSITION);
+	getArray(HASH);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/hash.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1371,8 +1367,8 @@ ParticleSystem::savehash()
 void
 ParticleSystem::saveindex()
 {
-	getArray(POSITION, false);
-	getArray(PARTINDEX, false);
+	getArray(POSITION);
+	getArray(PARTINDEX);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedindex.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1401,8 +1397,8 @@ ParticleSystem::saveindex()
 void
 ParticleSystem::savesorted()
 {
-	getArray(POSITION, false);
-	getArray(PARTINDEX, false);
+	getArray(POSITION);
+	getArray(PARTINDEX);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedparts.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1431,9 +1427,9 @@ ParticleSystem::savesorted()
 void
 ParticleSystem::savecellstartend()
 {
-	getArray(POSITION, false);
-	getArray(CELLSTART, false);
-	getArray(CELLEND, false);
+	getArray(POSITION);
+	getArray(CELLSTART);
+	getArray(CELLEND);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/cellstartend.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1450,7 +1446,7 @@ ParticleSystem::savecellstartend()
 void
 ParticleSystem::savenormals()
 {
-	getArray(NORMALS, false);
+	getArray(INFO);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/normals.txt";
 	FILE *fp = fopen(fname.c_str(),"w");

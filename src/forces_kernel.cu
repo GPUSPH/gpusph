@@ -610,12 +610,6 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	// SPS stress matrix elements
 	sym33mat tau;
-//	tau.a11 = 0.0f;   // tau11 = tau_xx
-//	tau.a12 = 0.0f;   // tau12 = tau_xy
-//	tau.a13 = 0.0f;   // tau13 = tau_xz
-//	tau.a22 = 0.0f;   // tau22 = tau_yy
-//	tau.a23 = 0.0f;   // tau23 = tau_yz
-//	tau.a33 = 0.0f;   // tau33 = tau_zz
 
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
@@ -623,7 +617,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 	float3 dvz = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
@@ -748,7 +742,7 @@ shepardDevice(	const float4*	posArray,
 	float temp2 = temp1/vel.w ;
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -832,7 +826,7 @@ MlsDevice(	const float4*	posArray,
 	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -876,9 +870,6 @@ MlsDevice(	const float4*	posArray,
 			a44 += relPos.z*relPos.z*w;		// a33 = ∑(yi - yj)^2*Wij*Vj
 		}
 	} // end of first loop trough neighbors
-
-	// Resetting grid position of current particle
-	gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Resetting persistent variables across getNeibData
 	neib_cellnum = 0;
@@ -1074,13 +1065,12 @@ calcVortDevice(	float3*		vorticity,
 		return;
 
 	const float4 pos = tex1Dfetch(posTex, index);
-	float4 vel = tex1Dfetch(velTex, index);
+	const float4 vel = tex1Dfetch(velTex, index);
 
-	// MLS matrix elements
 	float3 vort = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -1106,7 +1096,7 @@ calcVortDevice(	float3*		vorticity,
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
         const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		// interaction between two particles
+		// Compute vorticity
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// ∂Wij/∂r*Vj
 			// vxij = vxi - vxj and same for vyij and vzij

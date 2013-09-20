@@ -72,6 +72,9 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
+	// Vorticity
+	m_simparams.vorticity = true;
+
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
 
@@ -104,8 +107,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_maxvel = 3.0f;
 	
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 0;
+	m_displayinterval = 0.01f;
+	m_writefreq = 10;
 	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
