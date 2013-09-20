@@ -590,6 +590,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// the number of allocated particles will be bigger, to be sure it can contain particles being created
 	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
 
+	// generate planes, will be allocated in allocateGlobalHostBuffers()
+	gdata->numPlanes = problem->fill_planes();
+
 	// TODO:  before allocating everything else we should check if the number of particles is too high.
 	// Not only the mere number of particles should be compared to a hardcoded system limit, but a good
 	// estimation of the required memory should be computed
@@ -622,6 +625,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	else
 		printf("  allocated %.2g Gb on host for %s particles (%s for initial filling + %s for particle creation)\n", (ulong)totCPUbytes/1000000000.0F,
 			gdata->addSeparators(gdata->allocatedParticles).c_str(), gdata->addSeparators(gdata->totParticles).c_str(), gdata->addSeparators(extra).c_str());
+
+	// copy planes from the problem to the shared array
+	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
 
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
@@ -1019,6 +1025,23 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += float4Size;
 	}
 
+	if (gdata->numPlanes > 0) {
+		if (gdata->numPlanes > MAXPLANES) {
+			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAXPLANES);
+			exit(1);
+		}
+		const uint planeSize4 = sizeof(float4) * gdata->numPlanes;
+		const uint planeSize  = sizeof(float) * gdata->numPlanes;
+
+		gdata->s_hPlanes = new float4[gdata->numPlanes];
+		memset(gdata->s_hPlanes, 0, planeSize4);
+		totCPUbytes += planeSize4;
+
+		gdata->s_hPlanesDiv = new float[gdata->numPlanes];
+		memset(gdata->s_hPlanes, 0, planeSize);
+		totCPUbytes += planeSize;
+	}
+
 	/*dump_hPos = new float4[numparts];
 	memset(dump_hPos, 0, float4Size);
 	totCPUbytes += float4Size;
@@ -1060,6 +1083,11 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 // Deallocate the shared buffers, i.e. those accessed by all workers
 void GPUSPH::deallocateGlobalHostBuffers()
 {
+	// planes
+	if (gdata->numPlanes > 0) {
+		delete [] gdata->s_hPlanes;
+		delete [] gdata->s_hPlanesDiv;
+	}
 	//cudaFreeHost(s_hPos); // pinned memory
 	delete [] gdata->s_hPos;
 	delete [] gdata->s_hVel;

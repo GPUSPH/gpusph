@@ -52,6 +52,7 @@ enum CommandType {
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
+	UPLOAD_PLANES,		// upload planes
 	QUIT				// quits the simulation cycle
 };
 
@@ -184,6 +185,11 @@ struct GlobalData {
 	float4* s_mbData;
 	uint mbDataSize;
 
+	// planes
+	uint numPlanes;
+	float4* s_hPlanes;
+	float *	s_hPlanesDiv;
+
 	// variable gravity
 	float3 s_varGravity;
 
@@ -290,6 +296,9 @@ struct GlobalData {
 		//dump_hInfo(NULL),
 		s_mbData(NULL),
 		mbDataSize(0),
+		numPlanes(0),
+		s_hPlanes(NULL),
+		s_hPlanesDiv(NULL),
 		keep_going(true),
 		quit_request(false),
 		//save_request(false),

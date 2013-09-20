@@ -714,6 +714,15 @@ void GPUWorker::uploadGravity()
 		setgravity(gdata->s_varGravity);
 }
 
+// upload planes (called once until planes arae constant)
+void GPUWorker::uploadPlanes()
+{
+	// check if planes > 0 (already checked before calling?)
+	if (gdata->numPlanes > 0)
+		setplaneconstants(gdata->numPlanes, gdata->s_hPlanesDiv, gdata->s_hPlanes);
+}
+
+
 // Create a compact device map, for this device, from the global one,
 // with each cell being marked in the high bits. Correctly handles periodicity.
 // Also handles the optional extra displacement for periodicity. Since the cell
@@ -992,6 +1001,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
 
+	// upload planes, if any
+	instance->uploadPlanes();
+
 	// upload inlets and outlets
 	instance->uploadInlets();
 	instance->uploadOutlets();
@@ -1110,6 +1122,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case UPLOAD_GRAVITY:
 				//printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
 				instance->uploadGravity();
+				break;
+			case UPLOAD_PLANES:
+				//printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
+				instance->uploadPlanes();
 				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);

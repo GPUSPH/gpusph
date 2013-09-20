@@ -155,8 +155,10 @@ private:
 	void downloadNewNumParticles();
 	void uploadNewNumParticles();
 
+	// moving boundaries, gravity, planes
 	void uploadMBData();
 	void uploadGravity();
+	void uploadPlanes();
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
