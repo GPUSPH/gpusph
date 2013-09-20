@@ -703,7 +703,7 @@ void GPUWorker::uploadMBData()
 {
 	// check if MB are active and if gdata->s_mbData is not NULL
 	if (m_simparams->mbcallback && gdata->s_mbData)
-		setmbdata(gdata->s_mbData, gdata->s_mbDataSize);
+		setmbdata(gdata->s_mbData, gdata->mbDataSize);
 }
 
 // upload gravity

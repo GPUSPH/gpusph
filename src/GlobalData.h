@@ -182,7 +182,7 @@ struct GlobalData {
 
 	// moving boundaries
 	float4* s_mbData;
-	uint s_mbDataSize;
+	uint mbDataSize;
 
 	// variable gravity
 	float3 s_varGravity;
@@ -289,7 +289,7 @@ struct GlobalData {
 		//dump_hVel(NULL),
 		//dump_hInfo(NULL),
 		s_mbData(NULL),
-		s_mbDataSize(0),
+		mbDataSize(0),
 		keep_going(true),
 		quit_request(false),
 		//save_request(false),

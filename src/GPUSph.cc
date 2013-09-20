@@ -564,7 +564,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	}
 
 	// compute mbdata size
-	gdata->s_mbDataSize = problem->m_mbnumber * sizeof(float4);
+	gdata->mbDataSize = problem->m_mbnumber * sizeof(float4);
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
