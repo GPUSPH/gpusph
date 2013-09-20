@@ -61,6 +61,8 @@ public:
 
 	void setGlobalData(GlobalData *_gdata);
 
+	uint getLastFilenum();
+
 protected:
 	string			m_dirname;
 	uint			m_FileCounter;

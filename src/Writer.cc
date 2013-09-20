@@ -123,3 +123,8 @@ void Writer::setGlobalData(GlobalData *_gdata)
 {
 	m_gdata = _gdata;
 }
+
+uint Writer::getLastFilenum()
+{
+	return m_FileCounter;
+}
