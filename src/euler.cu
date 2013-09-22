@@ -106,10 +106,10 @@ euler(	const float4*		oldPos,
 	} else if (step == 2) {
 		if (xsphcorr)
 			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
 		else
 			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
 	} // if (step == 2)
 
 	// check if kernel invocation generated an error
