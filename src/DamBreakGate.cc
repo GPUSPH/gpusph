@@ -40,7 +40,7 @@
 DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_double3(1.6, 0.67, 0.4);
+	m_size = make_double3(1.6*1.1, 0.67*1.1, 0.4*2.);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
@@ -64,8 +64,8 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_simparams.tend = 10.f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals =true;
+	m_simparams.surfaceparticle = false;
+	m_simparams.savenormals = false;
 
 	// Physical parameters
 	H = 0.4f;
@@ -107,7 +107,7 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_mbnumber = 1;
 	mbgatedata.origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
 	mbgatedata.type = GATEPART;
-	mbgatedata.tstart = 0.2f;
+	mbgatedata.tstart = 0.05f;
 	mbgatedata.tend = 0.6f;
 	mbgatedata.vel = make_float3(0.0, 0.0, 0.0);
 	// Call mb_callback a first time to initialise values set by the call back function
@@ -138,7 +138,8 @@ MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i
 {
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
 	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {
-		mbgatedata.vel = make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart));
+		//mbgatedata.vel = make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart));
+		mbgatedata.vel = make_float3(0.0, 0.0, 4.);
 		mbgatedata.disp += mbgatedata.vel*dt;
 		}
 	else
@@ -228,20 +229,29 @@ void DamBreakGate::draw_boundary(float t)
 }
 
 
-void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
+	float4 localpos;
+	uint hashvalue;
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+
+		pos[i] = localpos;
+		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-        std::cout << "Gate parts: " << gate_parts.size() << "\n";
+	std::cout << "Gate parts: " << gate_parts.size() << "\n";
 	for (uint i = j; i < j + gate_parts.size(); i++) {
-		pos[i] = make_float4(gate_parts[i-j]);
+		calc_localpos_and_hash(gate_parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
+		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(GATEPART,0,i);
 	}
@@ -250,7 +260,10 @@ void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		pos[i] = make_float4(obstacle_parts[i-j]);
+		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
+		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
 	}
@@ -259,7 +272,10 @@ void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
+		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 	}
