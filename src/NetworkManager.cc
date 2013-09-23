@@ -55,3 +55,80 @@ char* NetworkManager::getProcessorName() {
 	return processor_name;
 }
 
+void NetworkManager::sendUint(unsigned char dst_rank, unsigned int *datum)
+{
+	int mpi_err = MPI_Send(datum, 1, MPI_INT, dst_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+}
+
+void NetworkManager::receiveUint(unsigned char src_rank, unsigned int *datum)
+{
+	MPI_Status status;
+	int mpi_err = MPI_Recv(datum, 1, MPI_INT, src_rank, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
+	int actual_count;
+
+	mpi_err = MPI_Get_count(&status, MPI_INT, &actual_count);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
+	else
+	if (actual_count != 1)
+		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+}
+
+void NetworkManager::sendFloats(unsigned char dst_rank, unsigned int count, float *src_data)
+{
+	int mpi_err = MPI_Send(src_data, count, MPI_FLOAT, dst_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+}
+
+void NetworkManager::receiveFloats(unsigned char src_rank, unsigned int count, float *dst_data)
+{
+	MPI_Status status;
+	int mpi_err = MPI_Recv(dst_data, count, MPI_FLOAT, src_rank, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
+	int actual_count;
+
+	mpi_err = MPI_Get_count(&status, MPI_INT, &actual_count);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
+	else
+	if (actual_count != 1)
+		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+}
+
+void NetworkManager::sendShorts(unsigned char dst_rank, unsigned int count, unsigned short *src_data)
+{
+	int mpi_err = MPI_Send(src_data, count, MPI_SHORT, dst_rank, MPI_ANY_TAG, MPI_COMM_WORLD);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+}
+
+void NetworkManager::receiveShorts(unsigned char src_rank, unsigned int count, unsigned short *dst_data)
+{
+	MPI_Status status;
+	int mpi_err = MPI_Recv(dst_data, count, MPI_SHORT, src_rank, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
+	int actual_count;
+
+	mpi_err = MPI_Get_count(&status, MPI_INT, &actual_count);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
+	else
+	if (actual_count != 1)
+		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+}
