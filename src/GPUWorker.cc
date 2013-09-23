@@ -229,6 +229,80 @@ void GPUWorker::importPeerEdgeCells()
 	cudaDeviceSynchronize();
 }
 
+void GPUWorker::importNetworkPeerEdgeCells()
+{
+	// iterate on all cells
+	for (int cx = -1; cx <= 1; cx++)
+		for (int cy = -1; cy <= 1; cy++)
+			for (int cz = -1; cz <= 1; cz++) {
+
+				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
+				bool curr_mine = (gdata->s_hDeviceMap[lin_curr_cell] == m_globalDeviceIdx);
+				uchar curr_rank = gdata->RANK(lin_curr_cell);
+
+				// iterate on neighbors
+				for (int dx = -1; dx <= 1; dx++)
+					for (int dy = -1; dy <= 1; dy++)
+						for (int dz = -1; dz <= 1; dz++) {
+
+							// check that we are inside the grid
+							if (cx + dx < 0 || cx + dx >= gdata->gridSize.x) continue;
+							if (cy + dy < 0 || cy + dy >= gdata->gridSize.y) continue;
+							if (cz + dz < 0 || cz + dz >= gdata->gridSize.z) continue;
+
+							// linearized hash of neib cell
+							uint lin_neib_cell = gdata->calcGridHashHost(cx + dx, cy + dy, cz + dz);
+
+							bool neib_mine = (gdata->s_hDeviceMap[lin_neib_cell] == m_globalDeviceIdx);
+							uchar neib_rank = gdata->RANK(lin_neib_cell);
+
+							// do they belong to different nodes?
+							if (curr_rank != neib_rank) {
+								if (curr_mine) {
+
+									// receive the size of the cell...
+									uint partsInNeibCell = 0;
+									gdata->networkManager->receiveUint(neib_rank, &partsInNeibCell);
+
+									// ... then the data (pos, vel, info):
+									gdata->networkManager->receiveFloats(neib_rank, partsInNeibCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + m_numParticles) );
+									gdata->networkManager->receiveFloats(neib_rank, partsInNeibCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + m_numParticles) );
+									gdata->networkManager->receiveShorts(neib_rank, partsInNeibCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + m_numParticles) );
+
+									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = m_numParticles;
+									gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = m_numParticles + partsInNeibCell;
+
+									// update metadata et atl. (see importPeerEdgeCells())
+									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
+											sizeof(uint), cudaMemcpyHostToDevice));
+									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
+											sizeof(uint), cudaMemcpyHostToDevice));
+									// update outer edge segment
+									if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
+										gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
+
+									// update the total number of particles
+									m_numParticles += partsInNeibCell;
+								} else
+								if (neib_mine) {
+
+									// send the size of the cell...
+									uint partsInMyCell = gdata->s_dCellEnds[lin_neib_cell] - gdata->s_dCellStarts[lin_neib_cell];
+									gdata->networkManager->sendUint(neib_rank, &partsInMyCell);
+
+									uint neib_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_neib_cell];
+
+									// ... then the data (pos, vel, info):
+									gdata->networkManager->sendFloats(neib_rank, partsInMyCell * 4,	(float*)(m_dPos[ gdata->currentPosRead ] + neib_cell_start) );
+									gdata->networkManager->sendFloats(neib_rank, partsInMyCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + neib_cell_start) );
+									gdata->networkManager->sendShorts(neib_rank, partsInMyCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + neib_cell_start) );
+								}
+							}
+
+						} // iterate on neighbors
+			} // iterate on cells
+}
+
 // overwrite the external edge cells with an updated copy
 // NOTE: for this method and importPeerEdgeCells() could be encapsulated somehow, since their
 // algorithms have a strong overlap
@@ -305,6 +379,61 @@ void GPUWorker::updatePeerEdgeCells()
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
 	cudaDeviceSynchronize();
+}
+
+void GPUWorker::updateNetworkPeerEdgeCells()
+{
+	// iterate on all cells
+	for (int cx = -1; cx <= 1; cx++)
+		for (int cy = -1; cy <= 1; cy++)
+			for (int cz = -1; cz <= 1; cz++) {
+
+				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
+				bool curr_mine = (gdata->s_hDeviceMap[lin_curr_cell] == m_globalDeviceIdx);
+				uchar curr_rank = gdata->RANK(lin_curr_cell);
+
+				uint curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
+				uint curr_cell_end = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell];
+				uint partsInCell = curr_cell_end - curr_cell_start;
+
+				// iterate on neighbors
+				for (int dx = -1; dx <= 1; dx++)
+					for (int dy = -1; dy <= 1; dy++)
+						for (int dz = -1; dz <= 1; dz++) {
+
+							// check that we are inside the grid
+							if (cx + dx < 0 || cx + dx >= gdata->gridSize.x) continue;
+							if (cy + dy < 0 || cy + dy >= gdata->gridSize.y) continue;
+							if (cz + dz < 0 || cz + dz >= gdata->gridSize.z) continue;
+
+							// linearized hash of neib cell
+							uint lin_neib_cell = gdata->calcGridHashHost(cx + dx, cy + dy, cz + dz);
+
+							bool neib_mine = (gdata->s_hDeviceMap[lin_neib_cell] == m_globalDeviceIdx);
+							uchar neib_rank = gdata->RANK(lin_neib_cell);
+
+							// do they belong to different nodes?
+							if (curr_rank != neib_rank) {
+								if (curr_mine) {
+									// receive the cell (pos, vel, info):
+									gdata->networkManager->receiveFloats(neib_rank, partsInCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + curr_cell_start) );
+									gdata->networkManager->receiveFloats(neib_rank, partsInCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + curr_cell_start) );
+									gdata->networkManager->receiveShorts(neib_rank, partsInCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + curr_cell_start) );
+
+								} else
+								if (neib_mine) {
+									uint neib_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_neib_cell];
+									// uint neib_cell_end = gdata->s_dCellEnds[m_deviceIndex][lin_neib_cell];
+									// uint partsInCell = neib_cell_end - neib_cell_start;
+									// send the cell (pos, vel, info):
+									gdata->networkManager->sendFloats(neib_rank, partsInCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + neib_cell_start) );
+									gdata->networkManager->sendFloats(neib_rank, partsInCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + neib_cell_start) );
+									gdata->networkManager->sendShorts(neib_rank, partsInCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + neib_cell_start) );
+								}
+							}
+
+						} // iterate on neighbors
+			} // iterate on cells
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
@@ -1096,10 +1225,12 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case APPEND_EXTERNAL:
 				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
 				instance->importPeerEdgeCells();
+				instance->importNetworkPeerEdgeCells();
 				break;
 			case UPDATE_EXTERNAL:
 				//printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
 				instance->updatePeerEdgeCells();
+				instance->updateNetworkPeerEdgeCells();
 				break;
 			case MLS:
 				//printf(" T %d issuing MLS\n", deviceIndex);

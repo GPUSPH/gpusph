@@ -139,6 +139,9 @@ private:
 	void importPeerEdgeCells();
 	// overwrite the external edge cells with an updated copy
 	void updatePeerEdgeCells();
+	// MPI versions of the previous methods, to be merged maybe
+	void importNetworkPeerEdgeCells();
+	void updateNetworkPeerEdgeCells();
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
