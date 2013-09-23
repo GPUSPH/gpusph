@@ -382,6 +382,7 @@ struct GlobalData {
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
 
+	// compute the device Id. WARNING: ignores the node rank!
 	uchar calcDevice(float4 pos) {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1) return 0;
@@ -434,6 +435,20 @@ struct GlobalData {
 		}
 		oss << number;
 		return oss.str();
+	}
+
+	// MPI aux methods: conversion from/to local device ids to global ones
+	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> 3);} // discard least 3 bits
+	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & 7);} // discart all but least 3 bits
+	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << 3) & (localDevId & 7));} // compute global dev id
+
+	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
+	void convertDeviceMap() {
+		for (uint n = 0; n < totDevices; n++) {
+			uchar _rank = s_hDeviceMap[n] / devices;
+			uchar _dev  = s_hDeviceMap[n] % devices;
+			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
+		}
 	}
 };
 

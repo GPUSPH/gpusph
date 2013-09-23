@@ -634,7 +634,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// not before allocating the host buffers
 	if (gdata->devices > 1) {
 		printf("Splitting the domain in %u partitions...\n", gdata->devices);
+		// fill the device map with numbers from 0 to totDevices
 		gdata->problem->fillDeviceMap(gdata);
+		// make the numbers globalDeviceIndices, with the least 3 bits reserved for the device number
+		gdata->convertDeviceMap();
 	}
 
 	printf("Copying the particles to shared arrays...\n");
