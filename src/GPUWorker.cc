@@ -148,7 +148,7 @@ void GPUWorker::importPeerEdgeCells()
 		// if the current is an external edge cell...
 		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
 			// check in which device it is
-			uchar peerDevIndex = gdata->s_hDeviceMap[cell];
+			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
 			if (peerDevIndex == m_deviceIndex)
 				printf("WARNING: cell %u is outer edge for thread %u, but SELF in the device map!\n", cell, m_deviceIndex);
 			if (peerDevIndex >= gdata->devices) {
@@ -246,7 +246,7 @@ void GPUWorker::updatePeerEdgeCells()
 		// if the current is an external edge cell...
 		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
 			// check in which device it is
-			uchar peerDevIndex = gdata->s_hDeviceMap[cell];
+			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
 			uint peerCudaDevNum = gdata->device[peerDevIndex];
 			// find its cellStart and cellEnd on the peer device
 			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
@@ -766,9 +766,9 @@ void GPUWorker::createCompactDeviceMap() {
 #define CHECK_CURRENT_CELL \
 	/* data of neib cell */ \
 	uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz); \
-	uint neib_devidx = gdata->s_hDeviceMap[neib_lin_idx]; \
-	any_mine_neib	 |= (neib_devidx == m_deviceIndex); \
-	any_foreign_neib |= (neib_devidx != m_deviceIndex); \
+	uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx]; \
+	any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx); \
+	any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx); \
 	/* did we read enough to decide for current cell? */ \
 	enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 
