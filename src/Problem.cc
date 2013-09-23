@@ -349,9 +349,9 @@ void Problem::fillDeviceMap(GlobalData* gdata)
 // partition by splitting the cells according to their linearized hash.
 void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
 {
-	uint cells_per_device = gdata->nGridCells / gdata->devices;
+	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
-		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->devices-1);
+		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->totDevices-1);
 }
 
 // partition by splitting along the specified axis
@@ -380,7 +380,7 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 			cells_per_longest_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = cells_per_longest_axis / gdata->devices;
+	uint cells_per_device_per_longest_axis = cells_per_longest_axis / gdata->totDevices;
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
 		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
 			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
@@ -393,7 +393,7 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 				// everything is just a preparation for the following line
 				uchar dstDevice = axis_coordinate / cells_per_device_per_longest_axis;
 				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
-				dstDevice = min(dstDevice, gdata->devices - 1);
+				dstDevice = min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -405,12 +405,12 @@ void Problem::fillDeviceMapByEquation(GlobalData* gdata)
 {
 	// 1st equation: (x+y+z / #devices)
 	uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
-	uint coeff = longest_grid_size /  (gdata->devices + 1);
+	uint coeff = longest_grid_size /  (gdata->totDevices + 1);
 	// 2nd equation: spheres
 	uint diagonal = (uint) sqrt(	gdata->gridSize.x * gdata->gridSize.x +
 									gdata->gridSize.y * gdata->gridSize.y +
 									gdata->gridSize.z * gdata->gridSize.z) / 2;
-	uint radius_part = diagonal /  gdata->devices;
+	uint radius_part = diagonal /  gdata->totDevices;
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
 		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
 			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
@@ -424,7 +424,7 @@ void Problem::fillDeviceMapByEquation(GlobalData* gdata)
 				//dstDevice = distance_from_origin / radius_part;
 				// -- end of 2nd eq.
 				// handle the case when cells_per_device multiplies cells_per_longest_axis
-				dstDevice = min(dstDevice, gdata->devices - 1);
+				dstDevice = min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
