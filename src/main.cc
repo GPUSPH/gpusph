@@ -238,8 +238,8 @@ int main(int argc, char** argv) {
 
 	// NOTE: Although GPUSPH has been designed to be run with one multi-threaded process per node, it is important not to create
 	// any file or lock singleton resources before initializing the network, as the process might be forked
-	NetworkManager netmanager;
-	netmanager.initNetwork();
+	gdata.networkManager = new NetworkManager();
+	gdata.networkManager->initNetwork();
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(*(gdata.clOptions));
@@ -261,7 +261,9 @@ int main(int argc, char** argv) {
 	delete gdata.problem;
 
 	// finalize MPI
-	netmanager.finalizeNetwork();
+	gdata.networkManager->finalizeNetwork();
+
+	delete gdata.networkManager;
 
 	return 0;
 }

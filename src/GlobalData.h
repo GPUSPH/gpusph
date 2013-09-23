@@ -26,6 +26,9 @@
 #include "Writer.h"
 // ostringstream
 #include <sstream>
+// NetworkManager
+#include "NetworkManager.h"
+
 
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
@@ -111,6 +114,8 @@ struct GlobalData {
 	Options* clOptions;
 
 	Synchronizer* threadSynchronizer;
+
+	NetworkManager* networkManager;
 
 	// global number of particles - whole simulation
 	uint totParticles;
@@ -277,6 +282,7 @@ struct GlobalData {
 		problem(NULL),
 		clOptions(NULL),
 		threadSynchronizer(NULL),
+		networkManager(NULL),
 		/*totParticles(0),
 		//numPlanes(0),
 		//idealSubset(0), */
