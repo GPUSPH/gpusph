@@ -36,12 +36,25 @@
 #include "Point.h"
 #include "Vector.h"
 
+#define SIZE_X		(1.60)
+#define SIZE_Y		(0.67)
+#define SIZE_Z		(0.40)
+
+// default: origin in 0,0,0
+#define ORIGIN_X	(0)
+#define ORIGIN_Y	(0)
+#define ORIGIN_Z	(0)
+
+// centered domain: use to improve accuracy
+// #define ORIGIN_X	(- SIZE_X / 2)
+// #define ORIGIN_Y	(- SIZE_Y / 2)
+// #define ORIGIN_Z	(- SIZE_Z / 2)
 
 DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(1.6f, 0.67f, 0.4f);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_float3(SIZE_X, SIZE_Y, SIZE_Z);
+	m_origin = make_float3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	m_writerType = VTKWRITER;
 
@@ -147,38 +160,37 @@ MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i
 	return m_mbcallbackdata[0];
 }
 
-
 int DamBreakGate::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
 	Cube fluid, fluid1, fluid2, fluid3, fluid4;
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(1.6, 0, 0),
+	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(1.6, 0, 0),
 						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
 
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	Rect gate = Rect (Point(mbgatedata.origin), Vector(0, 0.67, 0),
+	Rect gate = Rect (Point(mbgatedata.origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
-	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
+	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.12, 0), Vector(0, 0, 0.4 - r0));
 
-	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
+	fluid = Cube(Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.4, 0, 0),
 				Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.4 - r0));
 
 	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
-		fluid1 = Cube(Point(0.4 + m_deltap + r0 , r0, r0), Vector(0.5 - m_deltap - 2*r0, 0, 0),
+		fluid1 = Cube(Point(0.4 + m_deltap + r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.5 - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
 
-		fluid2 = Cube(Point(1.02 + r0 , r0, r0), Vector(0.58 - 2*r0, 0, 0),
+		fluid2 = Cube(Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.58 - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
 
-		fluid3 = Cube(Point(0.9 , m_deltap , r0), Vector(0.12, 0, 0),
+		fluid3 = Cube(Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.24 - 2*r0, 0), Vector(0, 0, 0.03));
 
-		fluid4 = Cube(Point(0.9 , 0.36 + m_deltap , r0), Vector(0.12, 0, 0),
+		fluid4 = Cube(Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.31 - 2*r0, 0), Vector(0, 0, 0.03));
 	}
 
