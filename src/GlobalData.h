@@ -101,10 +101,17 @@ class Writer;
 struct GlobalData {
 	// # of GPUs running
 
-	// number of user-specified devices (# of GPUThreads)
+	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
 	unsigned int devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
+
+	// MPI vars
+	unsigned int mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
+	int mpi_rank; // MPI rank. -1 if not initialized
+
+	// total number of devices. Same as "devices" if single-node
+	unsigned int totDevices;
 
 	// array of GPUWorkers, one per GPU
 	GPUWorker** GPUWORKERS;
@@ -278,6 +285,9 @@ struct GlobalData {
 
 	GlobalData(void):
 		devices(0),
+		mpi_nodes(0),
+		mpi_rank(-1),
+		totDevices(0),
 		// GPUTHREADS(NULL),
 		problem(NULL),
 		clOptions(NULL),

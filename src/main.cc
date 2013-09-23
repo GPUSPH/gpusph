@@ -241,6 +241,11 @@ int main(int argc, char** argv) {
 	gdata.networkManager = new NetworkManager();
 	gdata.networkManager->initNetwork();
 
+	gdata.mpi_nodes = gdata.networkManager->getWorldSize();
+	gdata.mpi_rank = gdata.networkManager->getProcessRank();
+
+	gdata.totDevices = gdata.mpi_nodes * gdata.devices;
+
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(*(gdata.clOptions));
 

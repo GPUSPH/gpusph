@@ -17,6 +17,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
 
+	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
+
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->get_simparams();
 	m_physparams = gdata->problem->get_physparams();
