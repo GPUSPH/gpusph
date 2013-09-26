@@ -57,7 +57,7 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 	vz.normalize();
 	
 	Vector axis;
-	double mat[8];
+	double mat[9];
 	mat[0] = m_vx(0)/m_lx;
 	mat[3] = m_vx(1)/m_lx;
 	mat[6] = m_vx(2)/m_lx;

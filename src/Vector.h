@@ -49,7 +49,7 @@ class Point;
 */
 class Vector {
 	private:
-		double	x[3];	///< coordinates of vector
+		double	x[4];	///< coordinates of vector
 
 	public:
 		Vector(const Point &, const Point &);
