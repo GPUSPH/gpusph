@@ -125,7 +125,7 @@ EULER_KERNEL_NAME(
 		// so in 2 substep the gate covers v*dt BUT pos is always pos(n) so
 		// at step 1 we have pos += v*dt with dt=dt/2 and at step 2 we have
 		// pos += v*dt with dt = dt
-		else if (type(pinfo)  == GATEPART) {
+		else if (type(pinfo) == GATEPART) {
 			const int i = object(pinfo);
 			pos.x += d_mbdata[i].x*dt;
 			pos.y += d_mbdata[i].y*dt;

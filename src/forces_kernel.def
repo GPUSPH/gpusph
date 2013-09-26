@@ -273,7 +273,8 @@ FORCES_CUDA_KERNEL
 			if (usedem) {
 				switch (boundarytype) {
 					case LJ_BOUNDARY:
-						geom_coeff = DemLJForce(demTex, pos, as_float3(vel), dynvisc, force);
+						geom_coeff = DemLJForce(demTex, as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
+										pos.w, as_float3(vel), dynvisc, force);
 						break;
 					default:
 						break;
@@ -282,7 +283,8 @@ FORCES_CUDA_KERNEL
 
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numplanes) {
-				geom_coeff = max(geom_coeff, GeometryForce(pos, as_float3(vel), dynvisc, force));
+				geom_coeff = max(geom_coeff, GeometryForce(as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
+							pos.w, as_float3(vel), dynvisc, force));
 			}
 			
 			# ifdef DT_KERNEL
@@ -347,7 +349,8 @@ FORCES_CUDA_KERNEL
 
 			uint rbindex = id(info) + d_rbstartindex[object(info)];
 			rbforces[rbindex] = force;
-			rbtorques[rbindex] = make_float4(cross(as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize - d_rbcg[object(info)], as_float3(force)));
+			rbtorques[rbindex] = make_float4(cross(as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize
+								- d_rbcg[object(info)], as_float3(force)));
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
 

@@ -56,15 +56,15 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.slength = 1.3*m_deltap;
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
-	m_simparams.dt = 0.00001f;
+	m_simparams.dt = 0.0003f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
+	m_simparams.dtadapt = false;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 17;
-	//m_simparams.visctype = ARTVISC;
-	m_simparams.visctype = SPSVISC;
+	m_simparams.mlsfreq = 0;
+	m_simparams.visctype = ARTVISC;
+	//m_simparams.visctype = SPSVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f; //0.00036f
 
@@ -73,7 +73,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.savenormals = false;
 
 	// Vorticity
-	m_simparams.vorticity = true;
+	m_simparams.vorticity = false;
 
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
@@ -108,7 +108,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 10;
+	m_writefreq = 5;
 	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation

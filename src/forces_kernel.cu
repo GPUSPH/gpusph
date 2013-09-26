@@ -465,35 +465,31 @@ getNeibIndex(const float4	pos,
 
 // Normal and viscous force wrt to solid boundary
 __device__ __forceinline__ float
-PlaneForce(	const float4	pos,
-			const float4	plane,
+PlaneForce(	const float3 &	pos,
+			const float 	mass,
+			const float4 &	plane,
 			const float		l,
-			const float3	vel,
+			const float3&	vel,
 			const float		dynvisc,
 			float4&			force)
 {
-	const float r = abs(dot(as_float3(pos), as_float3(plane)) + plane.w)/l;
+	const float r = abs(dot(pos, as_float3(plane)) + plane.w)/l;
 	if (r < d_r0) {
 		const float DvDt = LJForce(r);
 		// Unitary normal vector of the surface
 		const float3 relPos = make_float3(plane)*r/l;
 
-		force.x += DvDt*relPos.x;
-		force.y += DvDt*relPos.y;
-		force.z += DvDt*relPos.z;
+		as_float3(force) += DvDt*relPos;
 
-		// normal velocity component
-		const float normal = dot(vel, relPos)/r;
-		const float3 v_n = normal*relPos/r;
 		// tangential velocity component
-		const float3 v_t = vel - v_n;
+		const float3 v_t = vel - dot(vel, relPos)/r*relPos/r; //TODO: check
 
 		// f = -µ u/∆n
 
 		// viscosity
 		// float coeff = -dynvisc*M_PI*(d_r0*d_r0-r*r)/(pos.w*r);
 		// float coeff = -dynvisc*M_PI*(d_r0*d_r0*3/(M_PI*2)-r*r)/(pos.w*r);
-		const float coeff = -dynvisc*d_partsurf/(pos.w*r);
+		const float coeff = -dynvisc*d_partsurf/(mass*r);
 
 		// coeff should not be higher than needed to nil v_t in the maximum allowed dt
 		// coefficients are negative, so the smallest in absolute value is the biggest
@@ -505,9 +501,7 @@ PlaneForce(	const float4	pos,
 			coeff = max(coeff, coeff2);
 			*/
 
-		force.x += coeff*v_t.x;
-		force.y += coeff*v_t.y;
-		force.z += coeff*v_t.z;
+		as_float3(force) += coeff*v_t;
 
 		return -coeff;
 	}
@@ -516,14 +510,15 @@ PlaneForce(	const float4	pos,
 }
 
 __device__ __forceinline__ float
-GeometryForce(	const float4	pos,
-				const float3	vel,
+GeometryForce(	const float3&	pos,
+				const float		mass,
+				const float3&	vel,
 				const float		dynvisc,
 				float4&			force)
 {
 	float coeff_max = 0.0f;
 	for (uint i = 0; i < d_numplanes; ++i) {
-		float coeff = PlaneForce(pos, d_planes[i], d_plane_div[i], vel, dynvisc, force);
+		float coeff = PlaneForce(pos, mass, d_planes[i], d_plane_div[i], vel, dynvisc, force);
 		if (coeff > coeff_max)
 			coeff_max = coeff;
 	}
@@ -543,8 +538,9 @@ DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
 
 __device__ __forceinline__ float
 DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
-			const float4	pos,
-			const float3	vel,
+			const float3&	pos,
+			const float		mass,
+			const float3&	vel,
 			const float		dynvisc,
 			float4&			force)
 {
@@ -557,7 +553,7 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 		const float c = d_demdxdy;	// demdx*demdy
 		const float d = -a*pos.x - b*pos.y - c*z0;
 		const float l = sqrt(a*a+b*b+c*c);
-		return PlaneForce(pos, make_float4(a, b, c, d), l, vel, dynvisc, force);
+		return PlaneForce(pos, mass, make_float4(a, b, c, d), l, vel, dynvisc, force);
 	}
 	return 0;
 }

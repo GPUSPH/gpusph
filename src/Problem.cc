@@ -367,7 +367,7 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 
 		switch(mbcallbackdata.type) {
 			case PISTONPART:
-				data.x = mbcallbackdata.origin.x + mbcallbackdata.disp.x;
+				data.x = mbcallbackdata.vel.x;
 				break;
 
 			case PADDLEPART:
@@ -432,7 +432,7 @@ Problem::set_grid_params(void)
 {
 	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
 
-	if (m_simparams.periodicbound & XPERIODIC)
+	/*if (m_simparams.periodicbound & XPERIODIC)
 		m_size.x = m_gridsize.x*influenceRadius;
 	else
 		m_gridsize.x = (uint) (m_size.x / influenceRadius);
@@ -449,9 +449,22 @@ Problem::set_grid_params(void)
 
 	m_cellsize.x = (m_simparams.periodicbound & XPERIODIC) ? influenceRadius : m_size.x / m_gridsize.x;
 	m_cellsize.y = (m_simparams.periodicbound & YPERIODIC) ? influenceRadius : m_size.y / m_gridsize.y;
-	m_cellsize.z = (m_simparams.periodicbound & ZPERIODIC) ? influenceRadius : m_size.z / m_gridsize.z;
+	m_cellsize.z = (m_simparams.periodicbound & ZPERIODIC) ? influenceRadius : m_size.z / m_gridsize.z;*/
+	// TODO: fix for periodic bound
+
+	m_cellsize.x = influenceRadius;
+	m_cellsize.y = influenceRadius;
+	m_cellsize.z = influenceRadius;
+
+	m_gridsize.x = ceil(m_size.x / influenceRadius);
+	m_gridsize.y = ceil(m_size.y / influenceRadius);
+	m_gridsize.z = ceil(m_size.z / influenceRadius);
+	m_size.x = m_gridsize.x*influenceRadius;
+	m_size.y = m_gridsize.y*influenceRadius;
+	m_size.z = m_gridsize.z*influenceRadius;
 
 	printf("set_grid_params :\n");
+	printf("Domain size : (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
 	printf("Grid size : (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
 	printf("Cell size : (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
 }
