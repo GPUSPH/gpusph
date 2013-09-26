@@ -162,6 +162,7 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset, const uint3& gridSize)
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  */
 //TODO: implement other periodicity than XPERIODIC
+#define MOVINGNOTFLUID (PISTONPART | PISTONPART | PADDLEPART | GATEPART | OBJECTPART)
 template <int periodicbound>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
@@ -182,8 +183,9 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	float4 pos = posArray[index];
 	const particleinfo info = particelInfo[index];
 
-	// We compute new hash only for fluid or object particles
-	if (FLUID(info) || OBJECT(info)) {
+	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
+	if (FLUID(info) || (type(info) & MOVINGNOTFLUID)) {
+	//if (true) {
 		// Getting the old grid hash
 		uint gridHash = particleHash[index];
 
@@ -207,7 +209,7 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
-
+#undef MOVINGNOTFLUID
 
 /// Reorders particles data after the sort and updates cells informations
 /*! This kernel should be called after the sort. It
@@ -340,7 +342,7 @@ neibsInCell(
 	// With periodic boundary when the neighboring cell grid position lies
 	// outside the domain size we wrap it to the gridSize or 0 according
 	// with the chosen periodicity
-	//TODO: fix periodicity along multiple axis
+	// TODO: fix periodicity along multiple axis
 	if (periodicbound) {
 		// Periodicity along x axis
 		if (gridPos.x < 0) {
@@ -415,7 +417,7 @@ neibsInCell(
 
 		// Testpoints are not considered in neighboring list of other particles since they are imaginary particles.
     	const particleinfo info = tex1Dfetch(infoTex, neib_index);
-        if (!TESTPOINTS (info)) {
+        if (!TESTPOINTS(info)) {
         	// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
@@ -492,7 +494,7 @@ buildNeibsListDevice(
 		// so change that when implementing dynamics boundary parts
 
 		// Neighbor list is build for fluid, test and object particle's
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info)) {
+		if (FLUID(info) || TESTPOINTS(info) || OBJECT(info)) {
 			// Get particle position
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);

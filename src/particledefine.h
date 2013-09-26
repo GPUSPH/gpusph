@@ -165,14 +165,13 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #endif
 
 #define FLUIDPART 0
-
 /* non-fluid types start at (1<<MAX_FLUID_BITS) */
 #define BOUNDPART  (1<<MAX_FLUID_BITS)
 #define PISTONPART (2<<MAX_FLUID_BITS)
 #define PADDLEPART (3<<MAX_FLUID_BITS)
 #define GATEPART   (4<<MAX_FLUID_BITS)
-#define TESTPOINTSPART   (5<<MAX_FLUID_BITS)
-#define OBJECTPART (6<<MAX_FLUID_BITS)
+#define OBJECTPART (5<<MAX_FLUID_BITS)
+#define TESTPOINTSPART  (6<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PARTICLE_FLAG_START (1<<8)
@@ -188,7 +187,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 // Particle belonging to an object
 #define OBJECT(f) ((f).x == OBJECTPART)
 // Free surface detection
-#define SURFACE_PARTICLE(f) ((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
+#define SURFACE(f) ((f).x & SURFACE_PARTICLE_FLAG)
 // Boundary particle
 #define BOUNDARY(f) ((f).x == BOUNDPART)
 // Extract particle type
