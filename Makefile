@@ -165,10 +165,15 @@ endif
 
 # nvcc-specific CFLAGS
 CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE) -DdSINGLE -lineinfo
-
+			
 # Default CFLAGS (see notes below)
 ifeq ($(platform), Darwin)
-	CFLAGS_STANDARD =
+	CFLAGS_STANDARD = -O3
+	# If we are using clang we must set the nvcc option -cbin to clang executable
+	# in order to compile with nvcc
+	ifneq ($(wildcard /usr/bin/clang),)
+		NVCC += -ccbin=/usr/bin/clang
+	endif 
 else # Linux
 	CFLAGS_STANDARD = -O3
 endif
