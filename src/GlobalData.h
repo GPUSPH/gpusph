@@ -437,6 +437,12 @@ struct GlobalData {
 		return oss.str();
 	}
 
+	string to_string(uint number) {
+		ostringstream ss;
+		ss << number;
+		return ss.str();
+	}
+
 	// MPI aux methods: conversion from/to local device ids to global ones
 	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> 3);} // discard least 3 bits
 	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & 7);} // discart all but least 3 bits

@@ -132,3 +132,12 @@ void NetworkManager::receiveShorts(unsigned char src_rank, unsigned int count, u
 	if (actual_count != 1)
 		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
 }
+
+void NetworkManager::networkFloatReduction(float *datum)
+{
+	float previous_value = *datum;
+	int mpi_err = MPI_Allreduce(&previous_value, datum, 1, MPI_FLOAT, MPI_MIN, MPI_COMM_WORLD);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
+}

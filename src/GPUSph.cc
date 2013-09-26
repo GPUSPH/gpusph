@@ -902,10 +902,9 @@ bool GPUSPH::runSimulation() {
 			gdata->dt = gdata->dts[0];
 			for (int d=1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// TODO for multinode
-			//MM			send dt
-			//MM			gather dts, chose min, broadcast (if rank 0)
-			//MM			receive global dt
+			// if runnign multinode, should also find the network minimum
+			if (gdata->mpi_nodes > 1)
+				gdata->networkManager->networkFloatReduction(&(gdata->dt));
 		}
 
 		// TODO				check/throw dtZero exception

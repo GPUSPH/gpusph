@@ -53,6 +53,7 @@ Problem::Problem(const Options &options)
 	m_bodies = NULL;
 	if (options.custom_dir.length()>0)
 		m_problem_dir = options.custom_dir;
+	m_gdata= NULL;
 }
 
 
@@ -239,6 +240,10 @@ Problem::create_problem_dir(void)
 		// create "./tests/" if it doesn't exist yet. Assuming this yield no error...
 		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
 	}
+
+	// customize the directory name according to the process rank
+	if (m_gdata && m_gdata->mpi_nodes > 1)
+		m_problem_dir += ".MPI_" + m_gdata->to_string(m_gdata->mpi_rank) + "." + m_gdata->to_string(m_gdata->mpi_nodes);
 
 	// create the directory
 	if (mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO)) {

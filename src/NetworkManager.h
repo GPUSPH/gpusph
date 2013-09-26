@@ -30,6 +30,8 @@ public:
 	void receiveFloats(unsigned char src_rank, unsigned int count, float *dst_data);
 	void sendShorts(unsigned char dst_rank, unsigned int count, unsigned short *src_data);
 	void receiveShorts(unsigned char src_rank, unsigned int count, unsigned short *dst_data);
+	// find minimum float across the network
+	void networkFloatReduction(float *datum);
 };
 
 #endif /* NETWORKMANAGER_H_ */
