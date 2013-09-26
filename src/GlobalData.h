@@ -124,8 +124,21 @@ struct GlobalData {
 
 	NetworkManager* networkManager;
 
+	// NOTE: the following holds
+	// s_hPartsPerDevice[x] <= processParticles <= totParticles <= allocatedParticles
+	// - s_hPartsPerDevice[x] is the number of particles currently being handled by the GPU
+	//   (only useful in multigpu to keep track of the number of particles to dump; varies according to the fluid displacemente in the domain)
+	// - processParticles is the sum of all the internal particles of all the GPUs in the process
+	//   (only useful in multinode to keep track of the number of particles to save; varies according to the fluid displacemente in the domain)
+	// - totParticles is the sum of all the internal particles of all the network
+	//   (equal to processParticles if single node; can vary with inlets/outlets)
+	// - allocatedParticles is the number of allocations
+	//   (can be higher when there are inlets)
+
 	// global number of particles - whole simulation
 	uint totParticles;
+	// number of particles of the process
+	uint processParticles;
 	// number of allocated particles *in the process*
 	uint allocatedParticles;
 	// global number of planes (same as local ones)
@@ -154,8 +167,8 @@ struct GlobalData {
 	uchar* 			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
 	// counter: how many particles per device
-	uint s_hPartsPerDevice[MAX_DEVICES_PER_CLUSTER]; // TODO: can change to PER_NODE if not compiling for multinode
-	uint s_hStartPerDevice[MAX_DEVICES_PER_CLUSTER]; // ditto
+	uint s_hPartsPerDevice[MAX_DEVICES_PER_NODE]; // TODO: can change to PER_NODE if not compiling for multinode
+	uint s_hStartPerDevice[MAX_DEVICES_PER_NODE]; // ditto
 
 	// cellStart, cellEnd, segmentStart (limits of cells of the sam type) for each device.
 	// Note the s(shared)_d(device) prefix, since they're device pointers
@@ -293,9 +306,10 @@ struct GlobalData {
 		clOptions(NULL),
 		threadSynchronizer(NULL),
 		networkManager(NULL),
-		/*totParticles(0),
-		//numPlanes(0),
-		//idealSubset(0), */
+		totParticles(0),
+		processParticles(0),
+		allocatedParticles(0),
+		//idealSubset(0),
 		s_hPos(NULL),
 		s_hVel(NULL),
 		s_hInfo(NULL),
@@ -382,10 +396,10 @@ struct GlobalData {
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
 
-	// compute the device Id. WARNING: ignores the node rank!
+	// compute the global device Id of the cell holding pos
 	uchar calcDevice(float4 pos) {
 		// do not access s_hDeviceMap if single-GPU
-		if (devices == 1) return 0;
+		if (devices == 1) return 0; // TODO: with multinode 1 dev x node, this is wrong!
 		// compute 3D cell coordinate
 		int3 cellCoords = calcGridPosHost( pos.x, pos.y, pos.z );
 		// compute cell linearized index

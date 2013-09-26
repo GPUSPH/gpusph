@@ -647,13 +647,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 	printf("---\n");
 
-	if (gdata->devices > 1) {
+	if (gdata->devices > 1 || gdata->mpi_nodes > 1) {
 		printf("Sorting the particles per device...\n");
 		sortParticlesByHash();
 	} else {
 		// if there is something more to do, encapsulate in a dedicated method please
 		gdata->s_hStartPerDevice[0] = 0;
-		gdata->s_hPartsPerDevice[0] = gdata->totParticles;
+		gdata->s_hPartsPerDevice[0] = gdata->processParticles = gdata->totParticles;
 	}
 
 	for (uint d=0; d < gdata->devices; d++)
@@ -1384,6 +1384,7 @@ void GPUSPH::printStatus()
 
 // Do a roll call of particle IDs; useful after dumps if no in/outlets are there and if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
+// NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)
 void GPUSPH::rollCallParticles()
 {
 	bool all_normal = true;
