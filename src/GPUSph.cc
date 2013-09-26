@@ -1122,9 +1122,14 @@ void GPUSPH::sortParticlesByHash() {
 	// for (uint p=0; p < gdata->totParticles; p++)
 	//	printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) );
 
-	// reset counters. Not using memset since its size is typically lower than 1Kb
-	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++)
+	// count parts for each node to compute the offset
+	uint particlesPerNode[MAX_NODES_PER_CLUSTER];
+
+	// reset counters. Not using memset since sizes are smaller than 1Kb
+	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		gdata->s_hPartsPerDevice[d] = 0;
+	for (uint n=0; n < MAX_NODES_PER_CLUSTER; n++)
+			particlesPerNode[n] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
@@ -1132,15 +1137,26 @@ void GPUSPH::sortParticlesByHash() {
 	// fill array with particle hashes (aka global device numbers)
 	for (uint p=0; p < gdata->totParticles; p++) {
 		// compute cell according to the particle's position and to the deviceMap
-		uchar whichDev = gdata->calcDevice(gdata->s_hPos[p]);
+		uchar whichGlobalDev = gdata->calcDevice(gdata->s_hPos[p]);
 		// that's the key!
-		m_hParticleHashes[p] = whichDev;
-		// increment per-device counter
-		gdata->s_hPartsPerDevice[whichDev]++;
+		m_hParticleHashes[p] = whichGlobalDev;
+		// increase node counter (only useful for multinode)
+		particlesPerNode[gdata->RANK(whichGlobalDev)]++;
+		// if particle is in current node, increment the device counters
+		if (gdata->RANK(whichGlobalDev) == gdata->mpi_rank)
+			// increment per-device counter
+			gdata->s_hPartsPerDevice[gdata->DEVICE(whichGlobalDev)]++;
 	}
+
+	// update the number of particles of the process
+	gdata->processParticles = particlesPerNode[gdata->mpi_rank];
 
 	// update s_hStartPerDevice with incremental sum (should do in specific function?)
 	gdata->s_hStartPerDevice[0] = 0;
+	// zero is true for the first node. For the next ones, need to sum the number of particles of the previous nodes
+	if (gdata->mpi_nodes > 1)
+		for (uint prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
+			gdata->s_hStartPerDevice[0] += particlesPerNode[ prev_nodes ];
 	for (uint d=1; d < gdata->devices; d++)
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
@@ -1331,9 +1347,11 @@ void GPUSPH::createWriter()
 
 void GPUSPH::doWrite()
 {
-	gdata->writer->write(gdata->totParticles, gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo,
-		gdata->s_hVorticity, gdata->t, gdata->problem->get_simparams()->testpoints,
-		gdata->s_hNormals);
+	uint node_offset = gdata->s_hStartPerDevice[ gdata->mpi_rank ];
+	gdata->writer->write(gdata->processParticles,
+		gdata->s_hPos + node_offset, gdata->s_hVel + node_offset, gdata->s_hInfo + node_offset,
+		gdata->s_hVorticity + node_offset, gdata->t, gdata->problem->get_simparams()->testpoints,
+		gdata->s_hNormals + node_offset);
 	gdata->problem->mark_written(gdata->t);
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
@@ -1390,13 +1408,13 @@ void GPUSPH::rollCallParticles()
 	bool all_normal = true;
 
 	// reset bitmap and addrs
-	for (uint idx = 0; idx < gdata->totParticles; idx++) {
+	for (uint idx = 0; idx < gdata->processParticles; idx++) {
 		m_rcBitmap[idx] = false;
 		m_rcAddrs[idx] = 0xFFFFFFFF;
 	}
 
 	// fill out the bitmap and check for duplicates
-	for (uint pos = 0; pos < gdata->totParticles; pos++) {
+	for (uint pos = 0; pos < gdata->processParticles; pos++) {
 		uint idx = id(gdata->s_hInfo[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u!\n",
@@ -1410,7 +1428,7 @@ void GPUSPH::rollCallParticles()
 		m_rcAddrs[idx] = pos;
 	}
 	// now check if someone is missing
-	for (uint idx = 0; idx < gdata->totParticles; idx++)
+	for (uint idx = 0; idx < gdata->processParticles; idx++)
 		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u was not found!\n",
 				gdata->iterations, gdata->t, idx);
@@ -1437,21 +1455,24 @@ void GPUSPH::rollCallParticles()
 // Could go in GlobalData but would need another forward-declaration
 void GPUSPH::updateArrayIndices() {
 	uint count = 0;
-	// this should always hold
-	gdata->s_hStartPerDevice[0] = 0;
+
+	// this should hold if single-GPU; there is no need to update
+	// gdata->s_hStartPerDevice[0] = 0;
+
 	// just store an incremental counter
 	for (int d=0; d < gdata->devices; d++) {
 		count += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
 		if (d > 0)
 			gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 	}
+
 	// number of particle may increase or decrease if there are respectively inlets or outlets
-	if ( (count < gdata->totParticles && gdata->problem->get_physparams()->outlets > 0) ||
-		 (count > gdata->totParticles && gdata->problem->get_physparams()->inlets > 0) ) {
+	if ( (count < gdata->processParticles && gdata->problem->get_physparams()->outlets > 0) ||
+		 (count > gdata->processParticles && gdata->problem->get_physparams()->inlets > 0) ) {
 		printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, count);
-		gdata->totParticles = count;
+		gdata->processParticles = count;
 	} else
-	if (count != gdata->totParticles) {
+	if (gdata->mpi_nodes == 1 && count != gdata->processParticles) {
 		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n", gdata->iterations, gdata->totParticles, count);
 
 		// who is missing?
@@ -1460,7 +1481,7 @@ void GPUSPH::updateArrayIndices() {
 
 		// update totParticles to avoid dumping an outdated particle (and repeating the warning).
 		// Note: updading *after* the roll call likely shows the missing particle(s) and the duplicate(s). Doing before it only shows the missing one(s)
-		gdata->totParticles = count;
+		gdata->processParticles = count;
 	}
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
 	if (count > gdata->allocatedParticles) {
