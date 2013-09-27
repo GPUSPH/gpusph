@@ -58,7 +58,7 @@ char* NetworkManager::getProcessorName() {
 // print world size,process name and rank
 void NetworkManager::printInfo()
 {
-	printf("[Network] rank %u/%u, processor name %s\n", process_rank, world_size, processor_name);
+	printf("[Network] rank %u (%u/%u), host %s\n", process_rank, process_rank + 1, world_size, processor_name);
 }
 
 void NetworkManager::sendUint(unsigned char dst_rank, unsigned int *datum)
