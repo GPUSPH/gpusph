@@ -400,7 +400,7 @@ struct GlobalData {
 	// compute the global device Id of the cell holding pos
 	uchar calcDevice(float4 pos) {
 		// do not access s_hDeviceMap if single-GPU
-		if (devices == 1) return 0; // TODO: with multinode 1 dev x node, this is wrong!
+		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
 		int3 cellCoords = calcGridPosHost( pos.x, pos.y, pos.z );
 		// compute cell linearized index
