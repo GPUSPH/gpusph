@@ -1203,13 +1203,17 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case APPEND_EXTERNAL:
 				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
-				instance->importPeerEdgeCells();
-				instance->importNetworkPeerEdgeCells();
+				if (MULTI_GPU)
+					instance->importPeerEdgeCells();
+				if (MULTI_NODE)
+					instance->importNetworkPeerEdgeCells();
 				break;
 			case UPDATE_EXTERNAL:
 				//printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
-				instance->updatePeerEdgeCells();
-				instance->updateNetworkPeerEdgeCells();
+				if (MULTI_GPU)
+					instance->updatePeerEdgeCells();
+				if (MULTI_NODE)
+					instance->updateNetworkPeerEdgeCells();
 				break;
 			case MLS:
 				//printf(" T %d issuing MLS\n", deviceIndex);
