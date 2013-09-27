@@ -309,6 +309,7 @@ struct GlobalData {
 		totParticles(0),
 		processParticles(0),
 		allocatedParticles(0),
+		nGridCells(0),
 		//idealSubset(0),
 		s_hPos(NULL),
 		s_hVel(NULL),
