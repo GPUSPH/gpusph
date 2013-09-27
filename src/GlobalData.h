@@ -464,7 +464,7 @@ struct GlobalData {
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
 	void convertDeviceMap() {
-		for (uint n = 0; n < totDevices; n++) {
+		for (uint n = 0; n < nGridCells; n++) {
 			uchar _rank = s_hDeviceMap[n] / devices;
 			uchar _dev  = s_hDeviceMap[n] % devices;
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
