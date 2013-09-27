@@ -38,11 +38,12 @@ Writer::Writer(const Problem *problem)
 
 	string energy_fn = m_dirname + "/energy.txt";
 	m_energyfile = fopen(energy_fn.c_str(), "w");
-	if (!m_energyfile) {
+	/*if (!m_energyfile) {
 		stringstream ss;
 		ss << "Cannot open data file " << energy_fn;
 		throw runtime_error(ss.str());
-	} else {
+	} else*/
+	if (m_energyfile) {
 		fputs("#\ttime", m_energyfile);
 		uint fluid = 0;
 		for (; fluid < problem->get_physparams()->numFluids; ++fluid)
@@ -54,11 +55,13 @@ Writer::Writer(const Problem *problem)
 	//WaveGage
 	string WaveGage_fn = m_dirname + "/WaveGage.txt";
 	m_WaveGagefile = fopen(WaveGage_fn.c_str(), "w");
-	if (!m_WaveGagefile) {
+	/*if (!m_WaveGagefile) {
 		stringstream ss;
 		ss << "Cannot open data file " << WaveGage_fn;
 		throw runtime_error(ss.str());
-	} else {
+	} else */
+	if (m_WaveGagefile)
+	{
 		fputs("#\ttime", m_WaveGagefile);
 		uint gage = 0;
 		for (; gage < problem->get_simparams()->gage.size(); ++gage)
@@ -78,26 +81,30 @@ Writer::~Writer()
 void
 Writer::write_energy(float t, float4 *energy)
 {
-	fprintf(m_energyfile, "%g", t);
-	uint fluid = 0;
-	for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-		fprintf(m_energyfile, "\t%g\t%g",
-				energy[fluid].x, energy[fluid].y, energy[fluid].z);
-	fputs("\n", m_energyfile);
-	fflush(m_energyfile);
+	if (m_energyfile) {
+		fprintf(m_energyfile, "%g", t);
+		uint fluid = 0;
+		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
+			fprintf(m_energyfile, "\t%g\t%g",
+					energy[fluid].x, energy[fluid].y, energy[fluid].z);
+		fputs("\n", m_energyfile);
+		fflush(m_energyfile);
+	}
 }
 
 //WaveGage
 void
 Writer::write_WaveGage(float t, GageList const& gage)
 {
-	fprintf(m_WaveGagefile, "%g", t);
-	for (int i=0; i < gage.size(); i++) {
-		fprintf(m_WaveGagefile, "\t%g",
-				gage[i].z);
+	if (m_WaveGagefile) {
+		fprintf(m_WaveGagefile, "%g", t);
+		for (int i=0; i < gage.size(); i++) {
+			fprintf(m_WaveGagefile, "\t%g",
+					gage[i].z);
+		}
+		fputs("\n", m_WaveGagefile);
+		fflush(m_WaveGagefile);
 	}
-	fputs("\n", m_WaveGagefile);
-	fflush(m_WaveGagefile);
 }
 
 

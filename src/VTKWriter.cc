@@ -40,16 +40,18 @@ VTKWriter::VTKWriter(const Problem *problem)
     m_timefile = NULL;
     m_timefile = fopen(time_filename.c_str(), "w");
 
-	if (m_timefile == NULL) {
+	/*if (m_timefile == NULL) {
 		stringstream ss;
 		ss << "Cannot open data file " << time_filename;
 		throw runtime_error(ss.str());
-		}
+		}*/
 
 	// Writing header of VTUinp.pvd file
-	fprintf(m_timefile,"<?xml version='1.0'?>\n");
-	fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
-	fprintf(m_timefile,"  <Collection>\n");
+	if (m_timefile) {
+		fprintf(m_timefile,"<?xml version='1.0'?>\n");
+		fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
+		fprintf(m_timefile,"  <Collection>\n");
+	}
 }
 
 
