@@ -477,7 +477,7 @@ struct GlobalData {
 	// set the correct fields; apply and enable visibility
 	void saveDeviceMapToFile(string prefix) {
 		std::ostringstream oss;
-		oss << prefix << "_rank" << mpi_rank << ".csv";
+		oss << prefix << "_rank" << mpi_rank << "_" << networkManager->getProcessorName() << ".csv";
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
@@ -494,7 +494,7 @@ struct GlobalData {
 	// Same as saveDeviceMapToFile() but saves the *compact* device map
 	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) {
 		std::ostringstream oss;
-		oss << prefix << "_dev" << srcDev << "_rank" << mpi_rank << ".csv";
+		oss << prefix << "_dev" << srcDev << "_rank" << mpi_rank << "_" << networkManager->getProcessorName() << ".csv";
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
