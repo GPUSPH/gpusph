@@ -906,8 +906,8 @@ void GPUWorker::createCompactDeviceMap() {
 			for (int iz=0; iz < gdata->gridSize.z; iz++) {
 				// data of current cell
 				uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
-				uint cell_devidx = gdata->s_hDeviceMap[cell_lin_idx];
-				bool is_mine = (cell_devidx == m_deviceIndex);
+				uint cell_globalDevidx = gdata->s_hDeviceMap[cell_lin_idx];
+				bool is_mine = (cell_globalDevidx == m_globalDeviceIdx);
 				// aux vars for iterating on neibs
 				bool any_foreign_neib = false; // at least one neib does not belong to me?
 				bool any_mine_neib = false; // at least one neib does belong to me?
