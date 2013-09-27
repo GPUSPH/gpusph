@@ -232,13 +232,17 @@ void GPUWorker::importPeerEdgeCells()
 void GPUWorker::importNetworkPeerEdgeCells()
 {
 	// iterate on all cells
-	for (int cx = -1; cx <= 1; cx++)
-		for (int cy = -1; cy <= 1; cy++)
-			for (int cz = -1; cz <= 1; cz++) {
+	for (int cx = 0; cx < gdata->gridSize.x; cx++)
+		for (int cy = 0; cy < gdata->gridSize.y; cy++)
+			for (int cz = 0; cz < gdata->gridSize.z; cz++) {
 
 				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
+
+				// TODO: if outer, continue
+
+
 				bool curr_mine = (gdata->s_hDeviceMap[lin_curr_cell] == m_globalDeviceIdx);
-				uchar curr_rank = gdata->RANK(lin_curr_cell);
+				uchar curr_rank = gdata->RANK( gdata->s_hDeviceMap[lin_curr_cell] );
 
 				// iterate on neighbors
 				for (int dx = -1; dx <= 1; dx++)
@@ -254,7 +258,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 							uint lin_neib_cell = gdata->calcGridHashHost(cx + dx, cy + dy, cz + dz);
 
 							bool neib_mine = (gdata->s_hDeviceMap[lin_neib_cell] == m_globalDeviceIdx);
-							uchar neib_rank = gdata->RANK(lin_neib_cell);
+							uchar neib_rank = gdata->RANK( gdata->s_hDeviceMap[lin_neib_cell] );
 
 							// do they belong to different nodes?
 							if (curr_rank != neib_rank) {
@@ -269,13 +273,13 @@ void GPUWorker::importNetworkPeerEdgeCells()
 									gdata->networkManager->receiveFloats(neib_rank, partsInNeibCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + m_numParticles) );
 									gdata->networkManager->receiveShorts(neib_rank, partsInNeibCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + m_numParticles) );
 
-									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = m_numParticles;
-									gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = m_numParticles + partsInNeibCell;
+									gdata->s_dCellStarts[m_deviceIndex][lin_neib_cell] = m_numParticles;
+									gdata->s_dCellEnds[m_deviceIndex][lin_neib_cell] = m_numParticles + partsInNeibCell;
 
 									// update metadata et atl. (see importPeerEdgeCells())
-									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
+									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_neib_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_neib_cell),
 											sizeof(uint), cudaMemcpyHostToDevice));
-									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
+									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_neib_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_neib_cell),
 											sizeof(uint), cudaMemcpyHostToDevice));
 									// update outer edge segment
 									if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
@@ -287,7 +291,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								if (neib_mine) {
 
 									// send the size of the cell...
-									uint partsInMyCell = gdata->s_dCellEnds[lin_neib_cell] - gdata->s_dCellStarts[lin_neib_cell];
+									uint partsInMyCell = gdata->s_dCellEnds[m_deviceIndex][lin_neib_cell] - gdata->s_dCellStarts[m_deviceIndex][lin_neib_cell];
 									gdata->networkManager->sendUint(neib_rank, &partsInMyCell);
 
 									uint neib_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_neib_cell];
@@ -299,7 +303,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								}
 							}
 
-						} // iterate on neighbors
+						} // iterate on neighbor cells
 			} // iterate on cells
 }
 
@@ -384,13 +388,16 @@ void GPUWorker::updatePeerEdgeCells()
 void GPUWorker::updateNetworkPeerEdgeCells()
 {
 	// iterate on all cells
-	for (int cx = -1; cx <= 1; cx++)
-		for (int cy = -1; cy <= 1; cy++)
-			for (int cz = -1; cz <= 1; cz++) {
+	for (int cx = 0; cx < gdata->gridSize.x; cx++)
+		for (int cy = 0; cy < gdata->gridSize.y; cy++)
+			for (int cz = 0; cz < gdata->gridSize.z; cz++) {
 
 				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
+
+				// TODO: if outer, continue
+
 				bool curr_mine = (gdata->s_hDeviceMap[lin_curr_cell] == m_globalDeviceIdx);
-				uchar curr_rank = gdata->RANK(lin_curr_cell);
+				uchar curr_rank = gdata->RANK( gdata->s_hDeviceMap[lin_curr_cell] );
 
 				uint curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
 				uint curr_cell_end = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell];
@@ -410,29 +417,25 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 							uint lin_neib_cell = gdata->calcGridHashHost(cx + dx, cy + dy, cz + dz);
 
 							bool neib_mine = (gdata->s_hDeviceMap[lin_neib_cell] == m_globalDeviceIdx);
-							uchar neib_rank = gdata->RANK(lin_neib_cell);
+							uchar neib_rank = gdata->RANK( gdata->s_hDeviceMap[lin_neib_cell] );
 
 							// do they belong to different nodes?
 							if (curr_rank != neib_rank) {
 								if (curr_mine) {
-									// receive the cell (pos, vel, info):
+									// send the cell (pos, vel, info):
+									gdata->networkManager->sendFloats(neib_rank, partsInCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + curr_cell_start) );
+									gdata->networkManager->sendFloats(neib_rank, partsInCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + curr_cell_start) );
+									gdata->networkManager->sendShorts(neib_rank, partsInCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + curr_cell_start) );
+								} else
+								if (neib_mine) {
+									// if neib cell is mine, receive the current cell
 									gdata->networkManager->receiveFloats(neib_rank, partsInCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + curr_cell_start) );
 									gdata->networkManager->receiveFloats(neib_rank, partsInCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + curr_cell_start) );
 									gdata->networkManager->receiveShorts(neib_rank, partsInCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + curr_cell_start) );
-
-								} else
-								if (neib_mine) {
-									uint neib_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_neib_cell];
-									// uint neib_cell_end = gdata->s_dCellEnds[m_deviceIndex][lin_neib_cell];
-									// uint partsInCell = neib_cell_end - neib_cell_start;
-									// send the cell (pos, vel, info):
-									gdata->networkManager->sendFloats(neib_rank, partsInCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + neib_cell_start) );
-									gdata->networkManager->sendFloats(neib_rank, partsInCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + neib_cell_start) );
-									gdata->networkManager->sendShorts(neib_rank, partsInCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + neib_cell_start) );
 								}
 							}
 
-						} // iterate on neighbors
+						} // iterate on neighbor cells
 			} // iterate on cells
 }
 
