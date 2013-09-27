@@ -484,7 +484,7 @@ struct GlobalData {
 				for (int iy=0; iy < gridSize.y; iy++)
 					for (int iz=0; iz < gridSize.z; iz++) {
 						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
-						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, s_hDeviceMap[cell_lin_idx] >> 30);
+						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, s_hDeviceMap[cell_lin_idx]);
 					}
 		fclose(fid);
 		printf(" > device map dumped to file %s\n",fname.c_str());
