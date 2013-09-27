@@ -470,6 +470,23 @@ struct GlobalData {
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
 		}
 	}
+
+	// Same as saveDeviceMapToFile() but saves the *compact* device map
+	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) {
+		std::ostringstream oss;
+		oss << prefix << "_dev" << srcDev << "_rank" << mpi_rank << ".csv";
+		std::string fname = oss.str();
+		FILE *fid = fopen(fname.c_str(), "w");
+		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
+		for (int ix=0; ix < gridSize.x; ix++)
+				for (int iy=0; iy < gridSize.y; iy++)
+					for (int iz=0; iz < gridSize.z; iz++) {
+						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
+						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, compactDeviceMap[cell_lin_idx] >> 30);
+					}
+		fclose(fid);
+		printf(" > compact device map dumped to file %s\n",fname.c_str());
+	}
 };
 
 // static pointer to the instance of GlobalData allocated in the main. Its aim is to make

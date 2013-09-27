@@ -166,7 +166,6 @@ private:
 
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
-	void saveCompactDeviceMapTofile(std::string prefix);
 	void uploadConstants();
 
 	// upload inlets and outlets
