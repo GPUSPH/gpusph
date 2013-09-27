@@ -60,8 +60,6 @@ class Problem {
 		const float*	m_dem;
 		int		m_ncols, m_nrows;
 
-		GlobalData *m_gdata;
-
 	public:
 		enum WriterType
 		{
@@ -222,10 +220,6 @@ class Problem {
 		PhysParams *get_physparams(void)
 		{
 			return &m_physparams;
-		};
-
-		void setGlobalData(GlobalData *_gdata) {
-			m_gdata = _gdata;
 		};
 
 		string create_problem_dir();
