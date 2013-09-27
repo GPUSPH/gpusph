@@ -240,6 +240,7 @@ int main(int argc, char** argv) {
 	// any file or lock singleton resources before initializing the network, as the process might be forked
 	gdata.networkManager = new NetworkManager();
 	gdata.networkManager->initNetwork();
+	gdata.networkManager->printInfo();
 
 	gdata.mpi_nodes = gdata.networkManager->getWorldSize();
 	gdata.mpi_rank = gdata.networkManager->getProcessRank();

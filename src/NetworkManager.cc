@@ -55,6 +55,12 @@ char* NetworkManager::getProcessorName() {
 	return processor_name;
 }
 
+// print world size,process name and rank
+void NetworkManager::printInfo()
+{
+	printf("[Network] rank %u/%u, processor name %s\n", process_rank, world_size, processor_name);
+}
+
 void NetworkManager::sendUint(unsigned char dst_rank, unsigned int *datum)
 {
 	int mpi_err = MPI_Send(datum, 1, MPI_INT, dst_rank, MPI_ANY_TAG, MPI_COMM_WORLD);

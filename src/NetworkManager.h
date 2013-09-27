@@ -23,6 +23,8 @@ public:
 	int getWorldSize();
 	int getProcessRank();
 	char* getProcessorName();
+	// print world size,process name and rank
+	void printInfo();
 	// methods to exchange data
 	void sendUint(unsigned char dst_rank, unsigned int *datum);
 	void receiveUint(unsigned char src_rank, unsigned int *datum);
