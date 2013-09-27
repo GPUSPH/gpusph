@@ -5,8 +5,10 @@
 #define MAX_DEVICES_PER_CLUSTER 256
 // how many bits [1...8] we reserve to the node rank in the global device index
 #define NODE_BITS 5
+#define DEVICE_BITS (8 - NODE_BITS)
 #define MAX_NODES_PER_CLUSTER (1 << NODE_BITS)
-#define MAX_DEVICES_PER_NODE  (1 << (8 - NODE_BITS))
+#define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
+#define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
 
 // cellTypes used as array indices for the segments
 #define CELLTYPE_INNER_CELL			((uint)0)

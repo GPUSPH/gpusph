@@ -458,9 +458,9 @@ struct GlobalData {
 	}
 
 	// MPI aux methods: conversion from/to local device ids to global ones
-	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> 3);} // discard least 3 bits
-	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & 7);} // discart all but least 3 bits
-	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << 3) & (localDevId & 7));} // compute global dev id
+	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
+	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
+	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << DEVICE_BITS) & (localDevId & DEVICE_BITS_MASK));} // compute global dev id
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
 	void convertDeviceMap() {
