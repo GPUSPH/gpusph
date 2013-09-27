@@ -373,8 +373,7 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 			case PADDLEPART:
 				data.x = mbcallbackdata.origin.x;
 				data.y = mbcallbackdata.origin.z;
-				data.z = mbcallbackdata.sintheta;
-				data.w = mbcallbackdata.costheta;
+				data.z = mbcallbackdata.dthetadt;
 				break;
 
 			case GATEPART:
