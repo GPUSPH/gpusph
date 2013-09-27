@@ -633,7 +633,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
 	// not before allocating the host buffers
 	if (MULTI_DEVICE) {
-		printf("Splitting the domain in %u partitions...\n", gdata->devices);
+		printf("Splitting the domain in %u partitions...\n", gdata->totDevices);
 		// fill the device map with numbers from 0 to totDevices
 		gdata->problem->fillDeviceMap(gdata);
 		// make the numbers globalDeviceIndices, with the least 3 bits reserved for the device number
