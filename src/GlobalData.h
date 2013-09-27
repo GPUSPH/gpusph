@@ -471,6 +471,25 @@ struct GlobalData {
 		}
 	}
 
+	// Write the process device map to a CSV file.
+	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
+	// set the correct fields; apply and enable visibility
+	void saveDeviceMapToFile(string prefix) {
+		std::ostringstream oss;
+		oss << prefix << "_rank" << mpi_rank << ".csv";
+		std::string fname = oss.str();
+		FILE *fid = fopen(fname.c_str(), "w");
+		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
+		for (int ix=0; ix < gridSize.x; ix++)
+				for (int iy=0; iy < gridSize.y; iy++)
+					for (int iz=0; iz < gridSize.z; iz++) {
+						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
+						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, s_hDeviceMap[cell_lin_idx] >> 30);
+					}
+		fclose(fid);
+		printf(" > device map dumped to file %s\n",fname.c_str());
+	}
+
 	// Same as saveDeviceMapToFile() but saves the *compact* device map
 	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) {
 		std::ostringstream oss;
