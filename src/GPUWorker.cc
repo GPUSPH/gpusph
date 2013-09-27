@@ -459,8 +459,7 @@ size_t GPUWorker::allocateHostBuffers() {
 	memset(m_hInfo, 0, infoSize);
 	allocated += infoSize; */
 
-	// TODO: only allocate when multi-GPU
-	if (gdata->devices > 1) {
+	if (MULTI_DEVICE) {
 		m_hCompactDeviceMap = new uint[m_nGridCells];
 		memset(m_hCompactDeviceMap, 0, uintCellsSize);
 		allocated += uintCellsSize;
@@ -608,7 +607,7 @@ void GPUWorker::deallocateHostBuffers() {
 	//delete [] m_hPos;
 	//delete [] m_hVel;
 	//delete [] m_hInfo;
-	if (gdata->devices > 1)
+	if (MULTI_DEVICE)
 		delete [] m_hCompactDeviceMap;
 	/*if (m_simparams->vorticity)
 		delete [] m_hVort;*/
@@ -1128,7 +1127,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->printAllocatedMemory();
 
 	// create and upload the compact device map (2 bits per cell)
-	if (gdata->devices > 1) {
+	if (MULTI_DEVICE) {
 		instance->createCompactDeviceMap();
 		instance->uploadCompactDeviceMap();
 	}

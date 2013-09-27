@@ -508,6 +508,14 @@ struct GlobalData {
 	}
 };
 
+// utility defines, improve readability
+#define MULTI_NODE (gdata->mpi_nodes > 1)
+#define SINGLE_NODE (!MULTI_NODE)
+#define MULTI_GPU (gdata->devices > 1)
+#define SINGLE_GPU (gdata->devices > 1)
+#define MULTI_DEVICE (MULTI_GPU || MULTI_NODE)
+#define SINGLE_DEVICE (!MULTI_DEVICE)
+
 // static pointer to the instance of GlobalData allocated in the main. Its aim is to make
 // variables such as quit_request and save_request accessible by the signal handlers
 static GlobalData *gdata_static_pointer = NULL;

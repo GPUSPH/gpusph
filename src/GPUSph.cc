@@ -632,7 +632,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
 	// not before allocating the host buffers
-	if (gdata->devices > 1) {
+	if (MULTI_DEVICE) {
 		printf("Splitting the domain in %u partitions...\n", gdata->devices);
 		// fill the device map with numbers from 0 to totDevices
 		gdata->problem->fillDeviceMap(gdata);
@@ -647,7 +647,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
 	printf("---\n");
 
-	if (gdata->devices > 1 || gdata->mpi_nodes > 1) {
+	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
 		sortParticlesByHash();
 	} else {
@@ -773,7 +773,7 @@ bool GPUSPH::runSimulation() {
 			gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_INFO);
 
 			// if running on multiple GPUs, update the external cells
-			if (gdata->devices > 1) {
+			if (MULTI_DEVICE) {
 				// copy cellStarts, cellEnds and segments on host
 				doCommand(DUMP_CELLS);
 				doCommand(UPDATE_SEGMENTS);
@@ -798,7 +798,7 @@ bool GPUSPH::runSimulation() {
 			gdata->only_internal = true;
 			doCommand(MLS);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			if (gdata->devices > 1)
+			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
@@ -808,7 +808,7 @@ bool GPUSPH::runSimulation() {
 			gdata->only_internal = true;
 			doCommand(SHEPARD);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			if (gdata->devices > 1)
+			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
@@ -819,7 +819,7 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_1);
 		// update forces of external particles
-		if (gdata->devices > 1)
+		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
 	//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -848,7 +848,7 @@ bool GPUSPH::runSimulation() {
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
 		// this made sense for testing and running EULER on internals only
-		//if (gdata->devices > 1)
+		//if (MULTI_DEVICE)
 			//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
 
 	//			//reduce bodies
@@ -859,7 +859,7 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_2);
 		// update forces of external particles
-		if (gdata->devices > 1)
+		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
 	//			//reduce bodies
@@ -890,7 +890,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(DOWNLOAD_NEWNUMPARTS);
 
 		// this made sense for testing and running EULER on internals only
-		//if (gdata->devices > 1)
+		//if (MULTI_DEVICE)
 			//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
 
 	//			//reduce bodies
@@ -903,7 +903,7 @@ bool GPUSPH::runSimulation() {
 			for (int d=1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
-			if (gdata->mpi_nodes > 1)
+			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt));
 		}
 
@@ -1056,7 +1056,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	memset(dump_hInfo, 0, infoSize);
 	totCPUbytes += infoSize;*/
 
-	if (gdata->devices > 1) {
+	if (MULTI_DEVICE) {
 		// deviceMap
 		gdata->s_hDeviceMap = new uchar[numcells];
 		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
@@ -1099,7 +1099,7 @@ void GPUSPH::deallocateGlobalHostBuffers()
 	if (problem->m_simparams.surfaceparticle)
 		delete [] gdata->s_hNormals;
 	// multi-GPU specific arrays
-	if (gdata->devices>1) {
+	if (MULTI_DEVICE) {
 		delete [] gdata->s_hDeviceMap;
 		// cells
 		for (int d=0; d < gdata->devices; d++) {
@@ -1154,7 +1154,7 @@ void GPUSPH::sortParticlesByHash() {
 	// update s_hStartPerDevice with incremental sum (should do in specific function?)
 	gdata->s_hStartPerDevice[0] = 0;
 	// zero is true for the first node. For the next ones, need to sum the number of particles of the previous nodes
-	if (gdata->mpi_nodes > 1)
+	if (MULTI_NODE)
 		for (uint prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
 			gdata->s_hStartPerDevice[0] += particlesPerNode[ prev_nodes ];
 	for (uint d=1; d < gdata->devices; d++)
