@@ -184,16 +184,13 @@ MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i
 			mbpistondata.type = PISTONPART;
 			const float posx = mbpistondata.origin.x;
 			if (t >= mbpistondata.tstart && t < mbpistondata.tend) {
-				const float arg = 2.0*((3.8 + m_Hoh)*((t - mbpistondata.tstart)/m_tau - 0.5)
+				float arg = 2.0*((3.8 + m_Hoh)*((t - mbpistondata.tstart)/m_tau - 0.5)
 							- 2.0*m_Hoh*((posx/m_S) - 0.5));
-				const float disp =  m_S*(1.0 + tanh(arg))/2.0;
-				const float dx = disp - mbpistondata.disp.x;
-				mbpistondata.vel.x = dx/dt;
-				mbpistondata.disp.x = disp;
-				}
+				mbpistondata.disp.x = m_S*(1.0 + tanh(arg))/2.0;
+				mbpistondata.vel.x = (3.8 + m_Hoh)*m_S/(m_tau*cosh(arg)*cosh(arg));
+			}
 			else {
 				mbpistondata.vel.x = 0;
-				mbpistondata.disp.x = 0;
 				}
 			}
 			break;
@@ -239,7 +236,7 @@ int SolitaryWave::fill_parts()
     Rect piston = Rect(Point(mbpistondata.origin),
 						Vector(0, width, 0), Vector(0, 0, height));
 	piston.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	//piston.Fill(boundary_parts, br, true);
+	piston.Fill(piston_parts, br, true);
 
 	if (i_use_bottom_plane == 0) {
 	   experiment_box1 = Rect(Point(h_length, 0, 0), Vector(0, width, 0),
@@ -433,7 +430,7 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	std::cout << "\nPiston parts: " << piston_parts.size() << "\n";
 	std::cout << "     " << j << "--" << j + piston_parts.size() << "\n";
 	for (uint i = j; i < j + piston_parts.size(); i++) {
-		calc_localpos_and_hash(piston_parts[i], localpos, hashvalue);
+		calc_localpos_and_hash(piston_parts[i - j], localpos, hashvalue);
 
 		pos[i] = localpos;
 		hash[i] = hashvalue;
@@ -446,7 +443,7 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	std::cout << "\nGate parts: " << gate_parts.size() << "\n";
 	std::cout << "       " << j << "--" << j+gate_parts.size() <<"\n";
 	for (uint i = j; i < j + gate_parts.size(); i++) {
-		calc_localpos_and_hash(gate_parts[i], localpos, hashvalue);
+		calc_localpos_and_hash(gate_parts[i - j], localpos, hashvalue);
 
 		pos[i] = localpos;
 		hash[i] = hashvalue;
@@ -461,7 +458,7 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i], localpos, hashvalue);
+		calc_localpos_and_hash(parts[i - j], localpos, hashvalue);
 
 		pos[i] = localpos;
 		hash[i] = hashvalue;

@@ -108,30 +108,27 @@ EULER_KERNEL_NAME(
 			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
 			vel += dt*force;
 		}
-		// Updating postions for Piston particles
+		// Moving boundaries
+		// Updating positions for piston particles.
+		// Now d_mbdata.x contains the piston velocity
 		else if (type(pinfo) == PISTONPART) {
 			const int i = object(pinfo);
-			pos.x = d_mbdata[i].x;
+			pos.x += d_mbdata[i].x*dt;
 		}
-		// Updating postions for Paddle particles
+		// Updating postions for paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
 			const int i = object(pinfo);
 			const float r = length(make_float2(pos.x - d_mbdata[i].x, pos.z - d_mbdata[i].y));
 			pos.x = d_mbdata[i].x + r*d_mbdata[i].z;	// r*sin(theta(t))
 			pos.z = d_mbdata[i].y + r*d_mbdata[i].w;	// r*cos(theta(t))
 		}
-		// Updating postions for Gate particles
-		// At each substep the gate part covers a distance equals to v*dt/2.0
-		// so in 2 substep the gate covers v*dt BUT pos is always pos(n) so
-		// at step 1 we have pos += v*dt with dt=dt/2 and at step 2 we have
-		// pos += v*dt with dt = dt
+		// Updating positions for gate particles
+		// mbdata.x,y,z contains gate velocity
 		else if (type(pinfo) == GATEPART) {
 			const int i = object(pinfo);
-			pos.x += d_mbdata[i].x*dt;
-			pos.y += d_mbdata[i].y*dt;
-			pos.z += d_mbdata[i].z*dt;
+			as_float3(pos) += as_float3(d_mbdata[i])*dt;
 		}
-		// TODO: test rotations
+		// TODO: change object particles velocity
 		else if (type(pinfo) == OBJECTPART && step == 2) {
 			const int i = object(pinfo);
 			

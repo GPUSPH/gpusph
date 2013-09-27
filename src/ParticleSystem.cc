@@ -1081,12 +1081,17 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_interactions, 0);
 		}
 
-	// setting moving boundaries data if necessary
+	// Setting moving boundaries data
+	// NOTE: now with homogenous precision we need to pass moving boudaries
+	// velocity and not positions. In order to have an integration scheme
+	// independent implementation the callback function is called once before
+	// the first forces computation
 	if (m_simparams.mbcallback) {
-		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0, m_iter == 0);
+		float4* hMbData = m_problem->get_mbdata(m_simTime, m_dt, m_iter == 0);
 		if (hMbData)
 			setmbdata(hMbData, m_mbDataSize);
 		}
+	// Setting time dependent gravity vector
 	if (m_simparams.gcallback) {
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
 		setgravity(m_physparams.gravity);
@@ -1176,12 +1181,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventDestroy(stop_euler);
 		}
 
-	// setting moving boundaries data if necessary
-	if (m_simparams.mbcallback) {
-		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0, m_iter == 0);
-		if (hMbData)
-			setmbdata(hMbData, m_mbDataSize);
-		}
+	// Setting time dependent gravity vector
 	if (m_simparams.gcallback) {
 		m_physparams.gravity = m_problem->g_callback(m_simTime);
 		setgravity(m_physparams.gravity);
