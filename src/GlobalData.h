@@ -458,6 +458,11 @@ struct GlobalData {
 		return ss.str();
 	}
 
+	// returns a string in the format "r.w" with r = process rank and w = world size
+	string rankString() {
+		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
+	}
+
 	// MPI aux methods: conversion from/to local device ids to global ones
 	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
 	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits

@@ -102,7 +102,12 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 {
 	string filename, full_filename;
 
-	filename = "PART_" + next_filenum() + ".vtu";
+	filename = "PART";
+
+	if (m_gdata && m_gdata->mpi_nodes > 1)
+		filename += "n" + m_gdata->rankString();
+
+	filename += "_" + next_filenum() + ".vtu";
 	full_filename = m_dirname + "/" + filename;
 
 	FILE *fid = fopen(full_filename.c_str(), "w");
