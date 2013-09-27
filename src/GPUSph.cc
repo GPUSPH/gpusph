@@ -1137,7 +1137,7 @@ void GPUSPH::sortParticlesByHash() {
 	// fill array with particle hashes (aka global device numbers)
 	for (uint p=0; p < gdata->totParticles; p++) {
 		// compute cell according to the particle's position and to the deviceMap
-		uchar whichGlobalDev = gdata->calcDevice(gdata->s_hPos[p]);
+		uchar whichGlobalDev = gdata->calcGlobalDeviceDeviceIndex(gdata->s_hPos[p]);
 		// that's the key!
 		m_hParticleHashes[p] = whichGlobalDev;
 		// increase node counter (only useful for multinode)

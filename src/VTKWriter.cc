@@ -280,7 +280,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		numbytes = sizeof(uint)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (int i=0; i < numParts; i++) {
-			uint value = m_gdata->calcDevice(pos[i]);
+			uint value = m_gdata->calcGlobalDeviceDeviceIndex(pos[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 	}
