@@ -278,6 +278,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 							// do they belong to different nodes?
 							if (curr_cell_rank != neib_cell_rank) {
+
 								// current is mine: send the cell to the process holding the neighbor cell
 								if (curr_mine) {
 
@@ -288,10 +289,12 @@ void GPUWorker::importNetworkPeerEdgeCells()
 										partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
 									gdata->networkManager->sendUint(neib_cell_rank, &partsInCurrCell);
 
-									// ... then the data (pos, vel, info):
-									gdata->networkManager->sendFloats(neib_cell_rank, partsInCurrCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + curr_cell_start) );
-									gdata->networkManager->sendFloats(neib_cell_rank, partsInCurrCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + curr_cell_start) );
-									gdata->networkManager->sendShorts(neib_cell_rank, partsInCurrCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + curr_cell_start) );
+									if (curr_cell_start != EMPTY_CELL) {
+										// ... then the data (pos, vel, info):
+										gdata->networkManager->sendFloats(neib_cell_rank, partsInCurrCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + curr_cell_start) );
+										gdata->networkManager->sendFloats(neib_cell_rank, partsInCurrCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + curr_cell_start) );
+										gdata->networkManager->sendShorts(neib_cell_rank, partsInCurrCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + curr_cell_start) );
+									}
 
 								} else
 								// neighbor is mine: receive the cell from the process holding the current cell
@@ -300,9 +303,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 									// receive the size of the cell...
 									gdata->networkManager->receiveUint(curr_cell_rank, &partsInCurrCell);
 
-									if (partsInCurrCell == 0)
-										gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
-									else {
+									if (partsInCurrCell > 0) {
 
 										// ... then the data (pos, vel, info):
 										gdata->networkManager->receiveFloats(curr_cell_rank, partsInCurrCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + m_numParticles) );
@@ -312,7 +313,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 										// update local cellStarts/Ends
 										gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = m_numParticles;
 										gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = m_numParticles + partsInCurrCell;
-									}
+
+									} else
+										gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
 
 									// update metadata et al. (see importPeerEdgeCells())
 									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
