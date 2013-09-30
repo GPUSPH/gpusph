@@ -29,6 +29,8 @@
 
 // empty segment (uint)
 #define EMPTY_SEGMENT ((uint)0xFFFFFFFF)
+// guess?
+#define EMPTY_CELL ((uint)0xFFFFFFFF)
 
 #endif // _MULTIGPU_DEFINES_
 
