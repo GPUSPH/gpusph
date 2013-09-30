@@ -109,8 +109,8 @@ void NetworkManager::receiveFloats(unsigned char src_rank, unsigned int count, f
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
 	else
-	if (actual_count != 1)
-		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+	if (actual_count != count)
+		printf("WARNING: MPI_Get_count returned %d (expected %u)\n", actual_count, count);
 }
 
 void NetworkManager::sendShorts(unsigned char dst_rank, unsigned int count, unsigned short *src_data)
@@ -135,8 +135,8 @@ void NetworkManager::receiveShorts(unsigned char src_rank, unsigned int count, u
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
 	else
-	if (actual_count != 1)
-		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+	if (actual_count != count)
+		printf("WARNING: MPI_Get_count returned %d (expected %u)\n", actual_count, count);
 }
 
 void NetworkManager::networkFloatReduction(float *datum)
