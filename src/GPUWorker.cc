@@ -231,6 +231,11 @@ void GPUWorker::importPeerEdgeCells()
 
 void GPUWorker::importNetworkPeerEdgeCells()
 {
+	// We need to import every cell of the neigbor processes only once. To this aim, we keep a list of recipient
+	// ranks who already received the current cell. The list, in form of a bitmap, is reset before iterating on
+	// all the neighbor cells
+	bool recipient_neibProcesses[MAX_NODES_PER_CLUSTER];
+
 	// iterate on all cells
 	for (int cx = 0; cx < gdata->gridSize.x; cx++)
 		for (int cy = 0; cy < gdata->gridSize.y; cy++)
@@ -240,6 +245,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 				// if outer, continue
 				if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED) continue;
+
+				// reset the list fo recipient neib processes
+				for (uint n = 0; n < MAX_NODES_PER_CLUSTER; n++)
+					recipient_neibProcesses[n] = false;
 
 				bool curr_mine = (gdata->s_hDeviceMap[lin_curr_cell] == m_globalDeviceIdx);
 				uchar curr_cell_rank = gdata->RANK( gdata->s_hDeviceMap[lin_curr_cell] );
@@ -262,6 +271,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 							bool neib_mine = (gdata->s_hDeviceMap[lin_neib_cell] == m_globalDeviceIdx);
 							uchar neib_cell_rank = gdata->RANK( gdata->s_hDeviceMap[lin_neib_cell] );
+
+							// did we already treat the pair (curr_rank <-> neib_rank) for this cell?
+							if (recipient_neibProcesses[neib_cell_rank]) continue;
 
 							// do they belong to different nodes?
 							if (curr_cell_rank != neib_cell_rank) {
@@ -308,6 +320,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 									// update the total number of particles
 									m_numParticles += partsInCurrCell;
 								} // curr or neib are mine
+
+								// mark the current pair of cell as treated
+								if (curr_mine || neib_mine)
+									recipient_neibProcesses[neib_cell_rank] = true;
+
 							} // curr and neib belong to different processes
 
 						} // iterate on neighbor cells
@@ -394,6 +411,9 @@ void GPUWorker::updatePeerEdgeCells()
 
 void GPUWorker::updateNetworkPeerEdgeCells()
 {
+	// Same list technique as in importNetrokPeerEdgeCells()
+	bool recipient_neibProcesses[MAX_NODES_PER_CLUSTER];
+
 	// iterate on all cells
 	for (int cx = 0; cx < gdata->gridSize.x; cx++)
 		for (int cy = 0; cy < gdata->gridSize.y; cy++)
@@ -403,6 +423,10 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 
 				// if outer, continue
 				if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED) continue;
+
+				// reset the list fo recipient neib processes
+				for (uint n = 0; n < MAX_NODES_PER_CLUSTER; n++)
+					recipient_neibProcesses[n] = false;
 
 				bool curr_mine = (gdata->s_hDeviceMap[lin_curr_cell] == m_globalDeviceIdx);
 				uchar curr_cell_rank = gdata->RANK( gdata->s_hDeviceMap[lin_curr_cell] );
@@ -426,6 +450,9 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 
 							bool neib_mine = (gdata->s_hDeviceMap[lin_neib_cell] == m_globalDeviceIdx);
 							uchar neib_cell_rank = gdata->RANK( gdata->s_hDeviceMap[lin_neib_cell] );
+
+							// did we already treat the pair (curr_rank <-> neib_rank) for this cell?
+							if (recipient_neibProcesses[neib_cell_rank]) continue;
 
 							// do they belong to different nodes?
 							if (curr_cell_rank != neib_cell_rank) {
@@ -454,6 +481,11 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 									gdata->networkManager->receiveShorts(curr_cell_rank, partsInCurrCell * 4, (ushort*)(m_dInfo[ gdata->currentInfoRead ] + curr_cell_start) );
 
 								} // curr or neib are mine
+
+								// mark the current pair of cell as treated
+								if (curr_mine || neib_mine)
+									recipient_neibProcesses[neib_cell_rank] = true;
+
 							} // curr and neib belong to different processes
 
 						} // iterate on neighbor cells
