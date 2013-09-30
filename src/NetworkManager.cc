@@ -104,7 +104,7 @@ void NetworkManager::receiveFloats(unsigned char src_rank, unsigned int count, f
 		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
 	int actual_count;
 
-	mpi_err = MPI_Get_count(&status, MPI_INT, &actual_count);
+	mpi_err = MPI_Get_count(&status, MPI_FLOAT, &actual_count);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
@@ -130,7 +130,7 @@ void NetworkManager::receiveShorts(unsigned char src_rank, unsigned int count, u
 		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
 	int actual_count;
 
-	mpi_err = MPI_Get_count(&status, MPI_INT, &actual_count);
+	mpi_err = MPI_Get_count(&status, MPI_SHORT, &actual_count);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
