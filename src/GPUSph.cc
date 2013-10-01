@@ -1367,7 +1367,8 @@ void GPUSPH::createWriter()
 
 void GPUSPH::doWrite()
 {
-	uint node_offset = gdata->s_hStartPerDevice[ gdata->mpi_rank ];
+	uint node_offset = gdata->s_hStartPerDevice[0];
+
 	gdata->writer->write(gdata->processParticles,
 		gdata->s_hPos + node_offset, gdata->s_hVel + node_offset, gdata->s_hInfo + node_offset,
 		gdata->s_hVorticity + node_offset, gdata->t, gdata->problem->get_simparams()->testpoints,
