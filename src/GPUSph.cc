@@ -1128,31 +1128,38 @@ void GPUSPH::sortParticlesByHash() {
 
 	// count parts for each node to compute the offset
 	uint particlesPerNode[MAX_NODES_PER_CLUSTER];
+	// count parts for each device, even in other nodes (s_hPartsPerDevice only includes devices in self node on)
+	uint particlesPerGlobalDevice[MAX_DEVICES_PER_CLUSTER];
 
 	// reset counters. Not using memset since sizes are smaller than 1Kb
-	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
-		gdata->s_hPartsPerDevice[d] = 0;
-	for (uint n=0; n < MAX_NODES_PER_CLUSTER; n++)
-			particlesPerNode[n] = 0;
+	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) gdata->s_hPartsPerDevice[d] = 0;
+	for (uint n=0; n < MAX_NODES_PER_CLUSTER; n++) particlesPerNode[n] = 0;
+	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
-	// fill array with particle hashes (aka global device numbers)
+	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p=0; p < gdata->totParticles; p++) {
+
 		// compute cell according to the particle's position and to the deviceMap
 		uchar whichGlobalDev = gdata->calcGlobalDeviceDeviceIndex(gdata->s_hPos[p]);
+
 		// that's the key!
 		m_hParticleHashes[p] = whichGlobalDev;
-		// increase node counter (only useful for multinode)
-		particlesPerNode[gdata->RANK(whichGlobalDev)]++;
+
+		// increase node and globalDev counter (only useful for multinode)
+		particlesPerNode[ gdata->RANK(whichGlobalDev) ]++;
+
+		particlesPerGlobalDevice[ whichGlobalDev ]++;
 		// if particle is in current node, increment the device counters
-		if (gdata->RANK(whichGlobalDev) == gdata->mpi_rank)
+		if ( gdata->RANK(whichGlobalDev) == gdata->mpi_rank )
 			// increment per-device counter
-			gdata->s_hPartsPerDevice[gdata->DEVICE(whichGlobalDev)]++;
+			gdata->s_hPartsPerDevice[ gdata->DEVICE(whichGlobalDev) ]++;
+
 	}
 
-	// update the number of particles of the process
+	// update the number of particles of the current process
 	gdata->processParticles = particlesPerNode[gdata->mpi_rank];
 
 	// update s_hStartPerDevice with incremental sum (should do in specific function?)
@@ -1178,7 +1185,7 @@ void GPUSPH::sortParticlesByHash() {
 	// Moreover, a burst of particles which partially overlaps the correct bucket is not entirely moved:
 	// since rightB goes from right to left, the rightmost particles are moved while the overlapping ones
 	// are not. All particles before leftB have already been compacted; leftB is incremented as long as there
-	// are particles already in correct positions. When there is a bucket change (we know because of )
+	// are particles already in correct positions. When there is a bucket change (we track it with nextBucketBeginsAt)
 	// rightB is reset to the end of the array.
 	// Possible optimization: decrease maxIdx to the last non-correct element of the array (if there is a burst
 	// of correct particles in the end, this avoids scanning them everytime) and update this while running.
@@ -1195,22 +1202,30 @@ void GPUSPH::sortParticlesByHash() {
 	// NOTE(2): we don't need to iterate in the last bucket: it should be already correct after the others. That's why "devices-1".
 	// We might want to iterate on last bucket only for correctness check.
 	// For each bucket (device)...
-	for (uint currentDevice=0; currentDevice < (gdata->devices-1); currentDevice++) {
+	for (uint currentGlobalDevice = 0; currentGlobalDevice < (gdata->totDevices-1); currentGlobalDevice++) {
 		// compute where current bucket ends
-		  //nextBucketBeginsAt += gdata->s_hPartsPerDevice[currentDevice];
-		nextBucketBeginsAt = gdata->s_hStartPerDevice[currentDevice+1];
+		nextBucketBeginsAt += particlesPerGlobalDevice[ currentGlobalDevice ];
+		// nextBucketBeginsAt += gdata->s_hPartsPerDevice[currentDevice];
+		//nextBucketBeginsAt = gdata->s_hStartPerDevice[currentDevice+1];
 		// reset rightB to the end
 		rightB = maxIdx;
 		// go on until we reach the end of the current bucket
 		while (leftB < nextBucketBeginsAt) {
+
+			// translate from globalDeviceIndex to an absolute device index in 0..totDevices (the opposite convertDeviceMap does)
+			uint currPartGlobalDevice = gdata->GLOBAL_DEVICE_NUM( m_hParticleHashes[leftB] );
+
 			// if in the current position there is a particle *not* belonging to the bucket...
-			if (m_hParticleHashes[leftB] != currentDevice) {
+			if (currPartGlobalDevice != currentGlobalDevice) {
+
 				// ...let's find a correct one, scanning from right to left
-				while (m_hParticleHashes[rightB] != currentDevice) rightB--;
+				while ( gdata->GLOBAL_DEVICE_NUM( m_hParticleHashes[rightB] ) != currentGlobalDevice) rightB--;
+
 				// here it should never happen that (rightB <= leftB). We should throw an error if it happens
 				particleSwap(leftB, rightB);
 				std::swap(m_hParticleHashes[leftB], m_hParticleHashes[rightB]);
 			}
+
 			// already correct or swapped, time to go on
 			leftB++;
 		}
@@ -1233,6 +1248,7 @@ void GPUSPH::sortParticlesByHash() {
 	}
 
 	// DEBUG: check if the sort was correct
+	// WARNING: was designed only for multigpu, not for multinode
 	/*bool monotonic = true;
 	bool count_c = true;
 	uint hcount[MAX_DEVICES_PER_CLUSTER];
