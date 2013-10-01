@@ -1371,9 +1371,11 @@ void GPUSPH::doWrite()
 
 	gdata->writer->write(gdata->processParticles,
 		gdata->s_hPos + node_offset, gdata->s_hVel + node_offset, gdata->s_hInfo + node_offset,
-		gdata->s_hVorticity + node_offset, gdata->t, gdata->problem->get_simparams()->testpoints,
-		gdata->s_hNormals + node_offset);
+		( gdata->s_hVorticity ? gdata->s_hVorticity + node_offset : NULL),
+		gdata->t, gdata->problem->get_simparams()->testpoints,
+		( gdata->s_hNormals ? gdata->s_hNormals + node_offset : NULL));
 	gdata->problem->mark_written(gdata->t);
+
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
