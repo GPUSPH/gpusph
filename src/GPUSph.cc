@@ -1247,22 +1247,27 @@ void GPUSPH::sortParticlesByHash() {
 	}
 
 	// DEBUG: check if the sort was correct
-	// WARNING: was designed only for multigpu, not for multinode
-	/*bool monotonic = true;
+	/* bool monotonic = true;
 	bool count_c = true;
-	uint hcount[MAX_DEVICES_PER_CLUSTER];
-	for (uint d=0; d<gdata->devices; d++)
+	uint hcount[MAX_DEVICES_PER_NODE];
+	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uint cdev = gdata->calcDevice(gdata->s_hPos[p]);
-		if (p > 0 && cdev < gdata->calcDevice(gdata->s_hPos[p-1])) {
-			printf(" -- sorting error: array[%d] has device %d, array[%d] has device %d\n",
-				p-1, gdata->calcDevice(gdata->s_hPos[p-1]), p, cdev );
+		uint cdev = gdata->calcGlobalDeviceIndex( gdata->s_hPos[p] );
+		uint pdev;
+		if (p > 0) pdev = gdata->calcGlobalDeviceIndex( gdata->s_hPos[p-1] );
+		if (p > 0 && cdev < pdev ) {
+			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
+				p-1, gdata->RANK(pdev), gdata->	DEVICE(pdev), p, gdata->RANK(cdev), gdata->	DEVICE(cdev) );
 			monotonic = false;
 		}
-		hcount[cdev]++;
+		// count particles of the current process
+		if (gdata->RANK(cdev) == gdata->mpi_rank)
+			hcount[ gdata->DEVICE(cdev) ]++;
 	}
-	for (uint d=0; d<gdata->devices; d++)
+	// WARNING: the following check is only for particles of the current rank (multigpu, not multinode).
+	// Each process checks its own particles.
+	for (uint d=0; d < gdata->devices; d++)
 		if (hcount[d] != gdata->s_hPartsPerDevice[d]) {
 			count_c = false;
 			printf(" -- sorting error: counted %d particles for device %d, but should be %d\n",
