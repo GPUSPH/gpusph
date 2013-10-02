@@ -1151,7 +1151,8 @@ void GPUSPH::sortParticlesByHash() {
 		// increase node and globalDev counter (only useful for multinode)
 		particlesPerNode[ gdata->RANK(whichGlobalDev) ]++;
 
-		particlesPerGlobalDevice[ whichGlobalDev ]++;
+		particlesPerGlobalDevice[ gdata->GLOBAL_DEVICE_NUM(whichGlobalDev) ]++;
+
 		// if particle is in current node, increment the device counters
 		if ( gdata->RANK(whichGlobalDev) == gdata->mpi_rank )
 			// increment per-device counter
