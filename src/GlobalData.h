@@ -398,7 +398,7 @@ struct GlobalData {
 	}
 
 	// compute the global device Id of the cell holding pos
-	uchar calcGlobalDeviceDeviceIndex(float4 pos) {
+	uchar calcGlobalDeviceIndex(float4 pos) {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate

@@ -1143,7 +1143,7 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint p=0; p < gdata->totParticles; p++) {
 
 		// compute cell according to the particle's position and to the deviceMap
-		uchar whichGlobalDev = gdata->calcGlobalDeviceDeviceIndex(gdata->s_hPos[p]);
+		uchar whichGlobalDev = gdata->calcGlobalDeviceIndex(gdata->s_hPos[p]);
 
 		// that's the key!
 		m_hParticleHashes[p] = whichGlobalDev;
