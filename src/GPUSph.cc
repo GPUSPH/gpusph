@@ -636,11 +636,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("Splitting the domain in %u partitions...\n", gdata->totDevices);
 		// fill the device map with numbers from 0 to totDevices
 		gdata->problem->fillDeviceMap(gdata);
-		gdata->saveDeviceMapToFile(std::string("pre_conversion"));
+		// here it is possible to save the device map before the conversion
+		// gdata->saveDeviceMapToFile(std::string("pre_conversion"));
 		if (MULTI_NODE) {
 			// make the numbers globalDeviceIndices, with the least 3 bits reserved for the device number
 			gdata->convertDeviceMap();
-			gdata->saveDeviceMapToFile(std::string("after_conversion"));
+			// here it is possible to save the converted device map
+			// gdata->saveDeviceMapToFile(std::string("after_conversion"));
 		}
 	}
 
