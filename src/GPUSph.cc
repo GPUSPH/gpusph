@@ -1206,8 +1206,6 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint currentGlobalDevice = 0; currentGlobalDevice < (gdata->totDevices-1); currentGlobalDevice++) {
 		// compute where current bucket ends
 		nextBucketBeginsAt += particlesPerGlobalDevice[ currentGlobalDevice ];
-		// nextBucketBeginsAt += gdata->s_hPartsPerDevice[currentDevice];
-		//nextBucketBeginsAt = gdata->s_hStartPerDevice[currentDevice+1];
 		// reset rightB to the end
 		rightB = maxIdx;
 		// go on until we reach the end of the current bucket

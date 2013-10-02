@@ -4,6 +4,7 @@
 // we use a byte (uchar) to address a device in the cluster
 #define MAX_DEVICES_PER_CLUSTER 256
 // how many bits [1...8] we reserve to the node rank in the global device index
+// default: 5 bits for the node, 3 for the device. Max 32 nodes with 8 devices each
 #define NODE_BITS 5
 #define DEVICE_BITS (8 - NODE_BITS)
 #define MAX_NODES_PER_CLUSTER (1 << NODE_BITS)
