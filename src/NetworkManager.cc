@@ -147,3 +147,11 @@ void NetworkManager::networkFloatReduction(float *datum)
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
 }
+
+// network barrier
+void NetworkManager::networkBarrier()
+{
+	// printf("------ NET BARRIER\n");
+	MPI_Barrier(MPI_COMM_WORLD);
+	// printf("--- NET BARRIER OUT\n");
+}

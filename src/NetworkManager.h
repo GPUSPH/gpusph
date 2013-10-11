@@ -34,6 +34,8 @@ public:
 	void receiveShorts(unsigned char src_rank, unsigned int count, unsigned short *dst_data);
 	// find minimum float across the network
 	void networkFloatReduction(float *datum);
+	// synchronization barrier among all the nodes of the network
+	void networkBarrier();
 };
 
 #endif /* NETWORKMANAGER_H_ */
