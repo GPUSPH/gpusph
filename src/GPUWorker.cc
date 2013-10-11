@@ -243,12 +243,6 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
 
-				// printf("About to check for import cell %d,%d,%d...\n", cx, cy, cz);
-
-				// gdata->networkManager->networkBarrier();
-
-				//printf("--- barrier cell %d,%d,%d reached\n", cx, cy, cz);
-
 				// optimization: if not edging, continue
 				if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
 					m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
@@ -300,7 +294,6 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 									if (curr_cell_start != EMPTY_CELL) {
 
-										//printf("It %u, about to send for import %u->%u, cell %u (%u, %u, %u), %u elements)\n", gdata->iterations, curr_cell_rank, neib_cell_rank, lin_curr_cell, cx, cy, cz, partsInCurrCell);
 										// ... then the data (pos, vel, info):
 										gdata->networkManager->sendFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + curr_cell_start) );
 										gdata->networkManager->sendFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4, (float*)(m_dVel[ gdata->currentVelRead ] + curr_cell_start) );
@@ -315,8 +308,6 @@ void GPUWorker::importNetworkPeerEdgeCells()
 									gdata->networkManager->receiveUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
 
 									if (partsInCurrCell > 0) {
-
-										//printf("It %u, about to receive and append %u->%u, cell %u (%u, %u, %u), %u elements)\n", gdata->iterations, curr_cell_rank, neib_cell_rank, lin_curr_cell, cx, cy, cz, partsInCurrCell);
 
 										// ... then the data (pos, vel, info):
 										gdata->networkManager->receiveFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4, (float*)(m_dPos[ gdata->currentPosRead ] + m_numParticles) );
@@ -445,11 +436,6 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 
 				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
 
-				// printf("About to check cell %d,%d,%d...\n", cx, cy, cz);
-				// if (gdata->mpi_rank == 0) gdata->networkManager->networkBarrier();
-
-				// printf("barrier cell %d,%d,%d reached\n", cx, cy, cz);
-
 				// optimization: if not edging, continue
 				if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
 					m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED) continue;
@@ -502,8 +488,6 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 								// current is mine: send the cell to the process holding the neighbor cell
 								if (curr_mine && partsInCurrCell > 0) {
 
-									//printf("It %u, about to send %u->%u, cell %u (%u, %u, %u), %u elements)\n", gdata->iterations, curr_cell_rank, neib_cell_rank, lin_curr_cell, cx, cy, cz, partsInCurrCell);
-
 									// sen pos, vel, info
 									if (gdata->commandFlags & BUFFER_POS)
 										gdata->networkManager->sendFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4, (float*)(m_dPos[ gdata->currentPosWrite ] + curr_cell_start) );
@@ -517,8 +501,6 @@ void GPUWorker::updateNetworkPeerEdgeCells()
 								} else
 								// neighbor is mine: receive the cell from the process holding the current cell
 								if (neib_mine && partsInCurrCell > 0) {
-
-									//printf("It %u, about to receive %u->%u, cell %u (%u, %u, %u), %u elements)\n", gdata->iterations, curr_cell_rank, neib_cell_rank, lin_curr_cell, cx, cy, cz, partsInCurrCell);
 
 									// receive pos, vel, info
 									if (gdata->commandFlags & BUFFER_POS)
