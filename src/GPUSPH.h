@@ -73,6 +73,9 @@ private:
 	// print information about the status of the simulation
 	void printStatus();
 
+	// print information about the status of the simulation
+	void printParticleDistribution();
+
 	// do a roll call of particle IDs
 	void rollCallParticles();
 

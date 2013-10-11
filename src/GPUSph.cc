@@ -659,7 +659,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	} else {
 		// if there is something more to do, encapsulate in a dedicated method please
 		gdata->s_hStartPerDevice[0] = 0;
-		gdata->s_hPartsPerDevice[0] = gdata->processParticles = gdata->totParticles;
+		gdata->s_hPartsPerDevice[0] = gdata->processParticles[0] =
+				gdata->totParticles;
 	}
 
 	for (uint d=0; d < gdata->devices; d++)
@@ -1128,21 +1129,19 @@ void GPUSPH::sortParticlesByHash() {
 	// for (uint p=0; p < gdata->totParticles; p++)
 	//	printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) );
 
-	// count parts for each node to compute the offset
-	uint particlesPerNode[MAX_NODES_PER_CLUSTER];
 	// count parts for each device, even in other nodes (s_hPartsPerDevice only includes devices in self node on)
 	uint particlesPerGlobalDevice[MAX_DEVICES_PER_CLUSTER];
 
 	// reset counters. Not using memset since sizes are smaller than 1Kb
-	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) gdata->s_hPartsPerDevice[d] = 0;
-	for (uint n=0; n < MAX_NODES_PER_CLUSTER; n++) particlesPerNode[n] = 0;
-	for (uint d=0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
+	for (uint d = 0; d < MAX_DEVICES_PER_NODE; d++)    gdata->s_hPartsPerDevice[d] = 0;
+	for (uint n = 0; n < MAX_NODES_PER_CLUSTER; n++)   gdata->processParticles[n]  = 0;
+	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
-	for (uint p=0; p < gdata->totParticles; p++) {
+	for (uint p = 0; p < gdata->totParticles; p++) {
 
 		// compute cell according to the particle's position and to the deviceMap
 		uchar whichGlobalDev = gdata->calcGlobalDeviceIndex(gdata->s_hPos[p]);
@@ -1151,27 +1150,29 @@ void GPUSPH::sortParticlesByHash() {
 		m_hParticleHashes[p] = whichGlobalDev;
 
 		// increase node and globalDev counter (only useful for multinode)
-		particlesPerNode[ gdata->RANK(whichGlobalDev) ]++;
+		gdata->processParticles[gdata->RANK(whichGlobalDev)]++;
 
-		particlesPerGlobalDevice[ gdata->GLOBAL_DEVICE_NUM(whichGlobalDev) ]++;
+		particlesPerGlobalDevice[gdata->GLOBAL_DEVICE_NUM(whichGlobalDev)]++;
 
 		// if particle is in current node, increment the device counters
-		if ( gdata->RANK(whichGlobalDev) == gdata->mpi_rank )
+		if (gdata->RANK(whichGlobalDev) == gdata->mpi_rank)
 			// increment per-device counter
-			gdata->s_hPartsPerDevice[ gdata->DEVICE(whichGlobalDev) ]++;
+			gdata->s_hPartsPerDevice[gdata->DEVICE(whichGlobalDev)]++;
+
+		//if (whichGlobalDev != 0)
+		//printf(" ö part %u has key %u (n%dd%u) global dev %u \n", p, whichGlobalDev, gdata->RANK(whichGlobalDev), gdata->DEVICE(whichGlobalDev), gdata->GLOBAL_DEVICE_NUM(whichGlobalDev) );
 
 	}
 
-	// update the number of particles of the current process
-	gdata->processParticles = particlesPerNode[gdata->mpi_rank];
+	// printParticleDistribution();
 
 	// update s_hStartPerDevice with incremental sum (should do in specific function?)
 	gdata->s_hStartPerDevice[0] = 0;
 	// zero is true for the first node. For the next ones, need to sum the number of particles of the previous nodes
 	if (MULTI_NODE)
 		for (uint prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
-			gdata->s_hStartPerDevice[0] += particlesPerNode[ prev_nodes ];
-	for (uint d=1; d < gdata->devices; d++)
+			gdata->s_hStartPerDevice[0] += gdata->processParticles[prev_nodes];
+	for (uint d = 1; d < gdata->devices; d++)
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// *** About the algorithm being used ***
@@ -1205,9 +1206,9 @@ void GPUSPH::sortParticlesByHash() {
 	// NOTE(2): we don't need to iterate in the last bucket: it should be already correct after the others. That's why "devices-1".
 	// We might want to iterate on last bucket only for correctness check.
 	// For each bucket (device)...
-	for (uint currentGlobalDevice = 0; currentGlobalDevice < (gdata->totDevices-1); currentGlobalDevice++) {
+	for (uint currentGlobalDevice = 0; currentGlobalDevice < (gdata->totDevices - 1); currentGlobalDevice++) {
 		// compute where current bucket ends
-		nextBucketBeginsAt += particlesPerGlobalDevice[ currentGlobalDevice ];
+		nextBucketBeginsAt += particlesPerGlobalDevice[currentGlobalDevice];
 		// reset rightB to the end
 		rightB = maxIdx;
 		// go on until we reach the end of the current bucket
@@ -1232,20 +1233,20 @@ void GPUSPH::sortParticlesByHash() {
 		}
 	}
 	// delete array of keys (might be recycled instead?)
-	delete [] m_hParticleHashes;
+	delete[] m_hParticleHashes;
 
 	// initialize the outer cells values in s_dSegmentsStart. The inner_edge are still uninitialized
-	for (uint currentDevice=0; currentDevice < gdata->devices; currentDevice++) {
+	for (uint currentDevice = 0; currentDevice < gdata->devices; currentDevice++) {
 		uint assigned_parts = gdata->s_hPartsPerDevice[currentDevice];
 		printf("    d%u  p %u\n", currentDevice, assigned_parts);
 		// this should always hold according to the current CELL_TYPE values
-		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_INNER_CELL]			= EMPTY_SEGMENT;
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_INNER_CELL ] = 		EMPTY_SEGMENT;
 		// this is usually not true, since a device usually has neighboring cells; will be updated at first reorder
-		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_INNER_EDGE_CELL]	= EMPTY_SEGMENT;
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_INNER_EDGE_CELL ] =	EMPTY_SEGMENT;
 		// this is true and will change at first APPEND
-		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_EDGE_CELL]	= EMPTY_SEGMENT;
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_EDGE_CELL ] =	EMPTY_SEGMENT;
 		// this is true and might change between a reorder and the following crop
-		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_CELL]			= EMPTY_SEGMENT;
+		gdata->s_dSegmentsStart[currentDevice][CELLTYPE_OUTER_CELL ] =		EMPTY_SEGMENT;
 	}
 
 	// DEBUG: check if the sort was correct
@@ -1273,7 +1274,7 @@ void GPUSPH::sortParticlesByHash() {
 		if (hcount[d] != gdata->s_hPartsPerDevice[d]) {
 			count_c = false;
 			printf(" -- sorting error: counted %d particles for device %d, but should be %d\n",
-					hcount[d], d, gdata->s_hPartsPerDevice[d]);
+				hcount[d], d, gdata->s_hPartsPerDevice[d]);
 		}
 	if (monotonic && count_c)
 		printf(" --- array OK\n");
@@ -1281,7 +1282,7 @@ void GPUSPH::sortParticlesByHash() {
 		printf(" --- array ERROR\n");
 	// finally, print the list again
 	//for (uint p=1; p < gdata->totParticles && monotonic; p++)
-	//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
+		//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
 }
 
 // Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
@@ -1375,7 +1376,7 @@ void GPUSPH::doWrite()
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
-	gdata->writer->write(gdata->processParticles,
+	gdata->writer->write(gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hPos + node_offset, gdata->s_hVel + node_offset, gdata->s_hInfo + node_offset,
 		( gdata->s_hVorticity ? gdata->s_hVorticity + node_offset : NULL),
 		gdata->t, gdata->problem->get_simparams()->testpoints,
@@ -1429,6 +1430,13 @@ void GPUSPH::printStatus()
 //#undef ti
 }
 
+void GPUSPH::printParticleDistribution()
+{
+	printf("Particle distribution for process %u at iteration %u:\n", gdata->mpi_rank, gdata->iterations);
+	for (uint d = 0; d < gdata->devices; d++)
+		printf(" - Device %u: %u particles\n", d, gdata->s_hPartsPerDevice[d]);
+	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
+}
 // Do a roll call of particle IDs; useful after dumps if no in/outlets are there and if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
 // NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)
@@ -1437,13 +1445,13 @@ void GPUSPH::rollCallParticles()
 	bool all_normal = true;
 
 	// reset bitmap and addrs
-	for (uint idx = 0; idx < gdata->processParticles; idx++) {
+	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++) {
 		m_rcBitmap[idx] = false;
 		m_rcAddrs[idx] = 0xFFFFFFFF;
 	}
 
 	// fill out the bitmap and check for duplicates
-	for (uint pos = 0; pos < gdata->processParticles; pos++) {
+	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
 		uint idx = id(gdata->s_hInfo[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u!\n",
@@ -1457,7 +1465,7 @@ void GPUSPH::rollCallParticles()
 		m_rcAddrs[idx] = pos;
 	}
 	// now check if someone is missing
-	for (uint idx = 0; idx < gdata->processParticles; idx++)
+	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++)
 		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u was not found!\n",
 				gdata->iterations, gdata->t, idx);
@@ -1483,16 +1491,14 @@ void GPUSPH::rollCallParticles()
 // update s_hStartPerDevice, s_hPartsPerDevice and totParticles
 // Could go in GlobalData but would need another forward-declaration
 void GPUSPH::updateArrayIndices() {
-	uint count = 0;
+	uint processCount = 0;
 
 	// this should hold if single-GPU; there is no need to update
 	// gdata->s_hStartPerDevice[0] = 0;
 
 	// just store an incremental counter
-	for (int d=0; d < gdata->devices; d++) {
-		count += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
-		if (d > 0)
-			gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
+	for (uint d = 0; d < gdata->devices; d++)
+		processCount += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
 	}
 
 	// number of particle may increase or decrease if there are respectively inlets or outlets
