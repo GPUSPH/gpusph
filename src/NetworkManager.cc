@@ -67,8 +67,6 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
-	// printf("NM sending %u->%u (tag %u) int %u\n", src_globalDevIdx, dst_globalDevIdx, tag, *datum);
-
 	int mpi_err = MPI_Send(datum, 1, MPI_INT, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
@@ -81,8 +79,6 @@ void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char d
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(datum, 1, MPI_INT, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
-
-	// printf("NM received %u->%u (tag %u) int %u\n", src_globalDevIdx, dst_globalDevIdx, tag, *datum);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
@@ -101,8 +97,6 @@ void NetworkManager::sendFloats(unsigned char src_globalDevIdx, unsigned char ds
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
-	// printf("NM sending %u->%u (tag %u) %u floats\n", src_globalDevIdx, dst_globalDevIdx, tag, count);
-
 	int mpi_err = MPI_Send(src_data, count, MPI_FLOAT, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
@@ -112,8 +106,6 @@ void NetworkManager::sendFloats(unsigned char src_globalDevIdx, unsigned char ds
 void NetworkManager::receiveFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *dst_data)
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
-
-	// printf("NM receiving %u->%u (tag %u) %u floats\n", src_globalDevIdx, dst_globalDevIdx, tag, count);
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(dst_data, count, MPI_FLOAT, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -135,8 +127,6 @@ void NetworkManager::sendShorts(unsigned char src_globalDevIdx, unsigned char ds
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
-	// printf("NM sending %u->%u (tag %u) %u shorts\n", src_globalDevIdx, dst_globalDevIdx, tag, count);
-
 	int mpi_err = MPI_Send(src_data, count, MPI_SHORT, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
@@ -146,8 +136,6 @@ void NetworkManager::sendShorts(unsigned char src_globalDevIdx, unsigned char ds
 void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *dst_data)
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
-
-	// printf("NM receiving %u->%u (tag %u) %u shorts\n", src_globalDevIdx, dst_globalDevIdx, tag, count);
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(dst_data, count, MPI_SHORT, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -185,7 +173,5 @@ void NetworkManager::allGatherUints(unsigned int *datum, unsigned int *recv_buff
 // network barrier
 void NetworkManager::networkBarrier()
 {
-	// printf("------ NET BARRIER\n");
 	MPI_Barrier(MPI_COMM_WORLD);
-	// printf("--- NET BARRIER OUT\n");
 }
