@@ -28,7 +28,13 @@ NetworkManager::~NetworkManager() {
 
 void NetworkManager::initNetwork() {
 	// initialize the MPI environment
-	MPI_Init(NULL, NULL);
+	// MPI_Init(NULL, NULL);
+	int result;
+	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &result);
+	if (result < MPI_THREAD_MULTIPLE) {
+	    printf("NetworkManager: no complete thread safety, current level: %d\n", result);
+	    // MPI_Abort(MPI_COMM_WORLD, 1);
+	}
 
 	// get the global number of processes
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
