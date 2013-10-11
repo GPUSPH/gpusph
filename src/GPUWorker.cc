@@ -145,8 +145,8 @@ void GPUWorker::importPeerEdgeCells()
 
 	// iterate on all cells
 	for (uint cell=0; cell < m_nGridCells; cell++)
-		// if the current is an external edge cell...
-		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
+		// if the current is an external edge cell and it belongs to a device of the same node...
+		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED && gdata->RANK(gdata->s_hDeviceMap[cell]) == gdata->mpi_rank) {
 			// check in which device it is
 			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
 			if (peerDevIndex == m_deviceIndex)
@@ -222,7 +222,7 @@ void GPUWorker::importPeerEdgeCells()
 				// update the total number of particles
 				m_numParticles += numPartsInPeerCell;
 			} // if cell is not empty
-		} // if cell is external edge
+		} // if cell is external edge and in the same node
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
@@ -356,8 +356,8 @@ void GPUWorker::updatePeerEdgeCells()
 
 	// iterate on all cells
 	for (uint cell=0; cell < m_nGridCells; cell++)
-		// if the current is an external edge cell...
-		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED) {
+		// if the current is an external edge cell and it belongs to a device of the same node...
+		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED && gdata->RANK(gdata->s_hDeviceMap[cell]) == gdata->mpi_rank) {
 			// check in which device it is
 			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
 			uint peerCudaDevNum = gdata->device[peerDevIndex];
@@ -413,7 +413,7 @@ void GPUWorker::updatePeerEdgeCells()
 													_size));
 				}
 			} // if cell is not empty
-		} // if cell is external edge
+		} // if cell is external edge and same node
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
