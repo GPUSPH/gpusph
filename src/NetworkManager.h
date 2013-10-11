@@ -34,6 +34,8 @@ public:
 	void receiveShorts(unsigned char src_rank, unsigned int count, unsigned short *dst_data);
 	// find minimum float across the network
 	void networkFloatReduction(float *datum);
+	// send one int, gather the int from all nodes (allgather)
+	void allGatherUints(unsigned int *datum, unsigned int *recv_buffer);
 	// synchronization barrier among all the nodes of the network
 	void networkBarrier();
 };

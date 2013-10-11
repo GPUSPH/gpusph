@@ -148,6 +148,14 @@ void NetworkManager::networkFloatReduction(float *datum)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
 }
 
+// send one int, gather the int from all nodes (allgather)
+void NetworkManager::allGatherUints(unsigned int *datum, unsigned int *recv_buffer)
+{
+	int mpi_err = MPI_Allgather(datum, 1, MPI_INT, recv_buffer, 1, MPI_INT, MPI_COMM_WORLD);
+	if (mpi_err != MPI_SUCCESS)
+			printf("WARNING: MPI_Allgather returned error %d\n", mpi_err);
+}
+
 // network barrier
 void NetworkManager::networkBarrier()
 {
