@@ -245,3 +245,13 @@ void Waterfall::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	j += fluid_parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
+
+void Waterfall::fillDeviceMap(GlobalData* gdata)
+{
+	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
+	// fillDeviceMapByAxisSplit(gdata, 2, 6, );
+	//fillDeviceMapByEquation(gdata);
+	// fillDeviceMapByAxis(gdata, LONGEST_AXIS);
+	// partition by performing the specified number of cuts along the three cartesian axes
+	fillDeviceMapByRegularGrid(gdata);
+}
