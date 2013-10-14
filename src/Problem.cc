@@ -432,6 +432,96 @@ void Problem::fillDeviceMapByEquation(GlobalData* gdata)
 			}
 }
 
+// Partition by performing the splitting the domain in the specified number of slices for each axis.
+// Values must be > 0. The number of devices will be the product of the input values.
+// This is not meant to be called directly by a problem since the number of splits (and thus the devices)
+// would be hardocded. A wrapper method (like fillDeviceMapByRegularGrid) can provide an algorithm to
+// properly factorize a given number of GPUs in 2 or 3 values.
+void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices)
+{
+	// is any of these zero?
+	if (Xslices * Yslices * Zslices == 0)
+		printf("WARNING: fillDeviceMapByAxesSplits() called with zero values, using 1 instead");
+
+	if (Xslices == 0) Xslices = 1;
+	if (Yslices == 0) Yslices = 1;
+	if (Zslices == 0) Zslices = 1;
+
+	// divide and round
+	uint devSizeCellsX = gdata->gridSize.x + Xslices - 1 / Xslices ;
+	uint devSizeCellsY = gdata->gridSize.y + Yslices - 1 / Yslices ;
+	uint devSizeCellsZ = gdata->gridSize.z + Zslices - 1 / Zslices ;
+
+	// iterate on all cells
+	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
+			for (uint cy = 0; cy < gdata->gridSize.y; cy++)
+				for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
+
+				// where are we in the 3D grid of devices?
+				uint whichDevCoordX = (cx / devSizeCellsX);
+				uint whichDevCoordY = (cy / devSizeCellsY);
+				uint whichDevCoordZ = (cz / devSizeCellsZ);
+
+				// round if needed
+				whichDevCoordX %= Xslices;
+				whichDevCoordY %= Yslices;
+				whichDevCoordZ %= Zslices;
+
+				// compute dest device
+				uint dstDevice = whichDevCoordZ * Yslices * Xslices + whichDevCoordY * Xslices + whichDevCoordX;
+				// compute cell address
+				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = (uchar)dstDevice;
+			}
+}
+
+// Wrapper for fillDeviceMapByAxesSplits() computing the number of cuts along each axis.
+// WARNING: assumes the total number of devices is divided by a combination of 2, 3 and 5
+void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
+{
+	float Xsize = gdata->worldSize.x;
+	float Ysize = gdata->worldSize.y;
+	float Zsize = gdata->worldSize.z;
+	uint cutsX = 1;
+	uint cutsY = 1;
+	uint cutsZ = 1;
+	uint remaining_factors = gdata->totDevices;
+
+	// define the product of non-zero cuts to keep track of current number of parallelepipeds
+//#define NZ_PRODUCT	((cutsX > 0? cutsX : 1) * (cutsY > 0? cutsY : 1) * (cutsZ > 0? cutsZ : 1))
+
+	while (cutsX * cutsY * cutsZ < gdata->totDevices) {
+		uint factor = 1;
+		// choose the highest factor among 2, 3 and 5 which divides remaining_factors
+		if (remaining_factors % 5 == 0) factor = 5; else
+		if (remaining_factors % 3 == 0) factor = 3; else
+		if (remaining_factors % 2 == 0) factor = 2; else {
+			factor = remaining_factors;
+			printf("WARNING: splitting by regular grid but %u is not divided by 2,3,5!\n", remaining_factors);
+		}
+		// choose the longest axis to split along
+		if (Xsize >= Ysize && Xsize >= Zsize) {
+			Xsize /= factor;
+			cutsX *= factor;
+		} else
+		if (Ysize >= Xsize && Ysize >= Zsize) {
+			Ysize /= factor;
+			cutsY *= factor;
+		} else {
+			Zsize /= factor;
+			cutsZ *= factor;
+		}
+	}
+
+	// should always hold, but double check for bugs
+	if (cutsX * cutsY * cutsZ != gdata->totDevices)
+		printf("WARNING: splitting by regular grid but final distribution (%u, %u, %u) does not produce %u parallelepipeds!\n",
+			cutsX, cutsY, cutsZ, gdata->totDevices);
+
+	fillDeviceMapByAxesSplits(gdata, cutsX, cutsY, cutsZ);
+}
+
 void 
 Problem::allocate_bodies(const int i)
 {

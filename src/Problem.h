@@ -256,6 +256,10 @@ class Problem {
 		void fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis);
 		// partition by coordinates satistfying an example equation
 		void fillDeviceMapByEquation(GlobalData* gdata);
+		// partition by cutting the domain in parallelepipeds
+		void fillDeviceMapByRegularGrid(GlobalData* gdata);
+		// partition by performing the specified number of cuts along the three cartesian axes
+		void fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices);
 
 		void allocate_bodies(const int);
 		RigidBody* get_body(const int);
