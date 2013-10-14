@@ -1498,35 +1498,57 @@ void GPUSPH::rollCallParticles()
 void GPUSPH::updateArrayIndices() {
 	uint processCount = 0;
 
-	// this should hold if single-GPU; there is no need to update
-	// gdata->s_hStartPerDevice[0] = 0;
-
 	// just store an incremental counter
 	for (uint d = 0; d < gdata->devices; d++)
 		processCount += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+
+	// update che number of particles of the current process. Do we need to store the previous value?
+	// uint previous_process_parts = gdata->processParticles[ gdata->mpi_rank ];
+	gdata->processParticles[gdata->mpi_rank] = processCount;
+
+	// allgather values, aka: receive values of other processes
+	if (MULTI_NODE)
+		gdata->networkManager->allGatherUints(&processCount, gdata->processParticles);
+
+	// now update the offsets for each device:
+	gdata->s_hStartPerDevice[0] = 0;
+	for (uint n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
+		gdata->s_hStartPerDevice[0] += gdata->processParticles[n];
+	for (int d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
+		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
+
+	// process 0 checks if total number of particles varied in the simulation
+	if (gdata->mpi_rank == 0 || true) {
+		uint newSimulationTotal = 0;
+		for (uint n = 0; n < gdata->mpi_nodes; n++)
+			newSimulationTotal += gdata->processParticles[n];
+
+		// number of particle may increase or decrease if there are respectively inlets or outlets
+		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_physparams()->outlets > 0) ||
+			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_physparams()->inlets  > 0) ) {
+			printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
+			gdata->totParticles = newSimulationTotal;
+		} else if (newSimulationTotal != gdata->totParticles) {
+			printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n",
+				gdata->iterations, gdata->totParticles, newSimulationTotal);
+
+			// who is missing? if single-node, do a roll call
+			if (SINGLE_NODE) {
+				doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ);
+				rollCallParticles();
+			}
+
+			// update totParticles to avoid dumping an outdated particle (and repeating the warning).
+			// Note: updading *after* the roll call likely shows the missing particle(s) and the duplicate(s). Doing before it only shows the missing one(s)
+			gdata->totParticles = newSimulationTotal;
+		}
 	}
 
-	// number of particle may increase or decrease if there are respectively inlets or outlets
-	if ( (count < gdata->processParticles && gdata->problem->get_physparams()->outlets > 0) ||
-		 (count > gdata->processParticles && gdata->problem->get_physparams()->inlets > 0) ) {
-		printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, count);
-		gdata->processParticles = count;
-	} else
-	if (gdata->mpi_nodes == 1 && count != gdata->processParticles) {
-		printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n", gdata->iterations, gdata->totParticles, count);
-
-		// who is missing?
-		doCommand(DUMP, BUFFER_INFO | DBLBUFFER_READ );
-		rollCallParticles();
-
-		// update totParticles to avoid dumping an outdated particle (and repeating the warning).
-		// Note: updading *after* the roll call likely shows the missing particle(s) and the duplicate(s). Doing before it only shows the missing one(s)
-		gdata->processParticles = count;
-	}
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
-	if (count > gdata->allocatedParticles) {
-		printf("FATAL: Number of total particles at iteration %u (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
-			gdata->iterations, count, gdata->allocatedParticles);
+	// FIXME: like in other methods, we should avoid quitting only one process
+	if (processCount > gdata->allocatedParticles) {
+		printf( "FATAL: Number of total particles at iteration %u (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
+				gdata->iterations, processCount, gdata->allocatedParticles);
 		gdata->quit_request = true;
 	}
 }
