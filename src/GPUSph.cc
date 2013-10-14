@@ -685,8 +685,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->keep_going = true;
 
 	// actually start the threads
-	for (int d=0; d < gdata->devices; d++)
-		gdata->GPUWORKERS[d]->run_worker();  // begin of INITIALIZATION ***
+	for (int d = 0; d < gdata->devices; d++)
+		gdata->GPUWORKERS[d]->run_worker(); // begin of INITIALIZATION ***
 
 	// The following barrier waits for GPUworkers to complete CUDA init, GPU allocation, subdomain and devmap upload
 
@@ -707,8 +707,8 @@ bool GPUSPH::finalize() {
 	free(m_rcAddrs);
 
 	// workers
-	for (int d=0; d < gdata->devices; d++)
-			delete gdata->GPUWORKERS[d];
+	for (int d = 0; d < gdata->devices; d++)
+		delete gdata->GPUWORKERS[d];
 
 	delete gdata->GPUWORKERS;
 
@@ -751,8 +751,8 @@ bool GPUSPH::runSimulation() {
 	// nextCommand properly before the barrier (although should be already initialized to IDLE).
 	// doCommand(IDLE) would be equivalent, but this is more clear
 	gdata->nextCommand = IDLE;
-	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
-	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 1
+	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
 	printf("Entering the main simulation cycle\n");
 
@@ -774,6 +774,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(CALCHASH);
 			doCommand(SORT);
 			doCommand(REORDER);
+
 			if (inoutlets && gdata->iterations > 0)
 				doCommand(DOWNLOAD_NEWNUMPARTS);
 			// swap pos, vel and info double buffers
@@ -784,6 +785,10 @@ bool GPUSPH::runSimulation() {
 				// copy cellStarts, cellEnds and segments on host
 				doCommand(DUMP_CELLS);
 				doCommand(UPDATE_SEGMENTS);
+
+				// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
+				// maybe overlapping with dumping cells (run async before dumping the cells)
+
 				// update particle offsets
 				updateArrayIndices();
 				// crop external cells
@@ -820,7 +825,7 @@ bool GPUSPH::runSimulation() {
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
-	//			//(init bodies)
+		//			//(init bodies)
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
@@ -829,9 +834,9 @@ bool GPUSPH::runSimulation() {
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
-	//MM		fetch/update forces on neighbors in other GPUs/nodes
-	//				initially done trivial and slow: stop and read
-	//			//reduce bodies
+		//MM		fetch/update forces on neighbors in other GPUs/nodes
+		//				initially done trivial and slow: stop and read
+		//			//reduce bodies
 
 		// moving boundaries
 		if (problem->get_simparams()->mbcallback) {
@@ -856,12 +861,12 @@ bool GPUSPH::runSimulation() {
 
 		// this made sense for testing and running EULER on internals only
 		//if (MULTI_DEVICE)
-			//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
+		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
 
-	//			//reduce bodies
-	//			//callbacks (bounds, gravity)
-	//MM		fetch/update forces on neighbors in other GPUs/nodes
-	//				initially done trivial and slow: stop and read
+		//			//reduce bodies
+		//			//callbacks (bounds, gravity)
+		//MM		fetch/update forces on neighbors in other GPUs/nodes
+		//				initially done trivial and slow: stop and read
 
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_2);
@@ -869,7 +874,7 @@ bool GPUSPH::runSimulation() {
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
-	//			//reduce bodies
+		//			//reduce bodies
 
 		// moving boundaries
 		if (problem->get_simparams()->mbcallback) {
@@ -898,16 +903,16 @@ bool GPUSPH::runSimulation() {
 
 		// this made sense for testing and running EULER on internals only
 		//if (MULTI_DEVICE)
-			//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
+		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
 
-	//			//reduce bodies
+		//			//reduce bodies
 
 		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL);
 
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
 			gdata->dt = gdata->dts[0];
-			for (int d=1; d < gdata->devices; d++)
+			for (int d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
@@ -961,7 +966,7 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_NORMALS;
 			}
 			// dumping AFTER normals, since it also affects the particleInfo
-			doCommand(DUMP, which_buffers );
+			doCommand(DUMP, which_buffers);
 			doWrite();
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
@@ -974,16 +979,16 @@ bool GPUSPH::runSimulation() {
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
 	gdata->nextCommand = QUIT;
-	gdata->threadSynchronizer->barrier();  // unlock CYCLE BARRIER 2
-	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
+	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
+	gdata->threadSynchronizer->barrier(); // end of SIMULATION, begins FINALIZATION ***
 
 	// just wait or...?
 
-	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
+	gdata->threadSynchronizer->barrier(); // end of FINALIZATION ***
 
 	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
 	// we wait for the threads to actually exit
-	for (int d=0; d < gdata->devices; d++)
+	for (int d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
 	return true;
@@ -1052,16 +1057,16 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	}
 
 	/*dump_hPos = new float4[numparts];
-	memset(dump_hPos, 0, float4Size);
-	totCPUbytes += float4Size;
+	 memset(dump_hPos, 0, float4Size);
+	 totCPUbytes += float4Size;
 
-	dump_hVel = new float4[numparts];
-	memset(dump_hVel, 0, float4Size);
-	totCPUbytes += float4Size;
+	 dump_hVel = new float4[numparts];
+	 memset(dump_hVel, 0, float4Size);
+	 totCPUbytes += float4Size;
 
-	dump_hInfo = new particleinfo[numparts];
-	memset(dump_hInfo, 0, infoSize);
-	totCPUbytes += infoSize;*/
+	 dump_hInfo = new particleinfo[numparts];
+	 memset(dump_hInfo, 0, infoSize);
+	 totCPUbytes += infoSize;*/
 
 	if (MULTI_DEVICE) {
 		// deviceMap
@@ -1090,33 +1095,32 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 }
 
 // Deallocate the shared buffers, i.e. those accessed by all workers
-void GPUSPH::deallocateGlobalHostBuffers()
-{
+void GPUSPH::deallocateGlobalHostBuffers() {
 	// planes
 	if (gdata->numPlanes > 0) {
-		delete [] gdata->s_hPlanes;
-		delete [] gdata->s_hPlanesDiv;
+		delete[] gdata->s_hPlanes;
+		delete[] gdata->s_hPlanesDiv;
 	}
 	//cudaFreeHost(s_hPos); // pinned memory
-	delete [] gdata->s_hPos;
-	delete [] gdata->s_hVel;
-	delete [] gdata->s_hInfo;
+	delete[] gdata->s_hPos;
+	delete[] gdata->s_hVel;
+	delete[] gdata->s_hInfo;
 	if (problem->m_simparams.vorticity)
-		delete [] gdata->s_hVorticity;
+		delete[] gdata->s_hVorticity;
 	if (problem->m_simparams.surfaceparticle)
-		delete [] gdata->s_hNormals;
+		delete[] gdata->s_hNormals;
 	// multi-GPU specific arrays
 	if (MULTI_DEVICE) {
-		delete [] gdata->s_hDeviceMap;
+		delete[] gdata->s_hDeviceMap;
 		// cells
-		for (int d=0; d < gdata->devices; d++) {
-			delete [] gdata->s_dCellStarts[d];
-			delete [] gdata->s_dCellEnds[d];
-			delete [] gdata->s_dSegmentsStart[d];
+		for (int d = 0; d < gdata->devices; d++) {
+			delete[] gdata->s_dCellStarts[d];
+			delete[] gdata->s_dCellEnds[d];
+			delete[] gdata->s_dSegmentsStart[d];
 		}
-		delete [] gdata->s_dCellEnds;
-		delete [] gdata->s_dCellStarts;
-		delete [] gdata->s_dSegmentsStart;
+		delete[] gdata->s_dCellEnds;
+		delete[] gdata->s_dCellStarts;
+		delete[] gdata->s_dSegmentsStart;
 	}
 }
 
@@ -1289,9 +1293,9 @@ void GPUSPH::sortParticlesByHash() {
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
 	// could keep a counter
-	swap( gdata->s_hPos[idx1],  gdata->s_hPos[idx2] );
-	swap( gdata->s_hVel[idx1],  gdata->s_hVel[idx2] );
-	swap( gdata->s_hInfo[idx1], gdata->s_hInfo[idx2] );
+	swap(gdata->s_hPos[idx1], gdata->s_hPos[idx2]);
+	swap(gdata->s_hVel[idx1], gdata->s_hVel[idx2]);
+	swap(gdata->s_hInfo[idx1], gdata->s_hInfo[idx2]);
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
@@ -1299,12 +1303,12 @@ void GPUSPH::doCommand(CommandType cmd, uint flags)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
-		const uint float4Size = sizeof(float4) * gdata->totParticles;
-		const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
-		memset(gdata->s_hPos, 0, float4Size);
-		memset(gdata->s_hVel, 0, float4Size);
-		memset(gdata->s_hInfo, 0, infoSize);
-	} */
+	 const uint float4Size = sizeof(float4) * gdata->totParticles;
+	 const uint infoSize = sizeof(particleinfo) * gdata->totParticles;
+	 memset(gdata->s_hPos, 0, float4Size);
+	 memset(gdata->s_hVel, 0, float4Size);
+	 memset(gdata->s_hInfo, 0, infoSize);
+	 } */
 	gdata->nextCommand = cmd;
 	gdata->commandFlags = flags;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
@@ -1455,7 +1459,7 @@ void GPUSPH::rollCallParticles()
 		uint idx = id(gdata->s_hInfo[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u!\n",
-				gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos );
+					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);
 			// getchar(); // useful for debugging
 			// printf("Press ENTER to continue...\n");
 			all_normal = false;
@@ -1468,7 +1472,7 @@ void GPUSPH::rollCallParticles()
 	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++)
 		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %d, time %g particle idx %u was not found!\n",
-				gdata->iterations, gdata->t, idx);
+					gdata->iterations, gdata->t, idx);
 			// printf("Press ENTER to continue...\n");
 			// getchar(); // useful for debugging
 			m_rcNotified[idx] = true;
@@ -1477,13 +1481,14 @@ void GPUSPH::rollCallParticles()
 	// if there was any warning...
 	if (!all_normal) {
 		printf("Recap of devices after roll call:\n");
-		for (uint d=0; d < gdata->devices; d++) {
-				printf(" - device at index %u has %s particles assigned and offset %s\n",
-					d, gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(), gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str());
-				// extra stuff for deeper debugging
-				// uint last_idx = gdata->s_hStartPerDevice[d] + gdata->s_hPartsPerDevice[d] - 1;
-				// uint first_idx = gdata->s_hStartPerDevice[d];
-				// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
+		for (uint d = 0; d < gdata->devices; d++) {
+			printf(" - device at index %u has %s particles assigned and offset %s\n", d,
+					gdata->addSeparators(gdata->s_hPartsPerDevice[d]).c_str(),
+					gdata->addSeparators(gdata->s_hStartPerDevice[d]).c_str() );
+			// extra stuff for deeper debugging
+			// uint last_idx = gdata->s_hStartPerDevice[d] + gdata->s_hPartsPerDevice[d] - 1;
+			// uint first_idx = gdata->s_hStartPerDevice[d];
+			// printf("   first part has idx %u, last part has idx %u\n", id(gdata->s_hInfo[first_idx]), id(gdata->s_hInfo[last_idx])); */
 		}
 	}
 }
