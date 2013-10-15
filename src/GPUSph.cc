@@ -618,7 +618,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
-	size_t totCPUbytes = allocateGlobalHostBuffers(); // TODO was partially implemented
+	size_t totCPUbytes = allocateGlobalHostBuffers();
 	uint extra = gdata->allocatedParticles - gdata->totParticles;
 	if (extra == 0)
 		printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->allocatedParticles).c_str());

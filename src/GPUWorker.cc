@@ -934,8 +934,6 @@ void GPUWorker::downloadNewNumParticles()
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
 		m_numParticles = activeParticles;
 	}
-
-
 }
 
 // upload the value m_numParticles to "newNumParticles" on device
