@@ -850,6 +850,12 @@ void GPUWorker::dumpBuffers() {
 	}
 }
 
+// Sets all cells as empty in device memory. Used before reorder
+void GPUWorker::setDeviceCellsAsEmpty()
+{
+	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, 0xffffffff, gdata->nGridCells  * sizeof(uint)));
+}
+
 // download cellStart and cellEnd to the shared arrays
 void GPUWorker::downloadCellsIndices()
 {

@@ -152,6 +152,7 @@ private:
 
 	void uploadSubdomain();
 	void dumpBuffers();
+	void setDeviceCellsAsEmpty();
 	void downloadCellsIndices();
 	void downloadSegments();
 	void uploadSegments();
