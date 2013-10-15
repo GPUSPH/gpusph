@@ -890,6 +890,14 @@ void GPUWorker::updateSegments()
 	m_particleRangeEnd = m_numInternalParticles = newNumIntParts;
 }
 
+// set all segments, host and device, as empty
+void GPUWorker::resetSegments()
+{
+	for (uint s = 0; s < 4; s++)
+		gdata->s_dSegmentsStart[m_deviceIndex][s] = EMPTY_SEGMENT;
+	uploadSegments();
+}
+
 // download the updated number of particles (update by reorder and euler)
 void GPUWorker::downloadNewNumParticles()
 {

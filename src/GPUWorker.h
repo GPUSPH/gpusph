@@ -156,6 +156,7 @@ private:
 	void downloadSegments();
 	void uploadSegments();
 	void updateSegments();
+	void resetSegments();
 	void downloadNewNumParticles();
 	void uploadNewNumParticles();
 
