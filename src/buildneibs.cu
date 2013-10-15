@@ -120,7 +120,8 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 	
-	CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
+	// now in a separate function
+	// CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));

@@ -1420,6 +1420,9 @@ void GPUWorker::kernel_sort()
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
+	// reset also if the device is empty (or we will download uninitialized values)
+	setDeviceCellsAsEmpty();
+
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
