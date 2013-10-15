@@ -512,7 +512,7 @@ test: all
 # target: list-problems - List available problems
 list-problems:
 	$(CMDECHO)egrep "::.*:.*Problem\(" $(CCFILES) | \
-		sed 's/.\/$(subst ./,,$(SRCDIR))\///g' | sed 's/\..*//g'
+		sed 's/.\/$(subst ./,,$(SRCDIR))\///g' | sed 's/\..*//g' | sort
 
 # target: help - Display help
 help:
