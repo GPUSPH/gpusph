@@ -11,6 +11,8 @@
 #include "euler.cuh"
 // ostringstream
 #include <sstream>
+// FLT_MAX
+#include "float.h"
 
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	gdata = _gdata;
@@ -758,6 +760,9 @@ void GPUWorker::uploadSubdomain() {
 	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (howManyParticles == 0) return;
+
 	size_t _size = 0;
 
 	// memcpys - recalling GPU arrays are double buffered
@@ -793,6 +798,9 @@ void GPUWorker::dumpBuffers() {
 	// indices
 	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
 	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (howManyParticles == 0) return;
 
 	size_t _size = 0;
 	uint flags = gdata->commandFlags;
@@ -880,14 +888,22 @@ void GPUWorker::uploadSegments()
 // download segments and update the number of internal particles
 void GPUWorker::updateSegments()
 {
-	downloadSegments();
-	// update the number of internal particles
-	uint newNumIntParts = m_numParticles;
-	if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] != EMPTY_SEGMENT)
+	// if the device is empty, set the host and device segments as empty
+	if (m_numParticles == 0)
+		resetSegments();
+	else {
+		downloadSegments();
+		// update the number of internal particles
+		uint newNumIntParts = m_numParticles;
+
+		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] != EMPTY_SEGMENT)
 			newNumIntParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL];
-	if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] != EMPTY_SEGMENT)
-		newNumIntParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
-	m_particleRangeEnd = m_numInternalParticles = newNumIntParts;
+
+		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] != EMPTY_SEGMENT)
+			newNumIntParts = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
+
+		m_particleRangeEnd = m_numInternalParticles = newNumIntParts;
+	}
 }
 
 // set all segments, host and device, as empty
@@ -901,6 +917,10 @@ void GPUWorker::resetSegments()
 // download the updated number of particles (update by reorder and euler)
 void GPUWorker::downloadNewNumParticles()
 {
+	// is the device empty? (unlikely but possible before LB kicks in)
+	// if so, neither reorder nor euler did actually perform anything
+	if (m_numParticles == 0) return;
+
 	uint activeParticles;
 	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
 
@@ -921,6 +941,7 @@ void GPUWorker::downloadNewNumParticles()
 // upload the value m_numParticles to "newNumParticles" on device
 void GPUWorker::uploadNewNumParticles()
 {
+	// uploading even if empty (usually not, right after append)
 	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
@@ -1367,6 +1388,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 void GPUWorker::kernel_calcHash()
 {
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (m_numParticles == 0) return;
+
 	calcHash(m_dPos[gdata->currentPosRead],
 #if HASH_KEY_SIZE >= 64
 					m_dInfo[gdata->currentInfoRead],
@@ -1382,12 +1406,19 @@ void GPUWorker::kernel_calcHash()
 
 void GPUWorker::kernel_sort()
 {
-	sort(m_dParticleHash, m_dParticleIndex,
-		(gdata->only_internal ? m_numInternalParticles : m_numParticles) );
+	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	sort(m_dParticleHash, m_dParticleIndex, numPartsToElaborate);
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (m_numParticles == 0) return;
+
 	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
 							m_dPos[gdata->currentPosWrite],		 // output: sorted positions
@@ -1408,6 +1439,11 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 
 void GPUWorker::kernel_buildNeibsList()
 {
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
 	buildNeibsList(	m_dNeibsList,
 						m_dPos[gdata->currentPosRead],
 						m_dInfo[gdata->currentInfoRead],
@@ -1418,7 +1454,7 @@ void GPUWorker::kernel_buildNeibsList()
 						gdata->cellSize,
 						gdata->worldOrigin,
 						m_numParticles,
-						(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+						numPartsToElaborate,
 						m_nGridCells,
 						m_simparams->nlSqInfluenceRadius,
 						m_simparams->periodicbound);
@@ -1426,9 +1462,15 @@ void GPUWorker::kernel_buildNeibsList()
 
 void GPUWorker::kernel_forces()
 {
-	float returned_dt = 0.0F;
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
+	float returned_dt = FLT_MAX;
+
 	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
-	if (firstStep)
+
+	// first step
+	if (numPartsToElaborate > 0 && firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 						m_dVel[gdata->currentVelRead],   // vel(n)
 						m_dForces,					// f(n)
@@ -1438,7 +1480,7 @@ void GPUWorker::kernel_forces()
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
 						m_numParticles,
-						(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+						numPartsToElaborate,
 						m_simparams->slength,
 						gdata->dt, // m_dt,
 						m_simparams->dtadapt,
@@ -1456,6 +1498,8 @@ void GPUWorker::kernel_forces()
 						m_simparams->boundarytype,
 						m_simparams->usedem);
 	else
+	// second step
+	if (numPartsToElaborate > 0 && !firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
 						m_dVel[gdata->currentVelWrite],  // vel(n+1/2)
 						m_dForces,					// f(n+1/2)
@@ -1465,7 +1509,7 @@ void GPUWorker::kernel_forces()
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
 						m_numParticles,
-						(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+						numPartsToElaborate,
 						m_simparams->slength,
 						gdata->dt, // m_dt,
 						m_simparams->dtadapt,
@@ -1495,9 +1539,14 @@ void GPUWorker::kernel_forces()
 
 void GPUWorker::kernel_euler()
 {
-	if (gdata->commandFlags == INTEGRATOR_STEP_1)
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
 
+	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+
+	if (firstStep)
 		euler(  m_dPos[gdata->currentPosRead],	// pos(n)
 				m_dVel[gdata->currentVelRead],	// vel(n)
 				m_dInfo[gdata->currentInfoRead], //particleInfo
@@ -1508,7 +1557,7 @@ void GPUWorker::kernel_euler()
 				m_numParticles,
 				NULL,							// no m_dNewNumParticles at this step
 				gdata->totParticles,
-				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+				numPartsToElaborate,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
 				1,
@@ -1526,7 +1575,7 @@ void GPUWorker::kernel_euler()
 				m_numParticles,
 				m_dNewNumParticles,
 				gdata->totParticles,
-				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+				numPartsToElaborate,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
 				2,
@@ -1537,13 +1586,18 @@ void GPUWorker::kernel_euler()
 
 void GPUWorker::kernel_mls()
 {
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
 	mls(	m_dPos[gdata->currentPosRead],
 			m_dVel[gdata->currentVelRead],
 			m_dVel[gdata->currentVelWrite],
 			m_dInfo[gdata->currentInfoRead],
 			m_dNeibsList,
 			m_numParticles,
-			(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+			numPartsToElaborate,
 			m_simparams->slength,
 			m_simparams->kerneltype,
 			m_simparams->influenceRadius,
@@ -1552,13 +1606,18 @@ void GPUWorker::kernel_mls()
 
 void GPUWorker::kernel_shepard()
 {
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
 	shepard(m_dPos[gdata->currentPosRead],
 			m_dVel[gdata->currentVelRead],
 			m_dVel[gdata->currentVelWrite],
 			m_dInfo[gdata->currentInfoRead],
 			m_dNeibsList,
 			m_numParticles,
-			(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+			numPartsToElaborate,
 			m_simparams->slength,
 			m_simparams->kerneltype,
 			m_simparams->influenceRadius,
@@ -1567,13 +1626,18 @@ void GPUWorker::kernel_shepard()
 
 void GPUWorker::kernel_vorticity()
 {
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
 	// Calling vorticity computation kernel
 	vorticity(	m_dPos[gdata->currentPosRead],
 				m_dVel[gdata->currentVelRead],
 				m_dVort,
 				m_dInfo[gdata->currentInfoRead],
 				m_dNeibsList,
-				(gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+				numPartsToElaborate,
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
@@ -1582,13 +1646,18 @@ void GPUWorker::kernel_vorticity()
 
 void GPUWorker::kernel_surfaceParticles()
 {
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
 	surfaceparticle( m_dPos[gdata->currentPosRead],
 					 m_dVel[gdata->currentVelRead],
 					 m_dNormals,
 					 m_dInfo[gdata->currentInfoRead],
 					 m_dInfo[gdata->currentInfoWrite],
 					 m_dNeibsList,
-					 (gdata->only_internal ? m_particleRangeEnd : m_numParticles),
+					 numPartsToElaborate,
 					 m_simparams->slength,
 					 m_simparams->kerneltype,
 					 m_simparams->influenceRadius,
