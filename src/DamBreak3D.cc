@@ -51,6 +51,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	lz = 0.6;	
 	H = 0.4;
 	wet = false;
+	m_usePlanes = true;
 	
 	m_size = make_float3(lx, ly, lz);
 	//m_origin = make_float3(0.0, 0.0, 0.0);
@@ -158,8 +159,10 @@ int DamBreak3D::fill_parts()
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
-	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
-	experiment_box.FillBorder(boundary_parts, r0, false);
+	if (!m_usePlanes) {
+		experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
+		experiment_box.FillBorder(boundary_parts, r0, false);
+	}
 
 	obstacle.SetPartMass(r0, m_physparams.rho0[0]);
 	obstacle.FillBorder(obstacle_parts, r0, true);
@@ -173,6 +176,32 @@ int DamBreak3D::fill_parts()
 	}
 
 	return parts.size() + boundary_parts.size() + obstacle_parts.size();
+}
+
+uint DamBreak3D::fill_planes()
+{
+	return (m_usePlanes ? 5 : 0);
+}
+
+void DamBreak3D::copy_planes(float4 *planes, float *planediv)
+{
+	if (!m_usePlanes) return;
+
+	// bottom
+	planes[0] = make_float4(0, 0, 1.0, -OFFSET_Z);
+	planediv[0] = 1.0;
+	// back
+	planes[1] = make_float4(1.0, 0, 0, -OFFSET_X);
+	planediv[1] = 1.0;
+	// front
+	planes[2] = make_float4(-1.0, 0, 0, lx + OFFSET_X);
+	planediv[2] = 1.0;
+	// side with smaller Y ("left")
+	planes[3] = make_float4(0, 1.0, 0, -OFFSET_Y);
+	planediv[3] = 1.0;
+	// side with greater Y ("right")
+	planes[4] = make_float4(0, -1.0, 0, ly + OFFSET_Y);
+	planediv[4] = 1.0;
 }
 
 

@@ -46,6 +46,7 @@ class DamBreak3D: public Problem {
 		float		H;  // still watr level		
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
+		bool		m_usePlanes;	// use planes or boundaries
 
 	public:
 		DamBreak3D(const Options &);
@@ -54,6 +55,8 @@ class DamBreak3D: public Problem {
 		int fill_parts(void);
 		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
+		uint fill_planes(void);
+		void copy_planes(float4*, float*);
 
 		void release_memory(void);
 };
