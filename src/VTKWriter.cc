@@ -286,9 +286,18 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	if (m_gdata) {
 		numbytes = sizeof(uint)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
-			fwrite(&value, sizeof(value), 1, fid);
+		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
+		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
+		// containing cell until next calchash/reorder
+		// for (uint i=0; i < numParts; i++) {
+		// uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
+		// fwrite(&value, sizeof(value), 1, fid);
+		for (uint d = 0; d < m_gdata->devices; d++) {
+			// compute the global device ID for each device
+			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
+			// write one for each particle (no need for the "absolute" particle index)
+			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
+				fwrite(&value, sizeof(value), 1, fid);
 		}
 	}
 
