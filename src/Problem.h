@@ -41,11 +41,8 @@
 #include "physparams.h"
 #include "simparams.h"
 
-// forward declarations before GlobalData
-class Problem;
+// not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
-#include "GlobalData.h"
-
 
 using namespace std;
 

@@ -39,6 +39,9 @@
 #include "Problem.h"
 #include "vector_math.h"
 
+// here we need the complete definition of the GlobalData struct
+#include "GlobalData.h"
+
 
 Problem::Problem(const Options &options)
 {
