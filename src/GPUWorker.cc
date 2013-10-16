@@ -1132,7 +1132,7 @@ void GPUWorker::createCompactDeviceMap() {
 				m_hCompactDeviceMap[cell_lin_idx] = cellType;
 			}
 	// here it is possible to save the compact device map
-	// gdata->saveCompactDeviceMapToFile( std::string("compactDevMa"), m_deviceIndex, m_hCompactDeviceMap);
+	// gdata->saveCompactDeviceMapToFile("", m_deviceIndex, m_hCompactDeviceMap);
 }
 
 // self-explanatory

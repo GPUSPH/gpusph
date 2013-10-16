@@ -637,12 +637,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		// fill the device map with numbers from 0 to totDevices
 		gdata->problem->fillDeviceMap(gdata);
 		// here it is possible to save the device map before the conversion
-		// gdata->saveDeviceMapToFile(std::string("pre_conversion"));
+		// gdata->saveDeviceMapToFile("linearIdx");
 		if (MULTI_NODE) {
 			// make the numbers globalDeviceIndices, with the least 3 bits reserved for the device number
 			gdata->convertDeviceMap();
 			// here it is possible to save the converted device map
-			// gdata->saveDeviceMapToFile(std::string("after_conversion"));
+			// gdata->saveDeviceMapToFile("");
 		}
 	}
 

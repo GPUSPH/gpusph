@@ -480,12 +480,18 @@ struct GlobalData {
 		}
 	}
 
-	// Write the process device map to a CSV file.
+	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
 	// set the correct fields; apply and enable visibility
 	void saveDeviceMapToFile(string prefix) {
 		std::ostringstream oss;
-		oss << prefix << "_rank" << mpi_rank << "_" << networkManager->getProcessorName() << ".csv";
+		oss << problem->get_dirname() << "/";
+		if (!prefix.empty())
+			oss << prefix << "_";
+		oss << problem->m_name;
+		oss << "_dp" << problem->m_deltap;
+		if (mpi_nodes > 1) oss << "_rank" << mpi_rank << "." << mpi_nodes << "." << networkManager->getProcessorName();
+		oss << ".csv";
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
@@ -499,10 +505,16 @@ struct GlobalData {
 		printf(" > device map dumped to file %s\n",fname.c_str());
 	}
 
-	// Same as saveDeviceMapToFile() but saves the *compact* device map
+	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
 	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) {
 		std::ostringstream oss;
-		oss << prefix << "_dev" << srcDev << "_rank" << mpi_rank << "_" << networkManager->getProcessorName() << ".csv";
+		oss << problem->get_dirname() << "/";
+		if (!prefix.empty())
+			oss << prefix << "_";
+		oss << problem->m_name;
+		oss << "_dp" << problem->m_deltap;
+		if (devices > 1) oss << "_dev" << srcDev << "." << devices;
+		oss << ".csv";
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
