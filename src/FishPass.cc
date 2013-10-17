@@ -861,3 +861,11 @@ void FishPass::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	j += fluid_parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
+
+void FishPass::fillDeviceMap(GlobalData* gdata)
+{
+	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
+	fillDeviceMapByAxis(gdata, Y_AXIS);
+	//fillDeviceMapByRegularGrid(gdata);
+	//fillDeviceMapByEquation(gdata);
+}

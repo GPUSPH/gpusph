@@ -94,6 +94,8 @@ class FishPass: public Problem {
 		void copy_to_array(float4 *, float4 *, particleinfo *);
 
 		void release_memory(void);
+
+		void fillDeviceMap(GlobalData* gdata);
 };
 #endif	/* _FISHPASS_H */
 
