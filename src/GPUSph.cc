@@ -1526,7 +1526,7 @@ void GPUSPH::updateArrayIndices() {
 		// number of particle may increase or decrease if there are respectively inlets or outlets
 		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_physparams()->outlets > 0) ||
 			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_physparams()->inlets  > 0) ) {
-			printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
+			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
 			gdata->totParticles = newSimulationTotal;
 		} else if (newSimulationTotal != gdata->totParticles) {
 			printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n",
