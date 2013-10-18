@@ -136,6 +136,7 @@ private:
 	// stream for async memcpys
 	cudaStream_t m_asyncH2DCopiesStream;
 	cudaStream_t m_asyncD2HCopiesStream;
+	cudaStream_t m_asyncPeerCopiesStream;
 
 	// cuts all external particles
 	void dropExternalParticles();

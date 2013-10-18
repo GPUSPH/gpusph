@@ -183,19 +183,22 @@ void GPUWorker::importPeerEdgeCells()
 												m_cudaDeviceNumber,
 												peer_dPos[ gdata->currentPosRead ] + peerCellStart,
 												peerCudaDevNum,
-												_size));
+												_size,
+												m_asyncPeerCopiesStream));
 				// _size = numPartsInPeerCell * sizeof(float4);
 				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dVel[ gdata->currentVelRead ] + m_numParticles,
 												m_cudaDeviceNumber,
 												peer_dVel[ gdata->currentVelRead ] + peerCellStart,
 												peerCudaDevNum,
-												_size));
+												_size,
+												m_asyncPeerCopiesStream));
 				_size = numPartsInPeerCell * sizeof(particleinfo);
 				CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	m_dInfo[ gdata->currentInfoRead ] + m_numParticles,
 												m_cudaDeviceNumber,
 												peer_dInfo[ gdata->currentInfoRead ] + peerCellStart,
 												peerCudaDevNum,
-												_size));
+												_size,
+												m_asyncPeerCopiesStream));
 				// now we should write
 				// cellStart[cell] = m_numParticles
 				// cellEnd[cell] = m_numParticles + numPartsInPeerCell
@@ -750,6 +753,7 @@ void GPUWorker::createStreams()
 {
 	cudaStreamCreate(&m_asyncD2HCopiesStream);
 	cudaStreamCreate(&m_asyncH2DCopiesStream);
+	cudaStreamCreate(&m_asyncPeerCopiesStream);
 }
 
 void GPUWorker::destroyStreams()
@@ -757,6 +761,7 @@ void GPUWorker::destroyStreams()
 	// destroy streams
 	cudaStreamDestroy(m_asyncD2HCopiesStream);
 	cudaStreamDestroy(m_asyncH2DCopiesStream);
+	cudaStreamDestroy(m_asyncPeerCopiesStream);
 }
 
 void GPUWorker::printAllocatedMemory()
