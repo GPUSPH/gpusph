@@ -392,7 +392,8 @@ void GPUWorker::updatePeerEdgeCells()
 													m_cudaDeviceNumber,
 													peer_dPos[ gdata->currentPosWrite ] + peerCellStart,
 													peerCudaDevNum,
-													_size));
+													_size,
+													m_asyncPeerCopiesStream));
 				}
 				if (gdata->commandFlags & BUFFER_VEL) {
 					const float4** peer_dVel = gdata->GPUWORKERS[peerDevIndex]->getDVelBuffers();
@@ -401,7 +402,8 @@ void GPUWorker::updatePeerEdgeCells()
 													m_cudaDeviceNumber,
 													peer_dVel[ gdata->currentVelWrite ] + peerCellStart,
 													peerCudaDevNum,
-													_size));
+													_size,
+													m_asyncPeerCopiesStream));
 				}
 				if (gdata->commandFlags & BUFFER_INFO) {
 					const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
@@ -410,7 +412,8 @@ void GPUWorker::updatePeerEdgeCells()
 													m_cudaDeviceNumber,
 													peer_dInfo[ gdata->currentInfoWrite ] + peerCellStart,
 													peerCudaDevNum,
-													_size));
+													_size,
+													m_asyncPeerCopiesStream));
 				}
 				if (gdata->commandFlags & BUFFER_FORCES) {
 					const float4* peer_dForces = gdata->GPUWORKERS[peerDevIndex]->getDForceBuffer();
@@ -419,7 +422,8 @@ void GPUWorker::updatePeerEdgeCells()
 													m_cudaDeviceNumber,
 													peer_dForces + peerCellStart,
 													peerCudaDevNum,
-													_size));
+													_size,
+													m_asyncPeerCopiesStream));
 				}
 			} // if cell is not empty
 		} // if cell is external edge and same node
