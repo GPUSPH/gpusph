@@ -167,7 +167,7 @@ void GPUWorker::importPeerEdgeCells()
 				// set the cell as empty
 				gdata->s_dCellStarts[m_deviceIndex][cell] = 0xFFFFFFFF;
 				// update device array
-				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellStart + cell),
+				CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
 													(gdata->s_dCellStarts[m_deviceIndex] + cell),
 													sizeof(uint), cudaMemcpyHostToDevice));
 			} else {
@@ -209,10 +209,10 @@ void GPUWorker::importPeerEdgeCells()
 
 				// Update device copy of cellStart (later cellEnd). This allows for building the
 				// neighbor list directly, without the need of running again calchash, sort and reorder
-				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellStart + cell),
+				CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
 													(gdata->s_dCellStarts[m_deviceIndex] + cell),
 													sizeof(uint), cudaMemcpyHostToDevice));
-				CUDA_SAFE_CALL_NOSYNC(cudaMemcpy(	(m_dCellEnd + cell),
+				CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellEnd + cell),
 													(gdata->s_dCellEnds[m_deviceIndex] + cell),
 													sizeof(uint), cudaMemcpyHostToDevice));
 
