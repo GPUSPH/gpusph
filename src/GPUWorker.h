@@ -72,7 +72,8 @@ private:
 	// the setter is private and meant to be called ony by the simulation thread
 	void setDeviceProperties(cudaDeviceProp _m_deviceProperties);
 
-	void setPeerAccess();
+	// enable direct p2p memory transfers
+	void enablePeerAccess();
 
 	// utility pointers - the actual structures are in Problem
 	PhysParams*	m_physparams;

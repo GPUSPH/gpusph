@@ -1205,16 +1205,21 @@ void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
 
-void GPUWorker::setPeerAccess()
+// enable direct p2p memory transfers by allowing the other devices to access the current device memory
+void GPUWorker::enablePeerAccess()
 {
-	int res;
-	cudaDeviceCanAccessPeer(&res, m_deviceIndex, 1 - m_deviceIndex);
-	printf(" > Device %u can access device %u: %u\n", m_deviceIndex, 1 - m_deviceIndex, res);
+	// iterate on all devices
 	for (uint d=0; d < gdata->devices; d++) {
-		if (d != m_deviceIndex) cudaDeviceEnablePeerAccess(d, 0);
+		// skip self
+		if (d == m_deviceIndex) continue;
+		// is peer access possible?
+		int res;
+		cudaDeviceCanAccessPeer(&res, m_deviceIndex, d);
+		if (res != 1)
+			printf("WARNING: device %u cannot enable peer access of device %u; peer copies will be buffered on host\n", m_deviceIndex, d);
+		else
+			cudaDeviceEnablePeerAccess(d, 0);
 	}
-	cudaDeviceCanAccessPeer(&res, m_deviceIndex, 1 - m_deviceIndex);
-	printf(" > Device %u can access device %u: %u\n", m_deviceIndex, 1 - m_deviceIndex, res);
 }
 
 // Actual thread calling GPU-methods
