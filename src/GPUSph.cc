@@ -1083,7 +1083,8 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 
 		for (uint d=0; d < gdata->devices; d++) {
-			// NOTE: not checking errors, similarly to the other allocations
+			// NOTE: not checking errors, similarly to the other allocations.
+			// Also cudaHostAllocWriteCombined flag was tested but led to ~0.1MIPPS performance loss, with and without streams.
 			cudaHostAlloc( &(gdata->s_dCellStarts[d]), numcells * sizeof(uint), cudaHostAllocPortable );
 			cudaHostAlloc( &(gdata->s_dCellEnds[d]), numcells * sizeof(uint), cudaHostAllocPortable );
 			// same on non-pinned memory
