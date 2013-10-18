@@ -1236,6 +1236,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	instance->setDeviceProperties( checkCUDA(gdata, deviceIndex) );
 
+	// allow peers to access the device memory (for cudaMemcpyPeer[Async])
+	instance->enablePeerAccess();
+
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
 
