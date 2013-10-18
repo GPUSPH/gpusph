@@ -1083,8 +1083,12 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += gdata->devices * sizeof(uint*) * 3;
 
 		for (uint d=0; d < gdata->devices; d++) {
-			gdata->s_dCellStarts[d] = (uint*)calloc(numcells, sizeof(uint));
-			gdata->s_dCellEnds[d] =   (uint*)calloc(numcells, sizeof(uint));
+			// NOTE: not checking errors, similarly to the other allocations
+			cudaHostAlloc( &(gdata->s_dCellStarts[d]), numcells * sizeof(uint), cudaHostAllocPortable );
+			cudaHostAlloc( &(gdata->s_dCellEnds[d]), numcells * sizeof(uint), cudaHostAllocPortable );
+			// same on non-pinned memory
+			//gdata->s_dCellStarts[d] = (uint*)calloc(numcells, sizeof(uint));
+			//gdata->s_dCellEnds[d] =   (uint*)calloc(numcells, sizeof(uint));
 			totCPUbytes += uintCellSize * 2;
 
 			gdata->s_dSegmentsStart[d] = (uint*)calloc(4, sizeof(uint));
@@ -1114,8 +1118,11 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete[] gdata->s_hDeviceMap;
 		// cells
 		for (int d = 0; d < gdata->devices; d++) {
-			delete[] gdata->s_dCellStarts[d];
-			delete[] gdata->s_dCellEnds[d];
+			cudaFreeHost(gdata->s_dCellStarts[d]);
+			cudaFreeHost(gdata->s_dCellEnds[d]);
+			//delete[] gdata->s_dCellStarts[d];
+			//delete[] gdata->s_dCellEnds[d];
+			// same on non-pinned memory
 			delete[] gdata->s_dSegmentsStart[d];
 		}
 		delete[] gdata->s_dCellEnds;
