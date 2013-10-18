@@ -169,7 +169,7 @@ void GPUWorker::importPeerEdgeCells()
 				// update device array
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
 													(gdata->s_dCellStarts[m_deviceIndex] + cell),
-													sizeof(uint), cudaMemcpyHostToDevice));
+													sizeof(uint), cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 			} else {
 				// cellEnd is exclusive
 				uint numPartsInPeerCell = peerCellEnd - peerCellStart;
@@ -211,10 +211,10 @@ void GPUWorker::importPeerEdgeCells()
 				// neighbor list directly, without the need of running again calchash, sort and reorder
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
 													(gdata->s_dCellStarts[m_deviceIndex] + cell),
-													sizeof(uint), cudaMemcpyHostToDevice));
+													sizeof(uint), cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 				CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellEnd + cell),
 													(gdata->s_dCellEnds[m_deviceIndex] + cell),
-													sizeof(uint), cudaMemcpyHostToDevice));
+													sizeof(uint), cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 
 				// update outer edge segment
 				// NOTE: keeping correctness only if there are no OUTER particles (which we assume)
@@ -746,6 +746,19 @@ void GPUWorker::deallocateDeviceBuffers() {
 	// here: dem device buffers?
 }
 
+void GPUWorker::createStreams()
+{
+	cudaStreamCreate(&m_asyncD2HCopiesStream);
+	cudaStreamCreate(&m_asyncH2DCopiesStream);
+}
+
+void GPUWorker::destroyStreams()
+{
+	// destroy streams
+	cudaStreamDestroy(m_asyncD2HCopiesStream);
+	cudaStreamDestroy(m_asyncH2DCopiesStream);
+}
+
 void GPUWorker::printAllocatedMemory()
 {
 	printf("Device idx %u (CUDA: %u) allocated %.2f Gb on host, %.2f Gb on device\n"
@@ -1267,6 +1280,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	// TODO: here setDemTexture() will be called. It is device-wide, but reading the DEM file is process wide and will be in GPUSPH class
 
+	// init streams for async memcpys (only useful for multigpu?)
+	instance->createStreams();
+
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
 	// here GPUSPH::initialize is over and GPUSPH::runSimulation() is called
@@ -1387,6 +1403,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
+
+	// destroy streams
+	instance->destroyStreams();
 
 	// deallocate buffers
 	instance->deallocateHostBuffers();

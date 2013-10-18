@@ -133,6 +133,10 @@ private:
 	// "new" number of particles for inlet
 	uint*		m_dNewNumParticles;
 
+	// stream for async memcpys
+	cudaStream_t m_asyncH2DCopiesStream;
+	cudaStream_t m_asyncD2HCopiesStream;
+
 	// cuts all external particles
 	void dropExternalParticles();
 
@@ -148,6 +152,9 @@ private:
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
+
+	void createStreams();
+	void destroyStreams();
 
 	void printAllocatedMemory();
 
