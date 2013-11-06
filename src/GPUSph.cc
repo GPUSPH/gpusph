@@ -827,17 +827,6 @@ bool GPUSPH::runSimulation() {
 
 		//			//(init bodies)
 
-		// compute forces only on internal particles
-		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_1);
-		// update forces of external particles
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
-
-		//MM		fetch/update forces on neighbors in other GPUs/nodes
-		//				initially done trivial and slow: stop and read
-		//			//reduce bodies
-
 		// moving boundaries
 		if (problem->get_simparams()->mbcallback) {
 			// ask the Problem to update mbData, one per process
@@ -855,6 +844,17 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
+		// compute forces only on internal particles
+		gdata->only_internal = true;
+		doCommand(FORCES, INTEGRATOR_STEP_1);
+		// update forces of external particles
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+
+		//MM		fetch/update forces on neighbors in other GPUs/nodes
+		//				initially done trivial and slow: stop and read
+		//			//reduce bodies
+
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
@@ -867,14 +867,6 @@ bool GPUSPH::runSimulation() {
 		//			//callbacks (bounds, gravity)
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
-
-		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_2);
-		// update forces of external particles
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
-
-		//			//reduce bodies
 
 		// moving boundaries
 		if (problem->get_simparams()->mbcallback) {
@@ -892,6 +884,14 @@ bool GPUSPH::runSimulation() {
 			// upload on the GPU, one per device
 			doCommand(UPLOAD_GRAVITY);
 		}
+
+		gdata->only_internal = true;
+		doCommand(FORCES, INTEGRATOR_STEP_2);
+		// update forces of external particles
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+
+		//			//reduce bodies
 
 		// integrate also the externals
 		gdata->only_internal = false;
