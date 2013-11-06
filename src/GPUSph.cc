@@ -909,6 +909,11 @@ bool GPUSPH::runSimulation() {
 
 		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL);
 
+		// increase counters
+		gdata->iterations++;
+		gdata->t += gdata->dt;
+		// buildneibs_freq?
+
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
 			gdata->dt = gdata->dts[0];
@@ -920,11 +925,6 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// TODO				check/throw dtZero exception
-
-		// increase counters
-		gdata->iterations++;
-		gdata->t += gdata->dt;
-		// buildneibs_freq?
 
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
