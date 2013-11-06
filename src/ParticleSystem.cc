@@ -1073,7 +1073,7 @@ ParticleSystem::buildNeibList(bool timing)
 	// compute hash
 	calcHash(m_dPos[m_currentPosRead],
 #if HASH_KEY_SIZE >= 64
-			m_dInfo[m_currentPosRead],
+			m_dInfo[m_currentInfoRead],
 			NULL, // WARNING: this is only to allow for compiling. DO NOT DO THIS
 #endif
 			m_dParticleHash,
