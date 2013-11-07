@@ -473,6 +473,12 @@ docs: $(DOXYCONF)
 docsclean:
 	$(CMDECHO)rm -rf $(DOCSDIR)
 
+# target: tags - Create TAGS file
+tags: TAGS
+TAGS: $(wildcard $(SRCDIR)/*)
+	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def
+
+
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
 test: all
 	$(CMDECHO)$(TARGET)
