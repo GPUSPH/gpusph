@@ -79,7 +79,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	m_center = m_origin + 0.5*(m_vx + m_vy + m_vz);
 	
 	Vector axis;
-	double mat[8];
+	double mat[9];
 	mat[0] = m_vx(0)/m_lx;
 	mat[3] = m_vx(1)/m_lx;
 	mat[6] = m_vx(2)/m_lx;
