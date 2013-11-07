@@ -131,6 +131,8 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	printf("Number of grid cells : %d\n", m_nGridCells);
 	printf("Grid size : (%d, %d, %d)\n", m_gridSize.x, m_gridSize.y, m_gridSize.z);
 	printf("Cell size : (%f, %f, %f)\n", m_cellSize.x, m_cellSize.y, m_cellSize.z);
+	printf("World origin : (%g , %g , %g)\n", m_worldOrigin.x, m_worldOrigin.y, m_worldOrigin.z);
+	printf("World size :   (%g , %g , %g)\n", m_worldSize.x, m_worldSize.y, m_worldSize.z);
 
 	// CUDA init
 	m_device = checkCUDA(problem->get_options());
