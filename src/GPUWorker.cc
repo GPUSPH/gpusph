@@ -135,6 +135,12 @@ void GPUWorker::dropExternalParticles()
 	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] == EMPTY_SEGMENT;
 }
 
+// Start an async inter-device transfer. This will be actually P2P if device can access peer memory
+void GPUWorker::peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count)
+{
+	CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
+}
+
 // append a copy of the external edge cells of other devices to the self device arrays
 // and update cellStarts, cellEnds and segments
 void GPUWorker::importPeerEdgeCells()

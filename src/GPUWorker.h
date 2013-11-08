@@ -148,6 +148,7 @@ private:
 	// MPI versions of the previous methods, to be merged maybe
 	void importNetworkPeerEdgeCells();
 	void updateNetworkPeerEdgeCells();
+	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
