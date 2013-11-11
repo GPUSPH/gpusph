@@ -453,7 +453,7 @@ void GPUWorker::updatePeerEdgeCells()
 	uint burst_peer_dev_index = 0;
 #define BURST_IS_EMPTY (burst_numparts == 0)
 #define BURST_SET_CURRENT_CELL \
-	burst_self_index_begin = m_numParticles; \
+	burst_self_index_begin = selfCellStart; \
 	burst_peer_index_begin = peerCellStart; \
 	burst_peer_index_end = peerCellEnd; \
 	burst_numparts = numPartsInPeerCell; \
