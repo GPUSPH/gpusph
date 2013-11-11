@@ -417,25 +417,45 @@ void GPUWorker::importNetworkPeerEdgeCells()
 // TODO: make double-buffers safe by checking the commandFlags
 void GPUWorker::updatePeerEdgeCells()
 {
-	// at the moment, the cells are imported in the same order they are encountered iterating
-	// on the device map. We wonder if iterating per-device would lead more optimized transfers.
-	// Keeping a list of external cells to be updated could be useful to this aim.
-	// For sure one optimization should be to compact (when possible) burst of cells coming from
-	// the same peer device.
+	// See importPeerEdgeCells for extended comment
+
+	// pointers to peer buffers
+	const float4** peer_dPos;
+	const float4** peer_dVel;
+	const particleinfo** peer_dInfo;
+	const float4* peer_dForces;
+
+	// indices of current burst
+	uint burst_self_index_begin = 0;
+	uint burst_peer_index_begin = 0;
+	uint burst_peer_index_end = 0;
+	uint burst_numparts = 0; // this is redundant with burst_peer_index_end, but cleaner
+	uint burst_peer_dev_index = 0;
+#define BURST_IS_EMPTY (burst_numparts == 0)
+#define BURST_SET_CURRENT_CELL \
+	burst_self_index_begin = m_numParticles; \
+	burst_peer_index_begin = peerCellStart; \
+	burst_peer_index_end = peerCellEnd; \
+	burst_numparts = numPartsInPeerCell; \
+	burst_peer_dev_index = peerDevIndex;
 
 	// iterate on all cells
 	for (uint cell=0; cell < m_nGridCells; cell++)
 		// if the current is an external edge cell and it belongs to a device of the same node...
 		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED && gdata->RANK(gdata->s_hDeviceMap[cell]) == gdata->mpi_rank) {
+
 			// check in which device it is
 			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
 			uint peerCudaDevNum = gdata->device[peerDevIndex];
+
 			// find its cellStart and cellEnd on the peer device
 			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
 			uint peerCellEnd = gdata->s_dCellEnds[peerDevIndex][cell];
+
 			// find its cellStart and cellEnd on self
 			uint selfCellStart = gdata->s_dCellStarts[m_deviceIndex][cell];
 			uint selfCellEnd = gdata->s_dCellEnds[m_deviceIndex][cell];
+
 			// if it is not empty...
 			// (it is redundant to check also self but could used as a correctness check)
 			if (peerCellStart != 0xFFFFFFFF) {
@@ -445,31 +465,88 @@ void GPUWorker::updatePeerEdgeCells()
 				// update the requested buffers of the current cell
 				size_t _size;
 
-				if (gdata->commandFlags & BUFFER_POS) {
-					const float4** peer_dPos = gdata->GPUWORKERS[peerDevIndex]->getDPosBuffers();
-					_size = numPartsInPeerCell * sizeof(float4);
-					peerAsyncTransfer( m_dPos[ gdata->currentPosWrite ] + selfCellStart, m_cudaDeviceNumber,
-										peer_dPos[ gdata->currentPosWrite ] + peerCellStart, peerCudaDevNum, _size);
-				}
-				if (gdata->commandFlags & BUFFER_VEL) {
-					const float4** peer_dVel = gdata->GPUWORKERS[peerDevIndex]->getDVelBuffers();
-					_size = numPartsInPeerCell * sizeof(float4);
-					peerAsyncTransfer(	m_dVel[ gdata->currentVelWrite ] + selfCellStart, m_cudaDeviceNumber,
-										peer_dVel[ gdata->currentVelWrite ] + peerCellStart, peerCudaDevNum, _size);
-				}
-				if (gdata->commandFlags & BUFFER_INFO) {
-					const particleinfo** peer_dInfo = gdata->GPUWORKERS[peerDevIndex]->getDInfoBuffers();
-					_size = numPartsInPeerCell * sizeof(particleinfo);
-					peerAsyncTransfer( m_dInfo[ gdata->currentInfoWrite ] + selfCellStart, m_cudaDeviceNumber,
-										peer_dInfo[ gdata->currentInfoWrite ] + peerCellStart, peerCudaDevNum, _size);
-				}
-				if (gdata->commandFlags & BUFFER_FORCES) {
-					const float4* peer_dForces = gdata->GPUWORKERS[peerDevIndex]->getDForceBuffer();
-					_size = numPartsInPeerCell * sizeof(float4);
-					peerAsyncTransfer( m_dForces + selfCellStart, m_cudaDeviceNumber, peer_dForces + peerCellStart, peerCudaDevNum, _size);
-				}
+				if (BURST_IS_EMPTY) {
+
+					// no burst yet; initialize with current cell
+					BURST_SET_CURRENT_CELL
+
+				} else
+				if (burst_peer_index_end == peerCellStart) {
+
+					// previous burst is compatible with current cell: extend it
+					burst_peer_index_end = peerCellEnd;
+					burst_numparts += numPartsInPeerCell;
+
+				} else {
+					// Previous burst is not compatible, need to flush the "buffer" and reset it to the current cell.
+
+					// retrieve peer buffers pointers
+					peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
+					peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
+					peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
+					peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
+
+					// transfer the requested data
+					if (gdata->commandFlags & BUFFER_POS) {
+						_size = burst_numparts * sizeof(float4);
+						peerAsyncTransfer( m_dPos[ gdata->currentPosWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dPos[ gdata->currentPosWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if (gdata->commandFlags & BUFFER_VEL) {
+						_size = burst_numparts * sizeof(float4);
+						peerAsyncTransfer(	m_dVel[ gdata->currentVelWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dVel[ gdata->currentVelWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if (gdata->commandFlags & BUFFER_INFO) {
+						_size = burst_numparts * sizeof(particleinfo);
+						peerAsyncTransfer( m_dInfo[ gdata->currentInfoWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dInfo[ gdata->currentInfoWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if (gdata->commandFlags & BUFFER_FORCES) {
+						_size = burst_numparts * sizeof(float4);
+						peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+
+					// reset burst to current cell
+					BURST_SET_CURRENT_CELL
+				} // burst flush
+
+
 			} // if cell is not empty
 		} // if cell is external edge and same node
+
+	// flush the burst if not empty (should always happen if at least one edge cell is not empty)
+	if (!BURST_IS_EMPTY) {
+
+		size_t _size;
+
+		// retrieve peer buffers pointers
+		peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
+		peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
+		peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
+		peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
+
+		// transfer the requested data
+		if (gdata->commandFlags & BUFFER_POS) {
+			_size = burst_numparts * sizeof(float4);
+			peerAsyncTransfer( m_dPos[ gdata->currentPosWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dPos[ gdata->currentPosWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if (gdata->commandFlags & BUFFER_VEL) {
+			_size = burst_numparts * sizeof(float4);
+			peerAsyncTransfer(	m_dVel[ gdata->currentVelWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dVel[ gdata->currentVelWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if (gdata->commandFlags & BUFFER_INFO) {
+			_size = burst_numparts * sizeof(particleinfo);
+			peerAsyncTransfer( m_dInfo[ gdata->currentInfoWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dInfo[ gdata->currentInfoWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if (gdata->commandFlags & BUFFER_FORCES) {
+			_size = burst_numparts * sizeof(float4);
+			peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+	}
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
