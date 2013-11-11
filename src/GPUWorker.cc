@@ -155,6 +155,7 @@ void GPUWorker::importPeerEdgeCells()
 	const float4** peer_dPos;
 	const float4** peer_dVel;
 	const particleinfo** peer_dInfo;
+	const float4* peer_dForces;
 
 	// indices of current burst
 	uint burst_self_index_begin = 0;
@@ -250,6 +251,7 @@ void GPUWorker::importPeerEdgeCells()
 					peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
 					peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
 					peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
+					peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
 
 					// check if at least one double buffer was specified; if not, we will not transfer any double-buffered datum
 					bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
@@ -273,6 +275,10 @@ void GPUWorker::importPeerEdgeCells()
 						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
 						peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
 											peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( gdata->commandFlags & BUFFER_FORCES) {
+						size_t _size = burst_numparts * sizeof(float4);
+						peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
 					}
 
 					// reset burst to current cell
