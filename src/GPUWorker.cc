@@ -246,7 +246,7 @@ void GPUWorker::importPeerEdgeCells()
 					burst_numparts += numPartsInPeerCell;
 
 				} else {
-					// Previous burst is not compatible, need to flush the "buffer" and reset to the current cell.
+					// Previous burst is not compatible, need to flush the "buffer" and reset it to the current cell.
 
 					// retrieve peer buffers pointers
 					peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
@@ -264,7 +264,7 @@ void GPUWorker::importPeerEdgeCells()
 										peer_dInfo[ gdata->currentInfoRead ] + burst_peer_index_begin, burst_peer_dev_index, _size);
 
 					// reset burst to current cell
-					BURST_SET_EMPTY
+					BURST_SET_CURRENT_CELL
 				} // burst flush
 
 				// finally, update the total number of particles
