@@ -794,7 +794,7 @@ bool GPUSPH::runSimulation() {
 				// crop external cells
 				doCommand(CROP);
 				// append fresh copies of the externals
-				doCommand(APPEND_EXTERNAL);
+				doCommand(APPEND_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ);
 				// update the newNumParticles device counter
 				if (inoutlets)
 					doCommand(UPLOAD_NEWNUMPARTS);
