@@ -811,7 +811,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(SHEPARD);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
@@ -821,7 +821,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(MLS);
 			// update before swapping, since UPDATE_EXTERNAL works on write buffers
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
 			gdata->swapDeviceBuffers(BUFFER_VEL);
 		}
 
@@ -861,7 +861,7 @@ bool GPUSPH::runSimulation() {
 
 		// this made sense for testing and running EULER on internals only
 		//if (MULTI_DEVICE)
-		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
+		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | DBLBUFFER_WRITE);
 
 		//			//reduce bodies
 		//			//callbacks (bounds, gravity)
