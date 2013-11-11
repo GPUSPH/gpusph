@@ -163,8 +163,6 @@ void GPUWorker::importPeerEdgeCells()
 	uint burst_numparts = 0; // this is redundant with burst_peer_index_end, but cleaner
 	uint burst_peer_dev_index = 0;
 #define BURST_IS_EMPTY (burst_numparts == 0)
-#define BURST_SET_EMPTY \
-	burst_numparts = 0;
 #define BURST_SET_CURRENT_CELL \
 	burst_self_index_begin = m_numParticles; \
 	burst_peer_index_begin = peerCellStart; \
@@ -273,7 +271,7 @@ void GPUWorker::importPeerEdgeCells()
 			} // if cell is not empty
 		} // if cell is external edge and in the same node
 
-	// flush the burst if not empty
+	// flush the burst if not empty (should always happen if at least one edge cell is not empty)
 	if (!BURST_IS_EMPTY) {
 		// retrieve peer buffers pointers
 		peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
