@@ -141,10 +141,8 @@ private:
 	// cuts all external particles
 	void dropExternalParticles();
 
-	// append a copy of the external cells of other devices to the present array
+	// append or update the external cells of other devices in the device memory
 	void importPeerEdgeCells();
-	// overwrite the external edge cells with an updated copy
-	void updatePeerEdgeCells();
 	// MPI versions of the previous methods, to be merged maybe
 	void importNetworkPeerEdgeCells();
 	void updateNetworkPeerEdgeCells();
