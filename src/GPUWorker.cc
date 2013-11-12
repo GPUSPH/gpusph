@@ -297,16 +297,35 @@ void GPUWorker::importPeerEdgeCells()
 		peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
 		peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
 		peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
+		peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
 
-		// transfer pos, vel and info data
-		size_t _size = burst_numparts * sizeof(float4);
-		peerAsyncTransfer( m_dPos[ gdata->currentPosRead ] + burst_self_index_begin, m_cudaDeviceNumber,
-							peer_dPos[ gdata->currentPosRead ] + burst_peer_index_begin, burst_peer_dev_index, _size);
-		peerAsyncTransfer( m_dVel[ gdata->currentVelRead ] + burst_self_index_begin, m_cudaDeviceNumber,
-							peer_dVel[ gdata->currentVelRead ] + burst_peer_index_begin, burst_peer_dev_index, _size);
-		_size = burst_numparts * sizeof(particleinfo);
-		peerAsyncTransfer( m_dInfo[ gdata->currentInfoRead ] + burst_self_index_begin, m_cudaDeviceNumber,
-							peer_dInfo[ gdata->currentInfoRead ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		// check if at least one double buffer was specified
+		bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+		uint dbl_buf_idx;
+
+		// transfer the requested data
+		if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float4);
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
+			peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float4);
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
+			peerAsyncTransfer( m_dVel[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(particleinfo);
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
+			peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( gdata->commandFlags & BUFFER_FORCES) {
+			_size = burst_numparts * sizeof(float4);
+			peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
 	}
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
@@ -553,21 +572,28 @@ void GPUWorker::updatePeerEdgeCells()
 		peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
 		peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
 
+		// check if at least one double buffer was specified
+		bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+		uint dbl_buf_idx;
+
 		// transfer the requested data
-		if (gdata->commandFlags & BUFFER_POS) {
+		if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
 			_size = burst_numparts * sizeof(float4);
-			peerAsyncTransfer( m_dPos[ gdata->currentPosWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dPos[ gdata->currentPosWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
+			peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
-		if (gdata->commandFlags & BUFFER_VEL) {
+		if ( (gdata->commandFlags & BUFFER_VEL)  && dbl_buffer_specified) {
 			_size = burst_numparts * sizeof(float4);
-			peerAsyncTransfer(	m_dVel[ gdata->currentVelWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dVel[ gdata->currentVelWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
+			peerAsyncTransfer(	m_dVel[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
-		if (gdata->commandFlags & BUFFER_INFO) {
+		if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
 			_size = burst_numparts * sizeof(particleinfo);
-			peerAsyncTransfer( m_dInfo[ gdata->currentInfoWrite ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dInfo[ gdata->currentInfoWrite ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
+			peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
 		if (gdata->commandFlags & BUFFER_FORCES) {
 			_size = burst_numparts * sizeof(float4);
