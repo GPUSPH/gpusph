@@ -143,9 +143,9 @@ private:
 
 	// append or update the external cells of other devices in the device memory
 	void importPeerEdgeCells();
-	// MPI versions of the previous methods, to be merged maybe
+	// MPI versions of the previous method
 	void importNetworkPeerEdgeCells();
-	void updateNetworkPeerEdgeCells();
+	// aux method for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 
 	size_t allocateHostBuffers();
