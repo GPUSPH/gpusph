@@ -142,7 +142,7 @@ void GPUWorker::peerAsyncTransfer(void* dst, int  dstDevice, const void* src, in
 	CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
 
-// Import the external edge cells of other devices to the self device arrays. Can appen the cells at the end of the current
+// Import the external edge cells of other devices to the self device arrays. Can append the cells at the end of the current
 // list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
 // command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
 // The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info and forces; for the
@@ -213,11 +213,11 @@ void GPUWorker::importPeerEdgeCells()
 			uint selfCellEnd;
 
 			// if it is empty, we might only need to update cellStarts
-			if (peerCellStart == 0xFFFFFFFF) {
+			if (peerCellStart == EMPTY_CELL) {
 
 				if (gdata->nextCommand == APPEND_EXTERNAL) {
 					// set the cell as empty
-					gdata->s_dCellStarts[m_deviceIndex][cell] = 0xFFFFFFFF;
+					gdata->s_dCellStarts[m_deviceIndex][cell] = EMPTY_CELL;
 					// update device array
 					CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
 														(gdata->s_dCellStarts[m_deviceIndex] + cell),
