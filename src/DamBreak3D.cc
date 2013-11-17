@@ -144,17 +144,17 @@ int DamBreak3D::fill_parts()
 
 	Cube fluid, fluid1;
 
-	experiment_box = Cube(Point(0 + OFFSET_X, 0 + OFFSET_Y, 0 + OFFSET_Z), Vector(lx, 0, 0),
+	experiment_box = Cube(Point(m_origin), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(0.9 + OFFSET_X, 0.24  + OFFSET_Y, r0 + OFFSET_Z), Vector(0.12, 0, 0),
+	obstacle = Cube(Point(m_origin + make_double3(0.9, 0.24, r0)), Vector(0.12, 0, 0),
 					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
 
-	fluid = Cube(Point(r0 + OFFSET_X, r0  + OFFSET_Y, r0 + OFFSET_Z), Vector(0.4, 0, 0),
+	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 	
 	if (wet) {
-		fluid1 = Cube(Point(H + m_deltap + r0 + OFFSET_X , r0 + OFFSET_Y, r0 + OFFSET_Z), Vector(lx - H - m_deltap - 2*r0, 0, 0),
+		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
 	}
 
@@ -190,19 +190,19 @@ void DamBreak3D::copy_planes(float4 *planes, float *planediv)
 	if (!m_usePlanes) return;
 
 	// bottom
-	planes[0] = make_float4(0, 0, 1.0, -OFFSET_Z);
+	planes[0] = make_float4(0, 0, 1.0, -m_origin.z);
 	planediv[0] = 1.0;
 	// back
-	planes[1] = make_float4(1.0, 0, 0, -OFFSET_X);
+	planes[1] = make_float4(1.0, 0, 0, -m_origin.x);
 	planediv[1] = 1.0;
 	// front
-	planes[2] = make_float4(-1.0, 0, 0, lx + OFFSET_X);
+	planes[2] = make_float4(-1.0, 0, 0, m_origin.x + lx);
 	planediv[2] = 1.0;
 	// side with smaller Y ("left")
-	planes[3] = make_float4(0, 1.0, 0, -OFFSET_Y);
+	planes[3] = make_float4(0, 1.0, 0, -m_origin.y);
 	planediv[3] = 1.0;
 	// side with greater Y ("right")
-	planes[4] = make_float4(0, -1.0, 0, ly + OFFSET_Y);
+	planes[4] = make_float4(0, -1.0, 0, m_origin.y + ly);
 	planediv[4] = 1.0;
 }
 
