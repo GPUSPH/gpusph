@@ -245,10 +245,12 @@ DOXYCONF = ./Doxygen_settings
 # snapshot tarball filename
 SNAPSHOT_FILE = ./GPUSPHsnapshot.tgz
 
-# tool to clear current line
-CARRIAGE_RETURN=printf "\r                                 \r"
-# use the following instead to output on multiple lines
-#CARRIAGE_RETURN=printf "\n"
+# option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
+ifeq ($(plain), 1)
+	show_stage = @echo "[$(1)] $(2)"
+else
+	show_stage = @printf "\r                                 \r[$(1)] $(2)"
+endif
 
 # makedepend will generate dependencies in these file
 GPUDEPS = $(MAKEFILE).gpu
@@ -319,9 +321,8 @@ endif
 all: $(OBJS) | $(DISTDIR)
 	@echo
 	@echo "Compiled with problem $(PROBLEM)"
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[LINK] $(TARGET)\n" && \
-	$(LINKER) $(LFLAGS) $(LIBPATH) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(call show_stage,LINK,$(TARGET)\\n)
+	$(CMDECHO)$(LINKER) $(LFLAGS) $(LIBPATH) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -347,15 +348,13 @@ $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[CC] $(@F)..." && \
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+	$(call show_stage,CC,$(@F))
+	$(CMDECHO)$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
 
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[CU] $(@F)" && \
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+	$(call show_stage,CU,$(@F))
+	$(CMDECHO)$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
 
 # create distdir
 $(DISTDIR):
