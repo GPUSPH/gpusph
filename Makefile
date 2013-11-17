@@ -21,6 +21,11 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
+# need for some substitutions
+comma:=,
+empty:=
+space:=$(empty) $(empty)
+
 # system information
 platform=$(shell uname -s 2>/dev/null)
 platform_lcase=$(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
@@ -59,13 +64,22 @@ TARGETNAME := GPUSPH$(TARGET_SXF)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
 # CUDA installation/lib/include paths
+# override by setting them in the enviornment
 ifeq ($(platform), Linux)
-	CUDA_INSTALL_PATH=/usr/local/cuda
-	CUDA_SDK_PATH=/usr/local/cudasdk
+	CUDA_INSTALL_PATH ?= /usr/local/cuda
 else ifeq ($(platform), Darwin)
-	CUDA_INSTALL_PATH=/usr/local/cuda
-	CUDA_SDK_PATH=/usr/local/cuda/samples
+	CUDA_INSTALL_PATH ?= /usr/local/cuda
 endif
+
+# compilers and linkers
+# On Darwin, use Clang as host compiler if possible
+ifeq ($(platform), Darwin)
+	ifneq ($(wildcard /usr/bin/clang++),)
+		CXX ?= /usr/bin/clang++
+	endif
+endif
+CXX ?= g++
+
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
 # CUDA_INSTALL_PATH=$(shell which nvcc | sed "s/\/bin\/nvcc//")
@@ -81,6 +95,12 @@ NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
 versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 #CUDA_MINOR := $(lastword  $(versions_tmp))
+
+ifeq ($(CUDA_MAJOR), 5)
+	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
+else
+	CUDA_SDK_PATH ?= /usr/local/cudasdk
+endif
 
 # files to store last compile options: problem, dbg, compute
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
@@ -164,56 +184,125 @@ else
 	endif
 endif
 
-# -------------------------- CFLAGS section -------------------------- #
-
-# nvcc-specific CFLAGS
-CFLAGS_GPU = -arch=sm_$(COMPUTE) --use_fast_math -D__COMPUTE__=$(COMPUTE) -DdSINGLE -lineinfo
-
-# add debug flag -G
-ifeq ($(dbg), 1)
-	CFLAGS_GPU += -G
-endif
-
-# Default CFLAGS (see notes below)
-ifeq ($(platform), Darwin)
-	CFLAGS_STANDARD = -O3
-	# If we are using clang we must set the nvcc option -cbin to clang executable
-	# in order to compile with nvcc
-	ifneq ($(wildcard /usr/bin/clang),)
-		NVCC += -ccbin=/usr/bin/clang
-	endif 
-else # Linux
-	CFLAGS_STANDARD = -O3
-endif
-# For some strange reason, when compiled with optmisation, the CPU side code
-# crashes in libstdc++ when acessing a file.
-# Default debug CFLAGS: no -O optimizations, debug (-g) option
-# Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
-# include to every source, the _DEBUG_ macro is still passed through g++
-CFLAGS_DEBUG = -g -D_DEBUG_
-
-# see above for dbg option description
-ifeq ($(dbg), 1)
-	_CFLAGS = $(CFLAGS_DEBUG)
-else
-	_CFLAGS = $(CFLAGS_STANDARD)
-endif
+# --- Includes and library section start ---
 
 # architecture switch. The *_SFX vars will be used later.
+GLEW_ARCH_SFX=
+LIB_PATH_SFX=
 ifeq ($(arch), x86_64)
-	_CFLAGS_ARCH += -m64
+	TARGET_ARCH ?= -m64
 	# cuda 5.0 with 64bit libs does not require the suffix anymore
 	ifneq ($(CUDA_MAJOR), 5)
 		GLEW_ARCH_SFX=_x86_64
 	endif
+	LIB_PATH_SFX=64
 else # i386 or i686
-	_CFLAGS_ARCH += -m32
-	GLEW_ARCH_SFX=
+	TARGET_ARCH ?= -m32
 endif
 
-# Only assign a default CFLAG if it wasn't already set by the user
-# ("export CFLAGS=... ; make")
-CFLAGS ?= $(_CFLAGS_ARCH) $(_CFLAGS) $(CFLAGS_GPU)
+# paths for include files
+INCPATH ?=
+# paths for library searches
+LIBPATH ?=
+# libraries
+LIBS ?=
+
+# flags passed to the linker
+LDFLAGS ?=
+
+# platform independent
+
+# make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
+INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
+
+# access the CUDA include files from the C++ compiler too
+INCPATH += -I$(CUDA_INSTALL_PATH)/include
+
+# link to the OpenGL libraries (GLEW is platform-dependent, see below)
+LIBS += -lGL -lGLU -lglut
+# link to the CUDA runtime library
+LIBS += -lcudart
+# link to ODE for the objects
+LIBS += -lode
+
+ifeq ($(platform), Linux)
+	LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+	LIBPATH += -L$(CUDA_SDK_PATH)/shared/lib/linux
+	LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/linux/
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/linux/$(arch)/
+
+	LIBS += -lGLEW$(GLEW_ARCH_SFX)
+else ifeq ($(platform), Darwin)
+	LIBPATH += -L$(CUDA_INSTALL_PATH)/lib/
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/darwin/
+
+	LIBS += -lGLEW
+
+	LDFLAGS += -Wl,-framework,GL,-framework,GLUT
+else
+	$(warning architecture $(arch) not supported by this makefile)
+endif
+
+LDFLAGS += $(LIBPATH) $(LIBS)
+
+# -- Includes and library section end ---
+
+# -------------------------- CFLAGS section -------------------------- #
+# We have three sets of flags:
+# CPPFLAGS are preprocessor flags; they are common to both compilers
+# CXXFLAGS are flags passed to the C++ when compiling C++ files (either directly,
+#     for .cc files, or via nvcc, for .cu files), and when linking
+# CUFLAGS are flags passed to the CUDA compiler when compiling CUDA files
+
+# initialize them by reading them from the environment, if present
+# this allows the user to add specific options
+CPPFLAGS ?=
+CXXFLAGS ?=
+CUFLAGS  ?=
+
+# First of all, put the include paths into the CPPFLAGS
+CPPFLAGS += $(INCPATH)
+
+# We set __COMPUTE__ on the host to match that automatically defined
+# by the compiler on the device
+CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
+
+# The ODE library link is in single precision mode
+CPPFLAGS += -DdSINGLE
+
+# CXXFLAGS start with the target architecture
+CXXFLAGS += $(TARGET_ARCH)
+
+# Force nvcc to use the same host compiler that we selected
+# Note that this requires the compiler to be supported by
+# nvcc.
+CUFLAGS += -ccbin=$(CXX)
+
+# nvcc-specific flags
+CUFLAGS += -arch=sm_$(COMPUTE) --use_fast_math -lineinfo
+
+
+# Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
+# include to every source, the _DEBUG_ macro is actually passed on the compiler command line
+ifeq ($(dbg), 1)
+	CPPFLAGS += -D_DEBUG_
+	CXXFLAGS += -g
+	CUFLAGS  += -G
+else
+	CXXFLAGS += -O3
+endif
+
+# option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
+ifeq ($(verbose), 1)
+	CUFLAGS += --ptxas-options=-v
+else ifeq ($(verbose), 2)
+	CUFLAGS += --ptxas-options=-v
+	CXXFLAGS += -Wall
+endif
+
+# Finally, add CXXFLAGS to CUFLAGS
+
+CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
 
 # CFLAGS notes
 # * Architecture (sm_XX and compute_XX):
@@ -232,12 +321,6 @@ CFLAGS ?= $(_CFLAGS_ARCH) $(_CFLAGS) $(CFLAGS_GPU)
 #    CFLAGS += -D__APPLE__ -D__MACH__
 
 # ------------------------ CFLAGS section end ---------------------- #
-
-# compilers
-CC=$(NVCC)
-CXX=$(NVCC)
-LINKER=$(NVCC)
-#LINKER=g++
 
 # Doxygen configuration
 DOXYCONF = ./Doxygen_settings
@@ -279,40 +362,6 @@ else
 	CMDECHO := @
 endif
 
-# some platform-dependent configurations
-ifeq ($(platform), Linux)
-	# we need linking to SDKs for lGLEW
-	INCPATH=-I $(CUDA_INSTALL_PATH)/include -I $(CUDA_SDK_PATH)/shared/inc 
-	LIBPATH=-L /usr/local/lib -L $(CUDA_SDK_PATH)shared/lib/linux -L $(CUDA_SDK_PATH)lib -L $(CUDA_SDK_PATH)/C/common/lib/linux/ -L /usr/local/lib
-	LIBS=-lstdc++ -lcudart -lGL -lGLU -lglut -lGLEW$(GLEW_ARCH_SFX) -lode
-	LFLAGS=
-# 	CC=nvcc
-# 	CXX=$(CC)
-# 	LINKER=$(CXX)
-else ifeq ($(platform), Darwin)
-	INCPATH=-I $(CUDA_SDK_PATH)/common/inc/
-	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/common/lib/darwin/ -L$(CUDA_INSTALL_PATH)/lib/ -L /usr/local/lib
-	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/common/lib/darwin/libGLEW.a -lcudart -lode
-	# Netbeans g++ flags: "-fPic -m32 -arch i386 -framework GLUT"
-	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker $(CUDA_INSTALL_PATH)/lib
-	CC=$(NVCC)
-	CXX=$(NVCC)
-	LINKER=$(NVCC)
-else
-	$(warning architecture $(arch) not supported by this makefile)
-endif
-
-# make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
-INCPATH+= -I$(SRCDIR) -I$(OPTSDIR)
-
-# option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-ifeq ($(verbose), 1)
-	CFLAGS += --ptxas-options=-v
-else ifeq ($(verbose), 2)
-	CFLAGS += --ptxas-options=-v
-	CFLAGS += --compiler-options=-Wall
-endif
-
 .PHONY: all showobjs show snapshot expand deps docs test help
 .PHONY: clean cpuclean gpuclean docsclean
 
@@ -322,7 +371,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo
 	@echo "Compiled with problem $(PROBLEM)"
 	$(call show_stage,LINK,$(TARGET)\\n)
-	$(CMDECHO)$(LINKER) $(LFLAGS) $(LIBPATH) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(CMDECHO)$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -349,12 +398,12 @@ $(OBJS): $(DBG_SELECT_OPTFILE)
 # compile CPU objects
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+	$(CMDECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CU,$(@F))
-	$(CMDECHO)$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # create distdir
 $(DISTDIR):
