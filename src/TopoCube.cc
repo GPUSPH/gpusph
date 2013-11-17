@@ -140,7 +140,7 @@ void TopoCube::SetCubeDem(const float *dem,
 	m_dem = new float[numels];
 
 	if (voff) {
-		for (int i = 0; i < numels; ++i) {
+		for (uint i = 0; i < numels; ++i) {
 			m_dem[i] = dem[i] + voff;
 		}
 	} else {
@@ -241,24 +241,37 @@ TopoCube *TopoCube::load_xyz_file(const char* fname)
 
 	double zmin = NAN, zmax = NAN;
 	float *dem = new float[ncols*nrows];
-	double x ,y, z, res;
+	// resolution in x and y directions
+	double xres = 0, yres = 0;
+	double x ,y, z;
 	for (int col = 0; col < ncols; ++col) {
 		for (int row = 0; row < nrows; ++row) {
 			fdem >> x >> y >> z;
-			if (row == 0 && col == 0)
-				res = y;
-			if (row == 1 && col == 0)
-				res = y - res;
+			if (row == 0 && col == 0) {
+				xres = x;
+				yres = y;
+			} else if (row == 1 && col == 0)
+				yres = y - yres;
+			else if (row == 0 && col == 1)
+				xres = x - xres;
 			zmax = max(z, zmax);
 			zmin = min(z, zmin);
 			dem[row*ncols+col] = z;
 		}
 	}
 	fdem.close();
+
+	// support degenerate case of single-row or single-column files
+	if (xres == 0 && yres)
+		xres = yres;
+	else if (yres == 0 && xres)
+		yres = xres;
+
 	south = 0;
 	west = 0;
-	north = nrows*res;
-	east = ncols*res;
+	north = nrows*yres;
+	east = ncols*xres;
+
 	TopoCube *ret = new TopoCube();
 
 	ret->SetCubeDem(dem, east-west, north-south, zmax-zmin,
@@ -307,7 +320,7 @@ TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, con
 	}
 
 	const int n = (int) (v.norm()/dx);
-	const double delta = v.norm()/((double) n);
+	// const double delta = v.norm()/((double) n);
 	int nstart = 0;
 	int nend = n;
 	if (!fill_edges) {
@@ -331,9 +344,11 @@ void
 TopoCube::FillDem(PointVect& points, double dx)
 {
 	int nx = (int) (m_vx.norm()/dx);
-	double deltax = m_vx.norm()/((double) nx);
 	int ny = (int) (m_vy.norm()/dx);
+	/*
+	double deltax = m_vx.norm()/((double) nx);
 	double deltay = m_vy.norm()/((double) ny);
+	*/
 
 	for (int i = 0; i <= nx; i++) {
 		for (int j = 0; j <= ny; j++) {
@@ -395,12 +410,14 @@ TopoCube::DemDist(const double x, const double y, const double z, double dx)
 int
 TopoCube::Fill(PointVect& points, const double H, const double dx, const bool faces_filled, const bool fill)
 {
-	int nparts;
+	int nparts = 0;
 
 	const int nx = (int) (m_vx.norm()/dx);
-	const double deltax = m_vx.norm()/((double) nx);
 	const int ny = (int) (m_vy.norm()/dx);
+	/*
+	const double deltax = m_vx.norm()/((double) nx);
 	const double deltay = m_vy.norm()/((double) ny);
+	*/
 
 	int startx = 0;
 	int starty = 0;

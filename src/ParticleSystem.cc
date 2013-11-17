@@ -962,7 +962,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 				glVertex3fv((float*)&pos);
 			}
 			if (FLUID(info[i])) {
-				float v; unsigned int t;
+				float v; // unsigned int t;
 				float ssvel = m_problem->soundspeed(vel[i].w, PART_FLUID_NUM(info[i]));
 				switch (view_mode) {
 					case VM_NORMAL:
