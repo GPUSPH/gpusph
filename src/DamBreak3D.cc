@@ -36,12 +36,18 @@
 #include "Point.h"
 #include "Vector.h"
 
+#define CENTER_DOMAIN 0
 // set to coords (x,y,z) if more accuracy is needed in such point
 // (waiting for relative coordinates)
+#if CENTER_DOMAIN
 #define OFFSET_X (-lx/2)
 #define OFFSET_Y (-ly/2)
 #define OFFSET_Z (-lz/2)
-
+#else
+#define OFFSET_X 0
+#define OFFSET_Y 0
+#define OFFSET_Z 0
+#endif
 
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
