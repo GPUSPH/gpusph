@@ -45,8 +45,8 @@ SharedNeibsTest::SharedNeibsTest(const Options &options) : Problem(options)
 	ly = 90*m_deltap;
 	lz = 30*m_deltap;
 	
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 

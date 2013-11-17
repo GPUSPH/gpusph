@@ -43,7 +43,7 @@ class DamBreak3D: public Problem {
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	obstacle_parts;
-		float		H;  // still watr level		
+		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
 		bool		m_usePlanes;	// use planes or boundaries
@@ -54,7 +54,7 @@ class DamBreak3D: public Problem {
 
 		int fill_parts(void);
 		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
 

@@ -29,6 +29,7 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+#include "hashkey.h"
 
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
@@ -37,7 +38,7 @@
 	size for forces MUST BE A POWER OF 2
  */
 #if (__COMPUTE__ >= 30)
-	#define BLOCK_SIZE_FORCES		256
+	#define BLOCK_SIZE_FORCES		128
 	#define BLOCK_SIZE_CALCVORT		256
 	#define MIN_BLOCKS_CALCVORT		8
 	#define BLOCK_SIZE_CALCTEST		256
@@ -84,7 +85,8 @@
 extern "C"
 {
 void
-setforcesconstants(const SimParams *simaprams, const PhysParams *physparams);
+setforcesconstants(const SimParams *simaprams, const PhysParams *physparams,
+					const uint3 gridSize, const float3 cellSize, const uint numParticles);
 
 void
 getforcesconstants(PhysParams *physparams);
@@ -109,7 +111,9 @@ forces(	float4*			pos,
 		float4*			rbtorques,
 		float4*			xsph,
 		particleinfo*	info,
-		uint*			neibsList,
+		uint*			particleHash,
+		uint*			cellStart,
+		neibdata*		neibsList,
 		uint			numParticles,
 		float			slength,
 		float			dt,
@@ -123,7 +127,6 @@ forces(	float4*			pos,
 		float*			cfl,
 		float*			tempCfl,
 		float2*			tau[],
-		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
 		bool			usedem);
@@ -132,49 +135,54 @@ void
 shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
-		particleinfo*	info,
-		uint*		neibsList,
+		particleinfo	*info,
+		uint*		particleHash,
+		uint*		cellStart,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		slength,
 		int			kerneltype,
-		float		influenceradius,
-		bool		periodicbound);
+		float		influenceradius);
 
 void
 mls(float4*		pos,
 	float4*		oldVel,
 	float4*		newVel,
-	particleinfo*	info,
-	uint*		neibsList,
+	particleinfo	*info,
+	uint*		particleHash,
+	uint*		cellStart,
+	neibdata*	neibsList,
 	uint		numParticles,
 	float		slength,
 	int			kerneltype,
-	float		influenceradius,
-	bool		periodicbound);
+	float		influenceradius);
+
 
 void
 vorticity(	float4*		pos,
 			float4*		vel,
 			float3*		vort,
 			particleinfo*	info,
-			uint*		neibsList,
+			uint*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
-			float		influenceradius,
-			bool		periodicbound);
+			float		influenceradius);
 
 //Testpoints
 void
 testpoints(	float4*		pos,
 			float4*		newVel,
 			particleinfo*	info,
-			uint*		neibsList,
+			uint*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
-			float		influenceradius,
-			bool		periodicbound);
+			float		influenceradius);
 
 // Free surface detection
 void
@@ -183,12 +191,13 @@ surfaceparticle(	float4*		pos,
 		    float4*     normals,
 			particleinfo*	info,
 			particleinfo*  newInfo,
-			uint*		neibsList,
+			uint*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
 			float		influenceradius,
-			bool		periodicbound,
 			bool        savenormals);
 
 void

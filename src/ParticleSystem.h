@@ -106,7 +106,7 @@ class ParticleSystem
 
 		TimingInfo	const* PredcorrTimeStep(bool);
 
-		void*	getArray(ParticleArray, bool);
+		void	getArray(ParticleArray, bool need_write);
 		void	setArray(ParticleArray);
 		void	setPlanes();
 		void	drawParts(bool, bool, int);
@@ -118,6 +118,8 @@ class ParticleSystem
 		long	getIter(void) { return m_iter; }
 		float	getTimestep(void) { return m_dt; }
 		float	getTime(void) { return m_simTime; }
+
+		uint3	calcGridPos(uint);
 
 		// DEBUG
 		void saveneibs();
@@ -165,10 +167,12 @@ class ParticleSystem
 		long		m_iter;					// iteration number
 
 		// CPU arrays
-		float4*		m_hPos;					// postions array
+		float4*		m_hPos;					// relative positions array
+		double4*	m_hdPos;				// absolute position array
 		float4*		m_hVel;					// velocity array
 		float4*		m_hForces;				// forces array
 		particleinfo*	m_hInfo;			// info array
+		hashKey*	m_hParticleHash;		// particle hash
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
 		float4*     m_hNormals;				// normals at free surface
@@ -179,8 +183,7 @@ class ParticleSystem
 		float *		m_hPlanesDiv;
 
 		// CPU arrays used for debugging
-		uint*		m_hNeibsList;
-		hashKey*	m_hParticleHash;
+		neibdata*	m_hNeibsList;
 		uint*		m_hCellStart;
 		uint*		m_hCellEnd;
 		uint*		m_hParticleIndex;
@@ -216,7 +219,7 @@ class ParticleSystem
 		uint*		m_dParticleIndex;		// sorted particle indexes
 		uint*		m_dCellStart;			// index of cell start in sorted order
 		uint*		m_dCellEnd;				// index of cell end in sorted order
-		uint*		m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
+		neibdata*	m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
 
 		uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
 		uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)

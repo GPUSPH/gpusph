@@ -31,10 +31,10 @@
 #include <GL/gl.h>
 #endif
 
-#include "OpenChannel.h"
+#include "Test.h"
 
 
-OpenChannel::OpenChannel(const Options &options) : Problem(options)
+Test::Test(const Options &options) : Problem(options)
 {
 	m_writerType = VTKWRITER;
 
@@ -43,7 +43,7 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
-	m_simparams.dt = 0.00004f;
+	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
@@ -57,18 +57,17 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 
 	// Size and origin of the simulation domain
 	a = 1.0;
+	l = 2.0;
 	h = 0.7;
 	H = 0.5;
 
-	m_simparams.periodicbound = XPERIODIC;
-	m_gridsize.x = 15;
-	l = m_gridsize.x*m_simparams.kernelradius*m_simparams.slength;
-	m_size.y = a;
-	m_size.z = h;
+	m_size = make_double3(l, a, h);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// Physical parameters
-	m_physparams.gravity = make_float3(9.81f*sin(3.14159/40.0), 0.0, -9.81f*cos(3.14159/40.0));
+	//m_physparams.gravity = make_float3(9.81f*sin(3.14159/40.0), 0.0, -9.81f*cos(3.14159/40.0));
+
+	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 
 	m_physparams.set_density(0, 2650.0f, 2.0f, 20.f);
@@ -103,20 +102,20 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 }
 
 
-OpenChannel::~OpenChannel(void)
+Test::~Test(void)
 {
 	release_memory();
 }
 
 
-void OpenChannel::release_memory(void)
+void Test::release_memory(void)
 {
 	parts.clear();
 	boundary_parts.clear();
 }
 
 
-int OpenChannel::fill_parts()
+int Test::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
@@ -124,18 +123,25 @@ int OpenChannel::fill_parts()
 	rect2 = Rect(Point(m_deltap/2., 0, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
 	rect3 = Rect(Point(m_deltap/2., a, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, a, 0), Vector(0, 0, h + r0));
-	Cube fluid = Cube(Point(m_deltap/2.0, r0, r0), Vector(l - m_deltap, 0, 0), Vector(0, a - 2*r0, 0), Vector(0, 0, H - r0));
+	/*experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, a, 0), Vector(0, 0, h + r0));
+	Cube fluid = Cube(Point(m_deltap/2.0, r0, r0), Vector(l - m_deltap, 0, 0), Vector(0, a - 2*r0, 0), Vector(0, 0, H - r0));*/
+
+	experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, a, 0), Vector(0, 0, h));
+	Cube fluid = Cube(Point(r0, r0, r0), Vector(l/4.0, 0, 0), Vector(0, a - 2.*r0), Vector(0, 0, H - r0));
+
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
-	rect1.SetPartMass(r0, m_physparams.rho0[0]);
+	/*rect1.SetPartMass(r0, m_physparams.rho0[0]);
 	rect1.Fill(boundary_parts, r0, true);
 	rect2.SetPartMass(r0, m_physparams.rho0[0]);
 	rect2.Fill(boundary_parts, r0, true);
 	rect3.SetPartMass(r0, m_physparams.rho0[0]);
-	rect3.Fill(boundary_parts, r0, true);
+	rect3.Fill(boundary_parts, r0, true);*/
+
+	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
+	experiment_box.FillBorder(boundary_parts, r0, false);
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
@@ -144,18 +150,18 @@ int OpenChannel::fill_parts()
 }
 
 
-void OpenChannel::draw_boundary(float t)
+void Test::draw_boundary(float t)
 {
 	glColor3f(0.0, 1.0, 0.0);
-	rect1.GLDraw();
-	rect2.GLDraw();
-	rect3.GLDraw();
+	//rect1.GLDraw();
+	//rect2.GLDraw();
+	//rect3.GLDraw();
 	glColor3f(1.0, 0.0, 0.0);
 	experiment_box.GLDraw();
 }
 
 
-void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void Test::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
 	float4 localpos;
 	uint hashvalue;

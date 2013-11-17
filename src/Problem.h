@@ -34,27 +34,31 @@
 
 #include <string>
 #include <cstdio>
+#include <iostream>
 
 #include "Options.h"
-#include "RigidBody.h"
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+#include "vector_math.h"
+#include "Object.h"
 
+#include "ode/ode.h"
 
 using namespace std;
 
 class Problem {
 	private:
-		float	m_last_display_time;
-		float	m_last_write_time;
-		float	m_last_rbdata_write_time;
-		float	m_last_screenshot_time;
-		string	m_problem_dir;
+		float		m_last_display_time;
+		float		m_last_write_time;
+		float		m_last_rbdata_write_time;
+		float		m_last_screenshot_time;
+		string		m_problem_dir;
 
-		const float*	m_dem;
-		int		m_ncols, m_nrows;
+		const float	*m_dem;
+		int			m_ncols, m_nrows;
 
+		static int		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
 	public:
 		enum WriterType
 		{
@@ -64,9 +68,15 @@ class Problem {
 			CUSTOMTEXTWRITER
 		};
 
-		float3	m_size;			// Size of compuation domain
-		float3	m_origin;		// Origin of compuatation domain
-		float	m_deltap;		// Initial particle spacing
+		dWorldID		m_ODEWorld;
+		dSpaceID		m_ODESpace;
+		dJointGroupID	m_ODEJointGroup;
+
+		double3	m_size;			// Size of computational domain
+		double3	m_origin;		// Origin of computational domain
+		double3	m_cellsize;		// Size of grid cells
+		uint3	m_gridsize;		// Number of grid cells along each axis
+		double	m_deltap;		// Initial particle spacing
 
 		// Min and max values used for display
 		float	m_maxrho;
@@ -96,8 +106,8 @@ class Problem {
 		MbCallBack	m_mbcallbackdata[MAXMOVINGBOUND];	// array of structure for moving boundary data
 		int			m_mbnumber;							// number of moving boundaries
 
-		RigidBody	*m_bodies;							// array of RigidBody objects
-		float4		m_mbdata[MAXMOVINGBOUND];			// mb data to be provided by ParticleSystem to euler
+		Object		**m_ODE_bodies;						// array of floating ODE objects
+		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided by ParticleSystem to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
@@ -111,14 +121,24 @@ class Problem {
 			return m_options;
 		}
 
-		float3 const& get_worldorigin(void) const
+		double3 const& get_worldorigin(void) const
 		{
 			return m_origin;
 		};
 
-		float3 const& get_worldsize(void) const
+		double3 const& get_worldsize(void) const
 		{
 			return m_size;
+		};
+
+		double3 const& get_cellsize(void) const
+		{
+			return m_cellsize;
+		};
+
+		uint3 const& get_gridsize(void) const
+		{
+			return m_gridsize;
 		};
 
 		WriterType get_writertype(void)
@@ -145,7 +165,7 @@ class Problem {
 			return m_problem_dir;
 		}
 
-		float set_deltap(const float dflt)
+		float set_deltap(const double dflt)
 		{
 			if (isfinite((double) m_options.deltap))
 				m_deltap = m_options.deltap;
@@ -153,6 +173,19 @@ class Problem {
 				m_deltap = dflt;
 			return m_deltap;
 		}
+
+		float set_deltap(const float dflt)
+		{
+			return float(set_deltap(double(dflt)));
+		}
+
+		void set_grid_params(void);
+
+		int3 calc_grid_pos(const Point&);
+
+		uint calc_grid_hash(int3);
+
+		void calc_localpos_and_hash(const Point&, float4&, uint&);
 
 		const SimParams *get_simparams(void) const
 		{
@@ -188,21 +221,33 @@ class Problem {
 		virtual uint fill_planes(void);
 		virtual void draw_boundary(float) = 0;
 		virtual void draw_axis(void);
-		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
+		virtual void copy_to_array(float4*, float4*, particleinfo*);
+		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*);
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
+		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
+		{
+			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
+		}
 
-		void allocate_bodies(const int);
-		RigidBody* get_body(const int);
-		void get_rigidbodies_data(float3 * &, float * &);
-		float3* get_rigidbodies_cg(void);
-		float* get_rigidbodies_steprot(void);
-		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
+		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
+		{
+			Problem* problem = (Problem *) data;
+			problem->ODE_near_callback(data, o1, o2);
+		}
+
+		void allocate_ODE_bodies(const int);
+		void add_ODE_body(Object* object);
+		Object* get_ODE_body(const int);
+		void get_ODE_bodies_data(float3 * &, float * &);
+		float3* get_ODE_bodies_cg(void);
+		float* get_ODE_bodies_steprot(void);
+		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &);
-		int	get_bodies_numparts(void);
-		int	get_body_numparts(const int);
+		int	get_ODE_bodies_numparts(void);
+		int	get_ODE_body_numparts(const int);
 };
 #endif

@@ -15,8 +15,8 @@
 Silicone1::Silicone1(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(0.2f, 0.2f, 0.2f);
-	m_origin = make_float3(0.0f, 0.0f,0.0f);
+	m_size = make_double3(0.2f, 0.2f, 0.2f);
+	m_origin = make_double3(0.0f, 0.0f,0.0f);
 
 	m_writerType = VTKWRITER;
 

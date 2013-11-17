@@ -30,40 +30,15 @@
 
 #include "utils.h"
 
-// Creates a kernel name based on whether XSPH is used or not
-#define _EULER_KERNEL_NAME(xsph) cueuler::euler##xsph##Device
-
-// Run the Euler kernel defined by EULER_KERNEL_NAME with the appropriate
-// template and launch grid parameters, passing the arguments defined in the
-// EULER_KERNEL_ARGS() macro. This macro takes one parameter, which is the
-// timestep passed to the kernel (dt on the first step, dt2 on the second)
-#define EULER_STEP_BOUNDARY_SWITCH \
-	do { \
-		if (step == 1) { \
-			if (periodicbound) \
-				EULER_KERNEL_NAME<1, true><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt2)); \
-			else \
-				EULER_KERNEL_NAME<1, false><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt2)); \
-		} else if (step == 2) { \
-			if (periodicbound) \
-				EULER_KERNEL_NAME<2, true><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt)); \
-			else \
-				EULER_KERNEL_NAME<2, false><<< numBlocks, numThreads >>>(EULER_KERNEL_ARGS(dt)); \
-		} \
-	} while (0)
-
-#undef EULER_KERNEL_NAME
-#undef EULER_KERNEL_ARGS
-
 extern "C"
 {
 void
-seteulerconstants(const PhysParams *physparams)
+seteulerconstants(const PhysParams *physparams, const uint3 gridSize, const float3 cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_dispvect, &physparams->dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_minlimit, &physparams->minlimit, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_maxlimit, &physparams->maxlimit, sizeof(float3)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 
@@ -71,8 +46,6 @@ void
 geteulerconstants(PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->maxlimit, cueuler::d_maxlimit, sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->minlimit, cueuler::d_minlimit, sizeof(float3), 0));
 }
 
 
@@ -105,47 +78,41 @@ seteulerrbsteprot(const float* rot, int numbodies)
 
 
 void
-euler(	float4*		oldPos,
-		float4*		oldVel,
-		particleinfo* info,
-		float4*		forces,
-		float4*		xsph,
-		float4*		newPos,
-		float4*		newVel,
-		uint		numParticles,
-		float		dt,
-		float		dt2,
-		int			step,
-		float		t,
-		bool		xsphcorr,
-		bool		periodicbound)
+euler(	const float4*		oldPos,
+		const hashKey*		particleHash,
+		const float4*		oldVel,
+		const particleinfo* info,
+		const float4*		forces,
+		const float4*		xsph,
+		float4*				newPos,
+		float4*				newVel,
+		const uint			numParticles,
+		const float			dt,
+		const float			dt2,
+		const int			step,
+		const float			t,
+		const bool			xsphcorr)
 {
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	// execute the kernel
-	if (xsphcorr) {
-#define EULER_KERNEL_NAME _EULER_KERNEL_NAME(Xsph)
-#define EULER_KERNEL_ARGS(dt) \
-					oldPos, oldVel, info, \
-					forces, xsph, \
-					newPos, newVel, \
-					numParticles, dt, dt2, t
-		EULER_STEP_BOUNDARY_SWITCH;
-#undef EULER_KERNEL_NAME
-#undef EULER_KERNEL_ARGS
-	} else {
-#define EULER_KERNEL_NAME _EULER_KERNEL_NAME()
-#define EULER_KERNEL_ARGS(dt) \
-					oldPos, oldVel, info, \
-					forces, \
-					newPos, newVel, \
-					numParticles, dt, dt2, t
-		EULER_STEP_BOUNDARY_SWITCH;
-#undef EULER_KERNEL_NAME
-#undef EULER_KERNEL_ARGS
-	}
+	if (step == 1) {
+		if (xsphcorr)
+			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+		else
+			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+	} else if (step == 2) {
+		if (xsphcorr)
+			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
+		else
+			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
+	} // if (step == 2)
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");

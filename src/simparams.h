@@ -47,9 +47,9 @@ typedef struct MbCallBack {
 typedef std::vector<float3> GageList;
 
 typedef struct SimParams {
-	float			slength;			// smoothing length
+	double			slength;			// smoothing length
 	KernelType		kerneltype;			// kernel type
-	float			kernelradius;		// kernel radius
+	double			kernelradius;		// kernel radius
 	float			dt;					// initial timestep
 	float			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
@@ -65,7 +65,7 @@ typedef struct SimParams {
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
 	bool			periodicbound;		// true in case of periodic boundary
-	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
+	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
@@ -74,7 +74,7 @@ typedef struct SimParams {
 	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
 	GageList		gage;				// water gages
-	int				numbodies;			// number of floating bodies
+	int				numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
 		kernelradius(2.0),
@@ -98,7 +98,7 @@ typedef struct SimParams {
 		testpoints(false),
 		savenormals(false),
 		surfaceparticle(false),
-		numbodies(0),
+		numODEbodies(0),
 		maxneibsnum(128)
 	{};
 } SimParams;

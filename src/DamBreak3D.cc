@@ -53,32 +53,34 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	wet = false;
 	m_usePlanes = true;
 	
-	m_size = make_float3(lx, ly, lz);
-	//m_origin = make_float3(0.0, 0.0, 0.0);
-	m_origin = make_float3(OFFSET_X, OFFSET_Y, OFFSET_Z);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	set_deltap(0.02f);
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
+	set_deltap(0.02); //0.008
+	m_simparams.slength = 1.3*m_deltap;
+	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
-	m_simparams.dt = 0.0001f;
+	m_simparams.dt = 0.0003f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
+	m_simparams.dtadapt = false;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = DYNAMICVISC;
+	//m_simparams.visctype = SPSVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f;
+	m_simparams.tend = 1.5f; //0.00036f
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
+
+	// Vorticity
+	m_simparams.vorticity = false;
 
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
@@ -87,7 +89,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
+	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
 	
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
@@ -112,9 +114,9 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_maxvel = 3.0f;
 	
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 20;
-	m_screenshotfreq = 20;
+	m_displayinterval = 0.01f;
+	m_writefreq = 5;
+	m_screenshotfreq = 0;
 	
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
@@ -214,32 +216,60 @@ void DamBreak3D::draw_boundary(float t)
 }
 
 
-void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
+	float4 localpos;
+	uint hashvalue;
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
+		std::cout << "Absolute position:" << "\n";
+		std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
+		}*/
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+
+		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
+		std::cout << "Local position and hash:" << "\n";
+		std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n";
+		}*/
+		if (i == 1378) {
+			std::cout << "Absolute position:" << "\n";
+			std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
+			std::cout << "Local position and hash:" << "\n";
+			std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n\n";
+
+		}
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
+		hash[i] = hashvalue;
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		pos[i] = make_float4(obstacle_parts[i-j]);
+		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
+		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
+		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	std::flush(std::cout);
 }

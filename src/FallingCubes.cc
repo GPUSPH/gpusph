@@ -35,8 +35,6 @@
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
-#include "RigidBody.h"
-#include "EulerParameters.h"
 
 
 FallingCubes::FallingCubes(const Options &options) : Problem(options)
@@ -47,8 +45,8 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	lz = 0.6;	
 	H = 0.4;
 	
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
@@ -70,8 +68,8 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	m_simparams.tend = 1.5f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals =true;
+	m_simparams.surfaceparticle = false;
+	m_simparams.savenormals = false;
 
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
@@ -97,7 +95,13 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Allocate data for floating bodies
-	allocate_bodies(3);
+	allocate_ODE_bodies(3);
+	dInitODE();				// Initialize ODE
+	m_ODEWorld = dWorldCreate();	// Create a dynamic world
+	m_ODESpace = dHashSpaceCreate(0);
+	m_ODEJointGroup = dJointGroupCreate(0);
+	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
+
 
 	// Scales for drawing
 	m_maxrho = density(H, 0);
@@ -120,7 +124,9 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 
 FallingCubes::~FallingCubes(void)
 {
-	release_memory();
+	release_memory();release_memory();
+	dWorldDestroy(m_ODEWorld);
+	dCloseODE();
 }
 
 
@@ -139,6 +145,11 @@ int FallingCubes::fill_parts()
 
 	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
+	planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0.0);
+	planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0.0);
+	planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, -lx);
+	planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0.0);
+	planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, -ly);
 
 	fluid = Cube(Point(r0, r0, r0), Vector(lx - 2*r0, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
@@ -157,21 +168,13 @@ int FallingCubes::fill_parts()
 	double l = 0.1, w = 0.1, h = 0.1;
 	cube[0] = Cube(rb_cg - Vector(l/2, w/2, h/2), Vector(l, 0, 0),
 					Vector(0, w, 0), Vector(0, 0, h));
-	l += m_deltap/2.0;
-	w += m_deltap/2.0;
-	h += m_deltap/2.0;
-	double rb_density = m_physparams.rho0[0]*0.5;
-	double rb_mass = l*w*h*rb_density;
-	double inertia[3] = {rb_mass*(w*w + h*h)/12.0, rb_mass*(l*l + h*h)/12.0, rb_mass*(w*w + l*l)/12.0};
-
-	RigidBody * rigid_body = get_body(0);
-	PointVect & rbparts1 = rigid_body->GetParts();
-	cube[0].SetPartMass(r0*r0*r0*m_physparams.rho0[0]*0.5);
-	cube[0].FillBorder(rbparts1, r0, true);
-
-	// Setting inertial frame data
-	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, -8.0), Vector(0.0, 0.0, 0.0));
+	cube[0].SetPartMass(r0, m_physparams.rho0[0]*0.5);
+	cube[0].SetMass(r0, m_physparams.rho0[0]*0.5);
+	cube[0].Unfill(parts, r0);
+	cube[0].FillBorder(cube[0].GetParts(), r0);
+	cube[0].ODEBodyCreate(m_ODEWorld, m_deltap);
+	cube[0].ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&cube[0]);
 	
 	// Rigid body #2
 	rb_cg = Point(0.7, 0.4, H + 0.15);
@@ -180,12 +183,11 @@ int FallingCubes::fill_parts()
 					Vector(0, w, 0), Vector(0, 0, h));
 	cube[1].SetPartMass(r0, m_physparams.rho0[0]*0.9);
 	cube[1].SetMass(r0, m_physparams.rho0[0]*0.9);
-	cube[1].SetInertia(r0);
-
-	rigid_body = get_body(1);
-	rigid_body->AttachObject(&cube[1]);
-	cube[1].FillBorder(rigid_body->GetParts(), r0, true);
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(5.0, -3.0, 4.0));
+	cube[1].Unfill(parts, r0);
+	cube[1].FillBorder(cube[1].GetParts(), r0);
+	cube[1].ODEBodyCreate(m_ODEWorld, m_deltap);
+	cube[1].ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&cube[1]);
 
 	// Rigid body #3
 	l = 0.1, w = 0.1, h = 0.2;
@@ -194,44 +196,66 @@ int FallingCubes::fill_parts()
 					Vector(0, w, 0), Vector(0, 0, h));
 	cube[2].SetPartMass(r0, m_physparams.rho0[0]*0.2);
 	cube[2].SetMass(r0, m_physparams.rho0[0]*0.2);
-	cube[2].SetInertia(r0);
 	cube[2].Unfill(parts, r0);
+	cube[2].FillBorder(cube[2].GetParts(), r0);
+	cube[2].ODEBodyCreate(m_ODEWorld, m_deltap);
+	cube[2].ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(&cube[2]);
 
-	rigid_body = get_body(2);
-	rigid_body->AttachObject(&cube[2]);
-	cube[2].FillBorder(rigid_body->GetParts(), r0, true);
-	rigid_body->SetInitialValues(Vector(0.0, 0.0, -1.0), Vector(0.0, 0.0, 3.0));
-
-	return parts.size() + boundary_parts.size() + get_bodies_numparts();
+	return parts.size() + boundary_parts.size() + get_ODE_bodies_numparts();
 }
 
+void FallingCubes::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
+{
+	const int N = 10;
+	dContact contact[N];
+
+	int n = dCollide(o1, o2, N, &contact[0].geom, sizeof(dContact));
+	for (int i = 0; i < n; i++) {
+		contact[i].surface.mode = dContactBounce;
+		contact[i].surface.mu   = dInfinity;
+		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
+		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
+		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
+		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
+	}
+}
 
 void FallingCubes::draw_boundary(float t)
 {
 	glColor3f(0.0, 1.0, 0.0);
 	experiment_box.GLDraw();	
 	glColor3f(1.0, 0.0, 0.0);
-	cube[0].GLDraw();
-	for (int i = 0; i < m_simparams.numbodies; i++)
-		get_body(i)->GLDraw();
+	for (int i = 0; i < m_simparams.numODEbodies; i++)
+		get_ODE_body(i)->GLDraw();
 }
 
 
-void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
+	float4 localpos;
+	uint hashvalue;
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
+
+		pos[i] = localpos;
+		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);
 	}
 	int j = boundary_parts.size();
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
-	for (int k = 0; k < m_simparams.numbodies; k++) {
-		PointVect & rbparts = get_body(k)->GetParts();
+	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+
+	for (int k = 0; k < m_simparams.numODEbodies; k++) {
+		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
-			pos[i] = make_float4(rbparts[i - j]);
+			calc_localpos_and_hash(rbparts[i - j], localpos, hashvalue);
+
+			pos[i] = localpos;
+			hash[i] = hashvalue;
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(OBJECTPART, k, i - j);
 		}
@@ -241,10 +265,13 @@ void FallingCubes::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
+
+		pos[i] = localpos;
+		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART, 0, i);
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
+	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }

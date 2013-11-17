@@ -32,6 +32,7 @@
 #include "forces.cuh"
 
 #include "utils.h"
+#include "cuda_call.h"
 
 cudaArray*  dDem = NULL;
 
@@ -55,116 +56,117 @@ void*	reduce_buffer = NULL;
 			fprintf(stderr, #what " %s (%u) not implemented\n", what##Name[arg], arg); \
 			exit(1)
 
-#define KERNEL_CHECK(kernel, boundarytype, periodic, formulation, visc, dem) \
+#define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+						(pos, forces, particleHash, cellStart, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
+				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+						(pos, forces, particleHash, cellStart, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+						(pos, forces, particleHash, cellStart, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		else if (dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, periodic, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
+				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
+						(pos, forces, particleHash, cellStart, xsph, neibsList, numParticles, slength, influenceradius, rbforces, rbtorques, cfl); \
 		break
 
-#define KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
+#define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, periodic, formulation, visc, dem); \
-		KERNEL_CHECK(WENDLAND,		boundarytype, periodic, formulation, visc, dem); \
+		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); \
+		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
 
-#define FORMULATION_CHECK(formulation, boundarytype, periodic, visc, dem) \
+#define FORMULATION_CHECK(formulation, boundarytype, visc, dem) \
 	case formulation: \
-		KERNEL_SWITCH(formulation, boundarytype, periodic, visc, dem) \
+		KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 		break
 
-#define FORMULATION_SWITCH(boundarytype, periodic, visc, dem) \
+#define FORMULATION_SWITCH(boundarytype, visc, dem) \
 	switch (sph_formulation) { \
-		FORMULATION_CHECK(SPH_F1, boundarytype, periodic, visc, dem); \
-		FORMULATION_CHECK(SPH_F2, boundarytype, periodic, visc, dem); \
+		FORMULATION_CHECK(SPH_F1, boundarytype, visc, dem); \
+		FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
-#define VISC_CHECK(boundarytype, periodic, visc, dem) \
+#define VISC_CHECK(boundarytype, visc, dem) \
 	case visc: \
-		FORMULATION_SWITCH(boundarytype, periodic, visc, dem) \
+		FORMULATION_SWITCH(boundarytype, visc, dem) \
 		break
 
-#define VISC_CHECK_STANDARD(boundarytype, periodic, dem) \
-		VISC_CHECK(boundarytype, periodic, ARTVISC, dem); \
-		VISC_CHECK(boundarytype, periodic, DYNAMICVISC, dem); \
-		VISC_CHECK(boundarytype, periodic, KINEMATICVISC, dem);\
-		VISC_CHECK(boundarytype, periodic, SPSVISC, dem);
+#define VISC_CHECK_STANDARD(boundarytype, dem) \
+		VISC_CHECK(boundarytype, ARTVISC, dem); \
+		VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
+		VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
+		VISC_CHECK(boundarytype, SPSVISC, dem);
 
 
-#define VISC_SWITCH(boundarytype, periodic, dem) \
+#define VISC_SWITCH(boundarytype, dem) \
 	switch (visctype) { \
-		VISC_CHECK_STANDARD(boundarytype, periodic, dem); \
+		VISC_CHECK_STANDARD(boundarytype, dem); \
 		NOT_IMPLEMENTED_CHECK(Viscosity, visctype); \
 	}
 
-//		VISC_CHECK_SPS(boundarytype, periodic, dem); \
+//		VISC_CHECK_SPS(boundarytype, dem); \
 
-#define BOUNDARY_CHECK(boundary, periodic, dem) \
+#define BOUNDARY_CHECK(boundary, dem) \
 	case boundary: \
-		VISC_SWITCH(boundary, periodic, dem) \
+		VISC_SWITCH(boundary, dem) \
 		break
 
-#define BOUNDARY_SWITCH(periodic, dem) \
+#define BOUNDARY_SWITCH(dem) \
 	switch (boundarytype) { \
-		BOUNDARY_CHECK(LJ_BOUNDARY, periodic, dem); \
-		BOUNDARY_CHECK(MK_BOUNDARY, periodic, dem); \
+		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
+		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
-#define SPS_CHECK(kernel, periodic) \
+#define SPS_CHECK(kernel) \
 	case kernel: \
-		cuforces::SPSstressMatrixDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, tau[0], tau[1], tau[2], neibsList, numParticles, slength, influenceradius); \
+		cuforces::SPSstressMatrixDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
+				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 		break
 
-#define SHEPARD_CHECK(kernel, periodic) \
+#define SHEPARD_CHECK(kernel) \
 	case kernel: \
-		cuforces::shepardDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				 (pos, newVel, neibsList, numParticles, slength, influenceradius); \
+		cuforces::shepardDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
+				 (pos, newVel, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
-#define MLS_CHECK(kernel, periodic) \
+#define MLS_CHECK(kernel) \
 	case kernel: \
-		cuforces::MlsDevice<kernel, periodic><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, newVel, neibsList, numParticles, slength, influenceradius); \
+		cuforces::MlsDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
+				(pos, newVel, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
-#define VORT_CHECK(kernel, periodic) \
+#define VORT_CHECK(kernel) \
 	case kernel: \
-		cuforces::calcVortDevice<kernel, periodic><<< numBlocks, numThreads >>> \
-				 (vort, neibsList, numParticles, slength, influenceradius); \
+		cuforces::calcVortDevice<kernel><<< numBlocks, numThreads >>> \
+				 (vort, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 //Testpoints
-#define TEST_CHECK(kernel, periodic) \
+#define TEST_CHECK(kernel) \
 	case kernel: \
-		cuforces::calcTestpointsVelocityDevice<kernel, periodic><<< numBlocks, numThreads >>> \
-				(newVel, neibsList, numParticles, slength, influenceradius); \
+		cuforces::calcTestpointsVelocityDevice<kernel><<< numBlocks, numThreads >>> \
+				(newVel, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 // Free surface detection
-#define SURFACE_CHECK(kernel, periodic, savenormals) \
+#define SURFACE_CHECK(kernel, savenormals) \
 	case kernel: \
-		cuforces::calcSurfaceparticleDevice<kernel, periodic, savenormals><<< numBlocks, numThreads >>> \
-				(normals, newInfo, neibsList, numParticles, slength, influenceradius); \
+		cuforces::calcSurfaceparticleDevice<kernel, savenormals><<< numBlocks, numThreads >>> \
+				(normals, newInfo, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 
 extern "C"
 {
 void
-setforcesconstants(const SimParams *simparams, const PhysParams *physparams)
+setforcesconstants(const SimParams *simparams, const PhysParams *physparams,
+					const uint3 gridSize, const float3 cellSize, const uint numParticles)
 {
 	// Setting kernels and kernels derivative factors
 	float h = simparams->slength;
@@ -202,7 +204,6 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_r0, &physparams->r0, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, &physparams->visccoeff, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsartvisc, &physparams->epsartvisc, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dispvect, &physparams->dispvect, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ewres, &physparams->ewres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_nsres, &physparams->nsres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_demdx, &physparams->demdx, sizeof(float)));
@@ -225,8 +226,24 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_objectobjectdf, &physparams->objectobjectdf, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_objectboundarydf, &physparams->objectboundarydf, sizeof(float)));
 
-	uint maxneibs_time_neibinterleave = simparams->maxneibsnum*NEIBINDEX_INTERLEAVE;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
+	uint maxneibsnum_time_numparticles = simparams->maxneibsnum*numParticles;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_numparticles, &maxneibsnum_time_numparticles, sizeof(uint)));
+
+	// Neibs cell to offset table
+	char3 cell_to_offset[27];
+	for(char z=-1; z<=1; z++) {
+		for(char y=-1; y<=1; y++) {
+			for(char x=-1; x<=1; x++) {
+				int i = (x + 1) + (y + 1)*3 + (z + 1)*9;
+				cell_to_offset[i] =  make_char3(x, y, z);
+			}
+		}
+	}
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cellSize, &cellSize, sizeof(float3)));
 }
 
 
@@ -300,7 +317,9 @@ forces(	float4*			pos,
 		float4*			rbtorques,
 		float4*			xsph,
 		particleinfo	*info,
-		uint*			neibsList,
+		uint*			particleHash,
+		uint*			cellStart,
+		neibdata*		neibsList,
 		uint			numParticles,
 		float			slength,
 		float			dt,
@@ -314,7 +333,6 @@ forces(	float4*			pos,
 		float*			cfl,
 		float*			tempCfl,
 		float2*			tau[],
-		bool			periodicbound,
 		SPHFormulation	sph_formulation,
 		BoundaryType	boundarytype,
 		bool			usedem)
@@ -333,19 +351,12 @@ forces(	float4*			pos,
 		#if (__COMPUTE__ == 20)
 		dummy_shared = 2560;
 		#endif
-		if (periodicbound) {
-			switch (kerneltype) {
-				SPS_CHECK(CUBICSPLINE, true);
-				SPS_CHECK(QUADRATIC, true);
-				SPS_CHECK(WENDLAND, true);
-			}
-		} else {
-			switch (kerneltype) {
-				SPS_CHECK(CUBICSPLINE, false);
-				SPS_CHECK(QUADRATIC, false);
-				SPS_CHECK(WENDLAND, false);
-			}
+		switch (kerneltype) {
+			SPS_CHECK(CUBICSPLINE);
+			SPS_CHECK(QUADRATIC);
+			SPS_CHECK(WENDLAND);
 		}
+
 		// check if kernel invocation generated an error
 		CUT_CHECK_ERROR("SPS kernel execution failed");
 		
@@ -363,19 +374,11 @@ forces(	float4*			pos,
 	else
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
-	if (usedem) {
-		if (periodicbound) {
-			BOUNDARY_SWITCH(true, true)
-		} else {
-			BOUNDARY_SWITCH(false, true)
-		}
-	} else {
-		if (periodicbound) {
-			BOUNDARY_SWITCH(true, false)
-		} else {
-			BOUNDARY_SWITCH(false, false)
-		}
-	}
+	if (usedem)
+		BOUNDARY_SWITCH(true)
+	else
+		BOUNDARY_SWITCH(false)
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Forces kernel execution failed");
 
@@ -425,12 +428,13 @@ shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
 		particleinfo	*info,
-		uint*		neibsList,
+		uint*		particleHash,
+		uint*		cellStart,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		slength,
 		int			kerneltype,
-		float		influenceradius,
-		bool		periodicbound)
+		float		influenceradius)
 {
 	int dummy_shared = 0;
 	// thread per particle
@@ -447,18 +451,10 @@ shepard(float4*		pos,
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
-	if (periodicbound) {
-		switch (kerneltype) {
-			SHEPARD_CHECK(CUBICSPLINE, true);
-//			SHEPARD_CHECK(QUADRATIC, true);
-			SHEPARD_CHECK(WENDLAND, true);
-		}
-	} else {
-		switch (kerneltype) {
-			SHEPARD_CHECK(CUBICSPLINE, false);
-//			SHEPARD_CHECK(QUADRATIC, false);
-			SHEPARD_CHECK(WENDLAND, false);
-		}
+	switch (kerneltype) {
+		SHEPARD_CHECK(CUBICSPLINE);
+//		SHEPARD_CHECK(QUADRATIC);
+		SHEPARD_CHECK(WENDLAND);
 	}
 
 	// check if kernel invocation generated an error
@@ -478,12 +474,13 @@ mls(float4*		pos,
 	float4*		oldVel,
 	float4*		newVel,
 	particleinfo	*info,
-	uint*		neibsList,
+	uint*		particleHash,
+	uint*		cellStart,
+	neibdata*	neibsList,
 	uint		numParticles,
 	float		slength,
 	int			kerneltype,
-	float		influenceradius,
-	bool		periodicbound)
+	float		influenceradius)
 {
 	int dummy_shared = 0;
 	// thread per particle
@@ -498,18 +495,10 @@ mls(float4*		pos,
 	#if (__COMPUTE__ == 20)
 	dummy_shared = 2560;
 	#endif
-	if (periodicbound) {
-		switch (kerneltype) {
-			MLS_CHECK(CUBICSPLINE, true);
-//			MLS_CHECK(QUADRATIC, true);
-			MLS_CHECK(WENDLAND, true);
-		}
-	} else {
-		switch (kerneltype) {
-			MLS_CHECK(CUBICSPLINE, false);
-//			MLS_CHECK(QUADRATIC, false);
-			MLS_CHECK(WENDLAND, false);
-		}
+	switch (kerneltype) {
+		MLS_CHECK(CUBICSPLINE);
+//		MLS_CHECK(QUADRATIC);
+		MLS_CHECK(WENDLAND);
 	}
 	
 	// check if kernel invocation generated an error
@@ -525,12 +514,13 @@ vorticity(	float4*		pos,
 			float4*		vel,
 			float3*		vort,
 			particleinfo	*info,
-			uint*		neibsList,
+			uint*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
-			float		influenceradius,
-			bool		periodicbound)
+			float		influenceradius)
 {
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_CALCVORT, numParticles);
@@ -541,21 +531,14 @@ vorticity(	float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
-	if (periodicbound) {
-		switch (kerneltype) {
-			VORT_CHECK(CUBICSPLINE, true);
-//			VORT_CHECK(QUADRATIC, true);
-			VORT_CHECK(WENDLAND, true);
-		}
-	} else {
-		switch (kerneltype) {
-			VORT_CHECK(CUBICSPLINE, false);
-//			VORT_CHECK(QUADRATIC, false);
-			VORT_CHECK(WENDLAND, false);
-		}
+	switch (kerneltype) {
+		VORT_CHECK(CUBICSPLINE);
+//		VORT_CHECK(QUADRATIC);
+		VORT_CHECK(WENDLAND);
 	}
+
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Shepard kernel execution failed");
+	CUT_CHECK_ERROR("Vorticity kernel execution failed");
 	
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -567,12 +550,13 @@ void
 testpoints( float4*		pos,
 			float4*		newVel,
 			particleinfo	*info,
-			uint*		neibsList,
+			uint*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
 			float		slength,
 			int			kerneltype,
-			float		influenceradius,
-			bool		periodicbound)
+			float		influenceradius)
 {
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
@@ -583,19 +567,12 @@ testpoints( float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
-	if (periodicbound) {
-		switch (kerneltype) {
-			TEST_CHECK(CUBICSPLINE, true);
-//			TEST_CHECK(QUADRATIC, true);
-			TEST_CHECK(WENDLAND, true);
-		}
-	} else {
-		switch (kerneltype) {
-			TEST_CHECK(CUBICSPLINE, false);
-//			TEST_CHECK(QUADRATIC, false);
-			TEST_CHECK(WENDLAND, false);
-		}
+	switch (kerneltype) {
+		TEST_CHECK(CUBICSPLINE);
+//		TEST_CHECK(QUADRATIC);
+		TEST_CHECK(WENDLAND);
 	}
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("test kernel execution failed");
 	
@@ -611,12 +588,13 @@ surfaceparticle(	float4*		pos,
 					float4*		normals,
 					particleinfo	*info,
 					particleinfo	*newInfo,
-					uint*		neibsList,
+					uint*		particleHash,
+					uint*		cellStart,
+					neibdata*	neibsList,
 					uint		numParticles,
 					float		slength,
 					int			kerneltype,
 					float		influenceradius,
-					bool		periodicbound,
 					bool        savenormals)
 {
 	// thread per particle
@@ -629,34 +607,20 @@ surfaceparticle(	float4*		pos,
 
 	// execute the kernel
 	if (savenormals){
-		if (periodicbound) {
 			switch (kerneltype) {
-				SURFACE_CHECK(CUBICSPLINE, true, true);
-//				SURFACE_CHECK(QUADRATIC, true, true);
-				SURFACE_CHECK(WENDLAND, true, true);
-			}
-		} else {
-			switch (kerneltype) {
-				SURFACE_CHECK(CUBICSPLINE, false, true);
-//				SURFACE_CHECK(QUADRATIC, false, true);
-				SURFACE_CHECK(WENDLAND, false, true);
+				SURFACE_CHECK(CUBICSPLINE, true);
+//				SURFACE_CHECK(QUADRATIC, true);
+				SURFACE_CHECK(WENDLAND, true);
 			}
 		}
-	} else {
-		if (periodicbound) {
+	else {
 			switch (kerneltype) {
-				SURFACE_CHECK(CUBICSPLINE, true, false);
-//				SURFACE_CHECK(QUADRATIC, true, false);
-				SURFACE_CHECK(WENDLAND, true, false);
-			}
-		} else {
-			switch (kerneltype) {
-				SURFACE_CHECK(CUBICSPLINE, false, false);
-//				SURFACE_CHECK(QUADRATIC, false, false);
-				SURFACE_CHECK(WENDLAND, false, false);
+				SURFACE_CHECK(CUBICSPLINE, false);
+//				SURFACE_CHECK(QUADRATIC, false);
+				SURFACE_CHECK(WENDLAND, false);
 			}
 		}
-	}
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("surface kernel execution failed");
 	

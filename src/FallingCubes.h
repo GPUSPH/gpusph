@@ -12,15 +12,18 @@
 #include "Point.h"
 #include "Cube.h"
 
+#include "ode/ode.h"
 
 class FallingCubes: public Problem {
 	private:
 		Cube		experiment_box;
-		Cube		cube[3];
 		PointVect	parts;
 		PointVect	boundary_parts;
 		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box
+		// ODE and rigid body stuff
+		Cube		cube[3];
+		dGeomID		planes[5];
 
 	public:
 		FallingCubes(const Options &);
@@ -28,7 +31,9 @@ class FallingCubes: public Problem {
 
 		int fill_parts(void);
 		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
+
+		void ODE_near_callback(void *, dGeomID, dGeomID);
 
 		void release_memory(void);
 };

@@ -87,13 +87,14 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	EB->SetCubeHeight(H);
 
-	m_size = make_float3(
+	// TODO FIXME adapt DEM to homogeneous precision
+	m_size = make_double3(
 			EB->get_vx()(0), // x component of vx
 			EB->get_vy()(1), // y component of vy
 			H);
 	cout << "m_size: " << m_size.x << " " << m_size.y << " " << m_size.z << "\n";
 
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0f, 7.0f, 20.f);

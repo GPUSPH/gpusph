@@ -235,7 +235,7 @@ void parse_options(int argc, char **argv)
 			argc--;
 		} else if (!strcmp(arg, "--deltap")) {
 			/* read the next arg as a float */
-			sscanf(*argv, "%f", &(clOptions.deltap));
+			sscanf(*argv, "%lf", &(clOptions.deltap));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--tend")) {
@@ -283,12 +283,15 @@ void init(const char *arg)
 {
 	problem = new PROBLEM(clOptions);
 
+	printf("Problem calling set grid params\n");
+	problem->set_grid_params();
+
 	/* TODO do it this way for all options? */
 	if (isfinite(clOptions.tend))
 		problem->get_simparams()->tend = clOptions.tend;
 
-	worldOrigin = problem->get_worldorigin();
-	worldSize = problem->get_worldsize();
+	worldOrigin = make_float3(problem->get_worldorigin());
+	worldSize = make_float3(problem->get_worldsize());
 
 	box_corner[0] = worldOrigin;
 	box_corner[1] = box_corner[0];
@@ -311,16 +314,18 @@ void init(const char *arg)
 
 	psystem = new ParticleSystem(problem);
 
-	psystem->printPhysParams();
-	psystem->printSimParams();
-
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
-	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
+
+	psystem->printPhysParams();
+	psystem->printSimParams();
+
+	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hParticleHash);
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
+	psystem->setArray(ParticleSystem::HASH);
 
 	uint numPlanes = problem->fill_planes();
 	if (numPlanes > 0) {
@@ -446,7 +451,7 @@ void viewPerspective() // Set Up A Perspective View
 void displayStatus(char *s) {
 	int len, i;
 	viewOrtho(viewport[2], viewport[3]); //Starting to draw the HUD
-	float3 tank_size = problem->m_size;
+	float3 tank_size = make_float3(problem->m_size);
 	glRasterPos2i(10, 10);
 	//glRasterPos3f(tank_size.x, tank_size.y, 0.0);
 	len = (int) strlen(s);
@@ -459,6 +464,7 @@ void displayStatus(char *s) {
 void get_arrays(bool need_write)
 {
 	psystem->getArray(ParticleSystem::POSITION, need_write);
+	psystem->getArray(ParticleSystem::HASH, need_write);
 	psystem->getArray(ParticleSystem::VELOCITY, need_write);
 	psystem->getArray(ParticleSystem::INFO, need_write);
 	if (need_write) {

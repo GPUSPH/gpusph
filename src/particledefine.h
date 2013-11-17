@@ -35,6 +35,12 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
+#ifndef dSINGLE
+#define dSINGLE
+#endif
+
+#include "ode/ode.h"
+
 enum KernelType {
 	CUBICSPLINE = 1,
 	QUADRATIC,
@@ -163,12 +169,13 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
  */
 
 #define FLUIDPART		0
+/* non-fluid types start at (1<<MAX_FLUID_BITS) */
 #define BOUNDPART		(1<<MAX_FLUID_BITS)
 #define PISTONPART		(2<<MAX_FLUID_BITS)
 #define PADDLEPART		(3<<MAX_FLUID_BITS)
 #define GATEPART		(4<<MAX_FLUID_BITS)
-#define TESTPOINTSPART	(5<<MAX_FLUID_BITS)
-#define OBJECTPART		(6<<MAX_FLUID_BITS)
+#define OBJECTPART		(5<<MAX_FLUID_BITS)
+#define TESTPOINTSPART	(6<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
@@ -196,7 +203,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 /* Tests for particle flags */
 // Free surface detection
-#define SURFACE_PARTICLE(f)	((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
+#define SURFACE(f)		((f).x & SURFACE_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data
@@ -209,15 +216,10 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define PART_FLUID_NUM(f)	((f).x & FLUID_NUM_MASK)
 
 
-/* Periodic neighborhood warping */
-#define WARPZMINUS				(1U<<31)
-#define WARPZPLUS				(1U<<30)
-#define WARPYMINUS				(1U<<29)
-#define WARPYPLUS				(1U<<28)
-#define WARPXMINUS				(1U<<27)
-#define WARPXPLUS				(1U<<26)
-#define MAXPARTICLES			WARPXPLUS
-#define NOWARP					~(WARPXPLUS|WARPXMINUS|WARPYPLUS|WARPYMINUS|WARPZPLUS|WARPZMINUS)
+/* Periodic boundary */
+#define XPERIODIC		0x1
+#define YPERIODIC		0x2
+#define ZPERIODIC		0x4
 
 
 /* Maximum number of floating bodies*/
@@ -231,6 +233,17 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #else
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
+
+typedef unsigned int uint;
+
+typedef unsigned char uchar;
+
+typedef unsigned short neibdata;
+
+/*typedef struct neibdata {
+	uchar	cell;
+	uchar 	offset;
+} neibdata;*/
 
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
@@ -276,17 +289,17 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	return v;
 }
 
-inline __host__ __device__ const short& type(const particleinfo &info)
+static __inline__ __host__ __device__ const short& type(const particleinfo &info)
 {
 	return info.x;
 }
 
-inline __host__ __device__ const short& object(const particleinfo &info)
+static __inline__ __host__ __device__ const short& object(const particleinfo &info)
 {
 	return info.y;   /***********NOTE */
 }
 
-inline __host__ __device__ const uint & id(const particleinfo &info)
+static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(uint*)&info.z;
 }

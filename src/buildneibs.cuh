@@ -33,36 +33,7 @@
 
 #include "vector_math.h"
 
-/*
-   Particle sorting relies on a particle hash that is built from the particle
-   position relative to a regular cartesian grid (gridHash).
-   The gridHash is an unsigned int (32-bit), so the particle hash key should
-   be at least as big, but in theory it could be bigger (if sorting should be
-   done using additional information, such as the particle id, too).
-   We therefore make the hash key size configurable, with HASH_KEY_SIZE
-   bits in the key.
- */
-
-#ifndef HASH_KEY_SIZE
-#define HASH_KEY_SIZE 32
-#endif
-
-#if HASH_KEY_SIZE < 32
-#error "Hash keys should be at least 32-bit wide"
-#elif HASH_KEY_SIZE == 32
-typedef unsigned int hashKey;
-#elif HASH_KEY_SIZE == 64
-typedef unsigned long hashKey;
-#else
-#error "unmanaged hash key size"
-#endif
-
-/*
-   The particle hash should always have the grid hash in the upper 32 bits,
-   so a GRIDHASH_BITSHIFT is defined, counting the number of bits the grid
-   hash should be shifted when inserted in the particle hash key.
- */
-#define GRIDHASH_BITSHIFT (HASH_KEY_SIZE - 32)
+#include "hashkey.h"
 
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
@@ -110,15 +81,14 @@ getneibsinfo(TimingInfo & timingInfo);
 
 void
 calcHash(float4*	pos,
-#if HASH_KEY_SIZE >= 64
-		 particleinfo* pinfo,
-#endif
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
-		 uint3		gridSize,
-		 float3		cellSize,
-		 float3		worldOrigin,
-		 uint		numParticles);
+		 const particleinfo* particleInfo,
+		 const uint3	gridSize,
+		 const float3	cellSize,
+		 const float3	worldOrigin,
+		 const uint		numParticles,
+		 const int		periodicbound);
 
 void
 reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
@@ -126,16 +96,16 @@ reorderDataAndFindCellStart(uint*			cellStart,		// output: cell start index
 							float4*			newPos,			// output: sorted positions
 							float4*			newVel,			// output: sorted velocities
 							particleinfo*	newInfo,		// output: sorted info
-							hashKey*		particleHash,   // input: sorted grid hashes
-							uint*			particleIndex,	// input: sorted particle indices
-							float4*			oldPos,			// input: sorted position array
-							float4*			oldVel,			// input: sorted velocity array
-							particleinfo*	oldInfo,		// input: sorted info array
-							uint			numParticles,
-							uint			numGridCells);
+							const hashKey*		particleHash,   // input: sorted grid hashes
+							const uint*			particleIndex,	// input: sorted particle indices
+							const float4*			oldPos,			// input: sorted position array
+							const float4*			oldVel,			// input: sorted velocity array
+							const particleinfo*	oldInfo,		// input: sorted info array
+							const uint			numParticles,
+							const uint			numGridCells);
 
 void
-buildNeibsList( uint*				neibsList,
+buildNeibsList( neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
 				const hashKey*		particleHash,
@@ -147,37 +117,7 @@ buildNeibsList( uint*				neibsList,
 				const uint			numParticles,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
-				const bool			periodicbound);
-
-void
-buildNeibsList2( uint*			neibsList,
-				float4*			pos,
-				particleinfo*	info,
-				hashKey*		particleHash,
-				uint*			cellStart,
-				uint*			cellEnd,
-				uint3			gridSize,
-				float3			cellSize,
-				float3			worldOrigin,
-				uint			numParticles,
-				uint			gridCells,
-				float			sqinfluenceradius,
-				bool			periodicbound);
-
-void
-buildNeibsList4( uint*				neibsList,
-				const float4*		pos,
-				const particleinfo*	info,
-				const hashKey*		particleHash,
-				const uint*			cellStart,
-				const uint*			cellEnd,
-				const uint3			gridSize,
-				const float3		cellSize,
-				const float3		worldOrigin,
-				const uint			numParticles,
-				const uint			gridCells,
-				const float			sqinfluenceradius,
-				const bool			periodicbound);
+				const int			periodicbound);
 
 void
 sort(	hashKey*	particleHash,

@@ -60,8 +60,8 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Size and origin of the simulation domain
-	m_size = make_float3(l, w ,h);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_double3(l, w ,h);
+	m_origin = make_double3(0.0f, 0.0f, 0.0f);
 
 	m_writerType = VTKWRITER;
 

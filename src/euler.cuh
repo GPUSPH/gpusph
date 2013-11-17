@@ -29,13 +29,14 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+#include "hashkey.h"
 
 #define BLOCK_SIZE_INTEGRATE	256
 
 extern "C"
 {
 void
-seteulerconstants(const PhysParams *physparams);
+seteulerconstants(const PhysParams *physparams, const uint3 gridSize, const float3 cellSize);
 
 void
 geteulerconstants(PhysParams *physparams);
@@ -53,19 +54,19 @@ void
 seteulerrbsteprot(const float* rot, int numbodies);
 
 void
-euler(	float4*		oldPos,
-		float4*		oldVel,
-		particleinfo* info,
-		float4*		forces,
-		float4*		xsph,
-		float4*		newPos,
-		float4*		newVel,
-		uint		numParticles,
-		float		dt,
-		float		dt2,
-		int			step,
-		float		t,
-		bool		xsphcorr,
-		bool		periodicbound);
+euler(	const float4*		oldPos,
+		const hashKey*		particleHash,
+		const float4*		oldVel,
+		const particleinfo* info,
+		const float4*		forces,
+		const float4*		xsph,
+		float4*				newPos,
+		float4*				newVel,
+		const uint			numParticles,
+		const float			dt,
+		const float			dt2,
+		const int			step,
+		const float			t,
+		const bool			xsphcorr);
 }
 #endif

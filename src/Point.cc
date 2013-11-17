@@ -85,19 +85,56 @@ Point::Point(const float4 &pt)
 }
 
 
-/// Constructor from coordinates array
+/// Constructor from double coordinates array
 /*!	\param xx : coordinates array
 */
-Point::Point(double *xx)
+Point::Point(const double *xx)
 {
 	x[0] = xx[0];
 	x[1] = xx[1];
 	x[2] = xx[2];
-		x[3] = xx[3];
+	x[3] = xx[3];
 }
 
 
-void Point::SetCoord(double *data)
+/// Constructor from float coordinates array
+/*!	\param xx : coordinates array
+*/
+Point::Point(const float *xx)
+{
+	x[0] = xx[0];
+	x[1] = xx[1];
+	x[2] = xx[2];
+	x[3] = xx[3];
+}
+
+
+Point
+Point::Rot(const dMatrix3 rot)
+{
+	Point res;
+	res(0) = rot[0]*x[0] + rot[1]*x[1] + rot[2]*x[2];
+	res(1) = rot[4]*x[0] + rot[5]*x[1] + rot[6]*x[2];
+	res(2) = rot[8]*x[0] + rot[9]*x[1] + rot[10]*x[2];
+
+	return res;
+}
+
+
+Point
+Point::TransposeRot(const dMatrix3 rot)
+{
+	Point res;
+	res(0) = rot[0]*x[0] + rot[4]*x[1] + rot[8]*x[2];
+	res(1) = rot[1]*x[0] + rot[5]*x[1] + rot[9]*x[2];
+	res(2) = rot[2]*x[0] + rot[6]*x[1] + rot[10]*x[2];
+
+	return res;
+}
+
+
+void
+Point::SetCoord(double *data)
 {
 	x[0] = data[0];
 	x[1] = data[1];
@@ -379,6 +416,35 @@ double distsq(const Point &pnt1, const Point &pnt2)
 	return pnt1.DistSquared(pnt2);
 }
 
+
+float4 make_float4(const Point &pt)
+{
+	return make_float4(pt(0), pt(1), pt(2), pt(3));
+}
+
+
+float3 make_float3(const Point &pt)
+{
+	return make_float3(pt(0), pt(1), pt(2));
+}
+
+
+void make_dvector3(const Point &pt, dVector3 vec)
+{
+	vec[0] = pt(0);
+	vec[1] = pt(1);
+	vec[2] = pt(2);
+}
+
+
+void make_dvector4(const Point &pt, dVector4 vec)
+{
+	vec[0] = pt(0);
+	vec[1] = pt(1);
+	vec[2] = pt(2);
+	vec[3] = pt(3);
+}
+
 // DEBUG
 #include <iostream>
 void Point::print(void)
@@ -386,14 +452,3 @@ void Point::print(void)
 	std::cout << "Point (" << x[0] << ", " << x[1] << ", " << x[2] << ") mass = " << x[3] << "\n";
 	return;
 }
-
-float4 make_float4(const Point &pt)
-{
-	return make_float4(pt(0), pt(1), pt(2), pt(3));
-}
-
-float3 make_float3(const Point &pt)
-{
-	return make_float3(pt(0), pt(1), pt(2));
-}
-

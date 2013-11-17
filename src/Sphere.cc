@@ -32,6 +32,7 @@
 #include <cstdlib>
 
 #include "Sphere.h"
+#include "gl_utils.h"
 
 
 Sphere::Sphere(void)
@@ -67,6 +68,29 @@ Sphere::SetInertia(const double dx)
 	m_inertia[0] = 2.0*m_mass/5.0*r*r;
 	m_inertia[1] = m_inertia[0];
 	m_inertia[2] = m_inertia[0];
+}
+
+
+void
+Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+{
+	m_ODEBody = dBodyCreate(ODEWorld);
+	dMassSetZero(&m_ODEMass);
+	dMassSetSphereTotal(&m_ODEMass, m_mass, m_r + dx/2.0);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
+}
+
+
+void
+Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
+	m_ODEGeom = dCreateSphere(ODESpace, m_r + dx/2.0);
+	if (m_ODEBody)
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+	else
+		dGeomSetPosition(m_ODEGeom,  m_center(0), m_center(1), m_center(2));
 }
 
 
@@ -156,8 +180,24 @@ Sphere::GLDraw(const EulerParameters& ep, const Point& cg) const
 	#undef CIRCLE_LINES
 }
 
+
+void
+Sphere::GLDraw(const dMatrix3 rot, const Point& cg) const
+{
+	  glEnable(GL_NORMALIZE);
+	  GLSetTransform(cg, rot);
+	  glScaled(m_r, m_r, m_r);
+	  GLDrawUnitSphere();
+	  glPopMatrix();
+	  glDisable(GL_NORMALIZE);
+}
+
+
 void
 Sphere::GLDraw(void) const
 {
-	GLDraw(m_ep, m_center);
+	if (m_ODEBody)
+		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
+	else
+		GLDraw(m_ODERot, m_center);
 }

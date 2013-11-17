@@ -39,6 +39,7 @@
 #include "Problem.h"
 #include "vector_math.h"
 
+int Problem::m_total_ODE_bodies = 0;
 
 Problem::Problem(const Options &options)
 {
@@ -49,15 +50,15 @@ Problem::Problem(const Options &options)
 	m_mbnumber = 0;
 	m_rbdatafile = NULL;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
-	m_bodies = NULL;
+	m_ODE_bodies = NULL;
 	m_problem_dir = options.dir;
 }
 
 
 Problem::~Problem(void)
 {
-	if (m_simparams.numbodies)
-		delete [] m_bodies;
+	if (m_ODE_bodies)
+		delete [] m_ODE_bodies;
 	if (m_rbdatafile != NULL) {
         fclose(m_rbdatafile);
     }
@@ -173,10 +174,13 @@ Problem::need_write_rbdata(float t)
 void
 Problem::write_rbdata(float t)
 {
-	if (m_simparams.numbodies) {
+	if (m_simparams.numODEbodies) {
 		if (need_write_rbdata(t)) {
-			for (int i = 0; i < m_simparams.numbodies; i++) {
-				m_bodies[i].Write(t, m_rbdatafile);
+			for (int i = 0; i < m_simparams.numODEbodies; i++) {
+				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
+				fprintf(m_rbdatafile, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", i, t, cg[0],
+						cg[1], cg[2], quat[0], quat[1], quat[2], quat[3]);
 			}
 		}
 	}
@@ -220,87 +224,130 @@ Problem::g_callback(const float t)
 }
 
 
-void 
-Problem::allocate_bodies(const int i)
+void
+Problem::allocate_ODE_bodies(const int i)
 {
-	m_simparams.numbodies = i;
-	m_bodies = new RigidBody[i];
+	m_simparams.numODEbodies = i;
+	m_ODE_bodies = new Object *[i];
 }
 
 
-RigidBody* 
-Problem::get_body(const int i)
+Object*
+Problem::get_ODE_body(const int i)
 {
-	if (i >= m_simparams.numbodies) {
+	if (i >= m_simparams.numODEbodies) {
 		stringstream ss;
-		ss << "get_body: body number " << i << " >= numbodies";
+		ss << "get_ODE_body: body number " << i << " >= numbodies";
 		throw runtime_error(ss.str());
 	}
-	return &m_bodies[i];
+	return m_ODE_bodies[i];
 }
 
 
-int 
-Problem::get_body_numparts(const int i)
+void
+Problem::add_ODE_body(Object* object)
 {
-	if (!m_simparams.numbodies)
-		return 0;
-
-	return m_bodies[i].GetParts().size();
+	if (m_total_ODE_bodies >= m_simparams.numODEbodies) {
+		stringstream ss;
+		ss << "add_ODE_body: body number " << m_total_ODE_bodies << " >= numbodies";
+		throw runtime_error(ss.str());
+	}
+	m_ODE_bodies[m_total_ODE_bodies] = object;
+	m_total_ODE_bodies++;
 }
 
 
 int 
-Problem::get_bodies_numparts(void)
+Problem::get_ODE_bodies_numparts(void)
 {
 	int total_parts = 0;
-	for (int i = 0; i < m_simparams.numbodies; i++) {
-		total_parts += m_bodies[i].GetParts().size();
+	for (int i = 0; i < m_simparams.numODEbodies; i++) {
+		total_parts += m_ODE_bodies[i]->GetParts().size();
 	}
 
 	return total_parts;
 }
 
 
+int
+Problem::get_ODE_body_numparts(const int i)
+{
+	if (!m_simparams.numODEbodies)
+		return 0;
+
+	return m_ODE_bodies[i]->GetParts().size();
+}
+
+
 void 
-Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
+Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
 {
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 }
 
 
-float3* 
-Problem::get_rigidbodies_cg(void)
+float3*
+Problem::get_ODE_bodies_cg(void)
 {
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies[i].GetCG(m_bodies_cg[i]);
+	for (int i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 	}
-	
+
 	return m_bodies_cg;
 }
 
 
 float* 
-Problem::get_rigidbodies_steprot(void)
+Problem::get_ODE_bodies_steprot(void)
 {
 	return m_bodies_steprot;
 }
 
 
-void 
-Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
-									const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+void
+Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
 {
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies[i].TimeStep(force[i], m_physparams.gravity, torque[i], step, dt,
-				m_bodies_cg + i, m_bodies_trans + i, m_bodies_steprot + 9*i);
-		}
+	dReal prev_quat[MAXBODIES][4];
+	for (int i = 0; i < m_total_ODE_bodies; i++)  {
+		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+		prev_quat[i][0] = quat[0];
+		prev_quat[i][1] = quat[1];
+		prev_quat[i][2] = quat[2];
+		prev_quat[i][3] = quat[3];
+		dBodyAddForce(m_ODE_bodies[i]->m_ODEBody, force[i].x, force[i].y, force[i].z);
+		dBodyAddTorque(m_ODE_bodies[i]->m_ODEBody, torque[i].x, torque[i].y, torque[i].z);
+	}
+
+	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
+	dWorldStep(m_ODEWorld, dt);
+	dJointGroupEmpty(m_ODEJointGroup);
+
+	for (int i = 0; i < m_simparams.numODEbodies; i++)  {
+		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
+		m_bodies_cg[i] = new_cg;
+		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+		dQuaternion step_quat;
+		dMatrix3 R;
+		dQMultiply2 (step_quat, new_quat, prev_quat[i]);
+		dQtoR (step_quat, R);
+		float *base_addr = m_bodies_steprot + 9*i;
+		base_addr[0] = R[0];
+		base_addr[1] = R[1];
+		base_addr[2] = R[2]; // Skipp R[3]
+		base_addr[3] = R[4];
+		base_addr[4] = R[5];
+		base_addr[5] = R[6]; // Skipp R[7]
+		base_addr[6] = R[8];
+		base_addr[7] = R[9];
+		base_addr[8] = R[10];
+	}
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 	trans = m_bodies_trans;
 }
-
 
 // Number of planes
 uint 
@@ -329,7 +376,7 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 
 		switch(mbcallbackdata.type) {
 			case PISTONPART:
-				data.x = mbcallbackdata.origin.x + mbcallbackdata.disp.x;
+				data.x = mbcallbackdata.vel.x;
 				break;
 
 			case PADDLEPART:
@@ -362,7 +409,7 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 void
 Problem::draw_axis()
 {	
-	float3 axis_center = m_origin + 0.5*m_size;
+	float3 axis_center = make_float3(m_origin + 0.5*m_size);
 	float axis_length = std::max(std::max(m_size.x, m_size.y), m_size.z)/4.0;
 	
 	/* X axis in green */
@@ -385,4 +432,94 @@ Problem::draw_axis()
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
 	glVertex3f(axis_center.x, axis_center.y, axis_center.z + axis_length);
 	glEnd();
+}
+
+
+// Compute grid size related parameters
+void
+Problem::set_grid_params(void)
+{
+	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
+
+	/*if (m_simparams.periodicbound & XPERIODIC)
+		m_size.x = m_gridsize.x*influenceRadius;
+	else
+		m_gridsize.x = (uint) (m_size.x / influenceRadius);
+
+	if (m_simparams.periodicbound & YPERIODIC)
+		m_size.y = m_gridsize.y*influenceRadius;
+	else
+		m_gridsize.y = (uint) (m_size.y / influenceRadius);
+
+	if (m_simparams.periodicbound & ZPERIODIC)
+		m_size.z = m_gridsize.z*influenceRadius;
+	else
+		m_gridsize.z = (uint) (m_size.z / influenceRadius);
+
+	m_cellsize.x = (m_simparams.periodicbound & XPERIODIC) ? influenceRadius : m_size.x / m_gridsize.x;
+	m_cellsize.y = (m_simparams.periodicbound & YPERIODIC) ? influenceRadius : m_size.y / m_gridsize.y;
+	m_cellsize.z = (m_simparams.periodicbound & ZPERIODIC) ? influenceRadius : m_size.z / m_gridsize.z;*/
+	// TODO: fix for periodic bound
+
+	m_cellsize.x = influenceRadius;
+	m_cellsize.y = influenceRadius;
+	m_cellsize.z = influenceRadius;
+
+	m_gridsize.x = ceil(m_size.x / influenceRadius);
+	m_gridsize.y = ceil(m_size.y / influenceRadius);
+	m_gridsize.z = ceil(m_size.z / influenceRadius);
+	m_size.x = m_gridsize.x*influenceRadius;
+	m_size.y = m_gridsize.y*influenceRadius;
+	m_size.z = m_gridsize.z*influenceRadius;
+
+	printf("set_grid_params :\n");
+	printf("Domain size : (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
+	printf("Grid size : (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
+	printf("Cell size : (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
+}
+
+
+// Compute position in uniform grid (clamping to edges)
+int3
+Problem::calc_grid_pos(const Point&	pos)
+{
+	int3 gridPos;
+	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
+	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
+	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+	gridPos.x = max(0, min(gridPos.x, m_gridsize.x-1));
+	gridPos.y = max(0, min(gridPos.y, m_gridsize.y-1));
+	gridPos.z = max(0, min(gridPos.z, m_gridsize.z-1));
+
+	return gridPos;
+}
+
+
+// Compute address in grid from position
+uint
+Problem::calc_grid_hash(int3 gridPos)
+{
+	return gridPos.z*m_gridsize.y*m_gridsize.x + gridPos.y*m_gridsize.x + gridPos.x;
+}
+
+
+void
+Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
+{
+	int3 gridPos = calc_grid_pos(pos);
+	hash = calc_grid_hash(gridPos);
+	localpos.x = float(pos(0) - (gridPos.x + 0.5)*m_cellsize.x);
+	localpos.y = float(pos(1) - (gridPos.y + 0.5)*m_cellsize.y);
+	localpos.z = float(pos(2) - (gridPos.z + 0.5)*m_cellsize.z);
+	localpos.w = float(pos(3));
+}
+
+
+void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+{
+}
+
+
+void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+{
 }

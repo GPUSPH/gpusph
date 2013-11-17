@@ -29,7 +29,7 @@
 #include <iostream>
 
 #include "Cylinder.h"
-
+#include "gl_utils.h"
 
 Cylinder::Cylinder(void)
 {
@@ -49,9 +49,9 @@ Cylinder::Cylinder(const Point& origin, const double radius, const Vector& heigh
 	Vector v(0, 0, 1);
 	const double angle = acos(height*v/m_h);
 	Vector rotdir = -height.cross(v);
-	std::cout << " angle " << angle << "\n";
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
+	dRFromAxisAndAngle(m_ODERot, rotdir(0), rotdir(1), rotdir(2), angle);
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
 }
@@ -67,6 +67,12 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 	m_ep.ComputeRot();
 	
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
+	dQuaternion q;
+	for (int i = 0; i < 4; i++)
+		q[i] = m_ep(i);
+
+	dQtoR(q, m_ODERot);
+
 	m_origin.print();
 	m_center.print();
 }
@@ -88,6 +94,7 @@ Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& heig
 	Vector rotdir = height.cross(v);
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
+	dRFromAxisAndAngle(m_ODERot, rotdir(0), rotdir(1), rotdir(2), angle);
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
 }
@@ -111,6 +118,32 @@ Cylinder::SetInertia(const double dx)
 	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
 	m_inertia[1] = m_inertia[0];
 	m_inertia[2] = m_mass/2.0*r*r;
+}
+
+
+void
+Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+{
+	m_ODEBody = dBodyCreate(ODEWorld);
+	dMassSetZero(&m_ODEMass);
+	dMassSetCylinderTotal(&m_ODEMass, m_mass, 3, m_r +dx/2.0, m_h + dx);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dBodySetRotation(m_ODEBody, m_ODERot);
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
+}
+
+
+void
+Cylinder::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
+	m_ODEGeom = dCreateCylinder(ODESpace, m_r, m_h);
+	if (m_ODEBody)
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+	else {
+		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
+		dGeomSetRotation(m_ODEGeom, m_ODERot);
+	}
 }
 
 
@@ -185,7 +218,19 @@ Cylinder::GLDraw(const EulerParameters& ep, const Point& cg) const
 
 
 void
+Cylinder::GLDraw(const dMatrix3 rot, const Point& cg) const
+{
+	GLSetTransform (cg, rot);
+	GLDrawCylinder(m_r, m_h);
+	glPopMatrix();
+}
+
+
+void
 Cylinder::GLDraw(void) const
 {
-	GLDraw(m_ep, m_center);
+	if (m_ODEBody)
+		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
+	else
+		GLDraw(m_ODERot, m_center);
 }

@@ -47,12 +47,16 @@ class Cube: public Object {
 	public:
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters&);
+		Cube(const Point&, const double, const double, const double, const dQuaternion);
 		Cube(const Point&, const Vector&, const Vector&, const Vector&);
 		virtual ~Cube(void) {};
 
 		double Volume(const double) const;
 		void SetInertia(const double);
 		
+		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
+		void ODEGeomCreate(dSpaceID, const double);
+
 		void FillBorder(PointVect&, const double, const int, const bool*);
 		void FillBorder(PointVect&, const double, const bool);
 		void FillBorder(PointVect& points, const double dx)
@@ -70,6 +74,7 @@ class Cube: public Object {
 		
 		void GLDraw(void) const;
 		void GLDraw(const EulerParameters&, const Point&) const;
+		void GLDraw(const dMatrix3, const Point&) const;
 		
 		bool IsInside(const Point&, const double) const;
 };

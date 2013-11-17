@@ -91,7 +91,7 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 			type, dim, offset);
 }
 
-void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
+void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
 				const float4 *normals)
 {
@@ -168,8 +168,8 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 
 	// position
 	fprintf(fid,"   <Points>\n");
-	vector_array(fid, "Float32", 3, offset);
-	offset += sizeof(float)*3*numParts+sizeof(int);
+	vector_array(fid, "Float64", 3, offset);
+	offset += sizeof(double)*3*numParts+sizeof(int);
 	fprintf(fid,"   </Points>\n");
 
 	// Cells data
@@ -311,7 +311,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	// position
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
-		float *value = (float*)(pos + i);
+		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 

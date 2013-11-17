@@ -93,24 +93,18 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentInfoRead(0),
 	m_currentInfoWrite(1)
 {
-	m_worldOrigin = problem->get_worldorigin();
-	m_worldSize = problem->get_worldsize();
+	m_worldOrigin = make_float3(problem->get_worldorigin());
+	m_worldSize = make_float3(problem->get_worldsize());
+	m_cellSize = make_float3(problem->get_cellsize());
+	m_gridSize = problem->get_gridsize();
 	m_writerType = problem->get_writertype();
 
 	m_influenceRadius = m_simparams->kernelradius*m_simparams->slength;
 	m_nlInfluenceRadius = m_influenceRadius*m_simparams->nlexpansionfactor;
 	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
 
-	m_gridSize.x = (uint) (m_worldSize.x / m_influenceRadius);
-	m_gridSize.y = (uint) (m_worldSize.y / m_influenceRadius);
-	m_gridSize.z = (uint) (m_worldSize.z / m_influenceRadius);
-
 	m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
 	m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
-
-	m_cellSize.x = m_worldSize.x / m_gridSize.x;
-	m_cellSize.y = m_worldSize.y / m_gridSize.y;
-	m_cellSize.z = m_worldSize.z / m_gridSize.z;
 
 	m_dt = m_simparams->dt;
 
@@ -154,7 +148,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 			m_device.sharedMemPerBlock,
 			m_device.sharedMemPerBlock/1024.0, "kB");
 
-	setPhysParams();
+	//setPhysParams();
 
 	switch(m_writerType) {
 		case Problem::TEXTWRITER:
@@ -180,26 +174,17 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 			break;
 	}
 
-	writeSummary();
 }
 
 
 void
 ParticleSystem::allocate(uint numParticles)
 {
-	if (numParticles >= MAXPARTICLES) {
-		fprintf(stderr, "Cannot handle %u > %u particles, sorry\n",
-				numParticles, MAXPARTICLES);
-		exit(1);
-	}
-
-	if (m_simparams->maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
-		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
-				m_simparams->maxneibsnum, NEIBINDEX_INTERLEAVE);
-		exit(1);
-	}
 	m_numParticles = numParticles;
 	m_timingInfo.numParticles = numParticles;
+
+	setPhysParams();
+	writeSummary();
 
 	// allocate host storage
 	const uint memSize = sizeof(float)*m_numParticles;
@@ -210,13 +195,16 @@ ParticleSystem::allocate(uint numParticles)
 	const uint hashSize = sizeof(hashKey)*m_numParticles;
 	const uint idxSize = sizeof(uint)*m_numParticles;
 	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(uint)*m_simparams->maxneibsnum*round_up(m_numParticles, NEIBINDEX_INTERLEAVE);
+	const uint neibslistSize = sizeof(neibdata)*m_simparams->maxneibsnum*m_numParticles;
 
 	uint memory = 0;
 
 	m_hPos = new float4[m_numParticles];
 	memset(m_hPos, 0, memSize4);
 	memory += memSize4;
+	m_hdPos = new double4[m_numParticles];
+	memset(m_hdPos, 0, 2*memSize4);
+	memory += 2*memSize4;
 
 	m_hVel = new float4[m_numParticles];
 	memset(m_hVel, 0, memSize4);
@@ -230,6 +218,10 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hInfo, 0, sizeof(float4)*m_physparams->numFluids);
 	memory += sizeof(float4)*m_physparams->numFluids;
 
+	m_hParticleHash = new hashKey[m_numParticles];
+	memset(m_hParticleHash, 0, hashSize);
+	memory += hashSize;
+
 	m_hVort = NULL;
 	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numParticles];
@@ -241,10 +233,6 @@ ParticleSystem::allocate(uint numParticles)
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
-
-	m_hParticleHash = new hashKey[m_numParticles];
-	memset(m_hParticleHash, 0, hashSize);
-	memory += hashSize;
 
 	m_hParticleIndex = new uint[m_numParticles];
 	memset(m_hParticleIndex, 0, idxSize);
@@ -258,7 +246,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new uint[m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
+	m_hNeibsList = new neibdata[m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 #endif
@@ -302,6 +290,21 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
 	memory += infoSize;
 
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
+	memory += hashSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
+	memory += hashSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
+	memory += gridcellSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, gridcellSize));
+	memory += gridcellSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
+	memory += neibslistSize;
+
 	// Free surface detection
 	if (m_simparams->savenormals) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
@@ -324,24 +327,9 @@ ParticleSystem::allocate(uint numParticles)
 		memory += memSize2;
 	}
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
-	memory += hashSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, idxSize));
-	memory += idxSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
-	memory += gridcellSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, gridcellSize));
-	memory += gridcellSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
-	memory += neibslistSize;
-
 	// Allocate storage for rigid bodies forces and torque computation
-	if (m_simparams->numbodies) {
-		m_numBodiesParticles = m_problem->get_bodies_numparts();
+	if (m_simparams->numODEbodies) {
+		m_numBodiesParticles = m_problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
 		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
 		int memSizeRbNum = m_numBodiesParticles*sizeof(uint);
@@ -356,23 +344,23 @@ ParticleSystem::allocate(uint numParticles)
 
 		uint rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
-		m_hRbLastIndex = new uint[m_simparams->numbodies];
-		m_hRbTotalForce = new float3[m_simparams->numbodies];
-		m_hRbTotalTorque = new float3[m_simparams->numbodies];
+		m_hRbLastIndex = new uint[m_simparams->numODEbodies];
+		m_hRbTotalForce = new float3[m_simparams->numODEbodies];
+		m_hRbTotalTorque = new float3[m_simparams->numODEbodies];
 
 		rbfirstindex[0] = 0;
-		for (int i = 1; i < m_simparams->numbodies; i++) {
-			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_body_numparts(i - 1);
+		for (int i = 1; i < m_simparams->numODEbodies; i++) {
+			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_ODE_body_numparts(i - 1);
 		}
-		setforcesrbstart(rbfirstindex, m_simparams->numbodies);
+		setforcesrbstart(rbfirstindex, m_simparams->numODEbodies);
 
 		int offset = 0;
-		for (int i = 0; i < m_simparams->numbodies; i++) {
-			m_hRbLastIndex[i] = m_problem->get_body_numparts(i) - 1 + offset;
-			for (int j = 0; j < m_problem->get_body_numparts(i); j++) {
+		for (int i = 0; i < m_simparams->numODEbodies; i++) {
+			m_hRbLastIndex[i] = m_problem->get_ODE_body_numparts(i) - 1 + offset;
+			for (int j = 0; j < m_problem->get_ODE_body_numparts(i); j++) {
 				rbnum[offset + j] = i;
 			}
-			offset += m_problem->get_body_numparts(i);
+			offset += m_problem->get_ODE_body_numparts(i);
 		}
 		size_t  size = m_numBodiesParticles*sizeof(uint);
 		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
@@ -481,8 +469,8 @@ ParticleSystem::setPhysParams(void)
 
 	// Setting kernels and kernels derivative factors
 
-	setforcesconstants(m_simparams, m_physparams);
-	seteulerconstants(m_physparams);
+	setforcesconstants(m_simparams, m_physparams, m_gridSize, m_cellSize, m_numParticles);
+	seteulerconstants(m_physparams, m_gridSize, m_cellSize);
 	setneibsconstants(m_simparams, m_physparams);
 }
 
@@ -564,10 +552,8 @@ ParticleSystem::printPhysParams(FILE *summary)
 	fprintf(summary, "espartvisc = %g\n", m_physparams->epsartvisc);
 	fprintf(summary, "epsxsph = %g\n", m_physparams->epsxsph);
 	if (m_simparams->periodicbound) {
-		fprintf(summary, "Periodic boundary parameters (disp vect, min and max limit) used when x,y or z periodic boundary is set\n");
-		fprintf(summary, "disp vect = (%g, %g, %g)\n", m_physparams->dispvect.x, m_physparams->dispvect.y, m_physparams->dispvect.z);
-		fprintf(summary, "min limit = (%g, %g, %g)\n", m_physparams->minlimit.x, m_physparams->minlimit.y, m_physparams->minlimit.z);
-		fprintf(summary, "max limit = (%g, %g, %g)\n", m_physparams->maxlimit.x, m_physparams->maxlimit.y, m_physparams->maxlimit.z);
+		fprintf(summary, "Periodic boundary parameters in x %d, y %d, z %d\n", m_simparams->periodicbound & XPERIODIC,
+				m_simparams->periodicbound & YPERIODIC, m_simparams->periodicbound & ZPERIODIC);
 		}
 	if (m_simparams->usedem) {
 		fprintf(summary, "DEM resolution ew = %g, ns = %g\n", m_physparams->ewres, m_physparams->nsres);
@@ -590,6 +576,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "kernelradius = %g\n", m_simparams->kernelradius);
 	fprintf(summary, "initial dt = %g\n", m_simparams->dt);
 	fprintf(summary, "simulation end time = %g\n", m_simparams->tend);
+	fprintf(summary, "maximum number of neighbors per particle = %d\n", m_simparams->maxneibsnum);
 	fprintf(summary, "neib list construction every %d iteration\n", m_simparams->buildneibsfreq);
 	fprintf(summary, "Shepard filter every %d iteration\n", m_simparams->shepardfreq);
 	fprintf(summary, "MLS filter every %d iteration\n", m_simparams->mlsfreq);
@@ -604,7 +591,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "variable gravity callback function = %d\n",m_simparams->gcallback);
 	fprintf(summary, "periodic boundary = %s\n", m_simparams->periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams->usedem);
-	fprintf(summary, "number of rigid bodies = %d\n", m_simparams->numbodies);
+	fprintf(summary, "number of rigid bodies = %d\n", m_simparams->numODEbodies);
 
 	fflush(summary);
 }
@@ -628,6 +615,7 @@ ParticleSystem::writeSummary(void)
 ParticleSystem::~ParticleSystem()
 {
 	delete [] m_hPos;
+	delete [] m_hdPos;
 	delete [] m_hVel;
 	delete [] m_hInfo;
 	if (m_simparams->vorticity) {
@@ -673,7 +661,7 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams->savenormals)
 		CUDA_SAFE_CALL(cudaFree(m_dNormals));
 
-	if (m_simparams->numbodies) {
+	if (m_simparams->numODEbodies) {
 		delete [] m_hRbLastIndex;
 		delete [] m_hRbTotalForce;
 		delete [] m_hRbTotalTorque;
@@ -705,12 +693,12 @@ ParticleSystem::~ParticleSystem()
 
 
 // TODO: DEBUG, testpoints, freesurface and size_t
-void*
+void
 ParticleSystem::getArray(ParticleArray array, bool need_write)
 {
 	void*   hdata = 0;
 	void*   ddata = 0;
-	long	size;
+	long	size = 0;
 
 	/* when writing testpoints and/or surface particles on an initial save,
 	 * we have to ensure that the neiblist has been built; this must be done
@@ -732,24 +720,23 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case VELOCITY:
-			{
 			//Testpoints
 			if (need_write && m_simparams->testpoints) {
 				testpoints(	m_dPos[m_currentPosRead],
 							m_dVel[m_currentVelRead],
 							m_dInfo[m_currentInfoRead],
+							m_dParticleHash,
+							m_dCellStart,
 							m_dNeibsList,
 							m_numParticles,
 							m_simparams->slength,
 							m_simparams->kerneltype,
-							m_influenceRadius,
-							m_simparams->periodicbound);
+							m_influenceRadius);
 				} // if need_write && m_simparams->testpoints
 
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hVel;
 			ddata = (void*) m_dVel[m_currentVelRead];
-			}
 			break;
 
 		case INFO:
@@ -757,18 +744,24 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			if (need_write && m_simparams->surfaceparticle) {
 				surfaceparticle( m_dPos[m_currentPosRead],
 								 m_dVel[m_currentVelRead],
-						         m_dNormals,
+								 m_dNormals,
 								 m_dInfo[m_currentInfoRead],
 								 m_dInfo[m_currentInfoWrite],
+								 m_dParticleHash,
+								 m_dCellStart,
 								 m_dNeibsList,
 								 m_numParticles,
 								 m_simparams->slength,
 								 m_simparams->kerneltype,
 								 m_influenceRadius,
-								 m_simparams->periodicbound,
 								 m_simparams->savenormals);
 				std::swap(m_currentInfoRead, m_currentInfoWrite);
-				} // if need_write && m_simparams->surfaceparticle
+
+				if (m_simparams->savenormals) {
+					size = m_numParticles*sizeof(float4);
+					CUDA_SAFE_CALL(cudaMemcpy((void*) m_hNormals, (void*) m_dNormals, size, cudaMemcpyDeviceToHost));
+				}
+			} // if need_write && m_simparams->surfaceparticle
 
 			size = m_numParticles*sizeof(particleinfo);
 			hdata = (void*) m_hInfo;
@@ -776,21 +769,32 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case VORTICITY:
-			size = m_numParticles*sizeof(float3);
-			hdata = (void*) m_hVort;
-			ddata = (void*) m_dVort;
+			if (need_write && m_simparams->vorticity) {
+				size = m_numParticles*sizeof(float3);
+				hdata = (void*) m_hVort;
+				ddata = (void*) m_dVort;
 
-			// Calling vorticity computation kernel
-			vorticity(	m_dPos[m_currentPosRead],
-						m_dVel[m_currentVelRead],
-						m_dVort,
-						m_dInfo[m_currentInfoRead],
-						m_dNeibsList,
-						m_numParticles,
-						m_simparams->slength,
-						m_simparams->kerneltype,
-						m_influenceRadius,
-						m_simparams->periodicbound);
+				// Calling vorticity computation kernel
+				vorticity(	m_dPos[m_currentPosRead],
+							m_dVel[m_currentVelRead],
+							m_dVort,
+							m_dInfo[m_currentInfoRead],
+							m_dParticleHash,
+							m_dCellStart,
+							m_dNeibsList,
+							m_numParticles,
+							m_simparams->slength,
+							m_simparams->kerneltype,
+							m_influenceRadius);
+			}
+			else
+				size = 0;
+			break;
+
+		case HASH:
+			size = m_numParticles*sizeof(hashKey);
+			hdata = (void*) m_hParticleHash;
+			ddata = (void*) m_dParticleHash;
 			break;
 
 #ifdef _DEBUG_
@@ -801,15 +805,9 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case NEIBSLIST:
-			size = m_numParticles*m_simparams->maxneibsnum*sizeof(uint);
+			size = m_numParticles*m_simparams->maxneibsnum*sizeof(neibdata);
 			hdata = (void*) m_hNeibsList;
 			ddata = (void*) m_dNeibsList;
-			break;
-
-		case HASH:
-			size = m_numParticles*sizeof(hashKey);
-			hdata = (void*) m_hParticleHash;
-			ddata = (void*) m_dParticleHash;
 			break;
 
 		case PARTINDEX:
@@ -830,16 +828,10 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			ddata = (void*) m_dCellEnd;
 			break;
 #endif
-			// Free surface detection (Debug)
-		case NORMALS:
-			size = m_numParticles*sizeof(float4);
-			hdata = (void*) m_hNormals;
-			ddata = (void*) m_dNormals;
-			break;
 	}
 
-	CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
-	return hdata;
+	if (size)
+		CUDA_SAFE_CALL(cudaMemcpy(hdata, ddata, size, cudaMemcpyDeviceToHost));
 }
 
 
@@ -853,22 +845,29 @@ ParticleSystem::setArray(ParticleArray array)
 
 	switch (array) {
 		case POSITION:
-			hdata = m_hPos;
-			ddata = m_dPos[m_currentPosRead];
+			hdata = (void*) m_hPos;
+			ddata = (void*) m_dPos[m_currentPosRead];
 			size = m_numParticles*sizeof(float4);
 			break;
 
 		case VELOCITY:
-			hdata = m_hVel;
-			ddata = m_dVel[m_currentVelRead];
+			hdata = (void*) m_hVel;
+			ddata = (void*) m_dVel[m_currentVelRead];
 			size = m_numParticles*sizeof(float4);
 			break;
 
 		case INFO:
-			hdata = m_hInfo;
-			ddata = m_dInfo[m_currentInfoRead];
+			hdata = (void*) m_hInfo;
+			ddata = (void*) m_dInfo[m_currentInfoRead];
 			size = m_numParticles*sizeof(particleinfo);
 			break;
+
+		case HASH:
+			hdata = (void*) m_hParticleHash;
+			ddata = (void*) m_dParticleHash;
+			size = m_numParticles*sizeof(hashKey);
+			break;
+
 		default:
 			fprintf(stderr, "Trying to upload unknown array %d\n", array);
 			return;
@@ -891,8 +890,18 @@ ParticleSystem::setPlanes(void)
 void
 ParticleSystem::writeToFile()
 {
+	for (uint i = 0; i < m_numParticles; i++) {
+		const float4 pos = m_hPos[i];
+		double4 dpos;
+		uint3 gridPos = calcGridPos(m_hParticleHash[i]);
+		dpos.x = ((double) m_cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
+		dpos.y = ((double) m_cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
+		dpos.z = ((double) m_cellSize.z)*(gridPos.z + 0.5) + (double) pos.z;
+
+		m_hdPos[i] = dpos;
+	}
 	//Testpoints
-	m_writer->write(m_numParticles, m_hPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals);
+	m_writer->write(m_numParticles, m_hdPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals);
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
@@ -904,6 +913,17 @@ ParticleSystem::writeToFile()
 }
 
 
+uint3
+ParticleSystem::calcGridPos(uint particleHash)
+{
+	uint3 gridPos;
+	gridPos.z = particleHash/(m_gridSize.x*m_gridSize.y);
+	gridPos.y = (particleHash - gridPos.z*m_gridSize.x*m_gridSize.y)/m_gridSize.x;
+	gridPos.x = particleHash - gridPos.y*m_gridSize.x - gridPos.z*m_gridSize.x*m_gridSize.y;
+
+	return gridPos;
+}
+
 void
 ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 {
@@ -912,25 +932,33 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	float minvel = m_problem->get_minvel();
 	float maxvel = m_problem->get_maxvel();
 
+	float minvort = 0.0;
+	float maxvort = 2.0;
+
+
 	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
 	float maxp = m_problem->pressure(maxrho,0);
 
-	float4* pos = m_hPos;
+	float4* relpos = m_hPos;
 	float4* vel = m_hVel;
 	float3* vort = m_hVort;
+	uint* 	hash = m_hParticleHash;
 	particleinfo* info = m_hInfo;
 
 	glPointSize(2.0);
 	glBegin(GL_POINTS);
 	{
 		for (uint i = 0; i < m_numParticles; i++) {
+			float3 pos = make_float3(relpos[i]);
+			pos = m_cellSize*calcGridPos(hash[i]) + pos + 0.5f*m_cellSize;
+
 			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
 				glColor3f(0.0, 1.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 			if (OBJECT(info[i]) && show_floating) {
 				glColor3f(1.0, 0.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 			if (FLUID(info[i])) {
 				float v; unsigned int t;
@@ -968,12 +996,18 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 						glColor3f((v - minp)/(maxp - minp),
 								1 - (v - minp)/(maxp - minp),0.0);
 						break;
+
 					case VM_VORTICITY:
-					    v = length(vort[i]);
-					    glColor3f(1.-(v-minvel)/(maxvel-minvel),1.0,1.0);
+						if (m_simparams->vorticity) {
+							v = length(vort[i]);
+							glColor3f(1.-(v-minvort)/(maxvort-minvort),1.0,1.0);
+						}
+						else
+							glColor3f(1.0, 1.0, 0.0);
+
 					    break;
 				}
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 		}
 
@@ -1015,15 +1049,14 @@ ParticleSystem::buildNeibList(bool timing)
 
 	// compute hash
 	calcHash(m_dPos[m_currentPosRead],
-#if HASH_KEY_SIZE >= 64
-			m_dInfo[m_currentInfoRead],
-#endif
 			m_dParticleHash,
 			m_dParticleIndex,
+			m_dInfo[m_currentInfoRead],
 			gridSize,
 			cellSize,
 			worldOrigin,
-			m_numParticles);
+			m_numParticles,
+			m_simparams->periodicbound);
 
 	// hash based particle sort
 	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
@@ -1116,12 +1149,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dVel[m_currentVelRead],
 				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
+				m_dParticleHash,
+				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
-				m_influenceRadius,
-				m_simparams->periodicbound);
+				m_influenceRadius);
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
@@ -1131,12 +1165,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dVel[m_currentVelRead],
 				m_dVel[m_currentVelWrite],
 				m_dInfo[m_currentInfoRead],
+				m_dParticleHash,
+				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
-				m_influenceRadius,
-				m_simparams->periodicbound);
+				m_influenceRadius);
 
 		std::swap(m_currentVelRead, m_currentVelWrite);
 	}
@@ -1152,12 +1187,17 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_interactions, 0);
 		}
 
-	// setting moving boundaries data if necessary
+	// Setting moving boundaries data
+	// NOTE: now with homogenous precision we need to pass moving boudaries
+	// velocity and not positions. In order to have an integration scheme
+	// independent implementation the callback function is called once before
+	// the first forces computation
 	if (m_simparams->mbcallback) {
-		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt/2.0, m_dt/2.0, m_iter == 0);
+		float4* hMbData = m_problem->get_mbdata(m_simTime, m_dt, m_iter == 0);
 		if (hMbData)
 			setmbdata(hMbData, m_mbDataSize);
 		}
+	// Setting time dependent gravity vector
 	if (m_simparams->gcallback) {
 		m_physparams->gravity = m_problem->g_callback(m_simTime);
 		setgravity(m_physparams->gravity);
@@ -1168,22 +1208,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	float *rot;
 
 	// Copying floating bodies centers of gravity for torque computation in forces (needed only at first
-	// setp)
-	if (m_simparams->numbodies && m_iter == 0) {
-		cg = m_problem->get_rigidbodies_cg();
-		setforcesrbcg(cg, m_simparams->numbodies);
-		seteulerrbcg(cg, m_simparams->numbodies);
-
-//		// Debug
-//		for (int i=0; i < m_simparams->numbodies; i++) {
-//			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
-//			}
-//
-//		uint rbfirstindex[MAXBODIES];
-//		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
-//		for (int i=0; i < m_simparams->numbodies; i++) {
-//			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
-//			}
+	// step)
+	if (m_simparams->numODEbodies && m_iter == 0) {
+		cg = m_problem->get_ODE_bodies_cg();
+		setforcesrbcg(cg, m_simparams->numODEbodies);
+		seteulerrbcg(cg, m_simparams->numODEbodies);
 		}
 
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
@@ -1193,6 +1222,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dRbTorques,
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
+					m_dParticleHash,
+					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
 					m_simparams->slength,
@@ -1207,7 +1238,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCfl,
 					m_dTempCfl,
 					m_dTau,
-					m_simparams->periodicbound,
 					m_simparams->sph_formulation,
 					m_simparams->boundarytype,
 					m_simparams->usedem);
@@ -1226,16 +1256,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventRecord(start_euler, 0);
 		}
 
-	if (m_simparams->numbodies) {
-		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
-						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
-
-		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 1, m_dt, cg, trans, rot);
-		seteulerrbtrans(trans, m_simparams->numbodies);
-		seteulerrbsteprot(rot, m_simparams->numbodies);
-	}
-
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
+			m_dParticleHash,
 			m_dVel[m_currentVelRead],   // vel(n)
 			m_dInfo[m_currentInfoRead], //particleInfo(n)
 			m_dForces,					// f(n)
@@ -1247,8 +1269,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dt/2.0,
 			1,
 			m_simTime + m_dt/2.0,
-			m_simparams->xsph,
-			m_simparams->periodicbound);
+			m_simparams->xsph);
 	// At tis point:
 	//  m_dPos[m_currentPosRead] = pos(n)
 	//  m_dVel[m_currentVelRead] =  vel(n)
@@ -1265,19 +1286,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		cudaEventDestroy(stop_euler);
 		}
 
-	// euler need the previous center of gravity but forces the new, so we copy to GPU
-	// here instead before call to euler
-	if (m_simparams->numbodies) {
-		setforcesrbcg(cg, m_simparams->numbodies);
-		seteulerrbcg(cg, m_simparams->numbodies);
-	}
-
-	// setting moving boundaries data if necessary
-	if (m_simparams->mbcallback) {
-		float4* hMbData = m_problem->get_mbdata(m_simTime + m_dt, m_dt/2.0, m_iter == 0);
-		if (hMbData)
-			setmbdata(hMbData, m_mbDataSize);
-		}
+	// Setting time dependent gravity vector
 	if (m_simparams->gcallback) {
 		m_physparams->gravity = m_problem->g_callback(m_simTime);
 		setgravity(m_physparams->gravity);
@@ -1290,6 +1299,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dRbTorques,
 					m_dXsph,
 					m_dInfo[m_currentInfoRead],
+					m_dParticleHash,
+					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
 					m_simparams->slength,
@@ -1304,22 +1315,25 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCfl,
 					m_dTempCfl,
 					m_dTau,
-					m_simparams->periodicbound,
 					m_simparams->sph_formulation,
 					m_simparams->boundarytype,
 					m_simparams->usedem);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
 
-	if (m_simparams->numbodies) {
+	if (m_simparams->numODEbodies) {
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
-						m_hRbTotalTorque, m_simparams->numbodies, m_numBodiesParticles);
+						m_hRbTotalTorque, m_simparams->numODEbodies, m_numBodiesParticles);
 
-		m_problem->rigidbodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
-		seteulerrbtrans(trans, m_simparams->numbodies);
-		seteulerrbsteprot(rot, m_simparams->numbodies);
+		m_problem->ODE_bodies_timestep(m_hRbTotalForce, m_hRbTotalTorque, 2, m_dt, cg, trans, rot);
+		setforcesrbcg(cg, m_simparams->numODEbodies);
+		seteulerrbcg(cg, m_simparams->numODEbodies);
+		seteulerrbtrans(trans, m_simparams->numODEbodies);
+		seteulerrbsteprot(rot, m_simparams->numODEbodies);
 	}
 
+
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
+			m_dParticleHash,
 			m_dVel[m_currentVelRead],   // vel(n)
 			m_dInfo[m_currentInfoRead], //particleInfo
 			m_dForces,					// f(n+1/2)
@@ -1331,21 +1345,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dt/2.0,
 			2,
 			m_simTime + m_dt,
-			m_simparams->xsph,
-			m_simparams->periodicbound);
+			m_simparams->xsph);
 	// At this point:
 	//  m_dPos[m_currentPosRead] = pos(n)
 	//  m_dVel[m_currentVelRead] =  vel(n)
 	//  m_dForces = f(n+1/2)
 	//  m_dPos[m_currentPosWrite] = pos(n+1) = pos(n) + velc(n+1/2)*dt
 	//  m_dVel[m_currentVelWrite] =  vel(n+1) = vel(n) + f(n+1/2)*dt
-
-	// euler need the previous center of gravity but forces the new, so we copy to GPU
-	// here instead before call to euler
-	if (m_simparams->numbodies) {
-		setforcesrbcg(cg, m_simparams->numbodies);
-		seteulerrbcg(cg, m_simparams->numbodies);
-	}
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
@@ -1387,13 +1393,13 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 
 /****************************************************************************************************/
-// Utility function privided for debug purpose
+// Utility function provided for debug purpose
 /****************************************************************************************************/
 void
 ParticleSystem::saveneibs()
 {
-	getArray(POSITION, false);
-	getArray(NEIBSLIST, false);
+	getArray(POSITION, true);
+	getArray(NEIBSLIST, true);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/neibs.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1403,29 +1409,14 @@ ParticleSystem::saveneibs()
 		pos.y = m_hPos[index].y;
 		pos.z = m_hPos[index].z;
 
-		// TODO: fix it for neib index interleave
+		// TODO: fix it for neib index interleave and new neibdata
 		for(uint i = index*m_simparams->maxneibsnum; i < index*m_simparams->maxneibsnum + m_simparams->maxneibsnum; i++) {
-			uint neib_index = m_hNeibsList[i];
+			//uint neib_index = m_hNeibsList[i];
+			uint neib_index = 0;
 
 			if (neib_index == 0xffffffff) break;
 
 			int3 periodic = make_int3(0);
-			if (m_simparams->periodicbound) {
-				if (neib_index & WARPXPLUS)
-					periodic.x = 1;
-				else if (neib_index & WARPXMINUS)
-					periodic.x = -1;
-				if (neib_index & WARPYPLUS)
-					periodic.y = 1;
-				else if (neib_index & WARPYMINUS)
-					periodic.y = -1;
-				if (neib_index & WARPZPLUS)
-					periodic.z = 1;
-				else if (neib_index & WARPZMINUS)
-					periodic.z = -1;
-
-				neib_index &= NOWARP;
-			}
 
 			float3 neib_pos;
 			neib_pos.x = m_hPos[neib_index].x;
@@ -1448,11 +1439,12 @@ ParticleSystem::saveneibs()
 }
 
 
+//TODO: fix for new neib data
 void
 ParticleSystem::savehash()
 {
-	getArray(POSITION, false);
-	getArray(HASH, false);
+	getArray(POSITION, true);
+	getArray(HASH, true);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/hash.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1481,8 +1473,8 @@ ParticleSystem::savehash()
 void
 ParticleSystem::saveindex()
 {
-	getArray(POSITION, false);
-	getArray(PARTINDEX, false);
+	getArray(POSITION, true);
+	getArray(PARTINDEX, true);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedindex.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1511,8 +1503,8 @@ ParticleSystem::saveindex()
 void
 ParticleSystem::savesorted()
 {
-	getArray(POSITION, false);
-	getArray(PARTINDEX, false);
+	getArray(POSITION, true);
+	getArray(PARTINDEX, true);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/sortedparts.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1541,9 +1533,9 @@ ParticleSystem::savesorted()
 void
 ParticleSystem::savecellstartend()
 {
-	getArray(POSITION, false);
-	getArray(CELLSTART, false);
-	getArray(CELLEND, false);
+	getArray(POSITION, true);
+	getArray(CELLSTART, true);
+	getArray(CELLEND, true);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/cellstartend.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1560,7 +1552,7 @@ ParticleSystem::savecellstartend()
 void
 ParticleSystem::savenormals()
 {
-	getArray(NORMALS, false);
+	getArray(INFO, true);
 	std::string fname;
 	fname = m_problem->get_dirname() + "/normals.txt";
 	FILE *fp = fopen(fname.c_str(),"w");
@@ -1584,7 +1576,7 @@ ParticleSystem::reducerbforces(void)
 
 	int firstindex = 0;
 	int lastindex = 0;
-	for (int i = 0; i < m_simparams->numbodies; i++) {
+	for (int i = 0; i < m_simparams->numODEbodies; i++) {
 		lastindex = m_hRbLastIndex[i];
 		float4 force = make_float4(0.0f);
 		float4 torque = make_float4(0.0f);
@@ -1616,7 +1608,7 @@ ParticleSystem::writeWaveGage()
 		m_simparams->gage[i].z = 0;
 
 		for (uint index = 0; index < m_numParticles; index++) {
-			if (SURFACE_PARTICLE(m_hInfo[index])) {
+			if (SURFACE(m_hInfo[index])) {
 				float4 pos = m_hPos[index];
 
 				//Taking height average between neighbouring surface particles 

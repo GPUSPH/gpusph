@@ -43,12 +43,16 @@ class Sphere: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 		
+		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
+		void ODEGeomCreate(dSpaceID, const double);
+
 		void FillBorder(PointVect&, const double);
 		
 		int Fill(PointVect&, const double, const bool fill = true);
 
 		void GLDraw(void) const;
 		void GLDraw(const EulerParameters&, const Point&) const;
+		void GLDraw(const dMatrix3, const Point&) const;
 		
 		bool IsInside(const Point&, const double) const;
 };
