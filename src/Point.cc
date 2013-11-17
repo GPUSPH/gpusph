@@ -61,6 +61,29 @@ Point::Point(const Point &pnt)
 	x[3] = pnt.x[3];
 }
 
+/// Constructor from double3
+/*!	\param pt : double3
+  the fourth component (mass) is initialized to 0
+*/
+Point::Point(const double3 &pt)
+{
+	x[0] = pt.x;
+	x[1] = pt.y;
+	x[2] = pt.z;
+	x[3] = 0;
+}
+
+/// Constructor from double4
+/*!	\param pt : double4
+*/
+Point::Point(const double4 &pt)
+{
+	x[0] = pt.x;
+	x[1] = pt.y;
+	x[2] = pt.z;
+	x[3] = pt.w;
+}
+
 /// Constructor from float3
 /*!	\param pt : float3
   the fourth component (mass) is initialized to 0

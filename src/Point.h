@@ -56,6 +56,8 @@ class Point {
 	public:
 		Point(double xx = 0, double yy = 0, double zz = 0, double m = 0);
 		Point(const Point &);
+		Point(const double3 &);
+		Point(const double4 &);
 		Point(const float3 &);
 		Point(const float4 &);
 		Point(const float *);
