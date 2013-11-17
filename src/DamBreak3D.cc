@@ -36,7 +36,7 @@
 #include "Point.h"
 #include "Vector.h"
 
-#define CENTER_DOMAIN 0
+#define CENTER_DOMAIN 1
 // set to coords (x,y,z) if more accuracy is needed in such point
 // (waiting for relative coordinates)
 #if CENTER_DOMAIN
