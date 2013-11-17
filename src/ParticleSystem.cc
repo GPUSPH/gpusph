@@ -469,7 +469,7 @@ ParticleSystem::setPhysParams(void)
 
 	// Setting kernels and kernels derivative factors
 
-	setforcesconstants(m_simparams, m_physparams, m_gridSize, m_cellSize, m_numParticles);
+	setforcesconstants(m_simparams, m_physparams, m_worldOrigin, m_gridSize, m_cellSize, m_numParticles);
 	seteulerconstants(m_physparams, m_gridSize, m_cellSize);
 	setneibsconstants(m_simparams, m_physparams);
 }
@@ -890,13 +890,14 @@ ParticleSystem::setPlanes(void)
 void
 ParticleSystem::writeToFile()
 {
+	double3 const& wo = m_problem->get_worldorigin();
 	for (uint i = 0; i < m_numParticles; i++) {
 		const float4 pos = m_hPos[i];
 		double4 dpos;
 		uint3 gridPos = calcGridPos(m_hParticleHash[i]);
-		dpos.x = ((double) m_cellSize.x)*(gridPos.x + 0.5) + (double) pos.x;
-		dpos.y = ((double) m_cellSize.y)*(gridPos.y + 0.5) + (double) pos.y;
-		dpos.z = ((double) m_cellSize.z)*(gridPos.z + 0.5) + (double) pos.z;
+		dpos.x = ((double) m_cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
+		dpos.y = ((double) m_cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
+		dpos.z = ((double) m_cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 
 		m_hdPos[i] = dpos;
 	}
@@ -950,7 +951,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	{
 		for (uint i = 0; i < m_numParticles; i++) {
 			float3 pos = make_float3(relpos[i]);
-			pos = m_cellSize*calcGridPos(hash[i]) + pos + 0.5f*m_cellSize;
+			pos = m_cellSize*calcGridPos(hash[i]) + pos + 0.5f*m_cellSize + m_worldOrigin;
 
 			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
 				glColor3f(0.0, 1.0, 0.0);

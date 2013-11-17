@@ -508,9 +508,9 @@ Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
 {
 	int3 gridPos = calc_grid_pos(pos);
 	hash = calc_grid_hash(gridPos);
-	localpos.x = float(pos(0) - (gridPos.x + 0.5)*m_cellsize.x);
-	localpos.y = float(pos(1) - (gridPos.y + 0.5)*m_cellsize.y);
-	localpos.z = float(pos(2) - (gridPos.z + 0.5)*m_cellsize.z);
+	localpos.x = float(pos(0) - m_origin.x - (gridPos.x + 0.5)*m_cellsize.x);
+	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
+	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);
 	localpos.w = float(pos(3));
 }
 

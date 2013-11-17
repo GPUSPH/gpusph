@@ -166,7 +166,8 @@ extern "C"
 {
 void
 setforcesconstants(const SimParams *simparams, const PhysParams *physparams,
-					const uint3 gridSize, const float3 cellSize, const uint numParticles)
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	const uint numParticles)
 {
 	// Setting kernels and kernels derivative factors
 	float h = simparams->slength;
@@ -241,8 +242,8 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams,
 	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
 
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_worldOrigin, &worldOrigin, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
-
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cellSize, &cellSize, sizeof(float3)));
 }
 

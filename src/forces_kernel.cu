@@ -113,6 +113,7 @@ __constant__ float d_objectobjectdf;
 __constant__ float d_objectboundarydf;
 
 // Grid data
+__constant__ float3 d_worldOrigin;
 __constant__ uint3	d_gridSize;
 __constant__ float3 d_cellSize;
 

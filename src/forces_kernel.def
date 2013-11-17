@@ -283,7 +283,7 @@ FORCES_CUDA_KERNEL
 
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numplanes) {
-				geom_coeff = max(geom_coeff, GeometryForce(as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
+				geom_coeff = max(geom_coeff, GeometryForce(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
 							pos.w, as_float3(vel), dynvisc, force));
 			}
 			
