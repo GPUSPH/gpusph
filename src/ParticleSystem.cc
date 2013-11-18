@@ -187,17 +187,17 @@ ParticleSystem::allocate(uint numParticles)
 	writeSummary();
 
 	// allocate host storage
-	const uint memSize = sizeof(float)*m_numParticles;
-	const uint memSize2 = sizeof(float2)*m_numParticles;
-	const uint memSize3 = sizeof(float3)*m_numParticles;
-	const uint memSize4 = sizeof(float4)*m_numParticles;
-	const uint infoSize = sizeof(particleinfo)*m_numParticles;
-	const uint hashSize = sizeof(hashKey)*m_numParticles;
-	const uint idxSize = sizeof(uint)*m_numParticles;
-	const uint gridcellSize = sizeof(uint)*m_nGridCells;
-	const uint neibslistSize = sizeof(neibdata)*m_simparams->maxneibsnum*m_numParticles;
+	const size_t memSize = sizeof(float)*m_numParticles;
+	const size_t memSize2 = sizeof(float2)*m_numParticles;
+	const size_t memSize3 = sizeof(float3)*m_numParticles;
+	const size_t memSize4 = sizeof(float4)*m_numParticles;
+	const size_t infoSize = sizeof(particleinfo)*m_numParticles;
+	const size_t hashSize = sizeof(hashKey)*m_numParticles;
+	const size_t idxSize = sizeof(uint)*m_numParticles;
+	const size_t gridcellSize = sizeof(uint)*m_nGridCells;
+	const size_t neibslistSize = sizeof(neibdata)*m_simparams->maxneibsnum*m_numParticles;
 
-	uint memory = 0;
+	size_t memory = 0;
 
 	m_hPos = new float4[m_numParticles];
 	memset(m_hPos, 0, memSize4);
@@ -246,7 +246,7 @@ ParticleSystem::allocate(uint numParticles)
 	memset(m_hCellEnd, 0, gridcellSize);
 	memory += gridcellSize;
 
-	m_hNeibsList = new neibdata[m_simparams->maxneibsnum*(m_numParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE];
+	m_hNeibsList = new neibdata[m_simparams->maxneibsnum*m_numParticles];
 	memset(m_hNeibsList, 0xffff, neibslistSize);
 	memory += neibslistSize;
 #endif
@@ -293,8 +293,8 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
 	memory += hashSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, hashSize));
-	memory += hashSize;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, idxSize));
+	memory += idxSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, gridcellSize));
 	memory += gridcellSize;
@@ -306,16 +306,19 @@ ParticleSystem::allocate(uint numParticles)
 	memory += neibslistSize;
 
 	// Free surface detection
+	m_dNormals = NULL;
 	if (m_simparams->savenormals) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, memSize4));
 		memory += memSize4;
 	}
 
+	m_dVort = NULL;
 	if (m_simparams->vorticity) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, memSize3));
 		memory += memSize3;
 	}
 
+	m_dTau[0] = m_dTau[1] = m_dTau[2] = NULL;
 	if (m_simparams->visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[0], memSize2));
 		memory += memSize2;
@@ -328,11 +331,13 @@ ParticleSystem::allocate(uint numParticles)
 	}
 
 	// Allocate storage for rigid bodies forces and torque computation
+	m_dRbTorques = m_dRbForces = NULL;
+	m_dRbNum = NULL;
 	if (m_simparams->numODEbodies) {
 		m_numBodiesParticles = m_problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
-		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
-		int memSizeRbNum = m_numBodiesParticles*sizeof(uint);
+		size_t memSizeRbForces = m_numBodiesParticles*sizeof(float4);
+		size_t memSizeRbNum = m_numBodiesParticles*sizeof(uint);
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbTorques, memSizeRbForces));
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbForces, memSizeRbForces));
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbNum, memSizeRbNum));
@@ -429,10 +434,10 @@ ParticleSystem::allocate_planes(uint numPlanes)
 {
 	m_numPlanes = numPlanes;
 
-	const uint planeSize4 = sizeof(float4)*m_numPlanes;
-	const uint planeSize  = sizeof(float )*m_numPlanes;
+	const size_t planeSize4 = sizeof(float4)*m_numPlanes;
+	const size_t planeSize  = sizeof(float )*m_numPlanes;
 
-	uint memory = 0;
+	size_t memory = 0;
 
 	m_hPlanes = new float4[m_numPlanes];
 	memset(m_hPlanes, 0, planeSize4);
@@ -489,7 +494,7 @@ ParticleSystem::printPhysParams(FILE *summary)
 {
 	if (!summary)
 		summary = stdout;
-    getPhysParams();
+	getPhysParams();
 	fprintf(summary, "\nPhysical parameters:\n");
 
 	unsigned int i=0;
@@ -698,7 +703,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 {
 	void*   hdata = 0;
 	void*   ddata = 0;
-	long	size = 0;
+	size_t	size = 0;
 
 	/* when writing testpoints and/or surface particles on an initial save,
 	 * we have to ensure that the neiblist has been built; this must be done
@@ -841,7 +846,7 @@ ParticleSystem::setArray(ParticleArray array)
 {
 	void* hdata = 0;
 	void* ddata = 0;
-	long  size;
+	size_t  size;
 
 	switch (array) {
 		case POSITION:
