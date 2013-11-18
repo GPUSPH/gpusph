@@ -229,7 +229,7 @@ ParticleSystem::allocate(uint numParticles)
 		}
 
 
-#ifdef PSYSTEM_DEBUG
+#ifdef _DEBUG_
 	m_hForces = new float4[m_numParticles];
 	memset(m_hForces, 0, memSize4);
 	memory += memSize4;
@@ -622,7 +622,7 @@ ParticleSystem::~ParticleSystem()
 		delete [] m_hVort;
 		}
 
-#ifdef PSYSTEM_DEBUG
+#ifdef _DEBUG_
 	delete [] m_hForces;
 	delete [] m_hNeibsList;
 	delete [] m_hParticleHash;
