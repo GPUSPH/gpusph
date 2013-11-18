@@ -42,7 +42,7 @@ typedef struct PhysParams {
 	float	sspowercoeff[MAX_FLUID_TYPES];
 
 	// Lennard-Jones boundary coefficients
- 	float	r0;		 		// influence radius of boundary repulsive force
+	float	r0;				// influence radius of boundary repulsive force
 	float	dcoeff;
 	float	p1coeff;
 	float	p2coeff;
@@ -70,7 +70,7 @@ typedef struct PhysParams {
 	float	demzmin;		// demdx*demdy
 	float	smagfactor;		// Cs*∆p^2
 	float	kspsfactor;		// 2/3*Ci*∆^2
-	int     numFluids;      // number of fluids in simulation
+	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
 	float	objectobjectdf;	// damping factor for object-object interaction 

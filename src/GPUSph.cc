@@ -871,10 +871,10 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 		printf("Showing normal\n");
 		break;
 
- 	case 'o':
- 	 	view_field = ParticleSystem::VM_VORTICITY;
- 	 	printf("Showing vorticity magnitude\n");
- 	 	break;
+	case 'o':
+		view_field = ParticleSystem::VM_VORTICITY;
+		printf("Showing vorticity magnitude\n");
+		break;
 
 	case 'X':
 		if (camvec.y == 0 && camvec.z == 0)

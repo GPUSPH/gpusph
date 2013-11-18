@@ -55,13 +55,13 @@ typedef struct SimParams {
 	bool			xsph;				// true if XSPH correction
 	bool			dtadapt;			// true if adaptive timestep
 	float			dtadaptfactor;		// safety factor in the adaptive time step formula
-	int				buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
-	int				shepardfreq;		// frequency (in iterations) of Shepard density filter
-	int				mlsfreq;			// frequency (in iterations) of MLS density filter
+	uint			buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
+	uint			shepardfreq;		// frequency (in iterations) of Shepard density filter
+	uint			mlsfreq;			// frequency (in iterations) of MLS density filter
 	ViscosityType	visctype;			// viscosity type (1 artificial, 2 laminar)
-	int				displayfreq;		// display update frequence (in seconds)
-	int				savedatafreq;		// simulation data saving frequence (in displayfreq)
-	int				saveimagefreq;		// screen capture frequence (in displayfreq)
+	uint			displayfreq;		// display update frequence (in seconds)
+	uint			savedatafreq;		// simulation data saving frequence (in displayfreq)
+	uint			saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
 	bool			periodicbound;		// true in case of periodic boundary
@@ -74,7 +74,7 @@ typedef struct SimParams {
 	bool            savenormals;        // true if we want to save the normals at free surface
 	bool            surfaceparticle;    // true if we want to find surface particles
 	GageList		gage;				// water gages
-	int				numODEbodies;		// number of floating bodies
+	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
 		kernelradius(2.0),
