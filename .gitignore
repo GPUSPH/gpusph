@@ -7,7 +7,7 @@ dist
 nbproject
 GPUSPH*
 tests
-tags
+TAGS
 *.kdev4
 .kdev*
 TODO
