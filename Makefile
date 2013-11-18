@@ -218,6 +218,8 @@ INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
 # access the CUDA include files from the C++ compiler too
 INCPATH += -I$(CUDA_INSTALL_PATH)/include
 
+LIBPATH += -L/usr/local/lib
+
 # link to the OpenGL libraries (GLEW is platform-dependent, see below)
 LIBS += -lGL -lGLU -lglut
 # link to the CUDA runtime library
