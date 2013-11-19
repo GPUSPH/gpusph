@@ -455,7 +455,6 @@ showobjs:
 # target: show - Show platform info and compiling options
 show:
 	@echo "Platform:        $(platform)"
-	@echo "NVCC version:    $(NVCC_VER)"
 	@echo "Architecture:    $(arch)"
 	@echo "Current dir:     $(CURDIR)"
 	@echo "This Makefile:   $(MAKEFILE)"
@@ -470,14 +469,17 @@ show:
 	@echo "Doxygen conf:    $(DOXYCONF)"
 	@echo "Verbose:         $(verbose)"
 	@echo "Debug:           $(dbg)"
-	@echo "CC:              $(CC)"
 	@echo "CXX:             $(CXX)"
+	@echo "nvcc:            $(NVCC)"
+	@echo "nvcc version:    $(NVCC_VER)"
 	@echo "Compute cap.:    $(COMPUTE)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
-	@echo "LFLAGS:          $(LFLAGS)"
-	@echo "CFLAGS:          $(CFLAGS)"
+	@echo "LDFLAGS:         $(LDFLAGS)"
+	@echo "CPPFLAGS:        $(CPPFLAGS)"
+	@echo "CXXFLAGS:        $(CXXFLAGS)"
+	@echo "CUFLAGS:         $(CUFLAGS)"
 #	@echo "Suffixes:        $(SUFFIXES)"
 
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
