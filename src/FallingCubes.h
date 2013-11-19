@@ -2,7 +2,7 @@
  * File:   FallingCube.h
  * Author: alexis
  *
- * Created on 31 août 2011, 17:32
+ * Created on 31 août 2011-2013, 17:32
  */
 
 #ifndef FALLINGCUBES_H

@@ -2,7 +2,7 @@
  * File:   Silicone1.h
  * Author: alexis
  *
- * Created on 9 juin 2011, 23:46
+ * Created on 9 juin 2011-2013, 23:46
  */
 
 #ifndef SILICONE1_H

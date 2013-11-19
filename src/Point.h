@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -27,7 +27,6 @@
  *  Point.h
  *
  *  Created by Alexis Herault on 27/07/06.
- *  Copyright 2006 __MyCompanyName__. All rights reserved.
  *
  */
 

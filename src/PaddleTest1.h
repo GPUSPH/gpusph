@@ -12,12 +12,12 @@
 #include "Point.h"
 #include "Cube.h"
 #include "Rect.h"
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
