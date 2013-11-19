@@ -240,7 +240,7 @@ else ifeq ($(platform), Darwin)
 
 	LIBS += -lGLEW
 
-	LDFLAGS += -Wl,-framework,GL,-framework,GLUT
+	LDFLAGS += -Wl,-framework,OpenGL,-framework,GLUT
 else
 	$(warning architecture $(arch) not supported by this makefile)
 endif
