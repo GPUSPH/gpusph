@@ -102,22 +102,26 @@ else
 	CUDA_SDK_PATH ?= /usr/local/cudasdk
 endif
 
-# files to store last compile options: problem, dbg, compute
+# files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
+FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
 
 # check compile options used last time:
 # - which problem? (name of problem, empty if file doesn't exist)
 LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
 	grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f3 -d " ")
-# - was dbg enabled? (1 or 0, empty if file doesn't exist))
+# - was dbg enabled? (1 or 0, empty if file doesn't exist)
 # "strip" added for Mac compatibility: on MacOS wc outputs a tab...
 LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
 	grep "\#define _DEBUG_" $(DBG_SELECT_OPTFILE) | wc -l))
 # - for which compute capability? (11, 12 or 20, empty if file doesn't exist)
 LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 	grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f3 -d " ")
+# - was fastmath enabled? (1 or 0, empty if file doesn't exist)
+LAST_FASTMATH=$(strip $(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+	grep "\#define _DEBUG_" $(FASTMATH_SELECT_OPTFILE) | wc -l))
 
 # sed syntax differs a bit
 ifeq ($(platform), Darwin)
@@ -181,6 +185,23 @@ else
 		COMPUTE=12
 	else
 		COMPUTE=$(LAST_COMPUTE)
+	endif
+endif
+
+# option: fastmath - Enable or disable fastmath. Default: 1 (enabled)
+ifdef fastmath
+	# user chooses
+	FASTMATH=$(fastmath)
+	# does it differ from last?
+	ifneq ($(LAST_FASTMATH),$(FASTMATH))
+		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+			$(SED_COMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
+	endif
+else
+	ifeq ($(LAST_FASTMATH),)
+		FASTMATH=1
+	else
+		FASTMATH=$(LAST_FASTMATH)
 	endif
 endif
 
@@ -281,7 +302,11 @@ CXXFLAGS += $(TARGET_ARCH)
 CUFLAGS += -ccbin=$(CXX)
 
 # nvcc-specific flags
-CUFLAGS += -arch=sm_$(COMPUTE) --use_fast_math -lineinfo
+CUFLAGS += -arch=sm_$(COMPUTE) -lineinfo
+
+ifeq ($(FASTMATH),1)
+	CUFLAGS += --use_fast_math
+endif
 
 
 # Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
@@ -372,6 +397,7 @@ endif
 all: $(OBJS) | $(DISTDIR)
 	@echo
 	@echo "Compiled with problem $(PROBLEM)"
+	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage,LINK,$(TARGET)\\n)
 	$(CMDECHO)$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
@@ -392,6 +418,10 @@ $(COMPUTE_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define the compute capability GPU code was compiled for. */" \
 		> $(COMPUTE_SELECT_OPTFILE)
 	@echo "#define COMPUTE $(COMPUTE)" >> $(COMPUTE_SELECT_OPTFILE)
+$(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if fastmath is enabled for GPU code. */" \
+		> $@
+	@echo "#define FASTMATH $(FASTMATH)" >> $@
 
 $(OBJDIR)/GPUSph.o: $(PROBLEM_SELECT_OPTFILE)
 
@@ -403,7 +433,7 @@ $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	$(CMDECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -434,11 +464,12 @@ cpuclean:
 gpuclean:
 	$(RM) $(CUOBJS)
 
-# target: cookiesclean - Clean last dbg, problem and compute choices, forcing
+# target: cookiesclean - Clean last dbg, problem, compute and fastmath choices, forcing
 # target:                .*_select.opt files to be regenerated (use if they're
 # target:                messed up)
 cookiesclean:
-	$(RM) $(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(OPTSDIR)
+	$(RM) $(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) \
+		$(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(OPTSDIR)
 
 # target: showobjs - List detected sources and target objects
 showobjs:
@@ -473,6 +504,7 @@ show:
 	@echo "nvcc:            $(NVCC)"
 	@echo "nvcc version:    $(NVCC_VER)"
 	@echo "Compute cap.:    $(COMPUTE)"
+	@echo "Fastmath:        $(FASTMATH)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
