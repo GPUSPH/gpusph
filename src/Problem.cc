@@ -435,47 +435,34 @@ Problem::draw_axis()
 }
 
 
-// Compute grid size related parameters
+/*! Compute grid and cell size from the kernel influence radius
+ * The number of cell is obtained as the ratio between the domain size and the
+ * influence radius, rounded down to the closest integer.
+ * The reason for rounding down is that we want the cell size to be no smaller
+ * than the influence radius, to guarantee that all neighbors of a particle are
+ * found at most one cell away in each direction.
+ */
 void
 Problem::set_grid_params(void)
 {
 	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
 
-	/*if (m_simparams.periodicbound & XPERIODIC)
-		m_size.x = m_gridsize.x*influenceRadius;
-	else
-		m_gridsize.x = (uint) (m_size.x / influenceRadius);
+	m_gridsize.x = floor(m_size.x / influenceRadius);
+	m_gridsize.y = floor(m_size.y / influenceRadius);
+	m_gridsize.z = floor(m_size.z / influenceRadius);
 
-	if (m_simparams.periodicbound & YPERIODIC)
-		m_size.y = m_gridsize.y*influenceRadius;
-	else
-		m_gridsize.y = (uint) (m_size.y / influenceRadius);
+	m_cellsize.x = m_size.x / m_gridsize.x;
+	m_cellsize.y = m_size.y / m_gridsize.y;
+	m_cellsize.z = m_size.z / m_gridsize.z;
 
-	if (m_simparams.periodicbound & ZPERIODIC)
-		m_size.z = m_gridsize.z*influenceRadius;
-	else
-		m_gridsize.z = (uint) (m_size.z / influenceRadius);
-
-	m_cellsize.x = (m_simparams.periodicbound & XPERIODIC) ? influenceRadius : m_size.x / m_gridsize.x;
-	m_cellsize.y = (m_simparams.periodicbound & YPERIODIC) ? influenceRadius : m_size.y / m_gridsize.y;
-	m_cellsize.z = (m_simparams.periodicbound & ZPERIODIC) ? influenceRadius : m_size.z / m_gridsize.z;*/
-	// TODO: fix for periodic bound
-
-	m_cellsize.x = influenceRadius;
-	m_cellsize.y = influenceRadius;
-	m_cellsize.z = influenceRadius;
-
-	m_gridsize.x = ceil(m_size.x / influenceRadius);
-	m_gridsize.y = ceil(m_size.y / influenceRadius);
-	m_gridsize.z = ceil(m_size.z / influenceRadius);
-	m_size.x = m_gridsize.x*influenceRadius;
-	m_size.y = m_gridsize.y*influenceRadius;
-	m_size.z = m_gridsize.z*influenceRadius;
-
-	printf("set_grid_params :\n");
-	printf("Domain size : (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
-	printf("Grid size : (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
-	printf("Cell size : (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
+	printf("set_grid_params\t:\n");
+	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
+	printf("Grid   size\t: (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
+	printf("Cell   size\t: (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
+	printf("       delta\t: (%.2f%%, %.2f%%, %.2f%%)\n",
+		(m_cellsize.x - influenceRadius)*100/influenceRadius,
+		(m_cellsize.y - influenceRadius)*100/influenceRadius,
+		(m_cellsize.z - influenceRadius)*100/influenceRadius);
 }
 
 
