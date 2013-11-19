@@ -507,13 +507,13 @@ deps: $(GPUDEPS) $(CPUDEPS)
 $(GPUDEPS): $(CUFILES) $(SRCDIR)
 	@echo [DEPS] GPU
 	$(CMDECHO)makedepend -Y -s'# GPU sources dependencies generated with "make deps"' \
-		-w4096 -f- -- $(CFLAGS) -- $^ 2> /dev/null | \
+		-w4096 -f- -- $(CPPFLAGS) -- $^ 2> /dev/null | \
 		sed -e 's/$(subst ./,,$(SRCDIR))/$(subst ./,,$(OBJDIR))/' > $(GPUDEPS)
 
 $(CPUDEPS): $(CCFILES) $(SRCDIR)
 	@echo [DEPS] CPU
 	$(CMDECHO)makedepend -Y -a -s'# CPU sources dependencies generated with "make deps"' \
-		-w4096 -f- -- $(CFLAGS) -- $^ 2> /dev/null | \
+		-w4096 -f- -- $(CPPFLAGS) -- $^ 2> /dev/null | \
 		sed -e 's/$(subst ./,,$(SRCDIR))/$(subst ./,,$(OBJDIR))/' > $(CPUDEPS)
 
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
