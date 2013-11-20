@@ -39,7 +39,8 @@ struct Options {
 	float deltap; // deltap
 	float tend; // simulation end
 	bool nosave; // disable saving
-	unsigned int num_hosts;
+	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
+	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
 	Options(void) :
 		problem(),
 		device(-1),
@@ -48,7 +49,8 @@ struct Options {
 		deltap(NAN),
 		tend(NAN),
 		nosave(false),
-		num_hosts(0)
+		num_hosts(0),
+		byslot_scheduling(false)
 	{};
 };
 

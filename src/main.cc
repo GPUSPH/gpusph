@@ -22,7 +22,7 @@
 void print_usage() {
 	cerr << "Syntax: " << endl;
 	cerr << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cerr << "\t       [--dir directory] [--nosave] [--num_hosts VAL]\n";
+	cerr << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
 	cerr << "\tGPUSPH --help\n\n";
 	cerr << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	cerr << " --dem : Use given DEM (if problem supports it)\n";
@@ -32,6 +32,7 @@ void print_usage() {
 	//cerr << " --pthreads : Force use of threads even if single GPU\n";
 	cerr << " --nosave : Disable all file dumps but the last\n";
 	cerr << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
+	cerr << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
 	//cerr << " --nobalance : Disable dynamic load balancing\n";
 	//cerr << " --alloc-max : Alloc total number of particles for every device\n";
 	//cerr << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
@@ -121,7 +122,10 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			sscanf(*argv, "%u", &(_clOptions->num_hosts));
 			argv++;
 			argc--;
-		} /*else if (!strcmp(arg, "--nobalance")) {
+		} else if (!strcmp(arg, "--byslot_scheduling")) {
+			_clOptions->byslot_scheduling = true;
+		}
+		/*else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
 			gdata->nobalance = true;
 		} else if (!strcmp(arg, "--alloc-max")) {
@@ -248,16 +252,22 @@ int main(int argc, char** argv) {
 
 	gdata.mpi_nodes = gdata.networkManager->getWorldSize();
 	gdata.mpi_rank = gdata.networkManager->getProcessRank();
+
 	// We "shift" the cuda device indices by devIndexOffset. It is useful in case of multiple processes per node. Will write external docs about the formula
 	uint devIndexOffset = 0;
-	if (gdata.clOptions->num_hosts > 0)
-		devIndexOffset = (gdata.mpi_rank / gdata.clOptions->num_hosts) * gdata.devices;
-	// in case of non round robin scheduling (but filling nodes as they come):
-	//   devIndexOffset = (gdata.mpi_rank % ( gdata.mpi_nodes / gdata.clOptions->num_hosts ) ) * gdata.devices;
-	// could be added as a command line option in the future
-	for (int d=0; d < gdata.devices; d++)
-		gdata.device[d] += devIndexOffset;
+	if (gdata.clOptions->num_hosts > 0) {
+		if (gdata.clOptions->byslot_scheduling)
+			// non round-robin scheduling: fill first node, then start assigning to the second
+			devIndexOffset = (gdata.mpi_rank % ( gdata.mpi_nodes / gdata.clOptions->num_hosts ) ) * gdata.devices;
+		else
+			// round-robin scheduling: distribute to non-empty node only if others have at least n-1 processes already
+			devIndexOffset = (gdata.mpi_rank / gdata.clOptions->num_hosts) * gdata.devices;
 
+		for (int d=0; d < gdata.devices; d++)
+				gdata.device[d] += devIndexOffset;
+	} else
+		if (gdata.clOptions->byslot_scheduling)
+			printf("WARNING: --byslot_scheduling was enabled, but number of hosts is zero!\n");
 
 	gdata.totDevices = gdata.mpi_nodes * gdata.devices;
 	printf(" tot devs = %u (%u * %u)\n",gdata.totDevices, gdata.mpi_nodes, gdata.devices );
