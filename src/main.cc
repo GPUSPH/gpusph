@@ -22,7 +22,7 @@
 void print_usage() {
 	cerr << "Syntax: " << endl;
 	cerr << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cerr << "\t       [--pthreads] [--dir directory] [--nosave] [--nobalance] [--nopause]\n";
+	cerr << "\t       [--dir directory] [--nosave] [--num_hosts VAL]\n";
 	cerr << "\tGPUSPH --help\n\n";
 	cerr << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	cerr << " --dem : Use given DEM (if problem supports it)\n";
@@ -31,6 +31,7 @@ void print_usage() {
 	cerr << " --dir : Use given directory for dumps instead of date-based one\n";
 	//cerr << " --pthreads : Force use of threads even if single GPU\n";
 	cerr << " --nosave : Disable all file dumps but the last\n";
+	cerr << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
 	//cerr << " --nobalance : Disable dynamic load balancing\n";
 	//cerr << " --alloc-max : Alloc total number of particles for every device\n";
 	//cerr << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
@@ -115,6 +116,11 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 		} */ else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
 			gdata->nosave = true;
+		} else if (!strcmp(arg, "--num_hosts")) {
+			/* read the next arg as a uint */
+			sscanf(*argv, "%u", &(_clOptions->num_hosts));
+			argv++;
+			argc--;
 		} /*else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
 			gdata->nobalance = true;
@@ -242,9 +248,22 @@ int main(int argc, char** argv) {
 
 	gdata.mpi_nodes = gdata.networkManager->getWorldSize();
 	gdata.mpi_rank = gdata.networkManager->getProcessRank();
+	// We "shift" the cuda device indices by devIndexOffset. It is useful in case of multiple processes per node. Will write external docs about the formula
+	uint devIndexOffset = 0;
+	if (gdata.clOptions->num_hosts > 0)
+		devIndexOffset = (gdata.mpi_rank / gdata.clOptions->num_hosts) * gdata.devices;
+	// in case of non round robin scheduling (but filling nodes as they come):
+	//   devIndexOffset = (gdata.mpi_rank % ( gdata.mpi_nodes / gdata.clOptions->num_hosts ) ) * gdata.devices;
+	// could be added as a command line option in the future
+	for (int d=0; d < gdata.devices; d++)
+		gdata.device[d] += devIndexOffset;
+
 
 	gdata.totDevices = gdata.mpi_nodes * gdata.devices;
 	printf(" tot devs = %u (%u * %u)\n",gdata.totDevices, gdata.mpi_nodes, gdata.devices );
+	if (gdata.clOptions->num_hosts > 0)
+		printf(" num_host was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
+
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(*(gdata.clOptions));

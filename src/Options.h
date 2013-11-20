@@ -39,6 +39,7 @@ struct Options {
 	float deltap; // deltap
 	float tend; // simulation end
 	bool nosave; // disable saving
+	unsigned int num_hosts;
 	Options(void) :
 		problem(),
 		device(-1),
@@ -46,7 +47,8 @@ struct Options {
 		custom_dir(),
 		deltap(NAN),
 		tend(NAN),
-		nosave(false)
+		nosave(false),
+		num_hosts(0)
 	{};
 };
 
