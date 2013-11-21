@@ -122,8 +122,8 @@ LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
 LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 	grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f3 -d " ")
 # - was fastmath enabled? (1 or 0, empty if file doesn't exist)
-LAST_FASTMATH=$(strip $(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-	grep "\#define _DEBUG_" $(FASTMATH_SELECT_OPTFILE) | wc -l))
+LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
 
 # sed syntax differs a bit
 ifeq ($(platform), Darwin)
