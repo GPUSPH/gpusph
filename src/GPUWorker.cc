@@ -157,6 +157,10 @@ void GPUWorker::importPeerEdgeCells()
 		return;
 	}
 
+	// check if at least one double buffer was specified
+	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+	uint dbl_buf_idx;
+
 	// We aim to make the fewest possible transfers. So we keep track of each burst of consecutive
 	// cells from the same peer device, to transfer it with a single memcpy.
 	// To this aim, it is important that we iterate on the linearized index so that consecutive
@@ -288,10 +292,6 @@ void GPUWorker::importPeerEdgeCells()
 				} else {
 					// Previous burst is not compatible, need to flush the "buffer" and reset it to the current cell.
 
-					// check if at least one double buffer was specified; if not, we will not transfer any double-buffered datum
-					bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-					uint dbl_buf_idx;
-
 					// retrieve the appropriate peer memory pointer and transfer the requested data
 					if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
 						_size = burst_numparts * sizeof(float4);
@@ -329,11 +329,6 @@ void GPUWorker::importPeerEdgeCells()
 
 	// flush the burst if not empty (should always happen if at least one edge cell is not empty)
 	if (!BURST_IS_EMPTY) {
-		// retrieve peer buffers pointers
-
-		// check if at least one double buffer was specified
-		bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-		uint dbl_buf_idx;
 
 		// transfer the requested data
 		if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
@@ -363,7 +358,11 @@ void GPUWorker::importPeerEdgeCells()
 			peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber,
 								peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
+
 	}
+
+#undef BURST_IS_EMPTY
+#undef BURST_SET_CURRENT_CELL
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
