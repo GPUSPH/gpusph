@@ -58,10 +58,6 @@
 #include "forces.cuh"
 #include "euler.cuh"
 
-#include <thrust/device_vector.h>
-#include <thrust/scan.h>
-#include <thrust/functional.h>
-
 #include "utils.h"
 
 static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] = {
