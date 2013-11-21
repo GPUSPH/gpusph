@@ -399,10 +399,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 	uint burst_self_index_end[MAX_DEVICES_PER_CLUSTER];
 	uint burst_numparts[MAX_DEVICES_PER_CLUSTER]; // redundant with burst_peer_index_end, but cleaner
 	bool burst_is_sending[MAX_DEVICES_PER_CLUSTER]; // true for bursts of sends, false for bursts of receives
-	//uint burst_peer_dev_index[MAX_DEVICES_PER_CLUSTER];
 
 	// initialize bursts
-	for (uint n=0; n < MAX_DEVICES_PER_CLUSTER; n++) {
+	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
 		burst_self_index_begin[n] = 0;
 		burst_self_index_end[n] = 0;
 		burst_numparts[n] = 0;
@@ -427,13 +426,13 @@ void GPUWorker::importNetworkPeerEdgeCells()
 	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
 		// we will need the 3D coords as well
-		int3 curr_cell = gdata->reverseGridHashHost(lin_curr_cell);;
+		int3 curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
 		// optimization: if not edging, continue
 		if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
 			m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
 
-		// reset the list fo recipient neib processes
+		// reset the list for recipient neib processes
 		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
 			recipient_devices[d] = false;
 
@@ -448,11 +447,14 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		bool curr_mine = (curr_cell_globalDevIdx == m_globalDeviceIdx);
 
 		// iterate on neighbors
-		for (int dx = -1; dx <= 1; dx++)
+		for (int dz = -1; dz <= 1; dz++)
 			for (int dy = -1; dy <= 1; dy++)
-				for (int dz = -1; dz <= 1; dz++) {
+				for (int dx = -1; dx <= 1; dx++) {
 
-					// check that we are inside the grid
+					// skip self (should be implicit with dev id check, later)
+					if (dx == 0 && dy == 0 && dz == 0) continue;
+
+					// ensure we are inside the grid
 					if (curr_cell.x + dx < 0 || curr_cell.x + dx >= gdata->gridSize.x) continue;
 					if (curr_cell.y + dy < 0 || curr_cell.y + dy >= gdata->gridSize.y) continue;
 					if (curr_cell.z + dz < 0 || curr_cell.z + dz >= gdata->gridSize.z) continue;
@@ -475,7 +477,6 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// did we already treat the pair (curr_rank <-> neib_rank) for this cell?
 					if (recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ]) continue;
 
-					// do they belong to different nodes?
 					// we can skip 1. pairs belonging to the same node 2. pairs where not current nor neib belong to current process
 					if (curr_cell_rank == neib_cell_rank || ( !curr_mine && !neib_mine ) ) continue;
 
@@ -527,7 +528,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					if (curr_mine && gdata->nextCommand == APPEND_EXTERNAL)
 						gdata->networkManager->sendUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
 
-					// if the cell is empty just continue to next one
+					// mark the pair current_cell:neib_node as treated
+					recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ] = true;
+
+					// if the cell is empty, just continue to next one
 					if  (curr_cell_start == EMPTY_CELL) continue;
 
 					if (BURST_IS_EMPTY) {
@@ -551,55 +555,55 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 						if ( burst_is_sending[otherDeviceGlobalDevIdx] ) {
 							// Current is mine: send the cells to the process holding the neighbor cells
+							// (in the following, m_globalDeviceIdx === curr_cell_globalDevIdx)
 
 							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
 								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-								gdata->networkManager->sendFloats(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 							}
 							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
 								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-								gdata->networkManager->sendFloats(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 							}
 							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
 								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-								gdata->networkManager->sendShorts(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->sendShorts(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 							}
 							if ( gdata->commandFlags & BUFFER_FORCES )
-								gdata->networkManager->sendFloats(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 
 						} else {
 							// neighbor is mine: receive the cells from the process holding the current cell
+							// (in the following, m_globalDeviceIdx === neib_cell_globalDevIdx)
 
 							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
 								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 							}
 							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
 								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 							}
 							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
 								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-								gdata->networkManager->receiveShorts(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->receiveShorts(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 							}
 							if ( gdata->commandFlags & BUFFER_FORCES )
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 
 						}
 
 						BURST_SET_CURRENT_CELL
-					}
+					} // end of flushing and resetting the burst
 
-					// mark the current pair of cell as treated
-					recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ] = true;
 				} // iterate on neighbor cells
 	} // iterate on cells
 
