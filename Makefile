@@ -69,6 +69,8 @@ ifeq ($(platform), Linux)
 	CUDA_INSTALL_PATH ?= /usr/local/cuda
 else ifeq ($(platform), Darwin)
 	CUDA_INSTALL_PATH ?= /usr/local/cuda
+else
+	$(warning Platform $(platform) not supported by this makefile)
 endif
 
 # compilers and linkers
@@ -210,13 +212,17 @@ endif
 # architecture switch. The *_SFX vars will be used later.
 GLEW_ARCH_SFX=
 LIB_PATH_SFX=
+
 ifeq ($(arch), x86_64)
 	TARGET_ARCH ?= -m64
-	# cuda 5.0 with 64bit libs does not require the suffix anymore
+	# cuda 5.x with 64bit libs does not require the suffix anymore
 	ifneq ($(CUDA_MAJOR), 5)
 		GLEW_ARCH_SFX=_x86_64
 	endif
-	LIB_PATH_SFX=64
+	# on Linux, toolkit libraries are under /lib64 for 64-bit
+	ifeq ($(platform), Linux)
+		LIB_PATH_SFX=64
+	endif
 else # i386 or i686
 	TARGET_ARCH ?= -m32
 endif
@@ -231,8 +237,9 @@ LIBS ?=
 # flags passed to the linker
 LDFLAGS ?=
 
-# platform independent
+# Most of these settings are platform independent
 
+# INCPATH
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
 INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
 
@@ -240,13 +247,23 @@ INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
 # Note: -isystem is supported by nvcc, g++ and clang++, so this should be fine
 INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
 
-# since we prefer to use GLEW from the SDK, we also need these (support multiple CUDA versions)
+# since we prefer to use GLEW from the SDK samples, we also need these
 # up to 4.x
 INCPATH += -isystem $(CUDA_SDK_PATH)/C/common/inc
 # 5.x
 INCPATH += -isystem $(CUDA_SDK_PATH)/common/inc
 
+
+# LIBPATH
 LIBPATH += -L/usr/local/lib
+
+# CUDA libaries
+LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+# search path for GLEW from the SDK samples
+# up to 4.x
+LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/$(platform_lcase)/
+# 5.x
+LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 
 # link to the OpenGL libraries (GLEW is platform-dependent, see below)
 LIBS += -lGL -lGLU -lglut
@@ -255,22 +272,10 @@ LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
 
-ifeq ($(platform), Linux)
-	LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
-	LIBPATH += -L$(CUDA_SDK_PATH)/shared/lib/linux
-	LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/linux/
-	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/linux/$(arch)/
+LIBS += -lGLEW$(GLEW_ARCH_SFX)
 
-	LIBS += -lGLEW$(GLEW_ARCH_SFX)
-else ifeq ($(platform), Darwin)
-	LIBPATH += -L$(CUDA_INSTALL_PATH)/lib/
-	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/darwin/
-
-	LIBS += -lGLEW
-
+ifeq ($(platform), Darwin)
 	LDFLAGS += -Wl,-framework,OpenGL,-framework,GLUT
-else
-	$(warning architecture $(arch) not supported by this makefile)
 endif
 
 LDFLAGS += $(LIBPATH) $(LIBS)
