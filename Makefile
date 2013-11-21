@@ -240,6 +240,12 @@ INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
 # Note: -isystem is supported by nvcc, g++ and clang++, so this should be fine
 INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
 
+# since we prefer to use GLEW from the SDK, we also need these (support multiple CUDA versions)
+# up to 4.x
+INCPATH += -isystem $(CUDA_SDK_PATH)/C/common/inc
+# 5.x
+INCPATH += -isystem $(CUDA_SDK_PATH)/common/inc
+
 LIBPATH += -L/usr/local/lib
 
 # link to the OpenGL libraries (GLEW is platform-dependent, see below)
