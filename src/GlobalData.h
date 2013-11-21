@@ -398,6 +398,14 @@ struct GlobalData {
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
 
+	// reverse the linearized hash of the cell and return the location in gridPos
+	int3 reverseGridHashHost(uint cell_lin_idx) {
+		int cz = cell_lin_idx / (gridSize.y * gridSize.x);
+		int cy = (cell_lin_idx - (cz * gridSize.y * gridSize.x)) / gridSize.x;
+		int cx = cell_lin_idx - (cz * gridSize.y * gridSize.x) - (cy * gridSize.x);
+		return make_int3(cx, cy, cz);
+	}
+
 	// compute the global device Id of the cell holding pos
 	uchar calcGlobalDeviceIndex(float4 pos) {
 		// do not access s_hDeviceMap if single-GPU
