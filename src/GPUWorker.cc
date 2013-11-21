@@ -384,171 +384,280 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		return;
 	}
 
+	// is a double buffer specified?
+	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+	uint dbl_buf_idx;
+
 	// We need to import every cell of the neigbor processes only once. To this aim, we keep a list of recipient
 	// ranks who already received the current cell. The list, in form of a bitmap, is reset before iterating on
 	// all the neighbor cells
 	bool recipient_devices[MAX_DEVICES_PER_CLUSTER];
 
+	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device;
+	// moreover, we only need the "self" address
+	uint burst_self_index_begin[MAX_DEVICES_PER_CLUSTER];
+	uint burst_self_index_end[MAX_DEVICES_PER_CLUSTER];
+	uint burst_numparts[MAX_DEVICES_PER_CLUSTER]; // redundant with burst_peer_index_end, but cleaner
+	bool burst_is_sending[MAX_DEVICES_PER_CLUSTER]; // true for bursts of sends, false for bursts of receives
+	//uint burst_peer_dev_index[MAX_DEVICES_PER_CLUSTER];
+
+	// initialize bursts
+	for (uint n=0; n < MAX_DEVICES_PER_CLUSTER; n++) {
+		burst_self_index_begin[n] = 0;
+		burst_self_index_end[n] = 0;
+		burst_numparts[n] = 0;
+		burst_is_sending[n] = false;
+	}
+
+	// utility defines to handle the bursts
+#define BURST_IS_EMPTY (burst_numparts[otherDeviceGlobalDevIdx] == 0)
+#define BURST_SET_CURRENT_CELL \
+	burst_self_index_begin[otherDeviceGlobalDevIdx] = curr_cell_start; \
+	burst_self_index_end[otherDeviceGlobalDevIdx] = curr_cell_start + partsInCurrCell; \
+	burst_numparts[otherDeviceGlobalDevIdx] = partsInCurrCell; \
+	burst_is_sending[otherDeviceGlobalDevIdx] = is_sending;
+
+	// While we iterate on the cells we refer as "curr" to the cell indexed by the outer cycles and as "neib"
+	// to the neib cell indexed by the inner cycles. Either cell could belong to current process (so the bools
+	// curr_mine and neib_mine); one should not think that neib_cell is necessary in a neib device or process.
+	// Instead, otherDeviceGlobalDevIdx, which is used to handle the bursts, is always the global index of the
+	// "other" device.
+
 	// iterate on all cells
-	for (int cx = 0; cx < gdata->gridSize.x; cx++)
-		for (int cy = 0; cy < gdata->gridSize.y; cy++)
-			for (int cz = 0; cz < gdata->gridSize.z; cz++) {
+	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
-				uint lin_curr_cell = gdata->calcGridHashHost(cx, cy, cz);
+		// we will need the 3D coords as well
+		int3 curr_cell = gdata->reverseGridHashHost(lin_curr_cell);;
 
-				// optimization: if not edging, continue
-				if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
-					m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
+		// optimization: if not edging, continue
+		if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
+			m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
 
-				// reset the list fo recipient neib processes
-				for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
-					recipient_devices[d] = false;
+		// reset the list fo recipient neib processes
+		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
+			recipient_devices[d] = false;
 
-				uint curr_cell_globalDevIdx = gdata->s_hDeviceMap[lin_curr_cell];
-				uchar curr_cell_rank = gdata->RANK( curr_cell_globalDevIdx );
-				if ( curr_cell_rank >= gdata->mpi_nodes ) {
-					printf("FATAL: cell %u seems to belong to rank %u, but max is %u; probable memory corruption\n", lin_curr_cell, curr_cell_rank, gdata->mpi_nodes - 1);
-					gdata->quit_request = true;
-					return;
+		uint curr_cell_globalDevIdx = gdata->s_hDeviceMap[lin_curr_cell];
+		uchar curr_cell_rank = gdata->RANK( curr_cell_globalDevIdx );
+		if ( curr_cell_rank >= gdata->mpi_nodes ) {
+			printf("FATAL: cell %u seems to belong to rank %u, but max is %u; probable memory corruption\n", lin_curr_cell, curr_cell_rank, gdata->mpi_nodes - 1);
+			gdata->quit_request = true;
+			return;
+		}
+
+		bool curr_mine = (curr_cell_globalDevIdx == m_globalDeviceIdx);
+
+		// iterate on neighbors
+		for (int dx = -1; dx <= 1; dx++)
+			for (int dy = -1; dy <= 1; dy++)
+				for (int dz = -1; dz <= 1; dz++) {
+
+					// check that we are inside the grid
+					if (curr_cell.x + dx < 0 || curr_cell.x + dx >= gdata->gridSize.x) continue;
+					if (curr_cell.y + dy < 0 || curr_cell.y + dy >= gdata->gridSize.y) continue;
+					if (curr_cell.z + dz < 0 || curr_cell.z + dz >= gdata->gridSize.z) continue;
+
+					// linearized hash of neib cell
+					uint lin_neib_cell = gdata->calcGridHashHost(curr_cell.x + dx, curr_cell.y + dy, curr_cell.z + dz);
+					uint neib_cell_globalDevIdx = gdata->s_hDeviceMap[lin_neib_cell];
+
+					// will be set in different way depending on the rank (mine, then local cellStarts, or not, then receive size via network)
+					uint partsInCurrCell;
+					uint curr_cell_start;
+
+					bool neib_mine = (neib_cell_globalDevIdx == m_globalDeviceIdx);
+					uchar neib_cell_rank = gdata->RANK( neib_cell_globalDevIdx );
+
+					// global dev idx of the "other" device
+					uint otherDeviceGlobalDevIdx = (curr_cell_globalDevIdx == m_globalDeviceIdx ? neib_cell_globalDevIdx : curr_cell_globalDevIdx);
+					bool is_sending = curr_mine;
+
+					// did we already treat the pair (curr_rank <-> neib_rank) for this cell?
+					if (recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ]) continue;
+
+					// do they belong to different nodes?
+					// we can skip 1. pairs belonging to the same node 2. pairs where not current nor neib belong to current process
+					if (curr_cell_rank == neib_cell_rank || ( !curr_mine && !neib_mine ) ) continue;
+
+					// initialize the number of particles in the cell
+					partsInCurrCell = 0;
+
+					// if the cell belong to a neib node and we are appending, there are a few things to handle
+					if (neib_mine && gdata->nextCommand == APPEND_EXTERNAL) {
+
+						// prepare to append it to the end of the present array
+						curr_cell_start = m_numParticles;
+
+						// receive the size from the cell process
+						gdata->networkManager->receiveUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
+
+						// update host cellStarts/Ends
+						if (partsInCurrCell > 0) {
+							gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
+							gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
+						} else
+							gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
+
+						// update device cellStarts/Ends
+						CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
+							sizeof(uint), cudaMemcpyHostToDevice));
+						if (partsInCurrCell > 0)
+							CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
+								sizeof(uint), cudaMemcpyHostToDevice));
+
+						// update outer edge segment
+						if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
+							gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
+
+						// update the total number of particles
+						m_numParticles += partsInCurrCell;
+					} // we could "else" here and totally delete the condition (it is opposite to the previuos, but left for clarity)
+
+					// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
+					if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
+						// read the size
+						curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
+
+						// set partsInCurrCell
+						if (curr_cell_start != EMPTY_CELL)
+							partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
+					}
+
+					// finally, if the cell belongs to current process and we are in appending phase, we want to send its size to the neib process
+					if (curr_mine && gdata->nextCommand == APPEND_EXTERNAL)
+						gdata->networkManager->sendUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
+
+					// if the cell is empty just continue to next one
+					if  (curr_cell_start == EMPTY_CELL) continue;
+
+					if (BURST_IS_EMPTY) {
+
+						// burst is empty, so create a new one and continue
+						BURST_SET_CURRENT_CELL
+
+					} else
+					// condition: curr cell begins when burst end AND burst is in the same direction (send / receive)
+					if (burst_self_index_end[otherDeviceGlobalDevIdx] == curr_cell_start && burst_is_sending[otherDeviceGlobalDevIdx] == is_sending) {
+
+						// cell is compatible, extend the burst
+						burst_self_index_end[otherDeviceGlobalDevIdx] += partsInCurrCell;
+						burst_numparts[otherDeviceGlobalDevIdx] += partsInCurrCell;
+
+					} else {
+
+						// the burst for the current "other" node was non-empty and not compatible; flush it and make a new one
+
+						// Now partsInCurrCell and curr_cell_start are ready; let's handle the actual transfers.
+
+						if ( burst_is_sending[otherDeviceGlobalDevIdx] ) {
+							// Current is mine: send the cells to the process holding the neighbor cells
+
+							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
+								gdata->networkManager->sendFloats(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
+								gdata->networkManager->sendFloats(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
+								gdata->networkManager->sendShorts(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( gdata->commandFlags & BUFFER_FORCES )
+								gdata->networkManager->sendFloats(curr_cell_globalDevIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+
+						} else {
+							// neighbor is mine: receive the cells from the process holding the current cell
+
+							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
+								gdata->networkManager->receiveShorts(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( gdata->commandFlags & BUFFER_FORCES )
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, neib_cell_globalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+
+						}
+
+						BURST_SET_CURRENT_CELL
+					}
+
+					// mark the current pair of cell as treated
+					recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ] = true;
+				} // iterate on neighbor cells
+	} // iterate on cells
+
+	// here: flush all the non-empty bursts
+	for (uint otherDevGlobalIdx = 0; otherDevGlobalIdx < MAX_DEVICES_PER_CLUSTER; otherDevGlobalIdx++)
+		if ( burst_numparts[otherDevGlobalIdx] > 0) {
+
+			if ( burst_is_sending[otherDevGlobalIdx] ) {
+				// Current is mine: send the cells to the process holding the neighbor cells
+
+				if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
 				}
+				if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
+					gdata->networkManager->sendShorts(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( gdata->commandFlags & BUFFER_FORCES )
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dForces + burst_self_index_begin[otherDevGlobalIdx]) );
 
-				bool curr_mine = (curr_cell_globalDevIdx == m_globalDeviceIdx);
+			} else {
+				// neighbor is mine: receive the cells from the process holding the current cell
 
-				// iterate on neighbors
-				for (int dx = -1; dx <= 1; dx++)
-					for (int dy = -1; dy <= 1; dy++)
-						for (int dz = -1; dz <= 1; dz++) {
+				if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
+					gdata->networkManager->receiveShorts(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( gdata->commandFlags & BUFFER_FORCES )
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dForces + burst_self_index_begin[otherDevGlobalIdx]) );
 
-							// check that we are inside the grid
-							if (cx + dx < 0 || cx + dx >= gdata->gridSize.x) continue;
-							if (cy + dy < 0 || cy + dy >= gdata->gridSize.y) continue;
-							if (cz + dz < 0 || cz + dz >= gdata->gridSize.z) continue;
+			}
+		}
 
-							// linearized hash of neib cell
-							uint lin_neib_cell = gdata->calcGridHashHost(cx + dx, cy + dy, cz + dz);
-							uint neib_cell_globalDevIdx = gdata->s_hDeviceMap[lin_neib_cell];
+	// don't need the defines anymore
+#undef BURST_IS_EMPTY
+#undef BURST_SET_CURRENT_CELL
 
-							// will be set in different way depending on the rank (mine, then local cellStarts, or not, then receive size via network)
-							uint partsInCurrCell;
-							uint curr_cell_start;
-
-							bool neib_mine = (neib_cell_globalDevIdx == m_globalDeviceIdx);
-							uchar neib_cell_rank = gdata->RANK( neib_cell_globalDevIdx );
-
-							// did we already treat the pair (curr_rank <-> neib_rank) for this cell?
-							if (recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ]) continue;
-
-							// do they belong to different nodes?
-							// we can skip 1. pairs belonging to the same node 2. pairs where not current nor neib belong to current process
-							if (curr_cell_rank == neib_cell_rank || ( !curr_mine && !neib_mine ) ) continue;
-
-							// initialize the number of particles in the cell
-							partsInCurrCell = 0;
-
-							// if the cell belong to a neib node and we are appending, there are a few things to handle
-							if (neib_mine && gdata->nextCommand == APPEND_EXTERNAL) {
-
-								// prepare to append it to the end of the present array
-								curr_cell_start = m_numParticles;
-
-								// receive the size from the cell process
-								gdata->networkManager->receiveUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
-
-								// update host cellStarts/Ends
-								if (partsInCurrCell > 0) {
-									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
-									gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
-								} else
-									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
-
-								// update device cellStarts/Ends
-								CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
-									sizeof(uint), cudaMemcpyHostToDevice));
-								if (partsInCurrCell > 0)
-									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
-										sizeof(uint), cudaMemcpyHostToDevice));
-
-								// update outer edge segment
-								if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
-									gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
-
-								// update the total number of particles
-								m_numParticles += partsInCurrCell;
-							} // we could "else" here and totally delete the condition (it is opposite to the previuos, but left for clarity)
-
-							// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
-							if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
-								// read the size
-								curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
-
-								// set partsInCurrCell
-								if (curr_cell_start != EMPTY_CELL)
-									partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
-							}
-
-							// finally, if the cell belongs to current process and we are in appending phase, we want to send its size to the neib process
-							if (curr_mine && gdata->nextCommand == APPEND_EXTERNAL)
-								gdata->networkManager->sendUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
-
-							// if the cell is empty just continue to next one
-							if  (curr_cell_start == EMPTY_CELL) continue;
-
-							// Now partsInCurrCell and curr_cell_start are ready; let's handle the actual transfers.
-
-							// is a double buffer specified?
-							bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-							uint dbl_buf_idx;
-
-							if (curr_mine) {
-								// Current is mine: send the cell to the process holding the neighbor cell
-
-								if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-									dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-									gdata->networkManager->sendFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(float*)(m_dPos[ dbl_buf_idx ] + curr_cell_start) );
-								}
-								if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-									dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-									gdata->networkManager->sendFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(float*)(m_dVel[ dbl_buf_idx ] + curr_cell_start) );
-								}
-								if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-									dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-									gdata->networkManager->sendShorts(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(ushort*)(m_dInfo[ dbl_buf_idx ] + curr_cell_start) );
-								}
-								if ( gdata->commandFlags & BUFFER_FORCES )
-									gdata->networkManager->sendFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(float*)(m_dForces + curr_cell_start) );
-
-							} else {
-								// neighbor is mine: receive the cell from the process holding the current cell
-
-								if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-									dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-									gdata->networkManager->receiveFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(float*)(m_dPos[ dbl_buf_idx ] + curr_cell_start) );
-								}
-								if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-									dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-									gdata->networkManager->receiveFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(float*)(m_dVel[ dbl_buf_idx ] + curr_cell_start) );
-								}
-								if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-									dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-									gdata->networkManager->receiveShorts(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(ushort*)(m_dInfo[ dbl_buf_idx ] + curr_cell_start) );
-								}
-								if ( gdata->commandFlags & BUFFER_FORCES )
-									gdata->networkManager->receiveFloats(curr_cell_globalDevIdx, neib_cell_globalDevIdx, partsInCurrCell * 4,
-											(float*)(m_dForces + curr_cell_start) );
-
-							}
-
-							// mark the current pair of cell as treated
-							recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ] = true;
-						} // iterate on neighbor cells
-			} // iterate on cells
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
