@@ -265,8 +265,12 @@ ParticleSystem::allocate(uint numParticles)
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dForces, memSize4));
 	memory += memSize4;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dXsph, memSize4));
-	memory += memSize4;
+	if (m_simparams->xsph) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dXsph, memSize4));
+		memory += memSize4;
+	} else {
+		m_dXsph = NULL;
+	}
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[0], memSize4));
 	memory += memSize4;
@@ -639,7 +643,8 @@ ParticleSystem::~ParticleSystem()
 	unset_reduction_params();
 
 	CUDA_SAFE_CALL(cudaFree(m_dForces));
-	CUDA_SAFE_CALL(cudaFree(m_dXsph));
+	if (m_simparams->xsph)
+		CUDA_SAFE_CALL(cudaFree(m_dXsph));
 
 	if (m_simparams->visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaFree(m_dTau[0]));
