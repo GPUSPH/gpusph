@@ -306,7 +306,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 		}
 	}
 
-	numbytes=sizeof(float)*3*numParts;
+	numbytes=sizeof(double)*3*numParts;
 
 	// position
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
