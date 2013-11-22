@@ -229,16 +229,14 @@ void GPUWorker::importPeerEdgeCells()
 			uint selfCellStart;
 			uint selfCellEnd;
 
-			// if it is empty, we might only need to update cellStarts
+			// if it is empty, we might only update cellStarts
 			if (peerCellStart == EMPTY_CELL) {
 
 				if (gdata->nextCommand == APPEND_EXTERNAL) {
 					// set the cell as empty
 					gdata->s_dCellStarts[m_deviceIndex][cell] = EMPTY_CELL;
-					// update device array
-					CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
-														(gdata->s_dCellStarts[m_deviceIndex] + cell),
-														sizeof(uint), cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+					// update device array (actually uploads also cellEnd, which has arbitrary value
+					asyncCellIndicesUpload(cell, cell+1);
 				}
 
 			} else {
@@ -272,13 +270,7 @@ void GPUWorker::importPeerEdgeCells()
 					// Update device copy of cellStart (later cellEnd). This allows for building the
 					// neighbor list directly, without the need of running again calchash, sort and reorder
 					// TODO: burst of cellstarts/cellends as well
-					CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + cell),
-														(gdata->s_dCellStarts[m_deviceIndex] + cell),
-														sizeof(uint), cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
-					CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellEnd + cell),
-														(gdata->s_dCellEnds[m_deviceIndex] + cell),
-														sizeof(uint), cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
-
+					asyncCellIndicesUpload(cell, cell+1);
 					// Also update outer edge segment, if it was empty.
 					// NOTE: keeping correctness only if there are no OUTER particles (which we assume)
 					if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
