@@ -204,11 +204,36 @@ void GPUWorker::importPeerEdgeCells()
 	burst_numparts = numPartsInPeerCell; \
 	burst_peer_dev_index = peerDevIndex;
 
+	// Burst of cells (for cellStart / cellEnd). Please not the burst of cells is independent from the one of cells.
+	// More specifically, it is a superset, since we are also interested in empty cells; for code readability reasons
+	// we handle it as if it were completely independent.
+	uint cellsBurst_begin = 0;
+	uint cellsBurst_end = 0;
+#define CELLS_BURST_IS_EMPTY (cellsBurst_end - cellsBurst_begin == 0)
+
 	// iterate on all cells
 	for (uint cell=0; cell < m_nGridCells; cell++)
 
 		// if the current is an external edge cell and it belongs to a device of the same process...
 		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED && gdata->RANK(gdata->s_hDeviceMap[cell]) == gdata->mpi_rank) {
+
+			// handle the cell burst: as long as it is OUTER_EDGE and we are appending, we need to copy it, also if empty
+			if (gdata->nextCommand == APPEND_EXTERNAL) {
+				// 1st case: burst is empty, let's initialize it
+				if (CELLS_BURST_IS_EMPTY) {
+					cellsBurst_begin = cell;
+					cellsBurst_end = cell + 1;
+				} else
+				// 2nd case: burst is not emtpy but ends with current cell; let's append the cell
+				if (cellsBurst_end == cell) {
+					cellsBurst_end++;
+				} else { // 3rd case: the burst is not emtpy and not compatible; need to flush it and make it new
+					// this will also transfer cellEnds for empty cells but this is not a problem since we won't use that
+					asyncCellIndicesUpload(cellsBurst_begin, cellsBurst_end);
+					cellsBurst_begin = cell;
+					cellsBurst_end = cell + 1;
+				}
+			}
 
 			// check in which device it is
 			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
@@ -235,8 +260,6 @@ void GPUWorker::importPeerEdgeCells()
 				if (gdata->nextCommand == APPEND_EXTERNAL) {
 					// set the cell as empty
 					gdata->s_dCellStarts[m_deviceIndex][cell] = EMPTY_CELL;
-					// update device array (actually uploads also cellEnd, which has arbitrary value
-					asyncCellIndicesUpload(cell, cell+1);
 				}
 
 			} else {
@@ -263,14 +286,10 @@ void GPUWorker::importPeerEdgeCells()
 
 					// Update host copy of cellStart and cellEnd. Since it is an external cell,
 					// it is unlikely that the host copy will be used, but it is always good to keep
-					// indices consistent
+					// indices consistent. The device copy is being updated throught the burst mechanism.
 					gdata->s_dCellStarts[m_deviceIndex][cell] = selfCellStart;
 					gdata->s_dCellEnds[m_deviceIndex][cell] = selfCellEnd;
 
-					// Update device copy of cellStart (later cellEnd). This allows for building the
-					// neighbor list directly, without the need of running again calchash, sort and reorder
-					// TODO: burst of cellstarts/cellends as well
-					asyncCellIndicesUpload(cell, cell+1);
 					// Also update outer edge segment, if it was empty.
 					// NOTE: keeping correctness only if there are no OUTER particles (which we assume)
 					if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
@@ -364,10 +383,15 @@ void GPUWorker::importPeerEdgeCells()
 								peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
 
-	}
+	} // burst is empty?
+
+	// also flush cell buffer, if any
+	if (gdata->nextCommand == APPEND_EXTERNAL && !CELLS_BURST_IS_EMPTY)
+		asyncCellIndicesUpload(cellsBurst_begin, cellsBurst_end);
 
 #undef BURST_IS_EMPTY
 #undef BURST_SET_CURRENT_CELL
+#undef CELLS_BURST_IS_EMPTY
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
