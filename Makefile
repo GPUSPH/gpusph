@@ -73,15 +73,6 @@ else
 	$(warning Platform $(platform) not supported by this makefile)
 endif
 
-# compilers and linkers
-# On Darwin, use Clang as host compiler if possible
-ifeq ($(platform), Darwin)
-	ifneq ($(wildcard /usr/bin/clang++),)
-		CXX ?= /usr/bin/clang++
-	endif
-endif
-CXX ?= g++
-
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
 # CUDA_INSTALL_PATH=$(shell which nvcc | sed "s/\/bin\/nvcc//")
@@ -96,13 +87,34 @@ NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
 versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
-#CUDA_MINOR := $(lastword  $(versions_tmp))
+CUDA_MINOR := $(lastword  $(versions_tmp))
 
 ifeq ($(CUDA_MAJOR), 5)
 	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 else
 	CUDA_SDK_PATH ?= /usr/local/cudasdk
 endif
+
+# CXX is the host compiler. nvcc doesn't really allow you to use any compiler though:
+# it only supports gcc (on both Linux and Darwin). Since CUDA 5.5 it also
+# supports clang on Darwin 10.9, but only if the ccbin name actually contains the string
+# 'clang'.
+#
+# The solution to our problem is the following:
+# * we do not change anything, unless CXX is set to c++ (generic)
+# * if CXX is generic, we set it to g++, _unless_ we are on Darwin, the CUDA
+#   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
+# There are cases in which this might fail, but we'll fix it when we actually come across them
+ifeq ($(CXX),c++)
+	CXX = g++
+	ifeq ($(platform), Darwin)
+		versions_tmp:=$(shell [ -x /usr/bin/clang++ -a $(CUDA_MAJOR)$(CUDA_MINOR) -ge 55 ] ; echo $$?)
+		ifeq ($(versions_tmp),0)
+			CXX = /usr/bin/clang++
+		endif
+	endif
+endif
+
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
