@@ -142,6 +142,19 @@ void GPUWorker::peerAsyncTransfer(void* dst, int  dstDevice, const void* src, in
 	CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
 
+// Uploads cellStart and cellEnd from the shared arrays to the device memory.
+// Parameters: fromCell is inclusive, toCell is exclusive
+void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
+{
+	uint numCells = toCell - fromCell;
+	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellStart + fromCell),
+										(gdata->s_dCellStarts[m_deviceIndex] + fromCell),
+										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+	CUDA_SAFE_CALL_NOSYNC(cudaMemcpyAsync(	(m_dCellEnd + fromCell),
+										(gdata->s_dCellEnds[m_deviceIndex] + fromCell),
+										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
+}
+
 // Import the external edge cells of other devices to the self device arrays. Can append the cells at the end of the current
 // list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
 // command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).

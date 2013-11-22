@@ -145,8 +145,9 @@ private:
 	void importPeerEdgeCells();
 	// MPI versions of the previous method
 	void importNetworkPeerEdgeCells();
-	// aux method for importPeerEdgeCells();
+	// aux methods for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
+	void asyncCellIndicesUpload(uint fromCell, uint toCell);
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
