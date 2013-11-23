@@ -281,11 +281,7 @@ LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 # search path for GLEW from the SDK samples
 # up to 4.x
 LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/$(platform_lcase)/
-# 5.x
-LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 
-# link to the OpenGL libraries (GLEW is platform-dependent, see below)
-LIBS += -lGL -lGLU -lglut
 # link to the CUDA runtime library
 LIBS += -lcudart
 # link to ODE for the objects
@@ -293,8 +289,14 @@ LIBS += -lode
 
 LIBS += -lGLEW$(GLEW_ARCH_SFX)
 
+# search paths (for CUDA 5 and higher) and linking to OpenGL are
+# platform-specific
 ifeq ($(platform), Darwin)
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
 	LDFLAGS += -Wl,-framework,OpenGL,-framework,GLUT
+else
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
+	LIBS += -lGL -lGLU -lglut
 endif
 
 LDFLAGS += $(LIBPATH) $(LIBS)
@@ -553,13 +555,13 @@ snapshot:
 # it is safe to say we don't actualy need this
 expand:
 	$(CMDECHO)mkdir -p $(EXPDIR)
-	$(CMDECHO)$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/euler.cu -o $(EXPDIR)/euler.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/euler_kernel.cu -o $(EXPDIR)/euler_kernel.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/forces.cu -o $(EXPDIR)/forces.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/forces_kernel.cu -o $(EXPDIR)/forces_kernel.expand.cc && \
 	echo "euler* and forces* expanded in $(EXPDIR)."
 
