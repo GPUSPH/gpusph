@@ -929,17 +929,21 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = (!gdata->nosave) && (gdata->problem->need_write(gdata->t) || finished);
+		bool need_write = gdata->problem->need_write(gdata->t) || finished;
 		//bool need_write = (!nosave) && gdata->iterations % 10 == 0;
-		need_write &= (!gdata->nosave);
+		//need_write &= (!gdata->nosave);
 
 
 		if (need_write) {
-			// TODO: the performanceCounter could be "paused" here
-			// ask workers to dump their subdomains and wait for it to complete
-			doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ );
-			// triggers Writer->write()
-			doWrite();
+			if (!gdata->nosave) {
+				// TODO: the performanceCounter could be "paused" here
+				// ask workers to dump their subdomains and wait for it to complete
+				doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ );
+				// triggers Writer->write()
+				doWrite();
+			} else
+				// just pretend we actually saved
+				gdata->problem->mark_written(gdata->t);
 			// usual status
 			printStatus();
 		}
