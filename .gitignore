@@ -28,4 +28,5 @@ mpitests/
 deviceQuery
 seewaves/
 *.csv
+profiling/
 
