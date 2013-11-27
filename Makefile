@@ -115,6 +115,10 @@ ifeq ($(CXX),c++)
 	endif
 endif
 
+# Force nvcc to use the same host compiler that we selected
+# Note that this requires the compiler to be supported by
+# nvcc.
+NVCC += -ccbin=$(CXX)
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
@@ -293,7 +297,7 @@ LIBS += -lGLEW$(GLEW_ARCH_SFX)
 # platform-specific
 ifeq ($(platform), Darwin)
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
-	LDFLAGS += -Wl,-framework,OpenGL,-framework,GLUT
+	LDFLAGS += -Xlinker -framework,OpenGL,-framework,GLUT
 else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 	LIBS += -lGL -lGLU -lglut
@@ -328,11 +332,6 @@ CPPFLAGS += -DdSINGLE
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
-
-# Force nvcc to use the same host compiler that we selected
-# Note that this requires the compiler to be supported by
-# nvcc.
-CUFLAGS += -ccbin=$(CXX)
 
 # nvcc-specific flags
 CUFLAGS += -arch=sm_$(COMPUTE) -lineinfo
