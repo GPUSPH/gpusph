@@ -56,6 +56,7 @@
 #include <time.h>
 #include <string.h>
 #include <signal.h>
+#include <float.h> // FLT_EPSILON
 
 #define GPUSPH_MAIN
 #include "particledefine.h"
@@ -911,6 +912,8 @@ bool GPUSPH::runSimulation() {
 
 		// increase counters
 		gdata->iterations++;
+		// to check, later, that the simulation is actually progressing
+		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
 		// buildneibs_freq?
 
@@ -924,7 +927,19 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkFloatReduction(&(gdata->dt));
 		}
 
-		// TODO				check/throw dtZero exception
+		// check that dt is not too small (absolute)
+		if (!gdata->t) {
+			throw DtZeroException(gdata->t, gdata->dt);
+		} else if (gdata->dt < FLT_EPSILON) {
+			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %u - requesting quit...\n", gdata->dt, gdata->iterations);
+			gdata->quit_request = true;
+		}
+
+		// check that dt is not too small (relative to t)
+		if (gdata->t == previous_t) {
+			fprintf(stderr, "FATAL: timestep %g too small at iteration %u, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
+			gdata->quit_request = true;
+		}
 
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
