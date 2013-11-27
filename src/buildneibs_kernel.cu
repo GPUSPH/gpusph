@@ -113,7 +113,8 @@ calcHashDevice(const float4*	posArray,
 	gridHash |= ((long unsigned int)compactDeviceMap[shortGridHash]) << GRIDHASH_BITSHIFT;
 #endif
 
-	if (INACTIVE(pos))
+	// testpoints might have 0 mass
+	if (INACTIVE(pos) && !TESTPOINTS(pinfo[index]))
 #if HASH_KEY_SIZE >= 64
 		gridHash = HASH_KEY_MAX_64;
 #else
