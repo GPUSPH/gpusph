@@ -65,12 +65,18 @@ TARGET := $(DISTDIR)/$(TARGETNAME)
 
 # CUDA installation/lib/include paths
 # override by setting them in the enviornment
-ifeq ($(platform), Linux)
-	CUDA_INSTALL_PATH ?= /usr/local/cuda
-else ifeq ($(platform), Darwin)
-	CUDA_INSTALL_PATH ?= /usr/local/cuda
-else
-	$(warning Platform $(platform) not supported by this makefile)
+# Default to /usr/local/cuda if the install path
+# has not been specified
+CUDA_INSTALL_PATH ?= /usr/local/cuda
+
+# We check the validity of the path by looking for /bin/nvcc under it.
+# if not found, we look into /usr, and finally abort
+ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+	CUDA_INSTALL_PATH = /usr
+	# check again
+	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+$(error Could not find CUDA, please set CUDA_INSTALL_PATH)
+	endif
 endif
 
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
