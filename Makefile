@@ -126,11 +126,9 @@ DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
 
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE)
+
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
-# This, combined with the -MG flag during depencency generation (see below),
-# ensure that .opt files are built before any of the files that include them.
-# (All of this is actually needed only for $(PROBLEM_SELECT_OPTFILE) during
-# parallel builds under some circumstances.)
 vpath %.opt $(OPTSDIR)
 
 # check compile options used last time:
@@ -426,7 +424,7 @@ endif
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
 # link objects in target
-all: $(OBJS) | $(DISTDIR)
+all: $(OPTFILES) $(OBJS) | $(DISTDIR)
 	@echo
 	@echo "Compiled with problem $(PROBLEM)"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
@@ -498,8 +496,7 @@ gpuclean:
 # target:                .*_select.opt files to be regenerated (use if they're
 # target:                messed up)
 cookiesclean:
-	$(RM) $(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) \
-		$(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(OPTSDIR)
+	$(RM) -r $(OPTFILES) $(OPTSDIR)
 
 # target: showobjs - List detected sources and target objects
 showobjs:
