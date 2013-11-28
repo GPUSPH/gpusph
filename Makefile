@@ -242,7 +242,8 @@ ifeq ($(MPICXX),)
       $(error MPI compiler not found, necessary for multi-node.)
 endif
 
-LINKER=$(MPICXX)
+#LINKER=$(MPICXX)
+LINKER=$(NVCC) -ccbin=$(MPICXX)
 #LINKER=$(NVCC)
 #LINKER=g++
 
