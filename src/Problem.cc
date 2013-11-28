@@ -500,13 +500,3 @@ Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
 	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);
 	localpos.w = float(pos(3));
 }
-
-
-void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
-{
-}
-
-
-void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
-{
-}
