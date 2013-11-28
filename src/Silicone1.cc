@@ -159,12 +159,12 @@ void Silicone1::draw_boundary(float t)
 }
 
 
-void Silicone1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void Silicone1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
 	}
@@ -176,9 +176,9 @@ void Silicone1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART,0,i);
+		info[i]= make_particleinfo(FLUIDPART,0,i);
 
 	}
 	j += parts.size();

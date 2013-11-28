@@ -23,7 +23,7 @@ class Silicone1: public Problem {
 		PointVect	boundary_parts;
 
 		Cylinder	cyl;
-	    float		H;		// still water level
+		float		H;		// still water level
 
 
 	public:
@@ -34,7 +34,7 @@ class Silicone1: public Problem {
 		void copy_planes(float4*, float*);
 
 		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
 
 		void release_memory(void);
 };
