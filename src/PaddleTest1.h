@@ -45,20 +45,19 @@ class PaddleTest1: public Problem {
 	private:
 		int			wmakertype;
 		Cube		experiment_box;
-		Rect        experiment_box1;
+		Rect		experiment_box1;
 		int			i_use_bottom_plane;
 		Point		p1,p2;
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	paddle_parts, gate_parts;
 
-		
 		float		paddle_length;
 		float		paddle_width;
 		float		h_length, height, slope_length, beta;
-	    float		H;		// still water level
+		float		H;		// still water level
 		float		Hbox;	// height of experiment box
-		uint        num_parts[2];  //number of fluid parts of each density
+		uint		num_parts[2];  //number of fluid parts of each density
 
 
 	public:
@@ -69,7 +68,7 @@ class PaddleTest1: public Problem {
 		void copy_planes(float4*, float*);
 
 		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
 		MbCallBack& mb_callback(const float, const float, const int);
 
 		void release_memory(void);
