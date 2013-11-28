@@ -58,7 +58,7 @@ __device__ int d_maxNeibs;
  *
  * 	\return : new grid position
  */
-//TODO: implement other periodicity than XPERIODIC
+// TODO: verify periodicity along multiple axis
 template <int periodicbound>
 __device__ __forceinline__ int3
 clampGridPos(const int3& gridPos, int3& gridOffset)
@@ -66,20 +66,36 @@ clampGridPos(const int3& gridPos, int3& gridOffset)
 	int3 newGridPos = gridPos + gridOffset;
 	// For the axis involved in periodicity the new grid position reflects
 	// the periodicity and should not be clamped and the grid offset remains
-	// unchanged
+	// unchanged.
+	// For the axis not involved in periodicity the new grid position
+	// is equal to the clamped old one and the grid offset is updated.
+
+	// periodicity in x
 	if (periodicbound & XPERIODIC) {
 		if (newGridPos.x < 0) newGridPos.x += d_gridSize.x;
 		if (newGridPos.x >= d_gridSize.x) newGridPos.x -= d_gridSize.x;
-	}
-	if (!(periodicbound & XPERIODIC))
+	} else {
 		newGridPos.x = max(0, min(gridPos.x, d_gridSize.x-1));
+		gridOffset.x = newGridPos.x - gridPos.x;
+	}
 
-	// For the axis not involved in periodicity the new grid position
-	// is equal the clamped old one and the grid offset is updated.
-	newGridPos.y = max(0, min(newGridPos.y, d_gridSize.y-1));
-	gridOffset.y = newGridPos.y - gridPos.y;
-	newGridPos.z = max(0, min(newGridPos.z, d_gridSize.z-1));
-	gridOffset.z = newGridPos.z - gridPos.z;
+	// periodicity in y
+	if (periodicbound & YPERIODIC) {
+		if (newGridPos.y < 0) newGridPos.y += d_gridSize.y;
+		if (newGridPos.y >= d_gridSize.y) newGridPos.y -= d_gridSize.y;
+	} else {
+		newGridPos.y = max(0, min(gridPos.y, d_gridSize.y-1));
+		gridOffset.y = newGridPos.y - gridPos.y;
+	}
+
+	// periodicity in z
+	if (periodicbound & ZPERIODIC) {
+		if (newGridPos.z < 0) newGridPos.z += d_gridSize.z;
+		if (newGridPos.z >= d_gridSize.z) newGridPos.z -= d_gridSize.z;
+	} else {
+		newGridPos.z = max(0, min(gridPos.z, d_gridSize.z-1));
+		gridOffset.z = newGridPos.z - gridPos.z;
+	}
 
 	return newGridPos;
 }
@@ -124,7 +140,6 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset)
  *
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  */
-//TODO: implement other periodicity than XPERIODIC
 #define MOVINGNOTFLUID (PISTONPART | PISTONPART | PADDLEPART | GATEPART | OBJECTPART)
 template <int periodicbound>
 __global__ void
@@ -303,7 +318,7 @@ neibsInCell(
 	// With periodic boundary when the neighboring cell grid position lies
 	// outside the domain size we wrap it to the d_gridSize or 0 according
 	// with the chosen periodicity
-	// TODO: fix periodicity along multiple axis
+	// TODO: verify periodicity along multiple axis
 	if (periodicbound) {
 		// Periodicity along x axis
 		if (gridPos.x < 0) {

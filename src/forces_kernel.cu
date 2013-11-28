@@ -380,12 +380,16 @@ dtadaptBlockReduce(	float*	sm_max,
  *	Note : no test is done by this function to ensure that grid position is within the
  *	range and no clamping is done
  */
-//TODO: implement other periodicity than XPERIODIC and templatize
+// TODO: verify periodicity along multiple axis and templatize
 __device__ __forceinline__ uint
 calcGridHashPeriodic(int3 gridPos)
 {
 	if (gridPos.x < 0) gridPos.x = d_gridSize.x - 1;
 	if (gridPos.x >= d_gridSize.x) gridPos.x = 0;
+	if (gridPos.y < 0) gridPos.y = d_gridSize.y - 1;
+	if (gridPos.y >= d_gridSize.y) gridPos.y = 0;
+	if (gridPos.z < 0) gridPos.z = d_gridSize.z - 1;
+	if (gridPos.z >= d_gridSize.z) gridPos.z = 0;
 	return calcGridHash(gridPos);
 }
 
