@@ -63,6 +63,32 @@ OPTSDIR = ./options
 TARGETNAME := GPUSPH$(TARGET_SXF)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
+# --------------- File lists
+
+# makedepend will generate dependencies in these file
+GPUDEPS = $(MAKEFILE).gpu
+CPUDEPS = $(MAKEFILE).cpu
+
+# .cc source files (CPU)
+CCFILES = $(wildcard $(SRCDIR)/*.cc)
+#CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
+
+# .cu source files (GPU), excluding *_kernel.cu
+CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
+#CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
+
+# headers
+HEADERS = $(wildcard $(SRCDIR)/*.h)
+
+# object files via filename replacement
+CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
+CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
+OBJS = $(CCOBJS) $(CUOBJS)
+
+PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
+
+# --------------- Locate and set up compilers and flags
+
 # CUDA installation/lib/include paths
 # override by setting them in the enviornment
 # Default to /usr/local/cuda if the install path
@@ -165,6 +191,10 @@ ifdef problem
 	PROBLEM=$(problem)
 	# if choice differs from last...
 	ifneq ($(LAST_PROBLEM),$(PROBLEM))
+		# check that the problem is in the problem list
+		ifneq ($(filter $(PROBLEM),$(PROBLEM_LIST)),$(PROBLEM))
+			TMP:=$(error No such problem ‘$(PROBLEM)’. Known problems: $(PROBLEM_LIST))
+		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
 			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
@@ -398,26 +428,6 @@ else
 	show_stage = @printf "\r                                 \r[$(1)] $(2)"
 endif
 
-# makedepend will generate dependencies in these file
-GPUDEPS = $(MAKEFILE).gpu
-CPUDEPS = $(MAKEFILE).cpu
-
-# .cc source files (CPU)
-CCFILES = $(wildcard $(SRCDIR)/*.cc)
-#CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
-
-# .cu source files (GPU), excluding *_kernel.cu
-CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
-#CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
-
-# headers
-HEADERS = $(wildcard $(SRCDIR)/*.h)
-
-# object files via filename replacement
-CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
-CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
-OBJS = $(CCOBJS) $(CUOBJS)
-
 # option: echo - 0 silent, 1 show commands
 ifeq ($(echo), 1)
 	CMDECHO :=
@@ -618,8 +628,7 @@ test: all
 
 # target: list-problems - List available problems
 list-problems:
-	$(CMDECHO)egrep "::.*:.*Problem\(" $(CCFILES) | \
-		sed 's/.\/$(subst ./,,$(SRCDIR))\///g' | sed 's/\..*//g'
+	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g'
 
 # target: help - Display help
 help:
