@@ -140,7 +140,7 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset)
  *
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  */
-#define MOVINGNOTFLUID (PISTONPART | PISTONPART | PADDLEPART | GATEPART | OBJECTPART)
+#define MOVINGNOTFLUID (PISTONPART | PADDLEPART | GATEPART | OBJECTPART)
 template <int periodicbound>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
