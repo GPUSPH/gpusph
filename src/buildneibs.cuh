@@ -68,7 +68,8 @@
 extern "C"
 {
 void
-setneibsconstants(const SimParams *simparams, const PhysParams *physparams);
+setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize);
 
 void
 getneibsconstants(SimParams *simparams, PhysParams *physparams);
@@ -84,9 +85,6 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
-		 const uint3	gridSize,
-		 const float3	cellSize,
-		 const float3	worldOrigin,
 		 const uint		numParticles,
 		 const int		periodicbound);
 
@@ -111,9 +109,6 @@ buildNeibsList( neibdata*			neibsList,
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
-				const uint3			gridSize,
-				const float3		cellSize,
-				const float3		worldOrigin,
 				const uint			numParticles,
 				const uint			gridCells,
 				const float			sqinfluenceradius,

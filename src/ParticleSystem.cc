@@ -475,8 +475,8 @@ ParticleSystem::setPhysParams(void)
 	// Setting kernels and kernels derivative factors
 
 	setforcesconstants(m_simparams, m_physparams, m_worldOrigin, m_gridSize, m_cellSize, m_numParticles);
-	seteulerconstants(m_physparams, m_gridSize, m_cellSize);
-	setneibsconstants(m_simparams, m_physparams);
+	seteulerconstants(m_physparams, m_worldOrigin, m_gridSize, m_cellSize);
+	setneibsconstants(m_simparams, m_physparams, m_worldOrigin, m_gridSize, m_cellSize);
 }
 
 
@@ -1044,10 +1044,6 @@ ParticleSystem::buildNeibList(bool timing)
 {
 	cudaEvent_t start_neibslist, stop_neibslist;
 
-	uint3 gridSize = m_gridSize;
-	float3 cellSize = m_cellSize;
-	float3 worldOrigin = m_worldOrigin;
-
 	if (timing) {
 		cudaEventCreate(&start_neibslist);
 		cudaEventCreate(&stop_neibslist);
@@ -1059,9 +1055,6 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dParticleHash,
 			m_dParticleIndex,
 			m_dInfo[m_currentInfoRead],
-			gridSize,
-			cellSize,
-			worldOrigin,
 			m_numParticles,
 			m_simparams->periodicbound);
 
@@ -1097,9 +1090,6 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dParticleHash,
 			m_dCellStart,
 			m_dCellEnd,
-			gridSize,
-			cellSize,
-			worldOrigin,
 			m_numParticles,
 			m_nGridCells,
 			m_nlSqInfluenceRadius,

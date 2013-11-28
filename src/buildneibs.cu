@@ -37,9 +37,14 @@ extern "C"
 {
 
 void
-setneibsconstants(const SimParams *simparams, const PhysParams *physparams)
+setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_worldOrigin, &worldOrigin, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 
@@ -72,9 +77,6 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
-		 const uint3	gridSize,
-		 const float3	cellSize,
-		 const float3	worldOrigin,
 		 const uint		numParticles,
 		 const int		periodicbound)
 {
@@ -85,12 +87,12 @@ calcHash(float4*	pos,
 	switch (periodicbound) {
 		case 0:
 			cuneibs::calcHashDevice<0><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo, gridSize, cellSize, numParticles);
+					   particleInfo, numParticles);
 			break;
 
 		default:
 			cuneibs::calcHashDevice<XPERIODIC><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-								   particleInfo, gridSize, cellSize, numParticles);
+								   particleInfo, numParticles);
 			break;
 	}
 
@@ -141,9 +143,6 @@ buildNeibsList(	neibdata*			neibsList,
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
-				const uint3			gridSize,
-				const float3		cellSize,
-				const float3		worldOrigin,
 				const uint			numParticles,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
@@ -165,7 +164,7 @@ buildNeibsList(	neibdata*			neibsList,
 					#if (__COMPUTE__ >= 20)
 					pos,
 					#endif
-					particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+					particleHash,neibsList, numParticles, sqinfluenceradius);
 		break;
 
 		case 1:
@@ -173,7 +172,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 
 		case 2:
@@ -181,7 +180,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 
 		case 3:
@@ -189,7 +188,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 
 		case 4:
@@ -197,7 +196,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 
 		case 5:
@@ -205,7 +204,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 
 		case 6:
@@ -213,7 +212,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 
 		case 7:
@@ -221,7 +220,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, gridSize, cellSize, numParticles, sqinfluenceradius);
+						particleHash,neibsList, numParticles, sqinfluenceradius);
 				break;
 	}
 		

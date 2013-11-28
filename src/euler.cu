@@ -33,10 +33,12 @@
 extern "C"
 {
 void
-seteulerconstants(const PhysParams *physparams, const uint3 gridSize, const float3 cellSize)
+seteulerconstants(const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
 
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_worldOrigin, &worldOrigin, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cellSize, &cellSize, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
