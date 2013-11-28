@@ -136,12 +136,12 @@ void SharedNeibsTest::draw_boundary(float t)
 }
 
 
-void SharedNeibsTest::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void SharedNeibsTest::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	int j = 0;
 	for (uint i = 0; i < parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j],pos[i],hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 	}
