@@ -46,11 +46,11 @@ class WaveTank: public Problem {
 		PointVect	test_points;
 
 		Cylinder	cyl[11];
-		Cone 		cone;
+		Cone		cone;
 		double		paddle_length;
 		double		paddle_width;
 		double		h_length, height, slope_length, beta;
-	    double		H;		// still water level
+		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 
 	public:
@@ -61,7 +61,7 @@ class WaveTank: public Problem {
 		void copy_planes(float4*, float*);
 
 		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
 		MbCallBack& mb_callback(const float, const float, const int);
 
 		void release_memory(void);
