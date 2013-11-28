@@ -43,7 +43,7 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 	ly = 1.0;
 	lz = 1.0;
 	H = lz;
-	
+
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
@@ -69,8 +69,8 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 
 	m_simparams.vorticity = false;
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
-    m_simparams.sph_formulation = SPH_F2;
-    
+	m_simparams.sph_formulation = SPH_F2;
+
 	// Physical parameters
 	H -= m_deltap;
 	m_physparams.gravity = make_float3(0.0f, 0.0f, -9.81f);
@@ -89,14 +89,14 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 
 	// BC when using LJ
 	m_physparams.dcoeff = 5.0f*g*H;
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 
-	
+
 	// Scales for drawing
 	m_maxrho = density(H, 0);
 	m_minrho = m_physparams.rho0[0];
@@ -108,7 +108,7 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 	m_displayinterval = 0.01f;
 	m_writefreq =  5;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "FluidMix";
 	create_problem_dir();
@@ -142,22 +142,22 @@ int FluidMix::fill_parts()
 						Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 	Cube fluid1 = Cube(Point(lx/2.0 + r0/2, r0, r0), Vector(lx/2.0 - r0/2 - r0, 0, 0),
 						Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	boundary_parts.reserve(1000);
 	parts0.reserve(10000);
 	parts1.reserve(10000);
-	
-   	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
+
+	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, true);
-	
+
 	double dx3 = m_deltap*m_deltap*m_deltap;
 	fluid0.SetPartMass(dx3*m_physparams.rho0[0]);
 	fluid1.SetPartMass(dx3*m_physparams.rho0[1]);
 
 	fluid0.Fill(parts0, r0);
 	fluid1.Fill(parts1, r0);
-	
-    return parts0.size() + parts1.size() + boundary_parts.size();
+
+	return parts0.size() + parts1.size() + boundary_parts.size();
 }
 
 
@@ -169,13 +169,13 @@ void FluidMix::draw_boundary(float t)
 }
 
 
-void FluidMix::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void FluidMix::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
 	int j = 0;
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 	std::cout << "\t\t" << j  << "--" << j + boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i-j]);
+		calc_localpos_and_hash(boundary_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);
 	}
@@ -185,9 +185,9 @@ void FluidMix::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nFluid [0] parts: " << parts0.size() <<"\n";
 	std::cout << "\t\t" << j  << "--" << j + parts0.size() << "\n";
 	for (uint i = j; i < j + parts0.size(); i++) {
-		pos[i] = make_float4(parts0[i-j]);
+		calc_localpos_and_hash(parts0[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART, 0, i);
+		info[i]= make_particleinfo(FLUIDPART, 0, i);
 	}
 	j += parts0.size();
 	std::cout << "j = " << j << ", Fluid [1] particle mass:" << pos[j-1].w << "\n";
@@ -195,9 +195,8 @@ void FluidMix::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nFluid [1] parts: " << parts1.size() <<"\n";
 	std::cout << "\t\t" << j  << "--" << j + parts1.size() << "\n";
 	for (uint i = j; i < j + parts1.size(); i++) {
-		pos[i] = make_float4(parts1[i-j]);
+		calc_localpos_and_hash(parts1[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[1]);
-	    info[i]= make_particleinfo(FLUIDPART + 1, 0, i);
 	}
 	j += parts1.size();
 	std::cout << "j = " << j << ", Fluid [1] particle mass:" << pos[j-1].w << "\n";
