@@ -628,7 +628,7 @@ test: all
 
 # target: list-problems - List available problems
 list-problems:
-	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g'
+	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g' | sort
 
 # target: help - Display help
 help:
