@@ -166,8 +166,8 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 	}
 
 #if HASH_KEY_SIZE < 64
-	// only single-GPU possible with 32 bits keys
-	if (gdata->devices > 1) {
+	// only single-node single-GPU possible with 32 bits keys
+	if (gdata->totDevices > 1) {
 		printf(" FATAL: multi-GPU requires the Hashkey to be at least 64 bits long\n");
 		return false;
 	}
