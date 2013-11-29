@@ -103,10 +103,10 @@ euler(	const float4*		oldPos,
 	if (step == 1) {
 		if (xsphcorr)
 			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
 		else
 			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
 			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,

@@ -61,14 +61,17 @@ eulerDevice(
 	float4*	newPos,
 	float4*	newVel,
 	const uint	numParticles,
-	const float	dt,
-	const float	dt2,
+	const float	full_dt,
+	const float	half_dt, /* full_dt/2 */
 	const float	t)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
+
+	// we use dt/2 on the first step, the actual dt on the second step
+	const float dt = (step == 1) ? half_dt : full_dt;
 
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
@@ -88,7 +91,7 @@ eulerDevice(
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
 		 */
-		const float4 velc = vel + (step - 1)*forces[index]*dt2;
+		const float4 velc = vel + (step - 1)*forces[index]*half_dt;
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
