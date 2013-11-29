@@ -1552,6 +1552,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
+			case SPS:
+				//printf(" T %d issuing SPS\n", deviceIndex);
+				instance->kernel_sps();
+				break;
 			case UPLOAD_MBDATA:
 				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
 				instance->uploadMBData();
