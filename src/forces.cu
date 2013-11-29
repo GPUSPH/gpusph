@@ -307,6 +307,59 @@ setforcesrbstart(const uint* rbfirstindex, int numbodies)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbstartindex, rbfirstindex, numbodies*sizeof(uint)));
 }
 
+void
+sps(	float4*			pos,
+		float4*			vel,
+		particleinfo*	info,
+		uint*			neibsList,
+		uint			numParticles,
+		uint			particleRangeEnd,
+		float			slength,
+		KernelType		kerneltype,
+		float			influenceradius,
+		ViscosityType	visctype,
+		float2*			tau[],
+		bool			periodicbound )
+{
+	int dummy_shared = 0;
+	// bind textures to read all particles, not only internal ones
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	// execute the kernel for computing SPS stress matrix, if needed
+	if (visctype == SPSVISC) {	// thread per particle
+		int numThreads = min(BLOCK_SIZE_SPS, particleRangeEnd);
+		int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
+		#if (__COMPUTE__ == 20)
+		dummy_shared = 2560;
+		#endif
+		if (periodicbound) {
+			switch (kerneltype) {
+				SPS_CHECK(CUBICSPLINE, true);
+				SPS_CHECK(QUADRATIC, true);
+				SPS_CHECK(WENDLAND, true);
+			}
+		} else {
+			switch (kerneltype) {
+				SPS_CHECK(CUBICSPLINE, false);
+				SPS_CHECK(QUADRATIC, false);
+				SPS_CHECK(WENDLAND, false);
+			}
+		}
+		// check if kernel invocation generated an error
+		CUT_CHECK_ERROR("SPS kernel execution failed");
+	}
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+}
+
 
 float
 forces(	float4*			pos,
@@ -344,30 +397,8 @@ forces(	float4*			pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	// execute the kernel for computing SPS stress matrix, if needed
+	// binds SPS textures, if needed
 	if (visctype == SPSVISC) {	// thread per particle
-		int numThreads = min(BLOCK_SIZE_SPS, particleRangeEnd);
-		int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
-		#if (__COMPUTE__ == 20)
-		dummy_shared = 2560;
-		#endif
-		if (periodicbound) {
-			switch (kerneltype) {
-				SPS_CHECK(CUBICSPLINE, true);
-				SPS_CHECK(QUADRATIC, true);
-				SPS_CHECK(WENDLAND, true);
-			}
-		} else {
-			switch (kerneltype) {
-				SPS_CHECK(CUBICSPLINE, false);
-				SPS_CHECK(QUADRATIC, false);
-				SPS_CHECK(WENDLAND, false);
-			}
-		}
-		// check if kernel invocation generated an error
-		CUT_CHECK_ERROR("SPS kernel execution failed");
-		
-		// ditto, textures for all particles
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));

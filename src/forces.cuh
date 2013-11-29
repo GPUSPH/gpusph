@@ -119,6 +119,20 @@ forces(	float4*			pos,
 		bool			usedem);
 
 void
+sps(	float4*			pos,
+		float4*			vel,
+		particleinfo*	info,
+		uint*			neibsList,
+		uint			numParticles,
+		uint			particleRangeEnd,
+		float			slength,
+		KernelType		kerneltype,
+		float			influenceradius,
+		ViscosityType	visctype,
+		float2*			tau[],
+		bool			periodicbound );
+
+void
 shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
