@@ -414,10 +414,10 @@ void GPUWorker::importPeerEdgeCells()
 // Import the external edge cells of other nodes to the self device arrays. Can append the cells at the end of the current
 // list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
 // command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
-// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info and forces; for the
+// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info, forces and tau; for the
 // double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
 // for the non-buffered arrays (e.g. forces).
-// TODO: The data is transferred in bursts of consecutive cells when possible.
+// The data is transferred in bursts of consecutive cells when possible.
 void GPUWorker::importNetworkPeerEdgeCells()
 {
 	// if next command is not an import nor an append, something wrong is going on
@@ -617,6 +617,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 							if ( gdata->commandFlags & BUFFER_FORCES )
 								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							if ( gdata->commandFlags & BUFFER_TAU)
+								for (uint itau = 0; itau < 3; itau++)
+									gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
+											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 
 						} else {
 							// neighbor is mine: receive the cells from the process holding the current cell
@@ -640,6 +644,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 							if ( gdata->commandFlags & BUFFER_FORCES )
 								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
 										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							if ( gdata->commandFlags & BUFFER_TAU)
+								for (uint itau = 0; itau < 3; itau++)
+									gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
+											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
 
 						}
 
@@ -674,6 +682,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 				if ( gdata->commandFlags & BUFFER_FORCES )
 					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
 							(float*)(m_dForces + burst_self_index_begin[otherDevGlobalIdx]) );
+				if ( gdata->commandFlags & BUFFER_TAU)
+					for (uint itau = 0; itau < 3; itau++)
+						gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 2,
+								(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
 
 			} else {
 				// neighbor is mine: receive the cells from the process holding the current cell
@@ -696,6 +708,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 				if ( gdata->commandFlags & BUFFER_FORCES )
 					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
 							(float*)(m_dForces + burst_self_index_begin[otherDevGlobalIdx]) );
+				if ( gdata->commandFlags & BUFFER_TAU)
+						for (uint itau = 0; itau < 3; itau++)
+							gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 2,
+									(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
 
 			}
 		}
