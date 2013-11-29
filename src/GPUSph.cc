@@ -75,6 +75,9 @@
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
+/* Compile-time git version */
+#include "gpusph_version.opt"
+
 using namespace std;
 
 FILE *timing_log = NULL;
@@ -1017,6 +1020,7 @@ void initMenus()
 int
 main( int argc, char** argv)
 {
+	printf("GPUSPH version %s\n", GPUSPH_VERSION);
 	if (sizeof(uint) != 2*sizeof(short)) {
 		fprintf(stderr, "Fatal: this architecture does not have uint = 2 short\n");
 		exit(1);

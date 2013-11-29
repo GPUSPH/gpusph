@@ -16,6 +16,9 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
+# GPUSPH version
+GPUSPH_VERSION=$(shell git describe --tags --dirty)
+
 # need for some substitutions
 comma:=,
 empty:=
@@ -25,6 +28,14 @@ space:=$(empty) $(empty)
 platform=$(shell uname -s 2>/dev/null)
 platform_lcase=$(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
 arch=$(shell uname -m)
+
+# sed syntax differs a bit
+ifeq ($(platform), Darwin)
+	SED_COMAND=sed -i "" -e
+else # Linux
+	SED_COMAND=sed -i -e
+endif
+
 
 # option: target_arch - if set to 32, force compilation for 32 bit architecture
 ifeq ($(target_arch), 32)
@@ -152,8 +163,10 @@ PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+# this is not really an option, but it follows the same mechanism
+GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
 
-OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE)
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
 
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -173,12 +186,15 @@ LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
 	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
 
-# sed syntax differs a bit
-ifeq ($(platform), Darwin)
-	SED_COMAND=sed -i "" -e
-else # Linux
-	SED_COMAND=sed -i -e
+# update GPUSPH_VERSION_OPTFILE if git version changed
+LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
+
+ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
+	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+		$(SED_COMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
 endif
+
 
 # option: problem - Name of the problem. Default: $(PROBLEM) in makefile
 ifdef problem
@@ -464,6 +480,12 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
 
+$(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
+	@echo "/* git version of GPUSPH. */" \
+		> $@
+	@echo "#define GPUSPH_VERSION \"$(GPUSPH_VERSION)\"" >> $@
+
+
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
@@ -523,6 +545,7 @@ showobjs:
 
 # target: show - Show platform info and compiling options
 show:
+	@echo "GPUSPH version:  $(GPUSPH_VERSION)"
 	@echo "Platform:        $(platform)"
 	@echo "Architecture:    $(arch)"
 	@echo "Current dir:     $(CURDIR)"
