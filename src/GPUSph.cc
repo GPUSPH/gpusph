@@ -280,9 +280,9 @@ void parse_options(int argc, char **argv)
 			show_version();
 			exit(0);
 		} else if (!strncmp(arg, "--", 2)) {
-			cout << "Skipping unsupported option " << arg << endl;
+			cerr << "Skipping unsupported option " << arg << endl;
 		} else {
-			cout << "Fatal: Unknown option: " << arg << endl;
+			cerr << "Fatal: Unknown option: " << arg << endl;
 			exit(1);
 
 			// Left for future dynamic loading:
