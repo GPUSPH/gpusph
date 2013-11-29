@@ -418,7 +418,7 @@ SNAPSHOT_FILE = ./GPUSPHsnapshot.tgz
 
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 ifeq ($(plain), 1)
-	show_stage = @echo "[$(1)] $(2)"
+	show_stage = @printf "[$(1)] $(2)\n"
 else
 	show_stage = @printf "\r                                 \r[$(1)] $(2)"
 endif
