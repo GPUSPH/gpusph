@@ -81,15 +81,7 @@ applyrot2(float* rot, float3 & pos, const float3 & cg)
 }
 
 
-#undef XSPH_KERNEL
-#define EULER_KERNEL_NAME eulerDevice
 #include "euler_kernel.def"
-#undef EULER_KERNEL_NAME
 
-#define XSPH_KERNEL 1
-#define EULER_KERNEL_NAME eulerXsphDevice
-#include "euler_kernel.def"
-#undef XPSH_KERNEL
-#undef EULER_KERNEL_NAME
 }
 #endif

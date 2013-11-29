@@ -102,17 +102,17 @@ euler(	const float4*		oldPos,
 	// execute the kernel
 	if (step == 1) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
 								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
 		else
-			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
 								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
 								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
 		else
-			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
+			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
 								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
 	} // if (step == 2)
 
