@@ -283,7 +283,7 @@ void parse_options(int argc, char **argv)
 			cout << "Skipping unsupported option " << arg << endl;
 		} else {
 			cout << "Fatal: Unknown option: " << arg << endl;
-			exit(0);
+			exit(1);
 
 			// Left for future dynamic loading:
 			/*if (clOptions.problem.empty()) {
