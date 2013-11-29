@@ -158,7 +158,7 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 // Import the external edge cells of other devices to the self device arrays. Can append the cells at the end of the current
 // list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
 // command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
-// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info and forces; for the
+// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info, forces and tau; for the
 // double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
 // for the non-buffered arrays (e.g. forces).
 // The data is transferred in bursts of consecutive cells when possible. Transfers are actually D2D if peer access is enabled.
@@ -184,6 +184,7 @@ void GPUWorker::importPeerEdgeCells()
 	const float4** peer_dVel;
 	const particleinfo** peer_dInfo;
 	const float4* peer_dForces;
+	const float2** peer_dTaus;
 
 	// aux var for transfers
 	size_t _size;
@@ -343,6 +344,12 @@ void GPUWorker::importPeerEdgeCells()
 						peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
 						peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
 					}
+					if ( gdata->commandFlags & BUFFER_TAU) {
+						_size = burst_numparts * sizeof(float2);
+						peer_dTaus = gdata->GPUWORKERS[burst_peer_dev_index]->getDTauBuffers();
+						for (uint itau = 0; itau < 3; itau++)
+							peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
 
 					// reset burst to current cell
 					BURST_SET_CURRENT_CELL
@@ -381,6 +388,12 @@ void GPUWorker::importPeerEdgeCells()
 			peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
 			peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber,
 								peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( gdata->commandFlags & BUFFER_TAU) {
+			_size = burst_numparts * sizeof(float2);
+			peer_dTaus = gdata->GPUWORKERS[burst_peer_dev_index]->getDTauBuffers();
+			for (uint itau = 0; itau < 3; itau++)
+				peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
 
 	} // burst is empty?
