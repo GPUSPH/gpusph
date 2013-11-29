@@ -226,6 +226,7 @@ public:
 	const float4** getDVelBuffers();
 	const particleinfo** getDInfoBuffers();
 	const float4* getDForceBuffer();
+	const float2** getDTauBuffers();
 };
 
 #endif /* GPUWORKER_H_ */

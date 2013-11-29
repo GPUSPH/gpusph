@@ -1383,6 +1383,11 @@ const float4* GPUWorker::getDForceBuffer()
 	return (const float4*)m_dForces;
 }
 
+const float2** GPUWorker::getDTauBuffers()
+{
+	return (const float2**)m_dTau;
+}
+
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
 }
