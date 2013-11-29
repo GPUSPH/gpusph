@@ -1,14 +1,9 @@
-# GPU-SPH3D Makefile
-# Rewritten from scratch by rustico@dmi.unict.it
+# GPUSPH Makefile
 #
 # TODO:
 # - Add support for versioning with git
-# - Improve list-problems problem detection
-# - If user overrides CFLAGS, avoid dbg and compute recompile?
+# - Improve list-problems problem detection (move problems to separate dir?)
 # - Recompile also if target_arch changes (like dbg and compute)
-# - Add automatic deps update?
-#   "g++ -M" or http://make.paulandlesley.org/autodep.html
-# - remember \callgraph in main classes (move from here!)
 #
 # Notes:
 # - When adding a target, comment it with "# target: name - desc" and help
