@@ -276,7 +276,7 @@ void parse_options(int argc, char **argv)
 			argc--;
 		} else if (!strcmp(arg, "--console")) {
 			clOptions.console = true;
-		} else if (!strcmp(arg, "--")) {
+		} else if (!strncmp(arg, "--", 2)) {
 			cout << "Skipping unsupported option " << arg << endl;
 		} else {
 			cout << "Fatal: Unknown option: " << arg << endl;
