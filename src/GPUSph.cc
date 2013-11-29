@@ -845,6 +845,13 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
+		// for SPS viscosity, compute first array of tau and exchange with neighbors
+		if (problem->get_simparams()->visctype == SPSVISC) {
+			gdata->only_internal = true;
+			doCommand(SPS);
+			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
+		}
+
 		// compute forces only on internal particles
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_1);
@@ -884,6 +891,14 @@ bool GPUSPH::runSimulation() {
 			doCallBacks();
 			// upload on the GPU, one per device
 			doCommand(UPLOAD_GRAVITY);
+		}
+
+
+		// for SPS viscosity, compute first array of tau and exchange with neighbors
+		if (problem->get_simparams()->visctype == SPSVISC) {
+			gdata->only_internal = true;
+			doCommand(SPS);
+			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
 		gdata->only_internal = true;
