@@ -93,7 +93,7 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 
 void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
-				const float4 *normals)
+				const float4 *normals, const float4 *gradGamma, const float *tke, const float *turbvisc)
 {
 	string filename, full_filename;
 
@@ -109,6 +109,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 		}
 
 	// Header
+	//====================================================================================
 	fprintf(fid,"<?xml version='1.0'?>\n");
 	fprintf(fid,"<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= '%s'>\n",
 		endianness[*(char*)&endian_int & 1]);
@@ -131,16 +132,34 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	scalar_array(fid, "Float32", "Mass", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
+	// gamma
+	if (gradGamma) {
+		scalar_array(fid, "Float32", "Gamma", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// turbulent kinetic energy
+	if (tke) {
+		scalar_array(fid, "Float32", "TKE", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// eddy viscosity
+	if (turbvisc) {
+		scalar_array(fid, "Float32", "Eddy viscosity", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
 	// particle info
 	if (info) {
 		scalar_array(fid, "Int16", "Part type", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Part flag", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Fluid number", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Part object", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Part flag", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Fluid number", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Part object", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
 		scalar_array(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
@@ -148,6 +167,12 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
+	
+	// gradient gamma
+	if (gradGamma) {
+		vector_array(fid, "Float32", "Gradient Gamma", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
+	}
 
 	// vorticity
 	if (vort) {
@@ -188,6 +213,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	fprintf(fid," </UnstructuredGrid>\n");
 	fprintf(fid," <AppendedData encoding='raw'>\n_");
+	//====================================================================================
 
 	int numbytes=sizeof(float)*numParts;
 
@@ -195,10 +221,10 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float value = 0.0;
-		if (FLUID(info[i]))
-			value = m_problem->pressure(vel[i].w, object(info[i]));
-		else if (TESTPOINTS(info[i]))
+		if (TESTPOINTS(info[i]))
 			value = vel[i].w;
+		else
+			value = m_problem->pressure(vel[i].w, object(info[i]));
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
@@ -206,7 +232,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float value = 0.0;
-		if (FLUID(info[i]))
+		//if (FLUID(info[i]))
 			value = vel[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
@@ -216,6 +242,33 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	for (int i=0; i < numParts; i++) {
 		float value = pos[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
+	}
+	
+	// gamma
+	if (gradGamma) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = gradGamma[i].w;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// turbulent kinetic energy
+	if (tke) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = tke[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// eddy viscosity
+	if (turbvisc) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (int i=0; i < numParts; i++) {
+			float value = turbvisc[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
 	}
 
 	// particle info
@@ -229,26 +282,26 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
-		// flag
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = PART_FLAG(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// flag
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (int i=0; i < numParts; i++) {
+//			ushort value = PART_FLAG(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
-		// fluid number
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = PART_FLUID_NUM(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// fluid number
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (int i=0; i < numParts; i++) {
+//			ushort value = PART_FLUID_NUM(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
-		// object
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = object(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// object
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (int i=0; i < numParts; i++) {
+//			ushort value = object(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
 		numbytes=sizeof(uint)*numParts;
 
@@ -266,9 +319,16 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
 		float *value = zeroes;
-		if (FLUID(info[i]) || TESTPOINTS(info[i])) {
+		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
-		}
+		fwrite(value, sizeof(*value), 3, fid);
+	}
+
+	// gradient gamma
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		float *value = zeroes;
+		value = (float*)(gradGamma + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 

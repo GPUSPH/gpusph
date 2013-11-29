@@ -81,11 +81,16 @@ void
 euler(	const float4*		oldPos,
 		const hashKey*		particleHash,
 		const float4*		oldVel,
+		const float*		oldTKE,
+		const float*		oldEps,
 		const particleinfo* info,
 		const float4*		forces,
+		float2*				keps_dkde,
 		const float4*		xsph,
 		float4*				newPos,
 		float4*				newVel,
+		float*				newTKE,
+		float*				newEps,
 		const uint			numParticles,
 		const float			dt,
 		const float			dt2,
@@ -100,18 +105,18 @@ euler(	const float4*		oldPos,
 	// execute the kernel
 	if (step == 1) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt2, dt2, t);
 		else
-			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt2, dt2, t);
+			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt2, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
+			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
 		else
-			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel,
-								info, forces, xsph, newPos, newVel, numParticles, dt, dt2, t);
+			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
 	} // if (step == 2)
 
 	// check if kernel invocation generated an error

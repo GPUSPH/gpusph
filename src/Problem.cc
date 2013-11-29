@@ -71,13 +71,13 @@ Problem::density(float h, int i) const
 	float density = m_physparams.rho0[i];
 
 	if (h > 0) {
-		float g = length(m_physparams.gravity);
+		//float g = length(m_physparams.gravity);
+		float g = abs(m_physparams.gravity.z);
 		density = m_physparams.rho0[i]*pow(g*m_physparams.rho0[i]*h/m_physparams.bcoeff[i] + 1,
 				1/m_physparams.gammacoeff[i]);
 		}
 	return density;
 }
-
 
 float
 Problem::soundspeed(float rho, int i) const
@@ -434,7 +434,6 @@ Problem::draw_axis()
 	glEnd();
 }
 
-
 /*! Compute grid and cell size from the kernel influence radius
  * The number of cell is obtained as the ratio between the domain size and the
  * influence radius, rounded down to the closest integer.
@@ -509,4 +508,17 @@ void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* 
 
 void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
+}
+
+void
+Problem::init_keps(float* k, float* e, int numpart, particleinfo* info)
+{
+	const float Lm = max(2*m_deltap, 1e-5f);
+	const float k0 = pow(0.002f*m_physparams.sscoeff[0], 2);
+	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
+
+	for (uint i = 0; i < numpart; i++) {
+		k[i] = k0;
+		e[i] = e0;
+	}
 }

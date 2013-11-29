@@ -53,8 +53,18 @@ CustomTextWriter::~CustomTextWriter()
     }
 }
 
-void CustomTextWriter::write(uint numParts, const double4 *pos, const float4 *vel,
-					const particleinfo *info, const float3 *vort, float t,const bool testpoints, const float4 *normals)
+void
+CustomTextWriter::write(	uint 				numParts,
+							const double4		*pos,
+							const float4		*vel,
+							const particleinfo	*info,
+							const float3		*vort,
+							float				t,
+							const bool			testpoints,
+							const float4		*normals,
+							const float4		*gradGamma,
+							const float			*tke,
+							const float			*turbvisc)
 {
 	string filename, full_filename;
 

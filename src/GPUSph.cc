@@ -71,6 +71,7 @@
 
 #include "ParticleSystem.h"
 #include "Problem.h"
+#include "forces.cuh"
 
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
@@ -96,6 +97,7 @@ bool bPause = true;
 bool stepping_mode = false;
 bool show_boundary = false;
 bool show_floating = false;
+bool show_vertex = false;
 
 enum { M_VIEW = 0, M_MOVE};
 int view_field = ParticleSystem::VM_NORMAL;
@@ -318,14 +320,32 @@ void init(const char *arg)
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
 
+<<<<<<< HEAD
 	psystem->printPhysParams();
 	psystem->printSimParams();
 
-	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hParticleHash);
+	if(problem->m_simparams.boundarytype == MF_BOUNDARY) {
+		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hVertices, psystem->m_hBoundElement, psystem->m_hParticleHash);
+	}
+	else {
+		problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo, psystem->m_hParticleHash);
+	}
+
+	// initialize values of k and e for k-e model
+	if(problem->m_simparams.visctype == KEPSVISC)
+		problem->init_keps(psystem->m_hTKE, psystem->m_hEps, numParticles, psystem->m_hInfo);
+
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
 	psystem->setArray(ParticleSystem::INFO);
 	psystem->setArray(ParticleSystem::HASH);
+	psystem->setArray(ParticleSystem::BOUNDELEMENT);
+	psystem->setArray(ParticleSystem::GRADGAMMA);
+	psystem->setArray(ParticleSystem::VERTICES);
+	psystem->setArray(ParticleSystem::PRESSURE);
+	psystem->setArray(ParticleSystem::TKE);
+	psystem->setArray(ParticleSystem::EPSILON);
+	psystem->setArray(ParticleSystem::TURBVISC);
 
 	uint numPlanes = problem->fill_planes();
 	if (numPlanes > 0) {
@@ -338,6 +358,18 @@ void init(const char *arg)
 		psystem->setPlanes();
 	}
 
+	//psystem->saveboundelem();
+	//psystem->saveVelocity();
+	//Initialization of gamma and gradient of gamma and initialization of boundary values
+	if(problem->m_simparams.boundarytype == MF_BOUNDARY)
+	{	
+		psystem->initializeGammaAndGradGamma();
+		psystem->imposeDynamicBoundaryConditions();
+		psystem->updateValuesAtBoundaryElements();
+	}
+
+	//psystem->saveVelocity();
+	//psystem->savepressure();
 	glscreenshot = new CScreenshot(problem->get_dirname());
 
 	timingInfo = psystem->markStart();
@@ -476,6 +508,15 @@ void get_arrays(bool need_write)
 		if (problem->m_simparams.savenormals)
 			psystem->getArray(ParticleSystem::NORMALS, need_write);
 	}
+	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
+		psystem->getArray(ParticleSystem::VERTICES, need_write);
+		psystem->getArray(ParticleSystem::GRADGAMMA, need_write);
+		psystem->getArray(ParticleSystem::BOUNDELEMENT, need_write);
+		psystem->getArray(ParticleSystem::TKE, need_write);
+		psystem->getArray(ParticleSystem::EPSILON, need_write);
+		psystem->getArray(ParticleSystem::TURBVISC, need_write);
+		//psystem->getArray(ParticleSystem::STRAINRATE, need_write);
+	}
 }
 
 void do_write()
@@ -533,13 +574,15 @@ void display()
 	if (need_display || need_write)
 	{
 		get_arrays(need_write);
-		if (need_write)
+		if (need_write) {
 			do_write();
+			psystem->saveprobedata();
+		}
 	}
 
 	if (displayEnabled)
 	{
-		psystem->drawParts(show_boundary, show_floating, view_field);
+		psystem->drawParts(show_boundary, show_floating, show_vertex, view_field);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
 		problem->draw_axis();
@@ -850,10 +893,20 @@ void key(unsigned char key, int /*x*/, int /*y*/)
 		printf("%showing boundaries\n",
 				show_boundary ? "S" : "Not s");
 		break;
+	case 'F':
+		view_field = ParticleSystem::VM_NOFLUID;
+		printf("Showing transparent fluid\n");
+		break;
 
 	case 'v':
 		view_field = ParticleSystem::VM_VELOCITY;
 		printf("Showing velocity\n");
+		break;
+
+	case 'V':
+		show_vertex = !show_vertex;
+		printf("%showing vertex particles\n",
+				show_vertex ? "S" : "Not s");
 		break;
 
 	case 'p':

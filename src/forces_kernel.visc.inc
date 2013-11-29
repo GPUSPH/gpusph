@@ -30,6 +30,7 @@
 #undef VISC_DYNAMIC
 #undef VISC_KINEMATIC
 #undef VISC_SPS
+#undef VISC_KEPS
 
 #define VISC_TYPE ARTVISC
 #define VISC_ARTVISC
@@ -85,3 +86,16 @@
 #undef VISC_TYPE
 #undef VISC_SPS
 
+#define VISC_TYPE KEPSVISC
+#define VISC_KEPS
+#if (__COMPUTE__ >= 30)
+	#define MIN_BLOCKS_FORCES 6
+#elif (__COMPUTE__ == 20 || __COMPUTE__ == 21)
+	#define MIN_BLOCKS_FORCES 4
+#else
+	#define MIN_BLOCKS_FORCES 1
+#endif
+#include "forces_kernel.def"
+#undef MIN_BLOCKS_FORCES
+#undef VISC_TYPE
+#undef VISC_KEPS

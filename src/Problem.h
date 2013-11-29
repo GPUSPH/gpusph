@@ -44,6 +44,7 @@
 #include "Object.h"
 
 #include "ode/ode.h"
+typedef std::vector<vertexinfo> VertexVect;
 
 using namespace std;
 
@@ -223,6 +224,8 @@ class Problem {
 		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*);
 		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*);
+		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*) {};
+		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, uint*) {};
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);
@@ -249,5 +252,7 @@ class Problem {
 									const double, float3 * &, float3 * &, float * &);
 		int	get_ODE_bodies_numparts(void);
 		int	get_ODE_body_numparts(const int);
+
+		void init_keps(float*, float*, int, particleinfo*);
 };
 #endif

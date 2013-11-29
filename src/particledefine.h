@@ -87,6 +87,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
+	MF_BOUNDARY,
 	INVALID_BOUNDARY
 };
 
@@ -98,6 +99,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 = {
 	"Lennard-Jones",
 	"Monaghan-Kajtar",
+	"Ferrand et al.",
 	"(invalid)"
 }
 #endif
@@ -111,6 +113,7 @@ enum ViscosityType {
 	KINEMATICVISC,
 	DYNAMICVISC,
 	SPSVISC,
+	KEPSVISC,
 	INVALID_VISCOSITY
 } ;
 
@@ -125,6 +128,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 	"Kinematic",
 	"Dynamic",
 	"SPS + kinematic",
+	"k-e model",
 	"(invalid)"
 }
 #endif
@@ -176,6 +180,8 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define GATEPART		(4<<MAX_FLUID_BITS)
 #define OBJECTPART		(5<<MAX_FLUID_BITS)
 #define TESTPOINTSPART	(6<<MAX_FLUID_BITS)
+#define VERTEXPART		(7<<MAX_FLUID_BITS)
+#define PROBEPART		(8<<MAX_FLUID_BITS)
 
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
@@ -193,6 +199,24 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* otherwise it's fluid */
 #define FLUID(f)		(!(NOT_FLUID(f)))
 
+// fluid particles can be active or inactive. Particles are marked inactive under appropriate
+// conditions (e.g. after flowing out through an outlet), and are kept around until the next
+// buildneibs, that sweeps them away.
+// Since the inactivity of the particles must be accessible during neighbor list building,
+// and in particular when computing the particle hash for bucketing, we carry the information
+// in the position/mass field. Since fluid particles have positive mass, it is sufficient
+// to set its mass to zero to mark the particle inactive
+
+// a particle is active if its mass is non-zero
+#define ACTIVE(p)	(p).w
+#define INACTIVE(p)	!((p).w)
+
+// disable a particle by zeroing its mass
+inline __host__ __device__ void
+disable_particle(float4 &pos) {
+	pos.w = 0;
+}
+
 /* Tests for particle types */
 // Testpoints
 #define TESTPOINTS(f)	((f).x == TESTPOINTSPART)
@@ -200,6 +224,10 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define OBJECT(f)		((f).x == OBJECTPART)
 // Boundary particle
 #define BOUNDARY(f)		((f).x == BOUNDPART)
+// Vertex particle
+#define VERTEX(f)		((f).x == VERTEXPART)
+// Probe particle
+#define PROBE(f)		((f).x == PROBEPART)
 
 /* Tests for particle flags */
 // Free surface detection
@@ -303,4 +331,7 @@ static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(uint*)&info.z;
 }
+
+typedef uint4 vertexinfo;
+
 #endif

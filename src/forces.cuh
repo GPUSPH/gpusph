@@ -108,6 +108,9 @@ float
 forces(	float4*			pos,
 		float4*			vel,
 		float4*			forces,
+		float4*			gradgam,
+		float4*			boundelem,
+		float*			pressure,
 		float4*			rbforces,
 		float4*			rbtorques,
 		float4*			xsph,
@@ -116,6 +119,7 @@ forces(	float4*			pos,
 		uint*			cellStart,
 		neibdata*		neibsList,
 		uint			numParticles,
+		float			deltap,
 		float			slength,
 		float			dt,
 		bool			dtadapt,
@@ -125,7 +129,14 @@ forces(	float4*			pos,
 		float			influenceradius,
 		ViscosityType	visctype,
 		float			visccoeff,
+		float*			strainrate,
+		float*			turbvisc,
+		float*			keps_tke,
+		float*			keps_eps,
+		float2*			keps_dkde,
 		float*			cfl,
+		float*			cflGamma,
+		float*			cflTVisc,
 		float*			tempCfl,
 		float2*			tau[],
 		SPHFormulation	sph_formulation,
@@ -241,5 +252,95 @@ void calc_energy(
 	particleinfo const*	pinfo,
 		uint			numParticles,
 		uint			numFluids);
+
+// Computes initial values of the gamma gradient
+void
+initGradGamma(	float4*		oldPos,
+		float4*		newPos,
+		float4*		virtualVel,
+		particleinfo*	info,
+		float4*		boundElement,
+		float4*		gradGamma,
+		uint*		neibsList,
+		uint		numParticles,
+		float		deltap,
+		float		slength,
+		float		inflRadius,
+		int		kerneltype,
+		bool		periodicbound);
+		
+// Computes current value of the gamma gradient and update gamma value
+// according to the evolution equation { dGamma/dt = gradGamma * relVel }
+void
+updateGamma(	float4*		oldPos,
+		float4*		newPos,
+		float4*		virtualVel,
+		particleinfo*	info,
+		float4*		boundElement,
+		float4*		oldGam,
+		float4*		newGam,
+		uint*		neibsList,
+		uint		numParticles,
+		float		slength,
+		float		inflRadius,
+		float		virtDt,
+		bool		predcor,
+		int		kerneltype,
+		bool		periodicbound);
+
+//Moves particles back to their initial positions during initialization of gamma
+void
+updatePositions(	float4*		oldPos,
+			float4*		newPos,
+			float4*		virtualVel,
+			particleinfo*	info,
+			float		virtDt,
+			uint		numParticles);
+
+// Recomputes values at the boundary elements (currently only density) as an average
+// over three vertices of this element
+void
+updateBoundValues(	float4*		oldVel,
+			float*		oldPressure,
+			float*		oldTKE,
+			float*		oldEps,
+			vertexinfo*	vertices,
+			particleinfo*	info,
+			uint		numParticles,
+			bool		initStep);
+
+// Recomputes values at the vertex particles, following procedure similar to Shepard filter.
+// Only fluid particles are taken into summation
+// oldVel array is used to read density of fluid particles and to write density of vertex particles.
+// There is no need to use two velocity arrays (read and write) and swap them after.
+void
+dynamicBoundConditions(	const float4*		oldPos,
+			float4*			oldVel,
+			float*			oldPressure,
+			float*			oldTKE,
+			float*			oldEps,
+			const particleinfo*	info,
+			const uint*		neibsList,
+			const uint		numParticles,
+			const float		deltap,
+			const float		slength,
+			const int		kerneltype,
+			const float		influenceradius,
+			const bool		periodicbound);
+
+// Computes some values for probe particles
+// For Spheric 2 test case these are pressure and alpha value, which is similar to one used in Shepard filter
+void
+calcProbe(	float4*		oldPos,
+		float4*			oldVel,
+		float*			oldPressure,
+		const particleinfo*	info,
+		const uint*		neibsList,
+		const uint		numParticles,
+		const float		slength,
+		const int		kerneltype,
+		const float		influenceradius,
+		const bool		periodicbound);
 }
+
 #endif

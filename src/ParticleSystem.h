@@ -62,7 +62,7 @@ public:
 // ParticleSystem : class used to call CUDA kernels
 class ParticleSystem
 {
-	public:
+	public: // TODO Two "public" keywords in this class, probably this one should be "private:"
 		enum ParticleArray
 		{
 			POSITION = 0,
@@ -78,6 +78,14 @@ class ParticleSystem
 			CELLEND,
 			// Free surface detection (Debug)
 			NORMALS,
+			BOUNDELEMENT,
+			GRADGAMMA,
+			VERTICES,
+			PRESSURE,
+			TKE,
+			EPSILON,
+			TURBVISC,
+			STRAINRATE, //TODO: delete it later, used for debugging
 			INVALID_PARTICLE_ARRAY
 		};
 
@@ -87,7 +95,8 @@ class ParticleSystem
 			VM_VELOCITY,
 			VM_PRESSURE,
 			VM_DENSITY,
-			VM_VORTICITY
+			VM_VORTICITY,
+			VM_NOFLUID
 		};
 
 		ParticleSystem(Problem *problem);
@@ -103,13 +112,16 @@ class ParticleSystem
 		TimingInfo const*	markStart(void);
 
 		void	buildNeibList(bool timing);
+		void	initializeGammaAndGradGamma(void);
+		void	imposeDynamicBoundaryConditions(void);
+		void	updateValuesAtBoundaryElements(void);
 
 		TimingInfo	const* PredcorrTimeStep(bool);
 
 		void	getArray(ParticleArray, bool need_write);
 		void	setArray(ParticleArray);
 		void	setPlanes();
-		void	drawParts(bool, bool, int);
+		void	drawParts(bool, bool, bool, int);
 		void	writeSummary(void);
 		void	writeToFile(void);
 
@@ -127,6 +139,12 @@ class ParticleSystem
 		void saveindex();
 		void savesorted();
 		void savecellstartend();
+		void savegradgamma();
+		void saveboundelem();
+		void savepressure();
+		void saveprobedata();
+		void saveVelocity();
+		void saveForces();
 		void reducerbforces();
 
 		//WaveGage
@@ -175,12 +193,22 @@ class ParticleSystem
 		hashKey*	m_hParticleHash;		// particle hash
 		float3*		m_hVort;				// vorticity
 		float*		m_hVisc;				// viscosity
-		float4*     m_hNormals;				// normals at free surface
+		float4*		m_hNormals;				// normals at free surface
 		float4*		m_hEnergy;				// total fluid(s) energy
 
 		// CPU arrays for geometry
 		float4*		m_hPlanes;
 		float *		m_hPlanesDiv;
+
+		//CPU arrays for Ferrand et al. boundary model
+		float4*		m_hGradGamma;			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
+		float4*		m_hBoundElement;		// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
+		vertexinfo*	m_hVertices;			// stores indexes of 3 vertex particles for every boundary element
+		float*		m_hPressure;			// stores pressure, used only for vertex and boundary particles
+		float*		m_hTKE;					// k - turbulent kinetic energy
+		float*		m_hEps;					// e - turbulent kinetic energy dissipation rate
+		float*		m_hTurbVisc;			// nu_t - kinematic eddy viscosity
+		float*		m_hStrainRate;			// S - mean scalar strain rate //TODO: delete it later, used for debugging
 
 		// CPU arrays used for debugging
 		neibdata*	m_hNeibsList;
@@ -195,14 +223,27 @@ class ParticleSystem
 		float4*		m_dXsph;				// mean velocity array
 		float4*		m_dPos[2];				// position array
 		float4*		m_dVel[2];				// velocity array
-		particleinfo*	m_dInfo[2];			// particle info array
-		float4*     m_dNormals;				// normal at free surface
+		particleinfo*	m_dInfo[2];				// particle info array
+		float4*		m_dNormals;				// normal at free surface
 		float3*		m_dVort;				// vorticity
+		uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
 		float*		m_dCfl;					// cfl for each block
+		float*		m_dCflGamma;			// analogue of cfl due to gamma integration
+		float*		m_dCflTVisc;			// analogue of cfl taking into account eddy viscosity
 		float*		m_dTempCfl;				// temporary storage for cfl computation
 		float*		m_dCfl2;				// test
 		float2*		m_dTau[3];				// SPS stress tensor
 		
+		float4*		m_dGradGamma[2];			// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
+		float4*		m_dBoundElement[2];			// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
+		vertexinfo*	m_dVertices[2];				// stores indexes of 3 vertex particles for every boundary element
+		float*		m_dPressure[2];				// stores pressure for vertex and boundary particles
+		float*		m_dTKE[2];					// k - turbulent kinetic energy
+		float*		m_dEps[2];					// e - turbulent kinetic energy dissipation rate
+		float*		m_dTurbVisc[2];				// nu_t - kinematic eddy viscosity
+		float*		m_dStrainRate[2];			// S - mean scalar strain rate
+		float2*		m_dDkDe;					// dk/dt and de/dt for k-e model
+
 		// TODO: profile with float3
 		uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
 		float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies
@@ -217,6 +258,7 @@ class ParticleSystem
 
 		hashKey*	m_dParticleHash;		// hash table for sorting
 		uint*		m_dParticleIndex;		// sorted particle indexes
+		uint*		m_dInversedParticleIndex;	// inversed m_dParticle index array
 		uint*		m_dCellStart;			// index of cell start in sorted order
 		uint*		m_dCellEnd;				// index of cell end in sorted order
 		neibdata*	m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
@@ -227,6 +269,22 @@ class ParticleSystem
 		uint		m_currentVelWrite;		// current index in m_dVel for writing (0 or 1)
 		uint		m_currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
 		uint		m_currentInfoWrite;		// current index in m_dInfo for writing (0 or 1)
+		uint		m_currentBoundElementRead;	// current index in m_dBoundElement for normal coordinates (and surface) reading (0 or 1)
+		uint		m_currentBoundElementWrite;	// current index in m_dBoundElement for writing (0 or 1)
+		uint		m_currentGradGammaRead;		// current index in m_dGradGamma for gradient gamma (and gamma) reading (0 or 1)
+		uint		m_currentGradGammaWrite;	// current index in m_dGradGamma for writing (0 or 1)
+		uint		m_currentVerticesRead;		// current index in m_dVertices for vertices reading (0 or 1)
+		uint		m_currentVerticesWrite;		// current index in m_dVertices for writing (0 or 1)
+		uint		m_currentPressureRead;		// current index in m_dPressure for pressure reading (0 or 1)
+		uint		m_currentPressureWrite;		// current index in m_dPressure for writing (0 or 1)
+		uint		m_currentTKERead;		// current index in m_dTKE for pressure reading (0 or 1)
+		uint		m_currentTKEWrite;		// current index in m_dTKE for writing (0 or 1)
+		uint		m_currentEpsRead;		// current index in m_dEps for pressure reading (0 or 1)
+		uint		m_currentEpsWrite;		// current index in m_dEps for writing (0 or 1)
+		uint		m_currentTurbViscRead;		// current index in m_dTurbVisc for pressure reading (0 or 1)
+		uint		m_currentTurbViscWrite;		// current index in m_dTurbVisc for writing (0 or 1)
+		uint		m_currentStrainRateRead;
+		uint		m_currentStrainRateWrite;
 
 		// CUDA device properties
 		cudaDeviceProp	m_device;

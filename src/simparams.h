@@ -58,6 +58,7 @@ typedef struct SimParams {
 	uint			buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
 	uint			shepardfreq;		// frequency (in iterations) of Shepard density filter
 	uint			mlsfreq;			// frequency (in iterations) of MLS density filter
+	float			ferrari;			// coefficient for Ferrari correction
 	ViscosityType	visctype;			// viscosity type (1 artificial, 2 laminar)
 	uint			displayfreq;		// display update frequence (in seconds)
 	uint			savedatafreq;		// simulation data saving frequence (in displayfreq)
@@ -86,6 +87,7 @@ typedef struct SimParams {
 		buildneibsfreq(10),
 		shepardfreq(0),
 		mlsfreq(15),
+		ferrari(0),
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),

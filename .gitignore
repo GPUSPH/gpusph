@@ -10,7 +10,7 @@ tests
 TAGS
 *.kdev4
 .kdev*
-TODO
+TODO*
 .DS_Store
 .*.swp
 ~
@@ -20,3 +20,4 @@ TODO
 html
 latex
 Manual
+cscope*

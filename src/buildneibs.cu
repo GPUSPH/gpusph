@@ -98,19 +98,50 @@ calcHash(float4*	pos,
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
 
+void
+inverseParticleIndex (	uint*	particleIndex,
+			uint*	inversedParticleIndex,
+			uint	numParticles)
+{
+	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
-void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start index
-									uint*			cellEnd,		// output: cell end index
-									float4*			newPos,			// output: sorted positions
-									float4*			newVel,			// output: sorted velocities
-									particleinfo*	newInfo,		// output: sorted info
-									const hashKey*	particleHash,   // input: sorted grid hashes
-									const uint*		particleIndex,  // input: sorted particle indices
-									const float4*	oldPos,			// input: unsorted positions
-									const float4*	oldVel,			// input: unsorted velocities
-									const particleinfo*	oldInfo,	// input: unsorted info
-									const uint		numParticles,
-									const uint		numGridCells)
+	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
+	
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");	
+}
+
+
+void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
+									uint*				cellEnd,			// output: cell end index
+									float4*				newPos,				// output: sorted positions
+									float4*				newVel,				// output: sorted velocities
+									particleinfo*		newInfo,			// output: sorted info
+									float4*				newBoundElement,	// output: sorted boundary elements
+									float4*				newGradGamma,		// output: sorted gradient gamma
+									vertexinfo*			newVertices,		// output: sorted vertices
+									float*				newPressure,		// output: sorted pressure
+									float*				newTKE,				// output: k for k-e model
+									float*				newEps,				// output: e for k-e model
+									float*				newTurbVisc,		// output: eddy viscosity
+									float*				newStrainRate,		// output: strain rate
+									const hashKey*		particleHash,   	// input: sorted grid hashes
+									const uint*			particleIndex,  	// input: sorted particle indices
+									const float4*		oldPos,				// input: unsorted positions
+									const float4*		oldVel,				// input: unsorted velocities
+									const particleinfo*	oldInfo,			// input: unsorted info
+									const float4*		oldBoundElement,	// input: sorted boundary elements
+									const float4*		oldGradGamma,		// input: sorted gradient gamma
+									const vertexinfo*	oldVertices,		// input: sorted vertices
+									const float*		oldPressure,		// input: sorted pressure
+									const float*		oldTKE,				// input: k for k-e model
+									const float*		oldEps,				// input: e for k-e model
+									const float*		oldTurbVisc,		// input: eddy viscosity
+									const float*		oldStrainRate,		// input: strain rate
+									const uint			numParticles,
+									const uint			numGridCells,
+									uint*				inversedParticleIndex)
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
@@ -120,17 +151,37 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, presTex, oldPressure, numParticles*sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
+	
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
-													newVel, newInfo, particleHash, particleIndex, numParticles);
-	
+												newVel, newInfo, newBoundElement, newGradGamma, newVertices, newPressure, newTKE, newEps, newTurbVisc, newStrainRate,
+												particleHash, particleIndex, numParticles, inversedParticleIndex);
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
-	
+
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
 }
 
 

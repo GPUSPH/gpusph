@@ -52,12 +52,17 @@
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	lx = 1.6;
-	ly = 0.67;
-	lz = 0.6;	
-	H = 0.4;
+//	lx = 1.6;
+//	ly = 0.67;
+//	lz = 0.6;
+//	H = 0.4;
+	lx = 3.22;
+	ly = 1.0;
+	lz = 1.0;
+	H = 0.55;
 	wet = false;
 	m_usePlanes = true;
+	n_probeparts = 208;
 	
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -76,8 +81,10 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.visctype = ARTVISC;
+	m_simparams.ferrari = 0.1;
+	//m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
+	m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f; //0.00036f
 
@@ -92,7 +99,6 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Physical parameters
-	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
@@ -100,25 +106,25 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
-	
+
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-	
-	m_physparams.kinematicvisc = 1.0e-6f;
+
+	m_physparams.kinematicvisc = 1.0e-2f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
+
 	// Scales for drawing
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
 	m_minvel = 0.0f;
 	//m_maxvel = sqrt(m_physparams.gravity*H);
 	m_maxvel = 3.0f;
-	
+
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 5;
@@ -183,7 +189,7 @@ int DamBreak3D::fill_parts()
 		obstacle.Unfill(parts, r0);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + n_probeparts;
 }
 
 uint DamBreak3D::fill_planes()
@@ -277,5 +283,47 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	if(n_probeparts) {
+		std::cout << "Probe parts: " << n_probeparts << "\n";
+		PointVect probe_coord[n_probeparts];
+
+		// Probe H1
+		for (uint i = 0; i < 50; i++) {
+			probe_coord[i] = m_origin + make_double3(2.724, 0.5, 0.02*i);
+		}
+		// Probe H2
+		for (uint i = 50; i < 100; i++) {
+			probe_coord[i] = m_origin + make_double3(2.228, 0.5, 0.02*(i-50));
+		}
+		// Probe H3
+		for (uint i = 100; i < 150; i++) {
+			probe_coord[i] = m_origin + make_double3(1.732, 0.5, 0.02*(i-100));
+		}
+		// Probe H4
+		for (uint i = 150; i < 200; i++) {
+			probe_coord[i] = m_origin + make_double3(0.582, 0.5, 0.02*(i-150));
+		}
+		// Pressure probes
+		probe_coord[200] = m_origin + make_double3(2.3955, 0.529, 0.021); // Probe P1
+		probe_coord[201] = m_origin + make_double3(2.3955, 0.529, 0.061); // Probe P2
+		probe_coord[202] = m_origin + make_double3(2.3955, 0.529, 0.101); // Probe P3
+		probe_coord[203] = m_origin + make_double3(2.3955, 0.529, 0.141); // Probe P4
+		probe_coord[204] = m_origin + make_double3(2.4165, 0.471, 0.161); // Probe P5
+		probe_coord[205] = m_origin + make_double3(2.4565, 0.471, 0.161); // Probe P6
+		probe_coord[206] = m_origin + make_double3(2.4965, 0.471, 0.161); // Probe P7
+		probe_coord[207] = m_origin + make_double3(2.5365, 0.471, 0.161); // Probe P8
+
+		for (uint i = j; i < j + n_probeparts; i++) {
+			calc_localpos_and_has(probe_coord[i-j], localpos, hashvalue);
+			pos[i] = localpos;
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i] = make_particleinfo(PROBEPART, 0, i);
+			hash[i] = hashvalue;
+		}
+	}
+	//*******************************************************************
 	std::flush(std::cout);
 }

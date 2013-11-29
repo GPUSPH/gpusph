@@ -11,6 +11,10 @@ class StillWater: public Problem {
 		Cube		experiment_box;
 		PointVect	parts;
 		PointVect	boundary_parts;
+		PointVect	boundary_elems;
+		PointVect	vertex_parts;
+		VertexVect	vertex_indexes;
+
 		float		h, w, l;
 		float		H; // still water level
 
@@ -21,7 +25,8 @@ class StillWater: public Problem {
 		int fill_parts(void);
 		uint fill_planes(void);
 		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, vertexinfo *, float4 *, uint *);
 		void copy_planes(float4*, float*);
 
 		void release_memory(void);

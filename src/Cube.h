@@ -57,6 +57,7 @@ class Cube: public Object {
 		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
 		void ODEGeomCreate(dSpaceID, const double);
 
+		void FillBorder(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const bool);
 		void FillBorder(PointVect&, const double, const int, const bool*);
 		void FillBorder(PointVect&, const double, const bool);
 		void FillBorder(PointVect& points, const double dx)

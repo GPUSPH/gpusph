@@ -214,7 +214,23 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
+
+}
 #undef MOVINGNOTFLUID
+
+__global__
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+void inverseParticleIndexDevice (   uint*   particleIndex,
+                    uint*   inversedParticleIndex,
+                    uint    numParticles)
+{
+    const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+    if (index < numParticles) {
+        int oldindex = particleIndex[index];
+        inversedParticleIndex[oldindex] = index;
+    }
+}
 
 /// Reorders particles data after the sort and updates cells informations
 /*! This kernel should be called after the sort. It
@@ -244,9 +260,18 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float4*			sortedPos,		///< new sorted particle's positions (out)
 										float4*			sortedVel,		///< new sorted particle's velocities (out)
 										particleinfo*	sortedInfo,		///< new sorted particle's informations (out)
+										float4*			sortedBoundElements,	// output: sorted boundary elements
+										float4*			sortedGradGamma,	// output: sorted gradient gamma
+										vertexinfo*		sortedVertices,		// output: sorted vertices
+										float*			sortedPressure,		// output: sorted pressure
+										float*			sortedTKE,			// output: k for k-e model
+										float*			sortedEps,			// output: e for k-e model
+										float*			sortedTurbVisc,		// output: eddy viscosity
+										float*			sortedStrainRate,	// output: strain rate
 										const hashKey*	particleHash,	///< previously sorted particle's hashes (in)
 										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
-										const uint		numParticles)	///< total number of particles
+										const uint		numParticles,	///< total number of particles
+										const uint*		inversedParticleIndex)
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -273,31 +298,65 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 	if (index < numParticles) {
 		// If this particle has a different cell index to the previous
-		// particle then it must be the first particle in the cell,
-		// so store the index of this particle in the cell.
-		// As it isn't the first particle, it must also be the cell end of
-		// the previous particle's cell
+		// particle then it must be the first particle in the cell
+		// or the first inactive particle.
+		// Store the index of this particle as the new cell start and as
+		// the previous cell end
 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
-			cellStart[hash] = index;
+			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
 				cellEnd[sharedHash[threadIdx.x]] = index;
+			// if it isn't an inactive particle, it is also the start of the
+			// new cell, otherwise, it's the number of active particles
+			if (hash != HASH_KEY_MAX)
+				cellStart[hash] = index;
+			else {
+				*newNumParticles = index;
 			}
+		}
+
+		// if we are an inactive particle, we're done
+		if (hash == HASH_KEY_MAX)
+			return;
 
 		if (index == numParticles - 1) {
+			// we only get here if all particles are active
 			cellEnd[hash] = index + 1;
-			}
+			*newNumParticles = numParticles;
+		}
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
 		const float4 pos = tex1Dfetch(posTex, sortedIndex);
 		const float4 vel = tex1Dfetch(velTex, sortedIndex);
 		const particleinfo info = tex1Dfetch(infoTex, sortedIndex);
+		const float4 boundelement = tex1Dfetch(boundTex, sortedIndex);
+		const float4 gradgamma = tex1Dfetch(gamTex, sortedIndex);
+		const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+		const float pressure = tex1Dfetch(presTex, sortedIndex);
+
+		const float keps_k = tex1Dfetch(keps_kTex, sortedIndex);
+		const float keps_e = tex1Dfetch(keps_eTex, sortedIndex);
+		const float tvisc = tex1Dfetch(tviscTex, sortedIndex);
+		const float strainrate = tex1Dfetch(strainTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
-		}
+		sortedBoundElements[index] = boundelement;
+		sortedGradGamma[index] = gradgamma;
+		sortedPressure[index] = pressure;
+		
+		sortedVertices[index].x = inversedParticleIndex[vertices.x];
+		sortedVertices[index].y = inversedParticleIndex[vertices.y];
+		sortedVertices[index].z = inversedParticleIndex[vertices.z];
+
+		sortedTKE[index] = keps_k;
+		sortedEps[index] = keps_e;
+		sortedTurbVisc[index] = tvisc;
+		sortedStrainRate[index] = strainrate;
+	}
 }
 
 
@@ -420,9 +479,9 @@ neibsInCell(
 	bool encode_cell = true;
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
-		// Testpoints are not considered in neighboring list of other particles since they are imaginary particles.
+		// Test and probe points are not considered in neighboring list of other particles since they are imaginary particles.
     	const particleinfo info = tex1Dfetch(infoTex, neib_index);
-        if (!TESTPOINTS(info)) {
+        if (!TESTPOINTS (info) && !PROBE(info)) {
         	// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
@@ -497,9 +556,11 @@ buildNeibsListDevice(
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
 		// so change that when implementing dynamics boundary parts
+		// This is also not true for "Ferrand et al." boundary model,
+		// where vertex particles also need to have a list of neighbours
 
-		// Neighbor list is build for fluid, test and object particle's
-		if (FLUID(info) || TESTPOINTS(info) || OBJECT(info)) {
+		// Neighbor list is build for fluid, object, vertex and probe particles
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || PROBE(info)/*TODO: || BOUNDARY(info)*/) {
 			// Get particle position
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);

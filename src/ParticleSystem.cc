@@ -72,6 +72,14 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Particle Index",
 	"Cell Start",
 	"Cell End",
+	"Normals",
+	"Boundary Elements",
+	"Gradient Gamma",
+	"Vertices",
+	"Pressure",
+	"Turbulent Kinetic Energy [k]",
+	"Turbulent Dissipation Rate [e]",
+	"Eddy Viscosity",
 	"(invalid)"
 };
 
@@ -87,7 +95,23 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_currentVelRead(0),
 	m_currentVelWrite(1),
 	m_currentInfoRead(0),
-	m_currentInfoWrite(1)
+	m_currentInfoWrite(1),
+	m_currentBoundElementRead(0),
+	m_currentBoundElementWrite(1),
+	m_currentGradGammaRead(0),
+	m_currentGradGammaWrite(1),
+	m_currentVerticesRead(0),
+	m_currentVerticesWrite(1),
+	m_currentPressureRead(0),
+	m_currentPressureWrite(1),
+	m_currentTKERead(0),
+	m_currentTKEWrite(1),
+	m_currentEpsRead(0),
+	m_currentEpsWrite(1),
+	m_currentTurbViscRead(0),
+	m_currentTurbViscWrite(1),
+	m_currentStrainRateRead(0),
+	m_currentStrainRateWrite(1)
 {
 	m_worldOrigin = make_float3(problem->get_worldorigin());
 	m_worldSize = make_float3(problem->get_worldsize());
@@ -188,6 +212,7 @@ ParticleSystem::allocate(uint numParticles)
 	const size_t memSize3 = sizeof(float3)*m_numParticles;
 	const size_t memSize4 = sizeof(float4)*m_numParticles;
 	const size_t infoSize = sizeof(particleinfo)*m_numParticles;
+	const size_t vinfoSize = sizeof(vertexinfo)*m_numParticles;
 	const size_t hashSize = sizeof(hashKey)*m_numParticles;
 	const size_t idxSize = sizeof(uint)*m_numParticles;
 	const size_t gridcellSize = sizeof(uint)*m_nGridCells;
@@ -211,7 +236,7 @@ ParticleSystem::allocate(uint numParticles)
 	memory += infoSize;
 
 	m_hEnergy = new float4[m_physparams->numFluids];
-	memset(m_hInfo, 0, sizeof(float4)*m_physparams->numFluids);
+	memset(m_hInfo, 0, sizeof(float4)*m_physparams->numFluids); //TODO Should it be m_hEnergy instead of m_hInfo?
 	memory += sizeof(float4)*m_physparams->numFluids;
 
 	m_hParticleHash = new hashKey[m_numParticles];
@@ -224,6 +249,37 @@ ParticleSystem::allocate(uint numParticles)
 		memory += memSize3;
 		}
 
+	m_hGradGamma = new float4[m_numParticles];
+	memset(m_hGradGamma, 0, memSize4);
+	memory += memSize4;
+	
+	m_hBoundElement = new float4[m_numParticles];
+	memset(m_hBoundElement, 0, memSize4);
+	memory += memSize4;
+	
+	m_hVertices = new vertexinfo[m_numParticles];
+	memset(m_hVertices, 0, vinfoSize);
+	memory += vinfoSize;
+
+	m_hPressure = new float[m_numParticles];
+	memset(m_hPressure, 0, memSize);
+	memory += memSize;
+
+	m_hTKE = new float[m_numParticles];
+	memset(m_hTKE, 0, memSize);
+	memory += memSize;
+
+	m_hEps = new float[m_numParticles];
+	memset(m_hEps, 0, memSize);
+	memory += memSize;
+
+	m_hTurbVisc = new float[m_numParticles];
+	memset(m_hTurbVisc, 0, memSize);
+	memory += memSize;
+
+	m_hStrainRate = new float[m_numParticles]; //TODO: delete it later, used for debugging
+	memset(m_hStrainRate, 0, memSize);
+	memory += memSize;
 
 #ifdef _DEBUG_
 	m_hForces = new float4[m_numParticles];
@@ -329,6 +385,62 @@ ParticleSystem::allocate(uint numParticles)
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], memSize2));
 		memory += memSize2;
 	}
+	
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dGradGamma[0], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dGradGamma[1], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dBoundElement[0], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dBoundElement[1], memSize4));
+	memory += memSize4;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVertices[0], vinfoSize));
+	memory += vinfoSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVertices[1], vinfoSize));
+	memory += vinfoSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPressure[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPressure[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTKE[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTKE[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dEps[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dEps[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTurbVisc[0], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTurbVisc[1], memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dStrainRate[0], memSize));
+	CUDA_SAFE_CALL(cudaMemset(m_dStrainRate[0], 0, memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dStrainRate[1], memSize));
+	CUDA_SAFE_CALL(cudaMemset(m_dStrainRate[1], 0, memSize));
+	memory += memSize;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dDkDe, memSize2));
+	memory += memSize2;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInversedParticleIndex, hashSize));
+	memory += hashSize;
 
 	// Allocate storage for rigid bodies forces and torque computation
 	m_dRbTorques = m_dRbForces = NULL;
@@ -379,6 +491,16 @@ ParticleSystem::allocate(uint numParticles)
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
+
+		if(m_simparams->boundarytype == MF_BOUNDARY) {
+			CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCflGamma, fmaxTableSize));
+			CUDA_SAFE_CALL(cudaMemset(m_dCflGamma, 0, fmaxTableSize));
+		}
+
+		if(m_simparams->visctype == KEPSVISC) {
+			CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCflTVisc, fmaxTableSize));
+			CUDA_SAFE_CALL(cudaMemset(m_dCflTVisc, 0, fmaxTableSize));
+		}
 
 		const uint tempCflSize = getFmaxTempStorageSize(fmaxElements);
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
@@ -467,6 +589,7 @@ ParticleSystem::setPhysParams(void)
 			m_physparams->visccoeff = 4.0*m_physparams->kinematicvisc;
 			break;
 
+		case KEPSVISC:
 		case DYNAMICVISC:
 			m_physparams->visccoeff = m_physparams->kinematicvisc;
 			break;
@@ -539,19 +662,23 @@ ParticleSystem::printPhysParams(FILE *summary)
 
 		case KINEMATICVISC:
 			fprintf(summary, "\tKinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = 4*kinematicvisc)\n",
-					m_physparams->artvisccoeff, visccoeff);
+					m_physparams->kinematicvisc, visccoeff);
 			break;
 
 		case DYNAMICVISC:
 			fprintf(summary, "\tDynamic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
-					m_physparams->artvisccoeff, visccoeff);
+					m_physparams->kinematicvisc, visccoeff);
 			break;
 
 		case SPSVISC:
 			fprintf(summary, "\tSPS + kinematic viscosity: kinematicvisc = %g m^2/s (viscoeff=%g = kinematicvisc)\n",
-					m_physparams->artvisccoeff, visccoeff);
+					m_physparams->kinematicvisc, visccoeff);
 			fprintf(summary, "\tSmagFactor = %g\n", m_physparams->smagfactor);
 			fprintf(summary, "\tkSPSFactor = %g\n", m_physparams->kspsfactor);
+			break;
+		case KEPSVISC:
+			fprintf(summary, "\tk-e model: kinematicvisc = %g m^2/s\n",
+					m_physparams->kinematicvisc);
 			break;
 		}
 	fprintf(summary, "espartvisc = %g\n", m_physparams->epsartvisc);
@@ -585,6 +712,7 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "neib list construction every %d iteration\n", m_simparams->buildneibsfreq);
 	fprintf(summary, "Shepard filter every %d iteration\n", m_simparams->shepardfreq);
 	fprintf(summary, "MLS filter every %d iteration\n", m_simparams->mlsfreq);
+	fprintf(summary, "Ferrari correction = %g\n", m_simparams->ferrari);
 	fprintf(summary, "adaptive time step = %d\n", m_simparams->dtadapt);
 	fprintf(summary, "safety factor for adaptive time step = %f\n", m_simparams->dtadaptfactor);
 	fprintf(summary, "xsph correction = %d\n", m_simparams->xsph);
@@ -626,6 +754,25 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams->vorticity) {
 		delete [] m_hVort;
 		}
+	if (m_hVertices)
+		delete [] m_hVertices;
+	if (m_hGradGamma)
+		delete [] m_hGradGamma;
+	if (m_hBoundElement)
+		delete [] m_hBoundElement;
+	if (m_hPressure)
+		delete [] m_hPressure;
+
+//	if (m_simparams->visctype == KEPSVISC) {
+		if (m_hTKE)
+			delete [] m_hTKE;
+		if (m_hEps)
+			delete [] m_hEps;
+		if (m_hTurbVisc)
+			delete [] m_hTurbVisc;
+		if (m_hStrainRate)
+			delete [] m_hStrainRate;
+//	}
 
 #ifdef _DEBUG_
 	delete [] m_hForces;
@@ -662,6 +809,28 @@ ParticleSystem::~ParticleSystem()
 	CUDA_SAFE_CALL(cudaFree(m_dVel[1]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[0]));
 	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
+	
+	CUDA_SAFE_CALL(cudaFree(m_dGradGamma[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dGradGamma[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dBoundElement[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dBoundElement[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dVertices[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dVertices[1]));
+	CUDA_SAFE_CALL(cudaFree(m_dPressure[0]));
+	CUDA_SAFE_CALL(cudaFree(m_dPressure[1]));
+
+//	if (m_simparams->visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaFree(m_dTKE[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dTKE[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dEps[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dEps[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dTurbVisc[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dTurbVisc[1]));
+		CUDA_SAFE_CALL(cudaFree(m_dStrainRate[0]));
+		CUDA_SAFE_CALL(cudaFree(m_dStrainRate[1]));
+
+		CUDA_SAFE_CALL(cudaFree(m_dDkDe));
+//	}
 
 	// Free surface detection
 	if (m_simparams->savenormals)
@@ -682,6 +851,7 @@ ParticleSystem::~ParticleSystem()
 
 	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
+	CUDA_SAFE_CALL(cudaFree(m_dInversedParticleIndex));
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
@@ -692,6 +862,12 @@ ParticleSystem::~ParticleSystem()
 	if (m_simparams->dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
+
+		if (m_simparams->boundarytype == MF_BOUNDARY)
+			CUDA_SAFE_CALL(cudaFree(m_dCflGamma));
+
+		if (m_simparams->visctype == KEPSVISC)
+			CUDA_SAFE_CALL(cudaFree(m_dCflTVisc));
 		}
 
 	printf("GPU and CPU memory released\n\n");
@@ -803,13 +979,12 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			ddata = (void*) m_dParticleHash;
 			break;
 
-#ifdef _DEBUG_
 		case FORCE:
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hForces;
 			ddata = (void*) m_dForces;
 			break;
-
+#ifdef _DEBUG_
 		case NEIBSLIST:
 			size = m_numParticles*m_simparams->maxneibsnum*sizeof(neibdata);
 			hdata = (void*) m_hNeibsList;
@@ -834,6 +1009,60 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			ddata = (void*) m_dCellEnd;
 			break;
 #endif
+
+		case NORMALS:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hNormals;
+			ddata = (void*) m_dNormals;
+			break;
+
+		case BOUNDELEMENT:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hBoundElement;
+			ddata = (void*) m_dBoundElement[m_currentBoundElementRead];
+			break;
+
+		case GRADGAMMA:
+			size = m_numParticles*sizeof(float4);
+			hdata = (void*) m_hGradGamma;
+			ddata = (void*) m_dGradGamma[m_currentGradGammaRead];
+			break;
+
+		case VERTICES:
+			size = m_numParticles*sizeof(vertexinfo);
+			hdata = (void*) m_hVertices;
+			ddata = (void*) m_dVertices[m_currentVerticesRead];
+			break;
+
+		case PRESSURE:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hPressure;
+			ddata = (void*) m_dPressure[m_currentPressureRead];
+			break;
+
+		case TKE:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hTKE;
+			ddata = (void*) m_dTKE[m_currentTKERead];
+			break;
+
+		case EPSILON:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hEps;
+			ddata = (void*) m_dEps[m_currentEpsRead];
+			break;
+
+		case TURBVISC:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hTurbVisc;
+			ddata = (void*) m_dTurbVisc[m_currentTurbViscRead];
+			break;
+
+		case STRAINRATE:
+			size = m_numParticles*sizeof(float);
+			hdata = (void*) m_hStrainRate;
+			ddata = (void*) m_dStrainRate[m_currentStrainRateRead];
+			break;
 	}
 
 	if (size)
@@ -874,6 +1103,54 @@ ParticleSystem::setArray(ParticleArray array)
 			size = m_numParticles*sizeof(hashKey);
 			break;
 
+		case BOUNDELEMENT:
+			hdata = m_hBoundElement;
+			ddata = m_dBoundElement[m_currentBoundElementRead];
+			size = m_numParticles*sizeof(float4);
+			break;
+
+		case GRADGAMMA:
+			hdata = m_hGradGamma;
+			ddata = m_dGradGamma[m_currentGradGammaRead];
+			size = m_numParticles*sizeof(float4);
+			break;
+
+		case VERTICES:
+			hdata = m_hVertices;
+			ddata = m_dVertices[m_currentVerticesRead];
+			size = m_numParticles*sizeof(vertexinfo);
+			break;
+
+		case PRESSURE:
+			hdata = m_hPressure;
+			ddata = m_dPressure[m_currentPressureRead];
+			size = m_numParticles*sizeof(float);
+			break;
+
+		case TKE:
+			hdata = m_hTKE;
+			ddata = m_dTKE[m_currentTKERead];
+			size = m_numParticles*sizeof(float);
+			break;
+
+		case EPSILON:
+			hdata = m_hEps;
+			ddata = m_dEps[m_currentEpsRead];
+			size = m_numParticles*sizeof(float);
+			break;
+
+		case TURBVISC:
+			hdata = m_hTurbVisc;
+			ddata = m_dTurbVisc[m_currentTurbViscRead];
+			size = m_numParticles*sizeof(float);
+			break;
+
+		case STRAINRATE:
+			hdata = m_hStrainRate;
+			ddata = m_dStrainRate[m_currentStrainRateRead];
+			size = m_numParticles*sizeof(float);
+			break;
+
 		default:
 			fprintf(stderr, "Trying to upload unknown array %d\n", array);
 			return;
@@ -908,7 +1185,7 @@ ParticleSystem::writeToFile()
 		m_hdPos[i] = dpos;
 	}
 	//Testpoints
-	m_writer->write(m_numParticles, m_hdPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals);
+	m_writer->write(m_numParticles, m_hdPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hTurbVisc);
 	m_problem->mark_written(m_simTime);
 	calc_energy(m_hEnergy,
 		m_dPos[m_currentPosRead],
@@ -932,7 +1209,7 @@ ParticleSystem::calcGridPos(uint particleHash)
 }
 
 void
-ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
+ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vertex, int view_mode)
 {
 	float minrho = m_problem->get_minrho();
 	float maxrho = m_problem->get_maxrho();
@@ -942,6 +1219,9 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	float minvort = 0.0;
 	float maxvort = 2.0;
 
+	//FIXME: Workaround for some time...
+	if(minrho == maxrho)
+		maxrho =1.01*minrho;
 
 	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
 	float maxp = m_problem->pressure(maxrho,0);
@@ -951,6 +1231,9 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 	float3* vort = m_hVort;
 	uint* 	hash = m_hParticleHash;
 	particleinfo* info = m_hInfo;
+	vertexinfo* vinfo = m_hVertices;
+
+	//bool show_fluid = view_mode == VM_NOFLUID? false : true;
 
 	glPointSize(2.0);
 	glBegin(GL_POINTS);
@@ -959,7 +1242,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 			float3 pos = make_float3(relpos[i]);
 			pos = m_cellSize*calcGridPos(hash[i]) + pos + 0.5f*m_cellSize + m_worldOrigin;
 
-			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && show_boundary) {
+			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && !VERTEX(info[i]) && show_boundary) {
 				glColor3f(0.0, 1.0, 0.0);
 				glVertex3fv((float*)&pos);
 			}
@@ -967,15 +1250,23 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 				glColor3f(1.0, 0.0, 0.0);
 				glVertex3fv((float*)&pos);
 			}
+			if (VERTEX(info[i]) && show_vertex) {
+				glColor3f(0.3, 0.7, 0.9);
+				glVertex3fv((float*)&pos[i]);
+			}
+			if (PROBE(info[i])) {
+				glColor3f(0.0, 0.0, 0.0);
+				glVertex3fv((float*)&pos[i]);
+			}
 			if (FLUID(info[i])) {
-				float v; // unsigned int t;
+				float v;
 				float ssvel = m_problem->soundspeed(vel[i].w, PART_FLUID_NUM(info[i]));
 				switch (view_mode) {
 					case VM_NORMAL:
 					    glColor3f(0.0,0.0,1.0);
 					    if (m_physparams->numFluids > 1) {
 					       v = (float) PART_FLUID_NUM(info[i]);
-	                       v /= (m_physparams->numFluids - 1);
+						v /= (m_physparams->numFluids - 1);
 						   glColor3f(v, 0.0, 1.0 - v);
 						   }
 						break;
@@ -1018,6 +1309,21 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 			}
 		}
 
+	}
+	glEnd();
+
+	//draw connections between vertex particles (i.e. triangular boundary elements)
+	glBegin(GL_TRIANGLES);
+	glColor3f(0.2,0.6,0.8);
+	for(uint i = 0; i < m_numParticles; i++) {
+		if(BOUNDARY(info[i]) && show_vertex) {
+			uint i_vert1 = vinfo[i].x;
+			uint i_vert2 = vinfo[i].y;
+			uint i_vert3 = vinfo[i].z;
+			glVertex3f(pos[i_vert1].x, pos[i_vert1].y, pos[i_vert1].z);
+			glVertex3f(pos[i_vert2].x, pos[i_vert2].y, pos[i_vert2].z);
+			glVertex3f(pos[i_vert3].x, pos[i_vert3].y, pos[i_vert3].z);
+		}
 	}
 	glEnd();
 
@@ -1068,29 +1374,69 @@ ParticleSystem::buildNeibList(bool timing)
 	// hash based particle sort
 	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
 
+	//inverse array with particle indexes;
+	//array with inversed indexes will be used later to reassign vertices for boundary elements
+	inverseParticleIndex(m_dParticleIndex, m_dInversedParticleIndex, m_numParticles);
+
 	reorderDataAndFindCellStart(
 			m_dCellStart,					// output: cell start index
-			m_dCellEnd,						// output: cell end index
-			m_dPos[m_currentPosWrite],		// output: sorted positions
-			m_dVel[m_currentVelWrite],		// output: sorted velocities
-			m_dInfo[m_currentInfoWrite],	// output: sorted info
+			m_dCellEnd,					// output: cell end index
+			m_dPos[m_currentPosWrite],			// output: sorted positions
+			m_dVel[m_currentVelWrite],			// output: sorted velocities
+			m_dInfo[m_currentInfoWrite],			// output: sorted info
+			m_dBoundElement[m_currentBoundElementWrite],	// output: sorted boundary elements
+			m_dGradGamma[m_currentGradGammaWrite],		// output: sorted gradient gamma
+			m_dVertices[m_currentVerticesWrite],		// output: sorted vertices
+			m_dPressure[m_currentPressureWrite],		// output: sorted pressure
+			m_dTKE[m_currentTKEWrite],				// output: k for k-e model
+			m_dEps[m_currentEpsWrite],				// output: e for k-e model
+			m_dTurbVisc[m_currentTurbViscWrite],	// output: eddy viscosity
+			m_dStrainRate[m_currentStrainRateWrite],	// output: strain rate
 			m_dParticleHash,				// input: sorted grid hashes
 			m_dParticleIndex,				// input: sorted particle indices
-			m_dPos[m_currentPosRead],		// input: sorted position array
-			m_dVel[m_currentVelRead],		// input: sorted velocity array
-			m_dInfo[m_currentInfoRead],		// input: sorted info array
+			m_dPos[m_currentPosRead],			// input: sorted position array
+			m_dVel[m_currentVelRead],			// input: sorted velocity array
+			m_dInfo[m_currentInfoRead],			// input: sorted info array
+			m_dBoundElement[m_currentBoundElementRead],	// input: sorted boundary elements
+			m_dGradGamma[m_currentGradGammaRead],		// input: sorted gradient gamma
+			m_dVertices[m_currentVerticesRead],		// input: sorted vertices
+			m_dPressure[m_currentPressureRead],		// input: sorted pressure
+			m_dTKE[m_currentTKERead],				// input: k for k-e model
+			m_dEps[m_currentEpsRead],				// input: e for k-e model
+			m_dTurbVisc[m_currentTurbViscRead],		// input: eddy viscosity
+			m_dStrainRate[m_currentStrainRateRead],	// output: strain rate
+			m_dNewNumParticles,				// output: number of active particles
 			m_numParticles,
-			m_nGridCells);
+			m_nGridCells,
+			m_dInversedParticleIndex);
+
+	uint activeParticles;
+	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles,
+			sizeof(uint), cudaMemcpyDeviceToHost));
+	if (activeParticles != m_numParticles) {
+		printf("particles: %d => %d\n", m_numParticles, activeParticles);
+		m_timingInfo.numParticles = m_numParticles = activeParticles;
+	}
+
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 	std::swap(m_currentInfoRead, m_currentInfoWrite);
+	std::swap(m_currentBoundElementRead, m_currentBoundElementWrite);
+	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+	std::swap(m_currentVerticesRead, m_currentVerticesWrite);
+	std::swap(m_currentPressureRead, m_currentPressureWrite);
+
+	std::swap(m_currentTKERead, m_currentTKEWrite);
+	std::swap(m_currentEpsRead, m_currentEpsWrite);
+	std::swap(m_currentTurbViscRead, m_currentTurbViscWrite);
+	std::swap(m_currentStrainRateRead, m_currentStrainRateWrite);
 
 	m_timingInfo.numInteractions = 0;
 	m_timingInfo.maxNeibs = 0;
 	resetneibsinfo();
 
-	// Build the neibghours list
+	// Build the neighbours list
 	buildNeibsList(	m_dNeibsList,
 			m_dPos[m_currentPosRead],
 			m_dInfo[m_currentInfoRead],
@@ -1134,7 +1480,136 @@ ParticleSystem::markStart(void)
 	return &m_timingInfo;
 }
 
+void
+ParticleSystem::initializeGammaAndGradGamma(void)
+{
+	buildNeibList(false);
 
+	//Copy initial values of density from the sorted array (m_currentVelRead) to the unsorted array (m_currentVelWrite),
+	//which will be used to set virtual velocities during initilization of gamma field
+	long size = m_numParticles*sizeof(float4);
+	void* dest = m_dVel[m_currentVelWrite];
+	void* orig = m_dVel[m_currentVelRead];
+	CUDA_SAFE_CALL(cudaMemcpy(dest, orig, size, cudaMemcpyDeviceToDevice));
+
+	initGradGamma(	m_dPos[m_currentPosRead],
+			m_dPos[m_currentPosWrite],
+			m_dVel[m_currentVelWrite],
+			m_dInfo[m_currentInfoRead],
+			m_dBoundElement[m_currentBoundElementRead],
+			m_dGradGamma[m_currentGradGammaWrite],
+			m_dParticleHash,
+			m_dCellStart,
+			m_dNeibsList,
+			m_numParticles,
+			m_problem->m_deltap,
+			m_simparams->slength,
+			m_influenceRadius,
+			m_simparams->kerneltype,
+			m_simparams->periodicbound);
+
+	std::swap(m_currentPosRead, m_currentPosWrite);
+	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+	std::swap(m_currentVelRead, m_currentVelWrite);
+
+	// Compute virtual displacement
+	int itNumber = 200;
+	float deltat = 1.0/itNumber;
+
+	for(uint i = 0; i < itNumber; i++) {
+		// On every iteration updateGamma() is called twice, while updatePositions() is called only once,
+		// since evolution equation for gamma is integrated in time with a second-order time scheme:
+		// gamma(n+1) = gamma(n) + 0.5*[gradGam(n) + gradGam(n+1)]*[r(n+1) - r(n)]
+
+		// Update gamma 1st call
+		updateGamma(	m_dPos[m_currentPosRead],
+				m_dPos[m_currentPosWrite],
+				m_dVel[m_currentVelRead],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dParticleHash,
+				m_dCellStart,
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				deltat,
+				0,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+
+		// Move the particles
+		updatePositions(	m_dPos[m_currentPosRead],
+					m_dPos[m_currentPosWrite],
+					m_dVel[m_currentVelRead],
+					m_dInfo[m_currentInfoRead],
+					deltat,
+					m_numParticles);
+
+		std::swap(m_currentPosRead, m_currentPosWrite);
+
+		// Build the neighbour list
+		buildNeibList(false);
+
+		// Update gamma 2nd call
+		updateGamma(	m_dPos[m_currentPosRead],
+				m_dPos[m_currentPosWrite],
+				m_dVel[m_currentVelRead],
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaRead],
+				m_dGradGamma[m_currentGradGammaWrite],
+				m_dParticleHash,
+				m_dCellStart,
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				deltat,
+				0,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+	}
+}
+
+void
+ParticleSystem::updateValuesAtBoundaryElements(void)
+{
+	updateBoundValues(	m_dVel[m_currentVelRead],
+				m_dPressure[m_currentPressureRead],
+				m_dTKE[m_currentTKERead],
+				m_dEps[m_currentEpsRead],
+				m_dVertices[m_currentVerticesRead],
+				m_dInfo[m_currentInfoRead],
+				m_numParticles,
+				true);
+}
+
+void
+ParticleSystem::imposeDynamicBoundaryConditions(void)
+{
+	dynamicBoundConditions(	m_dPos[m_currentPosRead],
+				m_dVel[m_currentVelRead],
+				m_dPressure[m_currentPressureRead],
+				m_dTKE[m_currentTKERead],
+				m_dEps[m_currentEpsRead],
+				m_dInfo[m_currentInfoRead],
+				m_dParticleHash,
+				m_dCellStart,
+				m_dNeibsList,
+				m_numParticles,
+				m_problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_influenceRadius,
+				m_simparams->periodicbound);
+}
 
 TimingInfo const*
 ParticleSystem::PredcorrTimeStep(bool timing)
@@ -1149,7 +1624,6 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	if (m_iter % m_simparams->buildneibsfreq == 0) {
 		buildNeibList(timing);
 	}
-
 
 	if (m_simparams->shepardfreq > 0 && m_iter > 0 && (m_iter % m_simparams->shepardfreq == 0)) {
 		shepard(m_dPos[m_currentPosRead],
@@ -1222,9 +1696,41 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		seteulerrbcg(cg, m_simparams->numODEbodies);
 		}
 
+	if(m_simparams->boundarytype == MF_BOUNDARY)
+	{
+		//update density and pressure at vertex particles
+		dynamicBoundConditions(	m_dPos[m_currentPosRead], 		//pos(n)
+					m_dVel[m_currentVelRead], 		//vel(n)
+					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKERead],		//k(n)
+					m_dEps[m_currentEpsRead],		//e(n)
+					m_dInfo[m_currentInfoRead],
+					m_dParticleHash,
+					m_dCellStart,
+					m_dNeibsList,
+					m_numParticles,
+					m_problem->m_deltap,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_influenceRadius,
+					m_simparams->periodicbound);
+
+		updateBoundValues(	m_dVel[m_currentVelRead],		//vel(n)
+					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKERead],		//k(n)
+					m_dEps[m_currentEpsRead],		//e(n)
+					m_dVertices[m_currentVerticesRead],
+					m_dInfo[m_currentInfoRead],
+					m_numParticles,
+					false);
+	}
+
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
+					m_dGradGamma[m_currentGradGammaRead],
+					m_dBoundElement[m_currentBoundElementRead],
+					m_dPressure[m_currentPressureRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1233,6 +1739,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
+					m_problem->m_deltap,
 					m_simparams->slength,
 					m_dt,
 					m_simparams->dtadapt,
@@ -1242,7 +1749,14 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_influenceRadius,
 					m_simparams->visctype,
 					m_physparams->visccoeff,
+					m_dStrainRate[m_currentStrainRateRead],
+					m_dTurbVisc[m_currentTurbViscRead],	// nu_t(n)
+					m_dTKE[m_currentTKERead],	// k(n)
+					m_dEps[m_currentEpsRead],	// e(n)
+					m_dDkDe,
 					m_dCfl,
+					m_dCflGamma,
+					m_dCflTVisc,
 					m_dTempCfl,
 					m_dTau,
 					m_simparams->sph_formulation,
@@ -1266,11 +1780,16 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dParticleHash,
 			m_dVel[m_currentVelRead],   // vel(n)
+			m_dTKE[m_currentTKERead],	// k(n)
+			m_dEps[m_currentEpsRead],	// e(n)
 			m_dInfo[m_currentInfoRead], //particleInfo(n)
 			m_dForces,					// f(n)
+			m_dDkDe,					// dkde(n)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1/2) = pos(n) + vel(n)*dt/2
 			m_dVel[m_currentVelWrite],  // vel(n+1/2) = vel(n) + f(n)*dt/2
+			m_dTKE[m_currentTKEWrite],	// k(n+1/2) = k(n) + dkde(n).x*dt/2
+			m_dEps[m_currentEpsWrite],	// e(n+1/2) = e(n) + dkde(n).y*dt/2
 			m_numParticles,
 			m_dt,
 			m_dt/2.0,
@@ -1283,6 +1802,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dForces = f(n)
 	//  m_dPos[m_currentPosWrite] = pos(n+1/2) = pos(n) + vel(n)*dt/2
 	//  m_dVel[m_currentVelWrite] =  vel(n+1/2) = vel(n) + f(n)*dt/2
+	//  m_DkDe = dkde(n)
+	//	m_dTKE[m_currentTKERead] = k(n)
+	//  m_dEps[m_currentEpsRead] = e(n)
+	//  m_dTKE[m_currentTKEWrite] = k(n+1/2) = k(n) + dkde(n).x*dt/2
+	//  m_dEps[m_currentEpsWrite] = e(n+1/2) = e(n) + dkde(n).y*dt/2
 
 	if (timing) {
 		cudaEventRecord(stop_euler, 0);
@@ -1299,9 +1823,66 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		setgravity(m_physparams->gravity);
 	}
 
+	if(m_simparams->boundarytype == MF_BOUNDARY)
+	{
+		//update density and pressure at vertex particles
+		dynamicBoundConditions(	m_dPos[m_currentPosWrite], 		//pos(n+1/2)
+					m_dVel[m_currentVelWrite], 		//vel(n+1/2)
+					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
+					m_dEps[m_currentEpsWrite],	// e(n+1/2)
+					m_dInfo[m_currentInfoRead],
+					m_dParticleHash,
+					m_dCellStart,
+					m_dNeibsList,
+					m_numParticles,
+					m_problem->m_deltap,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_influenceRadius,
+					m_simparams->periodicbound);
+
+		updateBoundValues(	m_dVel[m_currentVelWrite],		//vel(n+1/2)
+					m_dPressure[m_currentPressureRead],
+					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
+					m_dEps[m_currentEpsWrite],	// e(n+1/2)
+					m_dVertices[m_currentVerticesRead],
+					m_dInfo[m_currentInfoRead],
+					m_numParticles,
+					false);
+
+		// gamma(n+1/2) = gamma(n) + dt/4*∑[gradGam(n+1/2) + gradGam(n)] * Vel(n+1/2)
+		updateGamma(	m_dPos[m_currentPosRead],			//pos(n)
+				m_dPos[m_currentPosWrite],			//pos(n+1/2)
+				m_dVel[m_currentVelWrite],			//vel(n+1/2)
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaRead],		//gamma(n) {input}
+				m_dGradGamma[m_currentGradGammaWrite],		//gamma(n+1/2) {output}
+				m_dParticleHash,
+				m_dCellStart,
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				1,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+		// At this point:
+		// m_dGradGamma[m_currentGradGammaRead] = gradgamma(n+1/2)
+		// m_dGradGamma[m_currentGradGammaWrite] = gradgamma(n)
+
+	}
+
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
+					m_dGradGamma[m_currentGradGammaRead],
+					m_dBoundElement[m_currentBoundElementRead],
+					m_dPressure[m_currentPressureRead],
 					m_dRbForces,
 					m_dRbTorques,
 					m_dXsph,
@@ -1310,6 +1891,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
+					m_problem->m_deltap,
 					m_simparams->slength,
 					m_dt,
 					m_simparams->dtadapt,
@@ -1319,7 +1901,14 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_influenceRadius,
 					m_simparams->visctype,
 					m_physparams->visccoeff,
+					m_dStrainRate[m_currentStrainRateRead], // pointer to ...Read is always used
+					m_dTurbVisc[m_currentTurbViscRead],	// nu_t(n+1/2)
+					m_dTKE[m_currentTKEWrite],	// k(n+1/2)
+					m_dEps[m_currentEpsWrite],	// e(n+1/2)
+					m_dDkDe,
 					m_dCfl,
+					m_dCflGamma,
+					m_dCflTVisc,
 					m_dTempCfl,
 					m_dTau,
 					m_simparams->sph_formulation,
@@ -1342,11 +1931,16 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	euler(  m_dPos[m_currentPosRead],   // pos(n)
 			m_dParticleHash,
 			m_dVel[m_currentVelRead],   // vel(n)
+			m_dTKE[m_currentTKERead],	// k(n)
+			m_dEps[m_currentEpsRead],	// e(n)
 			m_dInfo[m_currentInfoRead], //particleInfo
 			m_dForces,					// f(n+1/2)
+			m_dDkDe,					// dkde(n+1/2)
 			m_dXsph,
 			m_dPos[m_currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 			m_dVel[m_currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
+			m_dTKE[m_currentTKEWrite],	// k(n+1) = k(n) + dkde(n+1/2).x*dt
+			m_dEps[m_currentEpsWrite],	// e(n+1) = e(n) + dkde(n+1/2).y*dt
 			m_numParticles,
 			m_dt,
 			m_dt/2.0,
@@ -1360,8 +1954,62 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	//  m_dPos[m_currentPosWrite] = pos(n+1) = pos(n) + velc(n+1/2)*dt
 	//  m_dVel[m_currentVelWrite] =  vel(n+1) = vel(n) + f(n+1/2)*dt
 
+	if(m_simparams->boundarytype == MF_BOUNDARY)
+	{
+		// gamma(n+1) = gamma(n+1/2) + dt/4*∑[gradGam(n+1) + gradGam(n+1/2)] * Vel(n+1)
+		updateGamma(	m_dPos[m_currentPosRead],			//pos(n)
+				m_dPos[m_currentPosWrite],			//pos(n+1)
+				m_dVel[m_currentVelWrite],			//vel(n+1)
+				m_dInfo[m_currentInfoRead],
+				m_dBoundElement[m_currentBoundElementRead],
+				m_dGradGamma[m_currentGradGammaRead],		//gamma(n+1/2) {input}
+				m_dGradGamma[m_currentGradGammaWrite],		//gamma(n+1) {output}
+				m_dParticleHash,
+				m_dCellStart,
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_influenceRadius,
+				m_dt,
+				1,
+				m_simparams->kerneltype,
+				m_simparams->periodicbound);
+
+		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
+		// At this point:
+		// m_dGradGamma[m_currentGradGammaRead] = gradgamma(n+1)
+		// m_dGradGamma[m_currentGradGammaWrite] = gradgamma(n+1/2))
+	}
+
+	// euler need the previous center of gravity but forces the new, so we copy to GPU
+	// here instead before call to euler
+	if (m_simparams->numbodies) {
+		setforcesrbcg(cg, m_simparams->numbodies);
+		seteulerrbcg(cg, m_simparams->numbodies);
+	}
+
+	//Calculate values at probe particles
+	if(true)
+	{
+		calcProbe(	m_dPos[m_currentPosWrite],
+				m_dVel[m_currentVelWrite],
+				m_dPressure[m_currentPressureRead],
+				m_dInfo[m_currentInfoRead],
+				m_dParticleHash,
+				m_dCellStart,
+				m_dNeibsList,
+				m_numParticles,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_influenceRadius,
+				m_simparams->periodicbound);
+	}
+
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
+
+	std::swap(m_currentTKERead, m_currentTKEWrite);
+	std::swap(m_currentEpsRead, m_currentEpsWrite);
 
 	// Free surface detection (Debug)
 	//savenormals();
@@ -1571,6 +2219,186 @@ ParticleSystem::savenormals()
 	fclose(fp);
 
 
+}
+
+void
+ParticleSystem::savegradgamma()
+{
+	getArray(POSITION, false);
+	getArray(GRADGAMMA, false);
+	getArray(INFO, false);
+	std::string fname;
+	std::stringstream niter;
+	niter << m_iter;
+	//fname = m_problem->get_dirname() + "/gradgamma.csv";
+	fname = m_problem->get_dirname() + "/gradgamma" + niter.str() + ".dat";
+	FILE *fp = fopen(fname.c_str(), "w");
+
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 pos = m_hPos[index];
+		float4 gradGam = m_hGradGamma[index];
+		
+		if(pos.x < 0.1 && pos.y < 0.1 && pos.z < 0.1 && FLUID(m_hInfo[index]))
+		fprintf(fp, "%d\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%d\n", index, m_hInfo[index].z, pos.x, pos.y, pos.z, gradGam.x, gradGam.y, gradGam.z, gradGam.w, PART_TYPE(m_hInfo[index]));
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::saveboundelem()
+{
+	getArray(BOUNDELEMENT, false);
+	std::string fname;
+	fname = m_problem->get_dirname() + "/boundelements.csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 bElm = m_hBoundElement[index];
+		
+		fprintf(fp, "%d,%f,%f,%f,%f\n", index, bElm.x, bElm.y, bElm.z, bElm.w);
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::saveVelocity()
+{
+	getArray(POSITION, false);
+	getArray(VELOCITY, false);
+	getArray(INFO, false);
+	std::string fname;
+	std::stringstream niter;
+	niter << m_iter;
+	//fname = m_problem->get_dirname() + "/velocity.csv";
+	fname = m_problem->get_dirname() + "/velocity" + niter.str() + ".csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+		float4 vel = m_hVel[index];
+		float4 pos = m_hPos[index];
+
+		fprintf(fp, "%d,%d,%f,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, pos.z, vel.x, vel.y, vel.z, vel.w, PART_TYPE(m_hInfo[index]));
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::savepressure()
+{
+	getArray(PRESSURE, false);
+	getArray(INFO, false);
+	std::string fname;
+	std::stringstream niter;
+	niter << m_iter;
+	fname = m_problem->get_dirname() + "/pressure" + niter.str() + ".csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++) {
+
+		fprintf(fp, "%d,%d,%f\n", index, PART_TYPE(m_hInfo[index]), m_hPressure[index]);
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::saveForces()
+{
+	getArray(INFO, false);
+	getArray(FORCE, false);
+	std::string fname;
+	std::stringstream niter;
+	niter << m_iter;
+	//fname = m_problem->get_dirname() + "/forces.csv";
+	fname = m_problem->get_dirname() + "/forces" + niter.str() + ".csv";
+	FILE *fp = fopen(fname.c_str(), "w");
+	for (uint index = 0; index < m_numParticles; index++)
+	if(FLUID(m_hInfo[index]))
+	{
+		float4 forces = m_hForces[index];
+		float4 pos = m_hPos[index];
+
+		fprintf(fp, "%d,%d,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, forces.x, forces.y, forces.z, forces.w, PART_TYPE(m_hInfo[index]));
+	}
+	fclose(fp);
+}
+
+void
+ParticleSystem::saveprobedata()
+{
+	getArray(PRESSURE, false);
+	getArray(POSITION, false);
+	getArray(INFO, false);
+	std::string fname;
+	float H[4][50];
+	for (int i=0; i<4; i++)
+	for (int j=0; j<50; j++)
+		H[i][j] = -1.0f;
+	float P[8] = {-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f};
+
+	for (uint index = 0; index < m_numParticles; index++) {
+		if (PROBE(m_hInfo[index])) {
+			const float x = m_hPos[index].x;
+			const float z = m_hPos[index].z;
+
+			//Pressure probes
+			if(x>2.3 && x<2.55) {
+				if (z<0.04) {//P1
+					P[0] = m_hPressure[index];
+				}
+				else if (z<0.08) {//P2
+					P[1] = m_hPressure[index];
+				}
+				else if (z<0.12) {//P3
+					P[2] = m_hPressure[index];
+				}
+				else if (z<0.16) {//P4
+					P[3] = m_hPressure[index];
+				}
+				else if (x<2.42) {//P5
+					P[4] = m_hPressure[index];
+				}
+				else if (x<2.46) {//P6
+					P[5] = m_hPressure[index];
+				}
+				else if (x<2.50) {//P7
+					P[6] = m_hPressure[index];
+				}
+				else { //P8
+					P[7] = m_hPressure[index];
+				}
+			}
+			//H1
+			else if(x>2.55) {
+				H[0][int(z/0.0199)] = m_hPos[index].w;
+			}
+			//H2
+			else if(x>2.0) {
+				H[1][int(z/0.0199)] = m_hPos[index].w;
+			}
+			//H3
+			else if(x>1.5) {
+				H[2][int(z/0.0199)] = m_hPos[index].w;
+			}
+			//H4
+			else {
+				H[3][int(z/0.0199)] = m_hPos[index].w;
+			}
+		}
+	}
+	for (int i=0; i<4; i++) {
+		for (int j=0; j<49; j++)
+		{
+			H[i][0] += H[i][j] + H[i][j+1];
+		}
+		H[i][0] *= 0.02*0.5;
+	}
+
+	fname = m_problem->get_dirname() + "/probes_p.dat";
+	FILE *fp = fopen(fname.c_str(), "a");
+		fprintf(fp, "%g\t%g\t%g\t%g\t%g\t%g\t%g\t%g\t%g\n", this->getTime(), P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7]);
+	fclose(fp);
+
+	fname = m_problem->get_dirname() + "/probes_h.dat";
+	fp = fopen(fname.c_str(), "a");
+		fprintf(fp, "%g\t%g\t%g\t%g\t%g\n", this->getTime(), H[0][0], H[1][0], H[2][0], H[3][0]);
+	fclose(fp);
 }
 
 void

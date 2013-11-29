@@ -55,11 +55,16 @@ EULER_KERNEL_NAME(
 	const float4*	oldPos,
 	const hashKey*	particleHash,
 	const float4*	oldVel,
+	const float*	oldTKE,
+	const float*	oldEps,
 	const particleinfo* info,
 	const float4*	forces,
+	float2*	keps_dkde,
 	const float4*	xsph,
 	float4*	newPos,
 	float4*	newVel,
+	float*	newTKE,
+	float*	newEps,
 	const uint	numParticles,
 	const float	dt,
 	const float	dt2,
@@ -75,6 +80,8 @@ EULER_KERNEL_NAME(
 	// copying pos and vel in the new arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
+	float keps_k = oldTKE[index];	// always k(n)
+	float keps_e = oldEps[index];	// always e(n)
 
 	const particleinfo pinfo = info[index];
 
@@ -106,6 +113,15 @@ EULER_KERNEL_NAME(
 			//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
 			// For step 2:
 			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
+			vel += dt*force;
+
+			// Updating k and e for k-e model
+			const float2 dkde = keps_dkde[index];
+			keps_k += dt*dkde.x;
+			keps_e += dt*dkde.y;
+		}
+		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
+		else if (VERTEX(pinfo)) {
 			vel += dt*force;
 		}
 		// Moving boundaries
@@ -144,6 +160,8 @@ EULER_KERNEL_NAME(
 	}
 	newPos[index] = pos;
 	newVel[index] = vel;
+	newTKE[index] = keps_k;
+	newEps[index] = keps_e;
 }
 
 /* vi:set ft=cuda: */

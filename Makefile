@@ -236,7 +236,7 @@ ifeq ($(arch), x86_64)
 	TARGET_ARCH ?= -m64
 	# cuda 5.x with 64bit libs does not require the suffix anymore
 	ifneq ($(CUDA_MAJOR), 5)
-		GLEW_ARCH_SFX=_x86_64
+		#GLEW_ARCH_SFX=_x86_64
 	endif
 	# on Linux, toolkit libraries are under /lib64 for 64-bit
 	ifeq ($(platform), Linux)
