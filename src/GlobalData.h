@@ -53,6 +53,7 @@ enum CommandType {
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
+	SPS,				// SPS stress matrix computation kernel
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
@@ -75,15 +76,15 @@ enum WriterType
 #define INTEGRATOR_STEP_1	((uint)1 << 0)
 #define INTEGRATOR_STEP_2	((uint)1 << 1)
 
-// buffer constants for swapDeviceBuffers() - serving also as flags for DUMP and UPDATE_INTERNAL commands
+// buffer constants for swapDeviceBuffers() - serving also as flags for DUMP, UPDATE_INTERNAL, etc.
+// WARNING: supported flags might vary for each command
 #define BUFFER_POS	((uint)1 << 2)
 #define BUFFER_VEL	((uint)1 << 3)
 #define BUFFER_INFO	((uint)1 << 4)
-// only flags for DUMP
 #define BUFFER_VORTICITY	((uint)1 << 5)
 #define BUFFER_NORMALS		((uint)1 << 6)
-// only flags for UPDATE_INTERNAL
 #define BUFFER_FORCES	((uint)1 << 7)
+#define BUFFER_TAU	((uint)1 << 8)
 
 // the selection of the double buffers is also encoded (in high bits)
 #define DBLBUFFER_READ		((uint)1 << 30)
