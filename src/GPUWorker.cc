@@ -1873,6 +1873,27 @@ void GPUWorker::kernel_surfaceParticles()
 					 m_simparams->savenormals);
 }
 
+void GPUWorker::kernel_sps()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	sps( m_dPos[gdata->currentPosRead],
+		 m_dVel[gdata->currentVelRead],
+		 m_dInfo[gdata->currentInfoRead],
+		 m_dNeibsList,
+		 m_numParticles,
+		 numPartsToElaborate,
+		 m_simparams->slength,
+		 m_simparams->kerneltype,
+		 m_simparams->influenceRadius,
+		 m_simparams->visctype,
+		 m_dTau,
+		 m_simparams->periodicbound);
+}
+
 void GPUWorker::uploadConstants()
 {
 	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
