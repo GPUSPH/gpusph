@@ -165,18 +165,13 @@ class Problem {
 			return m_problem_dir;
 		}
 
-		float set_deltap(const double dflt)
+		double set_deltap(const double dflt)
 		{
 			if (isfinite((double) m_options.deltap))
 				m_deltap = m_options.deltap;
 			else
 				m_deltap = dflt;
 			return m_deltap;
-		}
-
-		float set_deltap(const float dflt)
-		{
-			return float(set_deltap(double(dflt)));
 		}
 
 		void set_grid_params(void);
