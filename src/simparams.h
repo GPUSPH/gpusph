@@ -64,7 +64,7 @@ typedef struct SimParams {
 	uint			saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
-	bool			periodicbound;		// true in case of periodic boundary
+	int				periodicbound;		// true in case of periodic boundary
 	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
