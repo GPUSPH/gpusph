@@ -16,13 +16,18 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
-# GPUSPH version
-GPUSPH_VERSION=$(shell git describe --tags --dirty)
-
 # need for some substitutions
 comma:=,
 empty:=
 space:=$(empty) $(empty)
+
+# GPUSPH version
+GPUSPH_VERSION=$(shell git describe --tags --dirty 2> /dev/null)
+
+ifeq ($(GPUSPH_VERSION), $(empty))
+$(warning Unable to determine GPUSPH version)
+GPUSPH_VERSION=unknown-version
+endif
 
 # system information
 platform=$(shell uname -s 2>/dev/null)
