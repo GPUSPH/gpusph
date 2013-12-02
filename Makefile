@@ -36,9 +36,9 @@ arch=$(shell uname -m)
 
 # sed syntax differs a bit
 ifeq ($(platform), Darwin)
-	SED_COMAND=sed -i "" -e
+	SED_COMMAND=sed -i "" -e
 else # Linux
-	SED_COMAND=sed -i -e
+	SED_COMMAND=sed -i -e
 endif
 
 
@@ -197,7 +197,7 @@ LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
 
 ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
 	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
-		$(SED_COMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
+		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
 endif
 
 
@@ -213,7 +213,7 @@ ifdef problem
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last
@@ -238,7 +238,7 @@ ifneq ($(dbg), $(LAST_DBG))
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
 	endif
 endif
 
@@ -252,7 +252,7 @@ ifdef compute
 	ifneq ($(LAST_COMPUTE),$(COMPUTE))
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last (if any) or default
@@ -270,7 +270,7 @@ ifdef fastmath
 	# does it differ from last?
 	ifneq ($(LAST_FASTMATH),$(FASTMATH))
 		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
 	endif
 else
 	ifeq ($(LAST_FASTMATH),)
