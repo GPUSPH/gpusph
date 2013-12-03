@@ -119,7 +119,7 @@ eulerDevice(
 		// Updating postions for paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
 			const int i = object(pinfo);
-			const float3 absPos = as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + make_float3(0.5f)*d_cellSize;
+			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
 			const float2 relPos = make_float2(absPos.x - d_mbdata[i].x, absPos.z - d_mbdata[i].y);
 			const float c = cos(d_mbdata[i].z*dt) - 1.0f;
 			const float s = sin(d_mbdata[i].z*dt);
