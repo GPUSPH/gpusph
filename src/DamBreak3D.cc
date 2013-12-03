@@ -74,7 +74,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mlsfreq = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
-    m_simparams.boundarytype= LJ_BOUNDARY;
+	m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5f;
 
 	// Free surface detection
@@ -90,7 +90,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
 	
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
 	

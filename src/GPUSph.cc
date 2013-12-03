@@ -872,7 +872,6 @@ bool GPUSPH::runSimulation() {
 		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | DBLBUFFER_WRITE);
 
 		//			//reduce bodies
-		//			//callbacks (bounds, gravity)
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
 
