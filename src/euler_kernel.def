@@ -143,7 +143,7 @@ eulerDevice(
 			pos.z += d_rbtrans[i].z;
 
 			// Applying rotation around center of gravity
-			const float3 relPos = as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + make_float3(0.5f)*d_cellSize - d_rbcg[i];
+			const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
 			applyrot(&d_rbsteprot[9*i], relPos, pos);
 		}
 	}
