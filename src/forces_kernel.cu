@@ -114,9 +114,7 @@ __constant__ float d_objectobjectdf;
 __constant__ float d_objectboundarydf;
 
 // Grid data
-__constant__ float3 d_worldOrigin;
-__constant__ uint3	d_gridSize;
-__constant__ float3 d_cellSize;
+#include "cellgrid.h"
 
 // Neibdata cell number to offset
 __constant__ char3 d_cell_to_offset[27];
@@ -375,30 +373,6 @@ dtadaptBlockReduce(	float*	sm_max,
 
 
 /********************************* Neighbor data access management ******************************************/
-/// Compute grid position from hash value
-/*! Compute the grid position corresponding to the given hash. The position
- * 	should be in the range [0, gridSize.x - 1]x[0, gridSize.y - 1]x[0, gridSize.z - 1].
- *
- *	\param[in] gridHash : hash value
- *
- *	\return grid position
- *
- *	Note : no test is done by this function to ensure that hash value is valid.
- */
-__device__ __forceinline__ int3
-calcGridPosFromHash(const hashKey fullGridHash)
-{
-	const uint gridHash = (uint)(fullGridHash >> GRIDHASH_BITSHIFT);
-	int3 gridPos;
-	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
-	gridPos.z = gridHash/temp;
-	temp = gridHash - gridPos.z*temp;
-	gridPos.y = temp/d_gridSize.x;
-	gridPos.x = temp - gridPos.y*d_gridSize.x;
-
-	return gridPos;
-}
-
 
 /// Compute hash value from grid position
 /*! Compute the hash value corresponding to the given position. If the position
@@ -413,18 +387,18 @@ calcGridPosFromHash(const hashKey fullGridHash)
  *	Note : no test is done by this function to ensure that grid position is within the
  *	range and no clamping is done
  */
-//TODO: implement other periodicity than XPERIODIC and templatize
+// TODO: verify periodicity along multiple axis and templatize
 __device__ __forceinline__ uint
-calcGridHash(int3 gridPos)
+calcGridHashPeriodic(int3 gridPos)
 {
 	if (gridPos.x < 0) gridPos.x = d_gridSize.x - 1;
 	if (gridPos.x >= d_gridSize.x) gridPos.x = 0;
-	return INTMUL(INTMUL(gridPos.z, d_gridSize.y), d_gridSize.x) + INTMUL(gridPos.y, d_gridSize.x) + gridPos.x;
+	if (gridPos.y < 0) gridPos.y = d_gridSize.y - 1;
+	if (gridPos.y >= d_gridSize.y) gridPos.y = 0;
+	if (gridPos.z < 0) gridPos.z = d_gridSize.z - 1;
+	if (gridPos.z >= d_gridSize.z) gridPos.z = 0;
+	return calcGridHash(gridPos);
 }
-
-
-#define CELLNUMENCODED		(1U<<11)
-#define NEIBINDEXMASK		(0x7FF)
 
 /// Return neighbor index and add cell offset vector to current position
 /*! For given neighbor data this function compute the neighbor index
@@ -446,25 +420,27 @@ calcGridHash(int3 gridPos)
  */
 __device__ __forceinline__ uint
 getNeibIndex(const float4	pos,
-			float3& 		pos_corr,
+			float3&			pos_corr,
 			const uint*		cellStart,
 			neibdata		neib_data,
 			const int3		gridPos,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index)
 {
-	if (neib_data >= CELLNUMENCODED) {
+	if (neib_data >= CELLNUM_ENCODED) {
 		// Update current neib cell number
-		neib_cellnum = (neib_data >> 11) - 1;
+		neib_cellnum = DECODE_CELL(neib_data);
 
 		// Compute neighbor index relative to belonging cell
-		neib_data &= NEIBINDEXMASK;
+		neib_data &= NEIBINDEX_MASK;
 
 		// Substract current cell offset vector to pos
 		pos_corr = as_float3(pos) - d_cell_to_offset[neib_cellnum]*d_cellSize;
 
 		// Compute index of the first particle in the current cell
-		neib_cell_base_index = cellStart[calcGridHash(gridPos + d_cell_to_offset[neib_cellnum])];
+		// use calcGridHashPeriodic because we can only have an out-of-grid cell with neighbors
+		// only in the periodic case.
+		neib_cell_base_index = cellStart[calcGridHashPeriodic(gridPos + d_cell_to_offset[neib_cellnum])];
 	}
 
 	// Compute and return neighbor index

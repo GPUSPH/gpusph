@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -22,35 +22,18 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-/*
- * File:   DamBreak3D.h
- * Author: alexis
- *
- * Created on 28 janvier 2009, 00:44
+
+/* decltype */
+
+#ifndef _DECLTYPE_H
+#define _DECLTYPE_H
+
+/* decltype is only avaialable on C++11, but both gcc and clang support
+ * __decltype even on older standards, so use them
  */
 
-#ifndef _SHAREDNEIBSTEST_H
-#define	_SHAREDNEIBSTEST_H
+#if __cplusplus < 201103L
+#define decltype __decltype
+#endif
 
-#include "Problem.h"
-#include "Point.h"
-#include "Cube.h"
-
-class SharedNeibsTest: public Problem {
-	private:
-		Cube		experiment_box;
-		PointVect	parts;
-		double		lx, ly, lz;		// dimension of experiment box
-
-	public:
-		SharedNeibsTest(const Options &);
-		~SharedNeibsTest(void);
-
-		int fill_parts(void);
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
-
-		void release_memory(void);
-};
-#endif	/* _SHAREDNEIBSTEST_H */
-
+#endif

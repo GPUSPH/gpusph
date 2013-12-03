@@ -333,15 +333,15 @@ void WaveTank::draw_boundary(float t)
 }
 
 
-void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
-    int j = 0;
+	int j = 0;
 	if (test_points.size()) {
 		//Testpoints
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		std::cout << "      " << 0  << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			pos[i] = make_float4(test_points[i]);
+			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
 		}
@@ -352,11 +352,11 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i-j]);
+		calc_localpos_and_hash(boundary_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
 	}
-    j += boundary_parts.size();
+	j += boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
@@ -366,7 +366,7 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nPaddle parts: " << paddle_parts.size() << "\n";
 		std::cout << "      "<< j  <<"--"<< j+ paddle_parts.size() << "\n";
 	for (uint i = j; i < j + paddle_parts.size(); i++) {
-		pos[i] = make_float4(paddle_parts[i-j]);
+		calc_localpos_and_hash(paddle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(PADDLEPART, 0, i);
 	}
@@ -376,9 +376,9 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j + parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART, 0, i);
+		info[i]= make_particleinfo(FLUIDPART, 0, i);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

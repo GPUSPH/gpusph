@@ -36,7 +36,8 @@
 extern "C"
 {
 void
-seteulerconstants(const PhysParams *physparams, const uint3 gridSize, const float3 cellSize);
+seteulerconstants(const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize);
 
 void
 geteulerconstants(PhysParams *physparams);

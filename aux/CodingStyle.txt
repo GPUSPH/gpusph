@@ -1,0 +1,36 @@
+# Coding conventions
+
+## Code formatting
+
+See attached GPUSPH.xml file (exported from eclipse).
+
+(TODO: write rules out explicitly, also suggest vi(m) configuration)
+
+## Naming convention
+
+a. the name of class variable should start with `m_`. Example:
+
+	class foo
+	{
+		int m_somefoovariable;
+	}
+
+b. Host-side pointers should start with `h`, device-side pointers with
+`d`. If the host-side pointers are associated with device-side pointers
+(e.g. for uploads/downloads) the rest of the name should be the same.
+Example:
+
+	class foo
+	{
+		int *m_hptr;
+		int *m_dptr;
+	}
+
+c. CUDA Kernels names should end with Device suffix. Example:
+
+	__global__ void calcSomethingDevice(....)
+
+d. Names of classes, functions and variables should be descriptive of
+the role of the class, function or variable. Class names should begin
+with a capital letter.
+

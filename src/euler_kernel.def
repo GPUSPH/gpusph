@@ -49,9 +49,9 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
-template<int step>
+template<int step, bool xsphcorr>
 __global__ void
-EULER_KERNEL_NAME(
+eulerDevice(
 	const float4*	oldPos,
 	const hashKey*	particleHash,
 	const float4*	oldVel,
@@ -66,14 +66,17 @@ EULER_KERNEL_NAME(
 	float*	newTKE,
 	float*	newEps,
 	const uint	numParticles,
-	const float	dt,
-	const float	dt2,
+	const float	full_dt,
+	const float	half_dt, /* full_dt/2 */
 	const float	t)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
+
+	// we use dt/2 on the first step, the actual dt on the second step
+	const float dt = (step == 1) ? half_dt : full_dt;
 
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
@@ -87,26 +90,24 @@ EULER_KERNEL_NAME(
 
 	if(type(pinfo) != BOUNDPART) {
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
-		# ifdef XSPH_KERNEL
-		float4 mean_vel = xsph[index];
-		# endif
+		// mean XSPH velocity, only when XSPH is active
+		// the compiler is smart enough to actually optimize this out
+		// in the xsphcorr == false case
+		const float4 mean_vel = xsphcorr ? xsph[index] : make_float4(0);
 		/*
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
 		 */
-		const float4 velc = vel + (step - 1)*forces[index]*dt2;
+		const float4 velc = vel + (step - 1)*forces[index]*half_dt;
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
-			# ifdef XSPH_KERNEL
-			pos.x +=  (velc.x + d_epsxsph*mean_vel.x)*dt;
-			pos.y +=  (velc.y + d_epsxsph*mean_vel.y)*dt;
-			pos.z +=  (velc.z + d_epsxsph*mean_vel.z)*dt;
-			# else
-			pos.x +=  velc.x*dt;
-			pos.y +=  velc.y*dt;
-			pos.z +=  velc.z*dt;
-			# endif
+			// add weighted mean_vel only in xsphcorr case
+			// the compiler is smart enough to optimize it out
+			// in the xsphcorr == false case
+			pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
+			pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
+			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
 			// Updating particle velocity
 			// For step 1:

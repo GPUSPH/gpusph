@@ -49,7 +49,7 @@ PaddleTest1::PaddleTest1(const Options &options) : Problem(options)
 	slope_length = 7.5f;
 	h_length = 5.5f;
 	height = .63f;
- 	beta = 10*M_PI/180.0;
+	beta = 10*M_PI/180.0;
 
 	// We have at least 1 moving boundary, the paddle
 	m_mbnumber = 1;
@@ -79,8 +79,8 @@ PaddleTest1::PaddleTest1(const Options &options) : Problem(options)
 
 	m_simparams.vorticity = false;
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
-    m_simparams.sph_formulation = SPH_F2;
-    // Physical parameters
+	m_simparams.sph_formulation = SPH_F2;
+	// Physical parameters
 	H = 0.45f;
 	m_physparams.gravity = make_float3(0.0f, 0.0f, -9.81f);
 	float g = length(m_physparams.gravity);
@@ -98,7 +98,7 @@ PaddleTest1::PaddleTest1(const Options &options) : Problem(options)
 
 	// BC when using LJ
 	m_physparams.dcoeff = 5.0f*g*H;
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
 	m_physparams.MK_K = g*H;
@@ -124,7 +124,7 @@ PaddleTest1::PaddleTest1(const Options &options) : Problem(options)
 	mb_callback(0.0, 0.0, 0);
 
 
-	
+
 	// Scales for drawing
 	m_maxrho = density(H,0);
 	m_minrho = m_physparams.rho0[0];
@@ -162,7 +162,7 @@ MbCallBack& PaddleTest1::mb_callback(const float t, const float dt, const int i)
 {
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-    float theta = mbpaddledata.amplitude;
+	float theta = mbpaddledata.amplitude;
 	if (t >= mbpaddledata.tstart && t < mbpaddledata.tend) {
 		theta = mbpaddledata.amplitude*cos(mbpaddledata.omega*(t - mbpaddledata.tstart));
 		}
@@ -179,8 +179,8 @@ int PaddleTest1::fill_parts()
 	const float width = m_size.y;
 	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
-    experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
-						Vector(0, width, 0), Vector(0, 0, height));
+	experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
+		Vector(0, width, 0), Vector(0, 0, height));
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	Rect paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
@@ -190,20 +190,20 @@ int PaddleTest1::fill_parts()
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
-   
+ 
 	paddle.SetPartMass(m_deltap, m_physparams.rho0[1]);// might use 1 if we know it is always multifluid
 	paddle.Fill(paddle_parts, br, true);
 
 	if( i_use_bottom_plane  == 0){
-	   Rect bottom = Rect(Point(h_length,0,0  ), Vector(0, width, 0),
+		Rect bottom = Rect(Point(h_length,0,0  ), Vector(0, width, 0),
 			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
-	   bottom.SetPartMass(m_deltap, m_physparams.rho0[1]);
-	   bottom.Fill(boundary_parts,br,true);
-	   std::cout << "bottom rectangle defined" <<"\n";
-	 }   
-    
+		bottom.SetPartMass(m_deltap, m_physparams.rho0[1]);
+		bottom.Fill(boundary_parts,br,true);
+		std::cout << "bottom rectangle defined" <<"\n";
+	}
 
- 
+
+
 	Rect fluid;
 	float z = 0;
 	int n = 0;
@@ -212,47 +212,47 @@ int PaddleTest1::fill_parts()
 		z = n*m_deltap + .8*r0;    //old: z = n*m_deltap + 1.5*r0;
 		std::cout << "z = " << z <<"\n";
 		float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
- 
+
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
- 
+
 		fluid = Rect(Point(x,  2.0*r0, z), Vector(l, 0, 0), Vector(0, width-4.0*r0, 0));
 		fluid.SetPartMass(m_deltap, m_physparams.rho0[1]);  //should be 1, the fluid with fastest speed of sound
 		fluid.Fill(parts, m_deltap, true);
 		n++;
-	 }
+	}
 	num_parts[1] = parts.size();  // number of rho0[1] fluid particles
 	std::cout << "num_parts[1] = " << num_parts[1] <<"\n";
-    while (z < H) {
+	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 2*r0;
 		std::cout << "z = " << z <<"\n";
-	 	float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);	 
-	 	float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
+		float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);	 
+		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  2.*r0, z), Vector(l, 0, 0), Vector(0, width-4.0*r0, 0));
 		fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid.Fill(parts, m_deltap, true);
 		n++;
-	 }
+	}
 	num_parts[0] = parts.size()-num_parts[1];
 	std::cout <<"num_parts[0] = " <<num_parts[0] <<"\n";
 	std::cout <<"parts.size() = " <<parts.size() <<"\n";
- 
-/*
-	Cube fluid;
-	fluid = Cube(Point(mbpaddledata.origin.x+r0, r0, r0), Vector(h_length + slope_length-mbpaddledata.origin.x-2*r0, 0, 0),
-						Vector(0, width-2*r0, 0), Vector(0, 0, height));
-	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	fluid.Fill(parts, m_deltap, true);
-	num_parts[0]=parts.size()/2;
-	num_parts[1]=parts.size()-num_parts[0];
-	*/
-    return parts.size() + boundary_parts.size() + paddle_parts.size() ;
+
+	/*
+	   Cube fluid;
+	   fluid = Cube(Point(mbpaddledata.origin.x+r0, r0, r0), Vector(h_length + slope_length-mbpaddledata.origin.x-2*r0, 0, 0),
+	   Vector(0, width-2*r0, 0), Vector(0, 0, height));
+	   fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
+	   fluid.Fill(parts, m_deltap, true);
+	   num_parts[0]=parts.size()/2;
+	   num_parts[1]=parts.size()-num_parts[0];
+	   */
+	return parts.size() + boundary_parts.size() + paddle_parts.size() ;
 
 	}
 
  
 uint PaddleTest1::fill_planes()
 {
- 
+
     if (i_use_bottom_plane == 0) {
 		return 5;
 		}
@@ -275,14 +275,14 @@ void PaddleTest1::copy_planes(float4 *planes, float *planediv)
 	planediv[1] = 1.0;
 	planes[2] = make_float4(0, -1.0, 0, w); //far wall
 	planediv[2] = 1.0;
- 	planes[3] = make_float4(1.0, 0, 0, 0);  //end
- 	planediv[3] = 1.0;
- 	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
- 	planediv[4] = 1.0;
- 	if (i_use_bottom_plane == 1)  {
- 		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
- 		planediv[5] = 1.0;
- 	}
+	planes[3] = make_float4(1.0, 0, 0, 0);  //end
+	planediv[3] = 1.0;
+	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
+	planediv[4] = 1.0;
+	if (i_use_bottom_plane == 1)  {
+		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
+		planediv[5] = 1.0;
+	}
 }
 
 
@@ -290,7 +290,7 @@ void PaddleTest1::draw_boundary(float t)
 {
 	glColor3f(0.0, 1.0, 0.0);
 	experiment_box.GLDraw();
- 	if (i_use_bottom_plane == 1)
+	if (i_use_bottom_plane == 1)
 		experiment_box1.GLDraw();
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
@@ -307,21 +307,21 @@ void PaddleTest1::draw_boundary(float t)
 }
 
 
-void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
 	/*  No boundary particles if using planes
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[11]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
 	}
 	int j = boundary_parts.size();
 	std::cout <<" j = " << j <<", Boundary part mass:" << pos[j-1].w << "\n";
-    */
+	*/
 	int j = 0;
-	
+
 	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
 	// those rules:
 	//		1. object id must be unique (you cannot have a PADDLE with object id 0 and a GATEPART with same id)
@@ -333,7 +333,7 @@ void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nPaddle parts: " << paddle_parts.size() << "\n";
 		std::cout << "      "<< j  <<"--"<< j+ paddle_parts.size() << "\n";
 	for (uint i = j; i < j + paddle_parts.size(); i++) {
-		pos[i] = make_float4(paddle_parts[i-j]);
+		calc_localpos_and_hash(paddle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(PADDLEPART, 0, i);
 	}
@@ -344,12 +344,12 @@ void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "\nFluid parts: " << parts.size() << " =(" << num_parts[0] <<" + "<< num_parts[1] << ")" <<"\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
-	
+
 	// lower fluid; fluid 1
 	for (uint i = j; i < j + num_parts[1]; i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[1]);// should be 1
-	    info[i]= make_particleinfo(FLUIDPART + 1, 0, i);// should be one
+		info[i]= make_particleinfo(FLUIDPART + 1, 0, i);// should be one
 	}
 	j += num_parts[1];
 	std::cout << "j = " << j << ", Fluid [1] particle mass:" << pos[j-1].w << "\n";
@@ -357,10 +357,9 @@ void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	// upper fluid; fluid 0
 	for (uint i = j; i < j + num_parts[0]; i++) {
-		pos[i] = make_float4(parts[i-j+num_parts[1]]);
+		calc_localpos_and_hash(parts[i-j+num_parts[1]], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART, 0, i);
-
+		info[i]= make_particleinfo(FLUIDPART, 0, i);
 	}
 	j += num_parts[0];
 	std::cout << "j = " << j << ", Fluid [0] particle mass:" << pos[j-1].w << "\n";

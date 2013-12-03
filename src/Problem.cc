@@ -500,16 +500,6 @@ Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
 	localpos.w = float(pos(3));
 }
 
-
-void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
-{
-}
-
-
-void Problem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
-{
-}
-
 void
 Problem::init_keps(float* k, float* e, int numpart, particleinfo* info)
 {

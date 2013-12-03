@@ -166,18 +166,13 @@ class Problem {
 			return m_problem_dir;
 		}
 
-		float set_deltap(const double dflt)
+		double set_deltap(const double dflt)
 		{
 			if (isfinite((double) m_options.deltap))
 				m_deltap = m_options.deltap;
 			else
 				m_deltap = dflt;
 			return m_deltap;
-		}
-
-		float set_deltap(const float dflt)
-		{
-			return float(set_deltap(double(dflt)));
 		}
 
 		void set_grid_params(void);
@@ -222,9 +217,7 @@ class Problem {
 		virtual uint fill_planes(void);
 		virtual void draw_boundary(float) = 0;
 		virtual void draw_axis(void);
-		virtual void copy_to_array(float4*, float4*, particleinfo*);
-		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*);
-		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*) {};
+		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*) = 0;
 		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, uint*) {};
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;

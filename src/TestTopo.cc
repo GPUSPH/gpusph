@@ -188,11 +188,11 @@ void TestTopo::draw_boundary(float t)
 }
 
 
-void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
+		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
 	}
@@ -201,7 +201,7 @@ void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 	}

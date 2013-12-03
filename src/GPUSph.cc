@@ -76,6 +76,12 @@
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
+/* Include all other opt file for show_version */
+#include "gpusph_version.opt"
+#include "fastmath_select.opt"
+#include "dbg_select.opt"
+#include "compute_select.opt"
+
 using namespace std;
 
 FILE *timing_log = NULL;
@@ -139,6 +145,23 @@ float3 box_corner[8];
 Problem *problem;
 
 bool screenshotNow = false;
+
+void show_version()
+{
+	static const char dbg_or_rel[] =
+#if defined(_DEBUG_)
+		"Debug";
+#else
+		"Release";
+#endif
+
+	printf("GPUSPH version %s\n", GPUSPH_VERSION);
+	printf("%s version %s fastmath for compute capability %u.%u\n",
+		dbg_or_rel,
+		FASTMATH ? "with" : "without",
+		COMPUTE/10, COMPUTE%10);
+	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
+}
 
 void cleanup(void)
 {
@@ -255,11 +278,14 @@ void parse_options(int argc, char **argv)
 			argc--;
 		} else if (!strcmp(arg, "--console")) {
 			clOptions.console = true;
-		} else if (!strcmp(arg, "--")) {
-			cout << "Skipping unsupported option " << arg << endl;
-		} else {
-			cout << "Fatal: Unknown option: " << arg << endl;
+		} else if (!strcmp(arg, "--version")) {
+			show_version();
 			exit(0);
+		} else if (!strncmp(arg, "--", 2)) {
+			cerr << "Skipping unsupported option " << arg << endl;
+		} else {
+			cerr << "Fatal: Unknown option: " << arg << endl;
+			exit(1);
 
 			// Left for future dynamic loading:
 			/*if (clOptions.problem.empty()) {
@@ -271,7 +297,6 @@ void parse_options(int argc, char **argv)
 	}
 
 	clOptions.problem = std::string( QUOTED_PROBLEM );
-	cout << "Compiled for problem \"" << QUOTED_PROBLEM << "\"" << endl;
 
 	// Left for future dynamic loading:
 	/*if (clOptions.problem.empty()) {
@@ -1077,6 +1102,7 @@ main( int argc, char** argv)
 	signal(SIGUSR1, show_timing);
 
 	parse_options(argc, argv);
+	show_version();
 
 	init(clOptions.problem.c_str());
 

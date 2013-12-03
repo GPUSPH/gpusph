@@ -30,13 +30,17 @@
 
 #include "utils.h"
 
+#include "decltype.h"
+
 extern "C"
 {
 void
-seteulerconstants(const PhysParams *physparams, const uint3 gridSize, const float3 cellSize)
+seteulerconstants(const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
 
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_worldOrigin, &worldOrigin, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_cellSize, &cellSize, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
@@ -102,22 +106,30 @@ euler(	const float4*		oldPos,
 	uint numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	// execute the kernel
+	/* eulerDevice_ptr is a function pointer of the appropriate type (decltype),
+	   that will be assigned the proper kernel depending on the values
+	   of step and xsphcorr in the following selection.
+	   Since all instances of eulerDevice have the same function signature,
+	   the decltype can be done with any single one of them
+	 */
+	decltype(&cueuler::eulerDevice<1, true>) eulerDevice_ptr;
+
+	// selection
 	if (step == 1) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt2, dt2, t);
+			eulerDevice_ptr = cueuler::eulerDevice<1, true>;
 		else
-			cueuler::eulerDevice<1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt2, dt2, t);
+			eulerDevice_ptr = cueuler::eulerDevice<1, false>;
 	} else if (step == 2) {
 		if (xsphcorr)
-			cueuler::eulerXsphDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
+			eulerDevice_ptr = cueuler::eulerDevice<2, true>;
 		else
-			cueuler::eulerDevice<2><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
-	} // if (step == 2)
+			eulerDevice_ptr = cueuler::eulerDevice<2, false>;
+	}
+
+	// execute the kernel
+	eulerDevice_ptr<<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+		info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");

@@ -1,14 +1,9 @@
-# GPU-SPH3D Makefile
-# Rewritten from scratch by rustico@dmi.unict.it
+# GPUSPH Makefile
 #
 # TODO:
 # - Add support for versioning with git
-# - Improve list-problems problem detection
-# - If user overrides CFLAGS, avoid dbg and compute recompile?
+# - Improve list-problems problem detection (move problems to separate dir?)
 # - Recompile also if target_arch changes (like dbg and compute)
-# - Add automatic deps update?
-#   "g++ -M" or http://make.paulandlesley.org/autodep.html
-# - remember \callgraph in main classes (move from here!)
 #
 # Notes:
 # - When adding a target, comment it with "# target: name - desc" and help
@@ -26,10 +21,26 @@ comma:=,
 empty:=
 space:=$(empty) $(empty)
 
+# GPUSPH version
+GPUSPH_VERSION=$(shell git describe --tags --dirty 2> /dev/null)
+
+ifeq ($(GPUSPH_VERSION), $(empty))
+$(warning Unable to determine GPUSPH version)
+GPUSPH_VERSION=unknown-version
+endif
+
 # system information
 platform=$(shell uname -s 2>/dev/null)
 platform_lcase=$(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
 arch=$(shell uname -m)
+
+# sed syntax differs a bit
+ifeq ($(platform), Darwin)
+	SED_COMMAND=sed -i "" -e
+else # Linux
+	SED_COMMAND=sed -i -e
+endif
+
 
 # option: target_arch - if set to 32, force compilation for 32 bit architecture
 ifeq ($(target_arch), 32)
@@ -63,14 +74,46 @@ OPTSDIR = ./options
 TARGETNAME := GPUSPH$(TARGET_SXF)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
+# --------------- File lists
+
+# makedepend will generate dependencies in these file
+GPUDEPS = $(MAKEFILE).gpu
+CPUDEPS = $(MAKEFILE).cpu
+
+# .cc source files (CPU)
+CCFILES = $(wildcard $(SRCDIR)/*.cc)
+#CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
+
+# .cu source files (GPU), excluding *_kernel.cu
+CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
+#CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
+
+# headers
+HEADERS = $(wildcard $(SRCDIR)/*.h)
+
+# object files via filename replacement
+CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
+CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
+OBJS = $(CCOBJS) $(CUOBJS)
+
+PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
+
+# --------------- Locate and set up compilers and flags
+
 # CUDA installation/lib/include paths
 # override by setting them in the enviornment
-ifeq ($(platform), Linux)
-	CUDA_INSTALL_PATH ?= /usr/local/cuda
-else ifeq ($(platform), Darwin)
-	CUDA_INSTALL_PATH ?= /usr/local/cuda
-else
-	$(warning Platform $(platform) not supported by this makefile)
+# Default to /usr/local/cuda if the install path
+# has not been specified
+CUDA_INSTALL_PATH ?= /usr/local/cuda
+
+# We check the validity of the path by looking for /bin/nvcc under it.
+# if not found, we look into /usr, and finally abort
+ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+	CUDA_INSTALL_PATH = /usr
+	# check again
+	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+$(error Could not find CUDA, please set CUDA_INSTALL_PATH)
+	endif
 endif
 
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
@@ -115,18 +158,22 @@ ifeq ($(CXX),c++)
 	endif
 endif
 
+# Force nvcc to use the same host compiler that we selected
+# Note that this requires the compiler to be supported by
+# nvcc.
+NVCC += -ccbin=$(CXX)
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+# this is not really an option, but it follows the same mechanism
+GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
+
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
 
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
-# This, combined with the -MG flag during depencency generation (see below),
-# ensure that .opt files are built before any of the files that include them.
-# (All of this is actually needed only for $(PROBLEM_SELECT_OPTFILE) during
-# parallel builds under some circumstances.)
 vpath %.opt $(OPTSDIR)
 
 # check compile options used last time:
@@ -144,12 +191,15 @@ LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
 	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
 
-# sed syntax differs a bit
-ifeq ($(platform), Darwin)
-	SED_COMAND=sed -i "" -e
-else # Linux
-	SED_COMAND=sed -i -e
+# update GPUSPH_VERSION_OPTFILE if git version changed
+LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
+
+ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
+	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
 endif
+
 
 # option: problem - Name of the problem. Default: $(PROBLEM) in makefile
 ifdef problem
@@ -157,9 +207,13 @@ ifdef problem
 	PROBLEM=$(problem)
 	# if choice differs from last...
 	ifneq ($(LAST_PROBLEM),$(PROBLEM))
+		# check that the problem is in the problem list
+		ifneq ($(filter $(PROBLEM),$(PROBLEM_LIST)),$(PROBLEM))
+			TMP:=$(error No such problem ‘$(PROBLEM)’. Known problems: $(PROBLEM_LIST))
+		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last
@@ -184,7 +238,7 @@ ifneq ($(dbg), $(LAST_DBG))
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
 	endif
 endif
 
@@ -198,7 +252,7 @@ ifdef compute
 	ifneq ($(LAST_COMPUTE),$(COMPUTE))
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last (if any) or default
@@ -216,7 +270,7 @@ ifdef fastmath
 	# does it differ from last?
 	ifneq ($(LAST_FASTMATH),$(FASTMATH))
 		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
 	endif
 else
 	ifeq ($(LAST_FASTMATH),)
@@ -280,11 +334,7 @@ LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 # search path for GLEW from the SDK samples
 # up to 4.x
 LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/$(platform_lcase)/
-# 5.x
-LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 
-# link to the OpenGL libraries (GLEW is platform-dependent, see below)
-LIBS += -lGL -lGLU -lglut
 # link to the CUDA runtime library
 LIBS += -lcudart
 # link to ODE for the objects
@@ -294,8 +344,14 @@ LIBS += -lhdf5
 
 LIBS += -lGLEW$(GLEW_ARCH_SFX)
 
+# search paths (for CUDA 5 and higher) and linking to OpenGL are
+# platform-specific
 ifeq ($(platform), Darwin)
-	LDFLAGS += -Wl,-framework,OpenGL,-framework,GLUT
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
+	LDFLAGS += -Xlinker -framework,OpenGL,-framework,GLUT
+else
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
+	LIBS += -lGL -lGLU -lglut
 endif
 
 LDFLAGS += $(LIBPATH) $(LIBS)
@@ -327,11 +383,6 @@ CPPFLAGS += -DdSINGLE
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
-
-# Force nvcc to use the same host compiler that we selected
-# Note that this requires the compiler to be supported by
-# nvcc.
-CUFLAGS += -ccbin=$(CXX)
 
 # nvcc-specific flags
 CUFLAGS += -arch=sm_$(COMPUTE) -lineinfo
@@ -389,30 +440,10 @@ SNAPSHOT_FILE = ./GPUSPHsnapshot.tgz
 
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 ifeq ($(plain), 1)
-	show_stage = @echo "[$(1)] $(2)"
+	show_stage = @printf "[$(1)] $(2)\n"
 else
 	show_stage = @printf "\r                                 \r[$(1)] $(2)"
 endif
-
-# makedepend will generate dependencies in these file
-GPUDEPS = $(MAKEFILE).gpu
-CPUDEPS = $(MAKEFILE).cpu
-
-# .cc source files (CPU)
-CCFILES = $(wildcard $(SRCDIR)/*.cc)
-#CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
-
-# .cu source files (GPU), excluding *_kernel.cu
-CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
-#CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
-
-# headers
-HEADERS = $(wildcard $(SRCDIR)/*.h)
-
-# object files via filename replacement
-CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
-CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
-OBJS = $(CCOBJS) $(CUOBJS)
 
 # option: echo - 0 silent, 1 show commands
 ifeq ($(echo), 1)
@@ -431,7 +462,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo "Compiled with problem $(PROBLEM)"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage,LINK,$(TARGET)\\n)
-	$(CMDECHO)$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(CMDECHO)$(NVCC) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -454,6 +485,12 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
+
+$(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
+	@echo "/* git version of GPUSPH. */" \
+		> $@
+	@echo "#define GPUSPH_VERSION \"$(GPUSPH_VERSION)\"" >> $@
+
 
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
@@ -498,8 +535,7 @@ gpuclean:
 # target:                .*_select.opt files to be regenerated (use if they're
 # target:                messed up)
 cookiesclean:
-	$(RM) $(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) \
-		$(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(OPTSDIR)
+	$(RM) -r $(OPTFILES) $(OPTSDIR)
 
 # target: showobjs - List detected sources and target objects
 showobjs:
@@ -515,6 +551,7 @@ showobjs:
 
 # target: show - Show platform info and compiling options
 show:
+	@echo "GPUSPH version:  $(GPUSPH_VERSION)"
 	@echo "Platform:        $(platform)"
 	@echo "Architecture:    $(arch)"
 	@echo "Current dir:     $(CURDIR)"
@@ -554,19 +591,23 @@ snapshot:
 # it is safe to say we don't actualy need this
 expand:
 	$(CMDECHO)mkdir -p $(EXPDIR)
-	$(CMDECHO)$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/euler.cu -o $(EXPDIR)/euler.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/euler_kernel.cu -o $(EXPDIR)/euler_kernel.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/forces.cu -o $(EXPDIR)/forces.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/forces_kernel.cu -o $(EXPDIR)/forces_kernel.expand.cc && \
 	echo "euler* and forces* expanded in $(EXPDIR)."
 
 # target: deps - Update dependencies in $(MAKEFILE)
 deps: $(GPUDEPS) $(CPUDEPS)
 	@true
+
+# Let Makefile depend on the presence of the option files. This ensures that they
+# are built before anything else
+Makefile: | $(OPTFILES)
 
 # Dependecies are generated by the C++ compiler, since nvcc does not understand the
 # more sophisticated -MM and -MT dependency generation options.
@@ -615,8 +656,7 @@ test: all
 
 # target: list-problems - List available problems
 list-problems:
-	$(CMDECHO)egrep "::.*:.*Problem\(" $(CCFILES) | \
-		sed 's/.\/$(subst ./,,$(SRCDIR))\///g' | sed 's/\..*//g'
+	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g' | sort
 
 # target: help - Display help
 help:
