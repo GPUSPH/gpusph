@@ -770,10 +770,10 @@ initGradGammaDevice(	float4*		newPos,
 				#endif
 				const float r = length(as_float3(relPos));
 				
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
 				
 				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
+					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 					gGam += gradGamma<kerneltype>(slength, r, boundElement);
 					//counter++; //DEBUG
 					if(r < rmin)
@@ -858,10 +858,10 @@ updateGammaDevice(	float4*		newGam,
 				#endif
 				const float r = length(as_float3(relPos));
 
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
 
 				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
+					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
 					gGam += gradGamma_as;
 					deltaGam += dot(make_float3(gradGamma_as), vel);
@@ -923,7 +923,7 @@ updateGammaPrCorDevice( float4*		newPos,
 				if (neib_data == 0xffff) break;
 
 				float3 pos_corr;
-				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+				const uint neib_index = getNeibIndex(newpos, pos_corr, cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
 				// Compute relative position vector and distance
@@ -935,10 +935,10 @@ updateGammaPrCorDevice( float4*		newPos,
 				#endif
 				const float r = length(as_float3(relPos));
 
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neibIndex);
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
 
 				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neibIndex);
+					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
 					gGam += gradGamma_as;
 					deltaGam += dot(make_float3(gradGamma_as), vel);
@@ -1295,15 +1295,16 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 		if (r < influenceradius) {
 
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 
 			// first term, interaction with fluid and vertex particles
 			if(FLUID(neib_info) || VERTEX(neib_info)) {
 				const float f = F<kerneltype>(r, slength)*relPos.w;	// 1/r ∂Wab/∂r * mb
 
 				// Velocity Gradients (Wall-corrected)
-				dvx -= relVel.x*relPos*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
-				dvy -= relVel.y*relPos*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
-				dvz -= relVel.z*relPos*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
+				dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+				dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+				dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
 			}
 			// second term, interaction with boundary elements
 			if(BOUNDARY(neib_info)) {

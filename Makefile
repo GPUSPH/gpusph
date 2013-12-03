@@ -272,7 +272,6 @@ INCPATH += -isystem $(CUDA_SDK_PATH)/C/common/inc
 # 5.x
 INCPATH += -isystem $(CUDA_SDK_PATH)/common/inc
 
-
 # LIBPATH
 LIBPATH += -L/usr/local/lib
 
@@ -290,6 +289,8 @@ LIBS += -lGL -lGLU -lglut
 LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
+# link to HDF5 for input reading
+LIBS += -lhdf5
 
 LIBS += -lGLEW$(GLEW_ARCH_SFX)
 

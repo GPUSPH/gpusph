@@ -9,8 +9,8 @@ class InputProblem: public Problem {
 	private:
 		string		inputfile;
 		int		numparticles;
-		float		w, l, h;
-		float		H; // water level (used to set D constant)
+		double		w, l, h;
+		double		H; // water level (used to set D constant)
 		int		n_probeparts; // number of probe particles (used for output)
 
 	public:

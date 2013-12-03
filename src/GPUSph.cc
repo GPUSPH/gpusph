@@ -320,7 +320,6 @@ void init(const char *arg)
 	uint numParticles = problem->fill_parts();
 	psystem->allocate(numParticles);
 
-<<<<<<< HEAD
 	psystem->printPhysParams();
 	psystem->printSimParams();
 

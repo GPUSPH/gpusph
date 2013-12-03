@@ -193,7 +193,7 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i-j], localpos, hashvalue);
+		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
 		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);

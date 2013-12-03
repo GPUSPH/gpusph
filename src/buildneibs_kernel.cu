@@ -214,8 +214,6 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
-
-}
 #undef MOVINGNOTFLUID
 
 __global__
@@ -304,27 +302,14 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		// the previous cell end
 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
+			cellStart[hash] = index;
 			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
 				cellEnd[sharedHash[threadIdx.x]] = index;
-			// if it isn't an inactive particle, it is also the start of the
-			// new cell, otherwise, it's the number of active particles
-			if (hash != HASH_KEY_MAX)
-				cellStart[hash] = index;
-			else {
-				*newNumParticles = index;
-			}
 		}
 
-		// if we are an inactive particle, we're done
-		if (hash == HASH_KEY_MAX)
-			return;
-
-		if (index == numParticles - 1) {
-			// we only get here if all particles are active
+		if (index == numParticles - 1)
 			cellEnd[hash] = index + 1;
-			*newNumParticles = numParticles;
-		}
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];

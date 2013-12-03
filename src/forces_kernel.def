@@ -140,7 +140,7 @@ FORCES_CUDA_KERNEL
 
 			# ifdef XSPH_KERNEL
 			// XSPH correction
-			float3 mean_vel = as_float3(0.0f);
+			float3 mean_vel = make_float3(0.0f);
 			# endif
 
 			/* precomputed component of DvDt */
@@ -208,7 +208,7 @@ FORCES_CUDA_KERNEL
 				if (r < influenceradius) {
 					float DvDt = 0.0f;
 					float4 bound_term_pres = make_float4(0.0f);
-					float3 bound_term_visc = as_float3(0.0f);
+					float3 bound_term_visc = make_float3(0.0f);
 
 					if (FLUID(neib_info) || (boundarytype == MF_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 						const float4 belem = tex1Dfetch(boundTex, neib_index);
@@ -238,14 +238,14 @@ FORCES_CUDA_KERNEL
 						// density derivative
 						float DrDt = 0;
 						if(BOUNDARY(neib_info))
-							DrDt -= relVel.w*dot(relVel, as_float3(gradGamma<kerneltype>(slength, r, belem)) );
+							DrDt -= relVel.w*dot(as_float3(relVel), as_float3(gradGamma<kerneltype>(slength, r, belem)) );
 						else if(d_ferrari) {
 							//P_a' = P_a - rho_0*g*(z_b-z_a)
 							const float pres_a_prime = P(vel.w, PART_FLUID_NUM(info)) - d_rho0[PART_FLUID_NUM(info)]*dot(d_gravity, as_float3(relPos));
 							//rho_a' = inverted_EoS(P_a')
 							const float rho_a_prime = rho(pres_a_prime, PART_FLUID_NUM(info));
 							float3 ferraricor = max(sspeed, neib_sspeed)*(rho_a_prime - relVel.w)/vel.w/r*as_float3(relPos);
-							DrDt = relPos.w*dot(relVel + d_ferrari*ferraricor, as_float3(relPos))*f;
+							DrDt = relPos.w*dot(as_float3(relVel) + d_ferrari*ferraricor, as_float3(relPos))*f;
 						}
 						else
 							DrDt = relPos.w*vel_dot_pos*f;
@@ -292,7 +292,7 @@ FORCES_CUDA_KERNEL
 
 						if(!BOUNDARY(neib_info)) {
 							if(boundarytype == MF_BOUNDARY) {
-								as_float3(force) += visc*relVel/gradgamma.w;
+								as_float3(force) += visc*as_float3(relVel)/gradgamma.w;
 							}
 							else {
 								as_float3(force) += visc*as_float3(relVel);
@@ -325,7 +325,7 @@ FORCES_CUDA_KERNEL
 									r_as = deltap;
 
 								// velocity of fluid particle along the wall
-								const float3 vel_tau = relVel - dot(relVel, normal_s)*normal_s;
+								const float3 vel_tau = as_float3(relVel) - dot(as_float3(relVel), normal_s)*normal_s;
 
 								// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
 								# ifdef VISC_KEPS
@@ -506,8 +506,6 @@ FORCES_CUDA_KERNEL
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
 				const float r = length(as_float3(relPos));
-
-				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);

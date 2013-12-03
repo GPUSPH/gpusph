@@ -1252,11 +1252,11 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 			}
 			if (VERTEX(info[i]) && show_vertex) {
 				glColor3f(0.3, 0.7, 0.9);
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 			if (PROBE(info[i])) {
 				glColor3f(0.0, 0.0, 0.0);
-				glVertex3fv((float*)&pos[i]);
+				glVertex3fv((float*)&pos);
 			}
 			if (FLUID(info[i])) {
 				float v;
@@ -1317,12 +1317,22 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 	glColor3f(0.2,0.6,0.8);
 	for(uint i = 0; i < m_numParticles; i++) {
 		if(BOUNDARY(info[i]) && show_vertex) {
+			float3 pos;
+
 			uint i_vert1 = vinfo[i].x;
+			pos = make_float3(relpos[i_vert1]);
+			pos = m_cellSize*calcGridPos(hash[i_vert1]) + pos + 0.5f*m_cellSize + m_worldOrigin;
+			glVertex3fv((float*)&pos);
+
 			uint i_vert2 = vinfo[i].y;
+			pos = make_float3(relpos[i_vert2]);
+			pos = m_cellSize*calcGridPos(hash[i_vert2]) + pos + 0.5f*m_cellSize + m_worldOrigin;
+			glVertex3fv((float*)&pos);
+
 			uint i_vert3 = vinfo[i].z;
-			glVertex3f(pos[i_vert1].x, pos[i_vert1].y, pos[i_vert1].z);
-			glVertex3f(pos[i_vert2].x, pos[i_vert2].y, pos[i_vert2].z);
-			glVertex3f(pos[i_vert3].x, pos[i_vert3].y, pos[i_vert3].z);
+			pos = make_float3(relpos[i_vert3]);
+			pos = m_cellSize*calcGridPos(hash[i_vert3]) + pos + 0.5f*m_cellSize + m_worldOrigin;
+			glVertex3fv((float*)&pos);
 		}
 	}
 	glEnd();
@@ -1405,11 +1415,11 @@ ParticleSystem::buildNeibList(bool timing)
 			m_dEps[m_currentEpsRead],				// input: e for k-e model
 			m_dTurbVisc[m_currentTurbViscRead],		// input: eddy viscosity
 			m_dStrainRate[m_currentStrainRateRead],	// output: strain rate
-			m_dNewNumParticles,				// output: number of active particles
 			m_numParticles,
 			m_nGridCells,
 			m_dInversedParticleIndex);
 
+	/*
 	uint activeParticles;
 	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles,
 			sizeof(uint), cudaMemcpyDeviceToHost));
@@ -1417,6 +1427,7 @@ ParticleSystem::buildNeibList(bool timing)
 		printf("particles: %d => %d\n", m_numParticles, activeParticles);
 		m_timingInfo.numParticles = m_numParticles = activeParticles;
 	}
+	*/
 
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
@@ -1505,8 +1516,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 			m_problem->m_deltap,
 			m_simparams->slength,
 			m_influenceRadius,
-			m_simparams->kerneltype,
-			m_simparams->periodicbound);
+			m_simparams->kerneltype);
 
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
@@ -1537,8 +1547,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 				m_influenceRadius,
 				deltat,
 				0,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
+				m_simparams->kerneltype);
 
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 
@@ -1571,8 +1580,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 				m_influenceRadius,
 				deltat,
 				0,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
+				m_simparams->kerneltype);
 
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 	}
@@ -1607,8 +1615,7 @@ ParticleSystem::imposeDynamicBoundaryConditions(void)
 				m_problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->kerneltype,
-				m_influenceRadius,
-				m_simparams->periodicbound);
+				m_influenceRadius);
 }
 
 TimingInfo const*
@@ -1712,8 +1719,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_problem->m_deltap,
 					m_simparams->slength,
 					m_simparams->kerneltype,
-					m_influenceRadius,
-					m_simparams->periodicbound);
+					m_influenceRadius);
 
 		updateBoundValues(	m_dVel[m_currentVelRead],		//vel(n)
 					m_dPressure[m_currentPressureRead],
@@ -1839,8 +1845,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_problem->m_deltap,
 					m_simparams->slength,
 					m_simparams->kerneltype,
-					m_influenceRadius,
-					m_simparams->periodicbound);
+					m_influenceRadius);
 
 		updateBoundValues(	m_dVel[m_currentVelWrite],		//vel(n+1/2)
 					m_dPressure[m_currentPressureRead],
@@ -1867,8 +1872,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_influenceRadius,
 				m_dt,
 				1,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
+				m_simparams->kerneltype);
 
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 		// At this point:
@@ -1972,8 +1976,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_influenceRadius,
 				m_dt,
 				1,
-				m_simparams->kerneltype,
-				m_simparams->periodicbound);
+				m_simparams->kerneltype);
 
 		std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 		// At this point:
@@ -1983,9 +1986,9 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	// euler need the previous center of gravity but forces the new, so we copy to GPU
 	// here instead before call to euler
-	if (m_simparams->numbodies) {
-		setforcesrbcg(cg, m_simparams->numbodies);
-		seteulerrbcg(cg, m_simparams->numbodies);
+	if (m_simparams->numODEbodies) {
+		setforcesrbcg(cg, m_simparams->numODEbodies);
+		seteulerrbcg(cg, m_simparams->numODEbodies);
 	}
 
 	//Calculate values at probe particles
@@ -2001,8 +2004,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
-				m_influenceRadius,
-				m_simparams->periodicbound);
+				m_influenceRadius);
 	}
 
 	std::swap(m_currentPosRead, m_currentPosWrite);

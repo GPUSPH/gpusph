@@ -249,7 +249,7 @@ void calc_energy(
 		float4*			output,
 		float4	const*	pos,
 		float4	const*	vel,
-	particleinfo const*	pinfo,
+		particleinfo const*	pinfo,
 		uint			numParticles,
 		uint			numFluids);
 
@@ -261,13 +261,14 @@ initGradGamma(	float4*		oldPos,
 		particleinfo*	info,
 		float4*		boundElement,
 		float4*		gradGamma,
-		uint*		neibsList,
+		const uint*	particleHash,
+		const uint*	cellStart,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		deltap,
 		float		slength,
 		float		inflRadius,
-		int		kerneltype,
-		bool		periodicbound);
+		int			kerneltype);
 		
 // Computes current value of the gamma gradient and update gamma value
 // according to the evolution equation { dGamma/dt = gradGamma * relVel }
@@ -279,14 +280,15 @@ updateGamma(	float4*		oldPos,
 		float4*		boundElement,
 		float4*		oldGam,
 		float4*		newGam,
-		uint*		neibsList,
+		const uint*	particleHash,
+		const uint*	cellStart,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		slength,
 		float		inflRadius,
 		float		virtDt,
 		bool		predcor,
-		int		kerneltype,
-		bool		periodicbound);
+		int			kerneltype);
 
 //Moves particles back to their initial positions during initialization of gamma
 void
@@ -320,13 +322,14 @@ dynamicBoundConditions(	const float4*		oldPos,
 			float*			oldTKE,
 			float*			oldEps,
 			const particleinfo*	info,
-			const uint*		neibsList,
+			const uint*		particleHash,
+			const uint*		cellStart,
+			const neibdata*	neibsList,
 			const uint		numParticles,
 			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
-			const float		influenceradius,
-			const bool		periodicbound);
+			const float		influenceradius);
 
 // Computes some values for probe particles
 // For Spheric 2 test case these are pressure and alpha value, which is similar to one used in Shepard filter
@@ -335,12 +338,13 @@ calcProbe(	float4*		oldPos,
 		float4*			oldVel,
 		float*			oldPressure,
 		const particleinfo*	info,
-		const uint*		neibsList,
+		const uint*		particleHash,
+		const uint*		cellStart,
+		const neibdata*	neibsList,
 		const uint		numParticles,
 		const float		slength,
 		const int		kerneltype,
-		const float		influenceradius,
-		const bool		periodicbound);
+		const float		influenceradius);
 }
 
 #endif

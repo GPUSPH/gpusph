@@ -60,7 +60,7 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dke, turbvisc, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
+						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
 						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, numParticles, deltap, slength, influenceradius, rbforces, rbtorques); \
@@ -495,7 +495,7 @@ forces(	float4*			pos,
 				/* ν = visccoeff for dynamic viscosity */
 					break;
 				case KEPSVISC:
-					dt_visc = slength*slength/(visccoeff + cflmax(numPartsFmax, cflTVisc, tempCfl));
+					dt_visc = slength*slength/(visccoeff + cflmax(numBlocks, cflTVisc, tempCfl));
 					break;
 				}
 			dt_visc *= 0.125;
@@ -504,7 +504,7 @@ forces(	float4*			pos,
 		}
 
 		if(boundarytype == MF_BOUNDARY) {
-			float dt_gamma = 0.005/cflmax(numPartsFmax, cflGamma, tempCfl);
+			float dt_gamma = 0.005/cflmax(numBlocks, cflGamma, tempCfl);
 			if (dt_gamma < dt)
 				dt = dt_gamma;
 		}
@@ -955,12 +955,12 @@ initGradGamma(	float4*		oldPos,
 		float4*		gradGamma,
 		const uint*	particleHash,
 		const uint*	cellStart,
-		uint*		neibsList,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		deltap,
 		float		slength,
 		float		inflRadius,
-		int		kerneltype)
+		int			kerneltype)
 {
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -994,13 +994,13 @@ updateGamma(	float4*		oldPos,
 		float4*		newGam,
 		const uint*	particleHash,
 		const uint*	cellStart,
-		uint*		neibsList,
+		neibdata*	neibsList,
 		uint		numParticles,
 		float		slength,
 		float		inflRadius,
 		float		virtDt,
 		bool		predcor,
-		int		kerneltype)
+		int			kerneltype)
 {
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -1098,7 +1098,7 @@ dynamicBoundConditions(	const float4*		oldPos,
 			const particleinfo*	info,
 			const uint*		particleHash,
 			const uint*		cellStart,
-			const uint*		neibsList,
+			const neibdata*	neibsList,
 			const uint		numParticles,
 			const float		deltap,
 			const float		slength,
@@ -1143,7 +1143,7 @@ calcProbe(	float4*			oldPos,
 		const particleinfo*	info,
 		const uint*		particleHash,
 		const uint*		cellStart,
-		const uint*		neibsList,
+		const neibdata*	neibsList,
 		const uint		numParticles,
 		const float		slength,
 		const int		kerneltype,
