@@ -80,17 +80,12 @@ class Problem {
 			Z_AXIS
 		};
 
-<<<<<<< HEAD
-		float3	m_size;			// Size of computation domain
-		float3	m_origin;		// Origin of computation domain
-=======
 		dWorldID		m_ODEWorld;
 		dSpaceID		m_ODESpace;
 		dJointGroupID	m_ODEJointGroup;
 
 		float3	m_size;			// Size of compuation domain
 		float3	m_origin;		// Origin of compuatation domain
->>>>>>> 72aa0ef... WIP: added initial ODE support (not connected now with force on objects
 		float	m_deltap;		// Initial particle spacing
 
 		// Min and max values used for display
