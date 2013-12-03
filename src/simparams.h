@@ -39,6 +39,7 @@ typedef struct MbCallBack {
 	float3			disp;
 	float			sintheta;
 	float			costheta;
+	float			dthetadt;
 	float			omega;
 	float			amplitude;
 	float			phase;
@@ -89,7 +90,7 @@ typedef struct SimParams {
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
-		periodicbound(false),
+		periodicbound(0),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),

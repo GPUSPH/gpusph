@@ -119,9 +119,13 @@ eulerDevice(
 		// Updating postions for paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
 			const int i = object(pinfo);
-			const float r = length(make_float2(pos.x - d_mbdata[i].x, pos.z - d_mbdata[i].y));
-			pos.x = d_mbdata[i].x + r*d_mbdata[i].z;	// r*sin(theta(t))
-			pos.z = d_mbdata[i].y + r*d_mbdata[i].w;	// r*cos(theta(t))
+			const float3 absPos = as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + make_float3(0.5f)*d_cellSize;
+			const float2 relPos = make_float2(absPos.x - d_mbdata[i].x, absPos.z - d_mbdata[i].y);
+			const float c = cos(d_mbdata[i].z*dt) - 1.0f;
+			const float s = sin(d_mbdata[i].z*dt);
+			// Apply rotation around y axis
+			pos.x += c*relPos.x + s*relPos.y;
+			pos.z += -s*relPos.x + c*relPos.y;
 		}
 		// Updating positions for gate particles
 		// mbdata.x,y,z contains gate velocity
