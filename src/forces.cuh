@@ -274,7 +274,7 @@ initGradGamma(	float4*		oldPos,
 // according to the evolution equation { dGamma/dt = gradGamma * relVel }
 void
 updateGamma(	float4*		oldPos,
-		float4*		newPos,
+		const float4*		newPos,
 		float4*		virtualVel,
 		particleinfo*	info,
 		float4*		boundElement,

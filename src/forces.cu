@@ -177,7 +177,7 @@ void*	reduce_buffer = NULL;
 #define UPDATEGAMMA_CHECK(kernel) \
 	case kernel: \
 		cuforces::updateGammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(newGam, particleHash, cellStart, neibsList, numParticles, slength, inflRadius, virtDt); \
+				(newPos, newGam, particleHash, cellStart, neibsList, numParticles, slength, inflRadius, virtDt); \
 	break
 
 #define UPDATEGAMMAPRCOR_CHECK(kernel) \
@@ -986,7 +986,7 @@ initGradGamma(	float4*		oldPos,
 
 void
 updateGamma(	float4*		oldPos,
-		float4*		newPos,
+		const float4*		newPos,
 		float4*		virtualVel,
 		particleinfo*	info,
 		float4*		boundElement,
