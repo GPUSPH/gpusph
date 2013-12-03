@@ -168,6 +168,8 @@ endif
 
 # nvcc-specific CFLAGS
 CFLAGS_GPU = -arch=sm_$(COMPUTE) -D__COMPUTE__=$(COMPUTE)
+# -DdSINGLE for ODE
+CFLAGS_GPU += -DdSINGLE
 # uncomment to use --fast-math again (not recommended for multigpu)
 #CFLAGS_GPU += --use_fast_math
 # maximum precision (default?)
