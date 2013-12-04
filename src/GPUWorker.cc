@@ -860,7 +860,48 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
 	allocated += sizeof(uint);
 
-	// TODO: allocation for rigid bodies
+	if (m_simparams->numbodies) {
+		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
+		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
+
+		int objParticlesFloat4Size = m_numBodiesParticles*sizeof(float4);
+		int objParticlesUintSize = m_numBodiesParticles*sizeof(uint);
+
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbTorques, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbForces, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbNum, objParticlesUintSize));
+
+		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
+
+		// DEBUG
+		// m_hRbForces = new float4[m_numBodiesParticles];
+		// m_hRbTorques = new float4[m_numBodiesParticles];
+
+		uint rbfirstindex[MAXBODIES];
+		uint* rbnum = new uint[m_numBodiesParticles];
+		m_hRbLastIndex = new uint[m_simparams->numbodies];
+		m_hRbTotalForce = new float3[m_simparams->numbodies];
+		m_hRbTotalTorque = new float3[m_simparams->numbodies];
+
+		rbfirstindex[0] = 0;
+		for (int i = 1; i < m_simparams->numbodies; i++) {
+			rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(i - 1);
+		}
+		setforcesrbstart(rbfirstindex, m_simparams->numbodies);
+
+		int offset = 0;
+		for (int i = 0; i < m_simparams->numbodies; i++) {
+			m_hRbLastIndex[i] = gdata->problem->get_ODE_body_numparts(i) - 1 + offset;
+			for (int j = 0; j < gdata->problem->get_ODE_body_numparts(i); j++) {
+				rbnum[offset + j] = i;
+			}
+			offset += gdata->problem->get_ODE_body_numparts(i);
+		}
+		size_t  size = m_numBodiesParticles*sizeof(uint);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
+
+		delete[] rbnum;
+	}
 
 	if (m_simparams->dtadapt) {
 		// for the allocation we use m_numPartsFmax computed from m_numAlocatedParticles;
@@ -932,12 +973,24 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
-	// TODO: deallocation for rigid bodies
-
 	if (m_simparams->dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
 	}
+
+	if (m_simparams->numbodies) {
+		delete [] m_hRbLastIndex;
+		delete [] m_hRbTotalForce;
+		delete [] m_hRbTotalTorque;
+		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
+		CUDA_SAFE_CALL(cudaFree(m_dRbForces));
+		CUDA_SAFE_CALL(cudaFree(m_dRbNum));
+
+		// DEBUG
+		// delete [] m_hRbForces;
+		// delete [] m_hRbTorques;
+	}
+
 
 	// here: dem device buffers?
 }
