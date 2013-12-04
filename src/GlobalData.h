@@ -367,8 +367,9 @@ struct GlobalData {
 		//custom_lb_threshold(0.0f),
 		//alloc_max(false)
 	{
-		for (uint i=0; i < MAX_DEVICES_PER_NODE; i++)
-			dts[i] = 0.0F;
+		// init dts
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			dts[d] = 0.0F;
 
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
