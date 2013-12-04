@@ -183,6 +183,9 @@ private:
 	void uploadInlets();
 	void uploadOutlets();
 
+	// bodies
+	void uploadBodiesCentersOfGravity();
+
 	// kernels
 	void kernel_calcHash();
 	void kernel_sort();
