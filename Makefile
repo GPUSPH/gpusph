@@ -315,6 +315,9 @@ else
 	$(warning architecture $(arch) not supported by this makefile)
 endif
 
+# ODE libs
+LIBS += -lode
+
 # MPICXX does not find automatically lcudart, as nvcc does
 LIBPATH+=-L$(CUDA_INSTALL_PATH)/lib64
 
