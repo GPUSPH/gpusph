@@ -41,17 +41,14 @@ class Disk: public Object {
 		Disk(const Point&, const double, const EulerParameters&);
 		Disk(const Point&, const Vector&, const Vector &);
 		virtual ~Disk(void) {};
-		
+
 		double Volume(const double) const;
 		void SetInertia(const double);
-		
+
 		void FillBorder(PointVect&, const double);
-		
+
 		int Fill(PointVect&, const double, const bool fill = true);
-		
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		
+
 		bool IsInside(const Point&, const double) const;
 };
 #endif	/* _CIRCLE_H */

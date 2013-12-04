@@ -1,11 +1,6 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "Silicone1.h"
 #include "particledefine.h"
@@ -64,13 +59,6 @@ Silicone1::Silicone1(const Options &options) : Problem(options)
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
-
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
@@ -145,17 +133,6 @@ void Silicone1::copy_planes(float4 *planes, float *planediv)
 	//  plane is defined as a x + by +c z + d= 0
 	planes[0] = make_float4(0, 0, 1.0, 0);   //bottom, where the first three numbers are the normal, and the last is d.
 	planediv[0] = 1.0;
-}
-
-
-void Silicone1::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
- 	if (i_use_bottom_plane == 1)
-		experiment_box.GLDraw();
-
-	//cyl.GLDraw();
 }
 
 

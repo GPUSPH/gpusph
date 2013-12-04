@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -48,11 +43,11 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	// Size and origin of the simulation domain
 	lx = 1.6;
 	ly = 0.67;
-	lz = 0.6;	
+	lz = 0.6;
 	H = 0.4;
 	wet = false;
 	m_usePlanes = true;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	//m_origin = make_float3(0.0, 0.0, 0.0);
 	m_origin = make_float3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -89,34 +84,27 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
-	
+
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
-	
+
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-	
+
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-	
+
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 20;
 	m_screenshotfreq = 20;
-	
+
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
 	create_problem_dir();
@@ -151,7 +139,7 @@ int DamBreak3D::fill_parts()
 
 	fluid = Cube(Point(r0 + OFFSET_X, r0  + OFFSET_Y, r0 + OFFSET_Z), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	if (wet) {
 		fluid1 = Cube(Point(H + m_deltap + r0 + OFFSET_X , r0 + OFFSET_Y, r0 + OFFSET_Z), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
@@ -203,15 +191,6 @@ void DamBreak3D::copy_planes(float4 *planes, float *planediv)
 	// side with greater Y ("right")
 	planes[4] = make_float4(0, -1.0, 0, ly + OFFSET_Y);
 	planediv[4] = 1.0;
-}
-
-
-void DamBreak3D::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
 }
 
 void DamBreak3D::fillDeviceMap(GlobalData* gdata)

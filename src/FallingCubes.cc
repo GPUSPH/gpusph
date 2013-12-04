@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "FallingCubes.h"
 #include "Cube.h"
@@ -44,9 +39,9 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 	// Size and origin of the simulation domain
 	lx = 1.6;
 	ly = 0.67;
-	lz = 0.6;	
+	lz = 0.6;
 	H = 0.4;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0f, 0.0f, 0.0f);
 
@@ -98,13 +93,6 @@ FallingCubes::FallingCubes(const Options &options) : Problem(options)
 
 	// Allocate data for floating bodies
 	allocate_bodies(3);
-
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 1.0f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.01;
@@ -172,7 +160,7 @@ int FallingCubes::fill_parts()
 	// Setting inertial frame data
 	rigid_body->SetInertialFrameData(rb_cg, inertia, rb_mass, EulerParameters());
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, -8.0), Vector(0.0, 0.0, 0.0));
-	
+
 	// Rigid body #2
 	rb_cg = Point(0.7, 0.4, H + 0.15);
 	l = 0.1, w = 0.2, h = 0.1;
@@ -203,17 +191,6 @@ int FallingCubes::fill_parts()
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, -1.0), Vector(0.0, 0.0, 3.0));
 
 	return parts.size() + boundary_parts.size() + get_bodies_numparts();
-}
-
-
-void FallingCubes::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();	
-	glColor3f(1.0, 0.0, 0.0);
-	cube[0].GLDraw();
-	for (int i = 0; i < m_simparams.numbodies; i++)
-		get_body(i)->GLDraw();
 }
 
 

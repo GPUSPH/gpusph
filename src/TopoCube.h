@@ -123,9 +123,6 @@ class TopoCube: public Object {
 			return Fill(points, m_H, dx, false, fill);
 		}
 
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-
 		bool IsInside(const Point&, const double) const;
 };
 

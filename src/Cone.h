@@ -51,18 +51,15 @@ class Cone: public Object {
 
 		double Volume(const double) const;
 		void SetInertia(const double);
-		
+
 		void FillBorder(PointVect& points, const double, const bool, const bool);
 		void FillBorder(PointVect& points, double dx)
 		{
 			FillBorder(points, dx, true, true);
 		}
-		
+
 		int Fill(PointVect& points, const double, const bool fill = true);
 
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		
 		bool IsInside(const Point&, const double) const;
 };
 

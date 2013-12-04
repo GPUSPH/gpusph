@@ -1,4 +1,4 @@
-/* 
+/*
  * File:   Torus.h
  * Author: alexis
  *
@@ -17,23 +17,20 @@ class Torus: public Object {
 	private:
 		double	m_R;
 		double	m_r;
-			
+
 	public:
 		Torus();
 		Torus(const Point&, const Vector&, const double, const double);
 		Torus(const Point&, const double, const double, const EulerParameters&);
 		virtual ~Torus();
-		
+
 		double Volume(const double) const;
 		void SetInertia(const double);
-		
+
 		void FillBorder(PointVect&, const double);
-		
+
 		int Fill(PointVect&, const double, const bool fill = true);
 
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		
 		bool IsInside(const Point &, const double) const;
 };
 

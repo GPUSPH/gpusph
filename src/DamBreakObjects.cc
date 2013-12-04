@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "DamBreakObjects.h"
 #include "Point.h"
@@ -41,10 +36,10 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	// Size and origin of the simulation domain
 	lx = 1.6;
 	ly = 0.67;
-	lz = 0.6;	
+	lz = 0.6;
 	H = 0.4;
 	wet = false;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
@@ -78,37 +73,30 @@ DamBreakObjects::DamBreakObjects(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0, 10);
-	
+
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
-	
+
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-	
+
 	m_physparams.kinematicvisc = 1.0e-6;
 	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
+
 	// Allocate data for floating bodies
 	allocate_bodies(4);
-	
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-	
+
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 5;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "DamBreakObjects";
 	create_problem_dir();
@@ -143,7 +131,7 @@ int DamBreakObjects::fill_parts()
 
 	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	if (wet) {
 		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
@@ -174,7 +162,7 @@ int DamBreakObjects::fill_parts()
 	object1.SetMass(r0, m_physparams.rho0[0]*0.7);
 	object1.SetInertia(r0);
 	object1.Unfill(parts, r0);
-	
+
 	double l = 0.1, w = 0.1, h = 0.1;
 	Point rb_cg = Point(0.7, 0.5*ly, h/2 + 2*r0);
 	object2 = Cube(rb_cg - Vector(l/2, w/2, h/2), l, w, h, EulerParameters());
@@ -182,55 +170,43 @@ int DamBreakObjects::fill_parts()
 	object2.SetMass(r0, m_physparams.rho0[0]*0.3);
 	object2.SetInertia(r0);
 	object2.Unfill(parts, r0);
-	
+
 	rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
 	object3 = Sphere(rb_cg, 0.05);
 	object3.SetPartMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetMass(r0, m_physparams.rho0[0]*0.6);
 	object3.SetInertia(r0);
 	object3.Unfill(parts, r0);
-	
+
 	rb_cg = Point(0.2, 0.6*ly, H);
 	object4 = Torus(rb_cg, 0.05, 0.03, EulerParameters(0.0, 0.0, 0.0));
 	object4.SetPartMass(r0, m_physparams.rho0[0]*0.6);
 	object4.SetMass(r0, m_physparams.rho0[0]*0.6);
 	object4.SetInertia(r0);
 	object4.Unfill(parts, r0);
-	
+
 	RigidBody* rigid_body = get_body(0);
 	rigid_body->AttachObject(&object1);
 	object1.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
-	
+
 	rigid_body = get_body(1);
 	rigid_body->AttachObject(&object2);
 	object2.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
-	
+
 	rigid_body = get_body(2);
 	rigid_body->AttachObject(&object3);
 	object3.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
-	
+
 	rigid_body = get_body(3);
 	rigid_body->AttachObject(&object4);
 	object4.FillBorder(rigid_body->GetParts(), r0);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
-	
+
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
 }
-
-
-void DamBreakObjects::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
-	for (int i = 0; i < m_simparams.numbodies; i++)
-		get_body(i)->GLDraw();
-}
-
 
 void DamBreakObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
@@ -254,7 +230,7 @@ void DamBreakObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-	
+
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		pos[i] = make_float4(obstacle_parts[i-j]);

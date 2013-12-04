@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -43,7 +38,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	lx = 9.0;
 	ly = 2.0;
 	lz = 1.5;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
@@ -61,7 +56,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 
 	// use a plane for the bottom
 	use_bottom_plane = true;
-	
+
 	// SPH parameters
 	set_deltap(0.06f);  //0.005f;
 	m_simparams.slength = 1.3f*m_deltap;
@@ -111,7 +106,7 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 
 	// Allocate data for floating bodies
 	allocate_bodies(1);
-	
+
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	paddle_length = 1.4f;
@@ -139,19 +134,12 @@ EnergyGenerator::EnergyGenerator(const Options &options) : Problem(options)
 	// Call mb_callback  for cylindres and cone a first time to initialise
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
-	
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 1.4f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 0;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "EnergyGenerator";
 	create_problem_dir();
@@ -192,7 +180,7 @@ MbCallBack& EnergyGenerator::mb_callback(const float t, const float dt, const in
 			throw runtime_error("Incorrect moving boundary object number");
 			break;
 		}
-        
+
 	return m_mbcallbackdata[i];
 }
 
@@ -212,7 +200,7 @@ int EnergyGenerator::fill_parts()
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
-   
+
 	paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	paddle.Fill(paddle_parts, br, true);
 
@@ -238,7 +226,7 @@ int EnergyGenerator::fill_parts()
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	 }
-	
+
 	Point p = Point(2.0, 1.0, 0.0);
 	cyl = Cylinder(p, 0.12, lz, EulerParameters());
 	cyl.SetPartMass(m_deltap, m_physparams.rho0[0]);
@@ -249,12 +237,12 @@ int EnergyGenerator::fill_parts()
 	torus.SetPartMass(br, m_physparams.rho0[0]*0.2);
 	torus.SetInertia(br);
 	torus.Unfill(parts, 2*br);
-	
+
 	RigidBody* rigid_body = get_body(0);
 	rigid_body->AttachObject(&torus);
 	torus.FillBorder(rigid_body->GetParts(), br);
 	rigid_body->SetInitialValues(Vector(0.0, 0.0, 0.0), Vector(0.0, 0.0, 0.0));
-	
+
 	return parts.size() + boundary_parts.size() + paddle_parts.size() + get_bodies_numparts();
 }
 
@@ -292,29 +280,6 @@ void EnergyGenerator::copy_planes(float4 *planes, float *planediv)
 		planediv[5] = 1.0;
 	}
 }
-
-
-void EnergyGenerator::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	experiment_box.GLDraw();
-
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	glColor3f(1.0, 0.0, 0.0);
-	Rect actual_paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*mbpaddledata.sintheta, 0,
-						paddle_length*mbpaddledata.costheta));
-
-	actual_paddle.GLDraw();
-
-	glColor3f(0.5, 0.5, 1.0);
-	cyl.GLDraw();
-	glColor3f(1.0, 0, 0.0);
-	for (int i = 0; i < m_simparams.numbodies; i++)
-		get_body(i)->GLDraw();
-}
-
 
 void EnergyGenerator::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
@@ -357,7 +322,7 @@ void EnergyGenerator::copy_to_array(float4 *pos, float4 *vel, particleinfo *info
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-	
+
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {

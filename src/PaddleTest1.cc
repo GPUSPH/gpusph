@@ -26,11 +26,6 @@
 #include <math.h>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "PaddleTest1.h"
 #include "particledefine.h"
@@ -123,20 +118,11 @@ PaddleTest1::PaddleTest1(const Options &options) : Problem(options)
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
 
-
-	
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq =  0;
 	m_screenshotfreq = 10;
-	
+
 	// Name of problem used for directory creation
 	m_name = "PaddleTest";
 	create_problem_dir();
@@ -190,7 +176,7 @@ int PaddleTest1::fill_parts()
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
-   
+
 	paddle.SetPartMass(m_deltap, m_physparams.rho0[1]);// might use 1 if we know it is always multifluid
 	paddle.Fill(paddle_parts, br, true);
 
@@ -200,10 +186,10 @@ int PaddleTest1::fill_parts()
 	   bottom.SetPartMass(m_deltap, m_physparams.rho0[1]);
 	   bottom.Fill(boundary_parts,br,true);
 	   std::cout << "bottom rectangle defined" <<"\n";
-	 }   
-    
+	 }
 
- 
+
+
 	Rect fluid;
 	float z = 0;
 	int n = 0;
@@ -212,9 +198,9 @@ int PaddleTest1::fill_parts()
 		z = n*m_deltap + .8*r0;    //old: z = n*m_deltap + 1.5*r0;
 		std::cout << "z = " << z <<"\n";
 		float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
- 
+
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
- 
+
 		fluid = Rect(Point(x,  2.0*r0, z), Vector(l, 0, 0), Vector(0, width-4.0*r0, 0));
 		fluid.SetPartMass(m_deltap, m_physparams.rho0[1]);  //should be 1, the fluid with fastest speed of sound
 		fluid.Fill(parts, m_deltap, true);
@@ -225,7 +211,7 @@ int PaddleTest1::fill_parts()
     while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 2*r0;
 		std::cout << "z = " << z <<"\n";
-	 	float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);	 
+	 	float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
 	 	float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  2.*r0, z), Vector(l, 0, 0), Vector(0, width-4.0*r0, 0));
 		fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
@@ -235,7 +221,7 @@ int PaddleTest1::fill_parts()
 	num_parts[0] = parts.size()-num_parts[1];
 	std::cout <<"num_parts[0] = " <<num_parts[0] <<"\n";
 	std::cout <<"parts.size() = " <<parts.size() <<"\n";
- 
+
 /*
 	Cube fluid;
 	fluid = Cube(Point(mbpaddledata.origin.x+r0, r0, r0), Vector(h_length + slope_length-mbpaddledata.origin.x-2*r0, 0, 0),
@@ -249,17 +235,17 @@ int PaddleTest1::fill_parts()
 
 	}
 
- 
+
 uint PaddleTest1::fill_planes()
 {
- 
+
     if (i_use_bottom_plane == 0) {
 		return 5;
 		}
 	else {
 		return 6;
 		} //corresponds to number of planes
- 
+
 }
 
 
@@ -285,28 +271,6 @@ void PaddleTest1::copy_planes(float4 *planes, float *planediv)
  	}
 }
 
-
-void PaddleTest1::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
- 	if (i_use_bottom_plane == 1)
-		experiment_box1.GLDraw();
-
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	glColor3f(1.0, 0.0, 0.0);
-	Rect actual_paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*mbpaddledata.sintheta, 0,
-						paddle_length*mbpaddledata.costheta));
-
-	actual_paddle.GLDraw();
-
-	glColor3f(0.5, 0.5, 1.0);
-	const float displace = m_mbcallbackdata[1].disp.z;
-	const float width = m_size.y;
-}
-
-
 void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
 	/*  No boundary particles if using planes
@@ -321,7 +285,7 @@ void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout <<" j = " << j <<", Boundary part mass:" << pos[j-1].w << "\n";
     */
 	int j = 0;
-	
+
 	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
 	// those rules:
 	//		1. object id must be unique (you cannot have a PADDLE with object id 0 and a GATEPART with same id)
@@ -344,7 +308,7 @@ void PaddleTest1::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "\nFluid parts: " << parts.size() << " =(" << num_parts[0] <<" + "<< num_parts[1] << ")" <<"\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
-	
+
 	// lower fluid; fluid 1
 	for (uint i = j; i < j + num_parts[1]; i++) {
 		pos[i] = make_float4(parts[i-j]);

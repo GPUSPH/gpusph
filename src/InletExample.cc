@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "InletExample.h"
 
@@ -114,12 +109,6 @@ InletExample::InletExample(const Options &options) : Problem(options)
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = maxvel;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 10;
@@ -160,13 +149,6 @@ int InletExample::fill_parts()
 	fluid.Fill(parts, m_deltap, true);
 
 	return parts.size();
-}
-
-
-void InletExample::draw_boundary(float t)
-{
-	glColor3f(1.0, 0.0, 0.0);
-	experiment_box.GLDraw();
 }
 
 uint InletExample::fill_planes()

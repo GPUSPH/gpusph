@@ -90,12 +90,6 @@ class Problem {
 		float3	m_origin;		// Origin of compuatation domain
 		float	m_deltap;		// Initial particle spacing
 
-		// Min and max values used for display
-		float	m_maxrho;
-		float	m_minrho;
-		float	m_maxvel;
-		float	m_minvel;
-
 		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
 		int			m_writefreq;
@@ -148,14 +142,6 @@ class Problem {
 		{
 			return m_writerType;
 		};
-
-		float get_minrho(void) { return m_minrho; };
-
-		float get_maxrho(void) { return m_maxrho; };
-
-		float get_maxvel(void) { return m_maxvel; };
-
-		float get_minvel(void) { return m_minvel; };
 
 		float density(float, int);
 
@@ -244,10 +230,6 @@ class Problem {
 		// maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
 		virtual uint fill_planes(void);
-		virtual void draw_boundary(float) = 0;
-		virtual void draw_axis(void);
-		/*virtual void draw_inlets(void);
-		virtual void draw_outlets(void);*/
 
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);

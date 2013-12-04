@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "OdeObjects.h"
 #include "Point.h"
@@ -41,10 +36,10 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	// Size and origin of the simulation domain
 	lx = 1.6;
 	ly = 0.67;
-	lz = 0.6;	
+	lz = 0.6;
 	H = 0.4;
 	wet = false;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
@@ -78,22 +73,22 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0, 10);
-	
+
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
-	
+
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-	
+
 	m_physparams.kinematicvisc = 1.0e-6;
 	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
+
 	// Allocate data for floating bodies
 	allocate_ODE_bodies(2);
 	dInitODE();				// Initialize ODE
@@ -102,18 +97,11 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-	
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 0;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
 	create_problem_dir();
@@ -156,7 +144,7 @@ int OdeObjects::fill_parts()
 
 	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	if (wet) {
 		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
@@ -235,26 +223,6 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 }
 
 
-void OdeObjects::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
-
-	const dReal *pos,*R;
-	/*pos = dBodyGetPosition(sphere.m_ODEBody);
-	R = dBodyGetRotation(sphere.m_ODEBody);
-	dsDrawSphere(pos, R, 0.05);*/
-	sphere.GLDraw();
-
-	/*pos = dGeomGetPosition(cube.m_ODEGeom);
-	R = dGeomGetRotation(cube.m_ODEGeom);
-	const float sides1[3] = {0.1, 0.1, 0.1};
-	dsDrawBox(pos, R, sides1);*/
-}
-
-
 void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
@@ -277,7 +245,7 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-	
+
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		pos[i] = make_float4(obstacle_parts[i-j]);
