@@ -912,6 +912,11 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
+		// We upload the centers of gravity here since euler needs the previous centers of gravity
+		// (unlike forces, which needs the new ones)
+		if (problem->get_simparams()->numbodies)
+			doCommand(UPLOAD_OBJECTS_CG);
+
 		// update inlet/outlet changes only after step 2
 		if (inoutlets)
 			doCommand(DOWNLOAD_NEWNUMPARTS);

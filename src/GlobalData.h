@@ -57,6 +57,7 @@ enum CommandType {
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
+	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
 	QUIT				// quits the simulation cycle
 };
 
