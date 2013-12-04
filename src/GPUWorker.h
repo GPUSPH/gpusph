@@ -195,6 +195,7 @@ private:
 	void kernel_vorticity();
 	void kernel_surfaceParticles();
 	void kernel_sps();
+	void kernel_reduceRBForces();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

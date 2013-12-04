@@ -1978,6 +1978,15 @@ void GPUWorker::kernel_sps()
 		 m_simparams->periodicbound);
 }
 
+void GPUWorker::kernel_reduceRBForces()
+{
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (m_numParticles == 0) return;
+
+	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
+					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numbodies, m_numBodiesParticles);
+}
+
 void GPUWorker::uploadConstants()
 {
 	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
