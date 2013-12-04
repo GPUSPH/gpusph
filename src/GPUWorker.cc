@@ -1770,9 +1770,9 @@ void GPUWorker::kernel_forces()
 	if (numPartsToElaborate > 0 && firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 						m_dVel[gdata->currentVelRead],   // vel(n)
-						m_dForces,					// f(n)
-						0, // float* rbforces
-						0, // float* rbtorques
+						m_dForces,					// f(n
+						m_dRbForces,
+						m_dRbTorques,
 						m_dXsph,
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
@@ -1800,8 +1800,8 @@ void GPUWorker::kernel_forces()
 		returned_dt = forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
 						m_dVel[gdata->currentVelWrite],  // vel(n+1/2)
 						m_dForces,					// f(n+1/2)
-						0, // float* rbforces,
-						0, // float* rbtorques,
+						m_dRbForces,
+						m_dRbTorques,
 						m_dXsph,
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
