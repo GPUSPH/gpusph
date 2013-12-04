@@ -1518,6 +1518,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->uploadInlets();
 	instance->uploadOutlets();
 
+	// upload centers of gravity of the bodies
+	instance->uploadBodiesCentersOfGravity();
+
 	// compute #parts to allocate according to the free memory on the device
 	instance->computeAndSetAllocableParticles();
 
