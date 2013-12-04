@@ -1636,6 +1636,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
 				break;
+			case REDUCE_BODIES_FORCES:
+				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
+				instance->kernel_reduceRBForces();
+				break;
 			case UPLOAD_MBDATA:
 				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
 				instance->uploadMBData();

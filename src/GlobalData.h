@@ -54,6 +54,7 @@ enum CommandType {
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	SPS,				// SPS stress matrix computation kernel
+	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
