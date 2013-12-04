@@ -458,7 +458,7 @@ ParticleSystem::allocate(uint numParticles, uint maxParticles)
 	// Allocate storage for rigid bodies forces and torque computation
 	//if (m_simparams->numbodies) {
 	//
-	if (m_simparams.numbodies) {
+	if (m_simparams->numbodies) {
 		m_numBodiesParticles = m_problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
 		int memSizeRbForces = m_numBodiesParticles*sizeof(float4);
