@@ -110,14 +110,11 @@ private:
 	//uint*		m_dSliceStart;			// index of first cell in slice
 	uint*		m_dNeibsList;			// neib list with maxneibsnum neibs per particle
 
-	// CPU/GPU arrays for rigid bodies
+	// GPU arrays for rigid bodies (CPU ones are in GlobalData)
 	uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
 	float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies
 	float4*		m_dRbTorques;			// Torques on particles belonging to rigid bodies
 	uint*		m_dRbNum;				// Key used in segmented scan
-	uint*		m_hRbLastIndex;			// Indexes of last particles belonging to rigid bodies
-	float3*		m_hRbTotalForce;		// Total force acting on each rigid body
-	float3*		m_hRbTotalTorque;		// Total torque acting on each rigid body
 
 	// CPU/GPU data for moving boundaries
 	uint		m_mbDataSize;			// size (in bytes) of m_dMbData array

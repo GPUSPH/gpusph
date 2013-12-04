@@ -267,11 +267,14 @@ struct GlobalData {
 	//pthread_cond_t condCPU;
 	//pthread_cond_t condCPUworker;
 
-	// object moving stuff
+	// objects
 	//float4 *cMbData; // just pointer
 	//float3 crbcg[MAXBODIES];
 	//float3 crbtrans[MAXBODIES];
 	//float crbsteprot[9*MAXBODIES];
+	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
+	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
+	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
 
 	// least elegant way ever to pass phase number to threads
 	//bool phase1;
@@ -366,6 +369,18 @@ struct GlobalData {
 	{
 		for (uint i=0; i < MAX_DEVICES_PER_NODE; i++)
 			dts[i] = 0.0F;
+
+		// init partial forces and torques
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			for (uint ob=0; ob < MAXBODIES; ob++) {
+				s_hRbTotalForce[d][ob] = make_float3(0.0F);
+				s_hRbTotalTorque[d][ob] = make_float3(0.0F);
+			}
+
+		// init last indices for segmented scans for objects
+		for (uint ob=0; ob < MAXBODIES; ob++)
+			s_hRbLastIndex[ob] = 0;
+
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos

@@ -879,9 +879,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 		uint rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
-		m_hRbLastIndex = new uint[m_simparams->numbodies];
-		m_hRbTotalForce = new float3[m_simparams->numbodies];
-		m_hRbTotalTorque = new float3[m_simparams->numbodies];
 
 		rbfirstindex[0] = 0;
 		for (int i = 1; i < m_simparams->numbodies; i++) {
@@ -891,7 +888,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 		int offset = 0;
 		for (int i = 0; i < m_simparams->numbodies; i++) {
-			m_hRbLastIndex[i] = gdata->problem->get_ODE_body_numparts(i) - 1 + offset;
+			gdata->s_hRbLastIndex[i] = gdata->problem->get_ODE_body_numparts(i) - 1 + offset;
+
 			for (int j = 0; j < gdata->problem->get_ODE_body_numparts(i); j++) {
 				rbnum[offset + j] = i;
 			}
@@ -979,9 +977,6 @@ void GPUWorker::deallocateDeviceBuffers() {
 	}
 
 	if (m_simparams->numbodies) {
-		delete [] m_hRbLastIndex;
-		delete [] m_hRbTotalForce;
-		delete [] m_hRbTotalTorque;
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
 		CUDA_SAFE_CALL(cudaFree(m_dRbForces));
 		CUDA_SAFE_CALL(cudaFree(m_dRbNum));
