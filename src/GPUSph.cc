@@ -1598,3 +1598,21 @@ void GPUSPH::updateArrayIndices() {
 		gdata->quit_request = true;
 	}
 }
+
+// initialize the centers of gravity of objects
+void GPUSPH::initializeObjectsCGs()
+{
+	if (gdata->problem->get_simparams()->numbodies > 0) {
+		gdata->s_hRbGravityCenters = gdata->problem->get_ODE_bodies_cg();
+
+		// Debug
+		/* for (int i=0; i < m_simparams->numbodies; i++) {
+			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
+		}
+		uint rbfirstindex[MAXBODIES];
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
+		for (int i=0; i < m_simparams->numbodies; i++) {
+			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
+		} */
+	}
+}
