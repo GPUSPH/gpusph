@@ -1652,6 +1652,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
 				instance->uploadPlanes();
 				break;
+			case UPLOAD_OBJECTS_CG:
+				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				instance->uploadBodiesCentersOfGravity();
+				break;
+			case UPLOAD_OBJECTS_MATRICES:
+				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				instance->uploadBodiesTransRotMatrices();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
