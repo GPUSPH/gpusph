@@ -1773,6 +1773,14 @@ void GPUWorker::kernel_forces()
 
 	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
 
+	// if we have objects potentially shared across different devices, must reset their forces
+	// and torques to avoid spurious contributions
+	if (m_simparams->numbodies > 0 && MULTI_DEVICE) {
+		uint bodiesPartsSize = m_numBodiesParticles * sizeof(float4);
+		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
+	}
+
 	// first step
 	if (numPartsToElaborate > 0 && firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
