@@ -156,12 +156,12 @@ int OdeObjects::fill_parts()
 	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
+	/* obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
 	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
 	obstacle.FillBorder(obstacle.GetParts(), r0, true);
 	obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
 	obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(&obstacle);
+	add_ODE_body(&obstacle); */
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
@@ -193,10 +193,10 @@ int OdeObjects::fill_parts()
 	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_ODE_body(&cylinder);
 
-	joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
+	/* joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
 	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
 	dJointSetHingeAnchor(joint, 0.7, 0.24, 2*r0);	// Set a joint anchor
-	dJointSetHingeAxis(joint, 0, 1, 0);
+	dJointSetHingeAxis(joint, 0, 1, 0); */
 
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_ODE_bodies_numparts();
 }
