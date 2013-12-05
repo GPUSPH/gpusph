@@ -99,7 +99,7 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 0;
+	m_writefreq = 4;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
