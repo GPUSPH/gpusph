@@ -2023,3 +2023,9 @@ void GPUWorker::uploadBodiesCentersOfGravity()
 	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
 }
 
+void GPUWorker::uploadBodiesTransRotMatrices()
+{
+	seteulerrbtrans(gdata->s_hRbTranslations, m_simparams->numbodies);
+	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numbodies);
+}
+

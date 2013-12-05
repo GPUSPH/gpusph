@@ -182,6 +182,7 @@ private:
 
 	// bodies
 	void uploadBodiesCentersOfGravity();
+	void uploadBodiesTransRotMatrices();
 
 	// kernels
 	void kernel_calcHash();
