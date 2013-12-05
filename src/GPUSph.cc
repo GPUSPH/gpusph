@@ -928,6 +928,13 @@ bool GPUSPH::runSimulation() {
 				} // iterate on devices
 			} // iterate on objects
 
+			// if running multinode, also reduce across nodes
+			if (MULTI_NODE) {
+				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+				gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numbodies, SUM_REDUCTION);
+			}
+
 			problem->rigidbodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
