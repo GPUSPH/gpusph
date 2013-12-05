@@ -59,6 +59,7 @@ enum CommandType {
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
 	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
+	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	QUIT				// quits the simulation cycle
 };
 
