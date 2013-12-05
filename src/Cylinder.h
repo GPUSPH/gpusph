@@ -43,21 +43,21 @@ class Cylinder: public Object {
 		Cylinder(const Point&, const Vector&, const Vector&);
 		Cylinder(const Point&, const double, const double, const EulerParameters&);
 		virtual ~Cylinder(void) {};
-		
+
 		double Volume(const double) const;
 		void SetInertia(const double);
 
+		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
+		void ODEGeomCreate(dSpaceID, const double);
+
 		void FillBorder(PointVect&, const double, const bool, const bool);
-		void FillBorder(PointVect& points, const double dx) 
+		void FillBorder(PointVect& points, const double dx)
 		{
 			FillBorder(points, dx, true, true);
 		}
-		
+
 		int Fill(PointVect&, const double, const bool fill = true);
 
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		
 		bool IsInside(const Point&, const double) const;
 };
 

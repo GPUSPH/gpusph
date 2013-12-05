@@ -860,7 +860,46 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
 	allocated += sizeof(uint);
 
-	// TODO: allocation for rigid bodies
+	if (m_simparams->numbodies) {
+		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
+		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
+
+		int objParticlesFloat4Size = m_numBodiesParticles*sizeof(float4);
+		int objParticlesUintSize = m_numBodiesParticles*sizeof(uint);
+
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbTorques, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbForces, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbNum, objParticlesUintSize));
+
+		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
+
+		// DEBUG
+		// m_hRbForces = new float4[m_numBodiesParticles];
+		// m_hRbTorques = new float4[m_numBodiesParticles];
+
+		uint rbfirstindex[MAXBODIES];
+		uint* rbnum = new uint[m_numBodiesParticles];
+
+		rbfirstindex[0] = 0;
+		for (int i = 1; i < m_simparams->numbodies; i++) {
+			rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(i - 1);
+		}
+		setforcesrbstart(rbfirstindex, m_simparams->numbodies);
+
+		int offset = 0;
+		for (int i = 0; i < m_simparams->numbodies; i++) {
+			gdata->s_hRbLastIndex[i] = gdata->problem->get_ODE_body_numparts(i) - 1 + offset;
+
+			for (int j = 0; j < gdata->problem->get_ODE_body_numparts(i); j++) {
+				rbnum[offset + j] = i;
+			}
+			offset += gdata->problem->get_ODE_body_numparts(i);
+		}
+		size_t  size = m_numBodiesParticles*sizeof(uint);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
+
+		delete[] rbnum;
+	}
 
 	if (m_simparams->dtadapt) {
 		// for the allocation we use m_numPartsFmax computed from m_numAlocatedParticles;
@@ -932,12 +971,21 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
-	// TODO: deallocation for rigid bodies
-
 	if (m_simparams->dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
 		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
 	}
+
+	if (m_simparams->numbodies) {
+		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
+		CUDA_SAFE_CALL(cudaFree(m_dRbForces));
+		CUDA_SAFE_CALL(cudaFree(m_dRbNum));
+
+		// DEBUG
+		// delete [] m_hRbForces;
+		// delete [] m_hRbTorques;
+	}
+
 
 	// here: dem device buffers?
 }
@@ -1465,6 +1513,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 	instance->uploadInlets();
 	instance->uploadOutlets();
 
+	// upload centers of gravity of the bodies
+	instance->uploadBodiesCentersOfGravity();
+
 	// compute #parts to allocate according to the free memory on the device
 	instance->computeAndSetAllocableParticles();
 
@@ -1585,6 +1636,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
 				break;
+			case REDUCE_BODIES_FORCES:
+				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
+				instance->kernel_reduceRBForces();
+				break;
 			case UPLOAD_MBDATA:
 				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
 				instance->uploadMBData();
@@ -1596,6 +1651,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case UPLOAD_PLANES:
 				//printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
 				instance->uploadPlanes();
+				break;
+			case UPLOAD_OBJECTS_CG:
+				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				instance->uploadBodiesCentersOfGravity();
+				break;
+			case UPLOAD_OBJECTS_MATRICES:
+				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				instance->uploadBodiesTransRotMatrices();
 				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
@@ -1710,13 +1773,21 @@ void GPUWorker::kernel_forces()
 
 	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
 
+	// if we have objects potentially shared across different devices, must reset their forces
+	// and torques to avoid spurious contributions
+	if (m_simparams->numbodies > 0 && MULTI_DEVICE) {
+		uint bodiesPartsSize = m_numBodiesParticles * sizeof(float4);
+		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
+	}
+
 	// first step
 	if (numPartsToElaborate > 0 && firstStep)
 		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
 						m_dVel[gdata->currentVelRead],   // vel(n)
-						m_dForces,					// f(n)
-						0, // float* rbforces
-						0, // float* rbtorques
+						m_dForces,					// f(n
+						m_dRbForces,
+						m_dRbTorques,
 						m_dXsph,
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
@@ -1744,8 +1815,8 @@ void GPUWorker::kernel_forces()
 		returned_dt = forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
 						m_dVel[gdata->currentVelWrite],  // vel(n+1/2)
 						m_dForces,					// f(n+1/2)
-						0, // float* rbforces,
-						0, // float* rbtorques,
+						m_dRbForces,
+						m_dRbTorques,
 						m_dXsph,
 						m_dInfo[gdata->currentInfoRead],
 						m_dNeibsList,
@@ -1927,6 +1998,24 @@ void GPUWorker::kernel_sps()
 		 m_simparams->periodicbound);
 }
 
+void GPUWorker::kernel_reduceRBForces()
+{
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (m_numParticles == 0) {
+
+		// make sure this device does not add any obsolete contribute to forces acting on objects
+		for (uint ob = 0; ob < m_simparams->numbodies; ob++) {
+			gdata->s_hRbTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
+			gdata->s_hRbTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
+		}
+
+		return;
+	}
+
+	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
+					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numbodies, m_numBodiesParticles);
+}
+
 void GPUWorker::uploadConstants()
 {
 	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
@@ -1951,5 +2040,17 @@ void GPUWorker::uploadOutlets()
 	printf("Dev idx %u uploading %u outlets\n", m_deviceIndex, m_physparams->outlets);
 	setoutletforces(m_physparams);
 	setoutleteuler(m_physparams);
+}
+
+void GPUWorker::uploadBodiesCentersOfGravity()
+{
+	setforcesrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+}
+
+void GPUWorker::uploadBodiesTransRotMatrices()
+{
+	seteulerrbtrans(gdata->s_hRbTranslations, m_simparams->numbodies);
+	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numbodies);
 }
 

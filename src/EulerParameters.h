@@ -52,6 +52,7 @@ class EulerParameters {
 	public:
 		EulerParameters(void);
 		EulerParameters(const double *);
+		EulerParameters(const float *);
 		EulerParameters(const double, const double, const double);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);

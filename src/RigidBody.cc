@@ -39,10 +39,10 @@ RigidBody::RigidBody(void)
 	m_cg = new double[6];
 	m_vel = new double[6];
 	m_omega = new double[6];
-	
+
 	m_parts.reserve(1000);
 	m_object = NULL;
-	
+
 	m_current_ep = &m_ep[0];
 }
 
@@ -61,7 +61,7 @@ RigidBody::~RigidBody(void)
 
 /// Add new particles to the rigid body
 /*! /param new_points : points to be added */
-void 
+void
 RigidBody::AddParts(const PointVect & parts)
 {
 	for (int i=0; i < parts.size(); i++)
@@ -78,7 +78,7 @@ void RigidBody::SetInertialFrameData(const Point& cg, const double* SetInertia,
 	m_cg[2] = cg(2);
 
 	m_current_cg = cg;
-	
+
 	for (int i = 0; i < 3; i++)
 		m_inertia[i] = SetInertia[i];
 
@@ -91,7 +91,7 @@ void RigidBody::SetInertialFrameData(const Point& cg, const double* SetInertia,
 
 
 /*! Setting inertial frame data  */
-void 
+void
 RigidBody::AttachObject(Object* object)
 {
 	m_object = object;
@@ -103,7 +103,7 @@ RigidBody::AttachObject(Object* object)
 
 
 /*! Translate rigid body particles */
-void 
+void
 RigidBody::Translate(const Vector &v)
 {
 	for (int i=0; i < m_parts.size(); i++)
@@ -112,7 +112,7 @@ RigidBody::Translate(const Vector &v)
 
 
 /*! Rotate rigid body particles */
-void 
+void
 RigidBody::Rotate(const Point &center, const EulerParameters & rot)
 {
 	// TODO
@@ -120,7 +120,7 @@ RigidBody::Rotate(const Point &center, const EulerParameters & rot)
 
 
 /*! Setting initial values for integration */
-void 
+void
 RigidBody::SetInitialValues(const Vector &init_vel, const Vector &init_omega)
 {
 	m_vel[0] = init_vel(0);
@@ -140,7 +140,7 @@ RigidBody::GetParts(void)
 }
 
 
-void 
+void
 RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &global_torque, const int step,
 						const double dt, float3 * cg, float3 * trans, float * steprot)
 {
@@ -165,7 +165,7 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		ep_pred.Normalize();
 		ep_pred.ComputeRot();
 		ep_pred.StepRotation(ep, steprot);
-				
+
 		m_vel[3] = m_vel[0] + (force.x/m_mass + gravity.x)*dt2;
 		m_vel[4] = m_vel[1] + (force.y/m_mass + gravity.y)*dt2;
 		m_vel[5] = m_vel[2] + (force.z/m_mass + gravity.z)*dt2;
@@ -202,7 +202,7 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 		m_omega[2] = m_omega[2] + ((double) torque.z - (m_inertia[1] - m_inertia[0])*m_omega[3]*m_omega[4])*dt/m_inertia[2];
 
 		EulerParameters ep0 = ep;
-		
+
 		ep(0) = ep(0) + (-ep_pred(1)*m_omega[0] - ep_pred(2)*m_omega[1] - ep_pred(3)*m_omega[2])*dt2;
 		ep(1) = ep(1) + (ep_pred(0)*m_omega[0] - ep_pred(3)*m_omega[1] + ep_pred(2)*m_omega[2])*dt2;
 		ep(2) = ep(2) + (ep_pred(3)*m_omega[0] + ep_pred(0)*m_omega[1] + ep_pred(1)*m_omega[2])*dt2;
@@ -239,7 +239,7 @@ RigidBody::TimeStep(const float3 &force, const float3 &gravity, const float3 &gl
 }
 
 
-void 
+void
 RigidBody::GetCG(float3& cg) const
 {
 	cg.x = (float) m_current_cg(0);
@@ -248,32 +248,23 @@ RigidBody::GetCG(float3& cg) const
 }
 
 
-const Point& 
+const Point&
 RigidBody::GetCG(void) const
 {
 	return m_current_cg;
 }
 
 
-const EulerParameters& 
+const EulerParameters&
 RigidBody::GetEulerParameters(void) const
 {
 	return *m_current_ep;
 }
 
-
-void 
-RigidBody::GLDraw(void) const
-{
-	if (m_object)
-		m_object->GLDraw(*m_current_ep, m_current_cg);
-}
-
-
-void 
+void
 RigidBody::Write(const float t, FILE* fid) const
 {
 	EulerParameters &ep = *m_current_ep;
-	fprintf(fid, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", m_body_number, t, m_current_cg(0), 
+	fprintf(fid, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", m_body_number, t, m_current_cg(0),
 			m_current_cg(1), m_current_cg(2), ep(0), ep(1), ep(2), ep(3));
 }

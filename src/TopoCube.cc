@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <cstring> // memcpy
 
@@ -433,79 +428,8 @@ TopoCube::Fill(PointVect& points, const double H, const double dx, const bool fa
 
 
 // TODO:: FIXME
-bool 
+bool
 TopoCube::IsInside(const Point&, const double) const
 {
 	return false;
 }
-
-
-void
-TopoCube::GLDraw(void) const
-{
-	Point p1, p2, p3, p4;
-	p1 = m_origin;
-	p2 = p1 + m_vx;
-	p3 = p2 + m_vz;
-	p4 = p3 - m_vx;
-	GLDrawQuad(p1, p2, p3, p4);
-	p1 = m_origin + m_vy;
-	p2 = p1 + m_vx;
-	p3 = p2 + m_vz;
-	p4 = p3 - m_vx;
-	GLDrawQuad(p1, p2, p3, p4);
-	p1 = m_origin;
-	p2 = p1 + m_vy;
-	p3 = p2 + m_vz;
-	p4 = p3 - m_vy;
-	GLDrawQuad(p1, p2, p3, p4);
-	p1 = m_origin + m_vx;
-	p2 = p1 + m_vy;
-	p3 = p2 + m_vz;
-	p4 = p3 - m_vy;
-	GLDrawQuad(p1, p2, p3, p4);
-	p1 = m_origin;
-	p2 = p1 + m_vx;
-	p3 = p2 + m_vy;
-	p4 = p3 - m_vx;
-	GLDrawQuad(p1, p2, p3, p4);
-	p1 = m_origin + m_vz;
-	p2 = p1 + m_vx;
-	p3 = p2 + m_vy;
-	p4 = p3 - m_vx;
-	GLDrawQuad(p1, p2, p3, p4);
-
-	for (int y = 0; y < m_nrows - 1; y++) {
-		for (int x = 0; x < m_ncols -1; x++) {
-			glBegin(GL_QUADS);
-			{
-			#define dem_idx(x, y) ((x) + (y)*m_ncols)
-			#define vertex(x, y) (x)*m_ewres, (y)*m_nsres , z
-
-			float z = m_dem[dem_idx(x, y)];
-			glVertex3f(vertex(x, y));
-
-			z = m_dem[dem_idx(x+1, y)];
-			glVertex3f(vertex(x+1, y));
-
-			z = m_dem[dem_idx(x+1, y+1)];
-			glVertex3f(vertex(x+1, y+1));
-
-			z = m_dem[dem_idx(x, y+1)];
-			glVertex3f(vertex(x, y+1));
-
-			#undef dem_idx
-			#undef vertex
-			}
-			glEnd();
-		}
-	}
-}
-
-
-void
-TopoCube::GLDraw(const EulerParameters& ep, const Point& cg) const
-{
-	GLDraw();
-}
-

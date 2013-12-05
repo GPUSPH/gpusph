@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -44,7 +39,7 @@ SharedNeibsTest::SharedNeibsTest(const Options &options) : Problem(options)
 	lx = 90*m_deltap;
 	ly = 90*m_deltap;
 	lz = 30*m_deltap;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
@@ -65,7 +60,7 @@ SharedNeibsTest::SharedNeibsTest(const Options &options) : Problem(options)
 	//m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 0.01;
-	
+
 	// We have no moving boundary
 	m_simparams.mbcallback = false;
 
@@ -73,27 +68,20 @@ SharedNeibsTest::SharedNeibsTest(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0,1000.0, 7.0f, 5.0);
-	
+
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 50.0f;
 	m_physparams.r0 = m_deltap;
-	
+
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
-	// Scales for drawing
-	m_maxrho = 1.1*m_physparams.rho0[0];
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-	
+
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 1;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "SharedNeibsTest";
 	create_problem_dir();
@@ -126,13 +114,6 @@ int SharedNeibsTest::fill_parts()
 	experiment_box.Fill(parts, r0);
 
 	return parts.size();
-}
-
-
-void SharedNeibsTest::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
 }
 
 

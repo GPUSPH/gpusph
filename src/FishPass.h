@@ -82,7 +82,6 @@ class FishPass: public Problem {
 
 		void addWalls(uint wIndex, float Ypos);
 		void addWater(float Ypos, float specialSize = -1.0F);
-		void drawWalls();
 		float getAbsoluteFloorHeight(float Ypos);
 		void fillHFrustum(float3 base1Origin, float2 base1Size, float3 base2Origin, float2 base2Size);
 	public:
@@ -90,7 +89,6 @@ class FishPass: public Problem {
 		virtual ~FishPass(void);
 
 		int fill_parts(void);
-		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
 
 		void release_memory(void);

@@ -79,6 +79,9 @@ private:
 	// do a roll call of particle IDs
 	void rollCallParticles();
 
+	// initialize the centers of gravity of objects
+	void initializeObjectsCGs();
+
 public:
 	// destructor
 	~GPUSPH();

@@ -35,6 +35,8 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
+#include "ode/ode.h"
+
 enum KernelType {
 	CUBICSPLINE = 1,
 	QUADRATIC,

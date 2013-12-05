@@ -26,11 +26,6 @@
 #include <math.h>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "FluidMix.h"
 #include "particledefine.h"
@@ -43,7 +38,7 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 	ly = 1.0;
 	lz = 1.0;
 	H = lz;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
@@ -70,7 +65,7 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 	m_simparams.vorticity = false;
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
     m_simparams.sph_formulation = SPH_F2;
-    
+
 	// Physical parameters
 	H -= m_deltap;
 	m_physparams.gravity = make_float3(0.0f, 0.0f, -9.81f);
@@ -96,19 +91,11 @@ FluidMix::FluidMix(const Options &options) : Problem(options)
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 
-	
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq =  5;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "FluidMix";
 	create_problem_dir();
@@ -142,32 +129,23 @@ int FluidMix::fill_parts()
 						Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
 	Cube fluid1 = Cube(Point(lx/2.0 + r0/2, r0, r0), Vector(lx/2.0 - r0/2 - r0, 0, 0),
 						Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	boundary_parts.reserve(1000);
 	parts0.reserve(10000);
 	parts1.reserve(10000);
-	
+
    	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, true);
-	
+
 	double dx3 = m_deltap*m_deltap*m_deltap;
 	fluid0.SetPartMass(dx3*m_physparams.rho0[0]);
 	fluid1.SetPartMass(dx3*m_physparams.rho0[1]);
 
 	fluid0.Fill(parts0, r0);
 	fluid1.Fill(parts1, r0);
-	
+
     return parts0.size() + parts1.size() + boundary_parts.size();
 }
-
-
-
-void FluidMix::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-}
-
 
 void FluidMix::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {

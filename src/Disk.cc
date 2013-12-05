@@ -44,7 +44,7 @@ Disk::Disk(const Point& center, double radius, const Vector& normaldir)
 	m_r = radius;
 	Vector axisdir = normaldir;
 	axisdir.normalize();
-	
+
 	Vector v(0, 0, 1);
 	const double angle = acos(axisdir*v);
 	Vector rotdir = axisdir.cross(v);
@@ -59,7 +59,7 @@ Disk::Disk(const Point& center, double radius, const EulerParameters& ep)
 {
 	m_center = center;
 	m_r = radius;
-	
+
 	m_ep = ep;
 	m_ep.ComputeRot();
 }
@@ -71,13 +71,13 @@ Disk::Disk(const Point& center, const Vector& radius, const Vector& normaldir)
 		std::cout << "Trying to construct a disk with non perpendicular radius and normal direction\n";
 		exit(1);
 	}
-	
+
 	m_center = center;
 	m_r = radius.norm();
-	
+
 	Vector axisdir = normaldir;
 	axisdir.normalize();
-	
+
 	Vector v(0, 0, 1);
 	const double angle = acos(axisdir*v);
 	Vector rotdir = axisdir.cross(v);
@@ -99,7 +99,7 @@ Disk::Volume(const double dx) const
 
 void
 Disk::SetInertia(const double dx)
-{	
+{
 	const double r = m_r + dx/2.0;
 	const double h = dx;
 	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
@@ -129,21 +129,6 @@ Disk::IsInside(const Point& p, const double dx) const
 	bool inside = false;
 	if (lp(0)*lp(0) + lp(1)*lp(1) < r*r && lp(2) > -dx && lp(2) < dx)
 		inside = true;
-	
+
 	return inside;
 }
-
-
-void 
-Disk::GLDraw(const EulerParameters& ep, const Point& cg) const
-{
-	GLDrawCircle(ep, cg, m_r, 0.0);
-}
-
-
-void
-Disk::GLDraw(void) const
-{
-	GLDraw(m_ep, m_center);
-}
-

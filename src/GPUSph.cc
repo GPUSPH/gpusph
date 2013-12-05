@@ -603,6 +603,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		return false;
 	}
 
+	// initialize CGs (or, the problem could directly write on gdata)
+	initializeObjectsCGs();
+
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
 	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
@@ -906,11 +909,45 @@ bool GPUSPH::runSimulation() {
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
-		//			//reduce bodies
+		// reduce bodies
+		if (problem->get_simparams()->numbodies > 0) {
+			doCommand(REDUCE_BODIES_FORCES);
+
+			float3* totForce = new float3[problem->get_simparams()->numbodies];
+			float3* totTorque = new float3[problem->get_simparams()->numbodies];
+
+			// now sum up the partial forces and momenta computed in each gpu
+			for (uint ob = 0; ob < problem->get_simparams()->numbodies; ob ++) {
+
+				totForce[ob] = make_float3( 0.0F );
+				totTorque[ob] = make_float3( 0.0F );
+
+				for (int d = 0; d < gdata->devices; d++) {
+					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
+					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
+				} // iterate on devices
+			} // iterate on objects
+
+			// if running multinode, also reduce across nodes
+			if (MULTI_NODE) {
+				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+				gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numbodies, SUM_REDUCTION);
+			}
+
+			problem->rigidbodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+
+			// upload translation vectors and rotation matrices; will upload CGs after euler
+			doCommand(UPLOAD_OBJECTS_MATRICES);
+		} // if there are objects
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
+
+		// euler needs the previous centers of gravity, so we upload CGs only here
+		if (problem->get_simparams()->numbodies > 0)
+			doCommand(UPLOAD_OBJECTS_CG);
 
 		// update inlet/outlet changes only after step 2
 		if (inoutlets)
@@ -938,7 +975,7 @@ bool GPUSPH::runSimulation() {
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
-				gdata->networkManager->networkFloatReduction(&(gdata->dt));
+				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
 
 		// check that dt is not too small (absolute)
@@ -1591,5 +1628,23 @@ void GPUSPH::updateArrayIndices() {
 		printf( "FATAL: Number of total particles at iteration %u (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
 				gdata->iterations, processCount, gdata->allocatedParticles);
 		gdata->quit_request = true;
+	}
+}
+
+// initialize the centers of gravity of objects
+void GPUSPH::initializeObjectsCGs()
+{
+	if (gdata->problem->get_simparams()->numbodies > 0) {
+		gdata->s_hRbGravityCenters = gdata->problem->get_ODE_bodies_cg();
+
+		// Debug
+		/* for (int i=0; i < m_simparams->numbodies; i++) {
+			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
+		}
+		uint rbfirstindex[MAXBODIES];
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
+		for (int i=0; i < m_simparams->numbodies; i++) {
+			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
+		} */
 	}
 }

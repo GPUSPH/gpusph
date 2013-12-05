@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -106,14 +101,6 @@ Waterfall::Waterfall(const Options &options) : Problem(options)
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = sqrt(g*H);
-	//m_maxvel = 3.0f;
-	m_physparams.set_density(0,1000.0, 7.0f, 20.0f*m_maxvel);
 
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
@@ -201,18 +188,6 @@ int Waterfall::fill_parts()
 	upperFluid.Fill(fluid_parts, m_deltap, true);
 
 	return floor_parts.size() + fluid_parts.size() + walls_parts.size();
-}
-
-
-void Waterfall::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	upperFloor.GLDraw();
-	loweFloor.GLDraw();
-	step.GLDraw();
-	//glColor3f(1.0, 0.0, 0.0);
-	right_side.GLDraw();
-	left_side.GLDraw();
 }
 
 

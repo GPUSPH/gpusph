@@ -22,45 +22,58 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 /*
- * File:   Rect.h
+ * File:   OdeObjects.h
  * Author: alexis
  *
- * Created on 14 juin 2008, 17:04
+ * Created on 9 juin 2012, 12:12
  */
 
-#ifndef _RECT_H
-#define	_RECT_H
+#ifndef _ODEOBJECTS_H
+#define	_ODEOBJECTS_H
 
-#include "Object.h"
+#include "Problem.h"
 #include "Point.h"
-#include "Vector.h"
+#include "Cube.h"
+#include "Sphere.h"
+#include "Cone.h"
+#include "Torus.h"
+#include "Cylinder.h"
 
+#include "ode/ode.h"
 
-class Rect: public Object {
+class OdeObjects: public Problem {
 	private:
-		Point   m_origin;
-		double	m_lx, m_ly;
-		Vector  m_vx, m_vy;
+		Cube		experiment_box;
+		Cube		obstacle;
+		PointVect	parts;
+		PointVect	boundary_parts;
+		PointVect	obstacle_parts;
+		double		H;				// still water level
+		double		lx, ly, lz;		// dimension of experiment box
+		bool		wet;			// set wet to true have a wet bed experiment
+		// ODE and rigid body stuff
+		Sphere		sphere;
+		Cube		cube;
+		Cylinder	cylinder;
+		dGeomID		planes[5];
+		dJointID	joint;
+		
 
 	public:
-		Rect(void);
-		Rect(const Point&, const double, const double, const EulerParameters &);
-		Rect(const Point&, const Vector&, const Vector&);
-		virtual ~Rect(void) {};
+		OdeObjects(const Options &);
+		virtual ~OdeObjects(void);
 
-		double Volume(const double) const;
-		void SetInertia(const double);
+		int fill_parts(void);
+		void draw_boundary(float);
+		void copy_to_array(float4 *, float4 *, particleinfo *);
 
-		void FillBorder(PointVect&, const double);
-		void FillBorder(PointVect&, const double, const bool,
-				const bool, const int);
+		void ODE_near_callback(void *, dGeomID, dGeomID);
 
-		void Fill(PointVect&, const double, const bool*);
-		int Fill(PointVect&, const double, const bool, const bool);
-		int Fill(PointVect&, const double, const bool fill = true);
+		void release_memory(void);
 
-		bool IsInside(const Point&, const double) const;
+		// override standard split
+		void fillDeviceMap(GlobalData* gdata);
 };
-#endif	/* _RECT_H */
+#endif	/* _ODEOBJECTS_H */
+

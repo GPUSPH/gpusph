@@ -54,9 +54,12 @@ enum CommandType {
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	SPS,				// SPS stress matrix computation kernel
+	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
+	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
+	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	QUIT				// quits the simulation cycle
 };
 
@@ -266,11 +269,18 @@ struct GlobalData {
 	//pthread_cond_t condCPU;
 	//pthread_cond_t condCPUworker;
 
-	// object moving stuff
+	// objects
 	//float4 *cMbData; // just pointer
 	//float3 crbcg[MAXBODIES];
 	//float3 crbtrans[MAXBODIES];
 	//float crbsteprot[9*MAXBODIES];
+	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
+	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
+	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+	// gravity centers and rototranslations, which are computed by the ODE library
+	float3* s_hRbGravityCenters;
+	float3* s_hRbTranslations;
+	float* s_hRbRotationMatrices;
 
 	// least elegant way ever to pass phase number to threads
 	//bool phase1;
@@ -349,7 +359,10 @@ struct GlobalData {
 		only_internal(false),
 		writerType(VTKWRITER),
 		writer(NULL),
-		nosave(false)
+		nosave(false),
+		s_hRbGravityCenters(NULL),
+		s_hRbTranslations(NULL),
+		s_hRbRotationMatrices(NULL)
 		//tdatas(NULL),
 		//cpuThreadFromParticle(NULL),
 		//cpuThreadToParticle(NULL),
@@ -363,8 +376,21 @@ struct GlobalData {
 		//custom_lb_threshold(0.0f),
 		//alloc_max(false)
 	{
-		for (uint i=0; i < MAX_DEVICES_PER_NODE; i++)
-			dts[i] = 0.0F;
+		// init dts
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			dts[d] = 0.0F;
+
+		// init partial forces and torques
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			for (uint ob=0; ob < MAXBODIES; ob++) {
+				s_hRbTotalForce[d][ob] = make_float3(0.0F);
+				s_hRbTotalTorque[d][ob] = make_float3(0.0F);
+			}
+
+		// init last indices for segmented scans for objects
+		for (uint ob=0; ob < MAXBODIES; ob++)
+			s_hRbLastIndex[ob] = 0;
+
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos

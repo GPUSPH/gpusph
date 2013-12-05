@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -305,15 +300,10 @@ FishPass::FishPass(const Options &options) : Problem(options)
 		add_outlet(outlet_min, outlet_max, outlet_dir);
 	}
 
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	//m_maxvel = 3.0f;
-	m_maxvel = sqrt(g * abs(INFLOW_BOX_HEIGHT - OUTFLOW_BOX_HEIGHT));
+	// not anymore for drawing, but still for density
+	//float m_maxvel = sqrt(m_physparams.gravity*H);
+	float m_maxvel = sqrt(g * abs(INFLOW_BOX_HEIGHT - OUTFLOW_BOX_HEIGHT));
 	m_physparams.set_density(0,1000.0, 7.0f, 20.f*m_maxvel);
-
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
@@ -534,23 +524,6 @@ void FishPass::addWater(float Ypos, float aaSize) {
 					make_float3(WORLD_OFFSET_X + r0, WORLD_OFFSET_Y + eFinalPos, WORLD_OFFSET_Z + getAbsoluteFloorHeight(eFinalPos) + r0),
 					make_float2(POOL_WIDTH - A_LENGTH - 2*r0, POOL_WATER_LEVEL - r0) );
 
-}
-
-void FishPass::drawWalls()
-{
-	//glColor3f(1.0, 0, 0);
-	for (uint wi = 0; wi <= POOLS; wi++) // remember: walls == POOLS + 1
-	{
-		pAf[wi].GLDraw();
-		pBf[wi].GLDraw();
-		pCf[wi].GLDraw();
-		pAb[wi].GLDraw();
-		pBb[wi].GLDraw();
-		pCb[wi].GLDraw();
-		pAs[wi].GLDraw();
-		pBs[wi].GLDraw();
-		pCs[wi].GLDraw();
-	}
 }
 
 // Fill a horizontal frustum (height parallel with Y axis) with fluid particles.
@@ -792,25 +765,6 @@ int FishPass::fill_parts()
 	totParts += fluid_parts.size();
 
 	return totParts;
-}
-
-
-void FishPass::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	inflow_floor.GLDraw();
-	slope_floor.GLDraw();
-	outflow_floor.GLDraw();
-	outflow_ramp.GLDraw();
-	//glColor3f(1.0, 0.0, 0.0);
-	right_side.GLDraw();
-	left_side.GLDraw();
-	back_side.GLDraw();
-	front_side.GLDraw();
-	inflow_lid.GLDraw();
-
-	glColor3f(0.5, 0.5, 0.5);
-	drawWalls();
 }
 
 

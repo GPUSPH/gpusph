@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "DamBreakGate.h"
 #include "Cube.h"
@@ -102,18 +97,11 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.002f;
 	m_writefreq = 100;
 	m_screenshotfreq =100;
-        
+
 	// Set up callback function
 	m_simparams.mbcallback = true;
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
@@ -223,22 +211,6 @@ int DamBreakGate::fill_parts()
 
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
 }
-
-
-void DamBreakGate::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-
-	glColor3f(1.0, 0.0, 0.0);
-	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	Rect actual_gate = Rect(Point(mbgatedata.origin + mbgatedata.disp),
-						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
-	actual_gate.GLDraw();
-
-	obstacle.GLDraw();
-}
-
 
 void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 {

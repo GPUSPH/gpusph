@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "WaveTank.h"
 
@@ -42,7 +37,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	lx = 9.0;
 	ly = 0.6;
 	lz = 1.0;
-	
+
 	m_size = make_float3(lx, ly, lz);
 	m_origin = make_float3(0.0, 0.0, 0.0);
 
@@ -63,7 +58,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	use_cone = true;
 
 	// use a plane for the bottom
-	use_bottom_plane = false; 
+	use_bottom_plane = false;
 
 	// SPH parameters
 	set_deltap(0.04);  //0.005f;
@@ -140,18 +135,11 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
 
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4;
-
 	// Drawing and saving times
 	m_displayinterval = 0.01;
 	m_writefreq = 1;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
 	create_problem_dir();
@@ -183,7 +171,7 @@ MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 		}
 	mbpaddledata.sintheta = sin(theta);
 	mbpaddledata.costheta = cos(theta);
-        
+
 	return m_mbcallbackdata[0];
 }
 
@@ -203,7 +191,7 @@ int WaveTank::fill_parts()
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
-   
+
 	paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	paddle.Fill(paddle_parts, br, true);
 
@@ -229,7 +217,7 @@ int WaveTank::fill_parts()
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	 }
-	
+
 	if (m_simparams.testpoints) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
@@ -238,7 +226,7 @@ int WaveTank::fill_parts()
 		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
 		test_points.push_back(pos);
 	}
-	
+
 	if (use_cyl) {
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
@@ -267,7 +255,7 @@ int WaveTank::fill_parts()
 		cone.FillBorder(boundary_parts, br, false, true);
 		cone.Unfill(parts, br);
     }
-	
+
 	return parts.size() + boundary_parts.size() + paddle_parts.size() + test_points.size();
 }
 
@@ -303,33 +291,6 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
 		planediv[5] = 1.0;
 	}
-}
-
-
-void WaveTank::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
- 	bottom_rect.GLDraw();
-
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	glColor3f(1.0, 0.0, 0.0);
-	Rect actual_paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*mbpaddledata.sintheta, 0,
-						paddle_length*mbpaddledata.costheta));
-
-	actual_paddle.GLDraw();
-
-	glColor3f(0.5, 0.5, 1.0);
-	if (use_cyl) {
-			for (int i = 0; i < 11; i++) {
-				cyl[i].GLDraw();
-			}
-		}
-
-	if (use_cone) {
-		cone.GLDraw();
-		}
 }
 
 

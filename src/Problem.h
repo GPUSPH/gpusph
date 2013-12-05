@@ -34,12 +34,15 @@
 
 #include <string>
 #include <cstdio>
+#include <iostream>
 
 #include "Options.h"
 #include "RigidBody.h"
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+
+#include "ode/ode.h"
 
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
@@ -54,8 +57,11 @@ class Problem {
 		float	m_last_screenshot_time;
 		string	m_problem_dir;
 
+		static int		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
+
 		const float*	m_dem;
 		int		m_ncols, m_nrows;
+
 
 	public:
 		enum WriterType
@@ -76,17 +82,15 @@ class Problem {
 			Z_AXIS
 		};
 
-		float3	m_size;			// Size of computation domain
-		float3	m_origin;		// Origin of computation domain
+		dWorldID		m_ODEWorld;
+		dSpaceID		m_ODESpace;
+		dJointGroupID	m_ODEJointGroup;
+
+		float3	m_size;			// Size of compuation domain
+		float3	m_origin;		// Origin of compuatation domain
 		float	m_deltap;		// Initial particle spacing
 
-		// Min and max values used for display
-		float	m_maxrho;
-		float	m_minrho;
-		float	m_maxvel;
-		float	m_minvel;
-
-		float		m_displayinterval;		
+		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
 		int			m_writefreq;
 		int			m_screenshotfreq;
@@ -109,6 +113,7 @@ class Problem {
 		int			m_mbnumber;							// number of moving boundaries
 
 		RigidBody	*m_bodies;							// array of RigidBody objects
+		Object		**m_ODE_bodies;						// array of Objects tat are floating bodies
 		float4		m_mbdata[MAXMOVINGBOUND];			// mb data to be provided by ParticleSystem to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
@@ -137,14 +142,6 @@ class Problem {
 		{
 			return m_writerType;
 		};
-
-		float get_minrho(void) { return m_minrho; };
-
-		float get_maxrho(void) { return m_maxrho; };
-
-		float get_maxvel(void) { return m_maxvel; };
-
-		float get_minvel(void) { return m_minvel; };
 
 		float density(float, int);
 
@@ -233,10 +230,6 @@ class Problem {
 		// maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
 		virtual uint fill_planes(void);
-		virtual void draw_boundary(float) = 0;
-		virtual void draw_axis(void);
-		/*virtual void draw_inlets(void);
-		virtual void draw_outlets(void);*/
 
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;
 		virtual void copy_planes(float4*, float*);
@@ -244,6 +237,16 @@ class Problem {
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
+		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
+		{
+			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
+		}
+
+		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
+		{
+			Problem* problem = (Problem *) data;
+			problem->ODE_near_callback(data, o1, o2);
+		}
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap(GlobalData* gdata);
@@ -259,13 +262,19 @@ class Problem {
 		void fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices);
 
 		void allocate_bodies(const int);
+		void allocate_ODE_bodies(const int);
+		void add_ODE_body(Object* object);
+		Object* get_ODE_body(const int);
 		RigidBody* get_body(const int);
 		void get_rigidbodies_data(float3 * &, float * &);
 		float3* get_rigidbodies_cg(void);
+		float3* get_ODE_bodies_cg(void);
 		float* get_rigidbodies_steprot(void);
-		void rigidbodies_timestep(const float3 *, const float3 *, const int, 
+		void rigidbodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &);
 		int	get_bodies_numparts(void);
 		int	get_body_numparts(const int);
+		int	get_ODE_bodies_numparts(void);
+		int	get_ODE_body_numparts(const int);
 };
 #endif

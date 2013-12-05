@@ -756,6 +756,11 @@ void reduceRbForces(float4*		forces,
 	thrust::equal_to<uint> binary_pred;
 	thrust::plus<float4> binary_op;
 
+	// For the segmented scan, we use rbnum (number of object per object particle) as key (first and second parameters
+	// of inclusive_scan_by_key are the begin and the end of the array of keys); forces or torques as input and output
+	// the scan is in place); equal_to as data-key operator and plus as scan operator. The sums are in the last position
+	// of each segment (thus we retrieve them by using lastindex values).
+
 	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
 				forces_devptr, forces_devptr, binary_pred, binary_op);
 	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 

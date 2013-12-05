@@ -50,12 +50,13 @@ class RigidBody {
 		EulerParameters*	m_ep;				///< Euler parameters
 		double*				m_cg;				///< Center of gravity
 //		double*				m_current_cg;		///< Current position of center of gravity
-//		EulerParameters*	m_current_ep;		///< Current value of Euler parameters 
+//		EulerParameters*	m_current_ep;		///< Current value of Euler parameters
 		double*				m_vel;				///< Velovity of center of gravity
 		double*				m_omega;			///< Angular velocity
-		Object*				m_object;			///< Pointer to object (used if rigid body is attached to an object)
 		Point				m_current_cg;
 		EulerParameters*	m_current_ep;
+	public:
+		Object*				m_object;			///< Pointer to object (used if rigid body is attached to an object)
 
 
 	public:
@@ -72,7 +73,7 @@ class RigidBody {
 		/* Setting SetInertia frame data */
 		void SetInertialFrameData(const Point&, const double*, const double, const EulerParameters&);
 		void AttachObject(Object*);
-		
+
 		/*! Setting initial values for integration */
 		void SetInitialValues(const Vector&, const Vector&);
 
@@ -83,13 +84,11 @@ class RigidBody {
 		void GetCG(float3&) const;
 		const Point& GetCG(void) const;
 		const EulerParameters& GetEulerParameters(void) const;
-		
+
 
 		/*! Perform an integration time step */
 		void TimeStep(const float3&, const float3&, const float3&, const int, const double, float3*, float3*, float*);
-		
-		void GLDraw(void) const;
-		
+
 		void Write(const float, FILE*) const;
 };
 

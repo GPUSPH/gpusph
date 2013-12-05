@@ -31,7 +31,6 @@
 #include "Cube.h"
 #include "Rect.h"
 
-
 Cube::Cube(void)
 {
 	m_origin = Point(0, 0, 0);
@@ -44,18 +43,38 @@ Cube::Cube(void)
 Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const EulerParameters &ep)
 {
 	m_origin = origin;
-	
+
 	m_ep = ep;
 	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
 	m_lz = lz;
-	
+
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
 	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
-	
+
 	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	m_origin.print();
+	m_center.print();
+}
+
+
+Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
+{
+	m_origin = origin;
+
+	dQtoR(quat, m_ODERot);
+
+	m_lx = lx;
+	m_ly = ly;
+	m_lz = lz;
+
+	m_vx = m_lx*Vector(1, 0, 0).Rot(m_ODERot);
+	m_vy = m_ly*Vector(0, 1, 0).Rot(m_ODERot);
+	m_vz = m_lz*Vector(0, 0, 1).Rot(m_ODERot);
+
+	m_center = m_origin + 0.5*Vector(m_lx, m_ly, m_lz).Rot(m_ODERot);
 	m_origin.print();
 	m_center.print();
 }
@@ -63,12 +82,12 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 
 Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
 {
-	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm() 
+	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm()
 		|| abs(vy*vz) > 1e-8*vy.norm()*vz.norm()) {
 		std::cout << "Trying to construct a cube with non perpendicular vectors\n";
 		exit(1);
 	}
-	
+
 	m_origin = origin;
 	m_vx = vx;
 	m_lx = m_vx.norm();
@@ -77,7 +96,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	m_vz = vz;
 	m_lz = m_vz.norm();
 	m_center = m_origin + 0.5*(m_vx + m_vy + m_vz);
-	
+
 	Vector axis;
 	double mat[8];
 	mat[0] = m_vx(0)/m_lx;
@@ -89,7 +108,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	mat[2] = m_vz(0)/m_lz;
 	mat[5] = m_vz(1)/m_lz;
 	mat[8] = m_vz(2)/m_lz;
-	
+
 	double trace = mat[0] + mat[4] + mat[8];
 	double cs = 0.5*(trace - 1.0);
 	double angle = acos(cs);  // in [0,PI]
@@ -157,9 +176,8 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 		axis(1) = 0.0;
 		axis(2) = 0.0;
 	}
-	
-	m_ep = EulerParameters(axis, angle);
-	m_ep.ComputeRot();
+
+	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
 }
 
 
@@ -187,12 +205,38 @@ Cube::SetInertia(const double dx)
 
 
 void
+Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+{
+	m_ODEBody = dBodyCreate(ODEWorld);
+	dMassSetZero(&m_ODEMass);
+	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dBodySetRotation(m_ODEBody, m_ODERot);
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
+}
+
+
+void
+Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
+	m_ODEGeom = dCreateBox(ODESpace, m_lx, m_ly, m_lz);
+	if (m_ODEBody)
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+	else {
+		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
+		dGeomSetRotation(m_ODEGeom, m_ODERot);
+	}
+}
+
+
+void
 Cube::FillBorder(PointVect& points, const double dx, const int face_num, const bool *edges_to_fill)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
 	m_origin(3) = m_center(3);
-	
+
 	switch(face_num){
 		case 0:
 			rorigin = m_origin;
@@ -235,7 +279,7 @@ void
 Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
 {
 	m_origin(3) = m_center(3);
-	
+
 	bool edges_to_fill[6][4] =
 		{   {true, true, true, true},
 			{true, false, true, false},
@@ -257,7 +301,7 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 {
 	m_origin(3) = m_center(3);
 	int nparts = 0;
-	
+
 	const int nx = (int) (m_lx/dx);
 	const int ny = (int) (m_ly/dx);
 	const int nz = (int) (m_lz/dx);
@@ -318,7 +362,7 @@ Cube::InnerFill(PointVect& points, const double dx)
 bool
 Cube::IsInside(const Point& p, const double dx) const
 {
-	Point lp = m_ep.TransposeRot(p - m_origin);
+	Point lp = (p - m_origin).TransposeRot(m_ODERot);
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;
 	const double lz = m_lz + dx;
@@ -326,45 +370,6 @@ Cube::IsInside(const Point& p, const double dx) const
 	if (lp(0) > -dx && lp(0) < lx && lp(1) > -dx && lp(1) < ly &&
 		lp(2) > -dx && lp(2) < lz )
 		inside = true;
-	
+
 	return inside;
-}
-
-
-void
-Cube::GLDraw(const EulerParameters& ep, const Point& cg) const
-{
-	Point origin = cg - 0.5*ep.Rot(Vector(m_lx, m_ly, m_lz));
-	
-	Point p1, p2, p3, p4;
-	p1 = Point(0, 0, 0);
-	p2 = Point(m_lx, 0, 0);
-	p3 = Point(m_lx, 0, m_lz);
-	p4 = Point(0, 0, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-	
-	p1 = Point(0, m_ly, 0);
-	p2 = Point(m_lx, m_ly, 0);
-	p3 = Point(m_lx, m_ly, m_lz);
-	p4 = Point(0, m_ly, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-	
-	p1 = Point(0, 0, 0);
-	p2 = Point(0, m_ly, 0);
-	p3 = Point(0, m_ly, m_lz);
-	p4 = Point(0, 0, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-		
-	p1 = Point(m_lx, 0, 0);
-	p2 = Point(m_lx, m_ly, 0);
-	p3 = Point(m_lx, m_ly, m_lz);
-	p4 = Point(m_lx, 0, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-}
-
-
-void
-Cube::GLDraw(void) const
-{
-	GLDraw(m_ep, m_center);
 }
