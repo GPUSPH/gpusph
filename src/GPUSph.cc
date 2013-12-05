@@ -603,6 +603,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		return false;
 	}
 
+	// initialize CGs (or, the problem could directly write on gdata)
+	initializeObjectsCGs();
+
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
 	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
@@ -906,15 +909,37 @@ bool GPUSPH::runSimulation() {
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
 
-		//			//reduce bodies
+		// reduce bodies
+		if (problem->get_simparams()->numbodies > 0) {
+			doCommand(REDUCE_BODIES_FORCES);
+
+			float3* totForce = new float3[problem->get_simparams()->numbodies];
+			float3* totTorque = new float3[problem->get_simparams()->numbodies];
+
+			// now sum up the partial forces and momenta computed in each gpu
+			for (uint ob = 0; ob < problem->get_simparams()->numbodies; ob ++) {
+
+				totForce[ob] = make_float3( 0.0F );
+				totTorque[ob] = make_float3( 0.0F );
+
+				for (int d = 0; d < gdata->devices; d++) {
+					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
+					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
+				} // iterate on devices
+			} // iterate on objects
+
+			problem->rigidbodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+
+			// upload translation vectors and rotation matrices; will upload CGs after euler
+			doCommand(UPLOAD_OBJECTS_MATRICES);
+		} // if there are objects
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
-		// We upload the centers of gravity here since euler needs the previous centers of gravity
-		// (unlike forces, which needs the new ones)
-		if (problem->get_simparams()->numbodies)
+		// euler needs the previous centers of gravity, so we upload CGs only here
+		if (problem->get_simparams()->numbodies > 0)
 			doCommand(UPLOAD_OBJECTS_CG);
 
 		// update inlet/outlet changes only after step 2
