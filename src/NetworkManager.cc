@@ -159,10 +159,12 @@ void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char
 		printf("WARNING: MPI_Get_count returned %d (shorts), expected %u\n", actual_count, count);
 }
 
-void NetworkManager::networkFloatReduction(float *datum)
+void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype)
 {
-	float previous_value = *datum;
-	int mpi_err = MPI_Allreduce(&previous_value, datum, 1, MPI_FLOAT, MPI_MIN, MPI_COMM_WORLD);
+	float previous_value = *buffer;
+	MPI_Op _operator = (rtype == MIN_REDUCTION ? MPI_MIN : MPI_SUM);
+
+	int mpi_err = MPI_Allreduce(&previous_value, buffer, bufferElements, MPI_FLOAT, _operator, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);

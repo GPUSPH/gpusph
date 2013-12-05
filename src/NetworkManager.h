@@ -8,6 +8,12 @@
 #ifndef NETWORKMANAGER_H_
 #define NETWORKMANAGER_H_
 
+enum ReductionType
+{
+	MIN_REDUCTION,
+	SUM_REDUCTION
+};
+
 class NetworkManager {
 private:
 	int world_size;
@@ -32,8 +38,8 @@ public:
 	void receiveFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *dst_data);
 	void sendShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *src_data);
 	void receiveShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *dst_data);
-	// find minimum float across the network
-	void networkFloatReduction(float *datum);
+	// network reduction on float buffer across the network
+	void networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype);
 	// send one int, gather the int from all nodes (allgather)
 	void allGatherUints(unsigned int *datum, unsigned int *recv_buffer);
 	// synchronization barrier among all the nodes of the network

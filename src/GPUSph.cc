@@ -968,7 +968,7 @@ bool GPUSPH::runSimulation() {
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
-				gdata->networkManager->networkFloatReduction(&(gdata->dt));
+				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
 
 		// check that dt is not too small (absolute)
