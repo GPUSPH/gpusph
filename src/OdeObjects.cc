@@ -264,3 +264,9 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
+
+void OdeObjects::fillDeviceMap(GlobalData* gdata)
+{
+	// overrride default split, better balance along Y
+	fillDeviceMapByAxis(gdata, Y_AXIS);
+}

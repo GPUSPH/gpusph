@@ -69,6 +69,9 @@ class OdeObjects: public Problem {
 		void ODE_near_callback(void *, dGeomID, dGeomID);
 
 		void release_memory(void);
+
+		// override standard split
+		void fillDeviceMap(GlobalData* gdata);
 };
 #endif	/* _ODEOBJECTS_H */
 
