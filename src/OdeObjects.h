@@ -38,6 +38,7 @@
 #include "Sphere.h"
 #include "Cone.h"
 #include "Torus.h"
+#include "Cylinder.h"
 
 #include "ode/ode.h"
 
@@ -54,6 +55,7 @@ class OdeObjects: public Problem {
 		// ODE and rigid body stuff
 		Sphere		sphere;
 		Cube		cube;
+		Cylinder	cylinder;
 		dGeomID		planes[5];
 		dJointID	joint;
 		
