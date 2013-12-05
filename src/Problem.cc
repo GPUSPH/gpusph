@@ -725,6 +725,8 @@ Problem::max_parts(uint numParts)
 
 }
 
+// input: force, torque, step number (why?), dt
+// output: cg, trans, steprot (can be input uninitialized)
 void
 Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
 		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
