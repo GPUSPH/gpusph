@@ -2019,21 +2019,7 @@ void GPUWorker::uploadOutlets()
 
 void GPUWorker::uploadBodiesCentersOfGravity()
 {
-	uint _num_bodies = m_simparams->numbodies;
-	if (_num_bodies) {
-		float3 *cg = gdata->problem->get_ODE_bodies_cg();
-		setforcesrbcg(cg, _num_bodies);
-		seteulerrbcg(cg, _num_bodies);
-
-		// Debug
-		/* for (int i=0; i < m_simparams->numbodies; i++) {
-			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
-		}
-		uint rbfirstindex[MAXBODIES];
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
-		for (int i=0; i < m_simparams->numbodies; i++) {
-			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
-		} */
-	}
+	setforcesrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
 }
 
