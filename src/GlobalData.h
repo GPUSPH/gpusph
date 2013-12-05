@@ -276,6 +276,10 @@ struct GlobalData {
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
 	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
 	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+	// gravity centers and rototranslations, which are computed by the ODE library
+	float3* s_hRbGravityCenters;
+	float3* s_hRbTranslations;
+	float* s_hRbRotationMatrices;
 
 	// least elegant way ever to pass phase number to threads
 	//bool phase1;
@@ -354,7 +358,10 @@ struct GlobalData {
 		only_internal(false),
 		writerType(VTKWRITER),
 		writer(NULL),
-		nosave(false)
+		nosave(false),
+		s_hRbGravityCenters(NULL),
+		s_hRbTranslations(NULL),
+		s_hRbRotationMatrices(NULL)
 		//tdatas(NULL),
 		//cpuThreadFromParticle(NULL),
 		//cpuThreadToParticle(NULL),
