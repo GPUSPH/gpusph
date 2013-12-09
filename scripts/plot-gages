@@ -1,0 +1,34 @@
+#!/bin/sh
+
+abort() {
+	echo "$1" 1>&2
+	exit 1;
+}
+
+file="$1"
+shift
+
+test -z "$file" && abort "Please specify a file"
+
+# Support specifying just the toplevel directory
+if test -d "$file" ; then
+	test -d "$file/data" && file="$file/data"
+	test -e "$file/WaveGage.txt" && file="$file/WaveGage.txt" || abort "No gage file found in $file"
+fi
+
+test -f "$file" || abort "Gage file '$file' not found"
+
+cols=$(awk '{print NF-1; exit}' "$file")
+
+gage=0
+col=2
+cmd="plot '$file' using 1:$col with lines title 'zgage$gage'"
+while test $col -lt $cols ; do
+	col=$(($col+1))
+	gage=$(($gage+1))
+	cmd="$cmd, '' using 1:$col with lines title 'zgage$gage'"
+done
+
+echo $cmd
+
+echo "$cmd" | gnuplot "$@"
