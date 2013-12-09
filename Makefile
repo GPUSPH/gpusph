@@ -109,6 +109,11 @@ OBJS = $(CCOBJS) $(CUOBJS)
 
 PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
 
+# data files needed by some problems
+EXTRA_PROBLEM_FILES ?=
+# TestTopo uses this DEM:
+EXTRA_PROBLEM_FILES += half_wave0.1m.txt
+
 # --------------- Locate and set up compilers and flags
 
 # CUDA installation/lib/include paths
@@ -603,7 +608,7 @@ show:
 # it seems tar option --totals doesn't work
 # use $(shell date +%F_%T) to include date and time in filename
 snapshot:
-	$(CMDECHO)tar czf $(SNAPSHOT_FILE) ./$(MFILE_NAME) $(DOXYCONF) $(SRCDIR)/*.cc $(HEADERS) $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/ && echo "Created $(SNAPSHOT_FILE)"
+	$(CMDECHO)tar czf $(SNAPSHOT_FILE) ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(HEADERS) $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/ && echo "Created $(SNAPSHOT_FILE)"
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
 # it is safe to say we don't actualy need this
