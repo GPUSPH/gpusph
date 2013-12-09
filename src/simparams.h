@@ -39,6 +39,7 @@ typedef struct MbCallBack {
 	float3			disp;
 	float			sintheta;
 	float			costheta;
+	float			dthetadt;
 	float			omega;
 	float			amplitude;
 	float			phase;
