@@ -1454,7 +1454,7 @@ ParticleSystem::buildNeibList(bool timing)
 
 	getneibsinfo(m_timingInfo);
 	if (m_timingInfo.maxNeibs > m_simparams->maxneibsnum) {
-		printf("WARNING: current max. neighbors numbers %d greather than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams->maxneibsnum);
+		printf("WARNING: current max. neighbors numbers %d greater than MAXNEIBSNUM (%d)\n", m_timingInfo.maxNeibs, m_simparams->maxneibsnum);
 		fflush(stdout);
 	}
 
