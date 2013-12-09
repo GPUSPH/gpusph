@@ -148,12 +148,14 @@ endif
 # * if CXX is generic, we set it to g++, _unless_ we are on Darwin, the CUDA
 #   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
 # There are cases in which this might fail, but we'll fix it when we actually come across them
+WE_USE_CLANG=0
 ifeq ($(CXX),c++)
 	CXX = g++
 	ifeq ($(platform), Darwin)
 		versions_tmp:=$(shell [ -x /usr/bin/clang++ -a $(CUDA_MAJOR)$(CUDA_MINOR) -ge 55 ] ; echo $$?)
 		ifeq ($(versions_tmp),0)
 			CXX = /usr/bin/clang++
+			WE_USE_CLANG=1
 		endif
 	endif
 endif
@@ -335,6 +337,12 @@ LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 # search path for GLEW from the SDK samples
 # up to 4.x
 LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/$(platform_lcase)/
+
+# On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
+# This is exactly the conditions under which we set WE_USE_CLANG
+ifeq ($(WE_USE_CLANG),1)
+	LIBS += -lc++
+endif
 
 # link to the CUDA runtime library
 LIBS += -lcudart
