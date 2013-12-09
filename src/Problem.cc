@@ -142,6 +142,11 @@ Problem::need_display(float t)
 	return false;
 }
 
+void
+Problem::add_gage(double3 const& pt)
+{
+	m_simparams.gage.push_back(pt);
+}
 
 std::string const&
 Problem::create_problem_dir(void)
