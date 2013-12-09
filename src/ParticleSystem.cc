@@ -1031,7 +1031,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, int view_mode)
 		GageList::iterator end = m_simparams->gage.end();
 		while (g != end) {
 			glVertex3f(g->x, g->y, m_worldOrigin.z);
-			glVertex3f(g->x, g->y, m_worldSize.z);
+			glVertex3f(g->x, g->y, m_worldOrigin.z + m_worldSize.z);
 			++g;
 		}
 		glEnd();
