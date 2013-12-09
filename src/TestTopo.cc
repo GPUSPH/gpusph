@@ -47,7 +47,7 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 {
 	const char* dem_file;
 	if (options.dem.empty())
-		dem_file = "../half_wave0.1m.txt";
+		dem_file = "half_wave0.1m.txt";
 	else
 		dem_file = options.dem.c_str();
 
