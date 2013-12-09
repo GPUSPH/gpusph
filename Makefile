@@ -607,8 +607,12 @@ show:
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
 # it seems tar option --totals doesn't work
 # use $(shell date +%F_%T) to include date and time in filename
-snapshot:
-	$(CMDECHO)tar czf $(SNAPSHOT_FILE) ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(HEADERS) $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/ && echo "Created $(SNAPSHOT_FILE)"
+snapshot: $(SNAPSHOT_FILE)
+	$(CMDECHO)echo "Created $(SNAPSHOT_FILE)"
+
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/
+	$(CMDECHO)tar czf $@ $^
+
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
 # it is safe to say we don't actualy need this
