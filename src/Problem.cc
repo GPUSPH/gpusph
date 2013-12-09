@@ -150,14 +150,14 @@ Problem::create_problem_dir(void)
 	// composed of problem name followed by date and time
 	if (m_problem_dir.empty()) {
 		time_t  rawtime;
-		char	time_str[17];
+		char	time_str[18];
 
 		time(&rawtime);
-		strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
-		time_str[16] = '\0';
+		strftime(time_str, 18, "_%Y-%m-%dT%Hh%M", localtime(&rawtime));
+		time_str[17] = '\0';
 		// if "./tests/" doesn't exist yet...
 		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
-		m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
+		m_problem_dir = "./tests/" + m_name + std::string(time_str);
 	}
 
 	// TODO it should be possible to specify a directory with %-like
