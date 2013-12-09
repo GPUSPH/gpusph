@@ -45,7 +45,7 @@ typedef struct MbCallBack {
 	float			phase;
 } MbCallBack;
 
-typedef std::vector<float3> GageList;
+typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
 	double			slength;			// smoothing length

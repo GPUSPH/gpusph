@@ -88,12 +88,12 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.testpoints = false;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = false;
+	m_simparams.surfaceparticle = true;
 	m_simparams.savenormals = false;
 
 	//WaveGage
-	m_simparams.gage.push_back(make_float3(1, 0.3, 0));
-	m_simparams.gage.push_back(make_float3(0.5, 0.3, 0));
+	m_simparams.gage.push_back(make_double3(1, 0.3, 0));
+	m_simparams.gage.push_back(make_double3(0.5, 0.3, 0));
 
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 

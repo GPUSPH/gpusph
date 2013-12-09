@@ -1592,31 +1592,39 @@ ParticleSystem::reducerbforces(void)
 void
 ParticleSystem::writeWaveGage()
 {
-	float uplimitx, downlimitx, uplimity, downlimity;
+	uint num =  m_simparams->gage.size();
+	double2 upper_limit[num], lower_limit[num];
+	uint gage_parts[num];
 
-	int num =  m_simparams->gage.size();
+	// initialize the gage limits and z
+	for (uint g = 0 ; g < num; ++g) {
+		upper_limit[g] = make_double2(m_simparams->gage[g]) + 2*m_simparams->slength;
+		lower_limit[g] = make_double2(m_simparams->gage[g]) - 2*m_simparams->slength;
+		gage_parts[g] = 0;
+		m_simparams->gage[g].z = 0;
+	}
 
-	for (int i = 0 ; i < num; ++i) {
-		uplimitx = m_simparams->gage[i].x+2*m_simparams->slength;
-		downlimitx = m_simparams->gage[i].x-2*m_simparams->slength;
-		uplimity = m_simparams->gage[i].y+2*m_simparams->slength;
-		downlimity = m_simparams->gage[i].y-2*m_simparams->slength;
-		int kcheck = 0;
-		m_simparams->gage[i].z = 0;
+	// loop over all surface particles, finding which gages they are close to
+	// add the respective heights for each gage for the averaging
+	for (uint index = 0; index < m_numParticles; index++) {
+		if (SURFACE(m_hInfo[index])) {
+			double4 pos = m_hdPos[index];
 
-		for (uint index = 0; index < m_numParticles; index++) {
-			if (SURFACE(m_hInfo[index])) {
-				float4 pos = m_hPos[index];
-
-				//Taking height average between neighbouring surface particles 
-				if ((pos.x > downlimitx) && (pos.x < uplimitx) && (pos.y > downlimity) && (pos.y < uplimity)){
-					kcheck ++;
-					m_simparams->gage[i].z += pos.z;
+			// Taking height average between neighbouring surface particles 
+			for (uint g = 0 ; g < num; ++g) {
+				if ((pos.x > lower_limit[g].x) && (pos.x < upper_limit[g].x) &&
+					(pos.y > lower_limit[g].y) && (pos.y < upper_limit[g].y)) {
+						gage_parts[g]++;
+						m_simparams->gage[g].z += pos.z;
 				}
-			} //if PART_FLAG
-		} //For loop over particles
-		m_simparams->gage[i].z = m_simparams->gage[i].z/kcheck;
-	} // For loop over WaveGages
+			}
+		}
+	}
+
+	// actual averaging of the heights
+	for (uint g = 0 ; g < num; ++g) {
+		m_simparams->gage[g].z /= gage_parts[g];
+	}
 
 	//Write WaveGage information on one text file
 	m_writer->write_WaveGage(m_simTime,m_simparams->gage);

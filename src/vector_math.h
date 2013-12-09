@@ -252,6 +252,28 @@ static __inline__ __host__ __device__ float2 fabs(const float2 &v)
 	return make_float2(fabs(v.x), fabs(v.y));
 }
 
+// double2 functions
+////////////////////////////////////////////////////////////////////////////////
+
+// additional constructors
+static __inline__ __host__ __device__ double2 make_double2(const double3 &s)
+{
+	return make_double2(s.x, s.y); // strip last component
+}
+
+// add
+static __inline__ __host__ __device__ double2 operator+(const double2 &a, const double &b)
+{
+	return make_double2(a.x + b, a.y + b);
+}
+
+// subtract
+static __inline__ __host__ __device__ double2 operator-(const double2 &a, const double &b)
+{
+	return make_double2(a.x - b, a.y - b);
+}
+
+
 // float3 functions
 ////////////////////////////////////////////////////////////////////////////////
 
