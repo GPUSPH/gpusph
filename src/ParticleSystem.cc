@@ -1982,6 +1982,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 	}
 
 	//Calculate values at probe particles
+	//TODO-AM if(true)... really?
 	if(true)
 	{
 		calcProbe(	m_dPos[m_currentPosWrite],

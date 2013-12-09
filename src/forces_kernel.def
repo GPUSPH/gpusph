@@ -237,11 +237,9 @@ FORCES_CUDA_KERNEL
 						if(BOUNDARY(neib_info))
 							DrDt -= relVel.w*dot(as_float3(relVel), as_float3(gradGamma<kerneltype>(slength, r, belem)) );
 						else if(d_ferrari) {
-							//P_a' = P_a - rho_0*g*(z_b-z_a)
-							const float pres_a_prime = P(vel.w, PART_FLUID_NUM(info)) - d_rho0[PART_FLUID_NUM(info)]*dot(d_gravity, as_float3(relPos));
-							//rho_a' = inverted_EoS(P_a')
-							const float rho_a_prime = rho(pres_a_prime, PART_FLUID_NUM(info));
-							float3 ferraricor = max(sspeed, neib_sspeed)*(rho_a_prime - relVel.w)/vel.w/r*as_float3(relPos);
+							const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/ 
+								(d_sscoeff[PART_FLUID_NUM(info)]*d_sscoeff[PART_FLUID_NUM(info)]); //TODO-AM this does not work with multifluids
+							float3 ferraricor = max(sspeed, neib_sspeed)*(vel.w - relVel.w + grav_corr)/vel.w/r*as_float3(relPos);
 							DrDt = relPos.w*dot(as_float3(relVel) + d_ferrari*ferraricor, as_float3(relPos))*f;
 						}
 						else

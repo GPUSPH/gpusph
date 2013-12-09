@@ -91,7 +91,7 @@ typedef struct SimParams {
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
-		periodicbound(false),
+		periodicbound(0),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),

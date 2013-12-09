@@ -245,20 +245,12 @@ P(const float rho, const uint i)
 	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1);
 }
 
-// Inverted equation of state: density from pressure
-__device__ __forceinline__ float
-rho(const float P, const uint i)
-{
-	return d_rho0[i]*__powf(P/d_bcoeff[i] + 1, 1.0f/d_gammacoeff[i]);
-}
-
 // Sound speed computed from density
 __device__ __forceinline__ float
 soundSpeed(const float rho, const uint i)
 {
 	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
 }
-
 
 // Lennard-Jones boundary repulsion force
 __device__ __forceinline__ float
@@ -950,7 +942,11 @@ updatePositionsDevice(	float4*	newPos,
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if(index < numParticles) {
+		#if( __COMPUTE__ >= 20)
+		float4 pos = newPos[index];
+		#else
 		float4 pos = tex1Dfetch(posTex, index);
+		#endif
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		float4 vel = tex1Dfetch(velTex, index);
 
