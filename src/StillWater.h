@@ -17,6 +17,7 @@ class StillWater: public Problem {
 
 		float		h, w, l;
 		float		H; // still water level
+		bool		m_usePlanes; // use planes or boundaries
 
 	public:
 		StillWater(const Options &);

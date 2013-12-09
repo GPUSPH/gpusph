@@ -171,13 +171,13 @@ void*	reduce_buffer = NULL;
 #define INITGRADGAMMA_CHECK(kernel) \
 	case kernel: \
 		cuforces::initGradGammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(newPos, virtualVel, gradGamma, particleHash, cellStart, neibsList, numParticles, deltap, slength, inflRadius); \
+				(oldPos, newPos, virtualVel, gradGamma, particleHash, cellStart, neibsList, numParticles, deltap, slength, inflRadius); \
 	break
 
 #define UPDATEGAMMA_CHECK(kernel) \
 	case kernel: \
 		cuforces::updateGammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(newPos, newGam, particleHash, cellStart, neibsList, numParticles, slength, inflRadius, virtDt); \
+				(oldPos, newGam, particleHash, cellStart, neibsList, numParticles, slength, inflRadius, virtDt); \
 	break
 
 #define UPDATEGAMMAPRCOR_CHECK(kernel) \
@@ -965,7 +965,9 @@ initGradGamma(	float4*		oldPos,
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	
@@ -976,7 +978,9 @@ initGradGamma(	float4*		oldPos,
 		INITGRADGAMMA_CHECK(WENDLAND);
 	}
 	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
@@ -1005,7 +1009,9 @@ updateGamma(	float4*		oldPos,
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, virtualVel, numParticles*sizeof(float4)));
@@ -1027,7 +1033,9 @@ updateGamma(	float4*		oldPos,
 		}
 	}
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -1048,14 +1056,18 @@ updatePositions(	float4*		oldPos,
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, virtualVel, numParticles*sizeof(float4)));
 
 	//execute kernel
-	cuforces::updatePositionsDevice<<<numBlocks, numThreads>>>(newPos, virtDt, numParticles);
+	cuforces::updatePositionsDevice<<<numBlocks, numThreads>>>(oldPos, newPos, virtDt, numParticles);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 

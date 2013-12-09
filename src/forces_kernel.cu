@@ -686,7 +686,8 @@ gradGamma(	const float slength,
 
 template<KernelType kerneltype>
 __global__ void
-initGradGammaDevice(	float4*		newPos,
+initGradGammaDevice(	float4*		oldPos,
+			float4*		newPos,
 			float4*		virtualVel,
 			float4*		gradGam,
 			const uint*	particleHash,
@@ -701,7 +702,7 @@ initGradGammaDevice(	float4*		newPos,
 	
 	if(index < numParticles) {
 		#if( __COMPUTE__ >= 20)
-		float4 pos = newPos[index];
+		float4 pos = oldPos[index];
 		#else
 		float4 pos = tex1Dfetch(posTex, index);
 		#endif
@@ -736,7 +737,7 @@ initGradGammaDevice(	float4*		newPos,
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - newPos[neib_index];
+				const float4 relPos = pos_corr - oldPos[neib_index];
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
@@ -782,7 +783,7 @@ initGradGammaDevice(	float4*		newPos,
 
 template<KernelType kerneltype>
 __global__ void
-updateGammaDevice(	const float4* posArray,
+updateGammaDevice(	const float4* oldPos,
 			float4*		newGam,
 			const uint*	particleHash,
 			const uint*	cellStart,
@@ -796,7 +797,7 @@ updateGammaDevice(	const float4* posArray,
 
 	if(index < numParticles) {
 		#if( __COMPUTE__ >= 20)
-		const float4 pos = posArray[index];
+		const float4 pos = oldPos[index];
 		#else
 		const float4 pos = tex1Dfetch(posTex, index);
 		#endif
@@ -829,7 +830,7 @@ updateGammaDevice(	const float4* posArray,
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - posArray[neib_index];
+				const float4 relPos = pos_corr - oldPos[neib_index];
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
@@ -874,7 +875,6 @@ updateGammaPrCorDevice( const float4*		newPos,
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
 
 	if(index < numParticles) {
-		//TODO-AM check that this works even if compute capability is < 20. Problem might be that posTex still contains the old positions
 		float4 newpos = newPos[index];
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		float3 vel = make_float3(tex1Dfetch(velTex, index));
@@ -904,7 +904,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 							neib_cellnum, neib_cell_base_index);
 
 				// Compute relative position vector and distance
-				const float4 relPos = pos_corr - newPos[neib_index]; //TODO-AM see TODO above.
+				const float4 relPos = pos_corr - newPos[neib_index];
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
@@ -935,7 +935,8 @@ updateGammaPrCorDevice( const float4*		newPos,
 //template<KernelType kerneltype, bool periodicbound>
 //TODO-AM: this function will be removed as it is part of init_gamma and not required, the above fixme is not needed
 __global__ void
-updatePositionsDevice(	float4*	newPos,
+updatePositionsDevice(	const float4*	oldPos,
+			float4*	newPos,
 			float	virtDt,
 			uint	numParticles)
 {
@@ -943,7 +944,7 @@ updatePositionsDevice(	float4*	newPos,
 
 	if(index < numParticles) {
 		#if( __COMPUTE__ >= 20)
-		float4 pos = newPos[index];
+		float4 pos = oldPos[index];
 		#else
 		float4 pos = tex1Dfetch(posTex, index);
 		#endif

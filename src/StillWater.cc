@@ -34,7 +34,18 @@
 #include "StillWater.h"
 
 
-#define USE_PLANES 0
+#define CENTER_DOMAIN 1
+// set to coords (x,y,z) if more accuracy is needed in such point
+// (waiting for relative coordinates)
+#if CENTER_DOMAIN
+#define OFFSET_X (-l/2)
+#define OFFSET_Y (-w/2)
+#define OFFSET_Z (-h/2)
+#else
+#define OFFSET_X 0
+#define OFFSET_Y 0
+#define OFFSET_Z 0
+#endif
 
 StillWater::StillWater(const Options &options) : Problem(options)
 {
@@ -43,6 +54,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	set_deltap(0.0625f);
 
 	l = sqrt(2)*H; w = l; h = 1.1*H;
+	m_usePlanes = false;
 
 	// SPH parameters
 	m_simparams.slength = 1.3f*m_deltap;
@@ -61,10 +73,11 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = MF_BOUNDARY;
+	//m_simparams.boundarytype = LJ_BOUNDARY;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
-	m_origin = make_double3(0.0f, 0.0f, 0.0f);
+	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_writerType = VTKWRITER;
 
@@ -122,20 +135,20 @@ int StillWater::fill_parts()
 
 	parts.reserve(14000);
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, w, 0), Vector(0, 0, h));
+	experiment_box = Cube(Point(m_origin), Vector(l, 0, 0), Vector(0, w, 0), Vector(0, 0, h));
 
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
 
-#if !USE_PLANES
-	if(m_simparams.boundarytype == MF_BOUNDARY) {
-		experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
+	if(!m_usePlanes){
+		if(m_simparams.boundarytype == MF_BOUNDARY) {
+			experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
+		}
+		else {
+			experiment_box.FillBorder(boundary_parts, wd, false);
+		}
 	}
-	else {
-		experiment_box.FillBorder(boundary_parts, wd, false);
-	}
-#endif
 
-	Cube fluid = Cube(Point(wd, wd, wd), Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
+	Cube fluid = Cube(m_origin + Point(wd, wd, wd), Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	// InnerFill puts particle in the center of boxes of step m_deltap, hence at
 	// m_deltap/2 from the sides, so the total distance between particles and walls
@@ -156,25 +169,22 @@ int StillWater::fill_parts()
 
 uint StillWater::fill_planes()
 {
-#if USE_PLANES
-	return 5;
-#else
-	return 0;
-#endif
-
+	return (m_usePlanes ? 5 : 0);
 }
 
 void StillWater::copy_planes(float4 *planes, float *planediv)
 {
-	planes[0] = make_float4(0, 0, 1.0, 0);
+	if (!m_usePlanes) return;
+
+	planes[0] = make_float4(0, 0, 1.0, -m_origin.z);
 	planediv[0] = 1.0;
-	planes[1] = make_float4(0, 1.0, 0, 0);
+	planes[1] = make_float4(0, 1.0, 0, -m_origin.x);
 	planediv[1] = 1.0;
-	planes[2] = make_float4(0, -1.0, 0, w);
+	planes[2] = make_float4(0, -1.0, 0, m_origin.x + w);
 	planediv[2] = 1.0;
-	planes[3] = make_float4(1.0, 0, 0, 0);
+	planes[3] = make_float4(1.0, 0, 0, -m_origin.y);
 	planediv[3] = 1.0;
-	planes[4] = make_float4(-1.0, 0, 0, l);
+	planes[4] = make_float4(-1.0, 0, 0, m_origin.y + l);
 	planediv[4] = 1.0;
 }
 

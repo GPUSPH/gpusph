@@ -537,22 +537,21 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 			//Save vertex particles located at the edges of planes
 			if (i == 0) {
 				edgeparts[face_num][0].push_back(nvertex);
-				vp(3) /= 2;
+				vp(3) /= 2.0;
 			}
 			if (i == nx) {
 				edgeparts[face_num][2].push_back(nvertex);
-				vp(3) /= 2;
+				vp(3) /= 2.0;
 			}
 			if (j == 0) {
 				edgeparts[face_num][1].push_back(nvertex);
-				vp(3) /= 2;
+				vp(3) /= 2.0;
 			}
 			if (j == ny) {
 				edgeparts[face_num][3].push_back(nvertex);
 			}
 			
 			vpoints.push_back(vp);
-
 
 			//Fill rectangular plane with boundary particles and set connectivity for them
 			if (i != endx && j != endy) {
