@@ -16,6 +16,17 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
+# Include, if present a local Makefile.
+# This can be used by the user to set additional include paths
+# (INCPATH = ....)
+# library search paths
+# (LIBPATH = ...)
+# libaries
+# (LIBS = ...)
+# and general flags
+# CPPFLAGS, CXXFLAGS, CUFLAGS, LDFLAGS,
+sinclude Makefile.local
+
 # need for some substitutions
 comma:=,
 empty:=
@@ -98,6 +109,11 @@ OBJS = $(CCOBJS) $(CUOBJS)
 
 PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
 
+# data files needed by some problems
+EXTRA_PROBLEM_FILES ?=
+# TestTopo uses this DEM:
+EXTRA_PROBLEM_FILES += half_wave0.1m.txt
+
 # --------------- Locate and set up compilers and flags
 
 # CUDA installation/lib/include paths
@@ -148,12 +164,14 @@ endif
 # * if CXX is generic, we set it to g++, _unless_ we are on Darwin, the CUDA
 #   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
 # There are cases in which this might fail, but we'll fix it when we actually come across them
+WE_USE_CLANG=0
 ifeq ($(CXX),c++)
 	CXX = g++
 	ifeq ($(platform), Darwin)
 		versions_tmp:=$(shell [ -x /usr/bin/clang++ -a $(CUDA_MAJOR)$(CUDA_MINOR) -ge 55 ] ; echo $$?)
 		ifeq ($(versions_tmp),0)
 			CXX = /usr/bin/clang++
+			WE_USE_CLANG=1
 		endif
 	endif
 endif
@@ -335,6 +353,12 @@ LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 # up to 4.x
 LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/$(platform_lcase)/
 
+# On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
+# This is exactly the conditions under which we set WE_USE_CLANG
+ifeq ($(WE_USE_CLANG),1)
+	LIBS += -lc++
+endif
+
 # link to the CUDA runtime library
 LIBS += -lcudart
 # link to ODE for the objects
@@ -435,8 +459,15 @@ CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
 # Doxygen configuration
 DOXYCONF = ./Doxygen_settings
 
+# otherwise
+# find if the working directory is dirty --this gives the number of changed files
+snap_date := $(shell git log -1 --format='%cd %h' --date=iso | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
+is_dirty:=
+ifneq ($(shell git status --porcelain 2> /dev/null | wc -l),0)
+	is_dirty:=+custom
+endif
 # snapshot tarball filename
-SNAPSHOT_FILE = ./GPUSPHsnapshot.tgz
+SNAPSHOT_FILE = ./GPUSPH-$(snap_date)$(is_dirty).tgz
 
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 ifeq ($(plain), 1)
@@ -584,8 +615,12 @@ show:
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
 # it seems tar option --totals doesn't work
 # use $(shell date +%F_%T) to include date and time in filename
-snapshot:
-	$(CMDECHO)tar czf $(SNAPSHOT_FILE) ./$(MFILE_NAME) $(DOXYCONF) $(SRCDIR)/*.cc $(HEADERS) $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/ && echo "Created $(SNAPSHOT_FILE)"
+snapshot: $(SNAPSHOT_FILE)
+	$(CMDECHO)echo "Created $(SNAPSHOT_FILE)"
+
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/
+	$(CMDECHO)tar czf $@ $^
+
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
 # it is safe to say we don't actualy need this

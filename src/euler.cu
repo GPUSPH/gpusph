@@ -30,8 +30,6 @@
 
 #include "utils.h"
 
-#include "decltype.h"
-
 extern "C"
 {
 void
@@ -106,30 +104,22 @@ euler(	const float4*		oldPos,
 	uint numThreads = min(BLOCK_SIZE_INTEGRATE, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	/* eulerDevice_ptr is a function pointer of the appropriate type (decltype),
-	   that will be assigned the proper kernel depending on the values
-	   of step and xsphcorr in the following selection.
-	   Since all instances of eulerDevice have the same function signature,
-	   the decltype can be done with any single one of them
-	 */
-	decltype(&cueuler::eulerDevice<1, true>) eulerDevice_ptr;
-
-	// selection
+	// execute the kernel
 	if (step == 1) {
 		if (xsphcorr)
-			eulerDevice_ptr = cueuler::eulerDevice<1, true>;
+			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
 		else
-			eulerDevice_ptr = cueuler::eulerDevice<1, false>;
+			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
-			eulerDevice_ptr = cueuler::eulerDevice<2, true>;
+			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
 		else
-			eulerDevice_ptr = cueuler::eulerDevice<2, false>;
-	}
-
-	// execute the kernel
-	eulerDevice_ptr<<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-		info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
+			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
+								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, numParticles, dt, dt2, t);
+	} // if (step == 2)
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");
