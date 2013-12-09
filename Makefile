@@ -16,6 +16,17 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
+# Include, if present a local Makefile.
+# This can be used by the user to set additional include paths
+# (INCPATH = ....)
+# library search paths
+# (LIBPATH = ...)
+# libaries
+# (LIBS = ...)
+# and general flags
+# CPPFLAGS, CXXFLAGS, CUFLAGS, LDFLAGS,
+sinclude Makefile.local
+
 # need for some substitutions
 comma:=,
 empty:=
