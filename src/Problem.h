@@ -84,7 +84,7 @@ class Problem {
 		float	m_maxvel;
 		float	m_minvel;
 
-		float		m_displayinterval;		
+		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
 		int			m_writefreq;
 		int			m_screenshotfreq;
@@ -115,6 +115,10 @@ class Problem {
 		Problem(const Options &options = Options());
 
 		virtual ~Problem(void);
+
+		/* a function to check if the (initial or fixed) timestep
+		 * is compatible with the CFL coditions */
+		virtual void check_dt();
 
 		Options const& get_options(void) const
 		{

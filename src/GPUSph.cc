@@ -307,6 +307,7 @@ void parse_options(int argc, char **argv)
 void init(const char *arg)
 {
 	problem = new PROBLEM(clOptions);
+	problem->check_dt();
 
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();

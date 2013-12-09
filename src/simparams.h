@@ -79,7 +79,7 @@ typedef struct SimParams {
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
 		kernelradius(2.0),
-		dt(0.00013),
+		dt(0),
 		tend(0),
 		xsph(false),
 		dtadapt(true),

@@ -64,6 +64,44 @@ Problem::~Problem(void)
     }
 }
 
+void
+Problem::check_dt(void)
+{
+	float dt_from_sspeed = INFINITY;
+	for (uint f = 0 ; f < m_physparams.numFluids; ++f) {
+		float sspeed = m_physparams.sscoeff[f];
+		dt_from_sspeed = fmin(dt_from_sspeed, m_simparams.slength/sspeed);
+	}
+	dt_from_sspeed *= m_simparams.dtadaptfactor;
+
+	float dt_from_gravity = sqrt(m_simparams.slength/length(m_physparams.gravity));
+	dt_from_gravity *= m_simparams.dtadaptfactor;
+
+	float dt_from_visc = NAN;
+	if (m_simparams.visctype != ARTVISC) {
+		dt_from_visc = m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc;
+		dt_from_visc *= 0.125; // TODO this should be configurable
+	}
+
+	float cfl_dt = fmin(dt_from_sspeed, fmin(dt_from_gravity, dt_from_visc));
+
+	if (m_simparams.dt > cfl_dt) {
+		fprintf(stderr, "WARNING: dt %g bigger than %g imposed by CFL conditions (sspeed: %g, gravity: %g, viscosity: %g)\n",
+			m_simparams.dt, cfl_dt,
+			dt_from_sspeed, dt_from_gravity, dt_from_visc);
+	} else if (!m_simparams.dt) { // dt wasn't set
+			m_simparams.dt = cfl_dt;
+			printf("setting dt = %g from CFL conditions (soundspeed: %g, gravity: %g, viscosity: %g)\n",
+				m_simparams.dt,
+				dt_from_sspeed, dt_from_gravity, dt_from_visc);
+	} else {
+			printf("dt = %g (CFL conditions from soundspeed: %g, from gravity %g, from viscosity %g)\n",
+				m_simparams.dt,
+				dt_from_sspeed, dt_from_gravity, dt_from_visc);
+	}
+
+}
+
 
 float
 Problem::density(float h, int i) const
