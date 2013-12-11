@@ -47,6 +47,7 @@ class DamBreak3D: public Problem {
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
 		bool		m_usePlanes;	// use planes or boundaries
+		bool		m_useProbes;	// use probes
 		int			n_probeparts;	// number of probe particles (used for output)
 
 	public:

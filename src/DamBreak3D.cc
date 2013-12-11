@@ -62,7 +62,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.55;
 	wet = false;
 	m_usePlanes = true;
-	n_probeparts = 208;
+	m_useProbes = true;
 	
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -286,35 +286,37 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 
 	// Setting probes for Spheric2 test case
 	//*******************************************************************
-	if(n_probeparts) {
-		std::cout << "Probe parts: " << n_probeparts << "\n";
-		Point probe_coord[n_probeparts];
+	if(m_useProbes) {
+		vector<Point> probe_coord;
+		uint j = 0;
 
 		// Probe H1
 		for (uint i = 0; i < 50; i++) {
-			probe_coord[i] = m_origin + Point(2.724, 0.5, 0.02*i);
+			probe_coord.push_back(m_origin + Point(2.724, 0.5, 0.02*i));
 		}
 		// Probe H2
-		for (uint i = 50; i < 100; i++) {
-			probe_coord[i] = m_origin + Point(2.228, 0.5, 0.02*(i-50));
+		for (uint i = 0; i < 50; i++) {
+			probe_coord.push_back(m_origin + Point(2.228, 0.5, 0.02*i));
 		}
 		// Probe H3
-		for (uint i = 100; i < 150; i++) {
-			probe_coord[i] = m_origin + Point(1.732, 0.5, 0.02*(i-100));
+		for (uint i = 0; i < 50; i++) {
+			probe_coord.push_back(m_origin + Point(1.732, 0.5, 0.02*i));
 		}
 		// Probe H4
-		for (uint i = 150; i < 200; i++) {
-			probe_coord[i] = m_origin + Point(0.582, 0.5, 0.02*(i-150));
+		for (uint i = 0; i < 50; i++) {
+			probe_coord.push_back(m_origin + Point(0.582, 0.5, 0.02*i));
 		}
 		// Pressure probes
-		probe_coord[200] = m_origin + Point(2.3955, 0.529, 0.021); // Probe P1
-		probe_coord[201] = m_origin + Point(2.3955, 0.529, 0.061); // Probe P2
-		probe_coord[202] = m_origin + Point(2.3955, 0.529, 0.101); // Probe P3
-		probe_coord[203] = m_origin + Point(2.3955, 0.529, 0.141); // Probe P4
-		probe_coord[204] = m_origin + Point(2.4165, 0.471, 0.161); // Probe P5
-		probe_coord[205] = m_origin + Point(2.4565, 0.471, 0.161); // Probe P6
-		probe_coord[206] = m_origin + Point(2.4965, 0.471, 0.161); // Probe P7
-		probe_coord[207] = m_origin + Point(2.5365, 0.471, 0.161); // Probe P8
+		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.021)); // Probe P1
+		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.061)); // Probe P2
+		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.101)); // Probe P3
+		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.141)); // Probe P4
+		probe_coord.push_back(m_origin + Point(2.4165, 0.471, 0.161)); // Probe P5
+		probe_coord.push_back(m_origin + Point(2.4565, 0.471, 0.161)); // Probe P6
+		probe_coord.push_back(m_origin + Point(2.4965, 0.471, 0.161)); // Probe P7
+		probe_coord.push_back(m_origin + Point(2.5365, 0.471, 0.161)); // Probe P8
+
+		n_probeparts = probe_coord.size();
 
 		for (uint i = j; i < j + n_probeparts; i++) {
 			calc_localpos_and_hash(probe_coord[i-j], localpos, hashvalue);
@@ -323,6 +325,10 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 			info[i] = make_particleinfo(PROBEPART, 0, i);
 			hash[i] = hashvalue;
 		}
+		std::cout << "Probe parts: " << n_probeparts << "\n";
+	}
+	else {
+		n_probeparts = 0;
 	}
 	//*******************************************************************
 	std::flush(std::cout);
