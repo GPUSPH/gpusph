@@ -49,12 +49,6 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
     /* address */
     struct sockaddr_in my_address;
 
-    /* return values */
-    int err;
-
-    /* port as string */
-    char port_as_string[32];
-
     /* setup address */
     memset(&my_address, 0, sizeof(my_address));
     my_address.sin_family      = AF_INET;
@@ -266,7 +260,7 @@ void UDPWriter::write(uint numParts, const double4 *pos, const float4 *vel,
             particles_in_last_packet : PTP_PARTICLES_PER_PACKET;
 
         // Copy particle data into packet
-        for(int i = 0; i < packet.particle_count; i++) {
+        for(uint i = 0; i < packet.particle_count; i++) {
             int offset = (pi * PTP_PARTICLES_PER_PACKET) + i;
             packet.data[i].id = offset;
             packet.data[i].particle_type = info[i].x;
