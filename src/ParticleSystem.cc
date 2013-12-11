@@ -471,13 +471,13 @@ ParticleSystem::allocate(uint numParticles)
 		m_hRbTotalTorque = new float3[m_simparams->numODEbodies];
 
 		rbfirstindex[0] = 0;
-		for (int i = 1; i < m_simparams->numODEbodies; i++) {
+		for (uint i = 1; i < m_simparams->numODEbodies; i++) {
 			rbfirstindex[i] = rbfirstindex[i - 1] + m_problem->get_ODE_body_numparts(i - 1);
 		}
 		setforcesrbstart(rbfirstindex, m_simparams->numODEbodies);
 
 		int offset = 0;
-		for (int i = 0; i < m_simparams->numODEbodies; i++) {
+		for (uint i = 0; i < m_simparams->numODEbodies; i++) {
 			m_hRbLastIndex[i] = m_problem->get_ODE_body_numparts(i) - 1 + offset;
 			for (int j = 0; j < m_problem->get_ODE_body_numparts(i); j++) {
 				rbnum[offset + j] = i;
@@ -521,7 +521,7 @@ ParticleSystem::allocate(uint numParticles)
 		the largest possible power-of-two blocksize such that
 		two blocks can fit in a single MP */
 	size_t blocksize = 32;
-	while (blocksize*2 < m_device.maxThreadsPerMultiProcessor)
+	while (blocksize*2 < size_t(m_device.maxThreadsPerMultiProcessor))
 		blocksize*=2;
 
 	/*	maximum amount of global memory needed in reductions:
@@ -598,6 +598,9 @@ ParticleSystem::setPhysParams(void)
 		case DYNAMICVISC:
 			m_physparams->visccoeff = m_physparams->kinematicvisc;
 			break;
+		default:
+			throw runtime_error("invalid viscosity selected");
+			break;
 	}
 
 	// Setting kernels and kernels derivative factors
@@ -654,6 +657,9 @@ ParticleSystem::printPhysParams(FILE *summary)
 			fprintf(summary, "\td = %g\n", m_physparams->MK_d);
 			fprintf(summary, "\tbeta = %g\n", m_physparams->MK_beta);
 			break;
+		default:
+			throw runtime_error("invalid boundary type selected");
+			break;
 	}
 
 	fprintf(summary, "r0 = %g\n", m_physparams->r0);
@@ -684,6 +690,9 @@ ParticleSystem::printPhysParams(FILE *summary)
 		case KEPSVISC:
 			fprintf(summary, "\tk-e model: kinematicvisc = %g m^2/s\n",
 					m_physparams->kinematicvisc);
+			break;
+		default:
+			throw runtime_error("invalid viscosity selected");
 			break;
 		}
 	fprintf(summary, "espartvisc = %g\n", m_physparams->epsartvisc);
@@ -1525,7 +1534,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 	buildNeibList(false);
 
 	// Compute virtual displacement
-	int itNumber = 200;
+	uint itNumber = 200;
 	float deltat = 1.0/itNumber;
 
 	for(uint i = 0; i < itNumber; i++) {
@@ -2317,7 +2326,7 @@ ParticleSystem::saveForces()
 	if(FLUID(m_hInfo[index]))
 	{
 		float4 forces = m_hForces[index];
-		float4 pos = m_hPos[index];
+		// float4 pos = m_hPos[index];
 
 		fprintf(fp, "%d,%d,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, forces.x, forces.y, forces.z, forces.w, PART_TYPE(m_hInfo[index]));
 	}
@@ -2416,7 +2425,7 @@ ParticleSystem::reducerbforces(void)
 
 	int firstindex = 0;
 	int lastindex = 0;
-	for (int i = 0; i < m_simparams->numODEbodies; i++) {
+	for (uint i = 0; i < m_simparams->numODEbodies; i++) {
 		lastindex = m_hRbLastIndex[i];
 		float4 force = make_float4(0.0f);
 		float4 torque = make_float4(0.0f);
@@ -2490,44 +2499,44 @@ ParticleSystem::writeWaveGage()
 	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
 	fprintf(fp," <UnstructuredGrid>\r\n");
 	fprintf(fp,"  <Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\r\n", num, num);	
-	
+
 	//Writing Position	
 	fprintf(fp,"   <Points>\r\n");
 	fprintf(fp,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
-	for (int i=0; i <  num; i++)
+	for (uint i=0; i <  num; i++)
 		fprintf(fp,"%f\t%f\t%f\t",m_simparams->gage[i].x, m_simparams->gage[i].y, m_simparams->gage[i].z);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
 	fprintf(fp,"   </Points>\r\n");
-	
+
 	// Cells data
 	fprintf(fp,"   <Cells>\r\n");
 	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
-	for (int i = 0; i < num; i++)
+	for (uint i = 0; i < num; i++)
 		fprintf(fp,"%d\t", i);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
 	fprintf(fp,"\r\n");
-	
+
 	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
-	for (int i = 0; i < num; i++)
+	for (uint i = 0; i < num; i++)
 		fprintf(fp,"%d\t", i + 1);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
-	
+
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
-	for (int i = 0; i < num; i++)
+	for (uint i = 0; i < num; i++)
 		fprintf(fp,"%d\t", 1);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
-	
+
 	fprintf(fp,"   </Cells>\r\n");
-	
+
 	fprintf(fp,"  </Piece>\r\n");
 	fprintf(fp," </UnstructuredGrid>\r\n");
-	fprintf(fp,"</VTKFile>");	
-	fclose(fp);	
+	fprintf(fp,"</VTKFile>");
+	fclose(fp);
 }
 
 
