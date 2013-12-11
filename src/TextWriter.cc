@@ -83,7 +83,7 @@ TextWriter::write(	uint				numParts,
 		}
 
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		// position
 		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
 												, pos[i].x, pos[i].y, pos[i].z);
@@ -134,7 +134,7 @@ TextWriter::write(	uint				numParts,
 	FILE *fid1 = fopen(full_filename.c_str(), "w");
 
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		if (TESTPOINTS(info[i])){
 		// position
 		fprintf(fid1,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
