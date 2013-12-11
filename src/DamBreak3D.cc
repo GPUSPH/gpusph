@@ -258,7 +258,7 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		info[i]= make_particleinfo(BOUNDPART,0,i);
 		hash[i] = hashvalue;
 	}
-	int j = boundary_parts.size();
+	uint j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";

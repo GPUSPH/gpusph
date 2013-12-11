@@ -176,17 +176,17 @@ int InputProblem::fill_parts()
 void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, uint *hash)
 {
 	const char *ch_inputfile = inputfile.c_str();
-	int npart = HDF5SphReader::getNParts(ch_inputfile);
+	uint npart = HDF5SphReader::getNParts(ch_inputfile);
 	float4 localpos;
 	uint hashvalue;
 
 	HDF5SphReader::ReadParticles *buf = new HDF5SphReader::ReadParticles[npart];
 	HDF5SphReader::readParticles(buf, ch_inputfile, npart);
-	
-	int n_parts = 0;
-	int n_vparts = 0;
-	int n_bparts = 0;
-	
+
+	uint n_parts = 0;
+	uint n_vparts = 0;
+	uint n_bparts = 0;
+
 	for (uint i = 0; i<npart; i++) {
 		switch(buf[i].ParticleType) {
 			case 1:
@@ -211,7 +211,7 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		hash[i] = hashvalue;
 	}
-	int j = n_parts;
+	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
 	std::cout << "Vertex parts: " << n_vparts << "\n";

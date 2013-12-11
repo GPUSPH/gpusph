@@ -383,15 +383,15 @@ void Object::Unfill(PointVect& points, const double dx) const
 {
 	PointVect new_points;
 	new_points.reserve(points.size());
-	
-	for (int i = 0; i < points.size(); i++) {
+
+	for (uint i = 0; i < points.size(); i++) {
 		const Point & p = points[i];
-		
+
 		if (!IsInside(p, dx))
 			new_points.push_back(p);
 	}
-	
+
 	points.clear();
-	
+
 	points = new_points;
 }

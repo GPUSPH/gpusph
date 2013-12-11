@@ -41,10 +41,10 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	// Size and origin of the simulation domain
 	lx = 1.6;
 	ly = 0.67;
-	lz = 0.6;	
+	lz = 0.6;
 	H = 0.4;
 	wet = false;
-	
+
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
@@ -78,11 +78,11 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0, 10);
-	
+
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
-	
+
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
 	m_physparams.MK_K = g*H;
@@ -241,7 +241,6 @@ void OdeObjects::draw_boundary(float t)
 	glColor3f(1.0, 0.0, 0.0);
 	obstacle.GLDraw();
 
-	const dReal *pos,*R;
 	/*pos = dBodyGetPosition(sphere.m_ODEBody);
 	R = dBodyGetRotation(sphere.m_ODEBody);
 	dsDrawSphere(pos, R, 0.05);*/
@@ -272,7 +271,7 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	for (int k = 0; k < m_simparams.numODEbodies; k++) {
+	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
@@ -286,7 +285,7 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-	
+
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
