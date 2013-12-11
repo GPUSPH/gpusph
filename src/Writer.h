@@ -42,9 +42,9 @@ class Writer
 {
 public:
 	// maximum number of files
-	static const int MAX_FILES = 99999;
+	static const uint MAX_FILES = 99999;
 	// number of characters needed to represent MAX_FILES
-	static const int FNUM_WIDTH = 5;
+	static const uint FNUM_WIDTH = 5;
 
 	Writer(const Problem *problem);
 	virtual ~Writer();

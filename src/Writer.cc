@@ -90,7 +90,7 @@ void
 Writer::write_WaveGage(float t, GageList const& gage)
 {
 	fprintf(m_WaveGagefile, "%g", t);
-	for (int i=0; i < gage.size(); i++) {
+	for (size_t i=0; i < gage.size(); i++) {
 		fprintf(m_WaveGagefile, "\t%g",
 				gage[i].z);
 	}

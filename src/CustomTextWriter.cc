@@ -81,7 +81,7 @@ CustomTextWriter::write(	uint 				numParts,
 
 	// Modify this part to match your requirements
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		// position
 		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
 												, pos[i].x, pos[i].y, pos[i].z);

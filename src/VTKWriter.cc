@@ -204,7 +204,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	scalar_array(fid, "Int32", "offsets", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
 	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
-	for (int i = 0; i < numParts; i++)
+	for (uint i = 0; i < numParts; i++)
 		fprintf(fid,"%d\t", 1);
 	fprintf(fid,"\n");
 	fprintf(fid,"	</DataArray>\n");
@@ -219,7 +219,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// pressure
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float value = 0.0;
 		if (TESTPOINTS(info[i]))
 			value = vel[i].w;
@@ -230,7 +230,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// density
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float value = 0.0;
 		//if (FLUID(info[i]))
 			value = vel[i].w;
@@ -239,15 +239,15 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// mass
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float value = pos[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
-	
+
 	// gamma
 	if (gradGamma) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = gradGamma[i].w;
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -256,7 +256,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// turbulent kinetic energy
 	if (tke) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = tke[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -265,7 +265,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// eddy viscosity
 	if (turbvisc) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = turbvisc[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -277,28 +277,28 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 		// type
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
 //		// flag
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (int i=0; i < numParts; i++) {
+//		for (uint i=0; i < numParts; i++) {
 //			ushort value = PART_FLAG(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
 
 //		// fluid number
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (int i=0; i < numParts; i++) {
+//		for (uint i=0; i < numParts; i++) {
 //			ushort value = PART_FLUID_NUM(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
 
 //		// object
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (int i=0; i < numParts; i++) {
+//		for (uint i=0; i < numParts; i++) {
 //			ushort value = object(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
@@ -307,7 +307,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 		// id
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			uint value = id(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -317,7 +317,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// velocity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float *value = zeroes;
 		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
@@ -326,7 +326,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// gradient gamma
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float *value = zeroes;
 		value = (float*)(gradGamma + i);
 		fwrite(value, sizeof(*value), 3, fid);
@@ -335,7 +335,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// vorticity
 	if (vort) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(vort + i);
@@ -347,7 +347,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// normals
 	if (normals) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(normals + i);
@@ -358,7 +358,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 		numbytes=sizeof(float)*numParts;
 		// criteria
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = 0;
 			if (FLUID(info[i]))
 				value = normals[i].w;
@@ -370,7 +370,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// position
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
@@ -378,13 +378,13 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	numbytes=sizeof(int)*numParts;
 	// connectivity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 	// offsets
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		uint value = i+1;
 		fwrite(&value, sizeof(value), 1, fid);
 	}

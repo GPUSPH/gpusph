@@ -86,18 +86,18 @@ void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel
 
 	fprintf(fid, "POINTS %u double\n", numParts);
 	// Start with particle positions
-	for (int i=0; i < numParts; ++i)
+	for (uint i=0; i < numParts; ++i)
 		fprintf(fid, "%f %f %f\n", pos[i].x, pos[i].y, pos[i].z);
 	fprintf(fid, "\n");
 
 	// Cells = particles
 	fprintf(fid, "CELLS %u %u\n", numParts, 2*numParts);
-	for (int i=0; i < numParts; ++i)
+	for (uint i=0; i < numParts; ++i)
 		fprintf(fid, "1 %u\n", i);
 	fprintf(fid, "\n");
 
 	fprintf(fid, "CELL_TYPES %u\n", numParts);
-	for (int i=0; i < numParts; ++i)
+	for (uint i=0; i < numParts; ++i)
 		fprintf(fid, "1\n");
 	fprintf(fid, "\n");
 
@@ -106,7 +106,7 @@ void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel
 
 	// Velocity
 	fprintf(fid, "VECTORS Velocity float\n");
-	for (int i=0; i < numParts; ++i) {
+	for (uint i=0; i < numParts; ++i) {
 		if (pos[i].w > 0.0)
 			fprintf(fid, "%f %f %f\n", vel[i].x, vel[i].y, vel[i].z);
 		else
@@ -117,7 +117,7 @@ void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel
 	// Pressure
 	fprintf(fid, "SCALARS Pressure float\n");
 	print_lookup(fid);
-	for (int i=0; i < numParts; ++i) {
+	for (uint i=0; i < numParts; ++i) {
 		if (FLUID(info[i]) )
 			fprintf(fid, "%f\n", m_problem->pressure(vel[i].w, object(info[i])));
 		else
@@ -128,7 +128,7 @@ void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel
 	// Density
 	fprintf(fid, "SCALARS Density float\n");
 	print_lookup(fid);
-	for (int i=0; i < numParts; ++i) {
+	for (uint i=0; i < numParts; ++i) {
 		if (FLUID(info[i]) > 0.0)
 			fprintf(fid, "%f\n", vel[i].w);
 		else
@@ -139,14 +139,14 @@ void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel
 	// Mass
 	fprintf(fid, "SCALARS Mass float\n");
 	print_lookup(fid);
-	for (int i=0; i < numParts; ++i)
+	for (uint i=0; i < numParts; ++i)
 		fprintf(fid, "%f\n", (float) pos[i].w);
 	fprintf(fid, "\n\n");
 
 	// Vorticity
 	if (vort) {
 		fprintf(fid, "VECTORS Vorticity float\n");
-		for (int i=0; i < numParts; ++i) {
+		for (uint i=0; i < numParts; ++i) {
 			if (pos[i].w > 0.0)
 				fprintf(fid, "%f %f %f\n", vort[i].x, vort[i].y, vort[i].z);
 			else
@@ -160,21 +160,21 @@ void VTKLegacyWriter::write(uint numParts, const double4 *pos, const float4 *vel
 	if (info) {
 		fprintf(fid, "SCALARS Type int\n");
 		print_lookup(fid);
-		for (int i=0; i < numParts; ++i) {
+		for (uint i=0; i < numParts; ++i) {
 			fprintf(fid, "%d\n", type(info[i]));
 		}
 		fprintf(fid, "\n\n");
 
 		fprintf(fid, "SCALARS Object int\n");
 		print_lookup(fid);
-		for (int i=0; i < numParts; ++i) {
+		for (uint i=0; i < numParts; ++i) {
 			fprintf(fid, "%d\n", type(info[i]));
 		}
 		fprintf(fid, "\n\n");
 
 		fprintf(fid, "SCALARS ParticleId int\n");
 		print_lookup(fid);
-		for (int i=0; i < numParts; ++i) {
+		for (uint i=0; i < numParts; ++i) {
 			fprintf(fid, "%u\n", id(info[i]));
 		}
 		fprintf(fid, "\n\n");
