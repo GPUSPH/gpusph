@@ -995,38 +995,27 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = gdata->problem->need_write(gdata->t) || finished;
-		//bool need_write = (!nosave) && gdata->iterations % 10 == 0;
-		//need_write &= (!gdata->nosave);
-
+		bool need_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
 
 		if (need_write) {
-			if (!gdata->nosave) {
-				// TODO: the performanceCounter could be "paused" here
-				// ask workers to dump their subdomains and wait for it to complete
-				doCommand(DUMP, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ );
-				// triggers Writer->write()
-				doWrite();
-			} else
-				// just pretend we actually saved
-				gdata->problem->mark_written(gdata->t);
-			// usual status
-			printStatus();
-		}
+			// if we are about to quit, we want to save regardless --nosave option
+			bool final_save = (finished || gdata->quit_request);
 
-		if (finished || gdata->quit_request) {
-			printStatus();
-			// regardless --nosave is enabled
-			printf("Issuing final save...\n");
+			if (final_save)
+				printf("Issuing final save...\n");
+
 			// set the buffers to be dumped
 			uint which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO;
+
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
+
 			// compute and dump voriticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
 				doCommand(VORTICITY);
 				which_buffers |= BUFFER_VORTICITY;
 			}
+
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
 			// not to call, since it has been called at least once for sure
@@ -1035,12 +1024,23 @@ bool GPUSPH::runSimulation() {
 				gdata->swapDeviceBuffers(BUFFER_INFO);
 				which_buffers |= BUFFER_NORMALS;
 			}
-			// dumping AFTER normals, since it also affects the particleInfo
-			doCommand(DUMP, which_buffers);
-			doWrite();
+
+			if ( !gdata->nosave || final_save ) {
+				// TODO: the performanceCounter could be "paused" here
+				// dump what we want to save
+				doCommand(DUMP, which_buffers);
+				// triggers Writer->write()
+				doWrite();
+			} else
+				// --nosave enabled, not final: just pretend we actually saved
+				gdata->problem->mark_written(gdata->t);
+
+			printStatus();
+		}
+
+		if (finished || gdata->quit_request)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
-		}
 	}
 
 	// NO doCommand() nor other barriers than the standard ones after the
