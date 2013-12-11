@@ -79,7 +79,7 @@ Writer::write_energy(float t, float4 *energy)
 	fprintf(m_energyfile, "%g", t);
 	uint fluid = 0;
 	for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-		fprintf(m_energyfile, "\t%g\t%g",
+		fprintf(m_energyfile, "\t%g\t%g\t%g",
 				energy[fluid].x, energy[fluid].y, energy[fluid].z);
 	fputs("\n", m_energyfile);
 	fflush(m_energyfile);
