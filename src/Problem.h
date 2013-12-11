@@ -163,39 +163,6 @@ class Problem {
 			return m_deltap;
 		}
 
-		// add an outlet min_[xyz], max_[xyz] with displacement direction
-		// dir_[xyz]
-		// Returns false if there isn't room for more outlets.
-		bool add_outlet(
-			float min_x, float min_y, float min_z,
-			float max_x, float max_y, float max_z,
-			float dir_x, float dir_y, float dir_z);
-
-		// ditto, vector form
-		inline bool add_outlet(float3 const& omin, float3 const& omax, float3 const& dir)
-		{
-			return add_outlet(omin.x, omin.y, omin.z,
-				omax.x, omax.y, omax.z,
-				dir.x, dir.y, dir.z);
-		}
-
-		// add an inlet min_[xyz], max_[xyz] with velocity components
-		// vel_[xyzw]. Velocity components that should evolve naturally
-		// should be set to NAN.
-		// Returns false if there isn't room for more outlets.
-		bool add_inlet(
-			float min_x, float min_y, float min_z,
-			float max_x, float max_y, float max_z,
-			float vel_x, float vel_y, float vel_z, float vel_w);
-
-		// ditto, vector form
-		inline bool add_inlet(float3 const& omin, float3 const& omax, float4 const& vel)
-		{
-			return add_inlet(omin.x, omin.y, omin.z,
-				omax.x, omax.y, omax.z,
-				vel.x, vel.y, vel.z, vel.w);
-		}
-
 		const SimParams *get_simparams(void) const
 		{
 			return &m_simparams;
@@ -227,8 +194,6 @@ class Problem {
 		bool finished(float);
 
 		virtual int fill_parts(void) = 0;
-		// maximum number of particles that may be generated
-		virtual uint max_parts(uint numParts);
 		virtual uint fill_planes(void);
 
 		virtual void copy_to_array(float4*, float4*, particleinfo*) = 0;

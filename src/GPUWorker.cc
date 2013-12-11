@@ -856,10 +856,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
 	allocated += segmentsSize;
 
-	// newNumParticles for inlets
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
-	allocated += sizeof(uint);
-
 	if (m_simparams->numbodies) {
 		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
@@ -969,7 +965,6 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
-	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
 	if (m_simparams->dtadapt) {
 		CUDA_SAFE_CALL(cudaFree(m_dCfl));
@@ -1177,35 +1172,6 @@ void GPUWorker::resetSegments()
 	for (uint s = 0; s < 4; s++)
 		gdata->s_dSegmentsStart[m_deviceIndex][s] = EMPTY_SEGMENT;
 	uploadSegments();
-}
-
-// download the updated number of particles (update by reorder and euler)
-void GPUWorker::downloadNewNumParticles()
-{
-	// is the device empty? (unlikely but possible before LB kicks in)
-	// if so, neither reorder nor euler did actually perform anything
-	if (m_numParticles == 0) return;
-
-	uint activeParticles;
-	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
-
-	if (activeParticles > m_numAllocatedParticles) {
-		fprintf(stderr, "ERROR: Number of particles grew too much: %u > %u\n", activeParticles, m_numAllocatedParticles);
-		gdata->quit_request = true;
-	}
-
-	if (activeParticles != m_numParticles) {
-		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
-		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
-		m_numParticles = activeParticles;
-	}
-}
-
-// upload the value m_numParticles to "newNumParticles" on device
-void GPUWorker::uploadNewNumParticles()
-{
-	// uploading even if empty (usually not, right after append)
-	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
 // upload mbData for moving boundaries (possibily called many times)
@@ -1509,11 +1475,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// upload planes, if any
 	instance->uploadPlanes();
 
-	// upload inlets and outlets
-	instance->uploadInlets();
-	instance->uploadOutlets();
-
-	// upload centers of gravity of the bodies
+		// upload centers of gravity of the bodies
 	instance->uploadBodiesCentersOfGravity();
 
 	// compute #parts to allocate according to the free memory on the device
@@ -1593,14 +1555,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case UPDATE_SEGMENTS:
 				//printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
-				break;
-			case DOWNLOAD_NEWNUMPARTS:
-				//printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
-				instance->downloadNewNumParticles();
-				break;
-			case UPLOAD_NEWNUMPARTS:
-				//printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
-				instance->uploadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
 				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
@@ -1737,7 +1691,6 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dSegmentStart,
 #endif
 							m_numParticles,
-							m_dNewNumParticles,
 							m_nGridCells);
 }
 
@@ -1867,8 +1820,6 @@ void GPUWorker::kernel_euler()
 				m_dPos[gdata->currentPosWrite],	// pos(n+1) = pos(n) + velc(n+1/2)*dt
 				m_dVel[gdata->currentVelWrite],	// vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
-				NULL,							// no m_dNewNumParticles at this step
-				gdata->totParticles,
 				numPartsToElaborate,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
@@ -1885,8 +1836,6 @@ void GPUWorker::kernel_euler()
 				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
 				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
 				m_numParticles,
-				m_dNewNumParticles,
-				gdata->totParticles,
 				numPartsToElaborate,
 				gdata->dt, // m_dt,
 				gdata->dt/2.0f, // m_dt/2.0,
@@ -2024,22 +1973,6 @@ void GPUWorker::uploadConstants()
 	setforcesconstants(m_simparams, m_physparams);
 	seteulerconstants(m_physparams);
 	setneibsconstants(m_simparams, m_physparams);
-}
-
-void GPUWorker::uploadInlets()
-{
-	//if (m_physparams->inlets == 0) return;
-	printf("Dev idx %u uploading %u intlets\n", m_deviceIndex, m_physparams->inlets);
-	// no need for letting the forces kernel know about the inlets
-	setinleteuler(m_physparams);
-}
-
-void GPUWorker::uploadOutlets()
-{
-	//if (m_physparams->outlets == 0 ) return;
-	printf("Dev idx %u uploading %u outlets\n", m_deviceIndex, m_physparams->outlets);
-	setoutletforces(m_physparams);
-	setoutleteuler(m_physparams);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()

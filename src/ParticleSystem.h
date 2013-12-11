@@ -95,10 +95,8 @@ class ParticleSystem
 		ParticleSystem(GlobalData *gdata);
 		~ParticleSystem();
 
-		void	allocate(uint numParticles, uint maxParticles);
+		void	allocate(uint numParticles);
 		void	allocate_planes(uint numPlanes);
-		// update number of particles from GPU
-		void	updateNumParticles();
 		void	setPhysParams(void);
 		void	getPhysParams(void);
 		void	printPhysParams(FILE *summary = NULL);
@@ -113,8 +111,6 @@ class ParticleSystem
 		void*	getArray(ParticleArray, bool);
 		void	setArray(ParticleArray);
 		void	setPlanes();
-		void	setOutlets();
-		void	setInlets();
 		void	drawParts(bool, bool, int);
 		void	writeSummary(void);
 		void	writeToFile(void);
@@ -160,7 +156,6 @@ class ParticleSystem
 
 		// Geometrical datas and problem definition
 		uint		m_numParticles;			// current number of particles
-		uint		m_maxParticles;			// maximum number of particles
 		uint		m_numPlanes;			// total number of planes
 		uint3		m_gridSize;				// number of domain cells in each direction
 		uint		m_nGridCells;			// total number of domain cells
@@ -228,7 +223,6 @@ class ParticleSystem
 		uint*		m_dCellStart;			// index of cell start in sorted order
 		uint*		m_dCellEnd;				// index of cell end in sorted order
 		uint*		m_dNeibsList;			// neib list with MAXNEIBSNUM neibs per particle
-		uint*		m_dNewNumParticles;		// number of active particles found during neib list
 
 		uint		m_currentPosRead;		// current index in m_dPos for position reading (0 or 1)
 		uint		m_currentPosWrite;		// current index in m_dPos for writing (0 or 1)

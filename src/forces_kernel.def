@@ -199,11 +199,6 @@ FORCES_CUDA_KERNEL
 			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
 
-			// yeah, goto in the XXI century. Find me a way to do this without
-			// adding _another_ layer of ifs and I'll glady use that
-			if (INACTIVE(pos))
-				goto reduce;
-
 			const float4 vel = tex1Dfetch(velTex, index);
 
 			# ifdef VISC_SPS
@@ -251,37 +246,6 @@ FORCES_CUDA_KERNEL
 			const float visccoeff = d_visccoeff*vel.w;
 			# endif
 
-#if 0
-			// check if we are in an outlet
-			int outlet = find_outlet(pos);
-
-			// if we are in an outlet, all our neighbors (including us) are reflected through the
-			// outlet plane, keeping the same velocity
-			if (outlet >= 0) {
-				float4 ghost_pos = reflectPoint(pos, d_outlet_plane[outlet], 1);
-				float3 relPos = as_float3(pos) - as_float3(ghost_pos);
-				float r = length(relPos);
-
-				if (r < influenceradius) {
-					FORCE_PAIR_DEVICE<kerneltype, sph_formulation>(
-						slength, relPos, r, vel, vel,
-						info, info,
-						pos.w, pos.w, p_precalc,
-# if defined(VISC_ARTVISC)
-						sspeed,
-# elif defined(VISC_SPS)
-						tau, tau,
-# elif defined(VISC_DYNAMIC)
-						visccoeff, visccoeff,
-# endif
-# ifdef XSPH_KERNEL
-						mean_vel,
-# endif
-						force);
-				}
-			}
-#endif
-
 			// loop over all neighbors
 			for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
 				uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
@@ -305,8 +269,6 @@ FORCES_CUDA_KERNEL
 					float DvDt = 0.0f;
 
 					if (FLUID(neib_info)) {
-						if (INACTIVE(neib_pos))
-							continue;
 
 						# ifdef VISC_SPS
 						symtensor3 neib_tau;
@@ -340,31 +302,6 @@ FORCES_CUDA_KERNEL
 							mean_vel,
 # endif
 							force);
-#if 0
-						// outlet ghost reflections
-						if (outlet >= 0) {
-							float4 ghost_pos =  reflectPoint(neib_pos, d_outlet_plane[outlet], 1);
-							relPos = as_float3(pos) - as_float3(ghost_pos);
-							float r = length(relPos);
-							if (r < influenceradius) {
-								FORCE_PAIR_DEVICE<kerneltype, sph_formulation>(
-									slength, relPos, r, vel, neib_vel,
-									info, neib_info,
-									pos.w, neib_pos.w, p_precalc,
-# if defined(VISC_ARTVISC)
-									sspeed,
-# elif defined(VISC_SPS)
-									tau, neib_tau,
-# elif defined(VISC_DYNAMIC)
-									visccoeff, neib_visccoeff,
-# endif
-# ifdef XSPH_KERNEL
-									mean_vel,
-# endif
-									force);
-							}
-						}
-#endif
 					} else {
 						switch (boundarytype) {
 						case LJ_BOUNDARY:
@@ -463,7 +400,7 @@ FORCES_CUDA_KERNEL
 				if (r < influenceradius) {
 					float DvDt = 0.0;
 
-					if (FLUID(neib_info) && !OBJECT(neib_info) && ACTIVE(neib_pos))
+					if (FLUID(neib_info) && !OBJECT(neib_info))
 						DvDt = neib_pos.w*LJForce(r);
 					// Now object-object and objcet boundary forces are computed with ODE
 					/*if (OBJECT(neib_info) && (object(info) != object(neib_info)))
@@ -482,8 +419,6 @@ FORCES_CUDA_KERNEL
 			rbtorques[rbindex] = make_float4(cross(as_float3(pos) - d_rbcg[object(info)], as_float3(force)));
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
-
-reduce:
 
 	# ifdef DT_KERNEL
 	dtadaptBlockReduce(sm_max, cfl);

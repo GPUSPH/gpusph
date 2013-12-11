@@ -272,22 +272,6 @@ setplaneconstants(int numPlanes, const float* PlanesDiv, const float4* Planes)
 }
 
 void
-setoutletforces(const PhysParams *phys)
-{
-	uint numOutlets = phys->outlets;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_outlets, &numOutlets, sizeof(numOutlets)));
-#define COPY_UP(field) \
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_##field, phys->field, numOutlets*sizeof(float4)))
-
-	COPY_UP(outlet_min);
-	COPY_UP(outlet_max);
-	COPY_UP(outlet_disp);
-	COPY_UP(outlet_plane);
-#undef COPY_UP
-}
-
-
-void
 setgravity(float3 const& gravity)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gravity, &gravity, sizeof(float3)));

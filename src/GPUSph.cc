@@ -240,8 +240,7 @@ void init(const char *arg)
 
 	// filling simulation domain with particles
 	uint numParticles = problem->fill_parts();
-	uint maxParticles = problem->max_parts(numParticles);
-	psystem->allocate(numParticles, maxParticles);
+	psystem->allocate(numParticles);
 	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
 	psystem->setArray(ParticleSystem::POSITION);
 	psystem->setArray(ParticleSystem::VELOCITY);
@@ -257,8 +256,6 @@ void init(const char *arg)
 		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
 		psystem->setPlanes();
 	}
-	psystem->setOutlets();
-	psystem->setInlets();
 
 	timingInfo = psystem->markStart();
 }
@@ -342,8 +339,6 @@ void do_write()
 		psystem->drawParts(show_boundary, show_floating, view_field);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		problem->draw_boundary(psystem->getTime());
-		problem->draw_inlets();
-		problem->draw_outlets();
 		problem->draw_axis();
 
 		char s[1024];
@@ -588,9 +583,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
-	// the number of allocated particles will be bigger, to be sure it can contain particles being created
-	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
-
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
@@ -623,12 +615,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers();
-	uint extra = gdata->allocatedParticles - gdata->totParticles;
-	if (extra == 0)
-		printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->allocatedParticles).c_str());
-	else
-		printf("  allocated %.2g Gb on host for %s particles (%s for initial filling + %s for particle creation)\n", (ulong)totCPUbytes/1000000000.0F,
-			gdata->addSeparators(gdata->allocatedParticles).c_str(), gdata->addSeparators(gdata->totParticles).c_str(), gdata->addSeparators(extra).c_str());
+	printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->processParticles[gdata->mpi_rank]).c_str());
 
 	// copy planes from the problem to the shared array
 	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
@@ -739,9 +726,6 @@ bool GPUSPH::finalize() {
 bool GPUSPH::runSimulation() {
 	if (!initialized) return false;
 
-	// short form
-	const bool inoutlets = (gdata->problem->get_physparams()->inlets > 0 || gdata->problem->get_physparams()->outlets > 0);
-
 	// doing first write
 	printf("Performing first write...\n");
 	doWrite();
@@ -779,8 +763,6 @@ bool GPUSPH::runSimulation() {
 			doCommand(SORT);
 			doCommand(REORDER);
 
-			if (inoutlets && gdata->iterations > 0)
-				doCommand(DOWNLOAD_NEWNUMPARTS);
 			// swap pos, vel and info double buffers
 			gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_INFO);
 
@@ -799,9 +781,6 @@ bool GPUSPH::runSimulation() {
 				doCommand(CROP);
 				// append fresh copies of the externals
 				doCommand(APPEND_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ);
-				// update the newNumParticles device counter
-				if (inoutlets)
-					doCommand(UPLOAD_NEWNUMPARTS);
 			}
 
 			// build neib lists only for internal particles
@@ -949,10 +928,6 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->numbodies > 0)
 			doCommand(UPLOAD_OBJECTS_CG);
 
-		// update inlet/outlet changes only after step 2
-		if (inoutlets)
-			doCommand(DOWNLOAD_NEWNUMPARTS);
-
 		// this made sense for testing and running EULER on internals only
 		//if (MULTI_DEVICE)
 		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
@@ -1070,7 +1045,7 @@ bool GPUSPH::runSimulation() {
 long unsigned int GPUSPH::allocateGlobalHostBuffers()
 {
 
-	long unsigned int numparts = gdata->allocatedParticles;
+	long unsigned int numparts = gdata->totParticles;
 	unsigned int numcells = gdata->nGridCells;
 	const uint float3Size = sizeof(float3) * numparts;
 	const uint float4Size = sizeof(float4) * numparts;
@@ -1519,7 +1494,7 @@ void GPUSPH::printParticleDistribution()
 		printf(" - Device %u: %u particles\n", d, gdata->s_hPartsPerDevice[d]);
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
 }
-// Do a roll call of particle IDs; useful after dumps if no in/outlets are there and if the filling was uniform.
+// Do a roll call of particle IDs; useful after dumps if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
 // NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)
 void GPUSPH::rollCallParticles()
@@ -1601,12 +1576,7 @@ void GPUSPH::updateArrayIndices() {
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
 
-		// number of particle may increase or decrease if there are respectively inlets or outlets
-		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_physparams()->outlets > 0) ||
-			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_physparams()->inlets  > 0) ) {
-			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
-			gdata->totParticles = newSimulationTotal;
-		} else if (newSimulationTotal != gdata->totParticles) {
+		if (newSimulationTotal != gdata->totParticles) {
 			printf("WARNING: at iteration %lu the number of particles changed from %u to %u for no known reason!\n",
 				gdata->iterations, gdata->totParticles, newSimulationTotal);
 
@@ -1620,14 +1590,6 @@ void GPUSPH::updateArrayIndices() {
 			// Note: updading *after* the roll call likely shows the missing particle(s) and the duplicate(s). Doing before it only shows the missing one(s)
 			gdata->totParticles = newSimulationTotal;
 		}
-	}
-
-	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
-	// FIXME: like in other methods, we should avoid quitting only one process
-	if (processCount > gdata->allocatedParticles) {
-		printf( "FATAL: Number of total particles at iteration %lu (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
-				gdata->iterations, processCount, gdata->allocatedParticles);
-		gdata->quit_request = true;
 	}
 }
 

@@ -113,14 +113,6 @@ calcHashDevice(const float4*	posArray,
 	gridHash |= ((long unsigned int)compactDeviceMap[shortGridHash]) << GRIDHASH_BITSHIFT;
 #endif
 
-	// testpoints might have 0 mass
-	if (INACTIVE(pos) && !TESTPOINTS(pinfo[index]))
-#if HASH_KEY_SIZE >= 64
-		gridHash = HASH_KEY_MAX_64;
-#else
-		gridHash = HASH_KEY_MAX_32;
-#endif
-
 	// store grid hash and particle index
 	particleHash[index] = gridHash;
 	particleIndex[index] = index;
@@ -139,8 +131,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #if HASH_KEY_SIZE >= 64
 										uint*			segmentStart,
 #endif
-										uint			numParticles,
-										uint*			newNumParticles)	// output: number of active particles found
+										uint			numParticles)
 {
 	extern __shared__ uint sharedHash[];	// blockSize + 1 elements
 
@@ -183,15 +174,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-			if (hash != HASH_KEY_MAX_32)
-				// if it isn't an inactive particle, it is also the start of the cell
 #if HASH_KEY_SIZE >= 64
-				cellStart[hash & CELLTYPE_BITMASK_32] = index;
+			cellStart[hash & CELLTYPE_BITMASK_32] = index;
 #else
-				cellStart[hash] = index;
+			cellStart[hash] = index;
 #endif
-			else
-				*newNumParticles = index;
 			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
 #if HASH_KEY_SIZE >= 64
@@ -201,10 +188,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #endif
 		}
 
-		// if we are an inactive particle, we're done (short hash: compare with 32 bits max)
-		if (hash == HASH_KEY_MAX_32)
-			return;
-
 		if (index == numParticles - 1) {
 			// ditto
 #if HASH_KEY_SIZE >= 64
@@ -212,7 +195,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		// output: cell star
 #else
 			cellEnd[hash] = index + 1;
 #endif
-			*newNumParticles = numParticles;
 		}
 
 #if HASH_KEY_SIZE >= 64

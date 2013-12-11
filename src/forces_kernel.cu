@@ -114,11 +114,6 @@ __constant__ uint	d_rbstartindex[MAXBODIES];
 __constant__ float d_objectobjectdf;
 __constant__ float d_objectboundarydf;
 
-// Include definitions and aux functions for outlets
-#define NO_INLET
-#include "inoutlet.cuh"
-#undef NO_INLET
-
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
 /************************************************************************************************************/
@@ -834,8 +829,6 @@ shepardDevice(	const float4*	posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
-	if (INACTIVE(pos))
-		return;
 
 	float4 vel = tex1Dfetch(velTex, index);
 
@@ -862,7 +855,7 @@ shepardDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
+		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*neib_pos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
@@ -930,8 +923,6 @@ MlsDevice(	const float4*	posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
-	if (INACTIVE(pos))
-		return;
 
 	float4 vel = tex1Dfetch(velTex, index);
 
@@ -946,22 +937,6 @@ MlsDevice(	const float4*	posArray,
 
 	// taking into account self contribution in MLS matrix construction
 	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
-
-	// check if we are in an outlet
-	int outlet = find_outlet(pos);
-
-	// if we are in an outlet, all our neighbors (including us) are reflected through the
-	// outlet plane, keeping the same velocity
-	if (outlet >= 0) {
-		float4 ghost_pos = reflectPoint(pos, d_outlet_plane[outlet], 1);
-		float3 relPos = as_float3(pos) - as_float3(ghost_pos);
-		float r = length(relPos);
-		if (r < influenceradius) {
-			neibs_num ++;
-			float w = W<kerneltype>(r, slength)*pos.w/vel.w;	// Wij*Vj
-			MlsMatrixContrib(mls, relPos, w);
-		}
-	}
 
 	// first loop over all the neighbors for the MLS matrix
 	for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
@@ -983,21 +958,10 @@ MlsDevice(	const float4*	posArray,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// interaction between two particles
-		if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
+		if (r < influenceradius && FLUID(neib_info)) {
 			neibs_num ++;
 			float w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
 			MlsMatrixContrib(mls, relPos, w);
-			// outlet ghost reflections
-			if (outlet >= 0) {
-				float4 ghost_pos =  reflectPoint(neib_pos, d_outlet_plane[outlet], 1);
-				relPos = as_float3(pos) - as_float3(ghost_pos);
-				r = length(relPos);
-				if (r < influenceradius) {
-					neibs_num ++;
-					w = W<kerneltype>(r, slength)*neib_pos.w/neib_rho;	// Wij*Vj
-					MlsMatrixContrib(mls, relPos, w);
-				}
-			}
 		}
 	} // end of first loop trough neighbors
 
@@ -1021,18 +985,6 @@ MlsDevice(	const float4*	posArray,
 		// taking into account self contribution in density summation
 		vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
 
-		// outlet ghost reflections
-		if (outlet >= 0) {
-			float4 ghost_pos =  reflectPoint(pos, d_outlet_plane[outlet], 1);
-			float3 relPos = as_float3(pos) - as_float3(ghost_pos);
-			float r = length(relPos);
-			if (r < influenceradius) {
-				neibs_num ++;
-				float w = W<kerneltype>(r, slength)*pos.w;
-				vel.w += MlsCorrContrib(B, relPos, w);
-			}
-		}
-
 		// second loop over all the neighbors for correction
 		for(uint i = 0; i < d_maxneibsnum_time_neibindexinterleave ; i += NEIBINDEX_INTERLEAVE) {
 			uint neib_index = neibsList[d_maxneibsnum_time_neibindexinterleave*lane + i + offset];
@@ -1052,20 +1004,9 @@ MlsDevice(	const float4*	posArray,
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
+			if (r < influenceradius && FLUID(neib_info)) {
 				float w = W<kerneltype>(r, slength)*neib_pos.w;	 // ρj*Wij*Vj = mj*Wij
 				vel.w += MlsCorrContrib(B, relPos, w);
-				// outlet ghost reflections
-				if (outlet >= 0) {
-					float4 ghost_pos =  reflectPoint(neib_pos, d_outlet_plane[outlet], 1);
-					relPos = as_float3(pos) - as_float3(ghost_pos);
-					r = length(relPos);
-					if (r < influenceradius) {
-						neibs_num ++;
-						w = W<kerneltype>(r, slength)*neib_pos.w;	// Wij*Vj
-						vel.w += MlsCorrContrib(B, relPos, w);
-					}
-				}
 			}
 		}  // end of second loop trough neighbors
 	} else {
@@ -1092,7 +1033,7 @@ MlsDevice(	const float4*	posArray,
 				const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-				if (r < influenceradius && FLUID(neib_info) && ACTIVE(neib_pos)) {
+				if (r < influenceradius && FLUID(neib_info)) {
 						const float w = W<kerneltype>(r, slength)*neib_pos.w;
 						temp1 += w;
 						temp2 += w/neib_rho;

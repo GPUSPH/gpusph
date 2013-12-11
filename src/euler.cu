@@ -76,31 +76,6 @@ geteulerconstants(PhysParams *physparams)
 
 
 void
-setinleteuler(const PhysParams *phys)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlets, &(phys->inlets), sizeof(phys->inlets)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_min, phys->inlet_min, phys->inlets*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_max, phys->inlet_max, phys->inlets*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_disp, phys->inlet_disp, phys->inlets*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_inlet_vel, phys->inlet_vel, phys->inlets*sizeof(float4)));
-}
-
-void
-setoutleteuler(const PhysParams *phys)
-{
-	uint numOutlets = phys->outlets;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_outlets, &numOutlets, sizeof(numOutlets)));
-#define COPY_UP(field) \
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_##field, phys->field, numOutlets*sizeof(float4)))
-
-	COPY_UP(outlet_min);
-	COPY_UP(outlet_max);
-	COPY_UP(outlet_disp);
-	COPY_UP(outlet_plane);
-#undef COPY_UP
-}
-
-void
 setmbdata(const float4* MbData, uint size)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_mbdata, MbData, size));
@@ -137,8 +112,6 @@ euler(	const float4	*oldPos,
 		float4		*newPos,
 		float4		*newVel,
 		uint		numParticles,
-		uint		*newNumParts,
-		uint		maxParticles,
 		uint		particleRangeEnd,
 		float		dt,
 		float		dt2,
@@ -158,7 +131,7 @@ euler(	const float4	*oldPos,
 					oldPos, oldVel, info, \
 					forces, xsph, \
 					newPos, newVel, \
-					newNumParts, particleRangeEnd, maxParticles, \
+					particleRangeEnd, \
 					dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME
@@ -169,7 +142,7 @@ euler(	const float4	*oldPos,
 					oldPos, oldVel, info, \
 					forces, \
 					newPos, newVel, \
-					newNumParts, particleRangeEnd, maxParticles, \
+					particleRangeEnd, \
 					dt, dt2, t
 		EULER_STEP_BOUNDARY_SWITCH;
 #undef EULER_KERNEL_NAME

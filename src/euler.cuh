@@ -41,12 +41,6 @@ void
 geteulerconstants(PhysParams *physparams);
 
 void
-setinleteuler(const PhysParams *phys);
-
-void
-setoutleteuler(const PhysParams *phys);
-
-void
 setmbdata(const float4* MbData, uint size);
 
 void
@@ -67,8 +61,6 @@ euler(	const float4	*oldPos,
 		float4		*newPos,
 		float4		*newVel,
 		uint		numParticles,
-		uint		*newNumParts,
-		uint		maxParticles,
 		uint		particleRangeEnd,
 		float		dt,
 		float		dt2,

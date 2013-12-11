@@ -127,9 +127,6 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
-	// "new" number of particles for inlet
-	uint*		m_dNewNumParticles;
-
 	// stream for async memcpys
 	cudaStream_t m_asyncH2DCopiesStream;
 	cudaStream_t m_asyncD2HCopiesStream;
@@ -164,8 +161,6 @@ private:
 	void uploadSegments();
 	void updateSegments();
 	void resetSegments();
-	void downloadNewNumParticles();
-	void uploadNewNumParticles();
 
 	// moving boundaries, gravity, planes
 	void uploadMBData();
@@ -175,10 +170,6 @@ private:
 	void createCompactDeviceMap();
 	void uploadCompactDeviceMap();
 	void uploadConstants();
-
-	// upload inlets and outlets
-	void uploadInlets();
-	void uploadOutlets();
 
 	// bodies
 	void uploadBodiesCentersOfGravity();

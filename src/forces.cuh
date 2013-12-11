@@ -79,9 +79,6 @@ void
 setplaneconstants(int numPlanes, const float* PlanesDiv, const float4* Planes);
 
 void
-setoutletforces(const PhysParams *phys);
-
-void
 setgravity(float3 const& gravity);
 
 void

@@ -45,9 +45,6 @@ __constant__ float3	d_rbcg[MAXBODIES];
 __constant__ float3	d_rbtrans[MAXBODIES];
 __constant__ float	d_rbsteprot[9*MAXBODIES];
 
-// Include definitions and aux functions for inlet/outlet
-#include "inoutlet.cuh"
-
 /*
  * Device code.
  */
