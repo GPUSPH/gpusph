@@ -199,9 +199,6 @@ void StillWater::draw_boundary(float t)
 
 void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
-	float4 localpos;
-	uint hashvalue;
-
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
