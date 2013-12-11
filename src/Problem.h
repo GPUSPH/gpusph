@@ -59,7 +59,7 @@ class Problem {
 		const float	*m_dem;
 		int			m_ncols, m_nrows;
 
-		static int		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
+		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
 	public:
 		enum WriterType
 		{
@@ -254,9 +254,9 @@ class Problem {
 			problem->ODE_near_callback(data, o1, o2);
 		}
 
-		void allocate_ODE_bodies(const int);
+		void allocate_ODE_bodies(const uint);
 		void add_ODE_body(Object* object);
-		Object* get_ODE_body(const int);
+		Object* get_ODE_body(const uint);
 		void get_ODE_bodies_data(float3 * &, float * &);
 		float3* get_ODE_bodies_cg(void);
 		float* get_ODE_bodies_steprot(void);
@@ -265,6 +265,6 @@ class Problem {
 		int	get_ODE_bodies_numparts(void);
 		int	get_ODE_body_numparts(const int);
 
-		void init_keps(float*, float*, int, particleinfo*);
+		void init_keps(float*, float*, uint, particleinfo*);
 };
 #endif

@@ -39,7 +39,7 @@
 #include "Problem.h"
 #include "vector_math.h"
 
-int Problem::m_total_ODE_bodies = 0;
+uint Problem::m_total_ODE_bodies = 0;
 
 Problem::Problem(const Options &options)
 {
@@ -227,7 +227,7 @@ Problem::write_rbdata(float t)
 {
 	if (m_simparams.numODEbodies) {
 		if (need_write_rbdata(t)) {
-			for (int i = 0; i < m_simparams.numODEbodies; i++) {
+			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
 				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
 				fprintf(m_rbdatafile, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", i, t, cg[0],
@@ -276,7 +276,7 @@ Problem::g_callback(const float t)
 
 
 void
-Problem::allocate_ODE_bodies(const int i)
+Problem::allocate_ODE_bodies(const uint i)
 {
 	m_simparams.numODEbodies = i;
 	m_ODE_bodies = new Object *[i];
@@ -284,7 +284,7 @@ Problem::allocate_ODE_bodies(const int i)
 
 
 Object*
-Problem::get_ODE_body(const int i)
+Problem::get_ODE_body(const uint i)
 {
 	if (i >= m_simparams.numODEbodies) {
 		stringstream ss;
@@ -312,7 +312,7 @@ int
 Problem::get_ODE_bodies_numparts(void)
 {
 	int total_parts = 0;
-	for (int i = 0; i < m_simparams.numODEbodies; i++) {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
 		total_parts += m_ODE_bodies[i]->GetParts().size();
 	}
 
@@ -341,7 +341,7 @@ Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
 float3*
 Problem::get_ODE_bodies_cg(void)
 {
-	for (int i = 0; i < m_simparams.numODEbodies; i++)  {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
 		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 	}
 
@@ -361,7 +361,7 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
 {
 	dReal prev_quat[MAXBODIES][4];
-	for (int i = 0; i < m_total_ODE_bodies; i++)  {
+	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
 		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 		prev_quat[i][0] = quat[0];
 		prev_quat[i][1] = quat[1];
@@ -375,7 +375,7 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 	dWorldStep(m_ODEWorld, dt);
 	dJointGroupEmpty(m_ODEJointGroup);
 
-	for (int i = 0; i < m_simparams.numODEbodies; i++)  {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
 		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
 		m_bodies_cg[i] = new_cg;
@@ -551,7 +551,7 @@ Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
 }
 
 void
-Problem::init_keps(float* k, float* e, int numpart, particleinfo* info)
+Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info)
 {
 	const float Lm = fmax(2*m_deltap, 1e-5f);
 	const float k0 = pow(0.002f*m_physparams.sscoeff[0], 2);
