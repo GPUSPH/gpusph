@@ -982,13 +982,13 @@ bool GPUSPH::runSimulation() {
 		if (!gdata->t) {
 			throw DtZeroException(gdata->t, gdata->dt);
 		} else if (gdata->dt < FLT_EPSILON) {
-			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %u - requesting quit...\n", gdata->dt, gdata->iterations);
+			fprintf(stderr, "FATAL: timestep %g under machine epsilon at iteration %lu - requesting quit...\n", gdata->dt, gdata->iterations);
 			gdata->quit_request = true;
 		}
 
 		// check that dt is not too small (relative to t)
 		if (gdata->t == previous_t) {
-			fprintf(stderr, "FATAL: timestep %g too small at iteration %u, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
+			fprintf(stderr, "FATAL: timestep %g too small at iteration %lu, time is still - requesting quit...\n", gdata->dt, gdata->iterations);
 			gdata->quit_request = true;
 		}
 
@@ -1514,7 +1514,7 @@ void GPUSPH::printStatus()
 
 void GPUSPH::printParticleDistribution()
 {
-	printf("Particle distribution for process %u at iteration %u:\n", gdata->mpi_rank, gdata->iterations);
+	printf("Particle distribution for process %u at iteration %lu:\n", gdata->mpi_rank, gdata->iterations);
 	for (uint d = 0; d < gdata->devices; d++)
 		printf(" - Device %u: %u particles\n", d, gdata->s_hPartsPerDevice[d]);
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
@@ -1536,7 +1536,7 @@ void GPUSPH::rollCallParticles()
 	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
 		uint idx = id(gdata->s_hInfo[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %d, time %g particle idx %u is in pos %u and %u!\n",
+			printf("WARNING: at iteration %lu, time %g particle idx %u is in pos %u and %u!\n",
 					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);
 			// getchar(); // useful for debugging
 			// printf("Press ENTER to continue...\n");
@@ -1549,7 +1549,7 @@ void GPUSPH::rollCallParticles()
 	// now check if someone is missing
 	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++)
 		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %d, time %g particle idx %u was not found!\n",
+			printf("WARNING: at iteration %lu, time %g particle idx %u was not found!\n",
 					gdata->iterations, gdata->t, idx);
 			// printf("Press ENTER to continue...\n");
 			// getchar(); // useful for debugging
@@ -1607,7 +1607,7 @@ void GPUSPH::updateArrayIndices() {
 			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
 			gdata->totParticles = newSimulationTotal;
 		} else if (newSimulationTotal != gdata->totParticles) {
-			printf("WARNING: at iteration %u the number of particles changed from %u to %u for no known reason!\n",
+			printf("WARNING: at iteration %lu the number of particles changed from %u to %u for no known reason!\n",
 				gdata->iterations, gdata->totParticles, newSimulationTotal);
 
 			// who is missing? if single-node, do a roll call
@@ -1625,7 +1625,7 @@ void GPUSPH::updateArrayIndices() {
 	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
 	// FIXME: like in other methods, we should avoid quitting only one process
 	if (processCount > gdata->allocatedParticles) {
-		printf( "FATAL: Number of total particles at iteration %u (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
+		printf( "FATAL: Number of total particles at iteration %lu (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
 				gdata->iterations, processCount, gdata->allocatedParticles);
 		gdata->quit_request = true;
 	}
