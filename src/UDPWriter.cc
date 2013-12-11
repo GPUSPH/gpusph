@@ -263,7 +263,7 @@ void UDPWriter::write(uint numParts, const double4 *pos, const float4 *vel,
         for(uint i = 0; i < packet.particle_count; i++) {
             int offset = (pi * PTP_PARTICLES_PER_PACKET) + i;
             packet.data[i].id = offset;
-            packet.data[i].particle_type = info[i].x;
+            packet.data[i].particle_type = info[offset].x;
             memcpy(&packet.data[i].position, &pos[offset], sizeof(double4));
             total_particles_sent++;
         }
