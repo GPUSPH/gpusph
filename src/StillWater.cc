@@ -80,6 +80,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_writerType = VTKWRITER;
+	m_simparams.tend = 1.0;
 
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
@@ -96,7 +97,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
 
-	m_simparams.periodicbound = false;
+	m_simparams.periodicbound = 0;
 
 	// Scales for drawing
 	m_maxrho = density(H, 0);

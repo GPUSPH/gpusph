@@ -1512,6 +1512,9 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 	std::swap(m_currentGradGammaRead, m_currentGradGammaWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
 
+	// Build the neighbour list
+	buildNeibList(false);
+
 	// Compute virtual displacement
 	int itNumber = 200;
 	float deltat = 1.0/itNumber;

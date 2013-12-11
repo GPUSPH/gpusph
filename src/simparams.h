@@ -102,7 +102,7 @@ typedef struct SimParams {
 		savenormals(false),
 		surfaceparticle(false),
 		numODEbodies(0),
-		maxneibsnum(128)
+		maxneibsnum(256)
 	{};
 } SimParams;
 
