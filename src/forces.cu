@@ -830,10 +830,11 @@ void unset_reduction_params()
 
 // Compute system energy
 void calc_energy(
-		float4*			output,
-		float4	const*	pos,
-		float4	const*	vel,
-	particleinfo const*	pinfo,
+		float4			*output,
+	const	float4		*pos,
+	const	float4		*vel,
+	const	particleinfo	*pinfo,
+	const	uint		*particleHash,
 		uint			numParticles,
 		uint			numFluids)
 {
@@ -847,11 +848,11 @@ void calc_energy(
 	while (blocksize*2 < blocksize_max)
 		blocksize<<=1;
 
-	cuforces::calcEnergies<<<reduce_blocks, blocksize, blocksize*shmem_thread>>>(
-			pos, vel, pinfo, numParticles, numFluids, (float4*)reduce_buffer);
+	cuforces::calcEnergiesDevice<<<reduce_blocks, blocksize, blocksize*shmem_thread>>>(
+			pos, vel, pinfo, particleHash, numParticles, numFluids, (float4*)reduce_buffer);
 	CUT_CHECK_ERROR("System energy stage 1 failed");
 
-	cuforces::calcEnergies2<<<1, reduce_bs2, reduce_bs2*shmem_thread>>>(
+	cuforces::calcEnergies2Device<<<1, reduce_bs2, reduce_bs2*shmem_thread>>>(
 			(float4*)reduce_buffer, reduce_blocks, numFluids);
 	CUT_CHECK_ERROR("System energy stage 2 failed");
 	CUDA_SAFE_CALL(cudaMemcpy(output, reduce_buffer, numFluids*sizeof(float4), cudaMemcpyDeviceToHost));

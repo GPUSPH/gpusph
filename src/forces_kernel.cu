@@ -1023,13 +1023,14 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
 extern __shared__ float4 shmem4[];
 
 extern "C" __global__
-void calcEnergies(
-		const float4* pPos,
-		const float4* pVel,
-		const particleinfo* pInfo,
+void calcEnergiesDevice(
+	const		float4	*pPos,
+	const		float4	*pVel,
+	const	particleinfo	*pInfo,
+	const		uint	*particleHash,
 		uint	numParticles,
 		uint	numFluids,
-		float4* output
+		float4	*output
 		)
 {
 	// shared memory for this kernel should be sized to
@@ -1045,13 +1046,15 @@ void calcEnergies(
 		energy[i] = E_k[i] = make_float4(0.0f);
 
 	while (gid < numParticles) {
-		float4 pos = pPos[gid];
-		float4 vel = pVel[gid];
+		const float4 pos = pPos[gid];
+		const float4 vel = pVel[gid];
+		const int3 gridPos = calcGridPosFromHash(particleHash[gid]);
 		particleinfo pinfo = pInfo[gid];
 		if (FLUID(pinfo)) {
 			uint fluid_num = PART_FLUID_NUM(pinfo);
 			float v2 = kahan_sqlength(as_float3(vel));
-			float gh = kahan_dot(d_gravity, as_float3(pos));
+			// TODO improve precision by splitting the float part from the grid part
+			float gh = kahan_dot(d_gravity, as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize);
 			kahan_add(energy[fluid_num].x, pos.w*v2/2, E_k[fluid_num].x);
 			kahan_add(energy[fluid_num].y, -pos.w*gh, E_k[fluid_num].y);
 			// internal elastic energy
@@ -1104,7 +1107,7 @@ void calcEnergies(
 
 // final reduction stage
 extern "C" __global__
-void calcEnergies2(
+void calcEnergies2Device(
 		float4* buffer,
 		uint	prev_blocks,
 		uint	numFluids)

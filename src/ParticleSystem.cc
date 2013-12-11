@@ -914,6 +914,7 @@ ParticleSystem::writeToFile()
 		m_dPos[m_currentPosRead],
 		m_dVel[m_currentVelRead],
 		m_dInfo[m_currentInfoRead],
+		m_dParticleHash,
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);
