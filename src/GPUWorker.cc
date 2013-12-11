@@ -118,7 +118,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
 
 	if (m_numAllocatedParticles < m_numParticles) {
-		printf("FATAL: thread %u needs %lu particles, but there is memory for %lu (plus safety margin)\n", m_deviceIndex, m_numParticles, m_numAllocatedParticles);
+		printf("FATAL: thread %u needs %u particles, but there is memory for %u (plus safety margin)\n", m_deviceIndex, m_numParticles, m_numAllocatedParticles);
 		exit(1);
 	}
 }
