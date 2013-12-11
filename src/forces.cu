@@ -109,8 +109,6 @@ void*	reduce_buffer = NULL;
 		NOT_IMPLEMENTED_CHECK(Viscosity, visctype); \
 	}
 
-//		VISC_CHECK_SPS(boundarytype, dem); \
-
 #define BOUNDARY_CHECK(boundary, dem) \
 	case boundary: \
 		VISC_SWITCH(boundary, dem) \
