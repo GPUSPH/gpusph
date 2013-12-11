@@ -407,11 +407,12 @@ forces(	float4*			pos,
 			SPS_CHECK(CUBICSPLINE);
 			SPS_CHECK(QUADRATIC);
 			SPS_CHECK(WENDLAND);
+			NOT_IMPLEMENTED_CHECK(Kernel, kerneltype);
 		}
 
 		// check if kernel invocation generated an error
 		CUT_CHECK_ERROR("SPS kernel execution failed");
-		
+
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau0Tex, tau[0], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
@@ -428,6 +429,7 @@ forces(	float4*			pos,
 			KEPS_CHECK(CUBICSPLINE);
 			//KEPS_CHECK(QUADRATIC);
 			KEPS_CHECK(WENDLAND);
+			NOT_IMPLEMENTED_CHECK(Kernel, kerneltype);
 		}
 		// check if kernel invocation generated an error
 		CUT_CHECK_ERROR("MeanScalarStrainRate kernel execution failed");
@@ -495,6 +497,7 @@ forces(	float4*			pos,
 				case KEPSVISC:
 					dt_visc = slength*slength/(visccoeff + cflmax(numBlocks, cflTVisc, tempCfl));
 					break;
+				NOT_IMPLEMENTED_CHECK(Viscosity, visctype);
 				}
 			dt_visc *= 0.125;
 			if (dt_visc < dt)
@@ -760,13 +763,13 @@ void reduceRbForces(float4*		forces,
 				forces_devptr, forces_devptr, binary_pred, binary_op);
 	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
 				torques_devptr, torques_devptr, binary_pred, binary_op);
-	
-	for (int i = 0; i < numbodies; i++) {
+
+	for (uint i = 0; i < numbodies; i++) {
 		float4 temp;
 		void * ddata = (void *) (forces + lastindex[i]);
 		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
 		totalforce[i] = as_float3(temp);
-		
+
 		ddata = (void *) (torques + lastindex[i]);
 		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
 		totaltorque[i] = as_float3(temp);
@@ -774,11 +777,11 @@ void reduceRbForces(float4*		forces,
 }
 
 
-void 
-reducefmax(	const int	size, 
-			const int	threads, 
-			const int	blocks, 
-			float		*d_idata, 
+void
+reducefmax(	const int	size,
+			const int	threads,
+			const int	blocks,
+			float		*d_idata,
 			float		*d_odata)
 {
 	dim3 dimBlock(threads, 1, 1);
