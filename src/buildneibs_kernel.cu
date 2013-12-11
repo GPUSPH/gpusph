@@ -75,7 +75,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset)
 		if (newGridPos.x < 0) newGridPos.x += d_gridSize.x;
 		if (newGridPos.x >= d_gridSize.x) newGridPos.x -= d_gridSize.x;
 	} else {
-		newGridPos.x = max(0, min(gridPos.x, d_gridSize.x-1));
+		newGridPos.x = min(max(0, gridPos.x), d_gridSize.x-1);
 		gridOffset.x = newGridPos.x - gridPos.x;
 	}
 
@@ -84,7 +84,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset)
 		if (newGridPos.y < 0) newGridPos.y += d_gridSize.y;
 		if (newGridPos.y >= d_gridSize.y) newGridPos.y -= d_gridSize.y;
 	} else {
-		newGridPos.y = max(0, min(gridPos.y, d_gridSize.y-1));
+		newGridPos.y = min(max(0, gridPos.y), d_gridSize.y-1);
 		gridOffset.y = newGridPos.y - gridPos.y;
 	}
 
@@ -93,7 +93,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset)
 		if (newGridPos.z < 0) newGridPos.z += d_gridSize.z;
 		if (newGridPos.z >= d_gridSize.z) newGridPos.z -= d_gridSize.z;
 	} else {
-		newGridPos.z = max(0, min(gridPos.z, d_gridSize.z-1));
+		newGridPos.z = min(max(0, gridPos.z), d_gridSize.z-1);
 		gridOffset.z = newGridPos.z - gridPos.z;
 	}
 
@@ -116,9 +116,9 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset)
 	int3 newGridPos = gridPos + gridOffset;
 
 	// Without periodicity the new grid position is clamped to edges
-	newGridPos.x = max(0, min(newGridPos.x, d_gridSize.x-1));
-	newGridPos.y = max(0, min(newGridPos.y, d_gridSize.y-1));
-	newGridPos.z = max(0, min(newGridPos.z, d_gridSize.z-1));
+	newGridPos.x = min(max(0, newGridPos.x), d_gridSize.x-1);
+	newGridPos.y = min(max(0, newGridPos.y), d_gridSize.y-1);
+	newGridPos.z = min(max(0, newGridPos.z), d_gridSize.z-1);
 
 	// In case of change in grid position the grid offset is updated
 	gridOffset = newGridPos - gridPos;

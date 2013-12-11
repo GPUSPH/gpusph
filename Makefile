@@ -10,6 +10,8 @@
 #   will always be up-to-date
 # - When adding an option, comment it with "# option: name - desc" and help
 #   will always be up-to-date
+# - When adding an overridable setting, document it with "# override: name - desc" and help
+#   will always be up-to-date
 # - Makefile is assumed to be GNU (see http://www.gnu.org/software/make/manual/)
 # - Source C++ files have extension .cc (NOT .cpp)
 # - C++ Headers have extension .h
@@ -116,13 +118,13 @@ EXTRA_PROBLEM_FILES += half_wave0.1m.txt
 
 # --------------- Locate and set up compilers and flags
 
-# CUDA installation/lib/include paths
-# override by setting them in the enviornment
-# Default to /usr/local/cuda if the install path
-# has not been specified
+# override: CUDA_INSTALL_PATH - where CUDA is installed
+# override:                     defaults /usr/local/cuda,
+# override:                     validity is checked by looking for bin/nvcc under it,
+# override:                     /usr is always tried as a last resort
 CUDA_INSTALL_PATH ?= /usr/local/cuda
 
-# We check the validity of the path by looking for /bin/nvcc under it.
+# We check the validity of the path by looking for bin/nvcc under it.
 # if not found, we look into /usr, and finally abort
 ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
 	CUDA_INSTALL_PATH = /usr
@@ -148,6 +150,9 @@ versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
 
+# override: CUDA_SDK_PATH - location for the CUDA SDK samples
+# override:                 defaults to $(CUDA_INSTALL_PATH)/samples for CUDA 5 or higher,
+# override:                             /usr/local/cudasdk for older versions of CUDA.
 ifeq ($(CUDA_MAJOR), 5)
 	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 else
@@ -165,6 +170,10 @@ endif
 #   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
 # There are cases in which this might fail, but we'll fix it when we actually come across them
 WE_USE_CLANG=0
+
+# override: CXX - the host C++ compiler.
+# override:       defaults to g++, except on Darwin
+# override:       where clang++ is used if available
 ifeq ($(CXX),c++)
 	CXX = g++
 	ifeq ($(platform), Darwin)
@@ -261,7 +270,6 @@ ifneq ($(dbg), $(LAST_DBG))
 endif
 
 # option: compute - 11, 12 or 20: compute capability to compile for (default: 12)
-# option:           Override CFLAGS to compile for multiple architectures.
 # does dbg differ from last?
 ifdef compute
 	# user choice
@@ -300,32 +308,37 @@ endif
 
 # --- Includes and library section start ---
 
-# architecture switch. The *_SFX vars will be used later.
-GLEW_ARCH_SFX=
-LIB_PATH_SFX=
+GLEW_ARCH_SFX =
+LIB_PATH_SFX =
 
+# override: TARGET_ARCH - set the target architecture
+# override:               defaults to -m64 for 64-bit machines
+# override:                           -m32 for 32-bit machines
 ifeq ($(arch), x86_64)
 	TARGET_ARCH ?= -m64
 	# cuda 5.x with 64bit libs does not require the suffix anymore
 	ifneq ($(CUDA_MAJOR), 5)
-		#GLEW_ARCH_SFX=_x86_64
+		GLEW_ARCH_SFX =_x86_64
 	endif
 	# on Linux, toolkit libraries are under /lib64 for 64-bit
 	ifeq ($(platform), Linux)
-		LIB_PATH_SFX=64
+		LIB_PATH_SFX = 64
 	endif
 else # i386 or i686
 	TARGET_ARCH ?= -m32
 endif
 
-# paths for include files
+# override: INCPATH - paths for include files
+# override:           add entries in the form: -I/some/path
 INCPATH ?=
-# paths for library searches
+# override: LIBPATH - paths for library searches
+# override:           add entries in the form: -L/some/path
 LIBPATH ?=
-# libraries
+# override: LIBS - additional libraries
+# override:        add entries in the form: -lsomelib
 LIBS ?=
 
-# flags passed to the linker
+# override: LDFLAGS - flags passed to the linker
 LDFLAGS ?=
 
 # Most of these settings are platform independent
@@ -365,6 +378,8 @@ LIBS += -lcudart
 LIBS += -lode
 # link to HDF5 for input reading
 LIBS += -lhdf5
+# pthread needed for the UDP writer
+LIBS += -lpthread
 
 LIBS += -lGLEW$(GLEW_ARCH_SFX)
 
@@ -389,10 +404,11 @@ LDFLAGS += $(LIBPATH) $(LIBS)
 #     for .cc files, or via nvcc, for .cu files), and when linking
 # CUFLAGS are flags passed to the CUDA compiler when compiling CUDA files
 
-# initialize them by reading them from the environment, if present
-# this allows the user to add specific options
+# override: CPPFLAGS - preprocessor flags
 CPPFLAGS ?=
+# override: CXXFLAGS - C++ host compiler options
 CXXFLAGS ?=
+# override: CUFLAGS - nvcc compiler options
 CUFLAGS  ?=
 
 # First of all, put the include paths into the CPPFLAGS
@@ -461,7 +477,7 @@ DOXYCONF = ./Doxygen_settings
 
 # otherwise
 # find if the working directory is dirty --this gives the number of changed files
-snap_date := $(shell git log -1 --format='%cd %h' --date=iso | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
+snap_date := $(shell git log -1 --format='%cd %h' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
 is_dirty:=
 ifneq ($(shell git status --porcelain 2> /dev/null | wc -l),0)
 	is_dirty:=+custom
@@ -704,8 +720,10 @@ help:
 	@echo "  $$ make help-options"
 	@echo
 	@echo "for a description of available options."
-	@echo "Note: if a CFLAGS environment variable is set, it is used as is."
-	@echo "Unset it ('unset CFLAGS') to let Makefile set the flags."
+	@echo
+	@echo "  $$ make help-overrides"
+	@echo
+	@echo "for a description of possible options."
 
 # target: help-targets - Display callable targets
 help-targets:
@@ -717,6 +735,13 @@ help-options:
 	@echo "Options:"
 	@grep -e "^# option:" $(MAKEFILE) | sed 's/^# option: /    /' # | sed 's/ - /\t/'
 	@echo "(usage: make option=value)"
+
+# target: help-overrides - Document available overrides
+help-overrides:
+	@echo "Default settings for these can be overridden/extended"
+	@echo "by creating a Makefile.local that sets them:"
+	@grep -e "^# override:" $(MAKEFILE) | sed 's/^# override: /    /' # | sed 's/ - /\t/'
+
 
 # "sinclude" instead of "include" tells make not to print errors if files are missing.
 # This is necessary because during the first processing of the makefile, make complains

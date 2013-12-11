@@ -246,12 +246,13 @@ void unset_reduction_params();
 
 // Compute system energy
 void calc_energy(
-		float4*			output,
-		float4	const*	pos,
-		float4	const*	vel,
-		particleinfo const*	pinfo,
-		uint			numParticles,
-		uint			numFluids);
+			float4			*output,
+	const	float4			*pos,
+	const	float4			*vel,
+	const	particleinfo	*pinfo,
+	const	uint			*particleHash,
+			uint			numParticles,
+			uint			numFluids);
 
 // Computes initial values of the gamma gradient
 void

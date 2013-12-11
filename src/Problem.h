@@ -66,7 +66,8 @@ class Problem {
 			TEXTWRITER,
 			VTKWRITER,
 			VTKLEGACYWRITER,
-			CUSTOMTEXTWRITER
+			CUSTOMTEXTWRITER,
+			UDPWRITER
 		};
 
 		dWorldID		m_ODEWorld;
@@ -206,6 +207,18 @@ class Problem {
 		{
 			return &m_physparams;
 		};
+
+		// simple functions to add gages. the third component
+		// is actually ignored
+		void add_gage(double3 const& pt);
+
+		inline
+		void add_gage(double2 const& pt)
+		{ add_gage(make_double3(pt)); }
+
+		inline
+		void add_gage(double x, double y, double z=0)
+		{ add_gage(make_double3(x, y, z)); }
 
 		string const& create_problem_dir();
 		bool need_display(float);

@@ -142,6 +142,11 @@ Problem::need_display(float t)
 	return false;
 }
 
+void
+Problem::add_gage(double3 const& pt)
+{
+	m_simparams.gage.push_back(pt);
+}
 
 std::string const&
 Problem::create_problem_dir(void)
@@ -510,9 +515,9 @@ Problem::calc_grid_pos(const Point&	pos)
 	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
 	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
 	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
-	gridPos.x = max(0, min(gridPos.x, m_gridsize.x-1));
-	gridPos.y = max(0, min(gridPos.y, m_gridsize.y-1));
-	gridPos.z = max(0, min(gridPos.z, m_gridsize.z-1));
+	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
+	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
+	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);
 
 	return gridPos;
 }

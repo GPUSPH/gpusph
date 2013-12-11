@@ -47,6 +47,7 @@
 #include "TextWriter.h"
 #include "CustomTextWriter.h"
 #include "VTKWriter.h"
+#include "UDPWriter.h"
 #include "VTKLegacyWriter.h"
 #include "Problem.h"
 #include "Writer.h"
@@ -171,6 +172,10 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	//setPhysParams();
 
 	switch(m_writerType) {
+		case Problem::UDPWRITER:
+			m_writer = new UDPWriter(problem);
+			break;
+
 		case Problem::TEXTWRITER:
 			m_writer = new TextWriter(problem);
 			break;
@@ -1187,13 +1192,17 @@ ParticleSystem::writeToFile()
 	//Testpoints
 	m_writer->write(m_numParticles, m_hdPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals, m_hGradGamma, m_hTKE, m_hTurbVisc);
 	m_problem->mark_written(m_simTime);
-	calc_energy(m_hEnergy,
-		m_dPos[m_currentPosRead],
-		m_dVel[m_currentVelRead],
-		m_dInfo[m_currentInfoRead],
-		m_numParticles,
-		m_physparams->numFluids);
-	m_writer->write_energy(m_simTime, m_hEnergy);
+
+	if (m_simparams->calc_energy) {
+		calc_energy(m_hEnergy,
+			m_dPos[m_currentPosRead],
+			m_dVel[m_currentVelRead],
+			m_dInfo[m_currentInfoRead],
+			m_dParticleHash,
+			m_numParticles,
+			m_physparams->numFluids);
+		m_writer->write_energy(m_simTime, m_hEnergy);
+	}
 }
 
 
@@ -1347,7 +1356,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 		GageList::iterator end = m_simparams->gage.end();
 		while (g != end) {
 			glVertex3f(g->x, g->y, m_worldOrigin.z);
-			glVertex3f(g->x, g->y, m_worldSize.z);
+			glVertex3f(g->x, g->y, m_worldOrigin.z + m_worldSize.z);
 			++g;
 		}
 		glEnd();
@@ -2426,31 +2435,39 @@ ParticleSystem::reducerbforces(void)
 void
 ParticleSystem::writeWaveGage()
 {
-	float uplimitx, downlimitx, uplimity, downlimity;
+	uint num =  m_simparams->gage.size();
+	double2 upper_limit[num], lower_limit[num];
+	uint gage_parts[num];
 
-	int num =  m_simparams->gage.size();
+	// initialize the gage limits and z
+	for (uint g = 0 ; g < num; ++g) {
+		upper_limit[g] = make_double2(m_simparams->gage[g]) + 2*m_simparams->slength;
+		lower_limit[g] = make_double2(m_simparams->gage[g]) - 2*m_simparams->slength;
+		gage_parts[g] = 0;
+		m_simparams->gage[g].z = 0;
+	}
 
-	for (int i = 0 ; i < num; ++i) {
-		uplimitx = m_simparams->gage[i].x+2*m_simparams->slength;
-		downlimitx = m_simparams->gage[i].x-2*m_simparams->slength;
-		uplimity = m_simparams->gage[i].y+2*m_simparams->slength;
-		downlimity = m_simparams->gage[i].y-2*m_simparams->slength;
-		int kcheck = 0;
-		m_simparams->gage[i].z = 0;
+	// loop over all surface particles, finding which gages they are close to
+	// add the respective heights for each gage for the averaging
+	for (uint index = 0; index < m_numParticles; index++) {
+		if (SURFACE(m_hInfo[index])) {
+			double4 pos = m_hdPos[index];
 
-		for (uint index = 0; index < m_numParticles; index++) {
-			if (SURFACE(m_hInfo[index])) {
-				float4 pos = m_hPos[index];
-
-				//Taking height average between neighbouring surface particles 
-				if ((pos.x > downlimitx) && (pos.x < uplimitx) && (pos.y > downlimity) && (pos.y < uplimity)){
-					kcheck ++;
-					m_simparams->gage[i].z += pos.z;
+			// Taking height average between neighbouring surface particles 
+			for (uint g = 0 ; g < num; ++g) {
+				if ((pos.x > lower_limit[g].x) && (pos.x < upper_limit[g].x) &&
+					(pos.y > lower_limit[g].y) && (pos.y < upper_limit[g].y)) {
+						gage_parts[g]++;
+						m_simparams->gage[g].z += pos.z;
 				}
-			} //if PART_FLAG
-		} //For loop over particles
-		m_simparams->gage[i].z = m_simparams->gage[i].z/kcheck;
-	} // For loop over WaveGages
+			}
+		}
+	}
+
+	// actual averaging of the heights
+	for (uint g = 0 ; g < num; ++g) {
+		m_simparams->gage[g].z /= gage_parts[g];
+	}
 
 	//Write WaveGage information on one text file
 	m_writer->write_WaveGage(m_simTime,m_simparams->gage);
