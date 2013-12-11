@@ -754,7 +754,7 @@ initGradGammaDevice(	float4*		oldPos,
 				}
 			}
 
-			if(rmin < 0.8*deltap && FLUID(info))
+			if(rmin < 0.8f*deltap && FLUID(info))
 				disable_particle(pos);
 
 			//DEBUG output
@@ -763,14 +763,14 @@ initGradGammaDevice(	float4*		oldPos,
 			
 			//Set the virtual displacement
 			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10) {
-				virtVel = -1.0 * inflRadius * gGam / magnitude;
-				virtVel.w = 0.0;
+			if (magnitude > 1.e-10f) {
+				virtVel = -1.0f * inflRadius * gGam / magnitude;
+				virtVel.w = 0.0f;
 			}
 		}
 		
 		// Set gamma to 1
-		gGam.w = 1.0;
+		gGam.w = 1.0f;
 		
 		gradGam[index] = gGam;
 		virtualVel[index].x = virtVel.x;
@@ -806,7 +806,7 @@ updateGammaDevice(	const float4* oldPos,
 		float4 oldGam = tex1Dfetch(gamTex, index);
 
 		float4 gGam = make_float4(0.0f);
-		float deltaGam = 0.0;
+		float deltaGam = 0.0f;
 
 		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
 		if(FLUID(info) || VERTEX(info)) {
@@ -848,11 +848,11 @@ updateGammaDevice(	const float4* oldPos,
 
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10) {
-				gGam.w = oldGam.w + deltaGam * 0.5*virtDt;
+			if (magnitude > 1.e-10f) {
+				gGam.w = oldGam.w + deltaGam * 0.5f*virtDt;
 			}
 			else
-				gGam.w = 1.0;
+				gGam.w = 1.0f;
 		}
 
 		newGam[index] = gGam;
@@ -881,7 +881,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 		float4 oldGam = tex1Dfetch(gamTex, index);
 
 		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGam.w);
-		float deltaGam = 0.0;
+		float deltaGam = 0.0f;
 		deltaGam += dot(make_float3(oldGam), vel); //FIXME: It is incorrect for moving boundaries
 
 		// Compute gradient of gamma for fluid only
@@ -919,11 +919,11 @@ updateGammaPrCorDevice( const float4*		newPos,
 
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10) {
-				gGam.w = oldGam.w + deltaGam * 0.25*virtDt;
+			if (magnitude > 1.e-10f) {
+				gGam.w = oldGam.w + deltaGam * 0.25f*virtDt;
 			}
 			else
-				gGam.w = 1.0;
+				gGam.w = 1.0f;
 		}
 
 		newGam[index] = gGam;

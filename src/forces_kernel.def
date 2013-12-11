@@ -337,7 +337,7 @@ FORCES_CUDA_KERNEL
 								}
 								y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 
-								const float denom_term = pow(log(y_plus)/0.41f + 5.2, 2);
+								const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 								bound_term_visc = 2*vel.w*abs_u_t*abs_gradgam_as*u_t/denom_term;
 								# else
 								bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
@@ -376,7 +376,7 @@ FORCES_CUDA_KERNEL
 						case MF_BOUNDARY:
 							break;
 						default:
-							DvDt = 1.0/0.0;
+							DvDt = 1.0f/0.0f;
 							break;
 					}
 					// interaction between two particles
@@ -400,9 +400,9 @@ FORCES_CUDA_KERNEL
 			# elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
 			const float dynvisc = d_visccoeff*vel.w/4.0f;				// FXME: check????????
 			# elif defined(VISC_ARTVISC)
-			const float dynvisc = 0.0;
+			const float dynvisc = 0.0f;
 			# elif defined(VISC_KEPS)
-			const float dynvisc = 0.0;
+			const float dynvisc = 0.0f;
 
 			float dkdt = Pturb - keps_e + diff_term_k/vel.w/gradgamma.w;								// dk/dt
 			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e) + diff_term_e/vel.w/gradgamma.w;	// de/dt
@@ -532,7 +532,7 @@ FORCES_CUDA_KERNEL
 						}
 						y_plus = max(r_es*u_star/d_visccoeff, 11.f);
 
-						const float denom_term = pow(log(y_plus)/0.41f + 5.2, 2)*gradgamma.w;
+						const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2)*gradgamma.w;
 
 						force.x -= 2*abs_u_t*abs_gradgam_es*u_t.x/denom_term;
 						force.y -= 2*abs_u_t*abs_gradgam_es*u_t.y/denom_term;
@@ -595,7 +595,7 @@ FORCES_CUDA_KERNEL
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 				if (r < influenceradius) {
-					float DvDt = 0.0;
+					float DvDt = 0.0f;
 
 					// Now object-object and object boundary forces are computed with ODE
 					if (FLUID(neib_info) && !OBJECT(neib_info))
