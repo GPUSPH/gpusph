@@ -71,9 +71,9 @@ typedef struct SimParams {
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;			// true if we want to save vorticity
-	bool            testpoints;         // true if we want to find velocity at testpoints
-	bool            savenormals;        // true if we want to save the normals at free surface
-	bool            surfaceparticle;    // true if we want to find surface particles
+	bool			testpoints;			// true if we want to find velocity at testpoints
+	bool			savenormals;		// true if we want to save the normals at free surface
+	bool			surfaceparticle;	// true if we want to find surface particles
 	GageList		gage;				// water gages
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
