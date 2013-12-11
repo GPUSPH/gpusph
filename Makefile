@@ -377,6 +377,8 @@ endif
 LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
+# pthread needed for the UDP writer
+LIBS += -lpthread
 
 LIBS += -lGLEW$(GLEW_ARCH_SFX)
 
