@@ -96,7 +96,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	m_origin = make_double3(0.0, 0.0, 0.0);
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0f, 7.0f, 20.f);
 
 	m_physparams.dcoeff = 50.47;
