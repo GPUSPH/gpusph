@@ -310,6 +310,7 @@ void init(const char *arg)
 {
 	problem = new PROBLEM(clOptions);
 	problem->check_dt();
+	problem->check_maxneibsnum();
 
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();

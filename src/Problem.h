@@ -121,6 +121,8 @@ class Problem {
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
 		virtual void check_dt();
+		/* a function to increase the maxneibsnum if MF_BOUNDARY are used */
+		virtual void check_maxneibsnum();
 
 		Options const& get_options(void) const
 		{
