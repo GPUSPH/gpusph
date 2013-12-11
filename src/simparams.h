@@ -74,6 +74,7 @@ typedef struct SimParams {
 	bool			testpoints;			// true if we want to find velocity at testpoints
 	bool			savenormals;		// true if we want to save the normals at free surface
 	bool			surfaceparticle;	// true if we want to find surface particles
+	bool			calc_energy;		// true if we want to compute system energy at save time
 	GageList		gage;				// water gages
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
@@ -99,6 +100,7 @@ typedef struct SimParams {
 		testpoints(false),
 		savenormals(false),
 		surfaceparticle(false),
+		calc_energy(true),
 		numODEbodies(0),
 		maxneibsnum(128)
 	{};

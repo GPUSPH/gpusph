@@ -907,17 +907,19 @@ ParticleSystem::writeToFile()
 
 		m_hdPos[i] = dpos;
 	}
-	//Testpoints
 	m_writer->write(m_numParticles, m_hdPos, m_hVel, m_hInfo, m_hVort, m_simTime, m_simparams->testpoints, m_hNormals);
 	m_problem->mark_written(m_simTime);
-	calc_energy(m_hEnergy,
-		m_dPos[m_currentPosRead],
-		m_dVel[m_currentVelRead],
-		m_dInfo[m_currentInfoRead],
-		m_dParticleHash,
-		m_numParticles,
-		m_physparams->numFluids);
-	m_writer->write_energy(m_simTime, m_hEnergy);
+
+	if (m_simparams->calc_energy) {
+		calc_energy(m_hEnergy,
+			m_dPos[m_currentPosRead],
+			m_dVel[m_currentVelRead],
+			m_dInfo[m_currentInfoRead],
+			m_dParticleHash,
+			m_numParticles,
+			m_physparams->numFluids);
+		m_writer->write_energy(m_simTime, m_hEnergy);
+	}
 }
 
 
