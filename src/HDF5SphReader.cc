@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <hdf5.h>
+
+#include <stdexcept>
+
 #include "HDF5SphReader.h"
 
 // Name of dataset_id to create in loc_id
@@ -18,7 +21,7 @@
 int
 HDF5SphReader::getNParts(const char *filename)
 {
-	hid_t		mem_type_id, loc_id, dataset_id, file_space_id, mem_space_id;
+	hid_t		loc_id, dataset_id, file_space_id;
 	hsize_t		*dims;
 	int		ndim;
 	int		npart;
@@ -43,7 +46,7 @@ void
 HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 {
 	hid_t		mem_type_id, loc_id, dataset_id, file_space_id, mem_space_id;
-	hsize_t		count[RANK], offset[RANK], dim[] = {num};
+	hsize_t		count[RANK], offset[RANK];
 	herr_t		status;
 
 	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
@@ -75,10 +78,16 @@ HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 
 	// set up dimensions of the slab this process accesses
 	file_space_id = H5Dget_space(dataset_id);
-	status=H5Sselect_hyperslab(file_space_id, H5S_SELECT_SET, offset, NULL, count, NULL);
+	status = H5Sselect_hyperslab(file_space_id, H5S_SELECT_SET, offset, NULL, count, NULL);
+	if (status < 0) {
+		throw std::runtime_error("reading HDF5 hyperslab");
+	}
 
 	// read data independently
 	status = H5Dread(dataset_id, mem_type_id, mem_space_id, file_space_id, H5P_DEFAULT, buf);
+	if (status < 0) {
+		throw std::runtime_error("reading HDF5 data");
+	}
 
 	H5Dclose(dataset_id);
 	H5Sclose(file_space_id);
