@@ -47,6 +47,7 @@
 #include "TextWriter.h"
 #include "CustomTextWriter.h"
 #include "VTKWriter.h"
+#include "UDPWriter.h"
 #include "VTKLegacyWriter.h"
 #include "Problem.h"
 #include "Writer.h"
@@ -147,6 +148,10 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	//setPhysParams();
 
 	switch(m_writerType) {
+		case Problem::UDPWRITER:
+			m_writer = new UDPWriter(problem);
+			break;
+
 		case Problem::TEXTWRITER:
 			m_writer = new TextWriter(problem);
 			break;
