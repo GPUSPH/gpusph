@@ -66,7 +66,7 @@ class Problem {
 			VTKWRITER,
 			VTKLEGACYWRITER,
 			CUSTOMTEXTWRITER,
-            UDPWRITER
+			UDPWRITER
 		};
 
 		dWorldID		m_ODEWorld;

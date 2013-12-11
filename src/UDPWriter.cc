@@ -147,7 +147,7 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
             fprintf(stdout, "Received packet from address: %s\n", str);
 #endif
             time(&last_heartbeat_received);
-        } 
+        }
         time(&now);
         size_t d = difftime(now, last_heartbeat_received);
         if(d > (PTP_HEARTBEAT_TTL_S * 2)) {
@@ -205,7 +205,7 @@ UDPWriter::~UDPWriter() {
 void UDPWriter::write(uint numParts, const double4 *pos, const float4 *vel,
     const particleinfo *info, const float3 *vort, float t,
     const bool testpoints, const float4 *normals) {
- 
+
     static short is_initialized = 0;
     static int particles_in_last_packet = 0;
     static uint packets_sent = 0;
@@ -226,7 +226,7 @@ void UDPWriter::write(uint numParts, const double4 *pos, const float4 *vel,
         cout << packets_per_time_step << " packets_per_time_step" << endl;
 #endif
         is_initialized = 1;
-    
+
         int udp_buffer_size = sizeof(ptp_packet_t) * packets_per_time_step;
         if (setsockopt(mSocket, SOL_SOCKET, SO_SNDBUF,
             &udp_buffer_size, (socklen_t)(sizeof(int))) == -1) {
