@@ -165,8 +165,6 @@ Sphere::GLDraw(const EulerParameters& ep, const Point& cg) const
 	
 	for (int i = 0; i < SPHERE_CIRCLES/2; i ++) {
 		const double u = i*angle1;
-		const double cosu = cos(u);
-		const double sinu = sin(u);
 		glBegin(GL_POLYGON);
 		for (int j = 0; j < CIRCLE_LINES; ++j) {
 			double v = j*angle2;
