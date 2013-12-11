@@ -102,6 +102,14 @@ Problem::check_dt(void)
 
 }
 
+/* a function to increase the maxneibsnum if MF_BOUNDARY are used */
+void
+Problem::check_maxneibsnum(void)
+{
+	if(m_simparams.boundarytype==MF_BOUNDARY)
+		m_simparams.maxneibsnum = 224;
+}
+
 
 float
 Problem::density(float h, int i) const
