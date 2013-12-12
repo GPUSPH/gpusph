@@ -89,7 +89,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.tend = 1.5f; //0.00036f
 
 	// Free surface detection
-	m_simparams.surfaceparticle = false;
+	m_simparams.surfaceparticle = true;
 	m_simparams.savenormals = false;
 
 	// Vorticity
@@ -159,8 +159,8 @@ int DamBreak3D::fill_parts()
 	experiment_box = Cube(Point(m_origin), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(m_origin + make_double3(0.9, 0.24, r0)), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
+	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), Vector(0.161, 0, 0),
+					Vector(0, 0.403, 0), Vector(0, 0, 0.161));
 
 	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
@@ -253,14 +253,16 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 	float4 localpos;
 	uint hashvalue;
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,0,i);
+	if(boundary_parts.size()){
+		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+		for (uint i = 0; i < boundary_parts.size(); i++) {
+			calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(BOUNDPART,0,i);
+		}
+		int j = boundary_parts.size();
+		std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 	}
-	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	//Testpoints
 	if (test_points.size()) {

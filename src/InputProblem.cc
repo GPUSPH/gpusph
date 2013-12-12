@@ -245,31 +245,35 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
-	std::cout << "Vertex parts: " << n_vparts << "\n";
-	for (uint i = j; i < j + n_vparts; i++) {
-		float rho = density(H - buf[i].Coords_2, 0);
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
-		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(VERTEXPART, 0, i);
+	if(n_vparts) {
+		std::cout << "Vertex parts: " << n_vparts << "\n";
+		for (uint i = j; i < j + n_vparts; i++) {
+			float rho = density(H - buf[i].Coords_2, 0);
+			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, rho);
+			info[i] = make_particleinfo(VERTEXPART, 0, i);
+		}
+		j += n_vparts;
+		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
-	j += n_vparts;
-	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 
-	std::cout << "Boundary parts: " << n_bparts << "\n";
-	for (uint i = j; i < j + n_bparts; i++) {
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 0.0), pos[i], hash[i]);
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
-		vertices[i].x = buf[i].VertexParticle1;
-		vertices[i].y = buf[i].VertexParticle2;
-		vertices[i].z = buf[i].VertexParticle3;
-		boundelm[i].x = buf[i].Normal_0;
-		boundelm[i].y = buf[i].Normal_1;
-		boundelm[i].z = buf[i].Normal_2;
-		boundelm[i].w = buf[i].Surface;
+	if(n_bparts) {
+		std::cout << "Boundary parts: " << n_bparts << "\n";
+		for (uint i = j; i < j + n_bparts; i++) {
+			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 0.0), pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i] = make_particleinfo(BOUNDPART, 0, i);
+			vertices[i].x = buf[i].VertexParticle1;
+			vertices[i].y = buf[i].VertexParticle2;
+			vertices[i].z = buf[i].VertexParticle3;
+			boundelm[i].x = buf[i].Normal_0;
+			boundelm[i].y = buf[i].Normal_1;
+			boundelm[i].z = buf[i].Normal_2;
+			boundelm[i].w = buf[i].Surface;
+		}
+		j += n_bparts;
+		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 	}
-	j += n_bparts;
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
 	std::flush(std::cout);
 
