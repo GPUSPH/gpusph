@@ -158,7 +158,7 @@ void*	reduce_buffer = NULL;
 #define TEST_CHECK(kernel) \
 	case kernel: \
 		cuforces::calcTestpointsVelocityDevice<kernel><<< numBlocks, numThreads >>> \
-				(newVel, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
+				(pos, newVel, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 // Free surface detection
@@ -190,12 +190,6 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
 				 (oldPos, oldVel, oldPressure, oldTKE, oldEps, particleHash, cellStart, neibsList, numParticles, deltap, slength, influenceradius); \
-	break
-
-#define CALCPROBE_CHECK(kernel) \
-	case kernel: \
-		cuforces::calcProbeDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldPressure, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 extern "C"
@@ -637,7 +631,7 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-testpoints( float4*		pos,
+testpoints( const float4*		pos,
 			float4*		newVel,
 			particleinfo	*info,
 			uint*		particleHash,
@@ -652,7 +646,9 @@ testpoints( float4*		pos,
 	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -666,7 +662,9 @@ testpoints( float4*		pos,
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("test kernel execution failed");
 	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
@@ -948,20 +946,20 @@ void calc_energy(
 }
 
 void
-initGradGamma(	float4*		oldPos,
-		float4*		newPos,
-		float4*		virtualVel,
-		particleinfo*	info,
-		float4*		boundElement,
-		float4*		gradGamma,
-		const uint*	particleHash,
-		const uint*	cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		float		deltap,
-		float		slength,
-		float		inflRadius,
-		int			kerneltype)
+initGradGamma(	float4*			oldPos,
+				float4*			newPos,
+				float4*			virtualVel,
+				particleinfo*	info,
+				float4*			boundElement,
+				float4*			gradGamma,
+		const	uint*			particleHash,
+		const	uint*			cellStart,
+				neibdata*		neibsList,
+				uint			numParticles,
+				float			deltap,
+				float			slength,
+				float			inflRadius,
+				int				kerneltype)
 {
 	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
@@ -1141,50 +1139,6 @@ dynamicBoundConditions(	const float4*		oldPos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("DynamicBoundConditions kernel execution failed");
-
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-}
-
-void
-calcProbe(	float4*			oldPos,
-		float4*			oldVel,
-		float*			oldPressure,
-		const particleinfo*	info,
-		const uint*		particleHash,
-		const uint*		cellStart,
-		const neibdata*	neibsList,
-		const uint		numParticles,
-		const float		slength,
-		const int		kerneltype,
-		const float		influenceradius)
-{
-	int dummy_shared = 0;
-
-	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-
-	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
-	#if (__COMPUTE__ == 20)
-	dummy_shared = 2560;
-	#endif
-	// execute the kernel
-	switch (kerneltype) {
-		CALCPROBE_CHECK(CUBICSPLINE);
-//		CALCPROBE_CHECK(QUADRATIC);
-		CALCPROBE_CHECK(WENDLAND);
-	}
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("CalcProbe kernel execution failed");
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));

@@ -142,7 +142,6 @@ class ParticleSystem
 		void savegradgamma();
 		void saveboundelem();
 		void savepressure();
-		void saveprobedata();
 		void saveVelocity();
 		void saveForces();
 		void reducerbforces();

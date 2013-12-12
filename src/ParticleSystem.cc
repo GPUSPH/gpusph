@@ -1263,7 +1263,7 @@ ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vert
 				glColor3f(0.3, 0.7, 0.9);
 				glVertex3fv((float*)&pos);
 			}
-			if (PROBE(info[i])) {
+			if (TESTPOINTS(info[i])) {
 				glColor3f(0.0, 0.0, 0.0);
 				glVertex3fv((float*)&pos);
 			}
@@ -1993,26 +1993,8 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 		seteulerrbcg(cg, m_simparams->numODEbodies);
 	}
 
-	//Calculate values at probe particles
-	//TODO-AM if(true)... really?
-	if(true)
-	{
-		calcProbe(	m_dPos[m_currentPosWrite],
-				m_dVel[m_currentVelWrite],
-				m_dPressure[m_currentPressureRead],
-				m_dInfo[m_currentInfoRead],
-				m_dParticleHash,
-				m_dCellStart,
-				m_dNeibsList,
-				m_numParticles,
-				m_simparams->slength,
-				m_simparams->kerneltype,
-				m_influenceRadius);
-	}
-
 	std::swap(m_currentPosRead, m_currentPosWrite);
 	std::swap(m_currentVelRead, m_currentVelWrite);
-
 	std::swap(m_currentTKERead, m_currentTKEWrite);
 	std::swap(m_currentEpsRead, m_currentEpsWrite);
 
@@ -2321,88 +2303,6 @@ ParticleSystem::saveForces()
 
 		fprintf(fp, "%d,%d,%f,%f,%f,%f,%d\n", index, m_hInfo[index].z, forces.x, forces.y, forces.z, forces.w, PART_TYPE(m_hInfo[index]));
 	}
-	fclose(fp);
-}
-
-void
-ParticleSystem::saveprobedata()
-{
-	getArray(PRESSURE, false);
-	getArray(POSITION, false);
-	getArray(INFO, false);
-	std::string fname;
-	float H[4][50];
-	for (int i=0; i<4; i++)
-	for (int j=0; j<50; j++)
-		H[i][j] = -1.0f;
-	float P[8] = {-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f};
-
-	for (uint index = 0; index < m_numParticles; index++) {
-		if (PROBE(m_hInfo[index])) {
-			const float x = m_hPos[index].x;
-			const float z = m_hPos[index].z;
-
-			//Pressure probes
-			if(x>2.3 && x<2.55) {
-				if (z<0.04) {//P1
-					P[0] = m_hPressure[index];
-				}
-				else if (z<0.08) {//P2
-					P[1] = m_hPressure[index];
-				}
-				else if (z<0.12) {//P3
-					P[2] = m_hPressure[index];
-				}
-				else if (z<0.16) {//P4
-					P[3] = m_hPressure[index];
-				}
-				else if (x<2.42) {//P5
-					P[4] = m_hPressure[index];
-				}
-				else if (x<2.46) {//P6
-					P[5] = m_hPressure[index];
-				}
-				else if (x<2.50) {//P7
-					P[6] = m_hPressure[index];
-				}
-				else { //P8
-					P[7] = m_hPressure[index];
-				}
-			}
-			//H1
-			else if(x>2.55) {
-				H[0][int(z/0.0199)] = m_hPos[index].w;
-			}
-			//H2
-			else if(x>2.0) {
-				H[1][int(z/0.0199)] = m_hPos[index].w;
-			}
-			//H3
-			else if(x>1.5) {
-				H[2][int(z/0.0199)] = m_hPos[index].w;
-			}
-			//H4
-			else {
-				H[3][int(z/0.0199)] = m_hPos[index].w;
-			}
-		}
-	}
-	for (int i=0; i<4; i++) {
-		for (int j=0; j<49; j++)
-		{
-			H[i][0] += H[i][j] + H[i][j+1];
-		}
-		H[i][0] *= 0.02*0.5;
-	}
-
-	fname = m_problem->get_dirname() + "/probes_p.dat";
-	FILE *fp = fopen(fname.c_str(), "a");
-		fprintf(fp, "%g\t%g\t%g\t%g\t%g\t%g\t%g\t%g\t%g\n", this->getTime(), P[0], P[1], P[2], P[3], P[4], P[5], P[6], P[7]);
-	fclose(fp);
-
-	fname = m_problem->get_dirname() + "/probes_h.dat";
-	fp = fopen(fname.c_str(), "a");
-		fprintf(fp, "%g\t%g\t%g\t%g\t%g\n", this->getTime(), H[0][0], H[1][0], H[2][0], H[3][0]);
 	fclose(fp);
 }
 

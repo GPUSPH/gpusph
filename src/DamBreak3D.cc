@@ -62,7 +62,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.55;
 	wet = false;
 	m_usePlanes = true;
-	m_useProbes = true;
+	m_simparams.testpoints = true;
 	
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -189,7 +189,27 @@ int DamBreak3D::fill_parts()
 		obstacle.Unfill(parts, r0);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + n_probeparts;
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	// Wave gages
+	add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
+	add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
+	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
+	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
+	// Pressure probes
+	if (m_simparams.testpoints) {
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
+		test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+	}
+	//*******************************************************************
+
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + test_points.size();
 }
 
 uint DamBreak3D::fill_planes()
@@ -235,101 +255,42 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
-		std::cout << "Absolute position:" << "\n";
-		std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-		}*/
-		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
-
-		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
-		std::cout << "Local position and hash:" << "\n";
-		std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n";
-		}*/
-		if (i == 1378) {
-			std::cout << "Absolute position:" << "\n";
-			std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-			std::cout << "Local position and hash:" << "\n";
-			std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n\n";
-
-		}
-
-		pos[i] = localpos;
+		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
-		hash[i] = hashvalue;
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
+	//Testpoints
+	if (test_points.size()) {
+		std::cout << "\nTest points: " << test_points.size() << "\n";
+		for (uint i = 0; i < test_points.size(); i++) {
+			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+		}
+		j += test_points.size();
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+	}
+
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
-		pos[i] = localpos;
+		calc_localpos_and_hash(obstacle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
-		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
-
-		pos[i] = localpos;
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
-		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 
-	// Setting probes for Spheric2 test case
-	//*******************************************************************
-	if(m_useProbes) {
-		vector<Point> probe_coord;
-		uint j = 0;
-
-		// Probe H1
-		for (uint i = 0; i < 50; i++) {
-			probe_coord.push_back(m_origin + Point(2.724, 0.5, 0.02*i));
-		}
-		// Probe H2
-		for (uint i = 0; i < 50; i++) {
-			probe_coord.push_back(m_origin + Point(2.228, 0.5, 0.02*i));
-		}
-		// Probe H3
-		for (uint i = 0; i < 50; i++) {
-			probe_coord.push_back(m_origin + Point(1.732, 0.5, 0.02*i));
-		}
-		// Probe H4
-		for (uint i = 0; i < 50; i++) {
-			probe_coord.push_back(m_origin + Point(0.582, 0.5, 0.02*i));
-		}
-		// Pressure probes
-		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.021)); // Probe P1
-		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.061)); // Probe P2
-		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.101)); // Probe P3
-		probe_coord.push_back(m_origin + Point(2.3955, 0.529, 0.141)); // Probe P4
-		probe_coord.push_back(m_origin + Point(2.4165, 0.471, 0.161)); // Probe P5
-		probe_coord.push_back(m_origin + Point(2.4565, 0.471, 0.161)); // Probe P6
-		probe_coord.push_back(m_origin + Point(2.4965, 0.471, 0.161)); // Probe P7
-		probe_coord.push_back(m_origin + Point(2.5365, 0.471, 0.161)); // Probe P8
-
-		n_probeparts = probe_coord.size();
-
-		for (uint i = j; i < j + n_probeparts; i++) {
-			calc_localpos_and_hash(probe_coord[i-j], localpos, hashvalue);
-			pos[i] = localpos;
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(PROBEPART, 0, i);
-			hash[i] = hashvalue;
-		}
-		std::cout << "Probe parts: " << n_probeparts << "\n";
-	}
-	else {
-		n_probeparts = 0;
-	}
-	//*******************************************************************
 	std::flush(std::cout);
 }

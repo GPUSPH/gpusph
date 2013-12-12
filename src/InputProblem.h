@@ -7,12 +7,11 @@
 
 class InputProblem: public Problem {
 	private:
-		string	inputfile;
-		int		numparticles;
-		double	w, l, h;
-		double	H;				// water level (used to set D constant)
-		bool	m_useProbes;	// use probes
-		int		n_probeparts;	// number of probe particles (used for output)
+		string		inputfile;
+		int			numparticles;
+		PointVect	test_points;
+		double		w, l, h;
+		double		H;				// water level (used to set D constant)
 
 	public:
 		InputProblem(const Options &);

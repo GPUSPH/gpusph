@@ -29,6 +29,7 @@
 #define _SIMPARAMS_H
 
 #include <vector>
+#include "Point.h"
 
 typedef struct MbCallBack {
 	short			type;

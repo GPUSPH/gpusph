@@ -600,10 +600,8 @@ void display()
 	if (need_display || need_write)
 	{
 		get_arrays(need_write);
-		if (need_write) {
+		if (need_write)
 			do_write();
-			psystem->saveprobedata();
-		}
 	}
 
 	if (displayEnabled)
@@ -1146,5 +1144,3 @@ main( int argc, char** argv)
 
 	return 0;
 }
-
-

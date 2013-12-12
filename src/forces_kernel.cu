@@ -1120,90 +1120,6 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	}
 }
 
-template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
-calcProbeDevice(	float4*		oldPos,
-			float4*		oldVel,
-			float*		oldPressure,
-			const uint*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float	slength,
-			const float	influenceradius)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
-	// kernel is only run for probe particles
-	if (!PROBE(info))
-		return;
-
-	#if( __COMPUTE__ >= 20)
-	const float4 pos = oldPos[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
-
-	// in contrast to Shepard filter particle itself doesn't contribute into summation
-	float pressure = 0;
-	float alpha = 0;
-	uint num_neib = 0;
-
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
-
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = 0;
-	uint neib_cell_base_index = 0;
-
-	// Loop over all the neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == 0xffff) break;
-
-		float3 pos_corr;
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
-
-		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
-		const float4 relPos = pos_corr - oldPos[neib_index];
-		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-		#endif
-		const float r = length(as_float3(relPos));
-
-		const float neib_rho = oldVel[neib_index].w;
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-
-		if (r < influenceradius && FLUID(neib_info)) {
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
-			pressure += w*P(neib_rho, PART_FLUID_NUM(neib_info));
-			alpha += w;
-			num_neib++;
-		}
-	}
-
-	if(alpha)
-	{
-		oldPos[index].w = alpha;
-	}
-	if(num_neib > 10)
-		oldPressure[index] = pressure/alpha;
-	else
-		oldPressure[index] = 0;
-}
-/************************************************************************************************************/
-
-
 /************************************************************************************************************/
 /*		                  Computes mean strain rate tensor for k-e model									*/
 /************************************************************************************************************/
@@ -1881,13 +1797,14 @@ calcVortDevice(	float3*		vorticity,
 // This kernel compute the velocity at testpoints
 template<KernelType kerneltype>
 __global__ void
-calcTestpointsVelocityDevice(	float4*		newVel,
-								const uint*	particleHash,
-								const uint*	cellStart,
+calcTestpointsVelocityDevice(	const float4*	oldPos,
+								float4*			newVel,
+								const uint*		particleHash,
+								const uint*		cellStart,
 								const neibdata*	neibsList,
-								const uint	numParticles,
-								const float	slength,
-								const float	influenceradius)
+								const uint		numParticles,
+								const float		slength,
+								const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 	
@@ -1899,10 +1816,17 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 	if(type(info) != TESTPOINTSPART)
 		return;
 	
+	#if (__COMPUTE__ < 20)
+	const float4 pos = oldPos[index];
+	#else
 	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	float4 vel = tex1Dfetch(velTex, index);
 	
+	// this is the velocity (x,y,z) and pressure (w)
 	float4 temp = make_float4(0.0f);
+	// this is the shepard filter sum(w_b w_{ab})
+	float alpha = 0.0f;
 
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromHash(particleHash[index]);
@@ -1923,7 +1847,11 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		#if (__COMPUTE__ < 20)
+		const float4 relPos = pos_corr - oldPos[neib_index];
+		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+		#endif
 		const float r = length(as_float3(relPos));
 
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
@@ -1931,16 +1859,24 @@ calcTestpointsVelocityDevice(	float4*		newVel,
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;	// Wij*mj
+			//Velocity
 			temp.x += w*neib_vel.x;
 			temp.y += w*neib_vel.y;
 			temp.z += w*neib_vel.z;
 			//Pressure
 			temp.w += w*P(neib_vel.w, object(neib_info));
-
+			//Shepard filter
+			alpha += w;
 		}
 	}
 
-	vel = temp;
+	// Renormalization by the Shepard filter
+	if(alpha>1e-5) {
+		vel = temp/alpha;
+	}
+	else {
+		vel = make_float4(0.0f);
+	}
 
 	newVel[index] = vel;
 }
