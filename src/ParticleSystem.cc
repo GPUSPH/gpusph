@@ -33,14 +33,7 @@
 
 #include <float.h>
 
-#include <GL/glew.h>
-#ifdef __APPLE__
-#include <GLUT/glut.h>
-#else
-#include <GL/glut.h>
-#endif
 #include <cuda_runtime_api.h>
-#include <cuda_gl_interop.h>
 
 #include "ParticleSystem.h"
 
@@ -81,9 +74,120 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Turbulent Kinetic Energy [k]",
 	"Turbulent Dissipation Rate [e]",
 	"Eddy Viscosity",
+	"Strain rate",
 	"(invalid)"
 };
 
+ParticleSystem::ParticleSystem(GlobalData *gdata) :
+	m_problem(gdata->problem),
+	m_neiblist_built(false),
+	m_physparams(gdata->problem->get_physparams()),
+	m_simparams(gdata->problem->get_simparams()),
+	m_simTime(0.0),
+	m_iter(0),
+	m_currentPosRead(0),
+	m_currentPosWrite(1),
+	m_currentVelRead(0),
+	m_currentVelWrite(1),
+	m_currentInfoRead(0),
+	m_currentInfoWrite(1)
+{
+	gdata->worldOrigin = m_worldOrigin = make_float3(m_problem->get_worldorigin());
+	gdata->worldSize = m_worldSize = make_float3(m_problem->get_worldsize());
+	m_writerType = m_problem->get_writertype();
+
+	gdata->cellSize = m_cellSize = make_float3(m_problem->get_cellsize());
+	gdata->gridSize = m_gridSize = m_problem->get_gridsize();
+
+	gdata->nGridCells = m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
+	//gdata->nSortingBits = m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
+
+	m_influenceRadius = m_simparams->kernelradius*m_simparams->slength;
+	m_nlInfluenceRadius = m_influenceRadius*m_simparams->nlexpansionfactor;
+	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
+
+	m_dt = m_simparams->dt;
+
+	m_timingInfo.dt = m_dt;
+	m_timingInfo.t = 0.0f;
+	m_timingInfo.maxNeibs = 0;
+	m_timingInfo.numInteractions = 0.0f;
+	m_timingInfo.meanNumInteractions = 0;
+	m_timingInfo.iterations = 0;
+	m_timingInfo.timeNeibsList = 0.0f;
+	m_timingInfo.meanTimeNeibsList = 0.0f;
+	m_timingInfo.timeInteract = 0.0f;
+	m_timingInfo.meanTimeInteract = 0.0f;
+	m_timingInfo.timeEuler = 0.0f;
+	m_timingInfo.meanTimeEuler = 0.0f;
+
+	// CHecking number of moving boundaries
+	if (m_problem->m_mbnumber > MAXMOVINGBOUND) {
+		stringstream ss;
+		ss << "Number of moving boundaries " << m_problem->m_mbnumber <<
+			" > MAXMOVINGBOUND (" << MAXMOVINGBOUND << ")" << endl;
+		throw runtime_error(ss.str());
+		}
+
+	// Computing size of moving bloudaries data
+	m_mbDataSize = m_problem->m_mbnumber*sizeof(float4);
+
+	printf("GPU implementation\n");
+	printf("Number of grid cells : %d\n", m_nGridCells);
+	printf("Grid size : (%d, %d, %d)\n", m_gridSize.x, m_gridSize.y, m_gridSize.z);
+	printf("Cell size : (%f, %f, %f)\n", m_cellSize.x, m_cellSize.y, m_cellSize.z);
+
+	/// TODO: move this, setDevice has to be called by each worker
+	// CUDA init
+	/// m_device = checkCUDA(m_problem->get_options());
+	printf("\nCUDA initialized\n");
+
+#define MEGABYTE (1024.0*1024.0)
+#define GIGABYTE (MEGABYTE*1024)
+
+	printf("\t%u multiprocessors, %zu (%g%s) global memory\n",
+			m_device.multiProcessorCount,
+			m_device.totalGlobalMem,
+			m_device.totalGlobalMem > GIGABYTE ?
+			m_device.totalGlobalMem/GIGABYTE :
+			m_device.totalGlobalMem/MEGABYTE,
+			m_device.totalGlobalMem > GIGABYTE ?
+			"GB" : "MB");
+	printf("\t%u threads, %zu (%g%s) shared memory per MP\n",
+			m_device.maxThreadsPerMultiProcessor,
+			m_device.sharedMemPerBlock,
+			m_device.sharedMemPerBlock/1024.0, "kB");
+
+	setPhysParams();
+
+	switch(m_writerType) {
+		case Problem::TEXTWRITER:
+			m_writer = new TextWriter(m_problem);
+			break;
+
+		case Problem::VTKWRITER:
+			m_writer = new VTKWriter(m_problem);
+			break;
+
+		case Problem::VTKLEGACYWRITER:
+			m_writer = new VTKLegacyWriter(m_problem);
+			break;
+
+		case Problem::CUSTOMTEXTWRITER:
+			m_writer = new CustomTextWriter(m_problem);
+			break;
+
+		default:
+			stringstream ss;
+			ss << "Writer not supported";
+			throw runtime_error(ss.str());
+			break;
+	}
+
+	writeSummary();
+}
+
+// previous constructor - once the multinode is working, this can be deleted
 ParticleSystem::ParticleSystem(Problem *problem) :
 	m_problem(problem),
 	m_neiblist_built(false),
@@ -125,7 +229,7 @@ ParticleSystem::ParticleSystem(Problem *problem) :
 	m_nlSqInfluenceRadius = m_nlInfluenceRadius*m_nlInfluenceRadius;
 
 	m_nGridCells = m_gridSize.x*m_gridSize.y*m_gridSize.z;
-	m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
+	//m_nSortingBits = ceil(log2((float) m_nGridCells)/4.0)*4;
 
 	m_dt = m_simparams->dt;
 
@@ -252,7 +356,7 @@ ParticleSystem::allocate(uint numParticles)
 	if (m_simparams->vorticity) {
 		m_hVort = new float3[m_numParticles];
 		memory += memSize3;
-		}
+	}
 
 	m_hGradGamma = new float4[m_numParticles];
 	memset(m_hGradGamma, 0, memSize4);
@@ -317,7 +421,7 @@ ParticleSystem::allocate(uint numParticles)
 	}
 
 	printf("\nCPU memory allocated\n");
-	printf("Number of particles : %d\n", m_numParticles);
+	printf("Number of particles : %u max %u\n", m_numParticles, m_numParticles);
 	printf("CPU memory used : %.2f MB\n", memory/(1024.0*1024.0));
 	fflush(stdout);
 
@@ -732,10 +836,10 @@ ParticleSystem::printSimParams(FILE *summary)
 	fprintf(summary, "xsph correction = %d\n", m_simparams->xsph);
 	fprintf(summary, "SPH formulation = %d\n", m_simparams->sph_formulation);
 	fprintf(summary, "viscosity type = %d (%s)\n", m_simparams->visctype, ViscosityName[m_simparams->visctype]);
-	fprintf(summary, "moving boundary velocity callback function = %d (0 none)\n", m_simparams->mbcallback);
+	fprintf(summary, "moving boundary velocity callback function = %s\n", (m_simparams->mbcallback ? "enabled" : "none"));
 	if (m_simparams->mbcallback)
 		fprintf(summary, "\tnumber of moving boundaries = %d\n", m_problem->m_mbnumber);
-	fprintf(summary, "variable gravity callback function = %d\n",m_simparams->gcallback);
+	fprintf(summary, "variable gravity callback function = %s\n", (m_simparams->gcallback ? "enabled" : "none"));
 	fprintf(summary, "periodic boundary = %s\n", m_simparams->periodicbound ? "true" : "false");
 	fprintf(summary, "using DEM = %d\n", m_simparams->usedem);
 	fprintf(summary, "number of rigid bodies = %d\n", m_simparams->numODEbodies);
@@ -916,6 +1020,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 			break;
 
 		case VELOCITY:
+#if 0
 			//Testpoints
 			if (need_write && m_simparams->testpoints) {
 				testpoints(	m_dPos[m_currentPosRead],
@@ -929,6 +1034,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 							m_simparams->kerneltype,
 							m_influenceRadius);
 				} // if need_write && m_simparams->testpoints
+#endif // TODO FIXME MERGE
 
 			size = m_numParticles*sizeof(float4);
 			hdata = (void*) m_hVel;
@@ -946,6 +1052,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 								 m_dParticleHash,
 								 m_dCellStart,
 								 m_dNeibsList,
+								 m_numParticles,
 								 m_numParticles,
 								 m_simparams->slength,
 								 m_simparams->kerneltype,
@@ -978,6 +1085,7 @@ ParticleSystem::getArray(ParticleArray array, bool need_write)
 							m_dParticleHash,
 							m_dCellStart,
 							m_dNeibsList,
+							m_numParticles,
 							m_numParticles,
 							m_simparams->slength,
 							m_simparams->kerneltype,
@@ -1182,7 +1290,6 @@ ParticleSystem::setPlanes(void)
 	setplaneconstants(m_numPlanes, m_hPlanesDiv, m_hPlanes);
 }
 
-
 // TODO: check writer for testpoints
 void
 ParticleSystem::writeToFile()
@@ -1214,7 +1321,6 @@ ParticleSystem::writeToFile()
 	}
 }
 
-
 uint3
 ParticleSystem::calcGridPos(uint particleHash)
 {
@@ -1224,153 +1330,6 @@ ParticleSystem::calcGridPos(uint particleHash)
 	gridPos.x = particleHash - gridPos.y*m_gridSize.x - gridPos.z*m_gridSize.x*m_gridSize.y;
 
 	return gridPos;
-}
-
-void
-ParticleSystem::drawParts(bool show_boundary, bool show_floating, bool show_vertex, int view_mode)
-{
-	float minrho = m_problem->get_minrho();
-	float maxrho = m_problem->get_maxrho();
-	float minvel = m_problem->get_minvel();
-	float maxvel = m_problem->get_maxvel();
-
-	float minvort = 0.0;
-	float maxvort = 2.0;
-
-	//FIXME: Workaround for some time...
-	if(minrho == maxrho)
-		maxrho =1.01*minrho;
-
-	float minp = m_problem->pressure(minrho,0); //FIX FOR MULT-FLUID
-	float maxp = m_problem->pressure(maxrho,0);
-
-	float4* relpos = m_hPos;
-	float4* vel = m_hVel;
-	float3* vort = m_hVort;
-	uint* 	hash = m_hParticleHash;
-	particleinfo* info = m_hInfo;
-	vertexinfo* vinfo = m_hVertices;
-
-	//bool show_fluid = view_mode == VM_NOFLUID? false : true;
-
-	glPointSize(2.0);
-	glBegin(GL_POINTS);
-	{
-		for (uint i = 0; i < m_numParticles; i++) {
-			float3 pos = make_float3(relpos[i]);
-			pos = m_cellSize*calcGridPos(hash[i]) + pos + 0.5f*m_cellSize + m_worldOrigin;
-
-			if (NOT_FLUID(info[i]) && !OBJECT(info[i]) && !VERTEX(info[i]) && show_boundary) {
-				glColor3f(0.0, 1.0, 0.0);
-				glVertex3fv((float*)&pos);
-			}
-			if (OBJECT(info[i]) && show_floating) {
-				glColor3f(1.0, 0.0, 0.0);
-				glVertex3fv((float*)&pos);
-			}
-			if (VERTEX(info[i]) && show_vertex) {
-				glColor3f(0.3, 0.7, 0.9);
-				glVertex3fv((float*)&pos);
-			}
-			if (PROBE(info[i])) {
-				glColor3f(0.0, 0.0, 0.0);
-				glVertex3fv((float*)&pos);
-			}
-			if (FLUID(info[i])) {
-				float v;
-				float ssvel = m_problem->soundspeed(vel[i].w, PART_FLUID_NUM(info[i]));
-				switch (view_mode) {
-					case VM_NORMAL:
-					    glColor3f(0.0,0.0,1.0);
-					    if (m_physparams->numFluids > 1) {
-					       v = (float) PART_FLUID_NUM(info[i]);
-						v /= (m_physparams->numFluids - 1);
-						   glColor3f(v, 0.0, 1.0 - v);
-						   }
-						break;
-
-					case VM_VELOCITY:
-						v = length(make_float3(vel[i]));
-
-						if (v > ssvel)
-							printf("WARNING [%g]: particle %d speed %g > %g\n",
-							m_simTime, i, v, ssvel);
-						if (v*m_dtprev > m_influenceRadius)
-							printf("WARNING [%g]: particle %d moved by %g > %g\n",
-											m_simTime, i, v*m_dtprev, m_influenceRadius);
-						glColor3f((v - minvel)/(maxvel - minvel), 0.0, 1 - (v - minvel)/(maxvel - minvel));
-						break;
-
-					case VM_DENSITY:
-						v = vel[i].w;
-						glColor3f((v - minrho)/(maxrho - minrho), 0.0,
-								1 - (v - minrho)/(maxrho - minrho));
-						break;
-
-					case VM_PRESSURE:
-						v = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
-						glColor3f((v - minp)/(maxp - minp),
-								1 - (v - minp)/(maxp - minp),0.0);
-						break;
-
-					case VM_VORTICITY:
-						if (m_simparams->vorticity) {
-							v = length(vort[i]);
-							glColor3f(1.-(v-minvort)/(maxvort-minvort),1.0,1.0);
-						}
-						else
-							glColor3f(1.0, 1.0, 0.0);
-
-					    break;
-				}
-				glVertex3fv((float*)&pos);
-			}
-		}
-
-	}
-	glEnd();
-
-	//draw connections between vertex particles (i.e. triangular boundary elements)
-	glBegin(GL_TRIANGLES);
-	glColor3f(0.2,0.6,0.8);
-	for(uint i = 0; i < m_numParticles; i++) {
-		if(BOUNDARY(info[i]) && show_vertex) {
-			float3 pos;
-
-			uint i_vert1 = vinfo[i].x;
-			pos = make_float3(relpos[i_vert1]);
-			pos = m_cellSize*calcGridPos(hash[i_vert1]) + pos + 0.5f*m_cellSize + m_worldOrigin;
-			glVertex3fv((float*)&pos);
-
-			uint i_vert2 = vinfo[i].y;
-			pos = make_float3(relpos[i_vert2]);
-			pos = m_cellSize*calcGridPos(hash[i_vert2]) + pos + 0.5f*m_cellSize + m_worldOrigin;
-			glVertex3fv((float*)&pos);
-
-			uint i_vert3 = vinfo[i].z;
-			pos = make_float3(relpos[i_vert3]);
-			pos = m_cellSize*calcGridPos(hash[i_vert3]) + pos + 0.5f*m_cellSize + m_worldOrigin;
-			glVertex3fv((float*)&pos);
-		}
-	}
-	glEnd();
-
-	if (m_simparams->gage.size() > 0) {
-		float lw;
-		glGetFloatv(GL_LINE_WIDTH, &lw);
-		glLineWidth(2.0);
-		glBegin(GL_LINES);
-		glColor3f(0,0,0);
-		GageList::iterator g = m_simparams->gage.begin();
-		GageList::iterator end = m_simparams->gage.end();
-		while (g != end) {
-			glVertex3f(g->x, g->y, m_worldOrigin.z);
-			glVertex3f(g->x, g->y, m_worldOrigin.z + m_worldSize.z);
-			++g;
-		}
-		glEnd();
-		glLineWidth(lw);
-	}
 }
 
 void
@@ -1385,12 +1344,18 @@ ParticleSystem::buildNeibList(bool timing)
 	}
 
 	// compute hash
+#if 0
 	calcHash(m_dPos[m_currentPosRead],
 			m_dParticleHash,
 			m_dParticleIndex,
 			m_dInfo[m_currentInfoRead],
+#if HASH_KEY_SIZE >= 64
+			NULL, // WARNING: this is only to allow for compiling. DO NOT DO THIS
+#endif
+			m_dInfo[m_currentInfoRead],
 			m_numParticles,
 			m_simparams->periodicbound);
+#endif // TODO FIXME merge
 
 	// hash based particle sort
 	sort(m_dParticleHash, m_dParticleIndex, m_numParticles);
@@ -1402,6 +1367,9 @@ ParticleSystem::buildNeibList(bool timing)
 	reorderDataAndFindCellStart(
 			m_dCellStart,					// output: cell start index
 			m_dCellEnd,					// output: cell end index
+#if HASH_KEY_SIZE >= 64
+			NULL, // WARNING: this is only to allow for compiling. DO NOT DO THIS
+#endif
 			m_dPos[m_currentPosWrite],			// output: sorted positions
 			m_dVel[m_currentVelWrite],			// output: sorted velocities
 			m_dInfo[m_currentInfoWrite],			// output: sorted info
@@ -1458,13 +1426,13 @@ ParticleSystem::buildNeibList(bool timing)
 	m_timingInfo.maxNeibs = 0;
 	resetneibsinfo();
 
-	// Build the neighbours list
 	buildNeibsList(	m_dNeibsList,
 			m_dPos[m_currentPosRead],
 			m_dInfo[m_currentInfoRead],
 			m_dParticleHash,
 			m_dCellStart,
 			m_dCellEnd,
+			m_numParticles,
 			m_numParticles,
 			m_nGridCells,
 			m_nlSqInfluenceRadius,
@@ -1521,6 +1489,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 			m_dCellStart,
 			m_dNeibsList,
 			m_numParticles,
+			m_numParticles,
 			m_problem->m_deltap,
 			m_simparams->slength,
 			m_influenceRadius,
@@ -1554,6 +1523,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
+				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
 				deltat,
@@ -1568,6 +1538,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 					m_dVel[m_currentVelRead],
 					m_dInfo[m_currentInfoRead],
 					deltat,
+					m_numParticles,
 					m_numParticles);
 
 		std::swap(m_currentPosRead, m_currentPosWrite);
@@ -1586,6 +1557,7 @@ ParticleSystem::initializeGammaAndGradGamma(void)
 				m_dParticleHash,
 				m_dCellStart,
 				m_dNeibsList,
+				m_numParticles,
 				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
@@ -1607,6 +1579,7 @@ ParticleSystem::updateValuesAtBoundaryElements(void)
 				m_dVertices[m_currentVerticesRead],
 				m_dInfo[m_currentInfoRead],
 				m_numParticles,
+				m_numParticles,
 				true);
 }
 
@@ -1622,6 +1595,7 @@ ParticleSystem::imposeDynamicBoundaryConditions(void)
 				m_dParticleHash,
 				m_dCellStart,
 				m_dNeibsList,
+				m_numParticles,
 				m_numParticles,
 				m_problem->m_deltap,
 				m_simparams->slength,
@@ -1652,6 +1626,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
+				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_influenceRadius);
@@ -1667,6 +1642,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dParticleHash,
 				m_dCellStart,
 				m_dNeibsList,
+				m_numParticles,
 				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
@@ -1727,6 +1703,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
+					m_numParticles,
 					m_problem->m_deltap,
 					m_simparams->slength,
 					m_simparams->kerneltype,
@@ -1739,9 +1716,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dVertices[m_currentVerticesRead],
 					m_dInfo[m_currentInfoRead],
 					m_numParticles,
+					m_numParticles,
 					false);
 	}
 
+#if 0
 	dt1 = forces(   m_dPos[m_currentPosRead],   // pos(n)
 					m_dVel[m_currentVelRead],   // vel(n)
 					m_dForces,					// f(n)
@@ -1756,7 +1735,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
-					m_problem->m_deltap,
+					m_numParticles,
 					m_simparams->slength,
 					m_dt,
 					m_simparams->dtadapt,
@@ -1775,11 +1754,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCflGamma,
 					m_dCflTVisc,
 					m_dTempCfl,
-					m_dTau,
 					m_simparams->sph_formulation,
 					m_simparams->boundarytype,
 					m_simparams->usedem);
 	// At this point forces = f(pos(n), vel(n))
+#endif // TODO FIXME MERGE
 
 	if (timing) {
 		cudaEventRecord(stop_interactions, 0);
@@ -1808,6 +1787,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dTKE[m_currentTKEWrite],	// k(n+1/2) = k(n) + dkde(n).x*dt/2
 			m_dEps[m_currentEpsWrite],	// e(n+1/2) = e(n) + dkde(n).y*dt/2
 			m_numParticles,
+			m_numParticles,			// range end; to compile
 			m_dt,
 			m_dt/2.0,
 			1,
@@ -1853,6 +1833,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
+					m_numParticles,
 					m_problem->m_deltap,
 					m_simparams->slength,
 					m_simparams->kerneltype,
@@ -1864,6 +1845,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dEps[m_currentEpsWrite],	// e(n+1/2)
 					m_dVertices[m_currentVerticesRead],
 					m_dInfo[m_currentInfoRead],
+					m_numParticles,
 					m_numParticles,
 					false);
 
@@ -1879,6 +1861,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dCellStart,
 				m_dNeibsList,
 				m_numParticles,
+				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
 				m_dt,
@@ -1892,6 +1875,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 
 	}
 
+#if 0
 	dt2 = forces(   m_dPos[m_currentPosWrite],  // pos(n+1/2)
 					m_dVel[m_currentVelWrite],  // vel(n+1/2)
 					m_dForces,					// f(n+1/2)
@@ -1906,7 +1890,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCellStart,
 					m_dNeibsList,
 					m_numParticles,
-					m_problem->m_deltap,
+					m_numParticles,
 					m_simparams->slength,
 					m_dt,
 					m_simparams->dtadapt,
@@ -1925,11 +1909,11 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 					m_dCflGamma,
 					m_dCflTVisc,
 					m_dTempCfl,
-					m_dTau,
 					m_simparams->sph_formulation,
 					m_simparams->boundarytype,
 					m_simparams->usedem);
 	// At this point forces = f(pos(n+1/2), vel(n+1/2))
+#endif // TODO FIXME MERGE
 
 	if (m_simparams->numODEbodies) {
 		reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, m_hRbLastIndex, m_hRbTotalForce,
@@ -1957,6 +1941,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 			m_dTKE[m_currentTKEWrite],	// k(n+1) = k(n) + dkde(n+1/2).x*dt
 			m_dEps[m_currentEpsWrite],	// e(n+1) = e(n) + dkde(n+1/2).y*dt
 			m_numParticles,
+			m_numParticles,			// range end; to compile
 			m_dt,
 			m_dt/2.0,
 			2,
@@ -1982,6 +1967,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dParticleHash,
 				m_dCellStart,
 				m_dNeibsList,
+				m_numParticles,
 				m_numParticles,
 				m_simparams->slength,
 				m_influenceRadius,
@@ -2013,6 +1999,7 @@ ParticleSystem::PredcorrTimeStep(bool timing)
 				m_dParticleHash,
 				m_dCellStart,
 				m_dNeibsList,
+				m_numParticles,
 				m_numParticles,
 				m_simparams->slength,
 				m_simparams->kerneltype,
@@ -2097,7 +2084,9 @@ ParticleSystem::saveneibs()
 			relPos.y = pos.y - neib_pos.y;
 			relPos.z = pos.z - neib_pos.z;
 			float3 relPos2;
-			relPos2 = relPos + periodic*m_physparams->dispvect;
+#if 0
+			relPos2 = relPos + periodic*m_physparams->dispvect + extra_offset*m_physparams->dispOffset;
+#endif // TODO FIXME MERGE
 
 			fprintf(fp, "%d\t%f\t%f\t%f\t", index, pos.x, pos.y, pos.z);
 			fprintf(fp, "%d\t%f\t%f\t%f\t", neib_index, relPos.x, relPos.y, relPos.z);
@@ -2132,8 +2121,8 @@ ParticleSystem::savehash()
 		gridPos.z = std::max(0, std::min(gridPos.z, (int) m_gridSize.z-1));
 		uint chash = gridPos.z*m_gridSize.y*m_gridSize.x + gridPos.y*m_gridSize.x + gridPos.x;
 
-		fprintf(fp, "%d\t%f\t%f\t%f\t%d\t%d\n", index, pos.x, pos.y, pos.z,
-					hash, chash);
+		fprintf(fp, "%d\t%f\t%f\t%f\t%lu\t%u\n", index, pos.x, pos.y, pos.z,
+					(long)hash, chash);
 		}
 	fclose(fp);
 
@@ -2537,6 +2526,18 @@ ParticleSystem::writeWaveGage()
 	fprintf(fp," </UnstructuredGrid>\r\n");
 	fprintf(fp,"</VTKFile>");
 	fclose(fp);
+}
+
+void ParticleSystem::checkPeriodicity() {
+	// check if there is any extra offset with 2+ periodic boundaries
+	int disp_count = 0;
+	if (m_physparams->dispvect.x != 0.0F) disp_count++;
+	if (m_physparams->dispvect.y != 0.0F) disp_count++;
+	if (m_physparams->dispvect.z != 0.0F) disp_count++;
+	bool any_extra = (m_physparams->dispOffset.x != 0.0F) ||
+		(m_physparams->dispOffset.y != 0.0F) || (m_physparams->dispOffset.z != 0.0F);
+	if (any_extra && disp_count > 1)
+		printf("WARNING: extra displacement offset has little sense with multiple periodic boundaries!\n");
 }
 
 

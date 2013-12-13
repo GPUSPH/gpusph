@@ -77,6 +77,9 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
+#if HASH_KEY_SIZE >= 64
+		 uint*		compactDeviceMap,
+#endif
 		 const uint		numParticles,
 		 const int		periodicbound)
 {
@@ -87,12 +90,20 @@ calcHash(float4*	pos,
 	switch (periodicbound) {
 		case 0:
 			cuneibs::calcHashDevice<0><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo, numParticles);
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
 			break;
 
 		default:
 			cuneibs::calcHashDevice<XPERIODIC><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-								   particleInfo, numParticles);
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
 			break;
 	}
 
@@ -109,14 +120,16 @@ inverseParticleIndex (	uint*	particleIndex,
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
 
 	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
-	
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");	
 }
 
-
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
+#if HASH_KEY_SIZE >= 64
+									uint*			segmentStart,
+#endif
 									float4*				newPos,				// output: sorted positions
 									float4*				newVel,				// output: sorted velocities
 									particleinfo*		newInfo,			// output: sorted info
@@ -128,8 +141,8 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
 									float*				newStrainRate,		// output: strain rate
-									const hashKey*		particleHash,   	// input: sorted grid hashes
-									const uint*			particleIndex,  	// input: sorted particle indices
+									const hashKey*		particleHash,		// input: sorted grid hashes
+									const uint*			particleIndex,		// input: sorted particle indices
 									const float4*		oldPos,				// input: unsorted positions
 									const float4*		oldVel,				// input: unsorted velocities
 									const particleinfo*	oldInfo,			// input: unsorted info
@@ -147,8 +160,9 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
-	
-	CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
+
+	// now in a separate function
+	// CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
@@ -162,11 +176,14 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
-	
+
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
-	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
-												newVel, newInfo, newBoundElement, newGradGamma, newVertices, newPressure, newTKE, newEps, newTurbVisc, newStrainRate,
+	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd,
+#if HASH_KEY_SIZE >= 64
+													segmentStart,
+#endif
+		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newPressure, newTKE, newEps, newTurbVisc, newStrainRate,
 												particleHash, particleIndex, numParticles, inversedParticleIndex);
 
 	// check if kernel invocation generated an error
@@ -195,13 +212,15 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint*			cellStart,
 				const uint*			cellEnd,
 				const uint			numParticles,
+				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const int			periodicbound)
 {
-	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, numParticles);
-	const uint numBlocks = div_up(numParticles, numThreads);
+	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
+	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
@@ -215,7 +234,7 @@ buildNeibsList(	neibdata*			neibsList,
 					#if (__COMPUTE__ >= 20)
 					pos,
 					#endif
-					particleHash,neibsList, numParticles, sqinfluenceradius);
+					particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 		break;
 
 		case 1:
@@ -223,7 +242,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 
 		case 2:
@@ -231,7 +250,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 
 		case 3:
@@ -239,7 +258,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 
 		case 4:
@@ -247,7 +266,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 
 		case 5:
@@ -255,7 +274,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 
 		case 6:
@@ -263,7 +282,7 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 
 		case 7:
@@ -271,10 +290,10 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, numParticles, sqinfluenceradius);
+						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
 				break;
 	}
-		
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
 	

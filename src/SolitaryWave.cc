@@ -141,13 +141,6 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 100;
@@ -347,64 +340,6 @@ void SolitaryWave::copy_planes(float4 *planes, float *planediv)
 		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
 		planediv[5] = 1.0;
 	}
-}
-
-
-void SolitaryWave::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-
-	glColor3f(1.0, 0.0, 0.0);
-	MbCallBack& mbpistondata = m_mbcallbackdata[0];
-	glColor3f(1.0, 0.0, 0.0);
-	Rect actual_piston = Rect(Point(mbpistondata.origin + mbpistondata.disp), Vector(0, m_size.y, 0),
-				Vector(0, 0, height));
-	actual_piston.GLDraw();
-
-	glColor3f(0.5, 0.5, 1.0);
-	const float displace = m_mbcallbackdata[1].disp.z;
-	const float width = m_size.y;
-	if (icyl ==1) {
-		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2,    -height + displace);
-		Point p2 = Point(h_length + slope_length/(cos(beta)*10), width/6,    -height + displace);
-		Point p3 = Point(h_length + slope_length/(cos(beta)*10), 5*width/6,  -height + displace);
-		Point p4 = Point(h_length + slope_length/(cos(beta)*5), 0,           -height + displace);
-		Point p5 = Point(h_length + slope_length/(cos(beta)*5),  width/3,    -height + displace);
-		Point p6 = Point(h_length + slope_length/(cos(beta)*5), 2*width/3,   -height + displace);
-		Point p7 = Point(h_length + slope_length/(cos(beta)*5),  width,      -height + displace);
-		Point p8 = Point(h_length + 3*slope_length/(cos(beta)*10),  width/6, -height + displace);
-		Point p9 = Point(h_length + 3*slope_length/(cos(beta)*10),  width/2, -height + displace);
-		Point p10 = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6,-height + displace);
-		Point p11 = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2,  -height + displace);
-
-		cyl1 = Cylinder(p1,Vector(.025,0,0),Vector(0,0,height));
-		cyl1.GLDraw();
-		cyl2 = Cylinder(p2,Vector(.025,0,0),Vector(0,0,height));
-		cyl2.GLDraw();
-		cyl3= Cylinder(p3,Vector(.025,0,0),Vector(0,0,height));
-		cyl3.GLDraw();
-		cyl4= Cylinder(p4,Vector(.025,0,0),Vector(0,0,height));
-		cyl4.GLDraw();
-		cyl5= Cylinder(p5,Vector(.025,0,0),Vector(0,0,height));
-		cyl5.GLDraw();
-		cyl6= Cylinder(p6,Vector(.025,0,0),Vector(0,0,height));
-		cyl6.GLDraw();
-		cyl7= Cylinder(p7,Vector(.025,0,0),Vector(0,0,height));
-		cyl7.GLDraw();
-		cyl8= Cylinder(p8,Vector(.025,0,0),Vector(0,0,height));
-		cyl8.GLDraw();
-		cyl9= Cylinder(p9,Vector(.025,0,0),Vector(0,0,height));
-		cyl9.GLDraw();
-		cyl10= Cylinder(p10,Vector(.025,0,0),Vector(0,0,height));
-		cyl10.GLDraw();
-		}
-
-	if (icone == 1) {
-		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height + displace);
-		cone = Cone(p1,Vector(width/4,0.0,0.0), Vector(width/10,0.,0.), Vector(0,0,height));
-		cone.GLDraw();
-		}
 }
 
 

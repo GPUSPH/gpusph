@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -52,10 +47,6 @@
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-//	lx = 1.6;
-//	ly = 0.67;
-//	lz = 0.6;
-//	H = 0.4;
 	lx = 3.22;
 	ly = 1.0;
 	lz = 1.0;
@@ -68,6 +59,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_writerType = VTKWRITER;
+	//m_writerType = UDPWRITER;
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -85,8 +77,8 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
 	//m_simparams.visctype = DYNAMICVISC;
-    m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f; //0.00036f
+	m_simparams.boundarytype= LJ_BOUNDARY;
+	m_simparams.tend = 1.5f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -102,7 +94,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
-	
+
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
@@ -129,7 +121,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_displayinterval = 0.01f;
 	m_writefreq = 5;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
 	create_problem_dir();
@@ -164,7 +156,7 @@ int DamBreak3D::fill_parts()
 
 	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	if (wet) {
 		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
@@ -218,15 +210,12 @@ void DamBreak3D::copy_planes(float4 *planes, float *planediv)
 	planediv[4] = 1.0;
 }
 
-
-void DamBreak3D::draw_boundary(float t)
+void DamBreak3D::fillDeviceMap(GlobalData* gdata)
 {
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
+	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
+	fillDeviceMapByAxis(gdata, Y_AXIS);
+	//fillDeviceMapByEquation(gdata);
 }
-
 
 void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {

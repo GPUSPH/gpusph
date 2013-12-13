@@ -86,8 +86,8 @@ FORCES_CUDA_KERNEL
 	# endif
 
 	if (index < numParticles) {
-		// Read particle info from texture
-    	const particleinfo info = tex1Dfetch(infoTex, index);
+		// read particle info from texture
+		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
@@ -98,6 +98,7 @@ FORCES_CUDA_KERNEL
 			#else
 			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
+
 			const float4 vel = tex1Dfetch(velTex, index);
 			const float4 gradgamma = tex1Dfetch(gamTex, index);
 
@@ -106,16 +107,16 @@ FORCES_CUDA_KERNEL
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
-			sym33mat tau;
+			symtensor3 tau;
 			float2 temp = tex1Dfetch(tau0Tex, index);
-			tau.a11 = temp.x;
-			tau.a12 = temp.y;
+			tau.xx = temp.x;
+			tau.xy = temp.y;
 			temp = tex1Dfetch(tau1Tex, index);
-			tau.a13 = temp.x;
-			tau.a22 = temp.y;
+			tau.xz = temp.x;
+			tau.yy = temp.y;
 			temp = tex1Dfetch(tau2Tex, index);
-			tau.a23 = temp.x;
-			tau.a33 = temp.y;
+			tau.yz = temp.x;
+			tau.zz = temp.y;
 			# endif
 
 			# ifdef VISC_KEPS
@@ -217,16 +218,16 @@ FORCES_CUDA_KERNEL
 							neib_pres = P(relVel.w, PART_FLUID_NUM(neib_info)); */
 
 						# ifdef VISC_SPS
-						sym33mat neib_tau;
+						symtensor3 neib_tau;
 						temp = tex1Dfetch(tau0Tex, neib_index);
-						neib_tau.a11 = temp.x;
-						neib_tau.a12 = temp.y;
+						neib_tau.xx = temp.x;
+						neib_tau.xy = temp.y;
 						temp = tex1Dfetch(tau1Tex, neib_index);
-						neib_tau.a13 = temp.x;
-						neib_tau.a22 = temp.y;
+						neib_tau.xz = temp.x;
+						neib_tau.yy = temp.y;
 						temp = tex1Dfetch(tau2Tex, neib_index);
-						neib_tau.a23 = temp.x;
-						neib_tau.a33 = temp.y;
+						neib_tau.yz = temp.x;
+						neib_tau.zz = temp.y;
 						# endif
 
 						const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
@@ -274,12 +275,12 @@ FORCES_CUDA_KERNEL
 						const float visc = laminarvisc_kinematic(vel.w, relVel.w, relPos.w, f);
 						# elif defined(VISC_SPS)
 						const float visc = laminarvisc_kinematic(vel.w, relVel.w, relPos.w, f);
-						force.x += relPos.w*f*((tau.a11 + neib_tau.a11)*relPos.x + (tau.a12 + neib_tau.a12)*relPos.y +
-										(tau.a13 + neib_tau.a13)*relPos.z);
-						force.y += relPos.w*f*((tau.a12 + neib_tau.a12)*relPos.x + (tau.a22 + neib_tau.a22)*relPos.y +
-										(tau.a23 + neib_tau.a23)*relPos.z);
-						force.z += relPos.w*f*((tau.a13 + neib_tau.a13)*relPos.x + (tau.a23 + neib_tau.a23)*relPos.y +
-										(tau.a33 + neib_tau.a33)*relPos.z);
+						force.x += relPos.w*f*((tau.xx + neib_tau.xx)*relPos.x + (tau.xy + neib_tau.xy)*relPos.y +
+										(tau.xz + neib_tau.xz)*relPos.z);
+						force.y += relPos.w*f*((tau.xy + neib_tau.xy)*relPos.x + (tau.yy + neib_tau.yy)*relPos.y +
+										(tau.yz + neib_tau.yz)*relPos.z);
+						force.z += relPos.w*f*((tau.xz + neib_tau.xz)*relPos.x + (tau.yz + neib_tau.yz)*relPos.y +
+										(tau.zz + neib_tau.zz)*relPos.z);
 						# elif defined(VISC_KEPS)
 						const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, (d_visccoeff+turbVisc)*vel.w,
 										(d_visccoeff+neib_tvisc)*relVel.w);
@@ -437,7 +438,7 @@ FORCES_CUDA_KERNEL
 				geom_coeff = max(geom_coeff, GeometryForce(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
 							pos.w, as_float3(vel), dynvisc, force));
 			}
-			
+
 			# ifdef DT_KERNEL
 			// storing data for cfl condition in shared memory			
 			sm_max[threadIdx.x] = max(length(as_float3(force)), sspeed*sspeed/slength);

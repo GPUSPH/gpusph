@@ -25,23 +25,31 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "DamBreakGate.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
 
+#define SIZE_X		(1.60)
+#define SIZE_Y		(0.67)
+#define SIZE_Z		(0.40)
+
+// default: origin in 0,0,0
+#define ORIGIN_X	(0)
+#define ORIGIN_Y	(0)
+#define ORIGIN_Z	(0)
+
+// centered domain: use to improve accuracy
+// #define ORIGIN_X	(- SIZE_X / 2)
+// #define ORIGIN_Y	(- SIZE_Y / 2)
+// #define ORIGIN_Z	(- SIZE_Z / 2)
 
 DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	m_size = make_double3(1.6*1.1, 0.67*1.1, 0.4*2.);
-	m_origin = make_double3(0.0, 0.0, 0.0);
+	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z);
+	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	m_writerType = VTKWRITER;
 
@@ -89,18 +97,11 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.002f;
 	m_writefreq = 100;
 	m_screenshotfreq =100;
-        
+
 	// Set up callback function
 	m_simparams.mbcallback = true;
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
@@ -147,38 +148,37 @@ MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i
 	return m_mbcallbackdata[0];
 }
 
-
 int DamBreakGate::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
 	Cube fluid, fluid1, fluid2, fluid3, fluid4;
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(1.6, 0, 0),
+	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(1.6, 0, 0),
 						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
 
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	Rect gate = Rect (Point(mbgatedata.origin), Vector(0, 0.67, 0),
+	Rect gate = Rect (Point(mbgatedata.origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
-	obstacle = Cube(Point(0.9, 0.24, r0), Vector(0.12, 0, 0),
+	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.12, 0), Vector(0, 0, 0.4 - r0));
 
-	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
+	fluid = Cube(Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.4, 0, 0),
 				Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.4 - r0));
 
 	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
-		fluid1 = Cube(Point(0.4 + m_deltap + r0 , r0, r0), Vector(0.5 - m_deltap - 2*r0, 0, 0),
+		fluid1 = Cube(Point(0.4 + m_deltap + r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.5 - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
 
-		fluid2 = Cube(Point(1.02 + r0 , r0, r0), Vector(0.58 - 2*r0, 0, 0),
+		fluid2 = Cube(Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.58 - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
 
-		fluid3 = Cube(Point(0.9 , m_deltap , r0), Vector(0.12, 0, 0),
+		fluid3 = Cube(Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.24 - 2*r0, 0), Vector(0, 0, 0.03));
 
-		fluid4 = Cube(Point(0.9 , 0.36 + m_deltap , r0), Vector(0.12, 0, 0),
+		fluid4 = Cube(Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
 					Vector(0, 0.31 - 2*r0, 0), Vector(0, 0, 0.03));
 	}
 
@@ -211,22 +211,6 @@ int DamBreakGate::fill_parts()
 
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
 }
-
-
-void DamBreakGate::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-
-	glColor3f(1.0, 0.0, 0.0);
-	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	Rect actual_gate = Rect(Point(mbgatedata.origin + mbgatedata.disp),
-						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
-	actual_gate.GLDraw();
-
-	obstacle.GLDraw();
-}
-
 
 void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {

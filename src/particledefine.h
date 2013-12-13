@@ -35,10 +35,6 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
-#ifndef dSINGLE
-#define dSINGLE
-#endif
-
 #include "ode/ode.h"
 
 enum KernelType {
@@ -136,7 +132,6 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
-
 
 /* The particle type is a short integer organized this way:
    * lowest 4 bits: fluid number (for multifluid)
@@ -262,16 +257,12 @@ disable_particle(float4 &pos) {
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
 
+// define uint, uchar, ulong
+typedef unsigned long ulong; // only used in timing
 typedef unsigned int uint;
-
 typedef unsigned char uchar;
 
 typedef unsigned short neibdata;
-
-/*typedef struct neibdata {
-	uchar	cell;
-	uchar 	offset;
-} neibdata;*/
 
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)

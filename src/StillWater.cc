@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <math.h>
 #include <iostream>
 
@@ -98,12 +93,6 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_physparams.epsxsph = 0.5f;
 
 	m_simparams.periodicbound = 0;
-
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = 0.1f;
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
@@ -187,13 +176,6 @@ void StillWater::copy_planes(float4 *planes, float *planediv)
 	planediv[3] = 1.0;
 	planes[4] = make_float4(-1.0, 0, 0, m_origin.y + l);
 	planediv[4] = 1.0;
-}
-
-
-void StillWater::draw_boundary(float t)
-{
-	glColor3f(1.0, 0.0, 0.0);
-	experiment_box.GLDraw();
 }
 
 

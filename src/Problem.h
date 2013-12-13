@@ -44,7 +44,11 @@
 #include "Object.h"
 
 #include "ode/ode.h"
+
 typedef std::vector<vertexinfo> VertexVect;
+
+// not including GlobalData.h since it needs the complete definition of the Problem class
+struct GlobalData;
 
 using namespace std;
 
@@ -68,6 +72,15 @@ class Problem {
 			VTKLEGACYWRITER,
 			CUSTOMTEXTWRITER,
 			UDPWRITER
+		};
+
+		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
+		enum SplitAxis
+		{
+			LONGEST_AXIS,
+			X_AXIS,
+			Y_AXIS,
+			Z_AXIS
 		};
 
 		dWorldID		m_ODEWorld;
@@ -154,14 +167,6 @@ class Problem {
 			return m_writerType;
 		};
 
-		float get_minrho(void) const { return m_minrho; };
-
-		float get_maxrho(void) const { return m_maxrho; };
-
-		float get_maxvel(void) const { return m_maxvel; };
-
-		float get_minvel(void) const { return m_minvel; };
-
 		float density(float, int) const;
 
 		float pressure(float, int) const;
@@ -234,8 +239,6 @@ class Problem {
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
-		virtual void draw_boundary(float) = 0;
-		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*) = 0;
 		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, uint*) {};
 		virtual void copy_planes(float4*, float*);
@@ -266,5 +269,19 @@ class Problem {
 		int	get_ODE_body_numparts(const int);
 
 		void init_keps(float*, float*, uint, particleinfo*);
+
+		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
+		virtual void fillDeviceMap(GlobalData* gdata);
+		// partition by splitting the cells according to their linearized hash
+		void fillDeviceMapByCellHash(GlobalData* gdata);
+		// partition by splitting along an axis. Default: along the longest
+		void fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis);
+		// partition by coordinates satistfying an example equation
+		void fillDeviceMapByEquation(GlobalData* gdata);
+		// partition by cutting the domain in parallelepipeds
+		void fillDeviceMapByRegularGrid(GlobalData* gdata);
+		// partition by performing the specified number of cuts along the three cartesian axes
+		void fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices);
+
 };
 #endif

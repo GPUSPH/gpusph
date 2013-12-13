@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-  ¬† This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "OdeObjects.h"
 #include "Point.h"
@@ -64,7 +59,7 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_simparams.mlsfreq = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
-    m_simparams.boundarytype= LJ_BOUNDARY;
+	m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5;
 
 	// Free surface detection
@@ -79,7 +74,7 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0, 10);
 
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
 
@@ -89,11 +84,11 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
-	
+
 	m_physparams.kinematicvisc = 1.0e-6;
 	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
+
 	// Allocate data for floating bodies
 	allocate_ODE_bodies(2);
 	dInitODE();				// Initialize ODE
@@ -108,12 +103,12 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_minvel = 0.0f;
 	//m_maxvel = sqrt(m_physparams.gravity*H);
 	m_maxvel = 3.0f;
-	
+
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 10;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
 	create_problem_dir();
@@ -156,7 +151,7 @@ int OdeObjects::fill_parts()
 
 	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	if (wet) {
 		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
@@ -182,7 +177,6 @@ int OdeObjects::fill_parts()
 		fluid1.Fill(parts, m_deltap, true);
 		obstacle.Unfill(parts, r0);
 	}
-
 
 	// Rigid body #1 : sphere
 	Point rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
@@ -231,26 +225,6 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
 		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
 	}
-}
-
-
-void OdeObjects::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
-
-	/*pos = dBodyGetPosition(sphere.m_ODEBody);
-	R = dBodyGetRotation(sphere.m_ODEBody);
-	dsDrawSphere(pos, R, 0.05);*/
-	sphere.GLDraw();
-	cylinder.GLDraw();
-
-	/*pos = dGeomGetPosition(cube.m_ODEGeom);
-	R = dGeomGetRotation(cube.m_ODEGeom);
-	const float sides1[3] = {0.1, 0.1, 0.1};
-	dsDrawBox(pos, R, sides1);*/
 }
 
 

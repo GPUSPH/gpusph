@@ -37,21 +37,7 @@
 	- a parallel reduction for adaptive dt is done inside forces, block
 	size for forces MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 30)
-	#define BLOCK_SIZE_FORCES		128
-	#define BLOCK_SIZE_CALCVORT		256
-	#define MIN_BLOCKS_CALCVORT		8
-	#define BLOCK_SIZE_CALCTEST		256
-	#define MIN_BLOCKS_CALCTEST		8
-	#define BLOCK_SIZE_SHEPARD		256
-	#define MIN_BLOCKS_SHEPARD		8
-	#define BLOCK_SIZE_MLS			256
-	#define MIN_BLOCKS_MLS			8
-	#define BLOCK_SIZE_SPS			256
-	#define MIN_BLOCKS_SPS			8
-	#define BLOCK_SIZE_FMAX			256
-	#define MAX_BLOCKS_FMAX			64
-#elif (__COMPUTE__ == 20 || __COMPUTE__ == 21)
+#if (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_FORCES		128
 	#define BLOCK_SIZE_CALCVORT		128
 	#define MIN_BLOCKS_CALCVORT		6
@@ -105,43 +91,74 @@ void
 setforcesrbstart(const uint* rbfirstindex, int numbodies);
 
 float
-forces(	float4*			pos,
-		float4*			vel,
-		float4*			forces,
-		float4*			gradgam,
-		float4*			boundelem,
-		float*			pressure,
-		float4*			rbforces,
-		float4*			rbtorques,
-		float4*			xsph,
-		particleinfo*	info,
-		uint*			particleHash,
-		uint*			cellStart,
-		neibdata*		neibsList,
-		uint			numParticles,
-		float			deltap,
-		float			slength,
-		float			dt,
-		bool			dtadapt,
-		float			dtadaptfactor,
-		bool			xsphcorr,
-		KernelType		kerneltype,
-		float			influenceradius,
-		ViscosityType	visctype,
-		float			visccoeff,
-		float*			strainrate,
-		float*			turbvisc,
-		float*			keps_tke,
-		float*			keps_eps,
-		float2*			keps_dkde,
-		float*			cfl,
-		float*			cflGamma,
-		float*			cflTVisc,
-		float*			tempCfl,
-		float2*			tau[],
-		SPHFormulation	sph_formulation,
-		BoundaryType	boundarytype,
-		bool			usedem);
+forces(
+	const	float4	*pos,
+	const	float4	*vel,
+			float4	*forces,
+	const	float4	*gradgam,
+	const	float4	*boundelem,
+	const	float	*pressure,
+			float4	*rbforces,
+			float4	*rbtorques,
+			float4	*xsph,
+	const	particleinfo	*info,
+	const	uint	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	deltap,
+			float	slength,
+			float	dt,
+			bool	dtadapt,
+			float	dtadaptfactor,
+			bool	xsphcorr,
+	KernelType		kerneltype,
+			float	influenceradius,
+	ViscosityType	visctype,
+			float	visccoeff,
+			float	*turbvisc,
+			float	*keps_tke,
+			float	*keps_eps,
+			float2	*keps_dkde,
+			float	*cfl,
+			float	*cflGamma,
+			float	*cflTVisc,
+			float	*tempCfl,
+	SPHFormulation	sph_formulation,
+	BoundaryType	boundarytype,
+			bool	usedem);
+
+void
+sps(		float2*			tau[],
+	const	float4	*pos,
+	const	float4	*vel,
+const	particleinfo	*info,
+	const	uint	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	slength,
+		KernelType	kerneltype,
+			float	influenceradius);
+
+void
+mean_strain_rate(
+			float	*strainrate,
+	const	float4	*pos,
+	const	float4	*vel,
+const	particleinfo	*info,
+	const	uint	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+	const	float4	*gradgam,
+	const	float4	*boundelem,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	slength,
+		KernelType	kerneltype,
+			float	influenceradius);
 
 void
 shepard(float4*		pos,
@@ -152,6 +169,7 @@ shepard(float4*		pos,
 		uint*		cellStart,
 		neibdata*	neibsList,
 		uint		numParticles,
+		uint		particleRangeEnd,
 		float		slength,
 		int			kerneltype,
 		float		influenceradius);
@@ -165,6 +183,7 @@ mls(float4*		pos,
 	uint*		cellStart,
 	neibdata*	neibsList,
 	uint		numParticles,
+	uint		particleRangeEnd,
 	float		slength,
 	int			kerneltype,
 	float		influenceradius);
@@ -179,6 +198,7 @@ vorticity(	float4*		pos,
 			uint*		cellStart,
 			neibdata*	neibsList,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			float		slength,
 			int			kerneltype,
 			float		influenceradius);
@@ -192,6 +212,7 @@ testpoints(	float4*		pos,
 			uint*		cellStart,
 			neibdata*	neibsList,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			float		slength,
 			int			kerneltype,
 			float		influenceradius);
@@ -207,6 +228,7 @@ surfaceparticle(	float4*		pos,
 			uint*		cellStart,
 			neibdata*	neibsList,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			float		slength,
 			int			kerneltype,
 			float		influenceradius,
@@ -266,6 +288,7 @@ initGradGamma(	float4*		oldPos,
 		const uint*	cellStart,
 		neibdata*	neibsList,
 		uint		numParticles,
+		uint		particleRangeEnd,
 		float		deltap,
 		float		slength,
 		float		inflRadius,
@@ -285,6 +308,7 @@ updateGamma(	float4*		oldPos,
 		const uint*	cellStart,
 		neibdata*	neibsList,
 		uint		numParticles,
+		uint		particleRangeEnd,
 		float		slength,
 		float		inflRadius,
 		float		virtDt,
@@ -298,7 +322,8 @@ updatePositions(	float4*		oldPos,
 			float4*		virtualVel,
 			particleinfo*	info,
 			float		virtDt,
-			uint		numParticles);
+			uint		numParticles,
+			uint		particleRangeEnd);
 
 // Recomputes values at the boundary elements (currently only density) as an average
 // over three vertices of this element
@@ -310,6 +335,7 @@ updateBoundValues(	float4*		oldVel,
 			vertexinfo*	vertices,
 			particleinfo*	info,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			bool		initStep);
 
 // Recomputes values at the vertex particles, following procedure similar to Shepard filter.
@@ -327,6 +353,7 @@ dynamicBoundConditions(	const float4*		oldPos,
 			const uint*		cellStart,
 			const neibdata*	neibsList,
 			const uint		numParticles,
+			const uint		particleRangeEnd,
 			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
@@ -343,6 +370,7 @@ calcProbe(	float4*		oldPos,
 		const uint*		cellStart,
 		const neibdata*	neibsList,
 		const uint		numParticles,
+		const uint		particleRangeEnd,
 		const float		slength,
 		const int		kerneltype,
 		const float		influenceradius);

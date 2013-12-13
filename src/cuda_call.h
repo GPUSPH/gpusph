@@ -21,6 +21,7 @@ inline void __cudaSafeCallNoSync( cudaError err, const char *file, const int lin
 
 inline void __cudaSafeCall( cudaError err, const char *file, const int line )
 {
+	if( err == cudaSuccess) err = cudaDeviceSynchronize();
     if( cudaSuccess != err) {
 		fprintf(stderr, "%s(%i) : cudaSafeCall() Runtime API error %d: %s.\n",
                 file, line, (int)err, cudaGetErrorString( err ) );

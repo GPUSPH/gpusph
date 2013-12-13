@@ -36,6 +36,9 @@
 #include "Problem.h"
 #include "particledefine.h"
 
+// used for dumping the device index
+#include "GlobalData.h"
+
 using namespace std;
 
 class Writer
@@ -56,6 +59,10 @@ public:
 	//WaveGage
 	virtual void write_WaveGage(float t, GageList const& gage);
 
+	void setGlobalData(GlobalData *_gdata);
+
+	uint getLastFilenum();
+
 protected:
 	string			m_dirname;
 	uint			m_FileCounter;
@@ -65,6 +72,7 @@ protected:
 	FILE*			m_WaveGagefile;
 	const Problem	*m_problem;
 	string			next_filenum();
+	GlobalData*		m_gdata;
 };
 
 #endif	/* _VTKWRITER_H */

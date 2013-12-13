@@ -31,9 +31,6 @@
 #include "Cube.h"
 #include "Rect.h"
 
-#include "gl_utils.h"
-
-
 Cube::Cube(void)
 {
 	m_origin = Point(0, 0, 0);
@@ -85,12 +82,12 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 
 Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
 {
-	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm() 
+	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm()
 		|| abs(vy*vz) > 1e-8*vy.norm()*vz.norm()) {
 		std::cout << "Trying to construct a cube with non perpendicular vectors\n";
 		exit(1);
 	}
-	
+
 	m_origin = origin;
 	m_vx = vx;
 	m_lx = m_vx.norm();
@@ -99,7 +96,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	m_vz = vz;
 	m_lz = m_vz.norm();
 	m_center = m_origin + 0.5*(m_vx + m_vy + m_vz);
-	
+
 	Vector axis;
 	double mat[9];
 	mat[0] = m_vx(0)/m_lx;
@@ -111,7 +108,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	mat[2] = m_vz(0)/m_lz;
 	mat[5] = m_vz(1)/m_lz;
 	mat[8] = m_vz(2)/m_lz;
-	
+
 	double trace = mat[0] + mat[4] + mat[8];
 	double cs = 0.5*(trace - 1.0);
 	double angle = acos(cs);  // in [0,PI]
@@ -179,7 +176,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 		axis(1) = 0.0;
 		axis(2) = 0.0;
 	}
-	
+
 	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
 }
 
@@ -288,7 +285,7 @@ Cube::FillBorder(PointVect& points, const double dx, const int face_num, const b
 	Point   rorigin;
 	Vector  rvx, rvy;
 	m_origin(3) = m_center(3);
-	
+
 	switch(face_num){
 		case 0:
 			rorigin = m_origin;
@@ -331,7 +328,7 @@ void
 Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
 {
 	m_origin(3) = m_center(3);
-	
+
 	bool edges_to_fill[6][4] =
 		{   {true, true, true, true},
 			{true, false, true, false},
@@ -353,7 +350,7 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 {
 	m_origin(3) = m_center(3);
 	int nparts = 0;
-	
+
 	const int nx = (int) (m_lx/dx);
 	const int ny = (int) (m_ly/dx);
 	const int nz = (int) (m_lz/dx);
@@ -422,57 +419,6 @@ Cube::IsInside(const Point& p, const double dx) const
 	if (lp(0) > -dx && lp(0) < lx && lp(1) > -dx && lp(1) < ly &&
 		lp(2) > -dx && lp(2) < lz )
 		inside = true;
-	
+
 	return inside;
-}
-
-
-void
-Cube::GLDraw(const EulerParameters& ep, const Point& cg) const
-{
-	Point origin = cg - 0.5*ep.Rot(Vector(m_lx, m_ly, m_lz));
-	
-	Point p1, p2, p3, p4;
-	p1 = Point(0, 0, 0);
-	p2 = Point(m_lx, 0, 0);
-	p3 = Point(m_lx, 0, m_lz);
-	p4 = Point(0, 0, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-	
-	p1 = Point(0, m_ly, 0);
-	p2 = Point(m_lx, m_ly, 0);
-	p3 = Point(m_lx, m_ly, m_lz);
-	p4 = Point(0, m_ly, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-	
-	p1 = Point(0, 0, 0);
-	p2 = Point(0, m_ly, 0);
-	p3 = Point(0, m_ly, m_lz);
-	p4 = Point(0, 0, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-		
-	p1 = Point(m_lx, 0, 0);
-	p2 = Point(m_lx, m_ly, 0);
-	p3 = Point(m_lx, m_ly, m_lz);
-	p4 = Point(m_lx, 0, m_lz);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-}
-
-
-void
-Cube::GLDraw(const dMatrix3 rot, const Point& cg) const
-{
-	GLSetTransform (cg, rot);
-	GLDrawBox (m_lx, m_ly, m_lz);
-	glPopMatrix();
-}
-
-
-void
-Cube::GLDraw(void) const
-{
-	if (m_ODEBody)
-		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
-	else
-		GLDraw(m_ODERot, m_center);
 }

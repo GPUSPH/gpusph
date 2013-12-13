@@ -23,34 +23,28 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <cstdlib>
 
 #include "Sphere.h"
-#include "gl_utils.h"
 
 
 Sphere::Sphere(void)
 {
-  	m_center = Point(0,0,0);
+	m_center = Point(0,0,0);
 	m_r = 1.0;
 }
 
 
 Sphere::Sphere(const Point& center, const double radius)
 {
- 	m_center = center;
- 	m_r = radius;
+	m_center = center;
+	m_r = radius;
 	const double ep[4] = {1.0, 0.0, 0.0, 0.0};
 	m_ep = EulerParameters(ep);
 	m_ep.ComputeRot();
 }
-	
+
 
 double
 Sphere::Volume(const double dx) const
@@ -97,13 +91,13 @@ Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 void
 Sphere::FillBorder(PointVect& points, const double dx)
 {
-  	const double angle = dx/m_r;
-  	const int nc = (int) ceil(M_PI/angle); //number of layers
+	const double angle = dx/m_r;
+	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
-  	for (int i = - nc; i <= nc; ++i) {
+	for (int i = - nc; i <= nc; ++i) {
 		FillDiskBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
-  	 }
+	}
 }
 
 
@@ -112,13 +106,13 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 {
 	int nparts = 0;
 	const double angle = dx/m_r;
-  	const int nc = (int) ceil(M_PI/angle); //number of layers
+	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
-  	for (int i = - nc; i <= nc; ++i) {
+	for (int i = - nc; i <= nc; ++i) {
 		nparts += FillDisk(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, fill);
-  	 }
-	
+	}
+
 	return nparts;
 }
 
@@ -131,71 +125,6 @@ Sphere::IsInside(const Point& p, const double dx) const
 	bool inside = false;
 	if (lp(0)*lp(0) + lp(1)*lp(1) + lp(2)*lp(2) < r*r)
 		inside = true;
-	
+
 	return inside;
-}
-
-
-void
-Sphere::GLDraw(const EulerParameters& ep, const Point& cg) const
-{
-	/* The parametric equation of the the sphere centered in (0, 0, 0),
-	   of radius R is :
-		x(u,v) = R cos(v) cos(u)
-		y(u,v) = R cos(v) sin(u)
-		z(u,v) = R sin(v)
-	*/
-	
-	#define SPHERE_CIRCLES 9
-	#define CIRCLE_LINES 36
-	double angle1 = 2.0*M_PI/SPHERE_CIRCLES;
-	double angle2 = 2.0*M_PI/CIRCLE_LINES;
-	for (int i = 0; i <= SPHERE_CIRCLES; ++i) {
-		const double v = i*angle1;
-		const double z = m_r*sin(v);
-		glBegin(GL_POLYGON);
-		for (int j = 0; j < CIRCLE_LINES; ++j) {
-			double u = j*angle2;
-			Point p = ep.Rot(Point(m_r*cos(v)*cos(u), m_r*cos(v)*sin(u), z));
-			p += cg;
-			glVertex3f(p(0), p(1), p(2));
-		}
-		glEnd();
-	}
-	
-	for (int i = 0; i < SPHERE_CIRCLES/2; i ++) {
-		const double u = i*angle1;
-		glBegin(GL_POLYGON);
-		for (int j = 0; j < CIRCLE_LINES; ++j) {
-			double v = j*angle2;
-			Point p = ep.Rot(Point(m_r*cos(v)*cos(u), m_r*cos(v)*sin(u), m_r*sin(v)));
-			p += cg;
-			glVertex3f(p(0), p(1), p(2));
-		}
-		glEnd();
-	}
-	#undef TORUS_CIRCLES
-	#undef CIRCLE_LINES
-}
-
-
-void
-Sphere::GLDraw(const dMatrix3 rot, const Point& cg) const
-{
-	  glEnable(GL_NORMALIZE);
-	  GLSetTransform(cg, rot);
-	  glScaled(m_r, m_r, m_r);
-	  GLDrawUnitSphere();
-	  glPopMatrix();
-	  glDisable(GL_NORMALIZE);
-}
-
-
-void
-Sphere::GLDraw(void) const
-{
-	if (m_ODEBody)
-		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
-	else
-		GLDraw(m_ODERot, m_center);
 }

@@ -45,17 +45,17 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 		std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
 		exit(1);
 	}
-	
+
 	m_origin = origin;
 	m_vx = vx;
 	m_vy = vy;
 	m_lx = vx.norm();
 	m_ly = vy.norm();
 	m_center = m_origin + 0.5*m_vx + 0.5*m_vy;
-	
+
 	Vector vz = m_vx.cross(m_vy);
 	vz.normalize();
-	
+
 	Vector axis;
 	double mat[9];
 	mat[0] = m_vx(0)/m_lx;
@@ -67,7 +67,7 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 	mat[2] = vz(0);
 	mat[5] = vz(1);
 	mat[8] = vz(2);
-	
+
 	double trace = mat[0] + mat[4] + mat[8];
 	double cs = 0.5*(trace - 1.0);
 	double angle = acos(cs);  // in [0,PI]
@@ -135,7 +135,7 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 		axis(1) = 0.0;
 		axis(2) = 0.0;
 	}
-	
+
 	m_ep = EulerParameters(axis, angle);
 	m_ep.ComputeRot();
 }
@@ -144,15 +144,15 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 Rect::Rect(const Point &origin, const double lx, const double ly, const EulerParameters &ep)
 {
 	m_origin = origin;
-	
+
 	m_ep = ep;
 	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
-	
+
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
-	
+
 	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 	m_origin.print();
 	m_center.print();
@@ -215,7 +215,7 @@ Rect::FillBorder(PointVect& points, const double dx,
 	if (!populate_first){
 		startx++;
 	}
-	
+
 	if (!populate_last){
 		endx--;
 	}
@@ -243,7 +243,7 @@ Rect::Fill(PointVect& points, const double dx, const bool fill_edges, const bool
 {
 	m_origin(3) = m_center(3);
 	int nparts = 0;
-	
+
 	int nx = (int) (m_lx/dx);
 	int ny = (int) (m_ly/dx);
 	int startx = 0;
@@ -281,7 +281,7 @@ void
 Rect::Fill(PointVect& points, const double dx, const bool* edges_to_fill)
 {
 	m_origin(3) = m_center(3);
-	
+
 	Fill(points, dx, false, true);
 
 	for (int border_num = 0; border_num < 4; border_num++) {
@@ -577,7 +577,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 
 bool
 Rect::IsInside(const Point& p, const double dx) const
-{	
+{
 	Point lp = m_ep.TransposeRot(p - m_origin);
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;
@@ -585,27 +585,6 @@ Rect::IsInside(const Point& p, const double dx) const
 	if (lp(0) > -dx && lp(0) < lx && lp(1) > -dx && lp(1) < ly &&
 		lp(2) > -dx && lp(2) < dx)
 		inside = true;
-	
+
 	return inside;
-}
-
-
-void
-Rect::GLDraw(const EulerParameters& ep, const Point &cg) const
-{
-	Point origin = cg - ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
-	
-	Point p1, p2, p3, p4;
-	p1 = Point(0, 0, 0);
-	p2 = Point(m_lx, 0, 0);
-	p3 = Point(m_lx, m_ly, 0);
-	p4 = Point(0, m_ly, 0);
-	GLDrawQuad(ep, p1, p2, p3, p4, origin);
-}
-
-
-void
-Rect::GLDraw(void) const
-{
-	GLDraw(m_ep, m_center);
 }

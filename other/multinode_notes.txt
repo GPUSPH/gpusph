@@ -1,0 +1,317 @@
+------------------------------------------------------   SINGLE NODE
+
+PP = repeat for each MPI process
+TT = per thread
+MM = multinode
+
+> main
+PP	> 	parse args
+		local function, no namespace, taking args in input and writing on the global variable clOptions
+?P	> init
+		local function, no namespace, taking in input a string containing the name of the problem to be simulated
+		also needs clOptions, accesses it because it's global
+PP		> new problem (set all problem settinga and parameters)
+PP		> new ParticleSystem
+TT			> checkCUDA (check compute capability)
+			compute cell size
+			creates new writer
+PP		ps > print phys and sim params
+PP		problem > fillparts (returns numParticles)
+		ps > allocate (numParticles)
+PP			CPU arrays
+TT			GPU arrays
+PP		problem > copy_to_array (to ps pointers)
+TT		ps > set_arrays (uploads to the gpu)
+		(same for planes: problem > allocate, copy, set)
+TT	> getarrays
+		asks ps to dump arrays which were just uploaded to the GPU
+PP	> do_write
+		do a first save
+	now call console_loop or glutMainLoop
+
+> console_loop
+	while (!finished)
+TT		ps > predCorrTimeStep (called with try/catch on 0 dt exception)
+			if finished return
+			> buildNeibslist
+				k>  calcHash
+				k>  sort
+				k>  reorderDataAndFindCellStart
+				swap3
+				k>  buildNeibslist
+			k>  shepard && swap1
+			k>  mls && swap
+			set mvboundaries and gravity
+			(init bodies)
+			k>  forces (in dt1)
+			reduce bodies
+			k>  euler
+			reduce bodies
+			callbacks (bounds, gravity)
+			k>  forces (in dt2)
+			reduce bodies
+			k>  euler
+			reduce bodies
+			swap2
+			increase t, iter
+			if dtadapt
+MM				dt = min (dt1, dt2)
+				check/throw dtZero exception
+		problem > finished(t);
+		problem > need_write(t)
+		if (need_write)
+			> get_arrays
+				asks ps to dump arrays
+			> do_write
+				printf info
+				ps > writeToFile
+	> quit
+		> cleanup
+			delete ps
+			close logfile
+			
+			
+			
+			
+			
+			
+
+------------------------------------------------------   MULTINODE
+
+classes (default: PP)
+	Writer
+	Problem
+	Options
+TT	(Worker ->) GPUWorker
+	// Integrator (w callbacks by workers; accesses current state)
+	SimulationStep (w parameters and ENUM for kernel)
+	CommonData (w #gpus, processes, subdomains, options, problem, etc.)
+	GPUSPH (managing multi-gpu and multi-node)
+	ParticleSystem (per process container for CPU arrays and physical params)
+	//DomainSplitter (inside Problem; default by single axis; or, just method)
+	Synchronizer (methods to wait in different ways)
+	//CopyManager
+	NetManager (init MPI, translates global dev id in local one + node id; or, just array?)
+
+common data	
+	world size
+	cell size
+	#gpus
+	mpi or not
+	deviceMap (3d array of int)
+	planes
+	tmp cell buffers?
+	dt, t, iter
+	keepgoing
+	nextcommand
+	pointer to cloptions
+	pointer to Synchronizer
+	pointer to NetManager
+	pointer to problem, PS?
+
+methods
+	humanize (memory amounts, seconds, etc.)
+	//Problem > assignedDevice (input: cell coordinates)
+		// so Problem must be aware of cell and world size
+	Problem > get or createDeviceMap (input: tot #devices)
+		also write which cells are on edges
+	Problem > getCell (float3 to uint3)
+	Problem > getCellLinIndex (uint3 to uint)
+	Problem > getCellDevice (uint3 or uint to uint [dev id + mpi rank])
+	Problem > isCellEdging (uint3 or uint to bool)
+	GPUSPH > checkCUDA 
+	GPUSPH > computeCellSize
+	GPUSPH > allocateCPU
+	GPUSPH > calcHashHost
+	GPUSPH > hostSort
+	GPUWorker > allocateGPU
+	GPUWorker > uploadSubdomains
+	GPUWorkers > createCompactDevMap
+	GPUWorkers > uploadCompactDevMap
+	NetManager > init (get node number)
+	NetManager > finalize (get node number)
+	NetManager > getDevNode (get node number)
+	//NetManager > getDevID (local cuda id in own node) // translation?
+	
+
+k>  means GPU kernel done by the worker; the next step is specified in CommonData
+
+TODO
+	compute cell size: where?
+	logging system
+	error handling
+	load/store state
+	limits: in doc? in object? (e.g. num gpus, nodes, ram, etc.)
+	later: local cell. Now global addressing (and allocation)
+	makefile: compile with mpicc
+	MPI error checking
+		#define MPI_CHECK(call) \
+			if((call) != MPI_SUCCESS) { \
+			cerr << "MPI error calling \""#call"\"\n"; \
+				my_abort(-1); }
+		MPI_Abort(MPI_COMM_WORLD, int err);
+	IFDEF switch in .opts? (e.g. problem_select.opt)
+	NetworkManager should be singleton too (might implement singleton template)
+	why PS creates the Writer? Should be GPUSPH in initiallization instead
+
+OTHER
+	GPUSPH: only one allocating CPU buffers, track total
+	GPUWorkers: only ones allocating GPU stuff, track total per device
+	MPI calls: no thread safe; all by the main thread
+	MPI init: as soon as possible if needed (says the manual)
+	Global device ID: now MPI_RANK*2+devnum, then 8bit dev + 24bit MPIRank (or, 1 edge 7 dev 24 rank)
+
+PAPERS
+	Dynamic Load Balancing in MPI Jobs
+	
+> main
+	> parse args (change minimum possible before MPI init)
+	NetManager > init (init MPI if necessary)
+	GPUSPH > init
+		> new PS
+			creates new writer
+		// > new Problem // no: it is in main now
+		problem > computeCellSize (world, cell, etc.)
+		problem > createDeviceMap
+			global dev id, bit edging
+		//GPUSPH > createUploadMask (64 bit per cell hash, 1 bit per device)
+		problem > allocate (every process allocates everything)
+		GPUSPH > allocateCPU (cpu buffers, 1 per process)
+		> copy_to_array (from problem to GPUSPH buffers)
+		GPUSPH > calcHashHost (partid, cell id, cell device)
+		GPUSPH > hostSort
+		// > new Integrator
+		> new Synchronizer
+		> new Workers
+		+ start workers
+		GPUWorkers > checkCUDA (before allocating everything; put CC in common structure)
+		GPUWorkers > allocateGPU
+		GPUWorkers > uploadSubdomains (cell by cell, light optimizations)
+			incl. edging!
+		GPUWorkers > createCompactDevMap (from global devmap to 2bits/dev)
+		GPUWorkers > uploadCompactDevMap (2 bits per cell, to be elaborated on this)
+	GPUSPH > run
+		while (keep_going)
+			// Integrator > setNextStep
+			// run next SimulationStep (workers do it, w barrier)
+			// or -----
+			> buildNeibslist
+				k>  calcHash
+					2 bits from compactDevMap + usual
+				k>  sort_w_ids
+				k>  reorderDataAndFindCellStart
+				swap3
+				k>  buildNeibslist
+			k>  shepard && swap1
+			k>  mls && swap
+			//set mvboundaries and gravity
+			//(init bodies)
+			k>  forces (in dt1; write on internals)
+MM			fetch/update forces on neighbors in other GPUs/nodes
+				initially done trivial and slow: stop and read
+			//reduce bodies
+			k>  euler (also on externals)
+			//reduce bodies
+			//callbacks (bounds, gravity)
+MM			fetch/update forces on neighbors in other GPUs/nodes
+				initially done trivial and slow: stop and read
+			k>  forces (in dt2; write on internals)
+			//reduce bodies
+			k>  euler (also on externals)
+			//reduce bodies
+			swap2
+			increase t bz dt and iter (in every process
+			if dtadapt
+				dt = min (dt1, dt2)
+MM				send dt
+MM				gather dts, chose min, broadcast (if rank 0)
+MM				receive global dt
+				check/throw dtZero exception
+		problem > finished(t);
+		problem > need_write(t)
+		if (need_write)
+			> get_arrays
+				ask workers to dump arrays
+			> do_write
+				printf info
+				ps > writeToFile
+	GPUSPH > cleanup
+		GPUWorkers > deallocateGPU
+		// delete Integrator
+		delete Synchronizer
+		delete Workers
+		GPUSPH > deallocateCPU
+		problem > deallocate (every process allocates everything)
+		delete Problem
+		delete PS
+			delete Writer
+	NetManager > MPIfinalize
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

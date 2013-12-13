@@ -27,6 +27,9 @@
 #include <stdexcept>
 
 #include "VTKWriter.h"
+// GlobalData is required for writing the device index. With some order
+// of inclusions, a forward declaration might be required
+#include "GlobalData.h"
 
 using namespace std;
 
@@ -37,16 +40,18 @@ VTKWriter::VTKWriter(const Problem *problem)
     m_timefile = NULL;
     m_timefile = fopen(time_filename.c_str(), "w");
 
-	if (m_timefile == NULL) {
+	/*if (m_timefile == NULL) {
 		stringstream ss;
 		ss << "Cannot open data file " << time_filename;
 		throw runtime_error(ss.str());
-		}
+		}*/
 
 	// Writing header of VTUinp.pvd file
-	fprintf(m_timefile,"<?xml version='1.0'?>\n");
-	fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
-	fprintf(m_timefile,"  <Collection>\n");
+	if (m_timefile) {
+		fprintf(m_timefile,"<?xml version='1.0'?>\n");
+		fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
+		fprintf(m_timefile,"  <Collection>\n");
+	}
 }
 
 
@@ -97,7 +102,12 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 {
 	string filename, full_filename;
 
-	filename = "PART_" + next_filenum() + ".vtu";
+	filename = "PART";
+
+	if (m_gdata && m_gdata->mpi_nodes > 1)
+		filename += "n" + m_gdata->rankString();
+
+	filename += "_" + next_filenum() + ".vtu";
 	full_filename = m_dirname + "/" + filename;
 
 	FILE *fid = fopen(full_filename.c_str(), "w");
@@ -161,6 +171,18 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 //		scalar_array(fid, "Int16", "Part object", offset);
 //		offset += sizeof(ushort)*numParts+sizeof(int);
 		scalar_array(fid, "UInt32", "Part id", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
+	// device index
+	if (m_gdata) {
+		scalar_array(fid, "UInt32", "DeviceIndex", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
+	// cell index
+	if (m_gdata) {
+		scalar_array(fid, "UInt32", "CellIndex", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
@@ -311,6 +333,33 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 			uint value = id(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
+	}
+
+	// device index
+	if (m_gdata) {
+		numbytes = sizeof(uint)*numParts;
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
+		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
+		// containing cell until next calchash/reorder
+		// for (uint i=0; i < numParts; i++) {
+		// uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
+		// fwrite(&value, sizeof(value), 1, fid);
+		for (uint d = 0; d < m_gdata->devices; d++) {
+			// compute the global device ID for each device
+			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
+			// write one for each particle (no need for the "absolute" particle index)
+			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
+				fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// linearized cell index (NOTE: computed on host)
+	numbytes = sizeof(uint)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		uint value = m_gdata->calcGridHashHost( m_gdata->calcGridPosHost(pos[i].x, pos[i].y, pos[i].z) );
+		fwrite(&value, sizeof(value), 1, fid);
 	}
 
 	numbytes=sizeof(float)*3*numParts;

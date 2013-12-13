@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "OpenChannel.h"
 
@@ -86,12 +81,6 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
-	// Scales for drawing
-	m_maxrho = density(h,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = 0.03f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 100;
@@ -142,18 +131,6 @@ int OpenChannel::fill_parts()
 
 	return parts.size() + boundary_parts.size();
 }
-
-
-void OpenChannel::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	rect1.GLDraw();
-	rect2.GLDraw();
-	rect3.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	experiment_box.GLDraw();
-}
-
 
 void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {

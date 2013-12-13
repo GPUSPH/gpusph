@@ -24,11 +24,6 @@
 */
 
 #include <cmath>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include <iostream>
 #include <stdexcept>
@@ -115,13 +110,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 #undef EB
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 18.0f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 0;
@@ -180,12 +168,6 @@ void TestTopo::copy_planes(float4 *planes, float *planediv)
 
 	experiment_box->get_planes(planes, planediv);
 }
-
-void TestTopo::draw_boundary(float t)
-{
-	experiment_box->GLDraw();
-}
-
 
 void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {

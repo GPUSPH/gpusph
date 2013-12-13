@@ -1,0 +1,6 @@
+#!/bin/sh
+
+url=$(curl -s -F 'sprunge=<-' http://sprunge.us < /dev/stdin)
+echo $url | xclip > /dev/null 2>&1
+echo $url
+

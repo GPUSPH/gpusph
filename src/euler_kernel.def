@@ -152,7 +152,6 @@ eulerDevice(
 		// TODO: change object particles velocity
 		else if (type(pinfo) == OBJECTPART && step == 2) {
 			const int i = object(pinfo);
-
 			// Applying center of gravity translation
 			pos.x += d_rbtrans[i].x;
 			pos.y += d_rbtrans[i].y;
@@ -163,6 +162,7 @@ eulerDevice(
 			applyrot(&d_rbsteprot[9*i], relPos, pos);
 		}
 	}
+
 	newPos[index] = pos;
 	newVel[index] = vel;
 	newTKE[index] = keps_k;

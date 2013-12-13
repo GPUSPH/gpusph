@@ -30,6 +30,7 @@
 #include "timing.h"
 #include "Problem.h"
 #include "Writer.h"
+#include "GlobalData.h"
 
 #include <exception>
 
@@ -100,6 +101,7 @@ class ParticleSystem
 		};
 
 		ParticleSystem(Problem *problem);
+		ParticleSystem(GlobalData *gdata);
 		~ParticleSystem();
 
 		void	allocate(uint numParticles);
@@ -153,6 +155,9 @@ class ParticleSystem
 		// Free surface detection (Debug)
 		void savenormals();
 
+		// check extra displacement offset validity
+		void checkPeriodicity();
+
 	public:
 		Problem		*m_problem;				// pointer to problem object
 
@@ -170,11 +175,11 @@ class ParticleSystem
 		TimingInfo	m_timingInfo;
 
 		// Geometrical datas and problem definition
-		uint		m_numParticles;			// total number of particles
+		uint		m_numParticles;			// current number of particles
 		uint		m_numPlanes;			// total number of planes
 		uint3		m_gridSize;				// number of domain cells in each direction
 		uint		m_nGridCells;			// total number of domain cells
-		uint		m_nSortingBits;			// number of significant bits for sorting (ceil(log2(m_nGridCells)))
+		//uint		m_nSortingBits;			// number of significant bits for sorting (ceil(log2(m_nGridCells)))
 		float3		m_worldOrigin;			// origin of simulation domain
 		float3		m_worldSize;			// simulation domain size
 		float3		m_cellSize;				// size of domain cell

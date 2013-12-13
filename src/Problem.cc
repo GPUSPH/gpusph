@@ -30,14 +30,12 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "Problem.h"
 #include "vector_math.h"
+
+// here we need the complete definition of the GlobalData struct
+#include "GlobalData.h"
 
 uint Problem::m_total_ODE_bodies = 0;
 
@@ -49,6 +47,7 @@ Problem::Problem(const Options &options)
 	m_last_screenshot_time = 0.0;
 	m_mbnumber = 0;
 	m_rbdatafile = NULL;
+	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = options.dir;
@@ -138,8 +137,7 @@ Problem::pressure(float rho, int i) const
 	return m_physparams.bcoeff[i]*(pow(rho/m_physparams.rho0[i], m_physparams.gammacoeff[i]) - 1);
 }
 
-
-bool 
+bool
 Problem::need_display(float t)
 {
 	if (t - m_last_display_time >= m_displayinterval) {
@@ -193,7 +191,7 @@ Problem::create_problem_dir(void)
 }
 
 
-bool 
+bool
 Problem::need_write(float t)
 {
 	if (m_writefreq == 0)
@@ -207,7 +205,7 @@ Problem::need_write(float t)
 }
 
 
-bool 
+bool
 Problem::need_write_rbdata(float t)
 {
 	if (m_rbdata_writeinterval == 0)
@@ -237,7 +235,7 @@ Problem::write_rbdata(float t)
 	}
 }
 
-bool 
+bool
 Problem::need_screenshot(float t)
 {
 	if (m_screenshotfreq == 0)
@@ -253,7 +251,7 @@ Problem::need_screenshot(float t)
 
 
 // is the simulation finished at the given time?
-bool 
+bool
 Problem::finished(float t)
 {
 	float tend(m_simparams.tend);
@@ -261,19 +259,201 @@ Problem::finished(float t)
 }
 
 
-MbCallBack& 
+MbCallBack&
 Problem::mb_callback(const float t, const float dt, const int i)
 {
 	return m_mbcallbackdata[i];
 };
 
 
-float3 
+float3
 Problem::g_callback(const float t)
 {
 	return make_float3(0.0);
 }
 
+// Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
+// Default algorithm: split along the longest axis
+void Problem::fillDeviceMap(GlobalData* gdata)
+{
+	fillDeviceMapByAxis(gdata, LONGEST_AXIS);
+}
+
+// partition by splitting the cells according to their linearized hash.
+void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
+{
+	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
+	for (uint i=0; i < gdata->nGridCells; i++)
+		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->totDevices-1);
+}
+
+// partition by splitting along the specified axis
+void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis)
+{
+	// select the longest axis
+	if (preferred_split_axis == LONGEST_AXIS) {
+		if (	gdata->worldSize.x >= gdata->worldSize.y &&
+				gdata->worldSize.x >= gdata->worldSize.z)
+			preferred_split_axis = X_AXIS;
+		else
+		if (	gdata->worldSize.y >= gdata->worldSize.z)
+			preferred_split_axis = Y_AXIS;
+		else
+			preferred_split_axis = Z_AXIS;
+	}
+	uint cells_per_longest_axis;
+	switch (preferred_split_axis) {
+		case X_AXIS:
+			cells_per_longest_axis = gdata->gridSize.x;
+			break;
+		case Y_AXIS:
+			cells_per_longest_axis = gdata->gridSize.y;
+			break;
+		case Z_AXIS:
+			cells_per_longest_axis = gdata->gridSize.z;
+			break;
+	}
+	uint cells_per_device_per_longest_axis = cells_per_longest_axis / gdata->totDevices;
+	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
+		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
+			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
+				uint axis_coordinate;
+				switch (preferred_split_axis) {
+					case X_AXIS: axis_coordinate = cx; break;
+					case Y_AXIS: axis_coordinate = cy; break;
+					case Z_AXIS: axis_coordinate = cz; break;
+				}
+				// everything is just a preparation for the following line
+				uchar dstDevice = axis_coordinate / cells_per_device_per_longest_axis;
+				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
+				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				// compute cell address
+				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = dstDevice;
+			}
+}
+
+void Problem::fillDeviceMapByEquation(GlobalData* gdata)
+{
+	// 1st equation: (x+y+z / #devices)
+	uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
+	uint coeff = longest_grid_size /  (gdata->totDevices + 1);
+	// 2nd equation: spheres
+	uint diagonal = (uint) sqrt(	gdata->gridSize.x * gdata->gridSize.x +
+									gdata->gridSize.y * gdata->gridSize.y +
+									gdata->gridSize.z * gdata->gridSize.z) / 2;
+	uint radius_part = diagonal /  gdata->totDevices;
+	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
+		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
+			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
+				uint dstDevice;
+				// 1st equation: rough oblique plane split --
+				dstDevice = (cx + cy + cz) / longest_grid_size;
+				// -- end of 1st eq.
+				// 2nd equation: spheres --
+				//uint distance_from_origin = (uint) sqrt( cx * cx + cy * cy + cz * cz);
+				// comparing directly the square would be more efficient but could require long uints
+				//dstDevice = distance_from_origin / radius_part;
+				// -- end of 2nd eq.
+				// handle the case when cells_per_device multiplies cells_per_longest_axis
+				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				// compute cell address
+				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = (uchar)dstDevice;
+			}
+}
+
+// Partition by performing the splitting the domain in the specified number of slices for each axis.
+// Values must be > 0. The number of devices will be the product of the input values.
+// This is not meant to be called directly by a problem since the number of splits (and thus the devices)
+// would be hardocded. A wrapper method (like fillDeviceMapByRegularGrid) can provide an algorithm to
+// properly factorize a given number of GPUs in 2 or 3 values.
+void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices)
+{
+	// is any of these zero?
+	if (Xslices * Yslices * Zslices == 0)
+		printf("WARNING: fillDeviceMapByAxesSplits() called with zero values, using 1 instead");
+
+	if (Xslices == 0) Xslices = 1;
+	if (Yslices == 0) Yslices = 1;
+	if (Zslices == 0) Zslices = 1;
+
+	// divide and round
+	uint devSizeCellsX = gdata->gridSize.x + Xslices - 1 / Xslices ;
+	uint devSizeCellsY = gdata->gridSize.y + Yslices - 1 / Yslices ;
+	uint devSizeCellsZ = gdata->gridSize.z + Zslices - 1 / Zslices ;
+
+	// iterate on all cells
+	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
+			for (uint cy = 0; cy < gdata->gridSize.y; cy++)
+				for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
+
+				// where are we in the 3D grid of devices?
+				uint whichDevCoordX = (cx / devSizeCellsX);
+				uint whichDevCoordY = (cy / devSizeCellsY);
+				uint whichDevCoordZ = (cz / devSizeCellsZ);
+
+				// round if needed
+				whichDevCoordX %= Xslices;
+				whichDevCoordY %= Yslices;
+				whichDevCoordZ %= Zslices;
+
+				// compute dest device
+				uint dstDevice = whichDevCoordZ * Yslices * Xslices + whichDevCoordY * Xslices + whichDevCoordX;
+				// compute cell address
+				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = (uchar)dstDevice;
+			}
+}
+
+// Wrapper for fillDeviceMapByAxesSplits() computing the number of cuts along each axis.
+// WARNING: assumes the total number of devices is divided by a combination of 2, 3 and 5
+void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
+{
+	float Xsize = gdata->worldSize.x;
+	float Ysize = gdata->worldSize.y;
+	float Zsize = gdata->worldSize.z;
+	uint cutsX = 1;
+	uint cutsY = 1;
+	uint cutsZ = 1;
+	uint remaining_factors = gdata->totDevices;
+
+	// define the product of non-zero cuts to keep track of current number of parallelepipeds
+//#define NZ_PRODUCT	((cutsX > 0? cutsX : 1) * (cutsY > 0? cutsY : 1) * (cutsZ > 0? cutsZ : 1))
+
+	while (cutsX * cutsY * cutsZ < gdata->totDevices) {
+		uint factor = 1;
+		// choose the highest factor among 2, 3 and 5 which divides remaining_factors
+		if (remaining_factors % 5 == 0) factor = 5; else
+		if (remaining_factors % 3 == 0) factor = 3; else
+		if (remaining_factors % 2 == 0) factor = 2; else {
+			factor = remaining_factors;
+			printf("WARNING: splitting by regular grid but %u is not divided by 2,3,5!\n", remaining_factors);
+		}
+		// choose the longest axis to split along
+		if (Xsize >= Ysize && Xsize >= Zsize) {
+			Xsize /= factor;
+			cutsX *= factor;
+		} else
+		if (Ysize >= Xsize && Ysize >= Zsize) {
+			Ysize /= factor;
+			cutsY *= factor;
+		} else {
+			Zsize /= factor;
+			cutsZ *= factor;
+		}
+	}
+
+	// should always hold, but double check for bugs
+	if (cutsX * cutsY * cutsZ != gdata->totDevices)
+		printf("WARNING: splitting by regular grid but final distribution (%u, %u, %u) does not produce %u parallelepipeds!\n",
+			cutsX, cutsY, cutsZ, gdata->totDevices);
+
+	fillDeviceMapByAxesSplits(gdata, cutsX, cutsY, cutsZ);
+}
 
 void
 Problem::allocate_ODE_bodies(const uint i)
@@ -308,7 +488,7 @@ Problem::add_ODE_body(Object* object)
 }
 
 
-int 
+int
 Problem::get_ODE_bodies_numparts(void)
 {
 	int total_parts = 0;
@@ -330,7 +510,7 @@ Problem::get_ODE_body_numparts(const int i)
 }
 
 
-void 
+void
 Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
 {
 	cg = m_bodies_cg;
@@ -349,7 +529,7 @@ Problem::get_ODE_bodies_cg(void)
 }
 
 
-float* 
+float*
 Problem::get_ODE_bodies_steprot(void)
 {
 	return m_bodies_steprot;
@@ -401,7 +581,7 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 }
 
 // Number of planes
-uint 
+uint
 Problem::fill_planes(void)
 {
 	return 0;
@@ -409,14 +589,14 @@ Problem::fill_planes(void)
 
 
 // Copy planes for upload
-void 
+void
 Problem::copy_planes(float4*, float*)
 {
 	return;
 }
 
 
-float4* 
+float4*
 Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
@@ -453,35 +633,6 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 		return m_mbdata;
 
 	return NULL;
-}
-
-
-void
-Problem::draw_axis()
-{	
-	float3 axis_center = make_float3(m_origin + 0.5*m_size);
-	float axis_length = std::max(std::max(m_size.x, m_size.y), m_size.z)/4.0;
-	
-	/* X axis in green */
-	glColor3f(0.0f, 0.8f, 0.0f);
-	glBegin(GL_LINES);
-	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
-	glVertex3f(axis_center.x + axis_length, axis_center.y, axis_center.z);
-	glEnd();
-	
-	/* Y axis in red */
-	glColor3f(0.8f, 0.0f, 0.0f);
-	glBegin(GL_LINES);
-	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
-	glVertex3f(axis_center.x, axis_center.y  + axis_length, axis_center.z);
-	glEnd();
-	
-	/* Z axis in blu */
-	glColor3f(0.0f, 0.0f, 0.8f);
-	glBegin(GL_LINES);
-	glVertex3f(axis_center.x, axis_center.y, axis_center.z);
-	glVertex3f(axis_center.x, axis_center.y, axis_center.z + axis_length);
-	glEnd();
 }
 
 /*! Compute grid and cell size from the kernel influence radius

@@ -53,7 +53,7 @@ class Cube: public Object {
 
 		double Volume(const double) const;
 		void SetInertia(const double);
-		
+
 		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
 		void ODEGeomCreate(dSpaceID, const double);
 
@@ -64,19 +64,15 @@ class Cube: public Object {
 		{
 			FillBorder(points, dx, true);
 		}
-		
+
 		int Fill(PointVect&, const double, const bool, const bool);
 		int Fill(PointVect& points, const double dx, const bool fill = true)
 		{
 			return Fill(points, dx, true, fill);
 		}
-		
+
 		void InnerFill(PointVect&, const double);
-		
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		void GLDraw(const dMatrix3, const Point&) const;
-		
+
 		bool IsInside(const Point&, const double) const;
 };
 
