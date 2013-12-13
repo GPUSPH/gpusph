@@ -1473,7 +1473,7 @@ void GPUSPH::particleSwap(uint idx1, uint idx2)
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, uint flags)
+void GPUSPH::doCommand(CommandType cmd, uint flags, float arg)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
@@ -1485,6 +1485,7 @@ void GPUSPH::doCommand(CommandType cmd, uint flags)
 	 } */
 	gdata->nextCommand = cmd;
 	gdata->commandFlags = flags;
+	gdata->extraCommandArg = arg;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 }
