@@ -646,10 +646,15 @@ void
 Problem::set_grid_params(void)
 {
 	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
+	// with semi-analytical boundaries, we want a cell size which is
+	// deltap + the usual influence radius
+	double cellSide = influenceRadius;
+	if (m_simparams.boundarytype == MF_BOUNDARY)
+		cellSide += m_deltap;
 
-	m_gridsize.x = floor(m_size.x / influenceRadius);
-	m_gridsize.y = floor(m_size.y / influenceRadius);
-	m_gridsize.z = floor(m_size.z / influenceRadius);
+	m_gridsize.x = floor(m_size.x / cellSide);
+	m_gridsize.y = floor(m_size.y / cellSide);
+	m_gridsize.z = floor(m_size.z / cellSide);
 
 	m_cellsize.x = m_size.x / m_gridsize.x;
 	m_cellsize.y = m_size.y / m_gridsize.y;
@@ -657,12 +662,13 @@ Problem::set_grid_params(void)
 
 	printf("set_grid_params\t:\n");
 	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
+	printf("Influence radius / expected cell side\t: %g, %g\n", influenceRadius, cellSide);
 	printf("Grid   size\t: (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
 	printf("Cell   size\t: (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
 	printf("       delta\t: (%.2f%%, %.2f%%, %.2f%%)\n",
-		(m_cellsize.x - influenceRadius)*100/influenceRadius,
-		(m_cellsize.y - influenceRadius)*100/influenceRadius,
-		(m_cellsize.z - influenceRadius)*100/influenceRadius);
+		(m_cellsize.x - cellSide)*100/cellSide,
+		(m_cellsize.y - cellSide)*100/cellSide,
+		(m_cellsize.z - cellSide)*100/cellSide);
 }
 
 
