@@ -125,7 +125,7 @@ inverseParticleIndex (	uint*	particleIndex,
 	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");	
+	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");
 }
 
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
@@ -170,15 +170,26 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, presTex, oldPressure, numParticles*sizeof(float)));
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
+	// TODO reduce these conditionals
+
+	if (oldBoundElement)
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
+	if (oldGradGamma)
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
+	if (oldVertices)
+		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
+	if (oldPressure)
+		CUDA_SAFE_CALL(cudaBindTexture(0, presTex, oldPressure, numParticles*sizeof(float)));
+
+	if (oldTKE)
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
+	if (oldEps)
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
+	if (oldTurbVisc)
+		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
+	if (oldStrainRate)
+		CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
 
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
@@ -195,15 +206,24 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
 
-	CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
+	if (oldBoundElement)
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	if (oldGradGamma)
+		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+	if (oldVertices)
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+	if (oldPressure)
+		CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
+
+	if (oldTKE)
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+	if (oldEps)
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+	if (oldTurbVisc)
+		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
+	if (oldStrainRate)
+		CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
 }
 
 
@@ -299,7 +319,7 @@ buildNeibsList(	neibdata*			neibsList,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -313,7 +333,7 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 {
 	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
-	
+
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
 }

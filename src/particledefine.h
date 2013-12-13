@@ -328,5 +328,6 @@ static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 }
 
 typedef uint4 vertexinfo;
+#define make_vertexinfo make_uint4
 
 #endif

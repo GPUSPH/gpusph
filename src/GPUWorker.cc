@@ -1095,11 +1095,15 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	if (m_simparams->savenormals) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, float4Size));
 		allocated += float4Size;
+	} else {
+		m_dNormals = NULL;
 	}
 
 	if (m_simparams->vorticity) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, float3Size));
 		allocated += float3Size;
+	} else {
+		m_dVort = NULL;
 	}
 
 	if (m_simparams->visctype == SPSVISC) {
@@ -1111,6 +1115,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], float2Size));
 		allocated += float2Size;
+	} else {
+		m_dTau[0] = m_dTau[1] = m_dTau[2];
 	}
 
 	for (uint i = 0; i < 2; ++i) {
@@ -1126,6 +1132,9 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 			CUDA_SAFE_CALL(cudaMalloc(&m_dPressure[i], floatSize));
 			allocated += floatSize;
+		} else {
+			m_dGradGamma[i] = m_dBoundElement[i] = NULL;
+			m_dVertices[i] = NULL; m_dPressure[i] = NULL;
 		}
 
 		if (m_simparams->visctype == KEPSVISC) {
@@ -1140,12 +1149,24 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 			CUDA_SAFE_CALL(cudaMalloc(&m_dStrainRate[i], floatSize));
 			allocated += floatSize;
+		} else {
+			m_dTKE[i] = m_dEps[i] = m_dTurbVisc[i] = m_dStrainRate[i] = NULL;
 		}
 	}
+
+	if (m_simparams->boundarytype == MF_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInversedParticleIndex, hashSize));
+		allocated += hashSize;
+	} else {
+		m_dInversedParticleIndex = NULL;
+	}
+
 
 	if (m_simparams->visctype == KEPSVISC) {
 		CUDA_SAFE_CALL(cudaMalloc(&m_dDkDe, float2Size));
 		allocated += float2Size;
+	} else {
+		m_dDkDe = NULL;
 	}
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
@@ -1153,10 +1174,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, intSize));
 	allocated += intSize;
-
-	// TODO MERGE. check when this is actually needed
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInversedParticleIndex, hashSize));
-	allocated += hashSize;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, uintCellsSize));
 	allocated += uintCellsSize;
@@ -1312,14 +1329,17 @@ void GPUWorker::deallocateDeviceBuffers() {
 		}
 	}
 
+	if (m_simparams->boundarytype == MF_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaFree(m_dInversedParticleIndex));
+	}
+
+
 	if (m_simparams->visctype == KEPSVISC) {
 		CUDA_SAFE_CALL(cudaFree(m_dDkDe));
 	}
 
-
 	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
 	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
-	CUDA_SAFE_CALL(cudaFree(m_dInversedParticleIndex));
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));

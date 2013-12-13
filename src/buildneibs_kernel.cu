@@ -339,31 +339,46 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		const float4 pos = tex1Dfetch(posTex, sortedIndex);
 		const float4 vel = tex1Dfetch(velTex, sortedIndex);
 		const particleinfo info = tex1Dfetch(infoTex, sortedIndex);
-		const float4 boundelement = tex1Dfetch(boundTex, sortedIndex);
-		const float4 gradgamma = tex1Dfetch(gamTex, sortedIndex);
-		const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-		const float pressure = tex1Dfetch(presTex, sortedIndex);
-
-		const float keps_k = tex1Dfetch(keps_kTex, sortedIndex);
-		const float keps_e = tex1Dfetch(keps_eTex, sortedIndex);
-		const float tvisc = tex1Dfetch(tviscTex, sortedIndex);
-		const float strainrate = tex1Dfetch(strainTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
-		sortedBoundElements[index] = boundelement;
-		sortedGradGamma[index] = gradgamma;
-		sortedPressure[index] = pressure;
-		
-		sortedVertices[index].x = inversedParticleIndex[vertices.x];
-		sortedVertices[index].y = inversedParticleIndex[vertices.y];
-		sortedVertices[index].z = inversedParticleIndex[vertices.z];
 
-		sortedTKE[index] = keps_k;
-		sortedEps[index] = keps_e;
-		sortedTurbVisc[index] = tvisc;
-		sortedStrainRate[index] = strainrate;
+		if (sortedBoundElements) {
+			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
+		}
+
+		if (sortedGradGamma) {
+			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
+		}
+
+		if (sortedPressure) {
+			sortedPressure[index] = tex1Dfetch(presTex, sortedIndex);
+		}
+
+		if (sortedVertices) {
+			const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+			sortedVertices[index] = make_vertexinfo(
+				inversedParticleIndex[vertices.x],
+				inversedParticleIndex[vertices.y],
+				inversedParticleIndex[vertices.z], 0);
+		}
+
+		if (sortedTKE) {
+			sortedTKE[index] = tex1Dfetch(keps_kTex, sortedIndex);
+		}
+
+		if (sortedEps) {
+			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
+		}
+		
+		if (sortedTurbVisc) {
+			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
+		}
+
+		if (sortedStrainRate) {
+			sortedStrainRate[index] = tex1Dfetch(strainTex, sortedIndex);
+		}
 	}
 }
 
