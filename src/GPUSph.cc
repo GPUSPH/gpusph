@@ -926,7 +926,7 @@ bool GPUSPH::runSimulation() {
 			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
-			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2);
+			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
 
@@ -993,7 +993,7 @@ bool GPUSPH::runSimulation() {
 
 		if (problem->get_simparams()->boundarytype == MF_BOUNDARY) {
 			gdata->only_internal = true;
-			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2);
+			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
 			gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
@@ -1655,20 +1655,20 @@ void GPUSPH::initializeGammaAndGradGamma()
 		// gamma(n+1) = gamma(n) + 0.5*[gradGam(n) + gradGam(n+1)]*[r(n+1) - r(n)]
 
 		// Update gamma 1st call
-		doCommand(MF_UPDATE_GAMMA, INITIALIZATION_STEP);
+		doCommand(MF_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// Move the particles
-		doCommand(MF_UPDATE_POS);
+		doCommand(MF_UPDATE_POS, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_POS);
 
 		buildNeibList();
 
-		doCommand(MF_UPDATE_GAMMA, INITIALIZATION_STEP);
+		doCommand(MF_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);

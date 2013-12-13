@@ -2254,7 +2254,7 @@ void GPUWorker::kernel_updateGamma()
 				numPartsToElaborate,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				0, // WARNING TODO FIXME MERGE this is actually deltat,
+				gdata->extraCommandArg,
 				!initStep, // 0 during init step, else 1
 				m_simparams->kerneltype);
 }
@@ -2270,7 +2270,7 @@ void GPUWorker::kernel_updatePositions()
 					m_dPos[gdata->currentPosWrite],
 					m_dVel[gdata->currentVelRead],
 					m_dInfo[gdata->currentInfoRead],
-					0, // WARNING TODO FIXME MERGE this is actually deltat,,
+					gdata->extraCommandArg,
 					m_numParticles,
 					numPartsToElaborate);
 }
