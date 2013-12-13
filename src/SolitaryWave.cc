@@ -26,11 +26,6 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "SolitaryWave.h"
 #include "particledefine.h"

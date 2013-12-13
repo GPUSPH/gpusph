@@ -1,9 +1,3 @@
-
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <math.h>
 #include <iostream>
 
@@ -146,12 +140,6 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
-
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = 1.0f;
 
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;

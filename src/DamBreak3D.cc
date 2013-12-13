@@ -110,13 +110,6 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 5;

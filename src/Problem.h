@@ -93,12 +93,6 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		// Min and max values used for display
-		float	m_maxrho;
-		float	m_minrho;
-		float	m_maxvel;
-		float	m_minvel;
-
 		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
 		int			m_writefreq;
