@@ -200,6 +200,7 @@ private:
 	void kernel_vorticity();
 	void kernel_surfaceParticles();
 	void kernel_sps();
+	void kernel_meanStrain();
 	void kernel_reduceRBForces();
 	void kernel_imposeDynamicBoundaryConditions();
 	void kernel_updateValuesAtBoundaryElements();

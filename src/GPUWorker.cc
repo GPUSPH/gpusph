@@ -1685,6 +1685,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
 				break;
+			case MEAN_STRAIN:
+				//printf(" T %d issuing MEAN_STRAIN\n", deviceIndex);
+				instance->kernel_meanStrain();
 			case REDUCE_BODIES_FORCES:
 				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
@@ -2053,20 +2056,20 @@ void GPUWorker::kernel_surfaceParticles()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	surfaceparticle( m_dPos[gdata->currentPosRead],
-					 m_dVel[gdata->currentVelRead],
-					 m_dNormals,
-					 m_dInfo[gdata->currentInfoRead],
-					 m_dInfo[gdata->currentInfoWrite],
-					 m_dParticleHash,
-					 m_dCellStart,
-					 m_dNeibsList,
-					 m_numParticles,
-					 numPartsToElaborate,
-					 m_simparams->slength,
-					 m_simparams->kerneltype,
-					 m_simparams->influenceRadius,
-					 m_simparams->savenormals);
+	surfaceparticle(m_dPos[gdata->currentPosRead],
+					m_dVel[gdata->currentVelRead],
+					m_dNormals,
+					m_dInfo[gdata->currentInfoRead],
+					m_dInfo[gdata->currentInfoWrite],
+					m_dParticleHash,
+					m_dCellStart,
+					m_dNeibsList,
+					m_numParticles,
+					numPartsToElaborate,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_simparams->influenceRadius,
+					m_simparams->savenormals);
 }
 
 void GPUWorker::kernel_sps()
@@ -2076,19 +2079,56 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sps( m_dTau,
-		 m_dPos[gdata->currentPosRead],
-		 m_dVel[gdata->currentVelRead],
-		 m_dInfo[gdata->currentInfoRead],
-		 m_dParticleHash,
-		 m_dCellStart,
-		 m_dNeibsList,
-		 m_numParticles,
-		 numPartsToElaborate,
-		 m_simparams->slength,
-		 m_simparams->kerneltype,
-		 m_simparams->influenceRadius);
+	// pos and vel are read from curren*Read on the first step,
+	// from current*Write on the second
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	uint posRead = firstStep ? gdata->currentPosRead : gdata->currentPosWrite;
+	uint velRead = firstStep ? gdata->currentVelRead : gdata->currentVelWrite;
+
+	sps(m_dTau,
+		m_dPos[posRead],
+		m_dVel[velRead],
+		m_dInfo[gdata->currentInfoRead],
+		m_dParticleHash,
+		m_dCellStart,
+		m_dNeibsList,
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->kerneltype,
+		m_simparams->influenceRadius);
 }
+
+void GPUWorker::kernel_meanStrain()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	// pos and vel are read from curren*Read on the first step,
+	// from current*Write on the second
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+	uint posRead = firstStep ? gdata->currentPosRead : gdata->currentPosWrite;
+	uint velRead = firstStep ? gdata->currentVelRead : gdata->currentVelWrite;
+
+	mean_strain_rate(
+		m_dStrainRate[gdata->currentStrainRateRead],
+		m_dPos[posRead],
+		m_dVel[velRead],
+		m_dInfo[gdata->currentInfoRead],
+		m_dParticleHash,
+		m_dCellStart,
+		m_dNeibsList,
+		m_dGradGamma[gdata->currentGradGammaRead],
+		m_dBoundElement[gdata->currentBoundElementRead],
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->kerneltype,
+		m_simparams->influenceRadius);
+}
+
 
 void GPUWorker::kernel_reduceRBForces()
 {

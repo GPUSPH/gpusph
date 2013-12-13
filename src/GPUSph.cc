@@ -872,7 +872,7 @@ bool GPUSPH::runSimulation() {
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
-			doCommand(SPS);
+			doCommand(SPS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
@@ -880,7 +880,7 @@ bool GPUSPH::runSimulation() {
 		// for k-eps viscosity, compute mean scalar strain and exchange with neighbors
 		if (problem->get_simparams()->visctype == KEPSVISC) {
 			gdata->only_internal = true;
-			doCommand(MEAN_STRAIN);
+			doCommand(MEAN_STRAIN, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_STRAIN_RATE);
 		}
@@ -936,7 +936,7 @@ bool GPUSPH::runSimulation() {
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
-			doCommand(SPS);
+			doCommand(SPS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
@@ -944,7 +944,7 @@ bool GPUSPH::runSimulation() {
 		// for k-eps viscosity, compute mean scalar strain and exchange with neighbors
 		if (problem->get_simparams()->visctype == KEPSVISC) {
 			gdata->only_internal = true;
-			doCommand(MEAN_STRAIN);
+			doCommand(MEAN_STRAIN, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_STRAIN_RATE);
 		}
