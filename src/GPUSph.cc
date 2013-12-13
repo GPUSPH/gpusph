@@ -1637,7 +1637,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 
 	gdata->only_internal = true;
 
-	doCommand(MF_INIT_GAMMA, INITIALIZATION_STEP);
+	doCommand(MF_INIT_GAMMA);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 	gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
@@ -1660,7 +1660,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// Move the particles
-		doCommand(MF_UPDATE_POS, INITIALIZATION_STEP);
+		doCommand(MF_UPDATE_POS);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_POS);

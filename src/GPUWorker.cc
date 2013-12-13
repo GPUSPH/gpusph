@@ -1675,7 +1675,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case MF_CALC_BOUND_CONDITIONS:
 				//printf(" T %d issuing MF_CALC_BOUND_CONDITIONS\n", deviceIndex);
-				instance->kernel_imposeDynamicBoundaryConditions();
+				instance->kernel_dynamicBoundaryConditions();
 				break;
 			case MF_UPDATE_BOUND_VALUES:
 				//printf(" T %d issuing MF_UPDATE_BOUND_VALUES\n", deviceIndex);
@@ -2155,10 +2155,17 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	updateBoundValues(	m_dVel[gdata->currentVelRead],
+	// vel, tke, eps are read from current*Read, except
+	// on the second step, whe they are read from current*Write
+	bool secondStep = (gdata->commandFlags & INTEGRATOR_STEP_2);
+	uint velRead = secondStep ? gdata->currentVelWrite : gdata->currentVelRead;
+	uint tkeRead = secondStep ? gdata->currentTKEWrite : gdata->currentTKERead;
+	uint epsRead = secondStep ? gdata->currentEpsWrite : gdata->currentEpsRead;
+
+	updateBoundValues(	m_dVel[velRead],
 				m_dPressure[gdata->currentPressureRead],
-				m_dTKE[gdata->currentTKERead],
-				m_dEps[gdata->currentEpsRead],
+				m_dTKE[tkeRead],
+				m_dEps[epsRead],
 				m_dVertices[gdata->currentVerticesRead],
 				m_dInfo[gdata->currentInfoRead],
 				m_numParticles,
@@ -2166,18 +2173,26 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				true);
 }
 
-void GPUWorker::kernel_imposeDynamicBoundaryConditions()
+void GPUWorker::kernel_dynamicBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	dynamicBoundConditions(	m_dPos[gdata->currentPosRead],
-				m_dVel[gdata->currentVelRead],
+	// pos, vel, tke, eps are read from current*Read, except
+	// on the second step, whe they are read from current*Write
+	bool secondStep = (gdata->commandFlags & INTEGRATOR_STEP_2);
+	uint posRead = secondStep ? gdata->currentPosWrite : gdata->currentPosRead;
+	uint velRead = secondStep ? gdata->currentVelWrite : gdata->currentVelRead;
+	uint tkeRead = secondStep ? gdata->currentTKEWrite : gdata->currentTKERead;
+	uint epsRead = secondStep ? gdata->currentEpsWrite : gdata->currentEpsRead;
+
+	dynamicBoundConditions(	m_dPos[posRead],
+				m_dVel[velRead],
 				m_dPressure[gdata->currentPressureRead],
-				m_dTKE[gdata->currentTKERead],
-				m_dEps[gdata->currentEpsRead],
+				m_dTKE[tkeRead],
+				m_dEps[epsRead],
 				m_dInfo[gdata->currentInfoRead],
 				m_dParticleHash,
 				m_dCellStart,
@@ -2221,9 +2236,13 @@ void GPUWorker::kernel_updateGamma()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
+	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+	// during initStep we use currentVelRead, else currentVelWrite
+	uint velRead = initStep ? gdata->currentVelRead : gdata->currentVelWrite;
+
 	updateGamma(m_dPos[gdata->currentPosRead],
 				m_dPos[gdata->currentPosWrite],
-				m_dVel[gdata->currentVelRead],
+				m_dVel[velRead],
 				m_dInfo[gdata->currentInfoRead],
 				m_dBoundElement[gdata->currentBoundElementRead],
 				m_dGradGamma[gdata->currentGradGammaRead],
@@ -2236,7 +2255,7 @@ void GPUWorker::kernel_updateGamma()
 				m_simparams->slength,
 				m_simparams->influenceRadius,
 				0, // WARNING TODO FIXME MERGE this is actually deltat,
-				0,
+				!initStep, // 0 during init step, else 1
 				m_simparams->kerneltype);
 }
 
