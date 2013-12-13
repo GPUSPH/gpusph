@@ -1728,16 +1728,17 @@ void calcEnergies2Device(
 // This kernel compute the vorticity field
 template<KernelType kerneltype>
 __global__ void
-calcVortDevice(	float3*		vorticity,
-				const uint*	particleHash,
-				const uint*	cellStart,
-				const neibdata*	neibsList,
-				const uint	numParticles,
-				const float	slength,
-				const float	influenceradius)
+calcVortDevice(	const	float4*		posArray,
+						float3*		vorticity,
+				const	uint*		particleHash,
+				const	uint*		cellStart,
+				const	neibdata*	neibsList,
+				const	uint		numParticles,
+				const	float		slength,
+				const	float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -1747,7 +1748,11 @@ calcVortDevice(	float3*		vorticity,
 	if (NOT_FLUID(info))
 		return;
 
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
 	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	const float4 vel = tex1Dfetch(velTex, index);
 
 	float3 vort = make_float3(0.0f);
@@ -1771,7 +1776,11 @@ calcVortDevice(	float3*		vorticity,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		#if( __COMPUTE__ >= 20)
+		const float4 relPos = pos_corr - posArray[neib_index];
+		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+		#endif
 		const float r = length(as_float3(relPos));
 
 		// Compute relative velocity
@@ -1816,7 +1825,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	if(type(info) != TESTPOINTSPART)
 		return;
 	
-	#if (__COMPUTE__ < 20)
+	#if (__COMPUTE__ >= 20)
 	const float4 pos = oldPos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
@@ -1847,7 +1856,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if (__COMPUTE__ < 20)
+		#if (__COMPUTE__ >= 20)
 		const float4 relPos = pos_corr - oldPos[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
@@ -1886,17 +1895,18 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 // This kernel detects the surface particles
 template<KernelType kerneltype, bool savenormals>
 __global__ void
-calcSurfaceparticleDevice(	float4*			normals,
-							particleinfo*	newInfo,
-							const uint*		particleHash,
-							const uint*		cellStart,
-							const neibdata*	neibsList,
-							const uint		numParticles,
-							const float		slength,
-							const float		influenceradius)
+calcSurfaceparticleDevice(	const	float4*			posArray,
+									float4*			normals,
+									particleinfo*	newInfo,
+							const	uint*			particleHash,
+							const	uint*			cellStart,
+							const	neibdata*		neibsList,
+							const	uint			numParticles,
+							const	float			slength,
+							const	float			influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -1904,13 +1914,17 @@ calcSurfaceparticleDevice(	float4*			normals,
 	particleinfo info = tex1Dfetch(infoTex, index);
 
 	if (NOT_FLUID(info)) {
-		newInfo[index] = info;		
+		newInfo[index] = info;
 		return;
 	}
 
+	#if( __COMPUTE__ >= 20)
+	const float4 pos = posArray[index];
+	#else
 	const float4 pos = tex1Dfetch(posTex, index);
+	#endif
 	float4 normal = make_float4(0.0f);
-	
+
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromHash(particleHash[index]);
 
@@ -1933,7 +1947,11 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		#if( __COMPUTE__ >= 20)
+		const float4 relPos = pos_corr - posArray[neib_index];
+		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+		#endif
 		const float r = length(as_float3(relPos));
 
 		const float neib_density = tex1Dfetch(velTex, neib_index).w;
@@ -1982,7 +2000,11 @@ calcSurfaceparticleDevice(	float4*			normals,
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
+		#if( __COMPUTE__ >= 20)
+		const float4 relPos = pos_corr - posArray[neib_index];
+		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+		#endif
 		const float r = length(as_float3(relPos));
 
 		float cosconeangle;

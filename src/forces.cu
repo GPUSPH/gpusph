@@ -151,7 +151,7 @@ void*	reduce_buffer = NULL;
 #define VORT_CHECK(kernel) \
 	case kernel: \
 		cuforces::calcVortDevice<kernel><<< numBlocks, numThreads >>> \
-				 (vort, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
+				 (pos, vort, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 //Testpoints
@@ -165,7 +165,7 @@ void*	reduce_buffer = NULL;
 #define SURFACE_CHECK(kernel, savenormals) \
 	case kernel: \
 		cuforces::calcSurfaceparticleDevice<kernel, savenormals><<< numBlocks, numThreads >>> \
-				(normals, newInfo, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
+				(pos, normals, newInfo, particleHash, cellStart, neibsList, numParticles, slength, influenceradius); \
 	break
 
 #define INITGRADGAMMA_CHECK(kernel) \
@@ -571,7 +571,9 @@ mls(float4*		pos,
 	uint numThreads = min(BLOCK_SIZE_MLS, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -588,7 +590,9 @@ mls(float4*		pos,
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Mls kernel execution failed");
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
@@ -610,7 +614,9 @@ vorticity(	float4*		pos,
 	uint numThreads = min(BLOCK_SIZE_CALCVORT, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -624,7 +630,9 @@ vorticity(	float4*		pos,
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Vorticity kernel execution failed");
 	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
@@ -689,7 +697,9 @@ surfaceparticle(	float4*		pos,
 	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
@@ -712,7 +722,9 @@ surfaceparticle(	float4*		pos,
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("surface kernel execution failed");
 	
+	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
