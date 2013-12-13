@@ -34,6 +34,8 @@ public:
 	// methods to exchange data
 	void sendUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum);
 	void receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum);
+	void sendUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned int *src_data);
+	void receiveUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned int *dst_data);
 	void sendFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *src_data);
 	void receiveFloats(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, float *dst_data);
 	void sendShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *src_data);
