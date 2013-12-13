@@ -107,6 +107,7 @@ HEADERS = $(wildcard $(SRCDIR)/*.h)
 MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
 CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
 CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
+
 OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
 
 PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
