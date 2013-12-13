@@ -60,6 +60,7 @@ uint GPUWorker::getMaxParticles()
 
 // Compute the bytes required for each particle.
 // NOTE: this should be updated for each new device array!
+// TODO FIXME MERGE not updated for keps e mf stuff
 size_t GPUWorker::computeMemoryPerParticle()
 {
 	size_t tot = 0;
