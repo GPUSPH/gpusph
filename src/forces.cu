@@ -680,8 +680,8 @@ vorticity(	float4*		pos,
 			float		influenceradius)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_CALCVORT, numParticles);
-	uint numBlocks = div_up(numParticles, numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCVORT, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
@@ -717,8 +717,8 @@ testpoints( float4*		pos,
 			float		influenceradius)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
-	uint numBlocks = div_up(numParticles, numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCTEST, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
@@ -757,8 +757,8 @@ surfaceparticle(	float4*		pos,
 					bool        savenormals)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_CALCTEST, numParticles);
-	uint numBlocks = div_up(numParticles, numThreads);
+	uint numThreads = min(BLOCK_SIZE_CALCTEST, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
@@ -1038,8 +1038,8 @@ initGradGamma(	float4*		oldPos,
 		float		inflRadius,
 		int			kerneltype)
 {
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 	
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
@@ -1083,8 +1083,8 @@ updateGamma(	float4*		oldPos,
 		bool		predcor,
 		int			kerneltype)
 {
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 	
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
@@ -1131,8 +1131,8 @@ updatePositions(	float4*		oldPos,
 			uint		numParticles,
 			uint		particleRangeEnd)
 {
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
@@ -1164,8 +1164,8 @@ updateBoundValues(	float4*		oldVel,
 			uint		particleRangeEnd,
 			bool		initStep)
 {
-	int numThreads = min(BLOCK_SIZE_FORCES, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
@@ -1199,8 +1199,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 {
 	int dummy_shared = 0;
 
-	int numThreads = min(BLOCK_SIZE_SHEPARD, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
+	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
