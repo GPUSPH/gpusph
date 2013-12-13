@@ -1066,54 +1066,54 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	size_t allocated = 0;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dForces, float4Size));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dForces, float4Size));
 	CUDA_SAFE_CALL(cudaMemset(m_dForces, 0, float4Size));
 	allocated += float4Size;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dXsph, float4Size));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dXsph, float4Size));
 	allocated += float4Size;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[0], float4Size));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dPos[0], float4Size));
 	allocated += float4Size;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[1], float4Size));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dPos[1], float4Size));
 	allocated += float4Size;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVel[0], float4Size));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dVel[0], float4Size));
 	allocated += float4Size;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVel[1], float4Size));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dVel[1], float4Size));
 	allocated += float4Size;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[0], infoSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dInfo[0], infoSize));
 	allocated += infoSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dInfo[1], infoSize));
 	allocated += infoSize;
 
 	// Free surface detection
 	if (m_simparams->savenormals) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, float4Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dNormals, float4Size));
 		allocated += float4Size;
 	} else {
 		m_dNormals = NULL;
 	}
 
 	if (m_simparams->vorticity) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, float3Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dVort, float3Size));
 		allocated += float3Size;
 	} else {
 		m_dVort = NULL;
 	}
 
 	if (m_simparams->visctype == SPSVISC) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[0], float2Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dTau[0], float2Size));
 		allocated += float2Size;
 
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[1], float2Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dTau[1], float2Size));
 		allocated += float2Size;
 
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], float2Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dTau[2], float2Size));
 		allocated += float2Size;
 	} else {
 		m_dTau[0] = m_dTau[1] = m_dTau[2];
@@ -1155,7 +1155,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	}
 
 	if (m_simparams->boundarytype == MF_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInversedParticleIndex, hashSize));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dInversedParticleIndex, hashSize));
 		allocated += hashSize;
 	} else {
 		m_dInversedParticleIndex = NULL;
@@ -1169,32 +1169,32 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		m_dDkDe = NULL;
 	}
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dParticleHash, hashSize));
 	allocated += hashSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, intSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dParticleIndex, intSize));
 	allocated += intSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, uintCellsSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dCellStart, uintCellsSize));
 	allocated += uintCellsSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, uintCellsSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dCellEnd, uintCellsSize));
 	allocated += uintCellsSize;
 
-	//CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSliceStart, sliceArraySize));
+	//CUDA_SAFE_CALL(cudaMalloc(&m_dSliceStart, sliceArraySize));
 	//allocated += sliceArraySize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dNeibsList, neibslistSize));
 	CUDA_SAFE_CALL(cudaMemset(m_dNeibsList, 0xffffffff, neibslistSize));
 	allocated += neibslistSize;
 
 	// TODO: an array of uchar would suffice
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dCompactDeviceMap, uintCellsSize));
 	// initialize anyway for single-GPU simulations
 	CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
 	allocated += uintCellsSize;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSegmentStart, segmentsSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
 	// ditto
 	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
 	allocated += segmentsSize;
@@ -1206,9 +1206,9 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int objParticlesFloat4Size = m_numBodiesParticles*sizeof(float4);
 		int objParticlesUintSize = m_numBodiesParticles*sizeof(uint);
 
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbTorques, objParticlesFloat4Size));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbForces, objParticlesFloat4Size));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbNum, objParticlesUintSize));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dRbTorques, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dRbForces, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dRbNum, objParticlesUintSize));
 
 		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
 
@@ -1246,24 +1246,24 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		uint fmaxElements = getFmaxElements(m_numAllocatedParticles);
 		const uint fmaxTableSize = fmaxElements*sizeof(float);
 
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dCfl, fmaxTableSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
 		allocated += fmaxTableSize;
 
 		if (m_simparams->boundarytype == MF_BOUNDARY) {
-			CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCflGamma, fmaxTableSize));
+			CUDA_SAFE_CALL(cudaMalloc(&m_dCflGamma, fmaxTableSize));
 			CUDA_SAFE_CALL(cudaMemset(m_dCflGamma, 0, fmaxTableSize));
 			allocated += fmaxTableSize;
 		}
 
 		if(m_simparams->visctype == KEPSVISC) {
-			CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCflTVisc, fmaxTableSize));
+			CUDA_SAFE_CALL(cudaMalloc(&m_dCflTVisc, fmaxTableSize));
 			CUDA_SAFE_CALL(cudaMemset(m_dCflTVisc, 0, fmaxTableSize));
 			allocated += fmaxTableSize;
 		}
 
 		const uint tempCflSize = getFmaxTempStorageSize(fmaxElements);
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dTempCfl, tempCflSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
 
 		allocated += tempCflSize;
