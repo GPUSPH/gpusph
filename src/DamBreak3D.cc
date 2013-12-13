@@ -54,7 +54,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	wet = false;
 	m_usePlanes = true;
 	n_probeparts = 208;
-	
+
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
@@ -241,7 +241,10 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		hash[i] = hashvalue;
 	}
 	uint j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	if (boundary_parts.size() > 0)
+		std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	else
+		std::cout << "No boundary parts" << std::endl;
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
@@ -252,7 +255,10 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+	if (obstacle_parts.size() > 0)
+		std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+	else
+		std::cout << "No obstacle parts" << std::endl;
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
@@ -264,7 +270,10 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		hash[i] = hashvalue;
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	if (parts.size() > 0)
+		std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	else
+		std::cout << "No fluid parts" << std::endl;
 
 	// Setting probes for Spheric2 test case
 	//*******************************************************************
