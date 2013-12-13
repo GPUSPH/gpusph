@@ -60,7 +60,6 @@ static const char* ParticleArrayName[ParticleSystem::INVALID_PARTICLE_ARRAY+1] =
 	"Info",
 	"Vorticity",
 	"Force",
-	"Force norm",
 	"Neighbor list",
 	"Hash",
 	"Particle Index",

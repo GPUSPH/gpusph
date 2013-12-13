@@ -71,7 +71,6 @@ class ParticleSystem
 			INFO,
 			VORTICITY,
 			FORCE,
-			FORCENORM,
 			NEIBSLIST,
 			HASH,
 			PARTINDEX,
