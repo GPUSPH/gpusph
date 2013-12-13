@@ -51,11 +51,11 @@
 
 using namespace std;
 
-GPUSPH& GPUSPH::getInstance() {
+GPUSPH* GPUSPH::getInstance() {
 	// guaranteed to be destroyed; instantiated on first use
 	static GPUSPH instance;
 	// return a reference, not just a pointer
-	return instance;
+	return &instance;
 }
 
 GPUSPH::GPUSPH() {

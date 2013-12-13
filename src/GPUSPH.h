@@ -39,8 +39,10 @@ private:
 	// other vars
 	bool initialized;
 
-	// constructor (private for singleton scheme)
+	// constructor and copy/assignment: private for singleton scheme
 	GPUSPH();
+	GPUSPH(GPUSPH const&); // NOT implemented
+	void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
 
 	// (de)allocation of shared host buffers
 	long unsigned int allocateGlobalHostBuffers();
@@ -92,12 +94,11 @@ private:
 public:
 	// destructor
 	~GPUSPH();
-	// getInstance(), constructor and operator for singleton
-	static GPUSPH& getInstance();
-	GPUSPH(GPUSPH const&) {}; // NOT implemented
-    void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
 
-    // (de)initialization (include allocation)
+	// getInstance(), constructor and operator for singleton
+	static GPUSPH* getInstance();
+
+	// (de)initialization (include allocation)
 	bool initialize(GlobalData* _gdata);
 	bool finalize();
 

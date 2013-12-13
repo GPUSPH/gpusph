@@ -330,17 +330,17 @@ int main(int argc, char** argv) {
 	gdata.problem = new PROBLEM(*(gdata.clOptions));
 
 	// get - and actually instantiate - the existing instance of GPUSPH
-	GPUSPH Simulator = GPUSPH::getInstance();
+	GPUSPH *Simulator = GPUSPH::getInstance();
 
 	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	bool result = Simulator.initialize(&gdata);
+	bool result = Simulator->initialize(&gdata);
 	printf("GPUSPH: %s\n", (result ? "initialized" : "NOT initialized") );
 
 	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-	Simulator.runSimulation();
+	Simulator->runSimulation();
 
 	// finalize everything
-	Simulator.finalize();
+	Simulator->finalize();
 
 	// same consideration as above
 	delete gdata.problem;
