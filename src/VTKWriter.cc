@@ -189,7 +189,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
-	
+
 	// gradient gamma
 	if (gradGamma) {
 		vector_array(fid, "Float32", "Gradient Gamma", 3, offset);
@@ -374,11 +374,13 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	}
 
 	// gradient gamma
-	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
-		float *value = zeroes;
-		value = (float*)(gradGamma + i);
-		fwrite(value, sizeof(*value), 3, fid);
+	if (gradGamma) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=0; i < numParts; i++) {
+			float *value = zeroes;
+			value = (float*)(gradGamma + i);
+			fwrite(value, sizeof(*value), 3, fid);
+		}
 	}
 
 	// vorticity
