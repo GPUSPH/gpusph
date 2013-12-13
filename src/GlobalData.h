@@ -1,9 +1,27 @@
-/*
- * GlobalData.h
- *
- *  Created on: Jan 16, 2013
- *      Author: rustico
- */
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #ifndef _GLOBAL_DATA_
 #define _GLOBAL_DATA_
@@ -183,9 +201,6 @@ struct GlobalData {
 	uint3 gridSize;
 	uint nGridCells;
 
-	// ceil(totParticles/devices)
-	//uint idealSubset;
-
 	// CPU buffers ("s" stands for "shared"). Not double buffered
 	double4*		s_hdPos;  // position array in double precision
 	float4*			s_hPos;  // array of fractiona part of position
@@ -211,25 +226,6 @@ struct GlobalData {
 	uint** s_dCellEnds;
 	uint** s_dSegmentsStart;
 
-	// pinned memory var to retrieve dt asynchronously
-	//float *pin_maxcfl;
-
-	// CPU buffers for file dump
-	//float4*			dump_hPos;  // position array
-	//float4*			dump_hVel;  // velocity array
-	//particleinfo*	dump_hInfo; // particle info array
-
-	// number of neibs overlapping with prev and next for each GPU, and offset
-	//uint s_overlapping[MAX_DEVICES][3];
-
-	// offsets; copy for async file save (for VTKWriter if cdata != NULL)
-	//uint s_last_offsets[MAX_DEVICES];
-
-	// buffers for particles crossing GPUs
-	//float4 s_pos_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
-	//float4 s_vel_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
-	//particleinfo s_info_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
-
 	// last dt for each PS
 	float dts[MAX_DEVICES_PER_NODE];
 
@@ -238,33 +234,33 @@ struct GlobalData {
 	uint currentPosWrite;	// current index in m_dPos for writing (0 or 1)
 	uint currentVelRead;	// current index in m_dVel for velocity reading (0 or 1)
 	uint currentVelWrite;	// current index in m_dVel for writing (0 or 1)
-	uint currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
+	uint currentInfoRead;	// current index in m_dInfo for info reading (0 or 1)
 	uint currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
 	uint currentBoundElementRead;	// current index in m_dBoundElement for normal coordinates (and surface) reading (0 or 1)
 	uint currentBoundElementWrite;	// current index in m_dBoundElement for writing (0 or 1)
 	uint currentGradGammaRead;		// current index in m_dGradGamma for gradient gamma (and gamma) reading (0 or 1)
-	uint currentGradGammaWrite;	// current index in m_dGradGamma for writing (0 or 1)
+	uint currentGradGammaWrite;		// current index in m_dGradGamma for gradient gamma (and gamma) writing (0 or 1)
 	uint currentVerticesRead;		// current index in m_dVertices for vertices reading (0 or 1)
-	uint currentVerticesWrite;		// current index in m_dVertices for writing (0 or 1)
+	uint currentVerticesWrite;		// current index in m_dVertices for vertices writing (0 or 1)
 	uint currentPressureRead;		// current index in m_dPressure for pressure reading (0 or 1)
-	uint currentPressureWrite;		// current index in m_dPressure for writing (0 or 1)
-	uint currentTKERead;		// current index in m_dTKE for pressure reading (0 or 1)
+	uint currentPressureWrite;		// current index in m_dPressure for pressure writing (0 or 1)
+	uint currentTKERead;		// current index in m_dTKE for reading (0 or 1)
 	uint currentTKEWrite;		// current index in m_dTKE for writing (0 or 1)
-	uint currentEpsRead;		// current index in m_dEps for pressure reading (0 or 1)
+	uint currentEpsRead;		// current index in m_dEps for reading (0 or 1)
 	uint currentEpsWrite;		// current index in m_dEps for writing (0 or 1)
-	uint currentTurbViscRead;		// current index in m_dTurbVisc for pressure reading (0 or 1)
-	uint currentTurbViscWrite;		// current index in m_dTurbVisc for writing (0 or 1)
-	uint currentStrainRateRead;
-	uint currentStrainRateWrite;
+	uint currentTurbViscRead;	// current index in m_dTurbVisc for reading (0 or 1)
+	uint currentTurbViscWrite;	// current index in m_dTurbVisc for writing (0 or 1)
+	uint currentStrainRateRead;		// current index in m_dStrainRate for reading (0 or 1)
+	uint currentStrainRateWrite;	// current index in m_dStrainRate for writing (0 or 1)
 
 	// moving boundaries
-	float4* s_mbData;
-	uint mbDataSize;
+	float4	*s_mbData;
+	uint	mbDataSize;
 
 	// planes
 	uint numPlanes;
-	float4* s_hPlanes;
-	float *	s_hPlanesDiv;
+	float4	*s_hPlanes;
+	float	*s_hPlanesDiv;
 
 	// variable gravity
 	float3 s_varGravity;
@@ -272,20 +268,9 @@ struct GlobalData {
 	// simulation time control
 	bool keep_going;
 	bool quit_request;
-	//bool save_request;
-	//bool save_after_bneibs;
-	//bool requestSliceStartDump;
 	unsigned long iterations;
 	float t;
 	float dt;
-
-	// using only cpu threads for comparison
-	//bool cpuonly;
-	// compute half fluid-fluid interactions per thread
-	//bool single_inter;
-
-	// how many CPU threads?
-	//uint numCpuThreads;
 
 	// next command to be executed by workers
 	CommandType nextCommand;
@@ -305,22 +290,7 @@ struct GlobalData {
 	// disable saving (for timing, or only for the last)
 	bool nosave;
 
-	// ids, tdatas and ranges of each cpu thread
-	//pthread_t *cpuThreadIds;
-	//dataForCPUThread *tdatas;
-	//uint *cpuThreadFromParticle;
-	//uint *cpuThreadToParticle;
-	//float *cpuThreadDts;
-	//uint runningCPU;
-	//pthread_mutex_t mutexCPU;
-	//pthread_cond_t condCPU;
-	//pthread_cond_t condCPUworker;
-
-	// objects
-	//float4 *cMbData; // just pointer
-	//float3 crbcg[MAXBODIES];
-	//float3 crbtrans[MAXBODIES];
-	//float crbsteprot[9*MAXBODIES];
+	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
 	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
 	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
@@ -329,46 +299,17 @@ struct GlobalData {
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
 
-	// least elegant way ever to pass phase number to threads
-	//bool phase1;
-
-	// phase control
-	//bool buildNeibs;
-
-	// load balancing control
-	//bool balancing_request;
-
-	// balancing ops counter
-	//uint balancing_operations;
-
-	// asynchronous file save control
-	//bool saving;
-
-	// disable file dump
-	//bool nosave;
-
-	// disable load balancing
-	//bool nobalance;
-
-	// custom balance threshold
-	//float custom_lb_threshold;
-
-	// in multigpu, alloc for every GPU the total number of parts
-	//bool alloc_max;
-
 	GlobalData(void):
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),
 		totDevices(0),
-		// GPUTHREADS(NULL),
 		problem(NULL),
 		clOptions(NULL),
 		threadSynchronizer(NULL),
 		networkManager(NULL),
 		totParticles(0),
 		nGridCells(0),
-		//idealSubset(0),
 		s_hPos(NULL),
 		s_hParticleHash(NULL),
 		s_hVel(NULL),
@@ -384,10 +325,6 @@ struct GlobalData {
 		s_dCellStarts(NULL),
 		s_dCellEnds(NULL),
 		s_dSegmentsStart(NULL),
-		//pin_maxcfl(NULL),
-		//dump_hPos(NULL),
-		//dump_hVel(NULL),
-		//dump_hInfo(NULL),
 		s_mbData(NULL),
 		mbDataSize(0),
 		numPlanes(0),
@@ -395,16 +332,9 @@ struct GlobalData {
 		s_hPlanesDiv(NULL),
 		keep_going(true),
 		quit_request(false),
-		//save_request(false),
-		//save_after_bneibs(false),
-		//requestSliceStartDump(false),
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
-		//cpuonly(false),
-		//single_inter(false),
-		//numCpuThreads(0),
-		//cpuThreadIds(NULL),
 		nextCommand(IDLE),
 		commandFlags(0),
 		extraCommandArg(NAN),
@@ -415,18 +345,6 @@ struct GlobalData {
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL)
-		//tdatas(NULL),
-		//cpuThreadFromParticle(NULL),
-		//cpuThreadToParticle(NULL),
-		//cpuThreadDts(NULL),
-		//runningCPU(0),
-		//phase1(true),
-		//buildNeibs(false),
-		//balancing_request(false),
-		//balancing_operations(0),
-		//nobalance(false),
-		//custom_lb_threshold(0.0f),
-		//alloc_max(false)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
