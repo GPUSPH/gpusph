@@ -235,21 +235,21 @@ public:
 	unsigned long getHostMemory();
 	unsigned long getDeviceMemory();
 	// for peer transfers
-	const float4** getDPosBuffers();
-	const float4** getDVelBuffers();
-	const particleinfo** getDInfoBuffers();
-	const float4* getDForceBuffer();
-	const float2** getDTauBuffers();
-	const hashKey* getDHashBuffer();
-	const uint* getDPartIndexBuffer();
-	const float4** getDBoundElemsBuffers();
-	const float4** getDGradGammaBuffers();
-	const vertexinfo** getDVerticesBuffers();
-	const float** getDPressureBuffers();
-	const float** getDTKEBuffers();
-	const float** getDEpsBuffers();
-	const float** getDTurbViscBuffers();
-	const float** getDStrainRateBuffers();
+	const float4* const* getDPosBuffers() const;
+	const float4* const* getDVelBuffers() const;
+	const particleinfo* const* getDInfoBuffers() const;
+	const float4* getDForceBuffer() const;
+	const float2* const* getDTauBuffers() const;
+	const hashKey* getDHashBuffer() const;
+	const uint* getDPartIndexBuffer() const;
+	const float4* const* getDBoundElemsBuffers() const;
+	const float4* const* getDGradGammaBuffers() const;
+	const vertexinfo* const* getDVerticesBuffers() const;
+	const float* const* getDPressureBuffers() const;
+	const float* const* getDTKEBuffers() const;
+	const float* const* getDEpsBuffers() const;
+	const float* const* getDTurbViscBuffers() const;
+	const float* const* getDStrainRateBuffers() const;
 };
 
 #endif /* GPUWORKER_H_ */

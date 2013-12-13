@@ -180,21 +180,21 @@ void GPUWorker::importPeerEdgeCells()
 	// cells are also consecutive in memory, regardless the linearization function
 
 	// pointers to peer buffers
-	const float4** peer_dPos;
-	const float4** peer_dVel;
-	const particleinfo** peer_dInfo;
+	const float4* const* peer_dPos;
+	const float4* const* peer_dVel;
+	const particleinfo* const* peer_dInfo;
 	const float4* peer_dForces;
-	const float2** peer_dTaus;
+	const float2* const* peer_dTaus;
 	const hashKey* peer_dHash;
 	const uint* peer_dPartIndex;
-	const float4** peer_dBoundElems;
-	const float4** peer_dGradGamma;
-	const vertexinfo** peer_dVertices;
-	const float** peer_dPressure;
-	const float** peer_dTKE;
-	const float** peer_dEps;
-	const float** peer_dTurbVisc;
-	const float** peer_dStrainRate;
+	const float4* const* peer_dBoundElems;
+	const float4* const* peer_dGradGamma;
+	const vertexinfo* const* peer_dVertices;
+	const float* const* peer_dPressure;
+	const float* const* peer_dTKE;
+	const float* const* peer_dEps;
+	const float* const* peer_dTurbVisc;
+	const float* const* peer_dStrainRate;
 
 
 	// aux var for transfers
@@ -1492,59 +1492,59 @@ unsigned long GPUWorker::getDeviceMemory() {
 	return m_deviceMemory;
 }
 
-const float4** GPUWorker::getDPosBuffers()
+const float4* const* GPUWorker::getDPosBuffers() const
 {
 	return (const float4**)m_dPos;
 }
 
-const float4** GPUWorker::getDVelBuffers()
+const float4* const* GPUWorker::getDVelBuffers() const
 {
 	return (const float4**)m_dVel;
 }
 
-const particleinfo** GPUWorker::getDInfoBuffers()
+const particleinfo* const* GPUWorker::getDInfoBuffers() const
 {
 	return (const particleinfo**)m_dInfo;
 }
 
-const float4* GPUWorker::getDForceBuffer()
+const float4* GPUWorker::getDForceBuffer() const
 {
 	return (const float4*)m_dForces;
 }
 
-const float2** GPUWorker::getDTauBuffers()
+const float2* const* GPUWorker::getDTauBuffers() const
 {
 	return (const float2**)m_dTau;
 }
 
-const hashKey* getDHashBuffer()
+const hashKey* GPUWorker::getDHashBuffer() const
 { return m_dParticleHash; }
 
-const uint* getDPartIndexBuffer();
+const uint* GPUWorker::getDPartIndexBuffer() const
 { return m_dParticleIndex; }
 
-const float4** getDBoundElemsBuffers();
+const float4* const* GPUWorker::getDBoundElemsBuffers() const
 { return m_dBoundElement; }
 
-const float4** getDGradGammaBuffers();
+const float4* const* GPUWorker::getDGradGammaBuffers() const
 { return m_dGradGamma; }
 
-const vertexinfo** getDVerticesBuffers();
+const vertexinfo* const* GPUWorker::getDVerticesBuffers() const
 { return m_dVertices; }
 
-const float** getDPressureBuffers();
+const float* const* GPUWorker::getDPressureBuffers() const
 { return m_dPressure; }
 
-const float** getDTKEBuffers();
+const float* const* GPUWorker::getDTKEBuffers() const
 { return m_dTKE; }
 
-const float** getDEpsBuffers();
+const float* const* GPUWorker::getDEpsBuffers() const
 { return m_dEps; }
 
-const float** getDTurbViscBuffers();
+const float* const* GPUWorker::getDTurbViscBuffers() const
 { return m_dTurbVisc; }
 
-const float** getDStrainRateBuffers();
+const float* const* GPUWorker::getDStrainRateBuffers() const
 { return m_dStrainRate; }
 
 
