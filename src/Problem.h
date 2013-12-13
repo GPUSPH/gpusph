@@ -116,7 +116,7 @@ class Problem {
 		int			m_mbnumber;							// number of moving boundaries
 
 		Object		**m_ODE_bodies;						// array of floating ODE objects
-		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided by ParticleSystem to euler
+		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt

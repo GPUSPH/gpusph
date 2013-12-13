@@ -37,7 +37,7 @@
  *
  * \section quick_links Internal links
  * - \ref main \n
- * - ParticleSystem
+ * - GPUSPH
  *
  * \section links Links
  * - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Complete Doxygen manual</a>

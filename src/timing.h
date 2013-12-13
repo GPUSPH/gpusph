@@ -29,6 +29,7 @@
 #define _TIMING_H
 
 #include <time.h>
+#include <exception>
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -134,5 +135,33 @@ class IPPSCounter
 			return getIPPS(iterTimesParts)/1000000.0;
 		}
 };
+
+/* Timing error exceptions */
+
+class TimingException: public std::exception
+{
+
+public:
+	float simTime, dt;
+
+	TimingException(float _time = nan(""), float _dt = nan("")) :
+		std::exception(), simTime(_time), dt(_dt) {}
+
+	virtual const char *what() const throw() {
+		return "timing error";
+	}
+};
+
+class DtZeroException: public TimingException
+{
+public:
+	DtZeroException(float _time = nan(""), float _dt = 0) :
+		TimingException(_time, _dt) {}
+
+	virtual const char *what() const throw() {
+		return "timestep zeroed!";
+	}
+};
+
 
 #endif

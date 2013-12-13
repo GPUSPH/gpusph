@@ -11,7 +11,6 @@
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
-#include "ParticleSystem.h"
 // Including Synchronizer.h is acutally needed only in GPUSPH.cc.
 // Should be follow our unusual convention to include in headers, or not?
 #include "Synchronizer.h"
