@@ -580,18 +580,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	_sp->nlInfluenceRadius = _sp->influenceRadius * _sp->nlexpansionfactor;
 	_sp->nlSqInfluenceRadius = _sp->nlInfluenceRadius * _sp->nlInfluenceRadius;
 
-	// compute the size of grid
-	gdata->gridSize.x = (uint) (gdata->worldSize.x / _sp->influenceRadius);
-	gdata->gridSize.y = (uint) (gdata->worldSize.y / _sp->influenceRadius);
-	gdata->gridSize.z = (uint) (gdata->worldSize.z / _sp->influenceRadius);
+	// get the grid size
+	gdata->gridSize = problem->get_gridsize();
 
 	// compute the number of cells
 	gdata->nGridCells = gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
 
-	// since the gridsize was obtained by truncation, make the cellSize and exact divisor
-	gdata->cellSize.x = gdata->worldSize.x / gdata->gridSize.x;
-	gdata->cellSize.y = gdata->worldSize.y / gdata->gridSize.y;
-	gdata->cellSize.z = gdata->worldSize.z / gdata->gridSize.z;
+	// get the cell size
+	gdata->cellSize = make_float3(problem->get_cellsize());
 
 	printf(" - World origin: %g , %g , %g\n", gdata->worldOrigin.x, gdata->worldOrigin.y, gdata->worldOrigin.z);
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
