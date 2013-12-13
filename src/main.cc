@@ -89,34 +89,30 @@ void show_version()
 
 // TODO: cleanup, no exit
 void print_usage() {
-	cerr << "Syntax: " << endl;
-	cerr << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cerr << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
-	cerr << "\tGPUSPH --help\n\n";
-	cerr << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
-	cerr << " --dem : Use given DEM (if problem supports it)\n";
-	cerr << " --deltap : Use given deltap (VAL is cast to float)\n";
-	cerr << " --tend: Break at given time (VAL is cast to float)\n";
-	cerr << " --dir : Use given directory for dumps instead of date-based one\n";
-	//cerr << " --pthreads : Force use of threads even if single GPU\n";
-	cerr << " --nosave : Disable all file dumps but the last\n";
-	cerr << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
-	cerr << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
-	//cerr << " --nobalance : Disable dynamic load balancing\n";
-	//cerr << " --alloc-max : Alloc total number of particles for every device\n";
-	//cerr << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
-	//cerr << " --cpuonly : Simulates on the CPU using VAL pthreads\n";
-	//cerr << " --single : Computes fluid-fluid interactions once per pair\n";
-	cerr << " --help: Show this help and exit\n";
-	//exit(-1);
+	show_version();
+	cout << "Syntax: " << endl;
+	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
+	cout << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
+	cout << "\tGPUSPH --help\n\n";
+	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
+	cout << " --dem : Use given DEM (if problem supports it)\n";
+	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
+	cout << " --tend: Break at given time (VAL is cast to float)\n";
+	cout << " --dir : Use given directory for dumps instead of date-based one\n";
+	cout << " --nosave : Disable all file dumps but the last\n";
+	cout << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
+	cout << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
+	//cout << " --nobalance : Disable dynamic load balancing\n";
+	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --help: Show this help and exit\n";
 }
 
 // if some option needs to be passed to GlobalData, remember to set it in GPUSPH::initialize()
-bool parse_options(int argc, char **argv, GlobalData *gdata)
+int parse_options(int argc, char **argv, GlobalData *gdata)
 {
 	const char *arg(NULL);
 
-	if (!gdata) return NULL;
+	if (!gdata) return -1;
 	Options* _clOptions = gdata->clOptions;
 
 	// skip arg 0 (program name)
@@ -148,13 +144,13 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 				pch = strtok (NULL, " ,.-");
 			}
 			if (gdata->devices<1) {
-				printf("ERROR: --device option given, but no device specified\n");
-				exit(1);
+				fprintf(stderr, "ERROR: --device option given, but no device specified\n");
+				return -1;
 			}
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--deltap")) {
-			/* read the next arg as a float */
+			/* read the next arg as a double */
 			sscanf(*argv, "%lf", &(_clOptions->deltap));
 			argv++;
 			argc--;
@@ -171,19 +167,7 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->dir = std::string(*argv);
 			argv++;
 			argc--;
-		} /* else if (!strcmp(arg, "--console")) {
-			_clOptions->console = true;
-		} else if (!strcmp(arg, "--pthreads")) {
-			_clOptions->forcePthreads = true;
-		} else if (!strcmp(arg, "--cpuonly")) {
-			_clOptions->cpuonly = true;
-			gdata->cpuonly = true;
-			sscanf(*argv, "%d", &(gdata->numCpuThreads));
-			argv++;
-			argc--;
-		} else if (!strcmp(arg, "--single")) {
-			gdata->single_inter = true;
-		} */ else if (!strcmp(arg, "--nosave")) {
+		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
 			gdata->nosave = true;
 		} else if (!strcmp(arg, "--num_hosts")) {
@@ -193,34 +177,28 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--version")) {
 			show_version();
-			return false;
+			return 0;
 		} else if (!strcmp(arg, "--byslot_scheduling")) {
 			_clOptions->byslot_scheduling = true;
-		}
-		/*else if (!strcmp(arg, "--nobalance")) {
+#if 0 // options will be enabled later
+		} else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
 			gdata->nobalance = true;
-		} else if (!strcmp(arg, "--alloc-max")) {
-			_clOptions->alloc_max = true;
-			gdata->alloc_max = true;
 		} else if (!strcmp(arg, "--lb-threshold")) {
 			// read the next arg as a float
 			sscanf(*argv, "%f", &(_clOptions->custom_lb_threshold));
 			gdata->custom_lb_threshold = _clOptions->custom_lb_threshold;
 			argv++;
 			argc--;
-		} */ else if (!strcmp(arg, "--help")) {
+#endif
+		} else if (!strcmp(arg, "--help")) {
 			print_usage();
-			//exit(0);
-			return false;
-		//} else if (!strcmp(arg, "--nopause")) {
-		//	bPause = false;
+			return 0;
 		} else if (!strncmp(arg, "--", 2)) {
-			cout << "Skipping unsupported option " << arg << endl;
+			cerr << "Skipping unsupported option " << arg << endl;
 		} else {
-			cout << "Fatal: Unknown option: " << arg << endl;
-			// exit(0);
-			return false;
+			cerr << "Fatal: Unknown option: " << arg << endl;
+			return -1;
 
 			// Left for future dynamic loading:
 			/*if (_clOptions->problem.empty()) {
@@ -240,8 +218,8 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 #if HASH_KEY_SIZE < 64
 	// only single-node single-GPU possible with 32 bits keys
 	if (gdata->totDevices > 1) {
-		printf(" FATAL: multi-GPU requires the Hashkey to be at least 64 bits long\n");
-		return false;
+		fprintf(stderr, "FATAL: multi-GPU requires the Hashkey to be at least 64 bits long\n");
+		return -1;
 	}
 #endif
 
@@ -256,7 +234,7 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 		exit(0);
 	}*/
 
-	return true;
+	return 1;
 }
 
 bool check_short_length() {
@@ -309,9 +287,10 @@ int main(int argc, char** argv) {
 	sigaction(SIGUSR1, &usr1_action, NULL);
 
 	// parse command-line options
-	// NOTE: here gdata is almost complete, only the problem is not allocated yet
-	if (!parse_options(argc, argv, &gdata))
-		exit(1);
+	int ret = parse_options(argc, argv, &gdata);
+	if (ret <= 0)
+		exit(ret);
+
 	show_version();
 
 	// TODO: check options, i.e. consistency
