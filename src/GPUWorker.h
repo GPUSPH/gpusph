@@ -240,6 +240,16 @@ public:
 	const particleinfo** getDInfoBuffers();
 	const float4* getDForceBuffer();
 	const float2** getDTauBuffers();
+	const hashKey* getDHashBuffer();
+	const uint* getDPartIndexBuffer();
+	const float4** getDBoundElemsBuffers();
+	const float4** getDGradGammaBuffers();
+	const vertexinfo** getDVerticesBuffers();
+	const float** getDPressureBuffers();
+	const float** getDTKEBuffers();
+	const float** getDEpsBuffers();
+	const float** getDTurbViscBuffers();
+	const float** getDStrainRateBuffers();
 };
 
 #endif /* GPUWORKER_H_ */

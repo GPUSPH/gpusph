@@ -185,6 +185,17 @@ void GPUWorker::importPeerEdgeCells()
 	const particleinfo** peer_dInfo;
 	const float4* peer_dForces;
 	const float2** peer_dTaus;
+	const hashKey* peer_dHash;
+	const uint* peer_dPartIndex;
+	const float4** peer_dBoundElems;
+	const float4** peer_dGradGamma;
+	const vertexinfo** peer_dVertices;
+	const float** peer_dPressure;
+	const float** peer_dTKE;
+	const float** peer_dEps;
+	const float** peer_dTurbVisc;
+	const float** peer_dStrainRate;
+
 
 	// aux var for transfers
 	size_t _size;
@@ -1505,6 +1516,37 @@ const float2** GPUWorker::getDTauBuffers()
 {
 	return (const float2**)m_dTau;
 }
+
+const hashKey* getDHashBuffer()
+{ return m_dParticleHash; }
+
+const uint* getDPartIndexBuffer();
+{ return m_dParticleIndex; }
+
+const float4** getDBoundElemsBuffers();
+{ return m_dBoundElement; }
+
+const float4** getDGradGammaBuffers();
+{ return m_dGradGamma; }
+
+const vertexinfo** getDVerticesBuffers();
+{ return m_dVertices; }
+
+const float** getDPressureBuffers();
+{ return m_dPressure; }
+
+const float** getDTKEBuffers();
+{ return m_dTKE; }
+
+const float** getDEpsBuffers();
+{ return m_dEps; }
+
+const float** getDTurbViscBuffers();
+{ return m_dTurbVisc; }
+
+const float** getDStrainRateBuffers();
+{ return m_dStrainRate; }
+
 
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
 	m_deviceProperties = _m_deviceProperties;
