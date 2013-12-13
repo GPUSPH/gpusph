@@ -175,7 +175,7 @@ FORCES_CUDA_KERNEL
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
@@ -332,7 +332,7 @@ FORCES_CUDA_KERNEL
 
 								// we solve iteratively the wall law equation to obtain y+ value
 								float u_star = exp(-2.132f)*d_visccoeff/r_as;
-								for(int i=0; i<10; i++) {
+								for (int i=0; i<10; i++) {
 									y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 									u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
 								}
@@ -485,7 +485,7 @@ FORCES_CUDA_KERNEL
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
@@ -527,7 +527,7 @@ FORCES_CUDA_KERNEL
 
 						// we solve iteratively the wall law equation to obtain y+ value
 						float u_star = exp(-2.132f)*d_visccoeff/r_es;
-						for(int i=0; i<10; i++) {
+						for (int i=0; i<10; i++) {
 							y_plus = max(r_es*u_star/d_visccoeff, 11.f);
 							u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
 						}
@@ -575,7 +575,7 @@ FORCES_CUDA_KERNEL
 			uint neib_cell_base_index = 0;
 
 			// loop over all neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;

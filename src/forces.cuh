@@ -73,7 +73,7 @@ extern "C"
 void
 setforcesconstants(const SimParams *simaprams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
-	const uint numParticles);
+	idx_t const& allocatedParticles);
 
 void
 getforcesconstants(PhysParams *physparams);

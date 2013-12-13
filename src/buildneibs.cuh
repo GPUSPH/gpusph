@@ -62,7 +62,8 @@ extern "C"
 {
 void
 setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
-	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize);
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	idx_t const& allocatedParticles);
 
 void
 getneibsconstants(SimParams *simparams, PhysParams *physparams);

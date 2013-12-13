@@ -264,6 +264,10 @@ typedef unsigned char uchar;
 
 typedef unsigned short neibdata;
 
+// type for index that iterates on the neighbor list
+typedef size_t idx_t;
+
+
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)

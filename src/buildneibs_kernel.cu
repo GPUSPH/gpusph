@@ -44,6 +44,7 @@
 
 namespace cuneibs {
 __constant__ uint d_maxneibsnum;
+__constant__ idx_t d_neiblist_stride;
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
 
@@ -499,7 +500,7 @@ neibsInCell(
 				// used for neighbor list construction
 				if (sqlength(relPos) < sqinfluenceradius) {
 					if (neibs_num < d_maxneibsnum) {
-						neibsList[neibs_num*numParticles + index] =
+						neibsList[neibs_num*d_neiblist_stride + index] =
 								neib_index - bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
 						encode_cell = false;
 					}
@@ -587,7 +588,7 @@ buildNeibsListDevice(
 		
 		// Setting the end marker
 		if (neibs_num < d_maxneibsnum) {
-			neibsList[neibs_num*numParticles + index] = 0xffff;
+			neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
 		}
 	}
 	

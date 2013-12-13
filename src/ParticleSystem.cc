@@ -711,7 +711,7 @@ ParticleSystem::setPhysParams(void)
 
 	setforcesconstants(m_simparams, m_physparams, m_worldOrigin, m_gridSize, m_cellSize, m_numParticles);
 	seteulerconstants(m_physparams, m_worldOrigin, m_gridSize, m_cellSize);
-	setneibsconstants(m_simparams, m_physparams, m_worldOrigin, m_gridSize, m_cellSize);
+	setneibsconstants(m_simparams, m_physparams, m_worldOrigin, m_gridSize, m_cellSize, m_numParticles);
 }
 
 

@@ -204,7 +204,7 @@ extern "C"
 void
 setforcesconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
-	const uint numParticles)
+	idx_t const& allocatedParticles)
 {
 	// Setting kernels and kernels derivative factors
 	float h = simparams->slength;
@@ -264,8 +264,9 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_objectobjectdf, &physparams->objectobjectdf, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_objectboundarydf, &physparams->objectboundarydf, sizeof(float)));
 
-	uint maxneibsnum_time_numparticles = simparams->maxneibsnum*numParticles;
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_maxneibsnum_time_numparticles, &maxneibsnum_time_numparticles, sizeof(uint)));
+	idx_t neiblist_end = simparams->maxneibsnum*allocatedParticles;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_neiblist_end, &neiblist_end, sizeof(idx_t)));
 
 	// Neibs cell to offset table
 	char3 cell_to_offset[27];

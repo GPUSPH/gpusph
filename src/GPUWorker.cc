@@ -772,7 +772,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	const size_t vertexSize = sizeof(vertexinfo) * m_numAllocatedParticles;
 	const size_t intSize = sizeof(uint) * m_numAllocatedParticles;
 	const size_t uintCellsSize = sizeof(uint) * m_nGridCells;
-	const size_t neibslistSize = sizeof(neibdata)*m_simparams->maxneibsnum*m_numParticles;
+	const size_t neibslistSize = sizeof(neibdata)*m_simparams->maxneibsnum*m_numAllocatedParticles;
 	const size_t hashSize = sizeof(hashKey) * m_numAllocatedParticles;
 	const size_t segmentsSize = sizeof(uint) * 4; // 4 = types of cells
 	//const size_t neibslistSize = sizeof(uint) * 128 * m_numAlocatedParticles;
@@ -2281,10 +2281,10 @@ void GPUWorker::uploadConstants()
 
 	// Setting kernels and kernels derivative factors
 	setforcesconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
-		// TODO MERGE FIXME forces uses numParticles to compute d_maxneibsnum_time_numparticles
-		m_numParticles);
+		m_numAllocatedParticles);
 	seteulerconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
-	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+		m_numAllocatedParticles);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()

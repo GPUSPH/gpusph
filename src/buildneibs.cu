@@ -38,9 +38,12 @@ extern "C"
 
 void
 setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
-	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	idx_t const& allocatedParticles)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_worldOrigin, &worldOrigin, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
