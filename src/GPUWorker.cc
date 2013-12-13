@@ -162,6 +162,8 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 // double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
 // for the non-buffered arrays (e.g. forces).
 // The data is transferred in bursts of consecutive cells when possible. Transfers are actually D2D if peer access is enabled.
+// Update: supports also BUFFER_BOUNDELEMENTS, BUFFER_GRADGAMMA, BUFFER_VERTICES, BUFFER_PRESSURE,
+// BUFFER_TKE, BUFFER_EPSILON, BUFFER_TURBVISC, BUFFER_STRAIN_RATE
 void GPUWorker::importPeerEdgeCells()
 {
 	// if next command is not an import nor an append, something wrong is going on
@@ -195,7 +197,6 @@ void GPUWorker::importPeerEdgeCells()
 	const float* const* peer_dEps;
 	const float* const* peer_dTurbVisc;
 	const float* const* peer_dStrainRate;
-
 
 	// aux var for transfers
 	size_t _size;
@@ -361,6 +362,62 @@ void GPUWorker::importPeerEdgeCells()
 						for (uint itau = 0; itau < 3; itau++)
 							peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, burst_peer_dev_index, _size);
 					}
+					if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float4);
+						peer_dBoundElems = gdata->GPUWORKERS[burst_peer_dev_index]->getDBoundElemsBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
+						peerAsyncTransfer( m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dBoundElems[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float4);
+						peer_dGradGamma = gdata->GPUWORKERS[burst_peer_dev_index]->getDGradGammaBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
+						peerAsyncTransfer( m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dGradGamma[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(vertexinfo);
+						peer_dVertices = gdata->GPUWORKERS[burst_peer_dev_index]->getDVerticesBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVerticesRead: gdata->currentVerticesWrite );
+						peerAsyncTransfer( m_dVertices[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dVertices[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float);
+						peer_dPressure = gdata->GPUWORKERS[burst_peer_dev_index]->getDPressureBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
+						peerAsyncTransfer( m_dPressure[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dPressure[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float);
+						peer_dTKE = gdata->GPUWORKERS[burst_peer_dev_index]->getDTKEBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTKERead : gdata->currentTKEWrite );
+						peerAsyncTransfer( m_dTKE[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dTKE[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float);
+						peer_dEps = gdata->GPUWORKERS[burst_peer_dev_index]->getDEpsBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentEpsRead : gdata->currentEpsWrite );
+						peerAsyncTransfer( m_dEps[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dEps[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float);
+						peer_dTurbVisc = gdata->GPUWORKERS[burst_peer_dev_index]->getDTurbViscBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
+						peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dTurbVisc[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
+					if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
+						_size = burst_numparts * sizeof(float);
+						peer_dStrainRate = gdata->GPUWORKERS[burst_peer_dev_index]->getDStrainRateBuffers();
+						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentStrainRateRead : gdata->currentStrainRateWrite );
+						peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+											peer_dStrainRate[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+					}
 
 					// reset burst to current cell
 					BURST_SET_CURRENT_CELL
@@ -406,6 +463,62 @@ void GPUWorker::importPeerEdgeCells()
 			for (uint itau = 0; itau < 3; itau++)
 				peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, burst_peer_dev_index, _size);
 		}
+		if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float4);
+			peer_dBoundElems = gdata->GPUWORKERS[burst_peer_dev_index]->getDBoundElemsBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
+			peerAsyncTransfer( m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dBoundElems[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float4);
+			peer_dGradGamma = gdata->GPUWORKERS[burst_peer_dev_index]->getDGradGammaBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
+			peerAsyncTransfer( m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dGradGamma[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(vertexinfo);
+			peer_dVertices = gdata->GPUWORKERS[burst_peer_dev_index]->getDVerticesBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVerticesRead: gdata->currentVerticesWrite );
+			peerAsyncTransfer( m_dVertices[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dVertices[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float);
+			peer_dPressure = gdata->GPUWORKERS[burst_peer_dev_index]->getDPressureBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
+			peerAsyncTransfer( m_dPressure[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dPressure[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float);
+			peer_dTKE = gdata->GPUWORKERS[burst_peer_dev_index]->getDTKEBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTKERead : gdata->currentTKEWrite );
+			peerAsyncTransfer( m_dTKE[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dTKE[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float);
+			peer_dEps = gdata->GPUWORKERS[burst_peer_dev_index]->getDEpsBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentEpsRead : gdata->currentEpsWrite );
+			peerAsyncTransfer( m_dEps[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dEps[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float);
+			peer_dTurbVisc = gdata->GPUWORKERS[burst_peer_dev_index]->getDTurbViscBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
+			peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dTurbVisc[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
+		if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
+			_size = burst_numparts * sizeof(float);
+			peer_dStrainRate = gdata->GPUWORKERS[burst_peer_dev_index]->getDStrainRateBuffers();
+			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentStrainRateRead : gdata->currentStrainRateWrite );
+			peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
+								peer_dStrainRate[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+		}
 
 	} // burst is empty?
 
@@ -429,6 +542,8 @@ void GPUWorker::importPeerEdgeCells()
 // double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
 // for the non-buffered arrays (e.g. forces).
 // The data is transferred in bursts of consecutive cells when possible.
+// Update: supports also BUFFER_BOUNDELEMENTS, BUFFER_GRADGAMMA, BUFFER_VERTICES, BUFFER_PRESSURE,
+// BUFFER_TKE, BUFFER_EPSILON, BUFFER_TURBVISC, BUFFER_STRAIN_RATE
 void GPUWorker::importNetworkPeerEdgeCells()
 {
 	// if next command is not an import nor an append, something wrong is going on
@@ -632,6 +747,46 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								for (uint itau = 0; itau < 3; itau++)
 									gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
 											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVerticesRead: gdata->currentVerticesWrite );
+								gdata->networkManager->sendUints(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTKERead : gdata->currentTKEWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentEpsRead : gdata->currentEpsWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentStrainRateRead : gdata->currentStrainRateWrite );
+								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
 
 						} else {
 							// neighbor is mine: receive the cells from the process holding the current cell
@@ -659,6 +814,46 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								for (uint itau = 0; itau < 3; itau++)
 									gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
 											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVerticesRead: gdata->currentVerticesWrite );
+								gdata->networkManager->receiveUints(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
+										(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTKERead : gdata->currentTKEWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentEpsRead : gdata->currentEpsWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
+							if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
+								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentStrainRateRead : gdata->currentStrainRateWrite );
+								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
+										(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
+							}
 
 						}
 
@@ -697,6 +892,46 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					for (uint itau = 0; itau < 3; itau++)
 						gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 2,
 								(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
+				if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVerticesRead: gdata->currentVerticesWrite );
+					gdata->networkManager->sendUints(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTKERead : gdata->currentTKEWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentEpsRead : gdata->currentEpsWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentStrainRateRead : gdata->currentStrainRateWrite );
+					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
 
 			} else {
 				// neighbor is mine: receive the cells from the process holding the current cell
@@ -723,6 +958,46 @@ void GPUWorker::importNetworkPeerEdgeCells()
 						for (uint itau = 0; itau < 3; itau++)
 							gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 2,
 									(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
+				if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVerticesRead: gdata->currentVerticesWrite );
+					gdata->networkManager->receiveUints(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
+							(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTKERead : gdata->currentTKEWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentEpsRead : gdata->currentEpsWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
+				if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
+					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentStrainRateRead : gdata->currentStrainRateWrite );
+					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
+							(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
+				}
 
 			}
 		}
