@@ -336,5 +336,7 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
+	CUT_CHECK_ERROR("thrust sort failed");
+
 }
 }
