@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -68,7 +63,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	set_deltap(0.02); //0.008
 	m_simparams.dt = 0.0003f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = false;
+	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
