@@ -48,7 +48,8 @@ typedef struct MbCallBack {
 typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
-	double			slength;			// smoothing length
+	double			sfactor;			// smoothing factor
+	double			slength;			// smoothing length (smoothing factor * deltap)
 	KernelType		kerneltype;			// kernel type
 	double			kernelradius;		// kernel radius
 	double			influenceRadius;	// influence radius ( = kernelradius * slength)
@@ -83,6 +84,7 @@ typedef struct SimParams {
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	SimParams(void) :
+		sfactor(1.3),
 		slength(0),
 		kerneltype(INVALID_KERNEL),
 		kernelradius(2.0),

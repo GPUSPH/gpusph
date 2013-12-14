@@ -183,7 +183,17 @@ class Problem {
 				m_deltap = m_options.deltap;
 			else
 				m_deltap = dflt;
+			// also udate the smoothing length
+			set_smoothing(m_simparams.sfactor);
+
 			return m_deltap;
+		}
+
+		/* set smoothing factor */
+		double set_smoothing(const double smooth)
+		{
+			m_simparams.sfactor = smooth;
+			m_simparams.slength = smooth*m_deltap;
 		}
 
 		void set_grid_params(void);
