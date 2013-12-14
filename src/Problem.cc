@@ -106,7 +106,7 @@ void
 Problem::check_maxneibsnum(void)
 {
 	// kernel radius times smoothing factor, rounded to the next integer
-	double r = (m_simparams.slength/m_deltap)*m_simparams.kernelradius;
+	double r = m_simparams.sfactor*m_simparams.kernelradius;
 	r = ceil(r);
 
 	// volumes are computed using a coefficient which is sligthly more than π
