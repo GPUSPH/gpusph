@@ -494,11 +494,17 @@ forces(
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, presTex, pressure, numParticles*sizeof(float)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, keps_tke, numParticles*sizeof(float)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
+
+	if (boundarytype == MF_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, presTex, pressure, numParticles*sizeof(float)));
+	}
+
+	if (visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, keps_tke, numParticles*sizeof(float)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
+	}
 
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
@@ -522,7 +528,7 @@ forces(
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
 	}
-	
+
 	if (visctype == KEPSVISC) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
 	}
@@ -532,11 +538,17 @@ forces(
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+
+	if (boundarytype == MF_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
+	}
+
+	if (visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+	}
 
 	if (dtadapt) {
 		// cfl holds one value per block in the forces kernel call,
