@@ -71,12 +71,6 @@ GPUSPH::~GPUSPH() {
 	if (initialized) finalize();
 }
 
-// used to pretty-print memory amounts. TODO refactor
-static const char *memSuffix[] = {
-	"B", "KiB", "MiB", "GiB", "TiB"
-};
-static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
-
 bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Initializing...\n");
