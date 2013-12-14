@@ -60,7 +60,6 @@ class Waterfall: public Problem {
 		virtual ~Waterfall(void);
 
 		int fill_parts(void);
-		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *);
 
 		// override standard split

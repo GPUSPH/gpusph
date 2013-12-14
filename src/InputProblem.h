@@ -18,7 +18,6 @@ class InputProblem: public Problem {
 		~InputProblem(void) {};
 
 		int fill_parts(void);
-		void draw_boundary(float) {};
 		void copy_to_array(float4 *, float4 *, particleinfo *, uint *hash) {};
 		void copy_to_array(float4 *, float4 *, particleinfo *, vertexinfo *, float4 *, uint *hash);
 
