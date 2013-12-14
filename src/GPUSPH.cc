@@ -659,7 +659,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	const size_t ucharCellSize = sizeof(uchar) * numcells;
 	const size_t uintCellSize = sizeof(uint) * numcells;
 
-	size_t unsigned int totCPUbytes = 0;
+	size_t totCPUbytes = 0;
 
 	// allocate pinned memory
 	//s_hPos = (float*)
