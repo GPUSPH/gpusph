@@ -194,6 +194,8 @@ class Problem {
 		{
 			m_simparams.sfactor = smooth;
 			m_simparams.slength = smooth*m_deltap;
+
+			return m_simparams.slength;
 		}
 
 		void set_grid_params(void);
