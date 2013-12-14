@@ -83,8 +83,9 @@ eulerDevice(
 	// copying pos and vel in the new arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
-	float keps_k = oldTKE[index];	// always k(n)
-	float keps_e = oldEps[index];	// always e(n)
+	// TODO templatize better
+	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
+	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
 
 	const particleinfo pinfo = info[index];
 
@@ -117,9 +118,11 @@ eulerDevice(
 			vel += dt*force;
 
 			// Updating k and e for k-e model
-			const float2 dkde = keps_dkde[index];
-			keps_k += dt*dkde.x;
-			keps_e += dt*dkde.y;
+			if (keps_dkde) {
+				const float2 dkde = keps_dkde[index];
+				keps_k += dt*dkde.x;
+				keps_e += dt*dkde.y;
+			}
 		}
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		else if (VERTEX(pinfo)) {
@@ -165,8 +168,10 @@ eulerDevice(
 
 	newPos[index] = pos;
 	newVel[index] = vel;
-	newTKE[index] = keps_k;
-	newEps[index] = keps_e;
+	if (newTKE)
+		newTKE[index] = keps_k;
+	if (newEps)
+		newEps[index] = keps_e;
 }
 
 /* vi:set ft=cuda: */
