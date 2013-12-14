@@ -192,20 +192,13 @@ class Problem {
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
 		{
-			m_simparams.sfactor = smooth;
-			m_simparams.slength = smooth*m_deltap;
-
-			return m_simparams.slength;
+			return m_simparams.set_smoothing(smooth, m_deltap);
 		}
 
 		/* set kernel type and radius */
-		void set_kernel(KernelType kernel, double radius=0)
+		double set_kernel(KernelType kernel, double radius=0)
 		{
-			m_simparams.kerneltype = kernel;
-			// TODO currently all our kernels have radius 2,
-			// remember to adjust this when we have kernels
-			// with different radii
-			m_simparams.kernelradius = radius ? radius : 2.0;
+			return m_simparams.set_kernel(kernel, radius);
 		}
 
 		void set_grid_params(void);

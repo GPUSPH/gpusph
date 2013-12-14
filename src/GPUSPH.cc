@@ -103,11 +103,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO: re-enable the followin after the WriterType rampage is over
 	// gdata->writerType = problem->get_writertype();
 
-	// initialize the influence radius and its derived parameters
-	_sp->influenceRadius = _sp->kernelradius * _sp->slength;
-	_sp->nlInfluenceRadius = _sp->influenceRadius * _sp->nlexpansionfactor;
-	_sp->nlSqInfluenceRadius = _sp->nlInfluenceRadius * _sp->nlInfluenceRadius;
-
 	// get the grid size
 	gdata->gridSize = problem->get_gridsize();
 

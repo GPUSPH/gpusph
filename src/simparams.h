@@ -83,6 +83,7 @@ typedef struct SimParams {
 	GageList		gage;				// water gages
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+
 	SimParams(void) :
 		sfactor(1.3),
 		slength(0),
@@ -116,6 +117,40 @@ typedef struct SimParams {
 		numODEbodies(0),
 		maxneibsnum(0)
 	{};
+
+	inline double
+	set_smoothing(double smooth, double deltap)
+	{
+		sfactor = smooth;
+		slength = smooth*deltap;
+
+		set_influenceradius();
+
+		return slength;
+	}
+
+	inline double
+	set_kernel(KernelType kernel, double radius=0)
+	{
+		kerneltype = kernel;
+		// TODO currently all our kernels have radius 2,
+		// remember to adjust this when we have kernels
+		// with different radii
+		kernelradius = radius ? radius : 2.0;
+
+		return set_influenceradius();
+	}
+
+	// internal: update the influence radius et al
+	inline double
+	set_influenceradius() {
+		influenceRadius = slength * kernelradius;
+		nlInfluenceRadius = nlexpansionfactor * influenceRadius;
+		nlSqInfluenceRadius = nlInfluenceRadius * nlInfluenceRadius;
+
+		return influenceRadius;
+	}
+
 } SimParams;
 
 #endif
