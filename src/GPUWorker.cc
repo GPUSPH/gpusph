@@ -1382,11 +1382,32 @@ void GPUWorker::destroyStreams()
 	cudaStreamDestroy(m_asyncPeerCopiesStream);
 }
 
+static const char *memSuffix[] = {
+	"B", "KiB", "MiB", "GiB", "TiB"
+};
+
+static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
+
 void GPUWorker::printAllocatedMemory()
 {
-	printf("Device idx %u (CUDA: %u) allocated %.2f Gb on host, %.2f Gb on device\n"
+	double hostmem = getHostMemory();
+	double devmem = getDeviceMemory();
+	size_t hostsfxidx = 0;
+	size_t devsfxidx = 0;
+
+	while (hostmem > 1024 && hostsfxidx < memSuffix_els - 1) {
+		hostmem /= 1024;
+		++hostsfxidx;
+	}
+
+	while (devmem > 1024 && devsfxidx < memSuffix_els - 1) {
+		devmem /= 1024;
+		++devsfxidx;
+	}
+
+	printf("Device idx %u (CUDA: %u) allocated %.5g%s on host, %.5g%s on device\n"
 			"  assigned particles: %s; allocated: %s\n", m_deviceIndex, m_cudaDeviceNumber,
-			getHostMemory()/1000000000.0, getDeviceMemory()/1000000000.0,
+			hostmem, memSuffix[hostsfxidx], devmem, memSuffix[devsfxidx],
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
