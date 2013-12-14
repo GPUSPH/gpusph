@@ -432,6 +432,26 @@ struct GlobalData {
 		if (buffers & BUFFER_INFO)	std::swap(currentInfoRead, currentInfoWrite);
 	}
 
+	// pretty-print memory amounts
+	string memString(size_t memory) {
+		static const char *memSuffix[] = {
+			"B", "KiB", "MiB", "GiB", "TiB"
+		};
+		static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
+
+		double mem = memory;
+		uint idx = 0;
+		while (mem > 1024 && idx < memSuffix_els - 1) {
+			mem /= 1024;
+			++idx;
+		}
+
+		std::ostringstream oss;
+		oss.precision(mem < 10 ? 3 : mem < 100 ? 4 : 5);
+		oss << mem << " " << memSuffix[idx];
+		return oss.str();
+	}
+
 	// convert to string and add thousand separators
 	string addSeparators(long int number) {
 		std::ostringstream oss;

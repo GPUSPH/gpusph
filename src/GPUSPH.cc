@@ -71,6 +71,12 @@ GPUSPH::~GPUSPH() {
 	if (initialized) finalize();
 }
 
+// used to pretty-print memory amounts. TODO refactor
+static const char *memSuffix[] = {
+	"B", "KiB", "MiB", "GiB", "TiB"
+};
+static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
+
 bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Initializing...\n");
@@ -176,7 +182,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers();
-	printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->processParticles[gdata->mpi_rank]).c_str());
+
+	// pretty print
+	printf("  allocated %s on host for %s particles\n",
+		gdata->memString(totCPUbytes).c_str(),
+		gdata->addSeparators(gdata->processParticles[gdata->mpi_rank]).c_str());
 
 	// copy planes from the problem to the shared array
 	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
