@@ -582,7 +582,7 @@ bool GPUSPH::runSimulation() {
 				printf("Issuing final save...\n");
 
 			// set the buffers to be dumped
-			uint which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO;
+			uint which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;

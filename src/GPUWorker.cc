@@ -1427,6 +1427,15 @@ void GPUWorker::uploadSubdomain() {
 	CUDA_SAFE_CALL(cudaMemcpy(	m_dInfo[ gdata->currentInfoRead ],
 								gdata->s_hInfo + firstInnerParticle,
 								_size, cudaMemcpyHostToDevice));
+
+	_size = howManyParticles * sizeof(hashKey);
+	//printf("Thread %d uploading %d HASH items (%u Kb) on device %d from position %d\n",
+	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
+	CUDA_SAFE_CALL(cudaMemcpy(	m_dParticleHash,
+								gdata->s_hParticleHash + firstInnerParticle,
+								_size, cudaMemcpyHostToDevice));
+
+	// TODO FIXME MERGE other arrays
 }
 
 // Download the subset of the specified buffer to the correspondent shared CPU array.
@@ -1489,6 +1498,15 @@ void GPUWorker::dumpBuffers() {
 									m_dNormals,
 									_size, cudaMemcpyDeviceToHost));
 	}
+
+	if (flags & BUFFER_HASH) {
+		_size = howManyParticles * sizeof(hashKey);
+		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hParticleHash + firstInnerParticle,
+									m_dParticleHash,
+									_size, cudaMemcpyDeviceToHost));
+	}
+
+	// TODO FIXME MERGE other arrays
 }
 
 // Sets all cells as empty in device memory. Used before reorder
