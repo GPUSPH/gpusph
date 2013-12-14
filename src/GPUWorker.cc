@@ -116,7 +116,11 @@ void GPUWorker::computeAndSetAllocableParticles()
 	freeMemory -= gdata->nGridCells * computeMemoryPerCell();
 	freeMemory -= 16; // segments
 	freeMemory -= 100*1024*1024; // leave 100Mb as safety margin
-	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
+	if (MULTI_DEVICE)
+		m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
+	else
+		m_numAllocatedParticles = m_numParticles;
+
 
 	if (m_numAllocatedParticles < m_numParticles) {
 		printf("FATAL: thread %u needs %u particles, but there is memory for %u (plus safety margin)\n", m_deviceIndex, m_numParticles, m_numAllocatedParticles);
