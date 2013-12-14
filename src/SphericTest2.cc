@@ -23,15 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
-#include "DamBreak3D.h"
+#include "SphericTest2.h"
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
@@ -49,20 +44,22 @@
 #define OFFSET_Z 0
 #endif
 
-DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
+SphericTest2::SphericTest2(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-	lx = 1.6;
-	ly = 0.67;
-	lz = 0.6;
-	H = 0.4;
+	lx = 3.22;
+	ly = 1.0;
+	lz = 1.0;
+	H = 0.55;
 	wet = false;
 	m_usePlanes = true;
+	n_probeparts = 208;
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_writerType = VTKWRITER;
+	//m_writerType = UDPWRITER;
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -73,10 +70,12 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
+	m_simparams.ferrari = 0.1;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
+	//m_simparams.visctype = DYNAMICVISC;
 	m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f; //0.00036f
+	m_simparams.tend = 1.5f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -89,12 +88,11 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Physical parameters
-	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
 
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
 
@@ -105,7 +103,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc = 1.0e-6f;
+	m_physparams.kinematicvisc = 1.0e-2f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
@@ -115,17 +113,17 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
-	m_name = "DamBreak3D";
+	m_name = "SphericTest2";
 }
 
 
-DamBreak3D::~DamBreak3D(void)
+SphericTest2::~SphericTest2(void)
 {
 	release_memory();
 }
 
 
-void DamBreak3D::release_memory(void)
+void SphericTest2::release_memory(void)
 {
 	parts.clear();
 	obstacle_parts.clear();
@@ -133,7 +131,7 @@ void DamBreak3D::release_memory(void)
 }
 
 
-int DamBreak3D::fill_parts()
+int SphericTest2::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
@@ -172,15 +170,15 @@ int DamBreak3D::fill_parts()
 		obstacle.Unfill(parts, r0);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + n_probeparts;
 }
 
-uint DamBreak3D::fill_planes()
+uint SphericTest2::fill_planes()
 {
 	return (m_usePlanes ? 5 : 0);
 }
 
-void DamBreak3D::copy_planes(float4 *planes, float *planediv)
+void SphericTest2::copy_planes(float4 *planes, float *planediv)
 {
 	if (!m_usePlanes) return;
 
@@ -201,8 +199,14 @@ void DamBreak3D::copy_planes(float4 *planes, float *planediv)
 	planediv[4] = 1.0;
 }
 
+void SphericTest2::fillDeviceMap(GlobalData* gdata)
+{
+	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
+	fillDeviceMapByAxis(gdata, Y_AXIS);
+	//fillDeviceMapByEquation(gdata);
+}
 
-void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
 	float4 localpos;
 	uint hashvalue;
@@ -232,8 +236,11 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		info[i]= make_particleinfo(BOUNDPART,0,i);
 		hash[i] = hashvalue;
 	}
-	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	uint j = boundary_parts.size();
+	if (boundary_parts.size() > 0)
+		std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+	else
+		std::cout << "No boundary parts" << std::endl;
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
@@ -244,7 +251,10 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+	if (obstacle_parts.size() > 0)
+		std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
+	else
+		std::cout << "No obstacle parts" << std::endl;
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
@@ -256,6 +266,51 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 		hash[i] = hashvalue;
 	}
 	j += parts.size();
-	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	if (parts.size() > 0)
+		std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+	else
+		std::cout << "No fluid parts" << std::endl;
+
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	if(n_probeparts) {
+		std::cout << "Probe parts: " << n_probeparts << "\n";
+		Point probe_coord[n_probeparts];
+
+		// Probe H1
+		for (uint i = 0; i < 50; i++) {
+			probe_coord[i] = m_origin + Point(2.724, 0.5, 0.02*i);
+		}
+		// Probe H2
+		for (uint i = 50; i < 100; i++) {
+			probe_coord[i] = m_origin + Point(2.228, 0.5, 0.02*(i-50));
+		}
+		// Probe H3
+		for (uint i = 100; i < 150; i++) {
+			probe_coord[i] = m_origin + Point(1.732, 0.5, 0.02*(i-100));
+		}
+		// Probe H4
+		for (uint i = 150; i < 200; i++) {
+			probe_coord[i] = m_origin + Point(0.582, 0.5, 0.02*(i-150));
+		}
+		// Pressure probes
+		probe_coord[200] = m_origin + Point(2.3955, 0.529, 0.021); // Probe P1
+		probe_coord[201] = m_origin + Point(2.3955, 0.529, 0.061); // Probe P2
+		probe_coord[202] = m_origin + Point(2.3955, 0.529, 0.101); // Probe P3
+		probe_coord[203] = m_origin + Point(2.3955, 0.529, 0.141); // Probe P4
+		probe_coord[204] = m_origin + Point(2.4165, 0.471, 0.161); // Probe P5
+		probe_coord[205] = m_origin + Point(2.4565, 0.471, 0.161); // Probe P6
+		probe_coord[206] = m_origin + Point(2.4965, 0.471, 0.161); // Probe P7
+		probe_coord[207] = m_origin + Point(2.5365, 0.471, 0.161); // Probe P8
+
+		for (uint i = j; i < j + n_probeparts; i++) {
+			calc_localpos_and_hash(probe_coord[i-j], localpos, hashvalue);
+			pos[i] = localpos;
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i] = make_particleinfo(PROBEPART, 0, i);
+			hash[i] = hashvalue;
+		}
+	}
+	//*******************************************************************
 	std::flush(std::cout);
 }
