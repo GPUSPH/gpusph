@@ -45,7 +45,7 @@ private:
 	void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
 
 	// (de)allocation of shared host buffers
-	long unsigned int allocateGlobalHostBuffers();
+	size_t allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
 
 	// sort particles by device before uploading

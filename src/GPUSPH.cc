@@ -644,7 +644,7 @@ bool GPUSPH::runSimulation() {
 // Allocate the shared buffers, i.e. those accessed by all workers
 // Returns the number of allocated bytes.
 // This does *not* include what was previously allocated (e.g. particles in problem->fillparts())
-long unsigned int GPUSPH::allocateGlobalHostBuffers()
+size_t GPUSPH::allocateGlobalHostBuffers()
 {
 
 	long unsigned int numparts = gdata->totParticles;
@@ -659,7 +659,7 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 	const size_t ucharCellSize = sizeof(uchar) * numcells;
 	const size_t uintCellSize = sizeof(uint) * numcells;
 
-	long unsigned int totCPUbytes = 0;
+	size_t unsigned int totCPUbytes = 0;
 
 	// allocate pinned memory
 	//s_hPos = (float*)
