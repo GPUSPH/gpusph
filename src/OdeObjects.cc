@@ -47,8 +47,6 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.015f);
-	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;

@@ -107,8 +107,6 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	//*************************************************************************************
 
 	// SPH parameters
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
