@@ -33,6 +33,7 @@
 
 #include "Problem.h"
 #include "vector_math.h"
+#include "utils.h"
 
 // here we need the complete definition of the GlobalData struct
 #include "GlobalData.h"
@@ -101,12 +102,42 @@ Problem::check_dt(void)
 
 }
 
-/* a function to increase the maxneibsnum if MF_BOUNDARY are used */
 void
 Problem::check_maxneibsnum(void)
 {
-	if(m_simparams.boundarytype==MF_BOUNDARY)
-		m_simparams.maxneibsnum = 224;
+	// kernel radius times smoothing factor, rounded to the next integer
+	double r = (m_simparams.slength/m_deltap)*m_simparams.kernelradius;
+	r = ceil(r);
+
+	// volumes are computed using a coefficient which is sligthly more than π
+#define PI_PLUS_EPS 3.2
+	double vol = 4*PI_PLUS_EPS*r*r*r/3;
+	// and rounded up
+	vol = ceil(vol);
+
+	// maxneibsnum is obtained rounding up the volume to the next
+	// multiple of 32
+	uint maxneibsnum = round_up((uint)vol, 32U);
+
+	// with semi-analytical boundaries, boundary particles
+	// are doubled, so we expand by a factor of 1.5,
+	// again rounding up
+	if (m_simparams.boundarytype == MF_BOUNDARY)
+		maxneibsnum = round_up(3*maxneibsnum/2, 32U);
+
+	// if the maxneibsnum was user-set, check against computed minimum
+	if (m_simparams.maxneibsnum) {
+		if (m_simparams.maxneibsnum < maxneibsnum) {
+			fprintf(stderr, "WARNING: problem-set max neibs num too low! %u < %u\n",
+				m_simparams.maxneibsnum, maxneibsnum);
+		} else {
+			printf("Using problem-set max neibs num %u (safe computed value was %u)\n",
+				m_simparams.maxneibsnum, maxneibsnum);
+		}
+	} else {
+		printf("Using computed max neibs num %u\n", maxneibsnum);
+		m_simparams.maxneibsnum = maxneibsnum;
+	}
 }
 
 

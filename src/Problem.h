@@ -128,7 +128,10 @@ class Problem {
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
 		virtual void check_dt();
-		/* a function to increase the maxneibsnum if MF_BOUNDARY are used */
+		/* Find the minimum amount of maximum number of neighbors
+		 * per particle based on the kernel and boundary choice,
+		 * and compare against the user-set value (if any), or
+		 * just set it by default */
 		virtual void check_maxneibsnum();
 
 		string const& create_problem_dir();

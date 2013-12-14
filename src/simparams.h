@@ -112,7 +112,7 @@ typedef struct SimParams {
 		surfaceparticle(false),
 		calc_energy(true),
 		numODEbodies(0),
-		maxneibsnum(128)
+		maxneibsnum(0)
 	{};
 } SimParams;
 
