@@ -59,7 +59,6 @@ Waterfall::Waterfall(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.02f); // remember: deltap needs to be set at the beginning of the constructor if it is used for setting geomestry
-	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0001f;

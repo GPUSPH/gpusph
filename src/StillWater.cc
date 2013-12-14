@@ -52,7 +52,6 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_usePlanes = false;
 
 	// SPH parameters
-	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;

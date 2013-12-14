@@ -62,7 +62,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.05);
-	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0f;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00001f;

@@ -62,7 +62,6 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.04);  //0.005f;
-	m_simparams.slength = 1.3f*m_deltap;
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00013;
