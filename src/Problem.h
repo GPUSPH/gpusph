@@ -198,6 +198,16 @@ class Problem {
 			return m_simparams.slength;
 		}
 
+		/* set kernel type and radius */
+		void set_kernel(KernelType kernel, double radius=0)
+		{
+			m_simparams.kerneltype = kernel;
+			// TODO currently all our kernels have radius 2,
+			// remember to adjust this when we have kernels
+			// with different radii
+			m_simparams.kernelradius = radius ? radius : 2.0;
+		}
+
 		void set_grid_params(void);
 
 		int3 calc_grid_pos(const Point&);

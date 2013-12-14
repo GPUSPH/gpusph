@@ -86,7 +86,7 @@ typedef struct SimParams {
 	SimParams(void) :
 		sfactor(1.3),
 		slength(0),
-		kerneltype(INVALID_KERNEL),
+		kerneltype(WENDLAND),
 		kernelradius(2.0),
 		influenceRadius(0),
 		nlInfluenceRadius(0),
