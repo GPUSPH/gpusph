@@ -143,7 +143,6 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "SolitaryWave";
-	create_problem_dir();
 }
 
 

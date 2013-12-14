@@ -104,7 +104,6 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
-	create_problem_dir();
 }
 
 

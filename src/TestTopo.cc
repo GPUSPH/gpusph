@@ -117,7 +117,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "TestTopo";
-	create_problem_dir();
 }
 
 

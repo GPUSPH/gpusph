@@ -117,7 +117,6 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
-	create_problem_dir();
 }
 
 

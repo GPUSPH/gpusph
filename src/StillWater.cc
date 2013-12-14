@@ -101,7 +101,6 @@ StillWater::StillWater(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "StillWater";
-	create_problem_dir();
 }
 
 

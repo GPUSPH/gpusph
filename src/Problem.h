@@ -131,6 +131,8 @@ class Problem {
 		/* a function to increase the maxneibsnum if MF_BOUNDARY are used */
 		virtual void check_maxneibsnum();
 
+		string const& create_problem_dir();
+
 		Options const& get_options(void) const
 		{
 			return m_options;
@@ -221,7 +223,6 @@ class Problem {
 		void add_gage(double x, double y, double z=0)
 		{ add_gage(make_double3(x, y, z)); }
 
-		string const& create_problem_dir();
 		bool need_display(float);
 		bool need_write(float);
 		void mark_written(float t) { m_last_write_time = t; }

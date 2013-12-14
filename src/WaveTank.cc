@@ -142,7 +142,6 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
-	create_problem_dir();
 }
 
 

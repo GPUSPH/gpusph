@@ -148,7 +148,6 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "InputProblem";
-	create_problem_dir();
 }
 
 

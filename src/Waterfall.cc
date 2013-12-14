@@ -109,7 +109,6 @@ Waterfall::Waterfall(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "Waterfall";
-	create_problem_dir();
 }
 
 
