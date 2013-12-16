@@ -131,29 +131,8 @@ typedef uint64_t flag_t;
 // start with a generic define that can be used to iterate over all buffers
 #define FIRST_DEFINED_BUFFER	(LAST_DEFINED_STEP << 1)
 
-#define BUFFER_POS	FIRST_DEFINED_BUFFER
-#define BUFFER_VEL	(BUFFER_POS << 1)
-#define BUFFER_INFO	(BUFFER_VEL << 1)
-#define BUFFER_VORTICITY	(BUFFER_INFO << 1)
-#define BUFFER_NORMALS		(BUFFER_VORTICITY << 1)
-#define BUFFER_FORCES	(BUFFER_NORMALS << 1)
-#define BUFFER_TAU	(BUFFER_FORCES << 1)
-#define BUFFER_NEIBSLIST	(BUFFER_TAU << 1)
-#define BUFFER_HASH	(BUFFER_NEIBSLIST << 1)
-#define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
-#define BUFFER_CELLSTART	(BUFFER_PARTINDEX << 1)
-#define BUFFER_CELLEND	(BUFFER_CELLSTART << 1)
-#define BUFFER_BOUNDELEMENTS	(BUFFER_CELLEND << 1)
-#define BUFFER_GRADGAMMA	(BUFFER_BOUNDELEMENTS << 1)
-#define BUFFER_VERTICES	(BUFFER_GRADGAMMA << 1)
-#define BUFFER_PRESSURE	(BUFFER_VERTICES << 1)
-#define BUFFER_TKE	(BUFFER_PRESSURE << 1)
-#define BUFFER_EPSILON	(BUFFER_TKE << 1)
-#define BUFFER_TURBVISC	(BUFFER_EPSILON << 1)
-#define BUFFER_STRAIN_RATE	(BUFFER_TURBVISC << 1)
-
-// last defined buffer. if new buffers are defined, remember to update this
-#define LAST_DEFINED_BUFFER	BUFFER_STRAIN_RATE
+// buffer definitions are set into their own include
+#include "define_buffers.h"
 
 // common shortcut
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
