@@ -8,20 +8,10 @@
 #ifndef GPUWORKER_H_
 #define GPUWORKER_H_
 
-class GPUWorker;
-
 #include <pthread.h>
 #include "vector_types.h"
 #include "common_types.h"
 #include "GlobalData.h"
-
-/* We need a forward declaration of GlobalData.
- * When the compiler includes "GlobalData.h" from somewhere else, it defines _GLOBAL_DATA_
- * and in turn includes "GPUWorker.h"; but the latter does not know the GlobalData struct
- * yet and including GloblData.h again does not work since _GLOBAL_DATA_ is defined.
- * So we need to forward-declare the struct GlobalData. GPUWorker finds it and compiles.
- * The GPUWorker class needs to be forward-declared as well, since GlobalData needs it. */
-struct GlobalData;
 
 #include "cudautil.cuh"
 

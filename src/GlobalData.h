@@ -39,8 +39,13 @@
 #include "Problem.h"
 // Options
 #include "Options.h"
+
 // GPUWorker
-#include "GPUWorker.h"
+// no need for a complete definition, a simple declaration will do
+// and since GPUWorker.h needs to include GlobalData.h, it solves
+// the problem of recursive inclusions
+class GPUWorker;
+
 // Synchronizer
 #include "Synchronizer.h"
 // Writer

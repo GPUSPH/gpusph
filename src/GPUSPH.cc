@@ -33,6 +33,9 @@
 // This inclusion problem should be solved
 #include "GPUSPH.h"
 
+// GPUWorker
+#include "GPUWorker.h"
+
 // Writer types
 #include "TextWriter.h"
 #include "VTKWriter.h"
