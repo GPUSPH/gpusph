@@ -128,8 +128,8 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
 									float*				newStrainRate,		// output: strain rate
-									const hashKey*		particleHash,   	// input: sorted grid hashes
-									const uint*			particleIndex,  	// input: sorted particle indices
+									const hashKey*		particleHash,		// input: sorted grid hashes
+									const uint*			particleIndex,		// input: sorted particle indices
 									const float4*		oldPos,				// input: unsorted positions
 									const float4*		oldVel,				// input: unsorted velocities
 									const particleinfo*	oldInfo,			// input: unsorted info
@@ -147,7 +147,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
-	
+
 	CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
@@ -162,7 +162,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
-	
+
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
