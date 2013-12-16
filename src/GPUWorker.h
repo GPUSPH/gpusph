@@ -21,6 +21,9 @@
 #include "physparams.h"
 #include "simparams.h"
 
+// buffers and buffer lists
+#include "buffer.h"
+
 // In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
