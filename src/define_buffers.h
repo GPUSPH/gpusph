@@ -33,47 +33,84 @@
 #error "define_buffers.h was included without specifying starting point"
 #endif
 
+// particleinfo
+#include "particledefine.h"
+
+// hashKey
+#include "hashkey.h"
+
+#ifndef SET_BUFFER_TRAITS
+#include "buffer_traits.h"
+#endif
+
+
 // start from FIRST_DEFINED_BUFFER
 #define BUFFER_POS			FIRST_DEFINED_BUFFER
+SET_BUFFER_TRAITS(BUFFER_POS, float4, 2, "Position");
 #define BUFFER_VEL			(BUFFER_POS << 1)
+SET_BUFFER_TRAITS(BUFFER_VEL, float4, 2, "Velocity");
 #define BUFFER_INFO			(BUFFER_VEL << 1)
+SET_BUFFER_TRAITS(BUFFER_INFO, particleinfo, 2, "Info");
 #define BUFFER_HASH			(BUFFER_INFO << 1)
+SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
+SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
 #define BUFFER_INVINDEX		(BUFFER_PARTINDEX << 1)
+SET_BUFFER_TRAITS(BUFFER_INVINDEX, uint, 1, "Inverse Particle Index");
 #define BUFFER_CELLSTART	(BUFFER_INVINDEX << 1)
+SET_BUFFER_TRAITS(BUFFER_CELLSTART, uint, 1, "Cell Start");
 #define BUFFER_CELLEND		(BUFFER_CELLSTART << 1)
+SET_BUFFER_TRAITS(BUFFER_CELLEND, uint, 1, "Cell End");
 
 #define BUFFER_NEIBSLIST	(BUFFER_CELLEND << 1)
+SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 
 #define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
+SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
 #define BUFFER_XSPH			(BUFFER_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_XSPH, float4, 1, "XSPH");
 
 #define BUFFER_TAU			(BUFFER_XSPH << 1)
+SET_BUFFER_TRAITS(BUFFER_TAU, float2, 3, "Tau");
 
 #define BUFFER_VORTICITY	(BUFFER_TAU << 1)
+SET_BUFFER_TRAITS(BUFFER_VORTICITY, float3, 1, "Vorticity");
 #define BUFFER_NORMALS		(BUFFER_VORTICITY << 1)
+SET_BUFFER_TRAITS(BUFFER_NORMALS, float4, 1, "Normals");
 
 #define BUFFER_BOUNDELEMENTS	(BUFFER_NORMALS << 1)
+SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 2, "Boundary Elements");
 #define BUFFER_GRADGAMMA		(BUFFER_BOUNDELEMENTS << 1)
+SET_BUFFER_TRAITS(BUFFER_GRADGAMMA, float4, 2, "Gamma Gradient");
 #define BUFFER_VERTICES			(BUFFER_GRADGAMMA << 1)
+SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 2, "Vertices");
 #define BUFFER_PRESSURE			(BUFFER_VERTICES << 1)
+SET_BUFFER_TRAITS(BUFFER_PRESSURE, float, 2, "Pressure");
 
 #define BUFFER_TKE			(BUFFER_PRESSURE << 1)
+SET_BUFFER_TRAITS(BUFFER_TKE, float, 2, "Turbulent Kinetic Energy [k]");
 #define BUFFER_EPSILON		(BUFFER_TKE << 1)
+SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
 #define BUFFER_TURBVISC		(BUFFER_EPSILON << 1)
+SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 2, "Eddy Viscosity");
 #define BUFFER_STRAIN_RATE	(BUFFER_TURBVISC << 1)
+SET_BUFFER_TRAITS(BUFFER_STRAIN_RATE, float, 2, "Mean Strain Rate");
 #define BUFFER_DKDE			(BUFFER_STRAIN_RATE << 1)
+SET_BUFFER_TRAITS(BUFFER_DKDE, float2, 1, "[k]-[e] derivatives");
 
 #define BUFFER_CFL			(BUFFER_DKDE << 1)
+SET_BUFFER_TRAITS(BUFFER_CFL, float, 1, "CFL array");
 #define BUFFER_CFL_TEMP		(BUFFER_CFL << 1)
+SET_BUFFER_TRAITS(BUFFER_CFL_TEMP, float, 1, "CFL aux array");
 #define BUFFER_CFL_GAMMA	(BUFFER_CFL_TEMP << 1)
+SET_BUFFER_TRAITS(BUFFER_CFL_GAMMA, float, 1, "Gamma CFL array");
 #define BUFFER_CFL_KEPS		(BUFFER_CFL_GAMMA << 1)
+SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
 
 // last defined buffer. if new buffers are defined, remember to update this
 #define LAST_DEFINED_BUFFER	BUFFER_CFL_KEPS
-
 
 #endif
 
