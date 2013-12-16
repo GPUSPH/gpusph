@@ -12,8 +12,8 @@ class GPUWorker;
 
 #include <pthread.h>
 #include "vector_types.h"
+#include "common_types.h"
 #include "GlobalData.h"
-#include "buildneibs.cuh" // for hashKey
 
 /* We need a forward declaration of GlobalData.
  * When the compiler includes "GlobalData.h" from somewhere else, it defines _GLOBAL_DATA_
@@ -30,8 +30,6 @@ struct GlobalData;
 
 #include "physparams.h"
 #include "simparams.h"
-
-#include "forces.cuh"
 
 // In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
