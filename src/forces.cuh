@@ -254,7 +254,7 @@ uint
 getFmaxElements(const uint n);
 
 uint
-getFmaxTempStorageSize(const uint n);
+getFmaxTempElements(const uint n);
 
 float
 cflmax( const uint	n,

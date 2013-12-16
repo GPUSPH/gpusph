@@ -938,11 +938,11 @@ getFmaxElements(const uint n)
 
 
 uint
-getFmaxTempStorageSize(const uint n)
+getFmaxTempElements(const uint n)
 {
 	uint numBlocks, numThreads;
 	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
-	return numBlocks*sizeof(float);
+	return numBlocks;
 }
 
 

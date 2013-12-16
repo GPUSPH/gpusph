@@ -1267,7 +1267,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			allocated += fmaxTableSize;
 		}
 
-		const uint tempCflSize = getFmaxTempStorageSize(fmaxElements);
+		const uint tempCflSize = getFmaxTempElements(fmaxElements)*sizeof(float);
 		CUDA_SAFE_CALL(cudaMalloc(&m_dTempCfl, tempCflSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
 
