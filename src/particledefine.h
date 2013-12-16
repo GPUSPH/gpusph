@@ -37,6 +37,8 @@
 
 #include "ode/ode.h"
 
+#include "common_types.h"
+
 enum KernelType {
 	CUBICSPLINE = 1,
 	QUADRATIC,
@@ -257,17 +259,6 @@ disable_particle(float4 &pos) {
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
 
-// define uint, uchar, ulong
-typedef unsigned long ulong; // only used in timing
-typedef unsigned int uint;
-typedef unsigned char uchar;
-
-typedef unsigned short neibdata;
-
-// type for index that iterates on the neighbor list
-typedef size_t idx_t;
-
-
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
@@ -280,8 +271,6 @@ typedef size_t idx_t;
    _global_ particle id. This would allow us to uniquely identify up to
    2^48 (about 281 trillion) particles.
 */
-
-typedef short4 particleinfo;
 
 inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const short &z, const short &w)
 {
@@ -326,8 +315,5 @@ static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(uint*)&info.z;
 }
-
-typedef uint4 vertexinfo;
-#define make_vertexinfo make_uint4
 
 #endif

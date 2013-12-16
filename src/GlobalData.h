@@ -26,9 +26,6 @@
 #ifndef _GLOBAL_DATA_
 #define _GLOBAL_DATA_
 
-// uint_64t et similia
-#include <stdint.h>
-
 // ostringstream
 #include <sstream>
 
@@ -36,10 +33,8 @@
 #include "multi_gpu_defines.h"
 // float4 et al
 #include "vector_types.h"
-// particleinfo
-#include "particledefine.h"
-// hashKey
-#include "hashkey.h"
+// common host types
+#include "common_types.h"
 // Problem
 #include "Problem.h"
 // Options
@@ -101,10 +96,6 @@ enum WriterType
 	CUSTOMTEXTWRITER,
 	UDPWRITER
 };
-
-// flags type
-// could be made an uint_fast64_t if we were concerned about performance,
-typedef uint64_t flag_t;
 
 // 0 reserved as "no flags"
 #define NO_FLAGS	((flag_t)0)

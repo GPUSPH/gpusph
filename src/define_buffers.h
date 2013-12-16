@@ -33,11 +33,7 @@
 #error "define_buffers.h was included without specifying starting point"
 #endif
 
-// particleinfo
-#include "particledefine.h"
-
-// hashKey
-#include "hashkey.h"
+#include "common_types.h"
 
 #ifndef SET_BUFFER_TRAITS
 #include "buffer_traits.h"

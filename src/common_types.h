@@ -23,39 +23,37 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _BUFFER_TRAITS_H
-#define _BUFFER_TRAITS_H
+/* Common types used throughout GPUSPH */
 
-// flag_t
-#include "common_types.h"
+#ifndef _COMMON_TYPES_H
+#define _COMMON_TYPES_H
 
-/* BufferTraits: traits struct used to associate a buffer key
- * with the respective buffer type, number of arrays,
- * and printable name */
+// uint_64t et similia
+#include <stdint.h>
 
-template<flag_t Key>
-struct BufferTraits
-{
-	// type of the buffer
-	typedef void type;
-	// number of buffers. Defaults to zero, so that it may generate an error
-	enum { nbufs = 0 };
-	// printable name of the buffer
-	static char name[];
-};
+// define uint, uchar, ulong
+typedef unsigned long ulong; // only used in timing
+typedef unsigned int uint;
+typedef unsigned char uchar;
 
-/* Define buffer keys and set buffer traits:
- * data type
- * number of arrays in buffer
- * printable name of buffer
- */
-#define SET_BUFFER_TRAITS(code, _type, _nbufs, _name) \
-template<> struct BufferTraits<code> \
-{ \
-	typedef _type type; \
-	enum { nbufs = _nbufs} ; \
-	static char name[]; \
-}
+// neighbor data
+typedef unsigned short neibdata;
+
+// type for index that iterates on the neighbor list
+typedef size_t idx_t;
+
+// particle info, see particledefine.h for details
+typedef short4 particleinfo;
+
+// vertex info
+typedef uint4 vertexinfo;
+#define make_vertexinfo make_uint4
+
+// hashKey cum suis
+#include "hashkey.h"
+
+// flags type
+// could be made an uint_fast64_t if we were concerned about performance,
+typedef uint64_t flag_t;
 
 #endif
-
