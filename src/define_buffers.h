@@ -54,6 +54,9 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
 #define BUFFER_INVINDEX		(BUFFER_PARTINDEX << 1)
 SET_BUFFER_TRAITS(BUFFER_INVINDEX, uint, 1, "Inverse Particle Index");
+
+// not used for the time being. evaluate if they should be migrated to the buffer mechanism
+// too or not
 #define BUFFER_CELLSTART	(BUFFER_INVINDEX << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLSTART, uint, 1, "Cell Start");
 #define BUFFER_CELLEND		(BUFFER_CELLSTART << 1)
@@ -107,6 +110,21 @@ SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
 
 // last defined buffer. if new buffers are defined, remember to update this
 #define LAST_DEFINED_BUFFER	BUFFER_CFL_KEPS
+
+// common shortcut
+#define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
+
+// all CFL buffers
+#define BUFFERS_CFL			( BUFFER_CFL | BUFFER_CFL_TEMP | BUFFER_CFL_GAMMA | BUFFER_CFL_KEPS )
+
+// all CELL buffers
+#define BUFFERS_CELL		( BUFFER_CELLSTART | BUFFER_CELLEND )
+
+// all double buffers TODO some template metaprogramming would help here
+#define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
+	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
+	BUFFER_PRESSURE | BUFFER_TKE | BUFFER_EPSILON | \
+	BUFFER_TURBVISC | BUFFER_STRAIN_RATE)
 
 #endif
 

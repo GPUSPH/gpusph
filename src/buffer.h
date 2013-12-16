@@ -111,6 +111,15 @@ public:
 	virtual const void *get_buffer(uint idx) const {
 		return m_ptr ? m_ptr[idx] : NULL;
 	}
+
+	// as above, plus offset
+	virtual void *get_offset_buffer(uint idx, size_t offset) {
+		throw runtime_error("can't determine buffer offset in AbstractBuffer");
+	}
+	virtual const void *get_offset_buffer(uint idx, size_t offset) const {
+		throw runtime_error("can't determine buffer offset in AbstractBuffer");
+	}
+
 };
 
 /* This class encapsulates type-specific arrays of buffers. 
@@ -161,6 +170,15 @@ public:
 		return bufmem*N;
 	}
 
+	// return the actual array of pointers
+	// needed to easily handled the TAU buffer, look for possible alternatives?
+	T** get_raw_ptr()
+	{ return m_bufs; }
+
+	const T* const* get_raw_ptr() const
+	{ return m_bufs; }
+
+
 	// return an (untyped) pointer to the idx buffer,
 	// if valid. Both const and non-const version
 	virtual void *get_buffer(uint idx) {
@@ -170,6 +188,16 @@ public:
 	virtual const void *get_buffer(uint idx) const {
 		if (idx >= N) return NULL;
 		return m_bufs[idx];
+	}
+
+	// as above, plus offset
+	virtual void *get_offset_buffer(uint idx, size_t offset) {
+		if (idx >= N) return NULL;
+		return m_bufs[idx] + offset;
+	}
+	virtual const void *get_offset_buffer(uint idx, size_t offset) const {
+		if (idx >= N) return NULL;
+		return m_bufs[idx] + offset;
 	}
 
 	virtual size_t get_element_size() const
@@ -227,7 +255,7 @@ public:
 	Buffer<Key> *getBuffer() {
 		iterator exists = this->find(Key);
 		if (exists != this->end())
-			return exists->second;
+			return static_cast<Buffer<Key>*>(exists->second);
 		else return NULL;
 	}
 
@@ -238,7 +266,21 @@ public:
 	typename Buffer<Key>::element_type *getBufferData(uint num=0) {
 		iterator exists = this->find(Key);
 		if (exists != this->end())
-			return exists->second->get_buffer(num);
+			return static_cast<typename Buffer<Key>::element_type*>(exists->second->get_buffer(num));
+		else return NULL;
+	}
+
+	AbstractBuffer* operator[](const flag_t& Key) {
+		const_iterator exists = this->find(Key);
+		if (exists != this->end())
+			return exists->second;
+		else return NULL;
+	}
+
+	const AbstractBuffer* operator[](const flag_t& Key) const {
+		const_iterator exists = this->find(Key);
+		if (exists != this->end())
+			return exists->second;
 		else return NULL;
 	}
 
@@ -254,7 +296,7 @@ public:
 			ret = static_cast<Buffer<Key>*>(exists->second);
 		} else {
 			ret = new Buffer<Key>(_init);
-			this->operator[](Key) = ret;
+			baseclass::operator[](Key) = ret;
 		}
 		return ret;
 	}

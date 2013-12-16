@@ -29,6 +29,9 @@
 // ostringstream
 #include <sstream>
 
+// std::map
+#include <map>
+
 // MAX_DEVICES et al.
 #include "multi_gpu_defines.h"
 // float4 et al
@@ -130,19 +133,15 @@ enum WriterType
 // buffer definitions are set into their own include
 #include "define_buffers.h"
 
-// common shortcut
-#define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
-
-// all double buffers
-#define BUFFERS_ALL_DBL	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
-	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
-	BUFFER_PRESSURE | BUFFER_TKE | BUFFER_EPSILON | \
-	BUFFER_TURBVISC | BUFFER_STRAIN_RATE)
-
 // forward declaration of Writer
 class Writer;
 
 class Problem;
+
+// maps buffer keys to indices. used for currentRead and currentWrite:
+// currentRead[BUFFER_SOMETHING] is the current array to be read in the double-buffered
+// set BUFFER_SOMETHING
+typedef std::map<flag_t, uint> BufferIndexMap;
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
@@ -227,28 +226,9 @@ struct GlobalData {
 	float dts[MAX_DEVICES_PER_NODE];
 
 	// indices for double-buffered device arrays (0 or 1)
-	uint currentPosRead;	// current index in m_dPos for position reading (0 or 1)
-	uint currentPosWrite;	// current index in m_dPos for writing (0 or 1)
-	uint currentVelRead;	// current index in m_dVel for velocity reading (0 or 1)
-	uint currentVelWrite;	// current index in m_dVel for writing (0 or 1)
-	uint currentInfoRead;	// current index in m_dInfo for info reading (0 or 1)
-	uint currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
-	uint currentBoundElementRead;	// current index in m_dBoundElement for normal coordinates (and surface) reading (0 or 1)
-	uint currentBoundElementWrite;	// current index in m_dBoundElement for writing (0 or 1)
-	uint currentGradGammaRead;		// current index in m_dGradGamma for gradient gamma (and gamma) reading (0 or 1)
-	uint currentGradGammaWrite;		// current index in m_dGradGamma for gradient gamma (and gamma) writing (0 or 1)
-	uint currentVerticesRead;		// current index in m_dVertices for vertices reading (0 or 1)
-	uint currentVerticesWrite;		// current index in m_dVertices for vertices writing (0 or 1)
-	uint currentPressureRead;		// current index in m_dPressure for pressure reading (0 or 1)
-	uint currentPressureWrite;		// current index in m_dPressure for pressure writing (0 or 1)
-	uint currentTKERead;		// current index in m_dTKE for reading (0 or 1)
-	uint currentTKEWrite;		// current index in m_dTKE for writing (0 or 1)
-	uint currentEpsRead;		// current index in m_dEps for reading (0 or 1)
-	uint currentEpsWrite;		// current index in m_dEps for writing (0 or 1)
-	uint currentTurbViscRead;	// current index in m_dTurbVisc for reading (0 or 1)
-	uint currentTurbViscWrite;	// current index in m_dTurbVisc for writing (0 or 1)
-	uint currentStrainRateRead;		// current index in m_dStrainRate for reading (0 or 1)
-	uint currentStrainRateWrite;	// current index in m_dStrainRate for writing (0 or 1)
+
+	BufferIndexMap		currentRead;
+	BufferIndexMap		currentWrite;
 
 	// moving boundaries
 	float4	*s_mbData;
@@ -422,11 +402,19 @@ struct GlobalData {
 		return s_hDeviceMap[linearizedCellIdx];
 	}
 
-	// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
-	void swapDeviceBuffers(uint buffers) {
-		if (buffers & BUFFER_POS)	std::swap(currentPosRead, currentPosWrite);
-		if (buffers & BUFFER_VEL)	std::swap(currentVelRead, currentVelWrite);
-		if (buffers & BUFFER_INFO)	std::swap(currentInfoRead, currentInfoWrite);
+	// swap (indices of) double buffered arrays
+	void swapDeviceBuffers(flag_t buffers) {
+		BufferIndexMap::iterator idxset = currentRead.begin();
+		const BufferIndexMap::iterator stop = currentRead.end();
+		for (; idxset != stop; ++idxset) {
+			flag_t bufkey = idxset->first;
+			if (!(bufkey & buffers))
+				continue; // don't swap unselected buffers
+			// manual swap, eh
+			uint prv = idxset->second;
+			currentRead[bufkey] = currentWrite[bufkey];
+			currentWrite[bufkey] = prv;
+		}
 	}
 
 	// pretty-print memory amounts

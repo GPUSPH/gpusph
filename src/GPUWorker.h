@@ -82,37 +82,10 @@ private:
 	// TODO: CPU arrays used for debugging
 
 	// GPU arrays
-	float4*		m_dForces;				// forces array
-	float4*		m_dXsph;				// mean velocity array
-	float4*		m_dPos[2];				// position array
-	float4*		m_dVel[2];				// velocity array
-	particleinfo*	m_dInfo[2];			// particle info array
-	float4*     m_dNormals;				// normal at free surface
-	float3*		m_dVort;				// vorticity
-	//uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
-	float*		m_dCfl;					// cfl for each block
-	float*		m_dCflGamma;			// cfl contribution due to gamma integration
-	float*		m_dCflTVisc;			// cfl contribution from eddy viscosity
-	float*		m_dTempCfl;				// temporary storage for cfl computation
-	float2*		m_dTau[3];				// SPS stress tensor
+	BufferList	m_dBuffers;
 
-	float4*		m_dGradGamma[2];		// gradient of renormalization term gamma (x,y,z) and gamma itself (w)
-	float4*		m_dBoundElement[2];		// normal coordinates (x,y,z) and surface (w) of boundary elements (triangles)
-	vertexinfo*	m_dVertices[2];			// stores indexes of 3 vertex particles for every boundary element
-	float*		m_dPressure[2];			// stores pressure for vertex and boundary particles
-	float*		m_dTKE[2];				// k - turbulent kinetic energy
-	float*		m_dEps[2];				// e - turbulent kinetic energy dissipation rate
-	float*		m_dTurbVisc[2];			// nu_t - kinematic eddy viscosity
-	float*		m_dStrainRate[2];		// S - mean scalar strain rate
-	float2*		m_dDkDe;				// dk/dt and de/dt for k-e model
-
-	hashKey*	m_dParticleHash;		// hash table for sorting; 32 or 64 bit according to HASH_KEY_SIZE
-	uint*		m_dParticleIndex;		// sorted particle indexes
-	uint*		m_dInversedParticleIndex;// inversed m_dParticle index array
 	uint*		m_dCellStart;			// index of cell start in sorted order
 	uint*		m_dCellEnd;				// index of cell end in sorted order
-	//uint*		m_dSliceStart;			// index of first cell in slice
-	neibdata*	m_dNeibsList;			// neib list with maxneibsnum neibs per particle
 
 	// GPU arrays for rigid bodies (CPU ones are in GlobalData)
 	uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
@@ -226,21 +199,7 @@ public:
 	size_t getHostMemory();
 	size_t getDeviceMemory();
 	// for peer transfers
-	const float4* const* getDPosBuffers() const;
-	const float4* const* getDVelBuffers() const;
-	const particleinfo* const* getDInfoBuffers() const;
-	const float4* getDForceBuffer() const;
-	const float2* const* getDTauBuffers() const;
-	const hashKey* getDHashBuffer() const;
-	const uint* getDPartIndexBuffer() const;
-	const float4* const* getDBoundElemsBuffers() const;
-	const float4* const* getDGradGammaBuffers() const;
-	const vertexinfo* const* getDVerticesBuffers() const;
-	const float* const* getDPressureBuffers() const;
-	const float* const* getDTKEBuffers() const;
-	const float* const* getDEpsBuffers() const;
-	const float* const* getDTurbViscBuffers() const;
-	const float* const* getDStrainRateBuffers() const;
+	const AbstractBuffer* getBuffer(flag_t) const;
 };
 
 #endif /* GPUWORKER_H_ */

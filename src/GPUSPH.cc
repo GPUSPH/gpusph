@@ -124,16 +124,19 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// initial dt (or, just dt in case adaptive is enabled)
 	gdata->dt = _sp->dt;
 
+	// double buffer indexing (READ vs WRITE)
 	// the initial assignment is arbitrary, just need to be complementary
 	// (caveat: as long as these pointers, and not just 0 and 1 values, are always used)
-	gdata->currentPosRead = gdata->currentVelRead = gdata->currentInfoRead =
-		gdata->currentBoundElementRead = gdata->currentGradGammaRead = gdata->currentVerticesRead =
-		gdata->currentPressureRead = gdata->currentTKERead = gdata->currentEpsRead = gdata->currentTurbViscRead =
-		gdata->currentStrainRateRead = 0;
-	gdata->currentPosWrite = gdata->currentVelWrite = gdata->currentInfoWrite =
-		gdata->currentBoundElementWrite = gdata->currentGradGammaWrite = gdata->currentVerticesWrite =
-		gdata->currentPressureWrite = gdata->currentTKEWrite = gdata->currentEpsWrite = gdata->currentTurbViscWrite =
-		gdata->currentStrainRateWrite = 1;
+
+	// TODO this can be done more elegantly using TMP, relying on the BufferTraits
+	// to iterate automatically over all double-buffered arrays. Presently we depend on
+	// there being a _correct_ define in define_buffers
+	for (flag_t bufkey = FIRST_DEFINED_BUFFER; bufkey <= LAST_DEFINED_BUFFER; bufkey <<= 1) {
+		if (bufkey & BUFFERS_ALL_DBL) {
+			gdata->currentRead[bufkey] = 0;
+			gdata->currentWrite[bufkey] = 1;
+		}
+	}
 
 	// check the number of moving boundaries
 	if (problem->m_mbnumber > MAXMOVINGBOUND) {
