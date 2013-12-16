@@ -1803,11 +1803,11 @@ cudaDeviceProp GPUWorker::getDeviceProperties() {
 	return m_deviceProperties;
 }
 
-unsigned long GPUWorker::getHostMemory() {
+size_t GPUWorker::getHostMemory() {
 	return m_hostMemory;
 }
 
-unsigned long GPUWorker::getDeviceMemory() {
+size_t GPUWorker::getDeviceMemory() {
 	return m_deviceMemory;
 }
 

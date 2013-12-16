@@ -61,9 +61,9 @@ private:
 	uint m_particleRangeBegin; // inclusive
 	uint m_particleRangeEnd;   // exclusive
 
-	// memory allocate
-	unsigned long m_hostMemory;
-	unsigned long m_deviceMemory;
+	// memory allocated
+	size_t m_hostMemory;
+	size_t m_deviceMemory;
 
 	// it would be easier to put the device properties in a shared array in GlobalData;
 	// this, however, would violate the principle that any CUDA-related code should be
@@ -232,8 +232,8 @@ public:
 
 	// utility getters
 	cudaDeviceProp getDeviceProperties();
-	unsigned long getHostMemory();
-	unsigned long getDeviceMemory();
+	size_t getHostMemory();
+	size_t getDeviceMemory();
 	// for peer transfers
 	const float4* const* getDPosBuffers() const;
 	const float4* const* getDVelBuffers() const;
