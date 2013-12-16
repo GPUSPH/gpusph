@@ -996,7 +996,7 @@ void GPUSPH::particleSwap(uint idx1, uint idx2)
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, uint flags, float arg)
+void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {

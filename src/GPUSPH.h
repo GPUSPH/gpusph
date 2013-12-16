@@ -57,7 +57,7 @@ private:
 	void updateArrayIndices();
 
 	// set nextCommand, unlock the threads and wait for them to complete
-	void doCommand(CommandType cmd, uint flags = 0, float arg=NAN);
+	void doCommand(CommandType cmd, flag_t flags=NO_FLAGS, float arg=NAN);
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();

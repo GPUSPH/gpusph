@@ -26,6 +26,12 @@
 #ifndef _GLOBAL_DATA_
 #define _GLOBAL_DATA_
 
+// uint_64t et similia
+#include <stdint.h>
+
+// ostringstream
+#include <sstream>
+
 // MAX_DEVICES et al.
 #include "multi_gpu_defines.h"
 // float4 et al
@@ -44,8 +50,6 @@
 #include "Synchronizer.h"
 // Writer
 #include "Writer.h"
-// ostringstream
-#include <sstream>
 // NetworkManager
 #include "NetworkManager.h"
 
@@ -98,40 +102,58 @@ enum WriterType
 	UDPWRITER
 };
 
+// flags type
+// could be made an uint_fast64_t if we were concerned about performance,
+typedef uint64_t flag_t;
+
 // 0 reserved as "no flags"
-#define NO_FLAGS	0U
+#define NO_FLAGS	((flag_t)0)
 
-// flags for forces and euler kernels
-#define INITIALIZATION_STEP	(1U << 0)
-#define INTEGRATOR_STEP_1	(1U << 1)
-#define INTEGRATOR_STEP_2	(1U << 2)
+// flags for kernels that process arguments differently depending on which
+// step of the simulation we are at
+// (e.g. forces, euler)
+// these grow from the bottom
+#define INITIALIZATION_STEP	((flag_t)1)
+#define INTEGRATOR_STEP_1	(INITIALIZATION_STEP << 1)
+#define INTEGRATOR_STEP_2	(INTEGRATOR_STEP_1 << 1)
+#define	LAST_DEFINED_STEP	INTEGRATOR_STEP_2
+// if new steps are added after INTEGRATOR_STEP_2, remember to update LAST_DEFINED_STEP
 
-// buffer constants for swapDeviceBuffers() - serving also as flags for DUMP, UPDATE_INTERNAL, etc.
-// WARNING: supported flags might vary for each command
-#define BUFFER_POS	(1U << 3)
-#define BUFFER_VEL	(1U << 4)
-#define BUFFER_INFO	(1U << 5)
-#define BUFFER_VORTICITY	(1U << 6)
-#define BUFFER_NORMALS		(1U << 7)
-#define BUFFER_FORCES	(1U << 8)
-#define BUFFER_TAU	(1U << 9)
-#define BUFFER_NEIBSLIST	(1U << 10)
-#define BUFFER_HASH	(1U << 11)
-#define BUFFER_PARTINDEX	(1U << 12)
-#define BUFFER_CELLSTART	(1U << 13)
-#define BUFFER_CELLEND	(1U << 14)
-#define BUFFER_BOUNDELEMENTS	(1U << 15)
-#define BUFFER_GRADGAMMA	(1U << 16)
-#define BUFFER_VERTICES	(1U << 17)
-#define BUFFER_PRESSURE	(1U << 18)
-#define BUFFER_TKE	(1U << 19)
-#define BUFFER_EPSILON	(1U << 20)
-#define BUFFER_TURBVISC	(1U << 21)
-#define BUFFER_STRAIN_RATE	(1U << 22)
+// flags to select which buffer to access, in case of double-buffered arrays
+// these grow from the top
+#define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
+#define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
 
-// the selection of the double buffers is also encoded (in high bits)
-#define DBLBUFFER_READ		(1U << 30)
-#define DBLBUFFER_WRITE		(1U << 31)
+// now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
+// these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available
+// at the top
+
+// start with a generic define that can be used to iterate over all buffers
+#define FIRST_DEFINED_BUFFER	(LAST_DEFINED_STEP << 1)
+
+#define BUFFER_POS	FIRST_DEFINED_BUFFER
+#define BUFFER_VEL	(BUFFER_POS << 1)
+#define BUFFER_INFO	(BUFFER_VEL << 1)
+#define BUFFER_VORTICITY	(BUFFER_INFO << 1)
+#define BUFFER_NORMALS		(BUFFER_VORTICITY << 1)
+#define BUFFER_FORCES	(BUFFER_NORMALS << 1)
+#define BUFFER_TAU	(BUFFER_FORCES << 1)
+#define BUFFER_NEIBSLIST	(BUFFER_TAU << 1)
+#define BUFFER_HASH	(BUFFER_NEIBSLIST << 1)
+#define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
+#define BUFFER_CELLSTART	(BUFFER_PARTINDEX << 1)
+#define BUFFER_CELLEND	(BUFFER_CELLSTART << 1)
+#define BUFFER_BOUNDELEMENTS	(BUFFER_CELLEND << 1)
+#define BUFFER_GRADGAMMA	(BUFFER_BOUNDELEMENTS << 1)
+#define BUFFER_VERTICES	(BUFFER_GRADGAMMA << 1)
+#define BUFFER_PRESSURE	(BUFFER_VERTICES << 1)
+#define BUFFER_TKE	(BUFFER_PRESSURE << 1)
+#define BUFFER_EPSILON	(BUFFER_TKE << 1)
+#define BUFFER_TURBVISC	(BUFFER_EPSILON << 1)
+#define BUFFER_STRAIN_RATE	(BUFFER_TURBVISC << 1)
+
+// last defined buffer. if new buffers are defined, remember to update this
+#define LAST_DEFINED_BUFFER	BUFFER_STRAIN_RATE
 
 // common shortcut
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
@@ -276,7 +298,7 @@ struct GlobalData {
 	CommandType nextCommand;
 	// step parameter, e.g. for predictor/corrector scheme
 	// command flags, i.e. parameter for the command
-	uint commandFlags;
+	flag_t commandFlags;
 	// additional argument to be passed to the command
 	float extraCommandArg;
 	// set to true if next kernel has to be run only on internal particles
@@ -336,7 +358,7 @@ struct GlobalData {
 		t(0.0f),
 		dt(0.0f),
 		nextCommand(IDLE),
-		commandFlags(0),
+		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
 		writerType(VTKWRITER),
