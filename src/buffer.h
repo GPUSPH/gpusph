@@ -244,6 +244,16 @@ public:
 			return static_cast<typename Buffer<Key>::element_type*>(exists->second->get_buffer(num));
 		else return NULL;
 	}
+	// const version
+	template<flag_t Key>
+	const
+	typename Buffer<Key>::element_type *getBufferData(uint num=0) const {
+		const_iterator exists = this->find(Key);
+		if (exists != this->end())
+			return static_cast<typename Buffer<Key>::element_type*>(exists->second->get_buffer(num));
+		else return NULL;
+	}
+
 
 	AbstractBuffer* operator[](const flag_t& Key) {
 		const_iterator exists = this->find(Key);

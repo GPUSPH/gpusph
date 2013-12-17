@@ -52,8 +52,7 @@ public:
 	Writer(const Problem *problem);
 	virtual ~Writer();
 
-	virtual void write(uint numParts, const double4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals, const float4 *gradGamma = 0, const float *tke = 0, const float *turbvisc = 0) = 0;
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
 
 	virtual void write_energy(float t, float4 *energy);
 	//WaveGage

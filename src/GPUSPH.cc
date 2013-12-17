@@ -1084,12 +1084,9 @@ void GPUSPH::doWrite()
 	// TODO convert writers to use the buffer list, pass node offset as an extra param
 	gdata->writer->write(
 		gdata->processParticles[gdata->mpi_rank],
-		gdata->s_hBuffers.getBufferData<BUFFER_POS_DOUBLE>() + node_offset,
-		gdata->s_hBuffers.getBufferData<BUFFER_VEL>() + node_offset,
-		gdata->s_hBuffers.getBufferData<BUFFER_INFO>() + node_offset,
-		problem->m_simparams.vorticity ? gdata->s_hBuffers.getBufferData<BUFFER_VORTICITY>() + node_offset : NULL,
-		gdata->t, gdata->problem->get_simparams()->testpoints,
-		problem->m_simparams.savenormals ? gdata->s_hBuffers.getBufferData<BUFFER_NORMALS>() + node_offset : NULL);
+		gdata->s_hBuffers,
+		node_offset,
+		gdata->t, gdata->problem->get_simparams()->testpoints);
 	gdata->problem->mark_written(gdata->t);
 
 	// TODO: enable energy computation and dump

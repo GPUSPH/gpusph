@@ -96,10 +96,18 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 			type, dim, offset);
 }
 
-void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
-				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
-				const float4 *normals, const float4 *gradGamma, const float *tke, const float *turbvisc)
+void
+VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
+	const double4 *pos = buffers.getBufferData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getBufferData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getBufferData<BUFFER_INFO>();
+	const float3 *vort = buffers.getBufferData<BUFFER_VORTICITY>();
+	const float4 *normals = buffers.getBufferData<BUFFER_NORMALS>();
+	const float4 *gradGamma = buffers.getBufferData<BUFFER_GRADGAMMA>();
+	const float *tke = buffers.getBufferData<BUFFER_TKE>();
+	const float *turbvisc = buffers.getBufferData<BUFFER_TURBVISC>();
+
 	string filename, full_filename;
 
 	filename = "PART";

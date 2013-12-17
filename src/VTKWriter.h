@@ -36,9 +36,7 @@ public:
 	VTKWriter(const Problem *problem);
 	~VTKWriter();
 
-	void write(uint numParts, const double4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t, bool testpoints,
-			const float4 *normals, const float4 *gradGamma = 0, const float *tke = 0, const float *turbvisc = 0);
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
 };
 
 #endif	/* _VTKWRITER_H */

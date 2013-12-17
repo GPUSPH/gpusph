@@ -55,18 +55,13 @@ TextWriter::~TextWriter()
 }
 
 void
-TextWriter::write(	uint				numParts,
-					const double4		*pos,
-					const float4		*vel,
-					const particleinfo	*info,
-					const float3		*vort,
-					float				t,
-					const bool			testpoints,
-					const float4		*normals,
-					const float4		*gradGamma,
-					const float			*tke,
-					const float			*turbvisc)
+TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
+	const double4 *pos = buffers.getBufferData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getBufferData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getBufferData<BUFFER_INFO>();
+	const float3 *vort = buffers.getBufferData<BUFFER_VORTICITY>();
+
 	string filename, full_filename;
 	string filenum = next_filenum();
 	//filename = "PART_" + next_filenum() + ".txt";
