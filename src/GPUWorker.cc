@@ -1181,24 +1181,22 @@ void GPUWorker::uploadSubdomain() {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	// buffers to be uploaded
-	// TODO FIXME MERGE other arrays
-	static const flag_t buffers_to_upload[] = {
-		BUFFER_POS, BUFFER_VEL, BUFFER_INFO, BUFFER_HASH
-	};
+	// buffers to skip in the upload. Rationale
+	// POS_DOUBLE is computed on host from POS and HASH
+	// NORMALS and VORTICITY are post-processing, so always produced on device
+	// and _downloaded_ to host, never uploaded
+	static const flag_t skip_bufs = BUFFER_POS_DOUBLE |
+		BUFFER_NORMALS | BUFFER_VORTICITY;
 
-	// source buffer for each of the above buffers
-	// TODO FIXME this will be MUCH cleaner with GlobalData using buffers too
-	static const void* src_ptrs[] = {
-		gdata->s_hPos + firstInnerParticle,
-		gdata->s_hVel + firstInnerParticle,
-		gdata->s_hInfo + firstInnerParticle,
-		gdata->s_hParticleHash + firstInnerParticle
-	};
+	// iterate over each array in the _host_ buffer list, and upload data
+	// if it is not in the skip list
+	BufferList::iterator onhost = gdata->s_hBuffers.begin();
+	const BufferList::iterator stop = gdata->s_hBuffers.end();
+	for ( ; onhost != stop ; ++onhost) {
+		flag_t buf_to_up = onhost->first;
+		if (buf_to_up & skip_bufs)
+			continue;
 
-	// iterate over each array and proceed with the upload
-	for (uint i = 0; i < sizeof(buffers_to_upload)/sizeof(*buffers_to_upload); ++i) {
-		flag_t buf_to_up = buffers_to_upload[i];
 		AbstractBuffer *buf = m_dBuffers[buf_to_up];
 		size_t _size = howManyParticles * buf->get_element_size();
 
@@ -1207,7 +1205,8 @@ void GPUWorker::uploadSubdomain() {
 				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
 
 		void *dstptr = buf->get_buffer(gdata->currentRead[buf_to_up]);
-		CUDA_SAFE_CALL(cudaMemcpy(dstptr, src_ptrs[i], _size, cudaMemcpyHostToDevice));
+		const void *srcptr = onhost->second->get_buffer();
+		CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
 	}
 }
 
@@ -1215,7 +1214,6 @@ void GPUWorker::uploadSubdomain() {
 // Makes multiple transfers. Only downloads the subset relative to the internal particles.
 // For double buffered arrays, uses the READ buffers unless otherwise specified. Can be
 // used for either the read or the write buffers, not both.
-// TODO FIXME will be much cleaner with GlobalData using buffers too
 void GPUWorker::dumpBuffers() {
 	// indices
 	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
@@ -1227,32 +1225,16 @@ void GPUWorker::dumpBuffers() {
 	size_t _size = 0;
 	flag_t flags = gdata->commandFlags;
 
-	// (potential) buffers to be uploaded
-	// TODO FIXME MERGE other arrays
-	static const flag_t buffers_to_download[] = {
-		BUFFER_POS, BUFFER_VEL, BUFFER_INFO, BUFFER_HASH,
-		BUFFER_VORTICITY, BUFFER_NORMALS
-	};
-
-	// destination buffer for each of the above buffers
-	// TODO FIXME this will be MUCH cleaner with GlobalData using buffers too
-	static void* dst_ptrs[] = {
-		gdata->s_hPos + firstInnerParticle,
-		gdata->s_hVel + firstInnerParticle,
-		gdata->s_hInfo + firstInnerParticle,
-		gdata->s_hParticleHash + firstInnerParticle,
-		gdata->s_hVorticity + firstInnerParticle,
-		gdata->s_hNormals + firstInnerParticle
-	};
-
-	// iterate over each array and proceed with the download if it's among the
-	// ones specified in the flags
-	for (uint i = 0; i < sizeof(buffers_to_download)/sizeof(*buffers_to_download); ++i) {
-		flag_t buf_to_get = buffers_to_download[i];
+	// iterate over each array in the _host_ buffer list, and download data
+	// if it was requested
+	BufferList::iterator onhost = gdata->s_hBuffers.begin();
+	const BufferList::iterator stop = gdata->s_hBuffers.end();
+	for ( ; onhost != stop ; ++onhost) {
+		flag_t buf_to_get = onhost->first;
 		if (!(buf_to_get & flags))
-			continue; // skip unwanted buffers
+			continue;
 
-		AbstractBuffer *buf = m_dBuffers[buf_to_get];
+		const AbstractBuffer *buf = m_dBuffers[buf_to_get];
 		size_t _size = howManyParticles * buf->get_element_size();
 
 		uint which_buffer = 0;
@@ -1260,7 +1242,8 @@ void GPUWorker::dumpBuffers() {
 		if (flags & DBLBUFFER_WRITE) which_buffer = gdata->currentWrite[buf_to_get];
 
 		const void *srcptr = buf->get_buffer(which_buffer);
-		CUDA_SAFE_CALL(cudaMemcpy(dst_ptrs[i], srcptr, _size, cudaMemcpyDeviceToHost));
+		void *dstptr = onhost->second->get_offset_buffer(0, firstInnerParticle);
+		CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
 	}
 }
 

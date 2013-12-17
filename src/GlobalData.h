@@ -43,6 +43,9 @@
 // Options
 #include "Options.h"
 
+// BufferList
+#include "buffer.h"
+
 // GPUWorker
 // no need for a complete definition, a simple declaration will do
 // and since GPUWorker.h needs to include GlobalData.h, it solves
@@ -198,19 +201,9 @@ struct GlobalData {
 	uint nGridCells;
 
 	// CPU buffers ("s" stands for "shared"). Not double buffered
-	double4*		s_hdPos;  // position array in double precision
-	float4*			s_hPos;  // array of fractiona part of position
-	hashKey*		s_hParticleHash; // particle hash
-	float4*			s_hVel;  // velocity array
-	particleinfo*	s_hInfo; // particle info array
-	float3*			s_hVorticity; // vorticity
-	float4*			s_hNormals; // surface normals
-	float4*			s_hForces;  // forces (alloc by 1st thread, for striping)
+	BufferList s_hBuffers;
+
 	uchar*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
-	vertexinfo*		s_hVertices; // vertices of semi-analytical boundaries
-	float4*			s_hBoundElement; // boundary elements
-	float*			s_hTKE; // k - turbulent kinetic energy
-	float*			s_hEps; // e - turbulent kinetic energy dissipation rate
 
 	// counter: how many particles per device
 	uint s_hPartsPerDevice[MAX_DEVICES_PER_NODE]; // TODO: can change to PER_NODE if not compiling for multinode
@@ -287,18 +280,7 @@ struct GlobalData {
 		networkManager(NULL),
 		totParticles(0),
 		nGridCells(0),
-		s_hPos(NULL),
-		s_hParticleHash(NULL),
-		s_hVel(NULL),
-		s_hInfo(NULL),
-		s_hVorticity(NULL),
-		s_hNormals(NULL),
-		s_hForces(NULL),
 		s_hDeviceMap(NULL),
-		s_hVertices(NULL),
-		s_hBoundElement(NULL),
-		s_hTKE(NULL),
-		s_hEps(NULL),
 		s_dCellStarts(NULL),
 		s_dCellEnds(NULL),
 		s_dSegmentsStart(NULL),

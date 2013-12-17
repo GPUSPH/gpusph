@@ -33,6 +33,9 @@
 // This inclusion problem should be solved
 #include "GPUSPH.h"
 
+// HostBuffer
+#include "hostbuffer.h"
+
 // GPUWorker
 #include "GPUWorker.h"
 
@@ -210,18 +213,33 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Copying the particles to shared arrays...\n");
 	printf("---\n");
-	// Check: is this mandatory? this requires double the memory!
 	// copy particles from problem to GPUSPH buffers
+	// TODO FIXME copying data from the problem doubles the host memory requirements
+	// find some smart way to have the host fill the shared buffer directly.
 	if (_sp->boundarytype == MF_BOUNDARY) {
-		problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo, gdata->s_hVertices, gdata->s_hBoundElement, gdata->s_hParticleHash);
+		problem->copy_to_array(
+			gdata->s_hBuffers.getBufferData<BUFFER_POS>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_VEL>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_INFO>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_VERTICES>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_HASH>());
 	} else {
-		problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo, gdata->s_hParticleHash);
+		problem->copy_to_array(
+			gdata->s_hBuffers.getBufferData<BUFFER_POS>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_VEL>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_INFO>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_HASH>());
 	}
 	printf("---\n");
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
-		problem->init_keps(gdata->s_hTKE, gdata->s_hEps, gdata->totParticles, gdata->s_hInfo);
+		problem->init_keps(
+			gdata->s_hBuffers.getBufferData<BUFFER_TKE>(),
+			gdata->s_hBuffers.getBufferData<BUFFER_EPSILON>(),
+			gdata->totParticles,
+			gdata->s_hBuffers.getBufferData<BUFFER_INFO>());
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
@@ -653,75 +671,47 @@ bool GPUSPH::runSimulation() {
 size_t GPUSPH::allocateGlobalHostBuffers()
 {
 
-	long unsigned int numparts = gdata->totParticles;
-	unsigned int numcells = gdata->nGridCells;
-	const size_t floatSize = sizeof(float) * numparts;
-	const size_t float3Size = sizeof(float3) * numparts;
-	const size_t float4Size = sizeof(float4) * numparts;
-	const size_t double4Size = sizeof(double4) * numparts;
-	const size_t infoSize = sizeof(particleinfo) * numparts;
-	const size_t hashSize = sizeof(hashKey) * numparts;
-	const size_t vertexSize = sizeof(vertexinfo) * numparts;
+	// define host buffers
+	gdata->s_hBuffers << new HostBuffer<BUFFER_POS_DOUBLE>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_POS>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_HASH>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_VEL>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_INFO>();
+
+#if _DEBUG_
+	gdata->s_hBuffers << new HostBuffer<BUFFER_FORCES>();
+#endif
+
+	if (problem->m_simparams.savenormals)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_NORMALS>();
+	if (problem->m_simparams.vorticity)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_VORTICITY>();
+
+	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
+		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
+	}
+
+	if (problem->m_simparams.visctype == KEPSVISC) {
+		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
+	}
+
+	// number of elements to allocate
+	const size_t numparts = gdata->totParticles;
+
+	const uint numcells = gdata->nGridCells;
 	const size_t ucharCellSize = sizeof(uchar) * numcells;
 	const size_t uintCellSize = sizeof(uint) * numcells;
 
 	size_t totCPUbytes = 0;
 
-	// allocate pinned memory
-	//s_hPos = (float*)
-	// test also cudaHostAllocWriteCombined
-	//cudaHostAlloc(&s_hPos, memSize4, cudaHostAllocPortable);
-	//cudaMallocHost(&s_hPos, memSize4, cudaHostAllocPortable);
-	gdata->s_hdPos = new double4[numparts];
-	memset(gdata->s_hdPos, 0, double4Size);
-	totCPUbytes += double4Size;
-
-	gdata->s_hPos = new float4[numparts];
-	memset(gdata->s_hPos, 0, float4Size);
-	totCPUbytes += float4Size;
-
-	gdata->s_hParticleHash = new hashKey[numparts];
-	memset(gdata->s_hParticleHash, 0, hashSize);
-
-	gdata->s_hVel = new float4[numparts];
-	memset(gdata->s_hVel, 0, float4Size);
-	totCPUbytes += float4Size;
-
-	gdata->s_hInfo = new particleinfo[numparts];
-	memset(gdata->s_hInfo, 0, infoSize);
-	totCPUbytes += infoSize;
-
-	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
-		gdata->s_hVertices = new vertexinfo[numparts];
-		memset(gdata->s_hVertices, 0, vertexSize);
-		totCPUbytes += vertexSize;
-
-		gdata->s_hBoundElement = new float4[numparts];
-		memset(gdata->s_hBoundElement, 0, float4Size);
-		totCPUbytes += float4Size;
+	BufferList::iterator iter = gdata->s_hBuffers.begin();
+	while (iter != gdata->s_hBuffers.end()) {
+		totCPUbytes += iter->second->alloc(numparts);
+		++iter;
 	}
 
-	if (problem->m_simparams.visctype == KEPSVISC) {
-		gdata->s_hTKE = new float[numparts];
-		memset(gdata->s_hTKE, 0, floatSize);
-		totCPUbytes += floatSize;
-
-		gdata->s_hEps = new float[numparts];
-		memset(gdata->s_hEps, 0, floatSize);
-		totCPUbytes += floatSize;
-	}
-
-	if (problem->m_simparams.vorticity) {
-		gdata->s_hVorticity = new float3[numparts];
-		memset(gdata->s_hVorticity, 0, float3Size);
-		totCPUbytes += float3Size;
-	}
-
-	if (problem->m_simparams.surfaceparticle) {
-		gdata->s_hNormals = new float4[numparts];
-		memset(gdata->s_hNormals, 0, float4Size);
-		totCPUbytes += float4Size;
-	}
 
 	if (gdata->numPlanes > 0) {
 		if (gdata->numPlanes > MAXPLANES) {
@@ -785,30 +775,14 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 // Deallocate the shared buffers, i.e. those accessed by all workers
 void GPUSPH::deallocateGlobalHostBuffers() {
+	gdata->s_hBuffers.clear();
+
 	// planes
 	if (gdata->numPlanes > 0) {
 		delete[] gdata->s_hPlanes;
 		delete[] gdata->s_hPlanesDiv;
 	}
-	//cudaFreeHost(s_hPos); // pinned memory
-	delete[] gdata->s_hdPos;
-	delete[] gdata->s_hPos;
-	delete[] gdata->s_hParticleHash;
-	delete[] gdata->s_hVel;
-	delete[] gdata->s_hInfo;
-	if (gdata->s_hVertices)
-		delete[] gdata->s_hVertices;
-	if (gdata->s_hBoundElement)
-		delete[] gdata->s_hBoundElement;
-	if (gdata->s_hTKE)
-		delete[] gdata->s_hTKE;
-	if (gdata->s_hEps)
-		delete[] gdata->s_hEps;
 
-	if (problem->m_simparams.vorticity)
-		delete[] gdata->s_hVorticity;
-	if (problem->m_simparams.surfaceparticle)
-		delete[] gdata->s_hNormals;
 	// multi-GPU specific arrays
 	if (MULTI_DEVICE) {
 		delete[] gdata->s_hDeviceMap;
@@ -845,13 +819,18 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
+	// TODO FIXME MERGE due to homogeneous precision there is already a BUFFER_HASH on host,
+	// pre-filled, should that be used?
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
+	float4 *hPos = gdata->s_hBuffers.getBufferData<BUFFER_POS>();
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
 		// compute cell according to the particle's position and to the deviceMap
-		uchar whichGlobalDev = gdata->calcGlobalDeviceIndex(gdata->s_hPos[p]);
+		// TODO FIXE MERGE should use BUFFER_HASH instead, since with homogeneous precision
+		// the POS is only relative to the cell
+		uchar whichGlobalDev = gdata->calcGlobalDeviceIndex(hPos[p]);
 
 		// that's the key!
 		m_hParticleHashes[p] = whichGlobalDev;
@@ -995,10 +974,16 @@ void GPUSPH::sortParticlesByHash() {
 // Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
-	// could keep a counter
-	swap(gdata->s_hPos[idx1], gdata->s_hPos[idx2]);
-	swap(gdata->s_hVel[idx1], gdata->s_hVel[idx2]);
-	swap(gdata->s_hInfo[idx1], gdata->s_hInfo[idx2]);
+	// list of buffers to sort on host
+	static const flag_t swappable_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO |
+		BUFFER_BOUNDELEMENTS | BUFFER_VERTICES | BUFFER_TKE | BUFFER_EPSILON;
+
+	BufferList::iterator iter = gdata->s_hBuffers.begin();
+	while (iter != gdata->s_hBuffers.end()) {
+		if (iter->first & swappable_buffers)
+			iter->second->swap_elements(idx1, idx2);
+		++iter;
+	}
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
@@ -1087,20 +1072,24 @@ void GPUSPH::doWrite()
 	// TODO MERGE REVIEW. do on each node separately?
 	double3 const& wo = problem->get_worldorigin();
 	for (uint i = 0; i < gdata->totParticles; i++) {
-		const float4 pos = gdata->s_hPos[i];
+		const float4 pos = gdata->s_hBuffers.getBufferData<BUFFER_POS>()[i];
 		double4 dpos;
-		uint3 gridPos = gdata->calcGridPosFromHash(gdata->s_hParticleHash[i]);
+		uint3 gridPos = gdata->calcGridPosFromHash(gdata->s_hBuffers.getBufferData<BUFFER_HASH>()[i]);
 		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 
-		gdata->s_hdPos[i] = dpos;
+		gdata->s_hBuffers.getBufferData<BUFFER_POS_DOUBLE>()[i] = dpos;
 	}
-	gdata->writer->write(gdata->processParticles[gdata->mpi_rank],
-		gdata->s_hdPos + node_offset, gdata->s_hVel + node_offset, gdata->s_hInfo + node_offset,
-		( gdata->s_hVorticity ? gdata->s_hVorticity + node_offset : NULL),
+	// TODO convert writers to use the buffer list, pass node offset as an extra param
+	gdata->writer->write(
+		gdata->processParticles[gdata->mpi_rank],
+		gdata->s_hBuffers.getBufferData<BUFFER_POS_DOUBLE>() + node_offset,
+		gdata->s_hBuffers.getBufferData<BUFFER_VEL>() + node_offset,
+		gdata->s_hBuffers.getBufferData<BUFFER_INFO>() + node_offset,
+		problem->m_simparams.vorticity ? gdata->s_hBuffers.getBufferData<BUFFER_VORTICITY>() + node_offset : NULL,
 		gdata->t, gdata->problem->get_simparams()->testpoints,
-		( gdata->s_hNormals ? gdata->s_hNormals + node_offset : NULL));
+		problem->m_simparams.savenormals ? gdata->s_hBuffers.getBufferData<BUFFER_NORMALS>() + node_offset : NULL);
 	gdata->problem->mark_written(gdata->t);
 
 	// TODO: enable energy computation and dump
@@ -1261,7 +1250,7 @@ void GPUSPH::rollCallParticles()
 
 	// fill out the bitmap and check for duplicates
 	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
-		uint idx = id(gdata->s_hInfo[pos]);
+		uint idx = id(gdata->s_hBuffers.getBufferData<BUFFER_INFO>()[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %lu, time %g particle idx %u is in pos %u and %u!\n",
 					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);

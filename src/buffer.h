@@ -91,10 +91,10 @@ public:
 	// base method to return a specific buffer of the array
 	// WARNING: this doesn't check for validity of idx.
 	// We have both const and non-const version
-	virtual void *get_buffer(uint idx) {
+	virtual void *get_buffer(uint idx=0) {
 		return m_ptr ? m_ptr[idx] : NULL;
 	}
-	virtual const void *get_buffer(uint idx) const {
+	virtual const void *get_buffer(uint idx=0) const {
 		return m_ptr ? m_ptr[idx] : NULL;
 	}
 
@@ -106,6 +106,10 @@ public:
 		throw runtime_error("can't determine buffer offset in AbstractBuffer");
 	}
 
+	// swap elements at positions idx1, idx2 of buffer _buf
+	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) {
+		throw runtime_error("can't swap elements in AbstractBuffer");
+	};
 };
 
 /* This class encapsulates type-specific arrays of buffers. 
@@ -151,22 +155,22 @@ public:
 
 	// return an (untyped) pointer to the idx buffer,
 	// if valid. Both const and non-const version
-	virtual void *get_buffer(uint idx) {
+	virtual void *get_buffer(uint idx=0) {
 		if (idx >= N) return NULL;
 		return m_bufs[idx];
 	}
-	virtual const void *get_buffer(uint idx) const {
+	virtual const void *get_buffer(uint idx=0) const {
 		if (idx >= N) return NULL;
 		return m_bufs[idx];
 	}
 
 	// as above, plus offset
 	virtual void *get_offset_buffer(uint idx, size_t offset) {
-		if (idx >= N) return NULL;
+		if (idx >= N || !m_bufs[idx]) return NULL;
 		return m_bufs[idx] + offset;
 	}
 	virtual const void *get_offset_buffer(uint idx, size_t offset) const {
-		if (idx >= N) return NULL;
+		if (idx >= N || !m_bufs[idx]) return NULL;
 		return m_bufs[idx] + offset;
 	}
 
