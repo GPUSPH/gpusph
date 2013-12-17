@@ -146,15 +146,12 @@ public:
 	// because it's also used in GPUSPH proper for the TAU buffer
 	virtual T** get_raw_ptr()
 	{ return m_bufs; }
-
 	virtual const T* const* get_raw_ptr() const
 	{ return m_bufs; }
 
-	virtual int get_init_value() const
-	{ return m_init; }
-
 	// return an (untyped) pointer to the idx buffer,
-	// if valid. Both const and non-const version
+	// if valid. Must return void since we overload
+	// AbstractBuffer methods.
 	virtual void *get_buffer(uint idx=0) {
 		if (idx >= N) return NULL;
 		return m_bufs[idx];
@@ -164,7 +161,10 @@ public:
 		return m_bufs[idx];
 	}
 
-	// as above, plus offset
+	// As above, plus offset. Useful since we return void
+	// and computing the offset from the result of get_buffer()
+	// would require manual casting to appropiate type and/or
+	// manual multiplication by the element size
 	virtual void *get_offset_buffer(uint idx, size_t offset) {
 		if (idx >= N || !m_bufs[idx]) return NULL;
 		return m_bufs[idx] + offset;
@@ -173,6 +173,10 @@ public:
 		if (idx >= N || !m_bufs[idx]) return NULL;
 		return m_bufs[idx] + offset;
 	}
+
+	// return the initialization value set at construction time
+	virtual int get_init_value() const
+	{ return m_init; }
 
 	virtual size_t get_element_size() const
 	{ return sizeof(T); }
@@ -197,10 +201,11 @@ public:
 
 	virtual ~Buffer() {
 #if _DEBUG_
-		printf("destroying %s\n", BufferTraits<Key>::name);
+		printf("destroying %s\n", get_buffer_name());
 #endif
 	}
 
+	// get the name for buffer Key from the buffer traits
 	virtual const char* get_buffer_name() const
 	{
 		return BufferTraits<Key>::name;
@@ -216,6 +221,7 @@ class BufferList : public std::map<flag_t, AbstractBuffer*>
 public:
 	BufferList() : baseclass() {};
 
+	// delete all buffers before clearing the hash
 	void clear() {
 		iterator buf = this->begin();
 		const iterator done = this->end();
@@ -236,7 +242,7 @@ public:
 	}
 
 	/* Gain access to the num-th array in the Key buffer from the BufferList
-	 * Returns a direct pointer to the array data, with the appropriate data.
+	 * Returns a direct pointer to the array data, with the appropriate type.
 	 */
 	template<flag_t Key>
 	typename Buffer<Key>::element_type *getBufferData(uint num=0) {
@@ -256,13 +262,16 @@ public:
 	}
 
 
+	/* Overloaded [] accessors, to guarantee const correctness
+	 * and prevent insertion of buffers through assignment to
+	 * specific keys.
+	 */
 	AbstractBuffer* operator[](const flag_t& Key) {
 		const_iterator exists = this->find(Key);
 		if (exists != this->end())
 			return exists->second;
 		else return NULL;
 	}
-
 	const AbstractBuffer* operator[](const flag_t& Key) const {
 		const_iterator exists = this->find(Key);
 		if (exists != this->end())
@@ -271,7 +280,8 @@ public:
 	}
 
 	/* Add a new array for position Key, with the provided initalization value
-	 * as initializer
+	 * as initializer. The position is autoamatically deduced by the Key of the
+	 * buffer.
 	 */
 	template<flag_t Key>
 	BufferList& operator<< (Buffer<Key> * buf) {
