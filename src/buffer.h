@@ -185,12 +185,12 @@ public:
  * produce a very cleanly accessible implementation
  */
 template<flag_t Key>
-class Buffer : public GenericBuffer<typename BufferTraits<Key>::type, BufferTraits<Key>::nbufs>
+class Buffer : public GenericBuffer<typename BufferTraits<Key>::element_type, BufferTraits<Key>::num_buffers>
 {
-	typedef GenericBuffer<typename BufferTraits<Key>::type, BufferTraits<Key>::nbufs> baseclass;
+	// shortcut to simplify the syntax of the constructor
+	typedef GenericBuffer<typename BufferTraits<Key>::element_type, BufferTraits<Key>::num_buffers> baseclass;
 
 public:
-	typedef typename baseclass::element_type element_type;
 
 	// constructor, specifying the memset initializer
 	Buffer(int _init=0) : baseclass(_init) {}
@@ -212,6 +212,7 @@ public:
 class BufferList : public std::map<flag_t, AbstractBuffer*>
 {
 	typedef std::map<flag_t, AbstractBuffer*> baseclass;
+
 public:
 	BufferList() : baseclass() {};
 

@@ -37,9 +37,9 @@ template<flag_t Key>
 struct BufferTraits
 {
 	// type of the buffer
-	typedef void type;
+	typedef void element_type;
 	// number of buffers. Defaults to zero, so that it may generate an error
-	enum { nbufs = 0 };
+	enum { num_buffers = 0 };
 	// printable name of the buffer
 	static char name[];
 };
@@ -52,8 +52,8 @@ struct BufferTraits
 #define SET_BUFFER_TRAITS(code, _type, _nbufs, _name) \
 template<> struct BufferTraits<code> \
 { \
-	typedef _type type; \
-	enum { nbufs = _nbufs} ; \
+	typedef _type element_type; \
+	enum { num_buffers = _nbufs} ; \
 	static char name[]; \
 }
 
