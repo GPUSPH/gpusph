@@ -1534,6 +1534,12 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// allow peers to access the device memory (for cudaMemcpyPeer[Async])
 	instance->enablePeerAccess();
 
+	// compute #parts to allocate according to the free memory on the device
+	// must be done before uploading constants since some constants
+	// (e.g. those for neibslist traversal) depend on the number of particles
+	// allocated
+	instance->computeAndSetAllocableParticles();
+
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
 
@@ -1542,9 +1548,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 		// upload centers of gravity of the bodies
 	instance->uploadBodiesCentersOfGravity();
-
-	// compute #parts to allocate according to the free memory on the device
-	instance->computeAndSetAllocableParticles();
 
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
