@@ -33,20 +33,6 @@
 #include "common_types.h"
 #include "buffer_traits.h"
 
-/* BIG FIXME TODO
- * The AbstractBuffer (and related classes) should be templatized
- * over the kind of Worker. The device-specific stuff (alloc, release, copy)
- * should be moved into Worker-specific specializations
- *
- * buffer.h itself should NOT depend on CUDA or anything like that
- * Relevant code parts are marked FIXME TODO CUDA
- *
- * This can wait until different kinds of worker are actually implemented.
- */
-// CUDA_SAFE_CALL etc
-#include "cuda_call.h"
-
-
 #if 0
 // class to allow covariance between void* and other pointers:
 // would allow get_buffer to do typed returns in the
@@ -80,7 +66,7 @@ public:
 	AbstractBuffer() : m_ptr(NULL) {}
 
 	// destructor must be virtual
-	virtual ~AbstractBuffer() { }
+	virtual ~AbstractBuffer() {}
 
 	// element size of the arrays
 	// overloaded in subclasses
@@ -97,8 +83,8 @@ public:
 		throw std::runtime_error("AbstractBuffer name queried");
 	}
 
-	// allocate buffer on device and return total amount of memory allocated
-	virtual size_t device_alloc(size_t elems) {
+	// allocate buffer and return total amount of memory allocated
+	virtual size_t alloc(size_t elems) {
 		throw std::runtime_error("cannot allocate generic buffer");
 	}
 
@@ -135,6 +121,10 @@ class GenericBuffer : public AbstractBuffer
 	// NOTE that this is an int, not a T, because initalization
 	// is done with a memset
 	int m_init;
+
+protected:
+	enum { array_count = N };
+
 public:
 	typedef T element_type;
 
@@ -145,39 +135,19 @@ public:
 			m_bufs[i] = NULL;
 	}
 
-	// destructor: free allocated memory
-	// FIXME TODO CUDA
-	virtual ~GenericBuffer() {
-		for (int i = 0; i < N; ++i) {
-#if _DEBUG_
-			printf("\tfreeing buffer %d\n", i);
-#endif
-			if (m_bufs[i]) {
-				CUDA_SAFE_CALL(cudaFree(m_bufs[i]));
-				m_bufs[i] = NULL;
-			}
-		}
-	}
+	virtual ~GenericBuffer() {} ;
 
-	// allocate and clear buffer on device
-	// FIXME TODO CUDA
-	virtual size_t device_alloc(size_t elems) {
-		size_t bufmem = elems*sizeof(T);
-		for (int i = 0; i < N; ++i) {
-			CUDA_SAFE_CALL(cudaMalloc(m_bufs + i, bufmem));
-			CUDA_SAFE_CALL(cudaMemset(m_bufs[i], m_init, bufmem));
-		}
-		return bufmem*N;
-	}
-
-	// return the actual array of pointers
-	// needed to easily handled the TAU buffer, look for possible alternatives?
-	T** get_raw_ptr()
+	// accessors to the raw pointers. used by specialization
+	// to easily handle allocs and frees, but must be public
+	// because it's also used in GPUSPH proper for the TAU buffer
+	virtual T** get_raw_ptr()
 	{ return m_bufs; }
 
-	const T* const* get_raw_ptr() const
+	virtual const T* const* get_raw_ptr() const
 	{ return m_bufs; }
 
+	virtual int get_init_value() const
+	{ return m_init; }
 
 	// return an (untyped) pointer to the idx buffer,
 	// if valid. Both const and non-const version
@@ -204,7 +174,7 @@ public:
 	{ return sizeof(T); }
 
 	virtual int get_array_count() const
-	{ return N; }
+	{ return array_count; }
 };
 
 /* We access buffers mostly by Key, and thanks to the traits scheme we can
@@ -214,6 +184,7 @@ template<flag_t Key>
 class Buffer : public GenericBuffer<typename BufferTraits<Key>::type, BufferTraits<Key>::nbufs>
 {
 	typedef GenericBuffer<typename BufferTraits<Key>::type, BufferTraits<Key>::nbufs> baseclass;
+
 public:
 	typedef typename baseclass::element_type element_type;
 
@@ -287,18 +258,15 @@ public:
 	/* Add a new array for position Key, with the provided initalization value
 	 * as initializer
 	 */
-	template<uint Key>
-	Buffer<Key> *add(int _init = 0) {
-		Buffer<Key> *ret;
+	template<flag_t Key>
+	BufferList& operator<< (Buffer<Key> * buf) {
 		iterator exists = find(Key);
 		if (exists != this->end()) {
-			// TODO warn about double insertion?
-			ret = static_cast<Buffer<Key>*>(exists->second);
+			throw runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			ret = new Buffer<Key>(_init);
-			baseclass::operator[](Key) = ret;
+			baseclass::operator[](Key) = buf;
 		}
-		return ret;
+		return *this;
 	}
 
 };

@@ -9,6 +9,9 @@
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
+
+#include "cudabuffer.h"
+
 // ostringstream
 #include <sstream>
 // FLT_MAX
@@ -36,51 +39,51 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	m_hostMemory = m_deviceMemory = 0;
 
-	m_dBuffers.add<BUFFER_POS>();
-	m_dBuffers.add<BUFFER_VEL>();
-	m_dBuffers.add<BUFFER_INFO>();
+	m_dBuffers << new CUDABuffer<BUFFER_POS>();
+	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
+	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
 
-	m_dBuffers.add<BUFFER_HASH>();
-	m_dBuffers.add<BUFFER_PARTINDEX>();
-	m_dBuffers.add<BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
+	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
+	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
+	m_dBuffers << new CUDABuffer<BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
 	if (m_simparams->boundarytype == MF_BOUNDARY)
-		m_dBuffers.add<BUFFER_INVINDEX>();
+		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
 
-	m_dBuffers.add<BUFFER_FORCES>();
+	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
 	if (m_simparams->xsph)
-		m_dBuffers.add<BUFFER_XSPH>();
+		m_dBuffers << new CUDABuffer<BUFFER_XSPH>();
 
 	if (m_simparams->visctype == SPSVISC)
-		m_dBuffers.add<BUFFER_TAU>();
+		m_dBuffers << new CUDABuffer<BUFFER_TAU>();
 
 	if (m_simparams->savenormals)
-		m_dBuffers.add<BUFFER_NORMALS>();
+		m_dBuffers << new CUDABuffer<BUFFER_NORMALS>();
 	if (m_simparams->vorticity)
-		m_dBuffers.add<BUFFER_VORTICITY>();
+		m_dBuffers << new CUDABuffer<BUFFER_VORTICITY>();
 
 	if (m_simparams->dtadapt) {
-		m_dBuffers.add<BUFFER_CFL>();
-		m_dBuffers.add<BUFFER_CFL_TEMP>();
+		m_dBuffers << new CUDABuffer<BUFFER_CFL>();
+		m_dBuffers << new CUDABuffer<BUFFER_CFL_TEMP>();
 		if (m_simparams->boundarytype == MF_BOUNDARY)
-			m_dBuffers.add<BUFFER_CFL_GAMMA>();
+			m_dBuffers << new CUDABuffer<BUFFER_CFL_GAMMA>();
 		if (m_simparams->visctype == KEPSVISC)
-			m_dBuffers.add<BUFFER_CFL_KEPS>();
+			m_dBuffers << new CUDABuffer<BUFFER_CFL_KEPS>();
 	}
 
 	if (m_simparams->boundarytype == MF_BOUNDARY) {
-		m_dBuffers.add<BUFFER_GRADGAMMA>();
-		m_dBuffers.add<BUFFER_BOUNDELEMENTS>();
-		m_dBuffers.add<BUFFER_VERTICES>();
-		m_dBuffers.add<BUFFER_PRESSURE>();
+		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
+		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
+		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
+		m_dBuffers << new CUDABuffer<BUFFER_PRESSURE>();
 	}
 
 	if (m_simparams->visctype == KEPSVISC) {
-		m_dBuffers.add<BUFFER_TKE>();
-		m_dBuffers.add<BUFFER_EPSILON>();
-		m_dBuffers.add<BUFFER_TURBVISC>();
-		m_dBuffers.add<BUFFER_STRAIN_RATE>();
-		m_dBuffers.add<BUFFER_DKDE>();
+		m_dBuffers << new CUDABuffer<BUFFER_TKE>();
+		m_dBuffers << new CUDABuffer<BUFFER_EPSILON>();
+		m_dBuffers << new CUDABuffer<BUFFER_TURBVISC>();
+		m_dBuffers << new CUDABuffer<BUFFER_STRAIN_RATE>();
+		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
 }
 
@@ -1037,7 +1040,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		else if (iter->first & BUFFERS_CFL) // other CFL buffers
 			nels = fmaxElements;
 
-		allocated += iter->second->device_alloc(nels);
+		allocated += iter->second->alloc(nels);
 		++iter;
 	}
 
