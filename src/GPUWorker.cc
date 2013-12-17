@@ -681,145 +681,115 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 						// Now partsInCurrCell and curr_cell_start are ready; let's handle the actual transfers.
 
-#if 0 // TODO BUFFER NETWORKMANAGER
 						if ( burst_is_sending[otherDeviceGlobalDevIdx] ) {
 							// Current is mine: send the cells to the process holding the neighbor cells
 							// (in the following, m_globalDeviceIdx === curr_cell_globalDevIdx)
 
-							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS] );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL] );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-								gdata->networkManager->sendShorts(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( gdata->commandFlags & BUFFER_FORCES )
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dBuffers.getBufferData<BUFFER_FORCES>() + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							if ( gdata->commandFlags & BUFFER_TAU)
-								for (uint itau = 0; itau < 3; itau++)
-									gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
-											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VERTICES]: gdata->currentWrite[BUFFER_VERTICES] );
-								gdata->networkManager->sendUints(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_TKE] : gdata->currentWrite[BUFFER_TKE] );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_EPSILON] : gdata->currentWrite[BUFFER_EPSILON] );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_STRAIN_RATE] : gdata->currentWrite[BUFFER_STRAIN_RATE] );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
+							// iterate over all defined buffers and see which were requested
+							// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+							// with the ordering set by the key, in our case the unsigned integer type flag_t,
+							// so we have guarantee that the map will always be traversed in the same order
+							// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+							BufferList::iterator bufset = m_dBuffers.begin();
+							const BufferList::iterator stop = m_dBuffers.end();
+							for ( ; bufset != stop ; ++bufset) {
+								flag_t bufkey = bufset->first;
+								if (!(gdata->commandFlags & bufkey))
+									continue; // skip unwanted buffers
 
+								AbstractBuffer *srcbuf = bufset->second;
+
+								// handling of double-buffered arrays
+								// note that TAU is not considered here
+								if (srcbuf->get_array_count() == 2) {
+									// for buffers with more than one array the caller should have specified which buffer
+									// is to be imported. complain
+									if (!dbl_buffer_specified) {
+										std::stringstream err_msg;
+										err_msg << "Import request for double-buffered " << srcbuf->get_buffer_name()
+											<< " array without a specification of which buffer to use.";
+										throw runtime_error(err_msg.str());
+									}
+
+									if (gdata->commandFlags & DBLBUFFER_READ)
+										dbl_buf_idx = gdata->currentRead[bufkey];
+									else
+										dbl_buf_idx = gdata->currentWrite[bufkey];
+								} else {
+									dbl_buf_idx = 0;
+								}
+
+								unsigned int _size = burst_numparts[otherDeviceGlobalDevIdx] * srcbuf->get_element_size();
+
+								// special treatment for TAU, since in that case we need to transfers all 3 arrays
+								if (bufkey != BUFFER_TAU) {
+									void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[otherDeviceGlobalDevIdx]);
+									gdata->networkManager->sendBuffer(m_globalDeviceIdx, otherDeviceGlobalDevIdx, _size, srcptr);
+								} else {
+									// generic, so that it can work for other buffers like TAU, if they are ever
+									// introduced; just fix the conditional
+									for (uint ai = 0; ai < srcbuf->get_array_count(); ++ai) {
+										void *srcptr = srcbuf->get_offset_buffer(ai, burst_self_index_begin[otherDeviceGlobalDevIdx]);
+										gdata->networkManager->sendBuffer(m_globalDeviceIdx, otherDeviceGlobalDevIdx, _size, srcptr);
+									}
+								}
+							}
 						} else {
 							// neighbor is mine: receive the cells from the process holding the current cell
 							// (in the following, m_globalDeviceIdx === neib_cell_globalDevIdx)
 
-							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS] );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL] );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-								gdata->networkManager->receiveShorts(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( gdata->commandFlags & BUFFER_FORCES )
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dBuffers.getBufferData<BUFFER_FORCES>() + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							if ( gdata->commandFlags & BUFFER_TAU)
-								for (uint itau = 0; itau < 3; itau++)
-									gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
-											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VERTICES]: gdata->currentWrite[BUFFER_VERTICES] );
-								gdata->networkManager->receiveUints(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_TKE] : gdata->currentWrite[BUFFER_TKE] );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_EPSILON] : gdata->currentWrite[BUFFER_EPSILON] );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_STRAIN_RATE] : gdata->currentWrite[BUFFER_STRAIN_RATE] );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 1,
-										(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
+							// iterate over all defined buffers and see which were requested
+							// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+							// with the ordering set by the key, in our case the unsigned integer type flag_t,
+							// so we have guarantee that the map will always be traversed in the same order
+							// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+							BufferList::iterator bufset = m_dBuffers.begin();
+							const BufferList::iterator stop = m_dBuffers.end();
+							for ( ; bufset != stop ; ++bufset) {
+								flag_t bufkey = bufset->first;
+								if (!(gdata->commandFlags & bufkey))
+									continue; // skip unwanted buffers
 
+								AbstractBuffer *dstbuf = bufset->second;
+
+								// handling of double-buffered arrays
+								// note that TAU is not considered here
+								if (dstbuf->get_array_count() == 2) {
+									// for buffers with more than one array the caller should have specified which buffer
+									// is to be imported. complain
+									if (!dbl_buffer_specified) {
+										std::stringstream err_msg;
+										err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
+											<< " array without a specification of which buffer to use.";
+										throw runtime_error(err_msg.str());
+									}
+
+									if (gdata->commandFlags & DBLBUFFER_READ)
+										dbl_buf_idx = gdata->currentRead[bufkey];
+									else
+										dbl_buf_idx = gdata->currentWrite[bufkey];
+								} else {
+									dbl_buf_idx = 0;
+								}
+
+								unsigned int _size = burst_numparts[otherDeviceGlobalDevIdx] * dstbuf->get_element_size();
+
+								// special treatment for TAU, since in that case we need to transfers all 3 arrays
+								if (bufkey != BUFFER_TAU) {
+									void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[otherDeviceGlobalDevIdx]);
+									gdata->networkManager->receiveBuffer(otherDeviceGlobalDevIdx, m_globalDeviceIdx, _size, dstptr);
+								} else {
+									// generic, so that it can work for other buffers like TAU, if they are ever
+									// introduced; just fix the conditional
+									for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
+										void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin[otherDeviceGlobalDevIdx]);
+										gdata->networkManager->receiveBuffer(otherDeviceGlobalDevIdx, m_globalDeviceIdx, _size, dstptr);
+									}
+								}
+							}
 						}
 
 						BURST_SET_CURRENT_CELL
-#endif
 					} // end of flushing and resetting the burst
 
 				} // iterate on neighbor cells
@@ -829,141 +799,113 @@ void GPUWorker::importNetworkPeerEdgeCells()
 	for (uint otherDevGlobalIdx = 0; otherDevGlobalIdx < MAX_DEVICES_PER_CLUSTER; otherDevGlobalIdx++)
 		if ( burst_numparts[otherDevGlobalIdx] > 0) {
 
-#if 0 // TODO BUFFER NETWORKMANAGER
 			if ( burst_is_sending[otherDevGlobalIdx] ) {
 				// Current is mine: send the cells to the process holding the neighbor cells
 
-				if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS] );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL] );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-					gdata->networkManager->sendShorts(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( gdata->commandFlags & BUFFER_FORCES )
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dBuffers.getBufferData<BUFFER_FORCES>() + burst_self_index_begin[otherDevGlobalIdx]) );
-				if ( gdata->commandFlags & BUFFER_TAU)
-					for (uint itau = 0; itau < 3; itau++)
-						gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 2,
-								(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
-				if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VERTICES]: gdata->currentWrite[BUFFER_VERTICES] );
-					gdata->networkManager->sendUints(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_TKE] : gdata->currentWrite[BUFFER_TKE] );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_EPSILON] : gdata->currentWrite[BUFFER_EPSILON] );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_STRAIN_RATE] : gdata->currentWrite[BUFFER_STRAIN_RATE] );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
+				// iterate over all defined buffers and see which were requested
+				// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+				// with the ordering set by the key, in our case the unsigned integer type flag_t,
+				// so we have guarantee that the map will always be traversed in the same order
+				// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+				BufferList::iterator bufset = m_dBuffers.begin();
+				const BufferList::iterator stop = m_dBuffers.end();
+				for ( ; bufset != stop ; ++bufset) {
+					flag_t bufkey = bufset->first;
+					if (!(gdata->commandFlags & bufkey))
+						continue; // skip unwanted buffers
 
+					AbstractBuffer *srcbuf = bufset->second;
+
+					// handling of double-buffered arrays
+					// note that TAU is not considered here
+					if (srcbuf->get_array_count() == 2) {
+						// for buffers with more than one array the caller should have specified which buffer
+						// is to be imported. complain
+						if (!dbl_buffer_specified) {
+							std::stringstream err_msg;
+							err_msg << "Import request for double-buffered " << srcbuf->get_buffer_name()
+								<< " array without a specification of which buffer to use.";
+							throw runtime_error(err_msg.str());
+						}
+
+						if (gdata->commandFlags & DBLBUFFER_READ)
+							dbl_buf_idx = gdata->currentRead[bufkey];
+						else
+							dbl_buf_idx = gdata->currentWrite[bufkey];
+					} else {
+						dbl_buf_idx = 0;
+					}
+
+					unsigned int _size = burst_numparts[otherDevGlobalIdx] * srcbuf->get_element_size();
+
+					// special treatment for TAU, since in that case we need to transfers all 3 arrays
+					if (bufkey != BUFFER_TAU) {
+						void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[otherDevGlobalIdx]);
+						gdata->networkManager->sendBuffer(m_globalDeviceIdx, otherDevGlobalIdx, _size, srcptr);
+					} else {
+						// generic, so that it can work for other buffers like TAU, if they are ever
+						// introduced; just fix the conditional
+						for (uint ai = 0; ai < srcbuf->get_array_count(); ++ai) {
+							void *srcptr = srcbuf->get_offset_buffer(ai, burst_self_index_begin[otherDevGlobalIdx]);
+							gdata->networkManager->sendBuffer(m_globalDeviceIdx, otherDevGlobalIdx, _size, srcptr);
+						}
+					}
+				}
 			} else {
 				// neighbor is mine: receive the cells from the process holding the current cell
+				// (in the following, m_globalDeviceIdx === neib_cell_globalDevIdx)
 
-				if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS] );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL] );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-					gdata->networkManager->receiveShorts(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( gdata->commandFlags & BUFFER_FORCES )
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dBuffers.getBufferData<BUFFER_FORCES>() + burst_self_index_begin[otherDevGlobalIdx]) );
-				if ( gdata->commandFlags & BUFFER_TAU)
-						for (uint itau = 0; itau < 3; itau++)
-							gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 2,
-									(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
-				if ( (gdata->commandFlags & BUFFER_BOUNDELEMENTS) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentBoundElementRead : gdata->currentBoundElementWrite );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dBoundElement[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_GRADGAMMA) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentGradGammaRead : gdata->currentGradGammaWrite );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dGradGamma[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_VERTICES) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_VERTICES]: gdata->currentWrite[BUFFER_VERTICES] );
-					gdata->networkManager->receiveUints(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(uint*)(m_dVertices[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_PRESSURE) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPressureRead : gdata->currentPressureWrite );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dPressure[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_TKE) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_TKE] : gdata->currentWrite[BUFFER_TKE] );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dTKE[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_EPSILON) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_EPSILON] : gdata->currentWrite[BUFFER_EPSILON] );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dEps[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_TURBVISC) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentTurbViscRead : gdata->currentTurbViscWrite );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dTurbVisc[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_STRAIN_RATE) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentRead[BUFFER_STRAIN_RATE] : gdata->currentWrite[BUFFER_STRAIN_RATE] );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 1,
-							(float*)(m_dStrainRate[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
+				// iterate over all defined buffers and see which were requested
+				// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+				// with the ordering set by the key, in our case the unsigned integer type flag_t,
+				// so we have guarantee that the map will always be traversed in the same order
+				// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+				BufferList::iterator bufset = m_dBuffers.begin();
+				const BufferList::iterator stop = m_dBuffers.end();
+				for ( ; bufset != stop ; ++bufset) {
+					flag_t bufkey = bufset->first;
+					if (!(gdata->commandFlags & bufkey))
+						continue; // skip unwanted buffers
 
+					AbstractBuffer *dstbuf = bufset->second;
+
+					// handling of double-buffered arrays
+					// note that TAU is not considered here
+					if (dstbuf->get_array_count() == 2) {
+						// for buffers with more than one array the caller should have specified which buffer
+						// is to be imported. complain
+						if (!dbl_buffer_specified) {
+							std::stringstream err_msg;
+							err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
+								<< " array without a specification of which buffer to use.";
+							throw runtime_error(err_msg.str());
+						}
+
+						if (gdata->commandFlags & DBLBUFFER_READ)
+							dbl_buf_idx = gdata->currentRead[bufkey];
+						else
+							dbl_buf_idx = gdata->currentWrite[bufkey];
+					} else {
+						dbl_buf_idx = 0;
+					}
+
+					unsigned int _size = burst_numparts[otherDevGlobalIdx] * dstbuf->get_element_size();
+
+					// special treatment for TAU, since in that case we need to transfers all 3 arrays
+					if (bufkey != BUFFER_TAU) {
+						void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[otherDevGlobalIdx]);
+						gdata->networkManager->receiveBuffer(otherDevGlobalIdx, m_globalDeviceIdx, _size, dstptr);
+					} else {
+						// generic, so that it can work for other buffers like TAU, if they are ever
+						// introduced; just fix the conditional
+						for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
+							void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin[otherDevGlobalIdx]);
+							gdata->networkManager->receiveBuffer(otherDevGlobalIdx, m_globalDeviceIdx, _size, dstptr);
+						}
+					}
+				}
 			}
-#endif
+
 		}
 
 	// don't need the defines anymore
