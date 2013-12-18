@@ -178,16 +178,22 @@ size_t GPUWorker::computeMemoryPerCell()
 // Compute the maximum number of particles we can allocate according to the available device memory
 void GPUWorker::computeAndSetAllocableParticles()
 {
-	size_t totMemory, freeMemory;
+	size_t totMemory, freeMemory, safetyMargin;
 	cudaMemGetInfo(&freeMemory, &totMemory);
+	// TODO configurable
+	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
+
 	freeMemory -= gdata->nGridCells * computeMemoryPerCell();
 	freeMemory -= 16; // segments
-	freeMemory -= 100*1024*1024; // leave 100Mb as safety margin
+	freeMemory -= safetyMargin;
 	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
 
 
 	if (m_numAllocatedParticles < m_numParticles) {
-		printf("FATAL: thread %u needs %u particles, but there is memory for %u (plus safety margin)\n", m_deviceIndex, m_numParticles, m_numAllocatedParticles);
+		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
+			m_deviceIndex, m_numParticles, m_numAllocatedParticles,
+			gdata->memString(freeMemory).c_str(), gdata->memString(totMemory).c_str(),
+			gdata->memString(safetyMargin).c_str());
 		exit(1);
 	}
 }
