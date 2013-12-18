@@ -29,17 +29,15 @@
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
-// Including Synchronizer.h is acutally needed only in GPUSPH.cc.
-// Should be follow our unusual convention to include in headers, or not?
-#include "Synchronizer.h"
+
 // IPPSCounter
 #include "timing.h"
 
 // The GPUSPH class is singleton. Wise tips about a correct singleton implementation are give here:
 // http://stackoverflow.com/questions/1008019/c-singleton-design-pattern
 
-// Note: this is not thread-safe, under both the singleoton point of view and the destructor.
-// But aren't that paranoid, are we?
+// Note: this is not thread-safe, under both the singleton point of view and the destructor.
+// But we aren't that paranoid, are we?
 
 class GPUSPH {
 private:
@@ -47,8 +45,8 @@ private:
 	Options* clOptions;
 	GlobalData* gdata;
 	Problem* problem;
-	//ParticleSystem* psystem;
 	IPPSCounter *m_performanceCounter;
+
 	// aux arrays for rollCallParticles()
 	bool *m_rcBitmap;
 	bool *m_rcNotified;
@@ -86,7 +84,7 @@ private:
 	// use the writer
 	void doWrite();
 
-	// callbacks fro moving boundaries and variable gravity
+	// callbacks for moving boundaries and variable gravity
 	void doCallBacks();
 
 	// rebuild the neighbor list
