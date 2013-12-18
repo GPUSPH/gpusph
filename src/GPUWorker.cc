@@ -127,8 +127,6 @@ uint GPUWorker::getMaxParticles()
 }
 
 // Compute the bytes required for each particle.
-// NOTE: this should be updated for each new device array!
-// TODO FIXME MERGE not updated for keps e mf stuff
 size_t GPUWorker::computeMemoryPerParticle()
 {
 	size_t tot = 0;
@@ -237,8 +235,6 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 // double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
 // for the non-buffered arrays (e.g. forces).
 // The data is transferred in bursts of consecutive cells when possible. Transfers are actually D2D if peer access is enabled.
-// Update: supports also BUFFER_BOUNDELEMENTS, BUFFER_GRADGAMMA, BUFFER_VERTICES, BUFFER_PRESSURE,
-// BUFFER_TKE, BUFFER_EPSILON, BUFFER_TURBVISC, BUFFER_STRAIN_RATE
 void GPUWorker::importPeerEdgeCells()
 {
 	// if next command is not an import nor an append, something wrong is going on
@@ -254,7 +250,7 @@ void GPUWorker::importPeerEdgeCells()
 	// We aim to make the fewest possible transfers. So we keep track of each burst of consecutive
 	// cells from the same peer device, to transfer it with a single memcpy.
 	// To this aim, it is important that we iterate on the linearized index so that consecutive
-	// cells are also consecutive in memory, regardless the linearization function
+	// cells are also consecutive in memory, regardless of the linearization function
 
 	// aux var for transfers
 	size_t _size;
@@ -523,8 +519,6 @@ void GPUWorker::importPeerEdgeCells()
 // double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
 // for the non-buffered arrays (e.g. forces).
 // The data is transferred in bursts of consecutive cells when possible.
-// Update: supports also BUFFER_BOUNDELEMENTS, BUFFER_GRADGAMMA, BUFFER_VERTICES, BUFFER_PRESSURE,
-// BUFFER_TKE, BUFFER_EPSILON, BUFFER_TURBVISC, BUFFER_STRAIN_RATE
 void GPUWorker::importNetworkPeerEdgeCells()
 {
 	// if next command is not an import nor an append, something wrong is going on
@@ -939,36 +933,15 @@ void GPUWorker::importNetworkPeerEdgeCells()
 // Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {
 	// common sizes
-	const uint float3Size = sizeof(float3) * m_numAllocatedParticles;
-	const uint float4Size = sizeof(float4) * m_numAllocatedParticles;
-	const uint infoSize = sizeof(particleinfo) * m_numAllocatedParticles;
-	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
+	const size_t uintCellsSize = sizeof(uint) * m_nGridCells;
 
 	size_t allocated = 0;
-
-	/*m_hPos = new float4[m_numAllocatedParticles];
-	memset(m_hPos, 0, float4Size);
-	allocated += float4Size;
-
-	m_hVel = new float4[m_numAllocatedParticles];
-	memset(m_hVel, 0, float4Size);
-	allocated += float4Size;
-
-	m_hInfo = new particleinfo[m_numAllocatedParticles];
-	memset(m_hInfo, 0, infoSize);
-	allocated += infoSize; */
 
 	if (MULTI_DEVICE) {
 		m_hCompactDeviceMap = new uint[m_nGridCells];
 		memset(m_hCompactDeviceMap, 0, uintCellsSize);
 		allocated += uintCellsSize;
 	}
-
-	/*if (m_simparams->vorticity) {
-		m_hVort = new float3[m_numAllocatedParticles];
-		allocated += float3Size;
-		// NOTE: *not* memsetting, as in master branch
-	}*/
 
 	m_hostMemory += allocated;
 	return allocated;
@@ -1077,13 +1050,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 }
 
 void GPUWorker::deallocateHostBuffers() {
-	//delete [] m_hPos;
-	//delete [] m_hVel;
-	//delete [] m_hInfo;
 	if (MULTI_DEVICE)
 		delete [] m_hCompactDeviceMap;
-	/*if (m_simparams->vorticity)
-		delete [] m_hVort;*/
 	// here: dem host buffers?
 }
 
@@ -1144,7 +1112,7 @@ void GPUWorker::uploadSubdomain() {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	// buffers to skip in the upload. Rationale
+	// buffers to skip in the upload. Rationale:
 	// POS_DOUBLE is computed on host from POS and HASH
 	// NORMALS and VORTICITY are post-processing, so always produced on device
 	// and _downloaded_ to host, never uploaded
