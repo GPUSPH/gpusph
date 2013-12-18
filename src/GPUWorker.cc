@@ -183,10 +183,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 	freeMemory -= gdata->nGridCells * computeMemoryPerCell();
 	freeMemory -= 16; // segments
 	freeMemory -= 100*1024*1024; // leave 100Mb as safety margin
-	if (MULTI_DEVICE)
-		m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
-	else
-		m_numAllocatedParticles = m_numParticles;
+	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
 
 
 	if (m_numAllocatedParticles < m_numParticles) {
