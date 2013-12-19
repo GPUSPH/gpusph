@@ -199,9 +199,9 @@ UDPWriter::~UDPWriter() {
 void
 UDPWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
-	const double4 *pos = buffers.getBufferData<BUFFER_POS_DOUBLE>();
-	const float4 *vel = buffers.getBufferData<BUFFER_VEL>();
-	const particleinfo *info = buffers.getBufferData<BUFFER_INFO>();
+	const double4 *pos = buffers.getData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 
     static short is_initialized = 0;
     static int particles_in_last_packet = 0;

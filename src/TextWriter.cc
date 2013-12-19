@@ -57,10 +57,10 @@ TextWriter::~TextWriter()
 void
 TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
-	const double4 *pos = buffers.getBufferData<BUFFER_POS_DOUBLE>();
-	const float4 *vel = buffers.getBufferData<BUFFER_VEL>();
-	const particleinfo *info = buffers.getBufferData<BUFFER_INFO>();
-	const float3 *vort = buffers.getBufferData<BUFFER_VORTICITY>();
+	const double4 *pos = buffers.getData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 
 	string filename, full_filename;
 	string filenum = next_filenum();

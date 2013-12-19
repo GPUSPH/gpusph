@@ -33,22 +33,7 @@
 #include "common_types.h"
 #include "buffer_traits.h"
 
-#if 0
-// class to allow covariance between void* and other pointers:
-// would allow get_buffer to do typed returns in the
-// non-generic Buffer instances
-struct PtrCasterBase {
-	void *ptr;
-};
-
-template<typename T>
-struct PtrCaster : PtrCasterBase {
-	typedef T type;
-};
-#endif
-
-
-/* Base class for the array template class.
+/* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
  * of double-(or more)-buffered arrays.
  */
@@ -141,7 +126,7 @@ public:
 
 	virtual ~GenericBuffer() {} ;
 
-	// accessors to the raw pointers. used by specialization
+	// accessors to the raw pointers. used by specializations
 	// to easily handle allocs and frees, but must be public
 	// because it's also used in GPUSPH proper for the TAU buffer
 	virtual T** get_raw_ptr()
@@ -185,14 +170,25 @@ public:
 	{ return array_count; }
 };
 
-/* We access buffers mostly by Key, and thanks to the traits scheme we can
- * produce a very cleanly accessible implementation
+/* We access buffers mostly by key (BUFFER_POS etc), so our actual Buffer class is templatized on
+ * that (which is a flag_t).
+ * Buffer<Key> is just a thin wrapper aroung GenericBuffer<Type, Num>, that
+ * exploits the BufferTraits traits scheme to know the element type and number
+ * of buffers of each specific instantiation.
+ * The implementation is straightforward, as we don't need to overload any method over GenericBuffer:
+ * we just add a method to get the printable name associated with the given Key.
  */
+
+// since some people find this particular aspect of the C++ syntax a bit too ugly,
+// let's introduce a de-uglifying macro that just returns the expected data type for
+// elements in array Key (e.g. float4 for BUFFER_POS):
+#define DATA_TYPE(Key) typename BufferTraits<Key>::element_type
+
 template<flag_t Key>
-class Buffer : public GenericBuffer<typename BufferTraits<Key>::element_type, BufferTraits<Key>::num_buffers>
+class Buffer : public GenericBuffer<DATA_TYPE(Key), BufferTraits<Key>::num_buffers>
 {
-	// shortcut to simplify the syntax of the constructor
-	typedef GenericBuffer<typename BufferTraits<Key>::element_type, BufferTraits<Key>::num_buffers> baseclass;
+	// we want to use baseclass as a shortcut for the parent class of Buffer<Key>
+	typedef GenericBuffer<DATA_TYPE(Key), BufferTraits<Key>::num_buffers> baseclass;
 
 public:
 
@@ -212,8 +208,30 @@ public:
 	}
 };
 
-// convenience type: list of arrays.
-// implemented as map instead of an actual list to allow non-consecutive keys
+/* Specialized list of Buffers of any type. It is implemented as a map
+ * instead of an actual list to allow non-consecutive keys as well as
+ * to allow limiting iterations to Buffers actually in use.
+ *
+ * Entries should be added to the list using the << operator:
+ *
+ *     BufferList bufs;
+ *     bufs << new Buffer<BUFFER_POS>();
+ *     bufs << new Buffer<BUFFER_VEL>();
+ *
+ * Three getters are defined, to work around the limitations of C++
+ * overloading and subclassing:
+ *
+ *  * the standard [] operator, which returns an AbstractBuffer*
+ *  * .get<Key>(), that returns a Buffer<Key>*
+ *  * .getData<Key>(num), that returns array number _num_ of Buffer<Key>
+ *    (array 0 by default), cast to the correct datatype for Buffer<Key>
+ *    (e.g. it returns a float4* for Buffer<BUFFER_POS>).
+ *
+ *  Note that for get() and getData() the Key (e.g. BUFFER_POS) is passed
+ *  as template parameter, not as argument, and _must_ be known at compile
+ *  (this is necessary because the return type must be known at compile time
+ *  too).
+ */
 class BufferList : public std::map<flag_t, AbstractBuffer*>
 {
 	typedef std::map<flag_t, AbstractBuffer*> baseclass;
@@ -232,39 +250,9 @@ public:
 		baseclass::clear();
 	}
 
-	/* Gain access to the buffer Key with proper typing */
-	template<flag_t Key>
-	Buffer<Key> *getBuffer() {
-		iterator exists = this->find(Key);
-		if (exists != this->end())
-			return static_cast<Buffer<Key>*>(exists->second);
-		else return NULL;
-	}
-
-	/* Gain access to the num-th array in the Key buffer from the BufferList
-	 * Returns a direct pointer to the array data, with the appropriate type.
-	 */
-	template<flag_t Key>
-	typename Buffer<Key>::element_type *getBufferData(uint num=0) {
-		iterator exists = this->find(Key);
-		if (exists != this->end())
-			return static_cast<typename Buffer<Key>::element_type*>(exists->second->get_buffer(num));
-		else return NULL;
-	}
-	// const version
-	template<flag_t Key>
-	const
-	typename Buffer<Key>::element_type *getBufferData(uint num=0) const {
-		const_iterator exists = this->find(Key);
-		if (exists != this->end())
-			return static_cast<typename Buffer<Key>::element_type*>(exists->second->get_buffer(num));
-		else return NULL;
-	}
-
-
-	/* Overloaded [] accessors, to guarantee const correctness
-	 * and prevent insertion of buffers through assignment to
-	 * specific keys.
+	/* We overload the [] accessor, to guarantee const correctness
+	 * and to prevent insertion of buffers through assignment to
+	 * specific keys. Use the << operator to fill the buffer list instead.
 	 */
 	AbstractBuffer* operator[](const flag_t& Key) {
 		const_iterator exists = this->find(Key);
@@ -279,8 +267,53 @@ public:
 		else return NULL;
 	}
 
+	/* Templatized getter to allow the user to access the Buffers in the list
+	 * with proper typing (so e.g .get<BUFFER_POS>() will return a
+	 * Buffer<BUFFER_POS>* instead of an AbstractBuffer*)
+	 */
+	template<flag_t Key>
+	Buffer<Key> *get() {
+		iterator exists = this->find(Key);
+		if (exists != this->end())
+			return static_cast<Buffer<Key>*>(exists->second);
+		else return NULL;
+	}
+	// const version
+	template<flag_t Key>
+	const Buffer<Key> *get() const {
+		const_iterator exists = this->find(Key);
+		if (exists != this->end())
+			return static_cast<const Buffer<Key>*>(exists->second);
+		else return NULL;
+	}
+
+
+	/* In most cases, user wants access directly to a specific array of a given buffer
+	 * possibly with correct typing, which is exactly what this method does,
+	 * again exploiting the BufferTraits to deduce the element type that is
+	 * expected in return.
+	 * The static cast is necessary because the get_buffer() method must return a void*
+	 * due to overloading rules.
+	 */
+	template<flag_t Key>
+	DATA_TYPE(Key) *getData(uint num=0) {
+		iterator exists = this->find(Key);
+		if (exists != this->end())
+			return static_cast<DATA_TYPE(Key)*>(exists->second->get_buffer(num));
+		else return NULL;
+	}
+	// const version
+	template<flag_t Key>
+	const DATA_TYPE(Key) *getData(uint num=0) const {
+		const_iterator exists = this->find(Key);
+		if (exists != this->end())
+			return static_cast<const DATA_TYPE(Key)*>(exists->second->get_buffer(num));
+		else return NULL;
+	}
+
+
 	/* Add a new array for position Key, with the provided initalization value
-	 * as initializer. The position is autoamatically deduced by the Key of the
+	 * as initializer. The position is automatically deduced by the Key of the
 	 * buffer.
 	 */
 	template<flag_t Key>
@@ -295,6 +328,8 @@ public:
 	}
 
 };
+
+#undef DATA_TYPE
 
 #endif
 

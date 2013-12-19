@@ -218,28 +218,28 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// find some smart way to have the host fill the shared buffer directly.
 	if (_sp->boundarytype == MF_BOUNDARY) {
 		problem->copy_to_array(
-			gdata->s_hBuffers.getBufferData<BUFFER_POS>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_VEL>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_VERTICES>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_HASH>());
+			gdata->s_hBuffers.getData<BUFFER_POS>(),
+			gdata->s_hBuffers.getData<BUFFER_VEL>(),
+			gdata->s_hBuffers.getData<BUFFER_INFO>(),
+			gdata->s_hBuffers.getData<BUFFER_VERTICES>(),
+			gdata->s_hBuffers.getData<BUFFER_BOUNDELEMENTS>(),
+			gdata->s_hBuffers.getData<BUFFER_HASH>());
 	} else {
 		problem->copy_to_array(
-			gdata->s_hBuffers.getBufferData<BUFFER_POS>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_VEL>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_HASH>());
+			gdata->s_hBuffers.getData<BUFFER_POS>(),
+			gdata->s_hBuffers.getData<BUFFER_VEL>(),
+			gdata->s_hBuffers.getData<BUFFER_INFO>(),
+			gdata->s_hBuffers.getData<BUFFER_HASH>());
 	}
 	printf("---\n");
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
 		problem->init_keps(
-			gdata->s_hBuffers.getBufferData<BUFFER_TKE>(),
-			gdata->s_hBuffers.getBufferData<BUFFER_EPSILON>(),
+			gdata->s_hBuffers.getData<BUFFER_TKE>(),
+			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
 			gdata->totParticles,
-			gdata->s_hBuffers.getBufferData<BUFFER_INFO>());
+			gdata->s_hBuffers.getData<BUFFER_INFO>());
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
@@ -823,7 +823,7 @@ void GPUSPH::sortParticlesByHash() {
 	// pre-filled, should that be used?
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
-	float4 *hPos = gdata->s_hBuffers.getBufferData<BUFFER_POS>();
+	float4 *hPos = gdata->s_hBuffers.getData<BUFFER_POS>();
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
@@ -1072,14 +1072,14 @@ void GPUSPH::doWrite()
 	// TODO MERGE REVIEW. do on each node separately?
 	double3 const& wo = problem->get_worldorigin();
 	for (uint i = 0; i < gdata->totParticles; i++) {
-		const float4 pos = gdata->s_hBuffers.getBufferData<BUFFER_POS>()[i];
+		const float4 pos = gdata->s_hBuffers.getData<BUFFER_POS>()[i];
 		double4 dpos;
-		uint3 gridPos = gdata->calcGridPosFromHash(gdata->s_hBuffers.getBufferData<BUFFER_HASH>()[i]);
+		uint3 gridPos = gdata->calcGridPosFromHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]);
 		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 
-		gdata->s_hBuffers.getBufferData<BUFFER_POS_DOUBLE>()[i] = dpos;
+		gdata->s_hBuffers.getData<BUFFER_POS_DOUBLE>()[i] = dpos;
 	}
 	// TODO convert writers to use the buffer list, pass node offset as an extra param
 	gdata->writer->write(
@@ -1247,7 +1247,7 @@ void GPUSPH::rollCallParticles()
 
 	// fill out the bitmap and check for duplicates
 	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
-		uint idx = id(gdata->s_hBuffers.getBufferData<BUFFER_INFO>()[pos]);
+		uint idx = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %lu, time %g particle idx %u is in pos %u and %u!\n",
 					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);

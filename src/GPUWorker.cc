@@ -1726,10 +1726,10 @@ void GPUWorker::kernel_calcHash()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	calcHash(	m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getBufferData<BUFFER_HASH>(),
-				m_dBuffers.getBufferData<BUFFER_PARTINDEX>(),
-				m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+	calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dBuffers.getData<BUFFER_PARTINDEX>(),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 #if HASH_KEY_SIZE >= 64
 				m_dCompactDeviceMap,
 #endif
@@ -1744,8 +1744,8 @@ void GPUWorker::kernel_sort()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sort(	m_dBuffers.getBufferData<BUFFER_HASH>(),
-			m_dBuffers.getBufferData<BUFFER_PARTINDEX>(),
+	sort(	m_dBuffers.getData<BUFFER_HASH>(),
+			m_dBuffers.getData<BUFFER_PARTINDEX>(),
 			numPartsToElaborate);
 }
 
@@ -1764,39 +1764,39 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dSegmentStart,
 #endif
 							// output: sorted arrays
-							m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-							m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-							m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
-							m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
-							m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-							m_dBuffers.getBufferData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
-							m_dBuffers.getBufferData<BUFFER_PRESSURE>(gdata->currentWrite[BUFFER_PRESSURE]),
-							m_dBuffers.getBufferData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
-							m_dBuffers.getBufferData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
-							m_dBuffers.getBufferData<BUFFER_TURBVISC>(gdata->currentWrite[BUFFER_TURBVISC]),
-							m_dBuffers.getBufferData<BUFFER_STRAIN_RATE>(gdata->currentWrite[BUFFER_STRAIN_RATE]),
+							m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+							m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+							m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+							m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
+							m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+							m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
+							m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentWrite[BUFFER_PRESSURE]),
+							m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentWrite[BUFFER_TURBVISC]),
+							m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentWrite[BUFFER_STRAIN_RATE]),
 
 							// hash
-							m_dBuffers.getBufferData<BUFFER_HASH>(),
+							m_dBuffers.getData<BUFFER_HASH>(),
 							// sorted particle indices
-							m_dBuffers.getBufferData<BUFFER_PARTINDEX>(),
+							m_dBuffers.getData<BUFFER_PARTINDEX>(),
 
 							// input: arrays to sort
-							m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-							m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-							m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-							m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-							m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-							m_dBuffers.getBufferData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
-							m_dBuffers.getBufferData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
-							m_dBuffers.getBufferData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
-							m_dBuffers.getBufferData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
-							m_dBuffers.getBufferData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
-							m_dBuffers.getBufferData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
+							m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+							m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+							m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+							m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+							m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+							m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+							m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
+							m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
+							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
+							m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
 
 							m_numParticles,
 							m_nGridCells,
-							m_dBuffers.getBufferData<BUFFER_INVINDEX>());
+							m_dBuffers.getData<BUFFER_INVINDEX>());
 }
 
 void GPUWorker::kernel_buildNeibsList()
@@ -1806,10 +1806,10 @@ void GPUWorker::kernel_buildNeibsList()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	buildNeibsList(	m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
-					m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-					m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-					m_dBuffers.getBufferData<BUFFER_HASH>(),
+	buildNeibsList(	m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+					m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
 					m_numParticles,
@@ -1839,19 +1839,19 @@ void GPUWorker::kernel_forces()
 	// first step
 	if (numPartsToElaborate > 0 && firstStep)
 		returned_dt = forces(
-						m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
-						m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
-						m_dBuffers.getBufferData<BUFFER_FORCES>(),					// f(n
-						m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-						m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-						m_dBuffers.getBufferData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
+						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
+						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+						m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 						m_dRbForces,
 						m_dRbTorques,
-						m_dBuffers.getBufferData<BUFFER_XSPH>(),
-						m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-						m_dBuffers.getBufferData<BUFFER_HASH>(),
+						m_dBuffers.getData<BUFFER_XSPH>(),
+						m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+						m_dBuffers.getData<BUFFER_HASH>(),
 						m_dCellStart,
-						m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+						m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 						m_numParticles,
 						numPartsToElaborate,
 						gdata->problem->m_deltap,
@@ -1864,33 +1864,33 @@ void GPUWorker::kernel_forces()
 						m_simparams->influenceRadius,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
-						m_dBuffers.getBufferData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
-						m_dBuffers.getBufferData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
-						m_dBuffers.getBufferData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
-						m_dBuffers.getBufferData<BUFFER_DKDE>(),
-						m_dBuffers.getBufferData<BUFFER_CFL>(),
-						m_dBuffers.getBufferData<BUFFER_CFL_GAMMA>(),
-						m_dBuffers.getBufferData<BUFFER_CFL_KEPS>(),
-						m_dBuffers.getBufferData<BUFFER_CFL_TEMP>(),
+						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
+						m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
+						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
+						m_dBuffers.getData<BUFFER_DKDE>(),
+						m_dBuffers.getData<BUFFER_CFL>(),
+						m_dBuffers.getData<BUFFER_CFL_GAMMA>(),
+						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem);
 	else
 	// second step
 	if (numPartsToElaborate > 0 && !firstStep)
-		returned_dt = forces(  m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),  // pos(n+1/2)
-						m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),  // vel(n+1/2)
-						m_dBuffers.getBufferData<BUFFER_FORCES>(),					// f(n+1/2)
-						m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-						m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-						m_dBuffers.getBufferData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
+		returned_dt = forces(  m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),  // pos(n+1/2)
+						m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),  // vel(n+1/2)
+						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n+1/2)
+						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+						m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 						m_dRbForces,
 						m_dRbTorques,
-						m_dBuffers.getBufferData<BUFFER_XSPH>(),
-						m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-						m_dBuffers.getBufferData<BUFFER_HASH>(),
+						m_dBuffers.getData<BUFFER_XSPH>(),
+						m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+						m_dBuffers.getData<BUFFER_HASH>(),
 						m_dCellStart,
-						m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+						m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 						m_numParticles,
 						numPartsToElaborate,
 						gdata->problem->m_deltap,
@@ -1903,14 +1903,14 @@ void GPUWorker::kernel_forces()
 						m_simparams->influenceRadius,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
-						m_dBuffers.getBufferData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n+1/2)
-						m_dBuffers.getBufferData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),	// k(n+1/2)
-						m_dBuffers.getBufferData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),	// e(n+1/2)
-						m_dBuffers.getBufferData<BUFFER_DKDE>(),
-						m_dBuffers.getBufferData<BUFFER_CFL>(),
-						m_dBuffers.getBufferData<BUFFER_CFL_GAMMA>(),
-						m_dBuffers.getBufferData<BUFFER_CFL_KEPS>(),
-						m_dBuffers.getBufferData<BUFFER_CFL_TEMP>(),
+						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n+1/2)
+						m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),	// k(n+1/2)
+						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),	// e(n+1/2)
+						m_dBuffers.getData<BUFFER_DKDE>(),
+						m_dBuffers.getData<BUFFER_CFL>(),
+						m_dBuffers.getData<BUFFER_CFL_GAMMA>(),
+						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem );
@@ -1936,22 +1936,22 @@ void GPUWorker::kernel_euler()
 
 		euler(
 			// previous pos, vel, k, e, info
-			m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-			m_dBuffers.getBufferData<BUFFER_HASH>(),
-			m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-			m_dBuffers.getBufferData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
-			m_dBuffers.getBufferData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
-			m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_dBuffers.getData<BUFFER_HASH>(),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			// f(n+1/2)
-			m_dBuffers.getBufferData<BUFFER_FORCES>(),
+			m_dBuffers.getData<BUFFER_FORCES>(),
 			// dkde(n)
-			m_dBuffers.getBufferData<BUFFER_DKDE>(),
-			m_dBuffers.getBufferData<BUFFER_XSPH>(),
+			m_dBuffers.getData<BUFFER_DKDE>(),
+			m_dBuffers.getData<BUFFER_XSPH>(),
 			// integrated pos vel, k, e
-			m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-			m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-			m_dBuffers.getBufferData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
-			m_dBuffers.getBufferData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 			m_numParticles,
 			numPartsToElaborate,
 			gdata->dt, // m_dt,
@@ -1968,13 +1968,13 @@ void GPUWorker::kernel_mls()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	mls(m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-		m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-		m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-		m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-		m_dBuffers.getBufferData<BUFFER_HASH>(),
+	mls(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
 		m_dCellStart,
-		m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
@@ -1989,13 +1989,13 @@ void GPUWorker::kernel_shepard()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	shepard(m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-			m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-			m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-			m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-			m_dBuffers.getBufferData<BUFFER_HASH>(),
+	shepard(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_HASH>(),
 			m_dCellStart,
-			m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+			m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 			m_numParticles,
 			numPartsToElaborate,
 			m_simparams->slength,
@@ -2011,13 +2011,13 @@ void GPUWorker::kernel_vorticity()
 	if (numPartsToElaborate == 0) return;
 
 	// Calling vorticity computation kernel
-	vorticity(	m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-				m_dBuffers.getBufferData<BUFFER_VORTICITY>(),
-				m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getBufferData<BUFFER_HASH>(),
+	vorticity(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_VORTICITY>(),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
-				m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
 				m_simparams->slength,
@@ -2032,14 +2032,14 @@ void GPUWorker::kernel_surfaceParticles()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	surfaceparticle(m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-					m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-					m_dBuffers.getBufferData<BUFFER_NORMALS>(),
-					m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-					m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
-					m_dBuffers.getBufferData<BUFFER_HASH>(),
+	surfaceparticle(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+					m_dBuffers.getData<BUFFER_NORMALS>(),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
-					m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+					m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 					m_numParticles,
 					numPartsToElaborate,
 					m_simparams->slength,
@@ -2061,13 +2061,13 @@ void GPUWorker::kernel_sps()
 	uint posRead = firstStep ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS];
 	uint velRead = firstStep ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL];
 
-	sps(m_dBuffers.getBuffer<BUFFER_TAU>()->get_raw_ptr(),
-		m_dBuffers.getBufferData<BUFFER_POS>(posRead),
-		m_dBuffers.getBufferData<BUFFER_VEL>(velRead),
-		m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-		m_dBuffers.getBufferData<BUFFER_HASH>(),
+	sps(m_dBuffers.get<BUFFER_TAU>()->get_raw_ptr(),
+		m_dBuffers.getData<BUFFER_POS>(posRead),
+		m_dBuffers.getData<BUFFER_VEL>(velRead),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
 		m_dCellStart,
-		m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
@@ -2089,15 +2089,15 @@ void GPUWorker::kernel_meanStrain()
 	uint velRead = firstStep ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL];
 
 	mean_strain_rate(
-		m_dBuffers.getBufferData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
-		m_dBuffers.getBufferData<BUFFER_POS>(posRead),
-		m_dBuffers.getBufferData<BUFFER_VEL>(velRead),
-		m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-		m_dBuffers.getBufferData<BUFFER_HASH>(),
+		m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
+		m_dBuffers.getData<BUFFER_POS>(posRead),
+		m_dBuffers.getData<BUFFER_VEL>(velRead),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
 		m_dCellStart,
-		m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
-		m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-		m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
@@ -2139,12 +2139,12 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
 
 	updateBoundValues(
-				m_dBuffers.getBufferData<BUFFER_VEL>(velRead),
-				m_dBuffers.getBufferData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
-				m_dBuffers.getBufferData<BUFFER_TKE>(tkeRead),
-				m_dBuffers.getBufferData<BUFFER_EPSILON>(epsRead),
-				m_dBuffers.getBufferData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
-				m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_VEL>(velRead),
+				m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
+				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
+				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
 				numPartsToElaborate,
 				true);
@@ -2166,15 +2166,15 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
 
 	dynamicBoundConditions(
-				m_dBuffers.getBufferData<BUFFER_POS>(posRead),   // pos(n)
-				m_dBuffers.getBufferData<BUFFER_VEL>(velRead),   // vel(n)
-				m_dBuffers.getBufferData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
-				m_dBuffers.getBufferData<BUFFER_TKE>(tkeRead),
-				m_dBuffers.getBufferData<BUFFER_EPSILON>(epsRead),
-				m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getBufferData<BUFFER_HASH>(),
+				m_dBuffers.getData<BUFFER_POS>(posRead),   // pos(n)
+				m_dBuffers.getData<BUFFER_VEL>(velRead),   // vel(n)
+				m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
+				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
+				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
-				m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
@@ -2190,15 +2190,15 @@ void GPUWorker::kernel_initGradGamma()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	initGradGamma(	m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-				m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-				m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-				m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-				m_dBuffers.getBufferData<BUFFER_HASH>(),
+	initGradGamma(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
-				m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
@@ -2218,16 +2218,16 @@ void GPUWorker::kernel_updateGamma()
 	// during initStep we use currentVelRead, else currentVelWrite
 	uint velRead = initStep ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL];
 
-	updateGamma(m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-				m_dBuffers.getBufferData<BUFFER_VEL>(velRead),
-				m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getBufferData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-				m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-				m_dBuffers.getBufferData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-				m_dBuffers.getBufferData<BUFFER_HASH>(),
+	updateGamma(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(velRead),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
-				m_dBuffers.getBufferData<BUFFER_NEIBSLIST>(),
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
 				m_simparams->slength,
@@ -2244,10 +2244,10 @@ void GPUWorker::kernel_updatePositions()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	updatePositions(m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-					m_dBuffers.getBufferData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-					m_dBuffers.getBufferData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-					m_dBuffers.getBufferData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+	updatePositions(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 					gdata->extraCommandArg,
 					m_numParticles,
 					numPartsToElaborate);
