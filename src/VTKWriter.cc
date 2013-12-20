@@ -27,6 +27,9 @@
 #include <stdexcept>
 
 #include "VTKWriter.h"
+// GlobalData is required for writing the device index. With some order
+// of inclusions, a forward declaration might be required
+#include "GlobalData.h"
 
 using namespace std;
 
@@ -37,16 +40,18 @@ VTKWriter::VTKWriter(const Problem *problem)
     m_timefile = NULL;
     m_timefile = fopen(time_filename.c_str(), "w");
 
-	if (m_timefile == NULL) {
+	/*if (m_timefile == NULL) {
 		stringstream ss;
 		ss << "Cannot open data file " << time_filename;
 		throw runtime_error(ss.str());
-		}
+		}*/
 
 	// Writing header of VTUinp.pvd file
-	fprintf(m_timefile,"<?xml version='1.0'?>\n");
-	fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
-	fprintf(m_timefile,"  <Collection>\n");
+	if (m_timefile) {
+		fprintf(m_timefile,"<?xml version='1.0'?>\n");
+		fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
+		fprintf(m_timefile,"  <Collection>\n");
+	}
 }
 
 
@@ -91,13 +96,26 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 			type, dim, offset);
 }
 
-void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
-				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
-				const float4 *normals, const float4 *gradGamma, const float *tke, const float *turbvisc)
+void
+VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
+	const double4 *pos = buffers.getData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
+	const float4 *normals = buffers.getData<BUFFER_NORMALS>();
+	const float4 *gradGamma = buffers.getData<BUFFER_GRADGAMMA>();
+	const float *tke = buffers.getData<BUFFER_TKE>();
+	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
+
 	string filename, full_filename;
 
-	filename = "PART_" + next_filenum() + ".vtu";
+	filename = "PART";
+
+	if (m_gdata && m_gdata->mpi_nodes > 1)
+		filename += "n" + m_gdata->rankString();
+
+	filename += "_" + next_filenum() + ".vtu";
 	full_filename = m_dirname + "/" + filename;
 
 	FILE *fid = fopen(full_filename.c_str(), "w");
@@ -164,10 +182,22 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
+	// device index
+	if (m_gdata) {
+		scalar_array(fid, "UInt32", "DeviceIndex", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
+	// cell index
+	if (m_gdata) {
+		scalar_array(fid, "UInt32", "CellIndex", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
-	
+
 	// gradient gamma
 	if (gradGamma) {
 		vector_array(fid, "Float32", "Gradient Gamma", 3, offset);
@@ -204,7 +234,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	scalar_array(fid, "Int32", "offsets", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
 	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
-	for (int i = 0; i < numParts; i++)
+	for (uint i = 0; i < numParts; i++)
 		fprintf(fid,"%d\t", 1);
 	fprintf(fid,"\n");
 	fprintf(fid,"	</DataArray>\n");
@@ -219,7 +249,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// pressure
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float value = 0.0;
 		if (TESTPOINTS(info[i]))
 			value = vel[i].w;
@@ -230,7 +260,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// density
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float value = 0.0;
 		//if (FLUID(info[i]))
 			value = vel[i].w;
@@ -239,15 +269,15 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// mass
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float value = pos[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
-	
+
 	// gamma
 	if (gradGamma) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = gradGamma[i].w;
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -256,7 +286,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// turbulent kinetic energy
 	if (tke) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = tke[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -265,7 +295,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// eddy viscosity
 	if (turbvisc) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = turbvisc[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -277,28 +307,28 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 		// type
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
 //		// flag
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (int i=0; i < numParts; i++) {
+//		for (uint i=0; i < numParts; i++) {
 //			ushort value = PART_FLAG(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
 
 //		// fluid number
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (int i=0; i < numParts; i++) {
+//		for (uint i=0; i < numParts; i++) {
 //			ushort value = PART_FLUID_NUM(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
 
 //		// object
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (int i=0; i < numParts; i++) {
+//		for (uint i=0; i < numParts; i++) {
 //			ushort value = object(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
@@ -307,17 +337,44 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 		// id
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			uint value = id(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
+	}
+
+	// device index
+	if (m_gdata) {
+		numbytes = sizeof(uint)*numParts;
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
+		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
+		// containing cell until next calchash/reorder
+		// for (uint i=0; i < numParts; i++) {
+		// uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
+		// fwrite(&value, sizeof(value), 1, fid);
+		for (uint d = 0; d < m_gdata->devices; d++) {
+			// compute the global device ID for each device
+			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
+			// write one for each particle (no need for the "absolute" particle index)
+			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
+				fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// linearized cell index (NOTE: computed on host)
+	numbytes = sizeof(uint)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (int i=0; i < numParts; i++) {
+		uint value = m_gdata->calcGridHashHost( m_gdata->calcGridPosHost(pos[i].x, pos[i].y, pos[i].z) );
+		fwrite(&value, sizeof(value), 1, fid);
 	}
 
 	numbytes=sizeof(float)*3*numParts;
 
 	// velocity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		float *value = zeroes;
 		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
@@ -325,17 +382,19 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	}
 
 	// gradient gamma
-	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
-		float *value = zeroes;
-		value = (float*)(gradGamma + i);
-		fwrite(value, sizeof(*value), 3, fid);
+	if (gradGamma) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=0; i < numParts; i++) {
+			float *value = zeroes;
+			value = (float*)(gradGamma + i);
+			fwrite(value, sizeof(*value), 3, fid);
+		}
 	}
 
 	// vorticity
 	if (vort) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(vort + i);
@@ -347,7 +406,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	// normals
 	if (normals) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(normals + i);
@@ -358,7 +417,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 		numbytes=sizeof(float)*numParts;
 		// criteria
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=0; i < numParts; i++) {
 			float value = 0;
 			if (FLUID(info[i]))
 				value = normals[i].w;
@@ -370,7 +429,7 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 
 	// position
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
@@ -378,13 +437,13 @@ void VTKWriter::write(uint numParts, const double4 *pos, const float4 *vel,
 	numbytes=sizeof(int)*numParts;
 	// connectivity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 	// offsets
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		uint value = i+1;
 		fwrite(&value, sizeof(value), 1, fid);
 	}

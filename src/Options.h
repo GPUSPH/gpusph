@@ -36,17 +36,21 @@ struct Options {
 	int		device;  // which device to use
 	string	dem; // DEM file to use
 	string	dir; // directory where data will be saved
-	bool	console; // run in console (no GUI)
 	double	deltap; // deltap
 	float	tend; // simulation end
+	bool	nosave; // disable saving
+	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
+	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
 	Options(void) :
 		problem(),
 		device(-1),
 		dem(),
 		dir(),
-		console(false),
 		deltap(NAN),
-		tend(NAN)
+		tend(NAN),
+		nosave(false),
+		num_hosts(0),
+		byslot_scheduling(false)
 	{};
 };
 

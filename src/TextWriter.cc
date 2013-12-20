@@ -55,18 +55,13 @@ TextWriter::~TextWriter()
 }
 
 void
-TextWriter::write(	uint				numParts,
-					const double4		*pos,
-					const float4		*vel,
-					const particleinfo	*info,
-					const float3		*vort,
-					float				t,
-					const bool			testpoints,
-					const float4		*normals,
-					const float4		*gradGamma,
-					const float			*tke,
-					const float			*turbvisc)
+TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
+	const double4 *pos = buffers.getData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
+
 	string filename, full_filename;
 	string filenum = next_filenum();
 	//filename = "PART_" + next_filenum() + ".txt";
@@ -83,7 +78,7 @@ TextWriter::write(	uint				numParts,
 		}
 
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		// position
 		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
 												, pos[i].x, pos[i].y, pos[i].z);
@@ -134,7 +129,7 @@ TextWriter::write(	uint				numParts,
 	FILE *fid1 = fopen(full_filename.c_str(), "w");
 
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		if (TESTPOINTS(info[i])){
 		// position
 		fprintf(fid1,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])

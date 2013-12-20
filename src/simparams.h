@@ -49,9 +49,13 @@ typedef struct MbCallBack {
 typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
-	double			slength;			// smoothing length
+	double			sfactor;			// smoothing factor
+	double			slength;			// smoothing length (smoothing factor * deltap)
 	KernelType		kerneltype;			// kernel type
 	double			kernelradius;		// kernel radius
+	double			influenceRadius;	// influence radius ( = kernelradius * slength)
+	double			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
+	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;					// initial timestep
 	float			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
@@ -80,8 +84,15 @@ typedef struct SimParams {
 	GageList		gage;				// water gages
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+
 	SimParams(void) :
+		sfactor(1.3),
+		slength(0),
+		kerneltype(WENDLAND),
 		kernelradius(2.0),
+		influenceRadius(0),
+		nlInfluenceRadius(0),
+		nlSqInfluenceRadius(0),
 		dt(0),
 		tend(0),
 		xsph(false),
@@ -105,8 +116,42 @@ typedef struct SimParams {
 		surfaceparticle(false),
 		calc_energy(true),
 		numODEbodies(0),
-		maxneibsnum(128)
+		maxneibsnum(0)
 	{};
+
+	inline double
+	set_smoothing(double smooth, double deltap)
+	{
+		sfactor = smooth;
+		slength = smooth*deltap;
+
+		set_influenceradius();
+
+		return slength;
+	}
+
+	inline double
+	set_kernel(KernelType kernel, double radius=0)
+	{
+		kerneltype = kernel;
+		// TODO currently all our kernels have radius 2,
+		// remember to adjust this when we have kernels
+		// with different radii
+		kernelradius = radius ? radius : 2.0;
+
+		return set_influenceradius();
+	}
+
+	// internal: update the influence radius et al
+	inline double
+	set_influenceradius() {
+		influenceRadius = slength * kernelradius;
+		nlInfluenceRadius = nlexpansionfactor * influenceRadius;
+		nlSqInfluenceRadius = nlInfluenceRadius * nlInfluenceRadius;
+
+		return influenceRadius;
+	}
+
 } SimParams;
 
 #endif

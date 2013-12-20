@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <math.h>
 #include <iostream>
 
@@ -57,9 +52,6 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_usePlanes = false;
 
 	// SPH parameters
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -99,12 +91,6 @@ StillWater::StillWater(const Options &options) : Problem(options)
 
 	m_simparams.periodicbound = 0;
 
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = 0.1f;
-
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
 	m_writefreq = 1000;
@@ -112,7 +98,6 @@ StillWater::StillWater(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "StillWater";
-	create_problem_dir();
 }
 
 
@@ -190,18 +175,8 @@ void StillWater::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void StillWater::draw_boundary(float t)
-{
-	glColor3f(1.0, 0.0, 0.0);
-	experiment_box.GLDraw();
-}
-
-
 void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {
-	float4 localpos;
-	uint hashvalue;
-
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);

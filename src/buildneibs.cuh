@@ -41,14 +41,7 @@
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */
-#if (__COMPUTE__ >= 30)
-	#define BLOCK_SIZE_CALCHASH		256
-	#define MIN_BLOCKS_CALCHASH		8
-	#define BLOCK_SIZE_REORDERDATA	256
-	#define MIN_BLOCKS_REORDERDATA	8
-	#define BLOCK_SIZE_BUILDNEIBS	256
-	#define MIN_BLOCKS_BUILDNEIBS	8
-#elif (__COMPUTE__ == 20 || __COMPUTE__ == 21)
+#if (__COMPUTE__ >= 20)
 	#define BLOCK_SIZE_CALCHASH		256
 	#define MIN_BLOCKS_CALCHASH		6
 	#define BLOCK_SIZE_REORDERDATA	256
@@ -69,7 +62,8 @@ extern "C"
 {
 void
 setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
-	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize);
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	idx_t const& allocatedParticles);
 
 void
 getneibsconstants(SimParams *simparams, PhysParams *physparams);
@@ -85,6 +79,9 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
+#if HASH_KEY_SIZE >= 64
+		 uint*		compactDeviceMap,
+#endif
 		 const uint		numParticles,
 		 const int		periodicbound);
 
@@ -92,45 +89,49 @@ void
 inverseParticleIndex (	uint*	particleIndex,
 			uint*	inversedParticleIndex,
 			uint	numParticles);
-void
-reorderDataAndFindCellStart(uint*				cellStart,			// output: cell start index
-							uint*				cellEnd,			// output: cell end index
-							float4*				newPos,				// output: sorted positions
-							float4*				newVel,				// output: sorted velocities
-							particleinfo*		newInfo,			// output: sorted info
-							float4*				newBoundElement,	// output: sorted boundary elements
-							float4*				newGradGamma,		// output: sorted gradient gamma
-							vertexinfo*			newVertices,		// output: sorted vertices
-							float*				newPressure,		// output: sorted pressure
-							float*				newTKE,				// output: k for k-e model
-							float*				newEps,				// output: e for k-e model
-							float*				newTurbVisc,		// output: eddy viscosity
-							float*				newStrainRate,		// output: strain rate
-							const hashKey*		particleHash,   	// input: sorted grid hashes
-							const uint*			particleIndex,		// input: sorted particle indices
-							const float4*		oldPos,				// input: sorted position array
-							const float4*		oldVel,				// input: sorted velocity array
-							const particleinfo*	oldInfo,			// input: sorted info array
-							const float4*		oldBoundElement,	// input: sorted boundary elements
-							const float4*		oldGradGamma,		// input: sorted gradient gamma
-							const vertexinfo*	oldVertices,		// input: sorted vertices
-							const float*		oldPressure,		// input: sorted pressure
-							const float*		oldTKE,				// input: k for k-e model
-							const float*		oldEps,				// input: e for k-e model
-							const float*		oldTurbVisc,		// input: eddy viscosity
-							const float*		oldStrainRate,		// input: strain rate
-							const uint			numParticles,
-							const uint			numGridCells,
-							uint*				inversedParticleIndes);
+
+void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
+									uint*				cellEnd,			// output: cell end index
+#if HASH_KEY_SIZE >= 64
+									uint*			segmentStart,
+#endif
+									float4*				newPos,				// output: sorted positions
+									float4*				newVel,				// output: sorted velocities
+									particleinfo*		newInfo,			// output: sorted info
+									float4*				newBoundElement,	// output: sorted boundary elements
+									float4*				newGradGamma,		// output: sorted gradient gamma
+									vertexinfo*			newVertices,		// output: sorted vertices
+									float*				newPressure,		// output: sorted pressure
+									float*				newTKE,				// output: k for k-e model
+									float*				newEps,				// output: e for k-e model
+									float*				newTurbVisc,		// output: eddy viscosity
+									float*				newStrainRate,		// output: strain rate
+									const hashKey*		particleHash,		// input: sorted grid hashes
+									const uint*			particleIndex,		// input: sorted particle indices
+									const float4*		oldPos,				// input: unsorted positions
+									const float4*		oldVel,				// input: unsorted velocities
+									const particleinfo*	oldInfo,			// input: unsorted info
+									const float4*		oldBoundElement,	// input: sorted boundary elements
+									const float4*		oldGradGamma,		// input: sorted gradient gamma
+									const vertexinfo*	oldVertices,		// input: sorted vertices
+									const float*		oldPressure,		// input: sorted pressure
+									const float*		oldTKE,				// input: k for k-e model
+									const float*		oldEps,				// input: e for k-e model
+									const float*		oldTurbVisc,		// input: eddy viscosity
+									const float*		oldStrainRate,		// input: strain rate
+									const uint			numParticles,
+									const uint			numGridCells,
+									uint*				inversedParticleIndex);
 
 void
-buildNeibsList( neibdata*			neibsList,
+buildNeibsList(	neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
 				const uint			numParticles,
+				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const int			periodicbound);

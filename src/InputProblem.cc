@@ -1,9 +1,3 @@
-
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <math.h>
 #include <iostream>
 
@@ -113,9 +107,6 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	//*************************************************************************************
 
 	// SPH parameters
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -147,12 +138,6 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
 
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = 1.0f;
-
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
 	m_writefreq = 1000;
@@ -160,7 +145,6 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "InputProblem";
-	create_problem_dir();
 }
 
 
@@ -197,17 +181,17 @@ int InputProblem::fill_parts()
 void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, uint *hash)
 {
 	const char *ch_inputfile = inputfile.c_str();
-	int npart = HDF5SphReader::getNParts(ch_inputfile);
+	uint npart = HDF5SphReader::getNParts(ch_inputfile);
 	float4 localpos;
 	uint hashvalue;
 
 	HDF5SphReader::ReadParticles *buf = new HDF5SphReader::ReadParticles[npart];
 	HDF5SphReader::readParticles(buf, ch_inputfile, npart);
-	
-	int n_parts = 0;
-	int n_vparts = 0;
-	int n_bparts = 0;
-	
+
+	uint n_parts = 0;
+	uint n_vparts = 0;
+	uint n_bparts = 0;
+
 	for (uint i = 0; i<npart; i++) {
 		switch(buf[i].ParticleType) {
 			case 1:
@@ -230,7 +214,7 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		hash[i] = hashvalue;
 	}
-	int j = n_parts;
+	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
 	//Testpoints

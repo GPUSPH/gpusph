@@ -26,11 +26,6 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "SolitaryWave.h"
 #include "particledefine.h"
@@ -59,7 +54,7 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    icyl = 0;	// icyl = 0 means no cylinders
+	icyl = 0;	// icyl = 0 means no cylinders
 	icone = 0;	// icone = 0 means no cone
 	// If presents, cylinders and cone are moving alltogether with
 	// the same velocity
@@ -70,9 +65,6 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.04f);  //0.005f;
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00013f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -89,7 +81,7 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	m_simparams.vorticity = true;
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
-    // Physical parameters
+	// Physical parameters
 	H = 0.45f;
 	m_physparams.gravity = make_float3(0.0f, 0.0f, -9.81f);
 	float g = length(m_physparams.gravity);
@@ -107,7 +99,7 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 
 	// BC when using LJ
 	m_physparams.dcoeff = 5.0f*g*H;
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
 	m_physparams.MK_K = g*H;
@@ -141,13 +133,6 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 100;
@@ -155,7 +140,6 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "SolitaryWave";
-	create_problem_dir();
 }
 
 
@@ -233,7 +217,7 @@ int SolitaryWave::fill_parts()
 	piston_parts.reserve(500);
 
 	MbCallBack& mbpistondata = m_mbcallbackdata[0];
-    Rect piston = Rect(Point(mbpistondata.origin),
+	Rect piston = Rect(Point(mbpistondata.origin),
 						Vector(0, width, 0), Vector(0, 0, height));
 	piston.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	piston.Fill(piston_parts, br, true);
@@ -300,7 +284,6 @@ int SolitaryWave::fill_parts()
 	Rect fluid;
 	float z = 0;
 	int n = 0;
-	const float amplitude = 0;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
 		float x = mbpistondata.origin.x + r0;
@@ -340,72 +323,14 @@ void SolitaryWave::copy_planes(float4 *planes, float *planediv)
 	planediv[1] = 1.0;
 	planes[2] = make_float4(0, -1.0, 0, w); //far wall
 	planediv[2] = 1.0;
- 	planes[3] = make_float4(1.0, 0, 0, 0);  //end
- 	planediv[3] = 1.0;
- 	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
- 	planediv[4] = 1.0;
- 	if (i_use_bottom_plane == 1)  {
+	planes[3] = make_float4(1.0, 0, 0, 0);  //end
+	planediv[3] = 1.0;
+	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
+	planediv[4] = 1.0;
+	if (i_use_bottom_plane == 1)  {
 		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
 		planediv[5] = 1.0;
 	}
-}
-
-
-void SolitaryWave::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-
-	glColor3f(1.0, 0.0, 0.0);
-	MbCallBack& mbpistondata = m_mbcallbackdata[0];
-	glColor3f(1.0, 0.0, 0.0);
-	Rect actual_piston = Rect(Point(mbpistondata.origin + mbpistondata.disp), Vector(0, m_size.y, 0),
-				Vector(0, 0, height));
-	actual_piston.GLDraw();
-
-	glColor3f(0.5, 0.5, 1.0);
-	const float displace = m_mbcallbackdata[1].disp.z;
-	const float width = m_size.y;
-	if (icyl ==1) {
-		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2,    -height + displace);
-	    Point p2 = Point(h_length + slope_length/(cos(beta)*10), width/6,    -height + displace);
-	    Point p3 = Point(h_length + slope_length/(cos(beta)*10), 5*width/6,  -height + displace);
-	    Point p4 = Point(h_length + slope_length/(cos(beta)*5), 0,           -height + displace);
-	    Point p5 = Point(h_length + slope_length/(cos(beta)*5),  width/3,    -height + displace);
-	    Point p6 = Point(h_length + slope_length/(cos(beta)*5), 2*width/3,   -height + displace);
-	    Point p7 = Point(h_length + slope_length/(cos(beta)*5),  width,      -height + displace);
-	    Point p8 = Point(h_length + 3*slope_length/(cos(beta)*10),  width/6, -height + displace);
-        Point p9 = Point(h_length + 3*slope_length/(cos(beta)*10),  width/2, -height + displace);
-	    Point p10 = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6,-height + displace);
-        Point p11 = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2,  -height + displace);
-
-	    cyl1 = Cylinder(p1,Vector(.025,0,0),Vector(0,0,height));
-	    cyl1.GLDraw();
-		cyl2 = Cylinder(p2,Vector(.025,0,0),Vector(0,0,height));
-		cyl2.GLDraw();
-		cyl3= Cylinder(p3,Vector(.025,0,0),Vector(0,0,height));
-		cyl3.GLDraw();
-		cyl4= Cylinder(p4,Vector(.025,0,0),Vector(0,0,height));
-		cyl4.GLDraw();
-		cyl5= Cylinder(p5,Vector(.025,0,0),Vector(0,0,height));
-		cyl5.GLDraw();
-		cyl6= Cylinder(p6,Vector(.025,0,0),Vector(0,0,height));
-		cyl6.GLDraw();
-		cyl7= Cylinder(p7,Vector(.025,0,0),Vector(0,0,height));
-		cyl7.GLDraw();
-		cyl8= Cylinder(p8,Vector(.025,0,0),Vector(0,0,height));
-		cyl8.GLDraw();
-		cyl9= Cylinder(p9,Vector(.025,0,0),Vector(0,0,height));
-		cyl9.GLDraw();
-		cyl10= Cylinder(p10,Vector(.025,0,0),Vector(0,0,height));
-		cyl10.GLDraw();
-		}
-
-	if (icone == 1) {
-	 	Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height + displace);
-	  	cone = Cone(p1,Vector(width/4,0.0,0.0), Vector(width/10,0.,0.), Vector(0,0,height));
-		cone.GLDraw();
-		}
 }
 
 
@@ -454,7 +379,6 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
 
 
-	float g = length(m_physparams.gravity);
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {

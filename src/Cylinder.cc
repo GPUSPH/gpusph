@@ -29,7 +29,6 @@
 #include <iostream>
 
 #include "Cylinder.h"
-#include "gl_utils.h"
 
 Cylinder::Cylinder(void)
 {
@@ -45,7 +44,7 @@ Cylinder::Cylinder(const Point& origin, const double radius, const Vector& heigh
 	m_center = m_origin + 0.5*height;
 	m_r = radius;
 	m_h = height.norm();
-	
+
 	Vector v(0, 0, 1);
 	const double angle = acos(height*v/m_h);
 	Vector rotdir = -height.cross(v);
@@ -62,10 +61,10 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 	m_origin = origin;
 	m_h = height;
 	m_r = radius;
-	
+
 	m_ep = ep;
 	m_ep.ComputeRot();
-	
+
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
 	dQuaternion q;
 	for (int i = 0; i < 4; i++)
@@ -79,7 +78,7 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 
 
 Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& height)
-{	
+{
 	if (abs(radius*height) > 1e-8*radius.norm()*height.norm()) {
 		std::cout << "Trying to construct a cylinder with non perpendicular radius and axis\n";
 		exit(1);
@@ -88,7 +87,7 @@ Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& heig
 	m_center = m_origin + 0.5*height;
 	m_r = radius.norm();
 	m_h = height.norm();
-	
+
 	Vector v(0, 0, 1);
 	const double angle = acos(height*v/m_h);
 	Vector rotdir = height.cross(v);
@@ -112,7 +111,7 @@ Cylinder::Volume(const double dx) const
 
 void
 Cylinder::SetInertia(const double dx)
-{	
+{
 	const double r = m_r + dx/2.0;
 	const double h = m_h + dx;
 	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
@@ -171,7 +170,7 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	const double dz = m_h/nz;
 	for (int i = 0; i <= nz; i++)
 		nparts += FillDisk(points, m_ep, m_origin, m_r, i*dz, dx, fill);
-	
+
 	return nparts;
 }
 
@@ -185,52 +184,6 @@ Cylinder::IsInside(const Point& p, const double dx) const
 	bool inside = false;
 	if (lp(0)*lp(0) + lp(1)*lp(1) < r*r && lp(2) > - dx && lp(2) < h)
 		inside = true;
-	
+
 	return inside;
-}
-
-
-void
-Cylinder::GLDraw(const EulerParameters& ep, const Point& cg) const
-{
-	Point origin = cg - 0.5*m_h*ep.Rot(Vector(0, 0, 1));
-	
-	#define CIRCLES_NUM 6
-	#define LINES_NUM	10
-	const double dz = m_h/CIRCLES_NUM;
-	for (int i = 0; i <= CIRCLES_NUM; ++i) {
-		GLDrawCircle(ep, origin, m_r, i*dz);
-	}
-	
-	const double angle2 = 2.0*M_PI/LINES_NUM;
-	for (int i = 0; i < LINES_NUM; i++) {
-		double u = i*angle2;
-		Point p1 = ep.Rot(Point(m_r*cos(u), m_r*sin(u), 0.0));
-		p1 += origin;
-		Point p2 = ep.Rot(Point(m_r*cos(u), m_r*sin(u), m_h));
-		p2 += origin;
-		GLDrawLine(p1, p2);
-	}
-	
-	#undef CIRCLES_NUM
-	#undef LINES_NUM
-}
-
-
-void
-Cylinder::GLDraw(const dMatrix3 rot, const Point& cg) const
-{
-	GLSetTransform (cg, rot);
-	GLDrawCylinder(m_r, m_h);
-	glPopMatrix();
-}
-
-
-void
-Cylinder::GLDraw(void) const
-{
-	if (m_ODEBody)
-		GLDraw(dBodyGetRotation(m_ODEBody), Point(dBodyGetPosition(m_ODEBody)));
-	else
-		GLDraw(m_ODERot, m_center);
 }

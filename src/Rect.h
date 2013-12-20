@@ -52,19 +52,16 @@ class Rect: public Object {
 
 		double Volume(const double) const;
 		void SetInertia(const double);
-		
+
 		void FillBorder(PointVect&, const double);
 		void FillBorder(PointVect&, const double, const bool,
 				const bool, const int);
-		
+
 		void Fill(PointVect&, const double, const bool*);
 		void Fill(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const int, std::vector<uint> [][4]);
 		int Fill(PointVect&, const double, const bool, const bool);
 		int Fill(PointVect&, const double, const bool fill = true);
-		
-		void GLDraw(void) const;
-		void GLDraw(const EulerParameters&, const Point&) const;
-		
+
 		bool IsInside(const Point&, const double) const;
 };
 #endif	/* _RECT_H */

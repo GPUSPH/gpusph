@@ -94,20 +94,21 @@ GPUDEPS = $(MAKEFILE).gpu
 CPUDEPS = $(MAKEFILE).cpu
 
 # .cc source files (CPU)
-CCFILES = $(wildcard $(SRCDIR)/*.cc)
-#CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
+MPICXXFILES = $(SRCDIR)/NetworkManager.cc
+CCFILES = $(filter-out $(MPICXXFILES),$(wildcard $(SRCDIR)/*.cc))
 
 # .cu source files (GPU), excluding *_kernel.cu
 CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
-#CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
 
 # headers
 HEADERS = $(wildcard $(SRCDIR)/*.h)
 
 # object files via filename replacement
+MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
 CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
 CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
-OBJS = $(CCOBJS) $(CUOBJS)
+
+OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
 
 PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
 
@@ -185,10 +186,27 @@ ifeq ($(CXX),c++)
 	endif
 endif
 
+# override: MPICXX - the MPI compiler
+MPICXX ?= $(shell which mpicxx)
+ifeq ($(MPICXX),)
+$(error MPI compiler not found, necessary for multi-node.)
+endif
+
 # Force nvcc to use the same host compiler that we selected
 # Note that this requires the compiler to be supported by
 # nvcc.
 NVCC += -ccbin=$(CXX)
+
+# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
+# but we also need to link with MPICXX, so:
+LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+
+# This should also work on the Mac, assuming MPICXX will default to using
+# our CXX compilter.
+# As an alternative, we could just link using NVCC with -ccbin=$(CXX) and get
+# the extra variables from $(shell $(MPICXX) --showme:link), something like:
+#MPILDFLAGS=$(shell $(MPICXX) --showme:link)
+#LINKER ?= $(NVCC) -Xcompiler $(subst $(space),$(comma),$(strip $(MPILDFLAGS)))
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
@@ -300,7 +318,7 @@ ifdef fastmath
 	endif
 else
 	ifeq ($(LAST_FASTMATH),)
-		FASTMATH=1
+		FASTMATH=0
 	else
 		FASTMATH=$(LAST_FASTMATH)
 	endif
@@ -308,7 +326,6 @@ endif
 
 # --- Includes and library section start ---
 
-GLEW_ARCH_SFX =
 LIB_PATH_SFX =
 
 # override: TARGET_ARCH - set the target architecture
@@ -316,10 +333,6 @@ LIB_PATH_SFX =
 # override:                           -m32 for 32-bit machines
 ifeq ($(arch), x86_64)
 	TARGET_ARCH ?= -m64
-	# cuda 5.x with 64bit libs does not require the suffix anymore
-	ifneq ($(CUDA_MAJOR), 5)
-		GLEW_ARCH_SFX =_x86_64
-	endif
 	# on Linux, toolkit libraries are under /lib64 for 64-bit
 	ifeq ($(platform), Linux)
 		LIB_PATH_SFX = 64
@@ -351,20 +364,11 @@ INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
 # Note: -isystem is supported by nvcc, g++ and clang++, so this should be fine
 INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
 
-# since we prefer to use GLEW from the SDK samples, we also need these
-# up to 4.x
-INCPATH += -isystem $(CUDA_SDK_PATH)/C/common/inc
-# 5.x
-INCPATH += -isystem $(CUDA_SDK_PATH)/common/inc
-
 # LIBPATH
 LIBPATH += -L/usr/local/lib
 
 # CUDA libaries
 LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
-# search path for GLEW from the SDK samples
-# up to 4.x
-LIBPATH += -L$(CUDA_SDK_PATH)/C/common/lib/$(platform_lcase)/
 
 # On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
 # This is exactly the conditions under which we set WE_USE_CLANG
@@ -381,16 +385,11 @@ LIBS += -lhdf5
 # pthread needed for the UDP writer
 LIBS += -lpthread
 
-LIBS += -lGLEW$(GLEW_ARCH_SFX)
-
-# search paths (for CUDA 5 and higher) and linking to OpenGL are
-# platform-specific
+# search paths (for CUDA 5 and higher) are platform-specific
 ifeq ($(platform), Darwin)
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
-	LDFLAGS += -Xlinker -framework,OpenGL,-framework,GLUT
 else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
-	LIBS += -lGL -lGLU -lglut
 endif
 
 LDFLAGS += $(LIBPATH) $(LIBS)
@@ -509,7 +508,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo "Compiled with problem $(PROBLEM)"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage,LINK,$(TARGET)\\n)
-	$(CMDECHO)$(NVCC) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(CMDECHO)$(LINKER) $(filter-out -lineinfo,$(CUFLAGS)) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -546,6 +545,10 @@ $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
+$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
+	$(call show_stage,MPI,$(@F))
+	$(CMDECHO)$(MPICXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CU,$(@F))
@@ -572,7 +575,7 @@ clean: cpuclean gpuclean
 
 # target: cpuclean - Clean CPU stuff
 cpuclean:
-	$(RM) $(CCOBJS)
+	$(RM) $(CCOBJS) $(MPICXXOBJS)
 
 # target: gpuclean - Clean GPU stuff
 gpuclean:
@@ -588,9 +591,13 @@ cookiesclean:
 showobjs:
 	@echo "> CCFILES: $(CCFILES)"
 	@echo " --- "
+	@echo "> MPICXXFILES: $(MPICXXFILES)"
+	@echo " --- "
 	@echo "> CUFILES: $(CUFILES)"
 	@echo " --- "
 	@echo "> CCOBJS: $(CCOBJS)"
+	@echo " --- "
+	@echo "> MPICXXOBJS: $(MPICXXOBJS)"
 	@echo " --- "
 	@echo "> CUOBJS: $(CUOBJS)"
 	@echo " --- "
@@ -615,8 +622,10 @@ show:
 	@echo "Verbose:         $(verbose)"
 	@echo "Debug:           $(dbg)"
 	@echo "CXX:             $(CXX)"
+	@echo "MPICXX:          $(MPICXX)"
 	@echo "nvcc:            $(NVCC)"
 	@echo "nvcc version:    $(NVCC_VER)"
+	@echo "LINKER:          $(LINKER)"
 	@echo "Compute cap.:    $(COMPUTE)"
 	@echo "Fastmath:        $(FASTMATH)"
 	@echo "INCPATH:         $(INCPATH)"
@@ -677,7 +686,7 @@ $(GPUDEPS): $(CUFILES)
 	$(CMDECHO)$(CXX) -x c++ -D__CUDA_INTERNAL_COMPILATION__ \
 		$(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 
-$(CPUDEPS): $(CCFILES)
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES)
 	@echo [DEPS] CPU
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)$(CXX) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@

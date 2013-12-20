@@ -27,11 +27,6 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include "Seiche.h"
 #include "particledefine.h"
 
@@ -52,9 +47,6 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -75,11 +67,10 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
 	m_physparams.numFluids = 1;
-   
+
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
-	float r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
@@ -93,18 +84,12 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	
+
 	m_simparams.periodicbound = false;
 
 	// Variable gravity terms:  starting with m_physparams.gravity as defined above
 	m_gtstart=0.3f;
 	m_gtend=3.0f;
-
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	m_maxvel = 0.5f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
@@ -113,7 +98,6 @@ Seiche::Seiche(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "Seiche";
-	create_problem_dir();
 }
 
 
@@ -177,13 +161,6 @@ void Seiche::copy_planes(float4 *planes, float *planediv)
 	planediv[3] = 1.0;
 	planes[4] = make_float4(-1.0, 0, 0, l);
 	planediv[4] = 1.0;
-}
-
-
-void Seiche::draw_boundary(float t)
-{
-	glColor3f(1.0, 0.0, 0.0);
-	experiment_box.GLDraw();
 }
 
 

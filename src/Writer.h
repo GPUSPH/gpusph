@@ -36,25 +36,31 @@
 #include "Problem.h"
 #include "particledefine.h"
 
+// used for dumping the device index
+#include "GlobalData.h"
+
 using namespace std;
 
 class Writer
 {
 public:
 	// maximum number of files
-	static const int MAX_FILES = 99999;
+	static const uint MAX_FILES = 99999;
 	// number of characters needed to represent MAX_FILES
-	static const int FNUM_WIDTH = 5;
+	static const uint FNUM_WIDTH = 5;
 
 	Writer(const Problem *problem);
 	virtual ~Writer();
 
-	virtual void write(uint numParts, const double4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals, const float4 *gradGamma = 0, const float *tke = 0, const float *turbvisc = 0) = 0;
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
 
 	virtual void write_energy(float t, float4 *energy);
 	//WaveGage
 	virtual void write_WaveGage(float t, GageList const& gage);
+
+	void setGlobalData(GlobalData *_gdata);
+
+	uint getLastFilenum();
 
 protected:
 	string			m_dirname;
@@ -65,6 +71,7 @@ protected:
 	FILE*			m_WaveGagefile;
 	const Problem	*m_problem;
 	string			next_filenum();
+	GlobalData*		m_gdata;
 };
 
 #endif	/* _VTKWRITER_H */

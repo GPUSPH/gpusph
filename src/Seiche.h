@@ -53,7 +53,6 @@ class Seiche: public Problem {
 
 		int  fill_parts(void);
 		uint fill_planes(void);
-		void draw_boundary(float);
 		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
 		void copy_planes(float4*, float*);
 		float3 g_callback(const float);

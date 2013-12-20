@@ -21,3 +21,12 @@ html
 latex
 Manual
 cscope*
+other/
+mpitests/
+.project
+.cproject
+.settings/
+deviceQuery
+seewaves/
+*.csv
+profiling/

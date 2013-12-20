@@ -36,12 +36,15 @@
 
 #define GPU_CODE
 #include "kahan.h"
+#include "tensor.cu"
 #undef GPU_CODE
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
-__constant__ uint d_maxneibsnum_time_numparticles;
+
+__constant__ idx_t d_neiblist_end; // maxneibsnum * number of allocated particles
+__constant__ idx_t d_neiblist_stride; // stride between neighbors of the same particle
 
 __constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
 __constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
@@ -118,16 +121,6 @@ __constant__ float d_objectboundarydf;
 
 // Neibdata cell number to offset
 __constant__ char3 d_cell_to_offset[27];
-
-typedef struct sym33mat {
-	float a11;
-	float a12;
-	float a13;
-	float a22;
-	float a23;
-	float a33;
-} sym33mat;
-
 
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
@@ -291,6 +284,34 @@ MKForce(const float r, const float slength,
 }
 /************************************************************************************************************/
 
+/************************************************************************************************************/
+/*					   Reflect position or velocity wrt to a plane										    */
+/************************************************************************************************************/
+
+// opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
+// normal vector norm div
+__device__ __forceinline__ float4
+reflectPoint(const float4 &pos, const float4 &plane, float pdiv)
+{
+	// we only care about the 4th component of pos in the dot product to get
+	// a*x_0 + b*y_0 + c*z_0 + d*1, so:
+	float4 ret = make_float4(pos.x, pos.y, pos.z, 1);
+	ret = ret - 2*plane*dot(ret,plane)/(pdiv*pdiv);
+	// the fourth component will be whatever, we don't care
+	return ret;
+}
+
+// opposite of a point wrt to the nplane-th plane; the content of the 4th component is
+// undefined
+__device__ __forceinline__ float4
+reflectPoint(const float4 &pos, uint nplane)
+{
+	float4 plane = d_planes[nplane];
+	float pdiv = d_plane_div[nplane];
+
+	return reflectPoint(pos, plane, pdiv);
+}
+
 
 /***************************************** Viscosities *******************************************************/
 // Artificial viscosity s
@@ -440,7 +461,6 @@ getNeibIndex(const float4	pos,
 }
 /************************************************************************************************************/
 
-
 /******************** Functions for computing repulsive force directly from DEM *****************************/
 // TODO: check for the maximum timestep
 
@@ -586,7 +606,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 	const float4 vel = tex1Dfetch(velTex, index);
 
 	// SPS stress matrix elements
-	sym33mat tau;
+	symtensor3 tau;
 
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
@@ -601,7 +621,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 	uint neib_cell_base_index = 0;
 
 	// loop over all the neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -638,13 +658,13 @@ SPSstressMatrixDevice(	const float4* posArray,
 	// and special turbulent terms
 	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
 	float temp = dvx.y + dvy.x;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	tau.a12 = temp;
+	tau.xy = temp;
 	SijSij_bytwo += temp*temp;
 	temp = dvx.z + dvz.x;			// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	tau.a13 = temp;
+	tau.xz = temp;
 	SijSij_bytwo += temp*temp;
 	temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-	tau.a23 = temp;
+	tau.yz = temp;
 	SijSij_bytwo += temp*temp;
 	float S = sqrtf(SijSij_bytwo);
 	float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
@@ -653,19 +673,19 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	// Shear Stress matrix = TAU (pronounced taf)
 	// Dalrymple & Rogers (2006): eq. (10)
-	tau.a11 = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-	tau.a11 /= vel.w;
-	tau.a12 *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-	tau.a13 *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
-	tau.a22 = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-	tau.a22 /= vel.w;
-	tau.a23 *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
-	tau.a33 = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-	tau.a33 /= vel.w;
+	tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
+	tau.xx /= vel.w;
+	tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
+	tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+	tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
+	tau.yy /= vel.w;
+	tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+	tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
+	tau.zz /= vel.w;
 
-	tau0[index] = make_float2(tau.a11, tau.a12);
-	tau1[index] = make_float2(tau.a13, tau.a22);
-	tau2[index] = make_float2(tau.a23, tau.a33);
+	tau0[index] = make_float2(tau.xx, tau.xy);
+	tau1[index] = make_float2(tau.xz, tau.yy);
+	tau2[index] = make_float2(tau.yz, tau.zz);
 }
 /************************************************************************************************************/
 
@@ -725,7 +745,7 @@ initGradGammaDevice(	float4*		oldPos,
 			uint neib_cell_base_index = 0;
 
 			// Loop over all the neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
@@ -754,7 +774,7 @@ initGradGammaDevice(	float4*		oldPos,
 				}
 			}
 
-			if(rmin < 0.8*deltap && FLUID(info))
+			if(rmin < 0.8f*deltap && FLUID(info))
 				disable_particle(pos);
 
 			//DEBUG output
@@ -763,14 +783,14 @@ initGradGammaDevice(	float4*		oldPos,
 			
 			//Set the virtual displacement
 			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10) {
-				virtVel = -1.0 * inflRadius * gGam / magnitude;
-				virtVel.w = 0.0;
+			if (magnitude > 1.e-10f) {
+				virtVel = -1.0f * inflRadius * gGam / magnitude;
+				virtVel.w = 0.0f;
 			}
 		}
 		
 		// Set gamma to 1
-		gGam.w = 1.0;
+		gGam.w = 1.0f;
 		
 		gradGam[index] = gGam;
 		virtualVel[index].x = virtVel.x;
@@ -806,7 +826,7 @@ updateGammaDevice(	const float4* oldPos,
 		float4 oldGam = tex1Dfetch(gamTex, index);
 
 		float4 gGam = make_float4(0.0f);
-		float deltaGam = 0.0;
+		float deltaGam = 0.0f;
 
 		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
 		if(FLUID(info) || VERTEX(info)) {
@@ -818,7 +838,7 @@ updateGammaDevice(	const float4* oldPos,
 			uint neib_cell_base_index = 0;
 
 			// Loop over all the neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
@@ -848,11 +868,11 @@ updateGammaDevice(	const float4* oldPos,
 
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10) {
-				gGam.w = oldGam.w + deltaGam * 0.5*virtDt;
+			if (magnitude > 1.e-10f) {
+				gGam.w = oldGam.w + deltaGam * 0.5f*virtDt;
 			}
 			else
-				gGam.w = 1.0;
+				gGam.w = 1.0f;
 		}
 
 		newGam[index] = gGam;
@@ -881,7 +901,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 		float4 oldGam = tex1Dfetch(gamTex, index);
 
 		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGam.w);
-		float deltaGam = 0.0;
+		float deltaGam = 0.0f;
 		deltaGam += dot(make_float3(oldGam), vel); //FIXME: It is incorrect for moving boundaries
 
 		// Compute gradient of gamma for fluid only
@@ -894,7 +914,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 			uint neib_cell_base_index = 0;
 
 			// Loop over all the neighbors
-			for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
 
 				if (neib_data == 0xffff) break;
@@ -919,11 +939,11 @@ updateGammaPrCorDevice( const float4*		newPos,
 
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10) {
-				gGam.w = oldGam.w + deltaGam * 0.25*virtDt;
+			if (magnitude > 1.e-10f) {
+				gGam.w = oldGam.w + deltaGam * 0.25f*virtDt;
 			}
 			else
-				gGam.w = 1.0;
+				gGam.w = 1.0f;
 		}
 
 		newGam[index] = gGam;
@@ -1076,7 +1096,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	uint neib_cell_base_index = 0;
 
 	// Loop over all the neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1167,7 +1187,7 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 	uint neib_cell_base_index = 0;
 
 	// first loop over all the neighbors for the Velocity Gradients
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1257,7 +1277,7 @@ shepardDevice(	const float4*	posArray,
 				const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -1272,6 +1292,7 @@ shepardDevice(	const float4*	posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
+
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// taking into account self contribution in summation
@@ -1286,7 +1307,7 @@ shepardDevice(	const float4*	posArray,
 	uint neib_cell_base_index = 0;
 
 	// loop over all the neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1318,6 +1339,33 @@ shepardDevice(	const float4*	posArray,
 	newVel[index] = vel;
 }
 
+// contribution of neighbor at relative position relPos with weight w to the
+// MLS matrix mls
+__device__ __forceinline__ void
+MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
+{
+	mls.xx += w;						// xx = ∑Wij*Vj
+	mls.xy += relPos.x*w;				// xy = ∑(xi - xj)*Wij*Vj
+	mls.xz += relPos.y*w;				// xz = ∑(yi - yj)*Wij*Vj
+	mls.xw += relPos.z*w;				// xw = ∑(zi - zj)*Wij*Vj
+	mls.yy += relPos.x*relPos.x*w;		// yy = ∑(xi - xj)^2*Wij*Vj
+	mls.yz += relPos.x*relPos.y*w;		// yz = ∑(xi - xj)(yi - yj)*Wij*Vj
+	mls.yw += relPos.x*relPos.z*w;		// yz = ∑(xi - xj)(zi - zj)*Wij*Vj
+	mls.zz += relPos.y*relPos.y*w;		// zz = ∑(yi - yj)^2*Wij*Vj
+	mls.zw += relPos.y*relPos.z*w;		// zz = ∑(yi - yj)(zi - zj)*Wij*Vj
+	mls.ww += relPos.z*relPos.z*w;		// zz = ∑(yi - yj)^2*Wij*Vj
+
+}
+
+// contribution of neighbor at relative position relPos with weight w to the
+// MLS correction when B is the first row of the inverse MLS matrix
+__device__ __forceinline__ float
+MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
+{
+	return (B.x + B.y*relPos.x + B.z*relPos.y + B.w*relPos.z)*w;
+	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
+}
+
 
 // This kernel computes the MLS correction
 template<KernelType kerneltype>
@@ -1333,7 +1381,7 @@ MlsDevice(	const float4*	posArray,
 			const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -1348,19 +1396,20 @@ MlsDevice(	const float4*	posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
+
 	float4 vel = tex1Dfetch(velTex, index);
 
 	// MLS matrix elements
-	float a11 = 0.0f, a12 = 0.0f, a13 = 0.0f, a14 = 0.0f;
-	float a22 = 0.0f, a23 = 0.0f, a24 = 0.0f;
-	float a33 = 0.0f, a34 = 0.0f;
-	float a44 = 0.0f;
+	symtensor4 mls;
+	mls.xx = mls.xy = mls.xz = mls.xw =
+		mls.yy = mls.yz = mls.yw =
+		mls.zz = mls.zw = mls.ww = 0;
 
 	// number of neighbors
 	int neibs_num = 0;
 
 	// taking into account self contribution in MLS matrix construction
-	a11 = W<kerneltype>(0, slength)*pos.w/vel.w;
+	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
@@ -1370,7 +1419,7 @@ MlsDevice(	const float4*	posArray,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1394,17 +1443,8 @@ MlsDevice(	const float4*	posArray,
 		// interaction between two particles
 		if (r < influenceradius && FLUID(neib_info)) {
 			neibs_num ++;
-			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
-			a11 += w;						// a11 = ∑Wij*Vj
-			a12 += relPos.x*w;				// a12 = ∑(xi - xj)*Wij*Vj
-			a13 += relPos.y*w;				// a13 = ∑(yi - yj)*Wij*Vj
-			a14 += relPos.z*w;				// a14 = ∑(zi - zj)*Wij*Vj
-			a22 += relPos.x*relPos.x*w;		// a22 = ∑(xi - xj)^2*Wij*Vj
-			a23 += relPos.x*relPos.y*w;		// a23 = ∑(xi - xj)(yi - yj)*Wij*Vj
-			a24 += relPos.x*relPos.z*w;		// a23 = ∑(xi - xj)(zi - zj)*Wij*Vj
-			a33 += relPos.y*relPos.y*w;		// a33 = ∑(yi - yj)^2*Wij*Vj
-			a34 += relPos.y*relPos.z*w;		// a33 = ∑(yi - yj)(zi - zj)*Wij*Vj
-			a44 += relPos.z*relPos.z*w;		// a33 = ∑(yi - yj)^2*Wij*Vj
+			float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
+			MlsMatrixContrib(mls, relPos, w);
 		}
 	} // end of first loop trough neighbors
 
@@ -1416,34 +1456,24 @@ MlsDevice(	const float4*	posArray,
 	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
 	// and if the number of fluids neighbors if above a minimum
 	// value, otherwise no correction is applied
-	float maxa = fmaxf(fabsf(a11), fabsf(a12));
-	maxa = fmaxf(maxa, fabsf(a13));
-	maxa = fmaxf(maxa, fabsf(a14));
-	maxa = fmaxf(maxa, fabsf(a22));
-	maxa = fmaxf(maxa, fabsf(a23));
-	maxa = fmaxf(maxa, fabsf(a24));
-	maxa = fmaxf(maxa, fabsf(a33));
-	maxa = fmaxf(maxa, fabsf(a34));
-	maxa = fmaxf(maxa, fabsf(a44));
+	float maxa = norm_inf(mls);
 	maxa *= maxa;
 	maxa *= maxa;
-	float det = a11*(a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)
-			  + a12*(a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)
-			  + a13*(a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)
-			  + a14*(a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24);
-	if (det > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
+	float D = det(mls);
+	if (D > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
 		// first row of inverse matrix
-		det = 1/det;
-		const float b11 = (a22*a33*a44 + a23*a34*a24 + a24*a23*a34 - a22*a34*a34 - a23*a23*a44 - a24*a33*a24)*det;
-		const float b21 = (a12*a34*a34 + a23*a13*a44 + a24*a33*a14 - a12*a33*a44 - a23*a34*a14 - a24*a13*a34)*det;
-		const float b31 = (a12*a23*a44 + a22*a34*a14 + a24*a13*a24 - a12*a34*a24 - a22*a13*a44 - a24*a23*a14)*det;
-		const float b41 = (a12*a33*a24 + a22*a13*a34 + a23*a23*a14 - a12*a23*a34 - a22*a33*a14 - a23*a13*a24)*det;
+		D = 1/D;
+		float4 B;
+		B.x = (mls.yy*mls.zz*mls.ww + mls.yz*mls.zw*mls.yw + mls.yw*mls.yz*mls.zw - mls.yy*mls.zw*mls.zw - mls.yz*mls.yz*mls.ww - mls.yw*mls.zz*mls.yw)*D;
+		B.y = (mls.xy*mls.zw*mls.zw + mls.yz*mls.xz*mls.ww + mls.yw*mls.zz*mls.xw - mls.xy*mls.zz*mls.ww - mls.yz*mls.zw*mls.xw - mls.yw*mls.xz*mls.zw)*D;
+		B.z = (mls.xy*mls.yz*mls.ww + mls.yy*mls.zw*mls.xw + mls.yw*mls.xz*mls.yw - mls.xy*mls.zw*mls.yw - mls.yy*mls.xz*mls.ww - mls.yw*mls.yz*mls.xw)*D;
+		B.w = (mls.xy*mls.zz*mls.yw + mls.yy*mls.xz*mls.zw + mls.yz*mls.yz*mls.xw - mls.xy*mls.yz*mls.zw - mls.yy*mls.zz*mls.xw - mls.yz*mls.xz*mls.yw)*D;
 
 		// taking into account self contribution in density summation
-		vel.w = b11*W<kerneltype>(0, slength)*pos.w;
+		vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
 
 		// loop over all the neighbors (Second loop)
-		for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
 			if (neib_data == 0xffff) break;
@@ -1467,19 +1497,17 @@ MlsDevice(	const float4*	posArray,
 			// interaction between two particles
 			if (r < influenceradius && FLUID(neib_info)) {
 				const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
-				vel.w += (b11 + b21*relPos.x + b31*relPos.y
-							+ b41*relPos.z)*w;	 // ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
+				vel.w += MlsCorrContrib(B, relPos, w);
 			}
 		}  // end of second loop trough neighbors
 	} else {
 		// Resort to Sheppard filter in absence of invertible matrix
 		// see also shepardDevice. TODO: share the code
-		// we use a11 and a12 for temp1, temp2
-		a11 = pos.w*W<kerneltype>(0, slength);
-		a12 = a11/vel.w;
+		float temp1 = pos.w*W<kerneltype>(0, slength);
+		float temp2 = temp1/vel.w;
 
 		// loop over all the neighbors (Second loop)
-		for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
 			if (neib_data == 0xffff) break;
@@ -1505,12 +1533,12 @@ MlsDevice(	const float4*	posArray,
 					// ρj*Wij*Vj = mj*Wij
 					const float w = W<kerneltype>(r, slength)*relPos.w;
 					// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
-					a11 += w;
-					a12 +=w/neib_rho;
+					temp1 += w;
+					temp2 += w/neib_rho;
 			}
 		}  // end of second loop through neighbors
 
-		vel.w = a11/a12;
+		vel.w = temp1/temp2;
 	}
 
 	newVel[index] = vel;
@@ -1765,7 +1793,7 @@ calcVortDevice(	const	float4*		posArray,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1845,7 +1873,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1936,7 +1964,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	uint neib_cell_base_index = 0;
 
 	// First loop over all neighbors
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
@@ -1989,7 +2017,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 	// loop over all the neighbors (Second loop)
 	int nc = 0;
-	for(uint i = 0; i < d_maxneibsnum_time_numparticles; i += numParticles) {
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
 		if (neib_data == 0xffff) break;

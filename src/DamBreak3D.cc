@@ -23,11 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 #include <cmath>
 #include <iostream>
 
@@ -52,18 +47,12 @@
 DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 {
 	// Size and origin of the simulation domain
-//	lx = 1.6;
-//	ly = 0.67;
-//	lz = 0.6;
-//	H = 0.4;
-	lx = 3.22;
-	ly = 1.0;
-	lz = 1.0;
-	H = 0.55;
+	lx = 1.6;
+	ly = 0.67;
+	lz = 0.6;
+	H = 0.4;
 	wet = false;
 	m_usePlanes = true;
-	m_simparams.testpoints = true;
-	
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
@@ -71,25 +60,20 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
-	m_simparams.slength = 1.3*m_deltap;
-	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0003f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = false;
+	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.ferrari = 0.1;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
-	//m_simparams.visctype = DYNAMICVISC;
     m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 5.0f; //0.00036f
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
+	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
 	// Vorticity
@@ -99,11 +83,12 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mbcallback = false;
 
 	// Physical parameters
+	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
-	
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
 
@@ -114,25 +99,17 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc = 1.0e-2f;
+	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 3.0f;
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
 	m_writefreq = 5;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
-	create_problem_dir();
 }
 
 
@@ -159,12 +136,12 @@ int DamBreak3D::fill_parts()
 	experiment_box = Cube(Point(m_origin), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), Vector(0.161, 0, 0),
-					Vector(0, 0.403, 0), Vector(0, 0, 0.161));
+	obstacle = Cube(Point(m_origin + make_double3(0.9, 0.24, r0)), Vector(0.12, 0, 0),
+					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
 
 	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
-	
+
 	if (wet) {
 		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)), Vector(lx - H - m_deltap - 2*r0, 0, 0),
 					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
@@ -189,27 +166,7 @@ int DamBreak3D::fill_parts()
 		obstacle.Unfill(parts, r0);
 	}
 
-	// Setting probes for Spheric2 test case
-	//*******************************************************************
-	// Wave gages
-	add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
-	add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
-	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
-	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
-	// Pressure probes
-	if (m_simparams.testpoints) {
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
-		test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
-	}
-	//*******************************************************************
-
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + test_points.size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size();
 }
 
 uint DamBreak3D::fill_planes()
@@ -239,20 +196,11 @@ void DamBreak3D::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void DamBreak3D::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
-	glColor3f(1.0, 0.0, 0.0);
-	obstacle.GLDraw();
-}
-
-
 void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
 {
 	float4 localpos;
 	uint hashvalue;
-	int j;
+	int j = 0;
 
 	if(boundary_parts.size()){
 		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
@@ -294,6 +242,5 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
-
 	std::flush(std::cout);
 }

@@ -24,11 +24,6 @@
 */
 
 #include <cmath>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include <iostream>
 #include <stdexcept>
@@ -67,9 +62,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.05);
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -96,7 +88,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	m_origin = make_double3(0.0, 0.0, 0.0);
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0f, 7.0f, 20.f);
 
 	m_physparams.dcoeff = 50.47;
@@ -116,13 +107,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 #undef EB
 
-	// Scales for drawing
-	m_maxrho = density(H,0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0f;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 18.0f;
-
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
 	m_writefreq = 0;
@@ -130,7 +114,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "TestTopo";
-	create_problem_dir();
 }
 
 
@@ -181,12 +164,6 @@ void TestTopo::copy_planes(float4 *planes, float *planediv)
 
 	experiment_box->get_planes(planes, planediv);
 }
-
-void TestTopo::draw_boundary(float t)
-{
-	experiment_box->GLDraw();
-}
-
 
 void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {

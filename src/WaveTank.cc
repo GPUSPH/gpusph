@@ -25,11 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "WaveTank.h"
 
@@ -42,7 +37,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	lx = 9.0;
 	ly = 0.6;
 	lz = 1.0;
-	
+
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
@@ -59,7 +54,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    use_cyl = false;
+	use_cyl = false;
 	use_cone = false;
 
 	// use a plane for the bottom
@@ -67,9 +62,6 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.04);  //0.005f;
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00013;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -78,7 +70,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.shepardfreq = 20;
 	m_simparams.mlsfreq = 0;
 	//m_simparams.visctype = ARTVISC;
-	 m_simparams.visctype = KINEMATICVISC;
+	m_simparams.visctype = KINEMATICVISC;
 	//m_simparams.visctype = SPSVISC;
 	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
@@ -97,7 +89,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
-    // Physical parameters
+	// Physical parameters
 	H = 0.45;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
@@ -115,7 +107,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// BC when using LJ
 	m_physparams.dcoeff = 5.0*g*H;
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
 	m_physparams.MK_K = g*H;
@@ -140,21 +132,13 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	// values set by the call back function
 	mb_callback(0.0, 0.0, 0);
 
-	// Scales for drawing
-	m_maxrho = density(H, 0);
-	m_minrho = m_physparams.rho0[0];
-	m_minvel = 0.0;
-	//m_maxvel = sqrt(m_physparams.gravity*H);
-	m_maxvel = 0.4;
-
 	// Drawing and saving times
 	m_displayinterval = 0.01;
 	m_writefreq = 20;
 	m_screenshotfreq = 0;
-	
+
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
-	create_problem_dir();
 }
 
 
@@ -187,7 +171,6 @@ MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 	mbpaddledata.sintheta = sin(theta);
 	mbpaddledata.costheta = cos(theta);
 	mbpaddledata.dthetadt = dthetadt;
-        
 	return m_mbcallbackdata[0];
 }
 
@@ -197,7 +180,7 @@ int WaveTank::fill_parts()
 	const float r0 = m_physparams.r0;
 	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
-    experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
+	experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, height));
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
@@ -207,7 +190,7 @@ int WaveTank::fill_parts()
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
-   
+
 	paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	paddle.Fill(paddle_parts, br, true);
 
@@ -232,7 +215,7 @@ int WaveTank::fill_parts()
 		fluid.Fill(parts, m_deltap, true);
 		n++;
 	 }
-	
+
 	if (m_simparams.testpoints) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
@@ -241,7 +224,7 @@ int WaveTank::fill_parts()
 		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
 		test_points.push_back(pos);
 	}
-	
+
 	if (use_cyl) {
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
@@ -270,7 +253,7 @@ int WaveTank::fill_parts()
 		cone.FillBorder(boundary_parts, br, false, true);
 		cone.Unfill(parts, br);
     }
-	
+
 	return parts.size() + boundary_parts.size() + paddle_parts.size() + test_points.size();
 }
 
@@ -307,34 +290,6 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 		planediv[5] = 1.0;
 	}
 }
-
-
-void WaveTank::draw_boundary(float t)
-{
-	glColor3f(0.0, 1.0, 0.0);
-	experiment_box.GLDraw();
- 	bottom_rect.GLDraw();
-
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	glColor3f(1.0, 0.0, 0.0);
-	Rect actual_paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*mbpaddledata.sintheta, 0,
-						paddle_length*mbpaddledata.costheta));
-
-	actual_paddle.GLDraw();
-
-	glColor3f(0.5, 0.5, 1.0);
-	if (use_cyl) {
-			for (int i = 0; i < 11; i++) {
-				cyl[i].GLDraw();
-			}
-		}
-
-	if (use_cone) {
-		cone.GLDraw();
-		}
-}
-
 
 void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
 {

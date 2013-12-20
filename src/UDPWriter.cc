@@ -49,12 +49,6 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
     /* address */
     struct sockaddr_in my_address;
 
-    /* return values */
-    int err;
-
-    /* port as string */
-    char port_as_string[32];
-
     /* setup address */
     memset(&my_address, 0, sizeof(my_address));
     my_address.sin_family      = AF_INET;
@@ -202,9 +196,12 @@ UDPWriter::~UDPWriter() {
     close(mSocket);
 }
 
-void UDPWriter::write(uint numParts, const double4 *pos, const float4 *vel,
-    const particleinfo *info, const float3 *vort, float t,
-    const bool testpoints, const float4 *normals, const float4 *gradGamma, const float *tke, const float *turbvisc) {
+void
+UDPWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
+{
+	const double4 *pos = buffers.getData<BUFFER_POS_DOUBLE>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 
     static short is_initialized = 0;
     static int particles_in_last_packet = 0;
@@ -266,10 +263,10 @@ void UDPWriter::write(uint numParts, const double4 *pos, const float4 *vel,
             particles_in_last_packet : PTP_PARTICLES_PER_PACKET;
 
         // Copy particle data into packet
-        for(int i = 0; i < packet.particle_count; i++) {
+        for(uint i = 0; i < packet.particle_count; i++) {
             int offset = (pi * PTP_PARTICLES_PER_PACKET) + i;
             packet.data[i].id = offset;
-            packet.data[i].particle_type = info[i].x;
+            packet.data[i].particle_type = info[offset].x;
             memcpy(&packet.data[i].position, &pos[offset], sizeof(double4));
             total_particles_sent++;
         }

@@ -39,9 +39,12 @@
 #include "particledefine.h"
 #include "textures.cuh"
 #include "vector_math.h"
+// CELLTYPE_MASK_*
+#include "multi_gpu_defines.h"
 
 namespace cuneibs {
 __constant__ uint d_maxneibsnum;
+__constant__ idx_t d_neiblist_stride;
 __device__ int d_numInteractions;
 __device__ int d_maxNeibs;
 
@@ -148,6 +151,9 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 			   hashKey*			particleHash,	///< particle's hashes (in, out)
 			   uint*			particleIndex,	///< particle's indexes (out)
 			   const particleinfo*	particelInfo,	///< particle's informations (in)
+#if HASH_KEY_SIZE >= 64
+			   uint			*compactDeviceMap,
+#endif
 			   const uint		numParticles)	///< total number of particles
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -176,6 +182,11 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 #if HASH_KEY_SIZE >= 64
 		gridHash <<= GRIDHASH_BITSHIFT
 		gridHash |= id(pinfo[index]);
+		// prepare the 2 most significant bits of the hash (bitwise AND with 00111111...)
+		gridHash &= CELLTYPE_BITMASK_64;
+		// mark the cell as inner/outer and/or edge by setting the high bits
+		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
+		gridHash |= ((long unsigned int)compactDeviceMap[shortGridHash]) << GRIDHASH_BITSHIFT;
 #endif
 
 		// Adjust position
@@ -230,6 +241,9 @@ __global__
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells first particle (out)
 										uint*			cellEnd,		///< index of cells last particle (out)
+#if HASH_KEY_SIZE >= 64
+										uint*			segmentStart,
+#endif
 										float4*			sortedPos,		///< new sorted particle's positions (out)
 										float4*			sortedVel,		///< new sorted particle's velocities (out)
 										particleinfo*	sortedInfo,		///< new sorted particle's informations (out)
@@ -251,9 +265,17 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
+#if HASH_KEY_SIZE >= 64
+	// initialize segmentStarts
+	if (index < 4) segmentStart[index] = EMPTY_SEGMENT;
+#endif
+
 	uint hash;
 	// Handle the case when number of particles is not multiple of block size
 	if (index < numParticles) {
+		// To find where cells start/end we only need the cell part of the hash.
+		// Note: we do not reset the high bits since we need them to find the segments
+		// (aka where the outer particles begin)
 		hash = (uint)(particleHash[index] >> GRIDHASH_BITSHIFT);
 
 		// Load hash data into shared memory so that we can look
@@ -264,7 +286,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (index > 0 && threadIdx.x == 0) {
 			// first thread in block must load neighbor particle hash
 			sharedHash[0] = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
-			}
+		}
 	}
 
 	__syncthreads();
@@ -276,46 +298,87 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		// Store the index of this particle as the new cell start and as
 		// the previous cell end
 
+		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
+		// everytime we use a cell hash to access an element of CellStart or CellEnd
+
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
+			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
+#if HASH_KEY_SIZE >= 64
+			cellStart[hash & CELLTYPE_BITMASK_32] = index;
+#else
 			cellStart[hash] = index;
+#endif
 			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
+#if HASH_KEY_SIZE >= 64
+				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK_32] = index;
+#else
 				cellEnd[sharedHash[threadIdx.x]] = index;
+#endif
 		}
 
-		if (index == numParticles - 1)
+		if (index == numParticles - 1) {
+			// ditto
+#if HASH_KEY_SIZE >= 64
+			cellEnd[hash & CELLTYPE_BITMASK_32] = index + 1;
+#else
 			cellEnd[hash] = index + 1;
+#endif
+		}
+
+#if HASH_KEY_SIZE >= 64
+		// if the particle hash is 64bits long, also find the segment start
+		uchar curr_type = (hash & (~CELLTYPE_BITMASK_32)) >> 30;
+		uchar prev_type = (sharedHash[threadIdx.x] & (~CELLTYPE_BITMASK_32)) >> 30;
+		if (index == 0 || curr_type != prev_type)
+			segmentStart[curr_type] = index;
+#endif
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
 		const float4 pos = tex1Dfetch(posTex, sortedIndex);
 		const float4 vel = tex1Dfetch(velTex, sortedIndex);
 		const particleinfo info = tex1Dfetch(infoTex, sortedIndex);
-		const float4 boundelement = tex1Dfetch(boundTex, sortedIndex);
-		const float4 gradgamma = tex1Dfetch(gamTex, sortedIndex);
-		const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-		const float pressure = tex1Dfetch(presTex, sortedIndex);
-
-		const float keps_k = tex1Dfetch(keps_kTex, sortedIndex);
-		const float keps_e = tex1Dfetch(keps_eTex, sortedIndex);
-		const float tvisc = tex1Dfetch(tviscTex, sortedIndex);
-		const float strainrate = tex1Dfetch(strainTex, sortedIndex);
 
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
-		sortedBoundElements[index] = boundelement;
-		sortedGradGamma[index] = gradgamma;
-		sortedPressure[index] = pressure;
-		
-		sortedVertices[index].x = inversedParticleIndex[vertices.x];
-		sortedVertices[index].y = inversedParticleIndex[vertices.y];
-		sortedVertices[index].z = inversedParticleIndex[vertices.z];
 
-		sortedTKE[index] = keps_k;
-		sortedEps[index] = keps_e;
-		sortedTurbVisc[index] = tvisc;
-		sortedStrainRate[index] = strainrate;
+		if (sortedBoundElements) {
+			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);
+		}
+
+		if (sortedGradGamma) {
+			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
+		}
+
+		if (sortedPressure) {
+			sortedPressure[index] = tex1Dfetch(presTex, sortedIndex);
+		}
+
+		if (sortedVertices) {
+			const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+			sortedVertices[index] = make_vertexinfo(
+				inversedParticleIndex[vertices.x],
+				inversedParticleIndex[vertices.y],
+				inversedParticleIndex[vertices.z], 0);
+		}
+
+		if (sortedTKE) {
+			sortedTKE[index] = tex1Dfetch(keps_kTex, sortedIndex);
+		}
+
+		if (sortedEps) {
+			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
+		}
+		
+		if (sortedTurbVisc) {
+			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
+		}
+
+		if (sortedStrainRate) {
+			sortedStrainRate[index] = tex1Dfetch(strainTex, sortedIndex);
+		}
 	}
 }
 
@@ -452,7 +515,7 @@ neibsInCell(
 				// used for neighbor list construction
 				if (sqlength(relPos) < sqinfluenceradius) {
 					if (neibs_num < d_maxneibsnum) {
-						neibsList[neibs_num*numParticles + index] =
+						neibsList[neibs_num*d_neiblist_stride + index] =
 								neib_index - bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
 						encode_cell = false;
 					}
@@ -540,7 +603,7 @@ buildNeibsListDevice(
 		
 		// Setting the end marker
 		if (neibs_num < d_maxneibsnum) {
-			neibsList[neibs_num*numParticles + index] = 0xffff;
+			neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
 		}
 	}
 	

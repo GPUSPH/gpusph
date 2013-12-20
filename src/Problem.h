@@ -44,7 +44,11 @@
 #include "Object.h"
 
 #include "ode/ode.h"
+
 typedef std::vector<vertexinfo> VertexVect;
+
+// not including GlobalData.h since it needs the complete definition of the Problem class
+struct GlobalData;
 
 using namespace std;
 
@@ -59,7 +63,7 @@ class Problem {
 		const float	*m_dem;
 		int			m_ncols, m_nrows;
 
-		static int		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
+		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
 	public:
 		enum WriterType
 		{
@@ -68,6 +72,15 @@ class Problem {
 			VTKLEGACYWRITER,
 			CUSTOMTEXTWRITER,
 			UDPWRITER
+		};
+
+		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
+		enum SplitAxis
+		{
+			LONGEST_AXIS,
+			X_AXIS,
+			Y_AXIS,
+			Z_AXIS
 		};
 
 		dWorldID		m_ODEWorld;
@@ -79,12 +92,6 @@ class Problem {
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
-
-		// Min and max values used for display
-		float	m_maxrho;
-		float	m_minrho;
-		float	m_maxvel;
-		float	m_minvel;
 
 		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
@@ -109,7 +116,7 @@ class Problem {
 		int			m_mbnumber;							// number of moving boundaries
 
 		Object		**m_ODE_bodies;						// array of floating ODE objects
-		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided by ParticleSystem to euler
+		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
@@ -121,8 +128,13 @@ class Problem {
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
 		virtual void check_dt();
-		/* a function to increase the maxneibsnum if MF_BOUNDARY are used */
+		/* Find the minimum amount of maximum number of neighbors
+		 * per particle based on the kernel and boundary choice,
+		 * and compare against the user-set value (if any), or
+		 * just set it by default */
 		virtual void check_maxneibsnum();
+
+		string const& create_problem_dir();
 
 		Options const& get_options(void) const
 		{
@@ -154,14 +166,6 @@ class Problem {
 			return m_writerType;
 		};
 
-		float get_minrho(void) const { return m_minrho; };
-
-		float get_maxrho(void) const { return m_maxrho; };
-
-		float get_maxvel(void) const { return m_maxvel; };
-
-		float get_minvel(void) const { return m_minvel; };
-
 		float density(float, int) const;
 
 		float pressure(float, int) const;
@@ -179,7 +183,22 @@ class Problem {
 				m_deltap = m_options.deltap;
 			else
 				m_deltap = dflt;
+			// also udate the smoothing length
+			set_smoothing(m_simparams.sfactor);
+
 			return m_deltap;
+		}
+
+		/* set smoothing factor */
+		double set_smoothing(const double smooth)
+		{
+			return m_simparams.set_smoothing(smooth, m_deltap);
+		}
+
+		/* set kernel type and radius */
+		double set_kernel(KernelType kernel, double radius=0)
+		{
+			return m_simparams.set_kernel(kernel, radius);
 		}
 
 		void set_grid_params(void);
@@ -222,7 +241,6 @@ class Problem {
 		void add_gage(double x, double y, double z=0)
 		{ add_gage(make_double3(x, y, z)); }
 
-		string const& create_problem_dir();
 		bool need_display(float);
 		bool need_write(float);
 		void mark_written(float t) { m_last_write_time = t; }
@@ -234,8 +252,6 @@ class Problem {
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
-		virtual void draw_boundary(float) = 0;
-		virtual void draw_axis(void);
 		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*) = 0;
 		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, uint*) {};
 		virtual void copy_planes(float4*, float*);
@@ -254,9 +270,9 @@ class Problem {
 			problem->ODE_near_callback(data, o1, o2);
 		}
 
-		void allocate_ODE_bodies(const int);
+		void allocate_ODE_bodies(const uint);
 		void add_ODE_body(Object* object);
-		Object* get_ODE_body(const int);
+		Object* get_ODE_body(const uint);
 		void get_ODE_bodies_data(float3 * &, float * &);
 		float3* get_ODE_bodies_cg(void);
 		float* get_ODE_bodies_steprot(void);
@@ -265,6 +281,20 @@ class Problem {
 		int	get_ODE_bodies_numparts(void);
 		int	get_ODE_body_numparts(const int);
 
-		void init_keps(float*, float*, int, particleinfo*);
+		void init_keps(float*, float*, uint, particleinfo*);
+
+		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
+		virtual void fillDeviceMap(GlobalData* gdata);
+		// partition by splitting the cells according to their linearized hash
+		void fillDeviceMapByCellHash(GlobalData* gdata);
+		// partition by splitting along an axis. Default: along the longest
+		void fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis);
+		// partition by coordinates satistfying an example equation
+		void fillDeviceMapByEquation(GlobalData* gdata);
+		// partition by cutting the domain in parallelepipeds
+		void fillDeviceMapByRegularGrid(GlobalData* gdata);
+		// partition by performing the specified number of cuts along the three cartesian axes
+		void fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices);
+
 };
 #endif

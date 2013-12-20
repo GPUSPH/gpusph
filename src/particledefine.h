@@ -35,11 +35,9 @@
 #include "vector_math.h"
 #include "cuda_call.h"
 
-#ifndef dSINGLE
-#define dSINGLE
-#endif
-
 #include "ode/ode.h"
+
+#include "common_types.h"
 
 enum KernelType {
 	CUBICSPLINE = 1,
@@ -136,7 +134,6 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
-
 
 /* The particle type is a short integer organized this way:
    * lowest 4 bits: fluid number (for multifluid)
@@ -259,17 +256,6 @@ disable_particle(float4 &pos) {
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
 
-typedef unsigned int uint;
-
-typedef unsigned char uchar;
-
-typedef unsigned short neibdata;
-
-/*typedef struct neibdata {
-	uchar	cell;
-	uchar 	offset;
-} neibdata;*/
-
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
@@ -282,8 +268,6 @@ typedef unsigned short neibdata;
    _global_ particle id. This would allow us to uniquely identify up to
    2^48 (about 281 trillion) particles.
 */
-
-typedef short4 particleinfo;
 
 inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const short &z, const short &w)
 {
@@ -328,7 +312,5 @@ static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(uint*)&info.z;
 }
-
-typedef uint4 vertexinfo;
 
 #endif
