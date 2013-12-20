@@ -61,7 +61,12 @@ SphericTest2::SphericTest2(const Options &options) : Problem(options)
 	//m_writerType = UDPWRITER;
 
 	// SPH parameters
+	// ratio h / deltap (needs to be defined before calling set_deltap)
+	m_simparams.sfactor = 1.3;
+	// set deltap (automatically computes h based on sfactor * deltap)
 	set_deltap(0.02); //0.008
+	m_simparams.kernelradius = 2.0;
+	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0003f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -74,7 +79,7 @@ SphericTest2::SphericTest2(const Options &options) : Problem(options)
 	//m_simparams.visctype = SPSVISC;
 	//m_simparams.visctype = DYNAMICVISC;
 	m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 5.0f;
+	m_simparams.tend = 1.0f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = true;
@@ -142,8 +147,9 @@ int SphericTest2::fill_parts()
 	experiment_box = Cube(Point(m_origin), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(m_origin + make_double3(0.9, 0.24, r0)), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
+	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), Vector(0.161, 0, 0),
+				Vector(0, 0.403, 0), Vector(0, 0, 0.161));
+
 
 	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));

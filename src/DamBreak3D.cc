@@ -69,7 +69,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.mlsfreq = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
-    m_simparams.boundarytype= LJ_BOUNDARY;
+	m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 5.0f; //0.00036f
 
 	// Free surface detection
