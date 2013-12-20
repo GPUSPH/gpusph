@@ -672,7 +672,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 {
 
 	// define host buffers
-	gdata->s_hBuffers << new HostBuffer<BUFFER_POS_DOUBLE>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_POS_GLOBAL>();
 	gdata->s_hBuffers << new HostBuffer<BUFFER_POS>();
 	gdata->s_hBuffers << new HostBuffer<BUFFER_HASH>();
 	gdata->s_hBuffers << new HostBuffer<BUFFER_VEL>();
@@ -1079,7 +1079,7 @@ void GPUSPH::doWrite()
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 
-		gdata->s_hBuffers.getData<BUFFER_POS_DOUBLE>()[i] = dpos;
+		gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>()[i] = dpos;
 	}
 	// TODO convert writers to use the buffer list, pass node offset as an extra param
 	gdata->writer->write(

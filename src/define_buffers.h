@@ -42,10 +42,10 @@
 
 // start from FIRST_DEFINED_BUFFER
 // double-precision position buffer (used on host only)
-#define BUFFER_POS_DOUBLE	FIRST_DEFINED_BUFFER
-SET_BUFFER_TRAITS(BUFFER_POS_DOUBLE, double4, 1, "Position (double precision)");
+#define BUFFER_POS_GLOBAL	FIRST_DEFINED_BUFFER
+SET_BUFFER_TRAITS(BUFFER_POS_GLOBAL, double4, 1, "Position (double precision)");
 
-#define BUFFER_POS			(BUFFER_POS_DOUBLE << 1)
+#define BUFFER_POS			(BUFFER_POS_GLOBAL << 1)
 SET_BUFFER_TRAITS(BUFFER_POS, float4, 2, "Position");
 #define BUFFER_VEL			(BUFFER_POS << 1)
 SET_BUFFER_TRAITS(BUFFER_VEL, float4, 2, "Velocity");

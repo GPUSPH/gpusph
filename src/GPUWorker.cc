@@ -1113,10 +1113,10 @@ void GPUWorker::uploadSubdomain() {
 	if (howManyParticles == 0) return;
 
 	// buffers to skip in the upload. Rationale:
-	// POS_DOUBLE is computed on host from POS and HASH
+	// POS_GLOBAL is computed on host from POS and HASH
 	// NORMALS and VORTICITY are post-processing, so always produced on device
 	// and _downloaded_ to host, never uploaded
-	static const flag_t skip_bufs = BUFFER_POS_DOUBLE |
+	static const flag_t skip_bufs = BUFFER_POS_GLOBAL |
 		BUFFER_NORMALS | BUFFER_VORTICITY;
 
 	// iterate over each array in the _host_ buffer list, and upload data
