@@ -52,7 +52,6 @@
 /* Include all other opt file for show_version */
 #include "gpusph_version.opt"
 #include "fastmath_select.opt"
-#include "dbg_select.opt"
 #include "compute_select.opt"
 
 using namespace std;
