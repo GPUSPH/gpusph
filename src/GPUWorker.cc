@@ -60,15 +60,12 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
 	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
+	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
 
 	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
 	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
 	m_dBuffers << new CUDABuffer<BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
-	if (m_simparams->boundarytype == MF_BOUNDARY)
-		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
-
-	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
 	if (m_simparams->xsph)
 		m_dBuffers << new CUDABuffer<BUFFER_XSPH>();
 
@@ -90,6 +87,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	}
 
 	if (m_simparams->boundarytype == MF_BOUNDARY) {
+		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();

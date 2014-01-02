@@ -616,6 +616,10 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_VORTICITY;
 			}
 
+			// get GradGamma
+			if (gdata->problem->get_simparams()->boundarytype == MF_BOUNDARY)
+				which_buffers |= BUFFER_GRADGAMMA;
+
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
 			// not to call, since it has been called at least once for sure
@@ -689,6 +693,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
 		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_GRADGAMMA>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_PRESSURE>();
 	}
 
 	if (problem->m_simparams.visctype == KEPSVISC) {
