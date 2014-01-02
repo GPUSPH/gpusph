@@ -1014,29 +1014,39 @@ updateBoundValuesDevice(	float4*		oldVel,
 	
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
-		const vertexinfo vertices = tex1Dfetch(vertTex, index);
-		//const float ro1 = oldVel[vertices.x].w;
-		//const float ro2 = oldVel[vertices.y].w;
-		//const float ro3 = oldVel[vertices.z].w;
-		const float4 vel1 = oldVel[vertices.x];
-		const float4 vel2 = oldVel[vertices.y];
-		const float4 vel3 = oldVel[vertices.z];
-		const float pres1 = oldPressure[vertices.x];
-		const float pres2 = oldPressure[vertices.y];
-		const float pres3 = oldPressure[vertices.z];
-		const float k1 = oldTKE[vertices.x];
-		const float k2 = oldTKE[vertices.y];
-		const float k3 = oldTKE[vertices.z];
-		const float eps1 = oldEps[vertices.x];
-		const float eps2 = oldEps[vertices.y];
-		const float eps3 = oldEps[vertices.z];
-
 		if (BOUNDARY(info)) {
+			// get vertex indices associated to the boundary segment
+			const vertexinfo vertices = tex1Dfetch(vertTex, index);
+			// segment values are equal to the averaged vertex values
+			// density
+			//const float ro1 = oldVel[vertices.x].w;
+			//const float ro2 = oldVel[vertices.y].w;
+			//const float ro3 = oldVel[vertices.z].w;
 			//oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
+			// velocity
+			const float4 vel1 = oldVel[vertices.x];
+			const float4 vel2 = oldVel[vertices.y];
+			const float4 vel3 = oldVel[vertices.z];
 			oldVel[index] = (vel1 + vel2 + vel3)/3.f;
+			// pressure
+			const float pres1 = oldPressure[vertices.x];
+			const float pres2 = oldPressure[vertices.y];
+			const float pres3 = oldPressure[vertices.z];
 			oldPressure[index] = (pres1 + pres2 + pres3)/3.f;
-			oldTKE[index] = (k1 + k2 + k3)/3.f;
-			oldEps[index] = (eps1 + eps2 + eps3)/3.f;
+			// turbulent kinetic energy
+			if (oldTKE) {
+				const float k1 = oldTKE[vertices.x];
+				const float k2 = oldTKE[vertices.y];
+				const float k3 = oldTKE[vertices.z];
+				oldTKE[index] = (k1 + k2 + k3)/3.f;
+			}
+			// epsilon
+			if (oldEps) {
+				const float eps1 = oldEps[vertices.x];
+				const float eps2 = oldEps[vertices.y];
+				const float eps3 = oldEps[vertices.z];
+				oldEps[index] = (eps1 + eps2 + eps3)/3.f;
+			}
 		}
 		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma keeping initial velocity values, if given
 		if (initStep && (FLUID(info) || VERTEX(info))) {
@@ -1119,7 +1129,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 		const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 		const float neib_vel = length(make_float3(oldVel[neib_index]));
-		const float neib_k = oldTKE[neib_index];
+		const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
@@ -1135,8 +1145,10 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
 		oldPressure[index] = temp2*oldVel[index].w/alpha;
 		//oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
-		oldTKE[index] = temp3/alpha;
-		oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
+		if (oldTKE)
+			oldTKE[index] = temp3/alpha;
+		if (oldEps)
+			oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
 }
 
