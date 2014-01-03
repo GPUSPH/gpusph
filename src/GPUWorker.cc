@@ -1579,6 +1579,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
+			case INVINDEX:
+				//printf(" T %d issuing INVINDEX\n", deviceIndex);
+				instance->kernel_inverseParticleIndex();
+				break;
 			case CROP:
 				//printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
@@ -1746,6 +1750,18 @@ void GPUWorker::kernel_sort()
 	sort(	m_dBuffers.getData<BUFFER_HASH>(),
 			m_dBuffers.getData<BUFFER_PARTINDEX>(),
 			numPartsToElaborate);
+}
+
+void GPUWorker::kernel_inverseParticleIndex()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	inverseParticleIndex (	m_dBuffers.getData<BUFFER_PARTINDEX>(),
+							m_dBuffers.getData<BUFFER_INVINDEX>(),
+							numPartsToElaborate);
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()

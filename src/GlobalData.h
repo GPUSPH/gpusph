@@ -67,6 +67,7 @@ enum CommandType {
 	IDLE,				// do a dummy cycle
 	CALCHASH,			// run calcHash kernel
 	SORT,				// run thrust::sort
+	INVINDEX,			// save the old index for segment connectivity
 	CROP,				// crop out all the external particles
 	REORDER,			// run reorderAndFindCellStart kernel
 	BUILDNEIBS,			// run buildNeibs kernel
