@@ -198,15 +198,20 @@ endif
 NVCC += -ccbin=$(CXX)
 
 # We have to link with NVCC because otherwise thrust has issues on Mac OSX,
-# but we also need to link with MPICXX, so:
-LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+# but we also need to link with MPICXX, so we would like to use:
+#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
+# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
+# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
+# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
+# options required by MPICXX at link time:
 
-# This should also work on the Mac, assuming MPICXX will default to using
-# our CXX compilter.
-# As an alternative, we could just link using NVCC with -ccbin=$(CXX) and get
-# the extra variables from $(shell $(MPICXX) --showme:link), something like:
-#MPILDFLAGS=$(shell $(MPICXX) --showme:link)
-#LINKER ?= $(NVCC) -Xcompiler $(subst $(space),$(comma),$(strip $(MPILDFLAGS)))
+MPILDFLAGS ?=
+MPILDFLAGS += $(shell $(MPICXX) --showme:link)
+LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPILDFLAGS)))
+
+# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
