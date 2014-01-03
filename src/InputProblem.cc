@@ -1,5 +1,6 @@
 #include <math.h>
 #include <iostream>
+#include <vector>
 
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
@@ -235,7 +236,7 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	//*******************************************************************
 	if(n_probeparts) {
 		std::cout << "Probe parts: " << n_probeparts << "\n";
-		float4 probe_coord[n_probeparts];
+		std::vector<float4> probe_coord(n_probeparts);
 
 		// Probe H1
 		for (uint i = 0; i < 50; i++) {

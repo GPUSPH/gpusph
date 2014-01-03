@@ -25,6 +25,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 #include "SphericTest2.h"
 #include "Cube.h"
@@ -275,7 +276,7 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	//*******************************************************************
 	if(n_probeparts) {
 		std::cout << "Probe parts: " << n_probeparts << "\n";
-		Point probe_coord[n_probeparts];
+		std::vector<Point> probe_coord(n_probeparts);
 
 		// Probe H1
 		for (uint i = 0; i < 50; i++) {
