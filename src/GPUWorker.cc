@@ -1668,6 +1668,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case MEAN_STRAIN:
 				//printf(" T %d issuing MEAN_STRAIN\n", deviceIndex);
 				instance->kernel_meanStrain();
+				break;
 			case REDUCE_BODIES_FORCES:
 				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
