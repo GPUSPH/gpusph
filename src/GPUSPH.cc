@@ -1181,7 +1181,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// Move the particles
-		doCommand(MF_UPDATE_POS, deltat);
+		doCommand(MF_UPDATE_POS, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_POS);
