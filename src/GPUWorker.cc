@@ -2152,6 +2152,7 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 	uint velRead = secondStep ? gdata->currentWrite[BUFFER_VEL] : gdata->currentRead[BUFFER_VEL];
 	uint tkeRead = secondStep ? gdata->currentWrite[BUFFER_TKE] : gdata->currentRead[BUFFER_TKE];
 	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
+	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
 	updateBoundValues(
 				m_dBuffers.getData<BUFFER_VEL>(velRead),
@@ -2162,7 +2163,7 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
 				numPartsToElaborate,
-				true);
+				initStep);
 }
 
 void GPUWorker::kernel_dynamicBoundaryConditions()
