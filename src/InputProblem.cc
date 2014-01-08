@@ -183,7 +183,6 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	const char *ch_inputfile = inputfile.c_str();
 	uint npart = HDF5SphReader::getNParts(ch_inputfile);
 	float4 localpos;
-	uint hashvalue;
 
 	HDF5SphReader::ReadParticles *buf = new HDF5SphReader::ReadParticles[npart];
 	HDF5SphReader::readParticles(buf, ch_inputfile, npart);
@@ -211,23 +210,11 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 		//float rho = density(H - buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
 		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
-		hash[i] = hashvalue;
 	}
 	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
-
-	//Testpoints
-	if (test_points.size()) {
-		std::cout << "\nTest points: " << test_points.size() << "\n";
-		for (uint i = 0; i < test_points.size(); i++) {
-			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
-		}
-		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
-	}
 
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
@@ -257,6 +244,20 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 		}
 		j += n_bparts;
 		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
+	}
+	// Make sure that fluid + vertex + boundaries are done in that order
+	// before adding any other items like testpoints, etc.
+
+	//Testpoints
+	if (test_points.size()) {
+		std::cout << "\nTest points: " << test_points.size() << "\n";
+		for (uint i = j; i < j+test_points.size(); i++) {
+			calc_localpos_and_hash(test_points[i-j], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+		}
+		j += test_points.size();
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
 	std::flush(std::cout);
