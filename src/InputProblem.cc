@@ -1,6 +1,5 @@
 #include <math.h>
 #include <iostream>
-#include <vector>
 
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
@@ -18,7 +17,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 //	set_deltap(0.1f);
 
-//	n_probeparts = 0;
+//	m_simparams.testpoints = false;
 //	H = 2.0;
 //	l = 2.0; w = 2.0; h = 2.2;
 
@@ -41,7 +40,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 //	m_physparams.kinematicvisc = 1.0e-6f;
 //	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
-//	n_probeparts = 208;
+//	m_simparams.testpoints = true;
 //	H = 0.55;
 //	l = 3.5; w = 1.0; h = 1.0;
 	//*************************************************************************************
@@ -54,7 +53,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 //	set_deltap(0.0075f);
 
-//	n_probeparts = 0;
+//	m_simparams.testpoints = false;
 //	H = 0.2;
 //	l = 0.75; w = 0.675; h = 0.4;
 
@@ -67,7 +66,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 //	set_deltap(0.01f);
 
-//	n_probeparts = 0;
+//	m_simparams.testpoints = false;
 //	H = 0.25;
 //	l = 1.019; w = 0.785; h = 0.4;
 
@@ -90,7 +89,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	set_deltap(0.02f);
 
-	n_probeparts = 0;
+	m_simparams.testpoints = false;
 	H = 1.0;
 	l = 0.26; w = 0.26; h = 1.0;
 
@@ -153,7 +152,28 @@ int InputProblem::fill_parts()
 {
 	std::cout << std::endl << "Reading particle data from the input:" << std::endl << inputfile << std::endl;
 	const char *ch_inputfile = inputfile.c_str();
-	int npart = HDF5SphReader::getNParts(ch_inputfile) + n_probeparts;
+
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	// Wave gages
+	add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
+	add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
+	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
+	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
+	// Pressure probes
+	if (m_simparams.testpoints) {
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
+		test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+	}
+	//*******************************************************************
+
+	int npart = HDF5SphReader::getNParts(ch_inputfile) + test_points.size();
 
 	return npart;
 }
@@ -190,89 +210,56 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), localpos, hashvalue);
-		pos[i] = localpos;
-		vel[i] = make_float4(0, 0, 0, rho);
+		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		hash[i] = hashvalue;
 	}
 	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 
-	std::cout << "Vertex parts: " << n_vparts << "\n";
-	for (uint i = j; i < j + n_vparts; i++) {
-		float rho = density(H - buf[i].Coords_2, 0);
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), localpos, hashvalue);
-		pos[i] = localpos;
-		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(VERTEXPART, 0, i);
-		hash[i] = hashvalue;
+	//Testpoints
+	if (test_points.size()) {
+		std::cout << "\nTest points: " << test_points.size() << "\n";
+		for (uint i = 0; i < test_points.size(); i++) {
+			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+		}
+		j += test_points.size();
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
-	j += n_vparts;
-	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 
-	std::cout << "Boundary parts: " << n_bparts << "\n";
-	for (uint i = j; i < j + n_bparts; i++) {
-		// Crixus sets zero volume for boundary particles resulting in zero mass. It doesn't affect calculations, but it
-		// contradicts with new feature of indication particles, which left the outlet, by zeroing their mass.
-		// To avoid problems masses of boundary particles are set to 99
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 99.0), localpos, hashvalue);
-		pos[i] = localpos;
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
-		hash[i] = hashvalue;
-		vertices[i].x = buf[i].VertexParticle1;
-		vertices[i].y = buf[i].VertexParticle2;
-		vertices[i].z = buf[i].VertexParticle3;
-		boundelm[i].x = buf[i].Normal_0;
-		boundelm[i].y = buf[i].Normal_1;
-		boundelm[i].z = buf[i].Normal_2;
-		boundelm[i].w = buf[i].Surface;
+	if(n_vparts) {
+		std::cout << "Vertex parts: " << n_vparts << "\n";
+		for (uint i = j; i < j + n_vparts; i++) {
+			float rho = density(H - buf[i].Coords_2, 0);
+			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, rho);
+			info[i] = make_particleinfo(VERTEXPART, 0, i);
+		}
+		j += n_vparts;
+		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
-	j += n_bparts;
-	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
-	// Setting probes for Spheric2 test case
-	//*******************************************************************
-	if(n_probeparts) {
-		std::cout << "Probe parts: " << n_probeparts << "\n";
-		std::vector<float4> probe_coord(n_probeparts);
-
-		// Probe H1
-		for (uint i = 0; i < 50; i++) {
-			probe_coord[i] = make_float4(2.724, 0.5, 0.02*i, 0);
+	if(n_bparts) {
+		std::cout << "Boundary parts: " << n_bparts << "\n";
+		for (uint i = j; i < j + n_bparts; i++) {
+			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 0.0), pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i] = make_particleinfo(BOUNDPART, 0, i);
+			vertices[i].x = buf[i].VertexParticle1;
+			vertices[i].y = buf[i].VertexParticle2;
+			vertices[i].z = buf[i].VertexParticle3;
+			boundelm[i].x = buf[i].Normal_0;
+			boundelm[i].y = buf[i].Normal_1;
+			boundelm[i].z = buf[i].Normal_2;
+			boundelm[i].w = buf[i].Surface;
 		}
-		// Probe H2
-		for (uint i = 50; i < 100; i++) {
-			probe_coord[i] = make_float4(2.228, 0.5, 0.02*(i-50), 0);
-		}
-		// Probe H3
-		for (uint i = 100; i < 150; i++) {
-			probe_coord[i] = make_float4(1.732, 0.5, 0.02*(i-100), 0);
-		}
-		// Probe H4
-		for (uint i = 150; i < 200; i++) {
-			probe_coord[i] = make_float4(0.582, 0.5, 0.02*(i-150), 0);
-		}
-		// Pressure probes
-		probe_coord[200] = make_float4(2.3955, 0.529, 0.021, 0); // Probe P1
-		probe_coord[201] = make_float4(2.3955, 0.529, 0.061, 0); // Probe P2
-		probe_coord[202] = make_float4(2.3955, 0.529, 0.101, 0); // Probe P3
-		probe_coord[203] = make_float4(2.3955, 0.529, 0.141, 0); // Probe P4
-		probe_coord[204] = make_float4(2.4165, 0.471, 0.161, 0); // Probe P5
-		probe_coord[205] = make_float4(2.4565, 0.471, 0.161, 0); // Probe P6
-		probe_coord[206] = make_float4(2.4965, 0.471, 0.161, 0); // Probe P7
-		probe_coord[207] = make_float4(2.5365, 0.471, 0.161, 0); // Probe P8
-
-		for (uint i = j; i < j + n_probeparts; i++) {
-			calc_localpos_and_hash(probe_coord[i-j], localpos, hashvalue);
-			pos[i] = localpos;
-			vel[i] = make_float4(0, 0, 0, 1000);
-			info[i] = make_particleinfo(PROBEPART, 0, i);
-			hash[i] = hashvalue;
-		}
+		j += n_bparts;
+		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 	}
-	//*******************************************************************
+
+	std::flush(std::cout);
 
 	delete [] buf;
 }

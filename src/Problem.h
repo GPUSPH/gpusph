@@ -235,7 +235,7 @@ class Problem {
 
 		inline
 		void add_gage(double2 const& pt)
-		{ add_gage(make_double3(pt)); }
+		{ add_gage(make_double3(pt.x, pt.y, 0.0)); }
 
 		inline
 		void add_gage(double x, double y, double z=0)

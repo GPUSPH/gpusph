@@ -498,9 +498,9 @@ neibsInCell(
 	bool encode_cell = true;
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
-		// Test and probe points are not considered in neighboring list of other particles since they are imaginary particles.
+		// Test points are not considered in neighboring list of other particles since they are imaginary particles.
     	const particleinfo info = tex1Dfetch(infoTex, neib_index);
-        if (!TESTPOINTS (info) && !PROBE(info)) {
+        if (!TESTPOINTS (info)) {
         	// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
@@ -574,8 +574,8 @@ buildNeibsListDevice(
 		// This is also not true for "Ferrand et al." boundary model,
 		// where vertex particles also need to have a list of neighbours
 
-		// Neighbor list is build for fluid, object, vertex and probe particles
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || PROBE(info)/*TODO: || BOUNDARY(info)*/) {
+		// Neighbor list is build for fluid, object, vertex and test particles
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) /*TODO: || BOUNDARY(info)*/) {
 			// Get particle position
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);

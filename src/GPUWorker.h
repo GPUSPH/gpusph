@@ -174,6 +174,7 @@ private:
 	// kernels
 	void kernel_calcHash();
 	void kernel_sort();
+	void kernel_inverseParticleIndex();
 	void kernel_reorderDataAndFindCellStart();
 	void kernel_buildNeibsList();
 	void kernel_forces();
