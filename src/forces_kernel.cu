@@ -1053,6 +1053,7 @@ updateBoundValuesDevice(	float4*		oldVel,
 			oldVel[index].x = 0;
 			oldVel[index].y = 0;
 			oldVel[index].z = 0;
+			oldVel[index].w = 1000.0;
 		}
 	}
 }
