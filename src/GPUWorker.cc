@@ -80,13 +80,13 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	if (m_simparams->dtadapt) {
 		m_dBuffers << new CUDABuffer<BUFFER_CFL>();
 		m_dBuffers << new CUDABuffer<BUFFER_CFL_TEMP>();
-		if (m_simparams->boundarytype == MF_BOUNDARY)
+		if (m_simparams->boundarytype == SA_BOUNDARY)
 			m_dBuffers << new CUDABuffer<BUFFER_CFL_GAMMA>();
 		if (m_simparams->visctype == KEPSVISC)
 			m_dBuffers << new CUDABuffer<BUFFER_CFL_KEPS>();
 	}
 
-	if (m_simparams->boundarytype == MF_BOUNDARY) {
+	if (m_simparams->boundarytype == SA_BOUNDARY) {
 		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();

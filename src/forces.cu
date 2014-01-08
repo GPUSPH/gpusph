@@ -121,7 +121,7 @@ void*	reduce_buffer = NULL;
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
 		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
-		BOUNDARY_CHECK(MF_BOUNDARY, dem); \
+		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
@@ -489,7 +489,7 @@ forces(
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	if (boundarytype == MF_BOUNDARY) {
+	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, presTex, pressure, numParticles*sizeof(float)));
@@ -533,7 +533,7 @@ forces(
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
-	if (boundarytype == MF_BOUNDARY) {
+	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
@@ -573,7 +573,7 @@ forces(
 				dt = dt_visc;
 		}
 
-		if(boundarytype == MF_BOUNDARY) {
+		if(boundarytype == SA_BOUNDARY) {
 			float dt_gamma = 0.005/cflmax(numBlocks, cflGamma, tempCfl);
 			if (dt_gamma < dt)
 				dt = dt_gamma;

@@ -85,7 +85,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
-	MF_BOUNDARY,
+	SA_BOUNDARY,
 	INVALID_BOUNDARY
 };
 

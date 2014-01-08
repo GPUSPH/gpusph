@@ -117,7 +117,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 	m_simparams.ferrari = 0.1;
 	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = MF_BOUNDARY;
+	m_simparams.boundarytype = SA_BOUNDARY;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
