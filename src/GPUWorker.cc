@@ -159,7 +159,10 @@ size_t GPUWorker::computeMemoryPerParticle()
 	//uint*		m_dRbNum;
 
 	// round up to next multiple of 4
-	return (tot/4 + 1) * 4;
+	tot = (tot/4 + 1) * 4;
+	if (m_deviceIndex == 0)
+		printf("Estimated memory consumption: %zuB/particle\n", tot);
+	return tot;
 }
 
 // Compute the bytes required for each cell.
