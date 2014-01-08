@@ -251,8 +251,8 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	//Testpoints
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
-		for (uint i = 0; i < test_points.size(); i++) {
-			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
+		for (uint i = j; i < j+test_points.size(); i++) {
+			calc_localpos_and_hash(test_points[i-j], pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
 		}
