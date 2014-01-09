@@ -44,7 +44,7 @@ endif
 
 # system information
 platform=$(shell uname -s 2>/dev/null)
-platform_lcase=$(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
+platform_lcase=$(shell uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
 arch=$(shell uname -m)
 
 # sed syntax differs a bit
