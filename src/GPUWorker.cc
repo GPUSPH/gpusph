@@ -84,18 +84,17 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	if (m_simparams->dtadapt) {
 		m_dBuffers << new CUDABuffer<BUFFER_CFL>();
 		m_dBuffers << new CUDABuffer<BUFFER_CFL_TEMP>();
-		if (m_simparams->boundarytype == MF_BOUNDARY)
+		if (m_simparams->boundarytype == SA_BOUNDARY)
 			m_dBuffers << new CUDABuffer<BUFFER_CFL_GAMMA>();
 		if (m_simparams->visctype == KEPSVISC)
 			m_dBuffers << new CUDABuffer<BUFFER_CFL_KEPS>();
 	}
 
-	if (m_simparams->boundarytype == MF_BOUNDARY) {
+	if (m_simparams->boundarytype == SA_BOUNDARY) {
 		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
-		m_dBuffers << new CUDABuffer<BUFFER_PRESSURE>();
 	}
 
 	if (m_simparams->visctype == KEPSVISC) {
@@ -1792,7 +1791,6 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
 							m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 							m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
-							m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentWrite[BUFFER_PRESSURE]),
 							m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentWrite[BUFFER_TURBVISC]),
@@ -1810,7 +1808,6 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 							m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 							m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
-							m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 							m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
@@ -1866,7 +1863,6 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-						m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 						m_dRbForces,
 						m_dRbTorques,
 						m_dBuffers.getData<BUFFER_XSPH>(),
@@ -1905,7 +1901,6 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n+1/2)
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-						m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 						m_dRbForces,
 						m_dRbTorques,
 						m_dBuffers.getData<BUFFER_XSPH>(),
@@ -2163,7 +2158,6 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 
 	updateBoundValues(
 				m_dBuffers.getData<BUFFER_VEL>(velRead),
-				m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
 				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
@@ -2191,7 +2185,6 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 	dynamicBoundConditions(
 				m_dBuffers.getData<BUFFER_POS>(posRead),   // pos(n)
 				m_dBuffers.getData<BUFFER_VEL>(velRead),   // vel(n)
-				m_dBuffers.getData<BUFFER_PRESSURE>(gdata->currentRead[BUFFER_PRESSURE]),
 				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
 				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),

@@ -122,7 +122,7 @@ Problem::check_maxneibsnum(void)
 	// with semi-analytical boundaries, boundary particles
 	// are doubled, so we expand by a factor of 1.5,
 	// again rounding up
-	if (m_simparams.boundarytype == MF_BOUNDARY)
+	if (m_simparams.boundarytype == SA_BOUNDARY)
 		maxneibsnum = round_up(3*maxneibsnum/2, 32U);
 
 	// if the maxneibsnum was user-set, check against computed minimum
@@ -680,7 +680,7 @@ Problem::set_grid_params(void)
 	// with semi-analytical boundaries, we want a cell size which is
 	// deltap + the usual influence radius
 	double cellSide = influenceRadius;
-	if (m_simparams.boundarytype == MF_BOUNDARY)
+	if (m_simparams.boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap;
 
 	m_gridsize.x = floor(m_size.x / cellSide);

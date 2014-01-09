@@ -121,7 +121,7 @@ void*	reduce_buffer = NULL;
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
 		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
-		BOUNDARY_CHECK(MF_BOUNDARY, dem); \
+		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
@@ -190,7 +190,7 @@ void*	reduce_buffer = NULL;
 #define DYNBOUNDARY_CHECK(kernel) \
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldPressure, oldTKE, oldEps, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius); \
+				 (oldPos, oldVel, oldTKE, oldEps, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius); \
 	break
 
 extern "C"
@@ -449,7 +449,6 @@ forces(
 			float4	*forces,
 	const	float4	*gradgam,
 	const	float4	*boundelem,
-	const	float	*pressure,
 			float4	*rbforces,
 			float4	*rbtorques,
 			float4	*xsph,
@@ -489,10 +488,9 @@ forces(
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	if (boundarytype == MF_BOUNDARY) {
+	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, presTex, pressure, numParticles*sizeof(float)));
 	}
 
 	if (visctype == KEPSVISC) {
@@ -533,10 +531,9 @@ forces(
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
-	if (boundarytype == MF_BOUNDARY) {
+	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
 	}
 
 	if (visctype == KEPSVISC) {
@@ -573,7 +570,7 @@ forces(
 				dt = dt_visc;
 		}
 
-		if(boundarytype == MF_BOUNDARY) {
+		if(boundarytype == SA_BOUNDARY) {
 			float dt_gamma = 0.005/cflmax(numBlocks, cflGamma, tempCfl);
 			if (dt_gamma < dt)
 				dt = dt_gamma;
@@ -1177,7 +1174,6 @@ updatePositions(	float4*		oldPos,
 
 void
 updateBoundValues(	float4*		oldVel,
-			float*		oldPressure,
 			float*		oldTKE,
 			float*		oldEps,
 			vertexinfo*	vertices,
@@ -1193,7 +1189,7 @@ updateBoundValues(	float4*		oldVel,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	//execute kernel
-	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldPressure, oldTKE, oldEps, numParticles, initStep);
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldTKE, oldEps, numParticles, initStep);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
@@ -1205,7 +1201,6 @@ updateBoundValues(	float4*		oldVel,
 void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
-			float*			oldPressure,
 			float*			oldTKE,
 			float*			oldEps,
 			const particleinfo*	info,
