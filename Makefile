@@ -206,9 +206,28 @@ NVCC += -ccbin=$(CXX)
 # The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
 # options required by MPICXX at link time:
 
-MPILDFLAGS ?=
-MPILDFLAGS += $(shell $(MPICXX) --showme:link)
-LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPILDFLAGS)))
+## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
+# We use -show because it's supported by all implementations (otherwise we'd have to detect
+# if our compiler uses --showme:link or -link_info):
+MPISHOWFLAGS := $(shell $(MPICXX) -show)
+# But then we have to remove the compiler name from the proposed command line:
+MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+
+# mpicxx might pass to the compiler options which nvcc might not understand
+# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
+# but that means that we cannot pass options which contains commas in them,
+# since commas are already used to separate the parameters in --compiler-options.
+# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
+# a comma), so for the time being we just filter out the flags that we _know_
+# will contain commas (i.e. -Wl,stuff,stuff,stuff).
+# To make things even more complicated, nvcc does not accept -Wl, so we need
+# to replace -Wl with --linker-options.
+# The other options will be gathered into the --compiler-options passed at nvcc
+# at link time.
+MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS)))
+MPICXXFLAGS = $(filter-out -Wl%,$(MPISHOWFLAGS))
+
+LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
 
 # (the solution is not perfect as it still generates some warnings, but at least it rolls)
 
