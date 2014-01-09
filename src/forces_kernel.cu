@@ -774,9 +774,6 @@ initGradGammaDevice(	float4*		oldPos,
 				}
 			}
 
-			if(rmin < 0.8f*deltap && FLUID(info))
-				disable_particle(pos);
-
 			//DEBUG output
 			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
 			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
