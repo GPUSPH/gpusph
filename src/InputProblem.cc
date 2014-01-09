@@ -4,6 +4,16 @@
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
 
+#define SPECIFIC_PROBLEM "Box"
+/* Implemented problems:
+ *
+ *	Keyword			Description
+ ***********************************************
+ *	StillWater		Periodic stillwater (lacking file)
+ *	Spheric2		Spheric2 dambreak with obstacle
+ *	Box				Small dambreak in a box
+ *
+ */
 
 #define USE_PLANES 0
 
@@ -13,38 +23,66 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	//StillWater periodic (symmetric)
 	//*************************************************************************************
-//	inputfile = "/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph";
+	if (SPECIFIC_PROBLEM == "StillWater") {
+		inputfile = "/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph";
 
-//	set_deltap(0.1f);
+		set_deltap(0.1f);
 
-//	m_simparams.testpoints = false;
-//	H = 2.0;
-//	l = 2.0; w = 2.0; h = 2.2;
+		m_simparams.testpoints = false;
+		H = 2.0;
+		l = 2.0; w = 2.0; h = 2.2;
 
-//	m_physparams.kinematicvisc = 3.0e-2f;
-//	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+		m_physparams.kinematicvisc = 3.0e-2f;
+		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+		m_simparams.tend = 5.0;
 
-//	//periodic boundaries
-//	m_simparams.periodicbound = true;
-//	m_physparams.dispvect = make_float3(l, l, 0.0);
-//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-//	m_physparams.maxlimit = make_float3(l, l, 0.0f);
+		//periodic boundaries
+		m_simparams.periodicbound = true;
+		m_physparams.dispvect = make_float3(l, l, 0.0);
+		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
+		m_physparams.maxlimit = make_float3(l, l, 0.0f);
+		m_origin = make_double3(0.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
+	}
 	//*************************************************************************************
 
-	//Spheric 2 (DamBreak)
+	//Spheric2 (DamBreak)
 	//*************************************************************************************
-//	inputfile = "/home/vorobyev/Crixus/geometries/spheric2/0.spheric2-dr-0.01833-dp-0.02.h5sph";
+	else if (SPECIFIC_PROBLEM == "Spheric2") {
+		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/0.spheric2.h5sph";
 
-//	set_deltap(0.02f);
+		set_deltap(0.01833f);
 
-//	m_physparams.kinematicvisc = 1.0e-6f;
-//	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+		m_physparams.kinematicvisc = 1.0e-6f;
+		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
-//	m_simparams.testpoints = true;
-//	H = 0.55;
-//	l = 3.5; w = 1.0; h = 1.0;
+		m_simparams.tend = 5.0;
+		m_simparams.testpoints = true;
+		H = 0.55;
+		l = 3.5; w = 1.0; h = 1.0;
+		m_origin = make_double3(0.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
+	}
 	//*************************************************************************************
 
+	//Box (Dambreak)
+	//*************************************************************************************
+	else if (SPECIFIC_PROBLEM == "Box") {
+		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/0.box_blend_16.h5sph";
+
+		set_deltap(0.125f);
+
+		m_physparams.kinematicvisc = 1.0e-2f;
+		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+
+		m_simparams.tend = 5.0;
+		m_simparams.testpoints = false;
+		H = 1.0;
+		l = 2.0; w = 2.0; h = 2.0;
+		m_origin = make_double3(-1.0, -1.0, -1.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
+	}
+	//*************************************************************************************
 	// Fishpass
 	//*************************************************************************************
 	// Poitier geometry
@@ -83,28 +121,28 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 //	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
 //	//*************************************************************************************
 
-	// Poiseuille flow
-	//*************************************************************************************
-	inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.02.h5sph";
-
-	set_deltap(0.02f);
-
-	m_simparams.testpoints = false;
-	H = 1.0;
-	l = 0.26; w = 0.26; h = 1.0;
-
-	m_physparams.kinematicvisc = 0.1f;
-	m_physparams.gravity = make_float3(0.8, 0.0, 0.0);		// laminar
-
-	//m_physparams.kinematicvisc = 0.00078125f;
-	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
-
-	//periodic boundaries
-	m_simparams.periodicbound = true;
-	m_physparams.dispvect = make_float3(l, w, 0.0f);
-	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-	m_physparams.maxlimit = make_float3(l, w, 0.0f);
-	//*************************************************************************************
+//	// Poiseuille flow
+//	//*************************************************************************************
+//	inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.02.h5sph";
+//
+//	set_deltap(0.02f);
+//
+//	m_simparams.testpoints = false;
+//	H = 1.0;
+//	l = 0.26; w = 0.26; h = 1.0;
+//
+//	m_physparams.kinematicvisc = 0.1f;
+//	m_physparams.gravity = make_float3(0.8, 0.0, 0.0);		// laminar
+//
+//	//m_physparams.kinematicvisc = 0.00078125f;
+//	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
+//
+//	//periodic boundaries
+//	m_simparams.periodicbound = true;
+//	m_physparams.dispvect = make_float3(l, w, 0.0f);
+//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
+//	m_physparams.maxlimit = make_float3(l, w, 0.0f);
+//	//*************************************************************************************
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
@@ -121,14 +159,12 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
-	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
 	// Physical parameters
 	//m_physparams.gravity = make_float3(0.8, 0.0, 0.0); //body forse for plane Poiseuille flow
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0f, 40.0f);
 
 	m_physparams.dcoeff = 5.0f*g*H;
 
@@ -155,21 +191,23 @@ int InputProblem::fill_parts()
 
 	// Setting probes for Spheric2 test case
 	//*******************************************************************
-	// Wave gages
-	add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
-	add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
-	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
-	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
-	// Pressure probes
-	if (m_simparams.testpoints) {
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
-		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
-		test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
-		test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+	if (SPECIFIC_PROBLEM == "Spheric2") {
+		// Wave gages
+		add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
+		add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
+		add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
+		add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
+		// Pressure probes
+		if (m_simparams.testpoints) {
+			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
+			test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
+			test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
+			test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
+			test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+		}
 	}
 	//*******************************************************************
 
