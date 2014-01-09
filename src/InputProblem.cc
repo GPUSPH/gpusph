@@ -42,7 +42,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
 		m_physparams.maxlimit = make_float3(l, l, 0.0f);
 		m_origin = make_double3(0.0, 0.0, 0.0);
-		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
+		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	}
 	//*************************************************************************************
 
@@ -61,7 +61,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 		H = 0.55;
 		l = 3.5; w = 1.0; h = 1.0;
 		m_origin = make_double3(0.0, 0.0, 0.0);
-		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
+		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
 	}
 	//*************************************************************************************
 
@@ -80,7 +80,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 		H = 1.0;
 		l = 2.0; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.0, -1.0, -1.0);
-		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
+		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
 	}
 	//*************************************************************************************
 	// Fishpass
