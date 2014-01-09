@@ -36,12 +36,12 @@ class SphericTest2: public Problem {
 		Cube		obstacle;
 		PointVect	parts;
 		PointVect	boundary_parts;
+		PointVect	test_points;
 		PointVect	obstacle_parts;
 		float		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
 		bool		m_usePlanes;	// use planes or boundaries
-		int			n_probeparts;	// number of probe particles (used for output)
 
 	public:
 		SphericTest2(const Options &);

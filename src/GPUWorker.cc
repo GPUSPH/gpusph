@@ -64,15 +64,12 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
 	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
+	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
 
 	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
 	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
 	m_dBuffers << new CUDABuffer<BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
-	if (m_simparams->boundarytype == MF_BOUNDARY)
-		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
-
-	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
 	if (m_simparams->xsph)
 		m_dBuffers << new CUDABuffer<BUFFER_XSPH>();
 
@@ -94,6 +91,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	}
 
 	if (m_simparams->boundarytype == MF_BOUNDARY) {
+		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
@@ -1588,6 +1586,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
+			case INVINDEX:
+				//printf(" T %d issuing INVINDEX\n", deviceIndex);
+				instance->kernel_inverseParticleIndex();
+				break;
 			case CROP:
 				//printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
@@ -1677,6 +1679,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case MEAN_STRAIN:
 				//printf(" T %d issuing MEAN_STRAIN\n", deviceIndex);
 				instance->kernel_meanStrain();
+				break;
 			case REDUCE_BODIES_FORCES:
 				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
@@ -1754,6 +1757,18 @@ void GPUWorker::kernel_sort()
 	sort(	m_dBuffers.getData<BUFFER_HASH>(),
 			m_dBuffers.getData<BUFFER_PARTINDEX>(),
 			numPartsToElaborate);
+}
+
+void GPUWorker::kernel_inverseParticleIndex()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	inverseParticleIndex (	m_dBuffers.getData<BUFFER_PARTINDEX>(),
+							m_dBuffers.getData<BUFFER_INVINDEX>(),
+							numPartsToElaborate);
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
@@ -2144,6 +2159,7 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 	uint velRead = secondStep ? gdata->currentWrite[BUFFER_VEL] : gdata->currentRead[BUFFER_VEL];
 	uint tkeRead = secondStep ? gdata->currentWrite[BUFFER_TKE] : gdata->currentRead[BUFFER_TKE];
 	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
+	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
 	updateBoundValues(
 				m_dBuffers.getData<BUFFER_VEL>(velRead),
@@ -2154,7 +2170,7 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
 				numPartsToElaborate,
-				true);
+				initStep);
 }
 
 void GPUWorker::kernel_dynamicBoundaryConditions()

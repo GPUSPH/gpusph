@@ -52,7 +52,6 @@
 /* Include all other opt file for show_version */
 #include "gpusph_version.opt"
 #include "fastmath_select.opt"
-#include "dbg_select.opt"
 #include "compute_select.opt"
 
 using namespace std;
@@ -617,6 +616,10 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_VORTICITY;
 			}
 
+			// get GradGamma
+			if (gdata->problem->get_simparams()->boundarytype == MF_BOUNDARY)
+				which_buffers |= BUFFER_GRADGAMMA;
+
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
 			// not to call, since it has been called at least once for sure
@@ -690,6 +693,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
 		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_GRADGAMMA>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_PRESSURE>();
 	}
 
 	if (problem->m_simparams.visctype == KEPSVISC) {
@@ -1106,6 +1111,8 @@ void GPUSPH::buildNeibList()
 
 	doCommand(CALCHASH);
 	doCommand(SORT);
+	if (problem->get_simparams()->boundarytype == MF_BOUNDARY)
+		doCommand(INVINDEX);
 	doCommand(REORDER);
 
 	// swap pos, vel and info double buffers
@@ -1176,7 +1183,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// Move the particles
-		doCommand(MF_UPDATE_POS, deltat);
+		doCommand(MF_UPDATE_POS, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_POS);

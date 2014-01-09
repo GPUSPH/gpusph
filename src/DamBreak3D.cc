@@ -53,7 +53,6 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	H = 0.4;
 	wet = false;
 	m_usePlanes = true;
-
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
@@ -71,7 +70,7 @@ DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
 	m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f; //0.00036f
+	m_simparams.tend = 5.0f; //0.00036f
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -201,54 +200,45 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uin
 {
 	float4 localpos;
 	uint hashvalue;
+	int j = 0;
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
-		std::cout << "Absolute position:" << "\n";
-		std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-		}*/
-		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
-
-		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
-		std::cout << "Local position and hash:" << "\n";
-		std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n";
-		}*/
-		if (i == 1378) {
-			std::cout << "Absolute position:" << "\n";
-			std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-			std::cout << "Local position and hash:" << "\n";
-			std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n\n";
-
+	if(boundary_parts.size()){
+		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
+		for (uint i = 0; i < boundary_parts.size(); i++) {
+			calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(BOUNDPART,0,i);
 		}
-
-		pos[i] = localpos;
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,0,i);
-		hash[i] = hashvalue;
+		j = boundary_parts.size();
+		std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 	}
-	int j = boundary_parts.size();
-	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
+
+	//Testpoints
+	if (test_points.size()) {
+		std::cout << "\nTest points: " << test_points.size() << "\n";
+		for (uint i = 0; i < test_points.size(); i++) {
+			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+		}
+		j += test_points.size();
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+	}
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
-		pos[i] = localpos;
+		calc_localpos_and_hash(obstacle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
-		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
-
-		pos[i] = localpos;
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
-		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

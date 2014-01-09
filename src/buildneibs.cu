@@ -191,7 +191,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	if (oldStrainRate)
 		CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
 
-
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd,
 #if HASH_KEY_SIZE >= 64

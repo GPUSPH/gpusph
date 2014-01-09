@@ -205,7 +205,7 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-testpoints(	float4*		pos,
+testpoints(	const float4*		pos,
 			float4*		newVel,
 			particleinfo*	info,
 			uint*		particleHash,
@@ -359,21 +359,6 @@ dynamicBoundConditions(	const float4*		oldPos,
 			const int		kerneltype,
 			const float		influenceradius);
 
-// Computes some values for probe particles
-// For Spheric 2 test case these are pressure and alpha value, which is similar to one used in Shepard filter
-void
-calcProbe(	float4*		oldPos,
-		float4*			oldVel,
-		float*			oldPressure,
-		const particleinfo*	info,
-		const uint*		particleHash,
-		const uint*		cellStart,
-		const neibdata*	neibsList,
-		const uint		numParticles,
-		const uint		particleRangeEnd,
-		const float		slength,
-		const int		kerneltype,
-		const float		influenceradius);
 }
 
 #endif

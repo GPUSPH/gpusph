@@ -25,7 +25,6 @@
 
 #include <cmath>
 #include <iostream>
-#include <vector>
 
 #include "SphericTest2.h"
 #include "Cube.h"
@@ -54,7 +53,6 @@ SphericTest2::SphericTest2(const Options &options) : Problem(options)
 	H = 0.55;
 	wet = false;
 	m_usePlanes = true;
-	n_probeparts = 208;
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
@@ -63,10 +61,15 @@ SphericTest2::SphericTest2(const Options &options) : Problem(options)
 	//m_writerType = UDPWRITER;
 
 	// SPH parameters
+	// ratio h / deltap (needs to be defined before calling set_deltap)
+	m_simparams.sfactor = 1.3;
+	// set deltap (automatically computes h based on sfactor * deltap)
 	set_deltap(0.02); //0.008
+	m_simparams.kernelradius = 2.0;
+	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0003f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = false;
+	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
@@ -76,11 +79,14 @@ SphericTest2::SphericTest2(const Options &options) : Problem(options)
 	//m_simparams.visctype = SPSVISC;
 	//m_simparams.visctype = DYNAMICVISC;
 	m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.tend = 1.5f;
+	m_simparams.tend = 1.0f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = false;
+	m_simparams.surfaceparticle = true;
 	m_simparams.savenormals = false;
+
+	// Test points
+	m_simparams.testpoints = true;
 
 	// Vorticity
 	m_simparams.vorticity = false;
@@ -141,8 +147,9 @@ int SphericTest2::fill_parts()
 	experiment_box = Cube(Point(m_origin), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	obstacle = Cube(Point(m_origin + make_double3(0.9, 0.24, r0)), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, lz - r0));
+	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), Vector(0.161, 0, 0),
+				Vector(0, 0.403, 0), Vector(0, 0, 0.161));
+
 
 	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
 				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
@@ -171,7 +178,27 @@ int SphericTest2::fill_parts()
 		obstacle.Unfill(parts, r0);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + n_probeparts;
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
+	// Wave gages
+	add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
+	add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
+	add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
+	add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
+	// Pressure probes
+	if (m_simparams.testpoints) {
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
+		test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
+		test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+	}
+	//*******************************************************************
+
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + test_points.size();
 }
 
 uint SphericTest2::fill_planes()
@@ -212,30 +239,10 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	float4 localpos;
 	uint hashvalue;
 
-	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
-		std::cout << "Absolute position:" << "\n";
-		std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-		}*/
-		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
-
-		/*if (boundary_parts[i](1) <= m_size.y + 0.01 && boundary_parts[i](1) >= m_size.y - 0.01) {
-		std::cout << "Local position and hash:" << "\n";
-		std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n";
-		}*/
-		if (i == 1378) {
-			std::cout << "Absolute position:" << "\n";
-			std::cout << "(" << boundary_parts[i](0) << "," << boundary_parts[i](1) << "," << boundary_parts[i](2) << ")\n";
-			std::cout << "Local position and hash:" << "\n";
-			std::cout << "(" << localpos.x << "," << localpos.y << "," << localpos.z << ")\t" << hashvalue << "\n\n";
-
-		}
-
-		pos[i] = localpos;
+		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
-		hash[i] = hashvalue;
 	}
 	uint j = boundary_parts.size();
 	if (boundary_parts.size() > 0)
@@ -243,13 +250,25 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	else
 		std::cout << "No boundary parts" << std::endl;
 
+	//Testpoints
+	if (test_points.size()) {
+		std::cout << "\nTest points: " << test_points.size() << "\n";
+		for (uint i = 0; i < test_points.size(); i++) {
+			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+		}
+		j += test_points.size();
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
+	}
+	else
+		std::cout << "No test points" << std::endl;
+
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		calc_localpos_and_hash(obstacle_parts[i-j], localpos, hashvalue);
-		pos[i] = localpos;
+		calc_localpos_and_hash(obstacle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
-		hash[i] = hashvalue;
 	}
 	j += obstacle_parts.size();
 	if (obstacle_parts.size() > 0)
@@ -259,12 +278,9 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
-
-		pos[i] = localpos;
+		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
-		hash[i] = hashvalue;
 	}
 	j += parts.size();
 	if (parts.size() > 0)
@@ -272,46 +288,5 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, u
 	else
 		std::cout << "No fluid parts" << std::endl;
 
-	// Setting probes for Spheric2 test case
-	//*******************************************************************
-	if(n_probeparts) {
-		std::cout << "Probe parts: " << n_probeparts << "\n";
-		std::vector<Point> probe_coord(n_probeparts);
-
-		// Probe H1
-		for (uint i = 0; i < 50; i++) {
-			probe_coord[i] = m_origin + Point(2.724, 0.5, 0.02*i);
-		}
-		// Probe H2
-		for (uint i = 50; i < 100; i++) {
-			probe_coord[i] = m_origin + Point(2.228, 0.5, 0.02*(i-50));
-		}
-		// Probe H3
-		for (uint i = 100; i < 150; i++) {
-			probe_coord[i] = m_origin + Point(1.732, 0.5, 0.02*(i-100));
-		}
-		// Probe H4
-		for (uint i = 150; i < 200; i++) {
-			probe_coord[i] = m_origin + Point(0.582, 0.5, 0.02*(i-150));
-		}
-		// Pressure probes
-		probe_coord[200] = m_origin + Point(2.3955, 0.529, 0.021); // Probe P1
-		probe_coord[201] = m_origin + Point(2.3955, 0.529, 0.061); // Probe P2
-		probe_coord[202] = m_origin + Point(2.3955, 0.529, 0.101); // Probe P3
-		probe_coord[203] = m_origin + Point(2.3955, 0.529, 0.141); // Probe P4
-		probe_coord[204] = m_origin + Point(2.4165, 0.471, 0.161); // Probe P5
-		probe_coord[205] = m_origin + Point(2.4565, 0.471, 0.161); // Probe P6
-		probe_coord[206] = m_origin + Point(2.4965, 0.471, 0.161); // Probe P7
-		probe_coord[207] = m_origin + Point(2.5365, 0.471, 0.161); // Probe P8
-
-		for (uint i = j; i < j + n_probeparts; i++) {
-			calc_localpos_and_hash(probe_coord[i-j], localpos, hashvalue);
-			pos[i] = localpos;
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(PROBEPART, 0, i);
-			hash[i] = hashvalue;
-		}
-	}
-	//*******************************************************************
 	std::flush(std::cout);
 }
