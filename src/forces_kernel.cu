@@ -1050,7 +1050,7 @@ updateBoundValuesDevice(	float4*		oldVel,
 			oldVel[index].x = 0;
 			oldVel[index].y = 0;
 			oldVel[index].z = 0;
-			oldVel[index].w = 1000.0;
+			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
 		}
 	}
 }
@@ -1138,8 +1138,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		}
 	}
 
-	if(alpha)
-	{
+	if (alpha) {
 		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
 		oldPressure[index] = temp2*oldVel[index].w/alpha;
 		//oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
@@ -1147,6 +1146,13 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 			oldTKE[index] = temp3/alpha;
 		if (oldEps)
 			oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
+	}
+	else {
+		oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
+		if (oldTKE)
+			oldTKE[index] = 0.0;
+		if (oldEps)
+			oldEps[index] = 0.0;
 	}
 }
 
