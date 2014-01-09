@@ -89,10 +89,8 @@ SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 2, "Boundary Elements");
 SET_BUFFER_TRAITS(BUFFER_GRADGAMMA, float4, 2, "Gamma Gradient");
 #define BUFFER_VERTICES			(BUFFER_GRADGAMMA << 1)
 SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 2, "Vertices");
-#define BUFFER_PRESSURE			(BUFFER_VERTICES << 1)
-SET_BUFFER_TRAITS(BUFFER_PRESSURE, float, 2, "Pressure");
 
-#define BUFFER_TKE			(BUFFER_PRESSURE << 1)
+#define BUFFER_TKE			(BUFFER_VERTICES << 1)
 SET_BUFFER_TRAITS(BUFFER_TKE, float, 2, "Turbulent Kinetic Energy [k]");
 #define BUFFER_EPSILON		(BUFFER_TKE << 1)
 SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
@@ -127,7 +125,7 @@ SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
 // all double buffers TODO some template metaprogramming would help here
 #define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
 	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
-	BUFFER_PRESSURE | BUFFER_TKE | BUFFER_EPSILON | \
+	BUFFER_TKE | BUFFER_EPSILON | \
 	BUFFER_TURBVISC | BUFFER_STRAIN_RATE)
 
 #endif

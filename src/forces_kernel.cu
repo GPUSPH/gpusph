@@ -1001,7 +1001,6 @@ updatePositionsDevice(	const float4*	oldPos,
 
 __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
-				float*		oldPressure,
 				float*		oldTKE,
 				float*		oldEps,
 				const uint	numParticles,
@@ -1025,11 +1024,6 @@ updateBoundValuesDevice(	float4*		oldVel,
 			const float4 vel2 = oldVel[vertices.y];
 			const float4 vel3 = oldVel[vertices.z];
 			oldVel[index] = (vel1 + vel2 + vel3)/3.f;
-			// pressure
-			const float pres1 = oldPressure[vertices.x];
-			const float pres2 = oldPressure[vertices.y];
-			const float pres3 = oldPressure[vertices.z];
-			oldPressure[index] = (pres1 + pres2 + pres3)/3.f;
 			// turbulent kinetic energy
 			if (oldTKE) {
 				const float k1 = oldTKE[vertices.x];
@@ -1060,7 +1054,6 @@ __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 dynamicBoundConditionsDevice(	const float4*	oldPos,
 				float4*		oldVel,
-				float*		oldPressure,
 				float*		oldTKE,
 				float*		oldEps,
 				const uint*	particleHash,
@@ -1140,8 +1133,6 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	if (alpha) {
 		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
-		oldPressure[index] = temp2*oldVel[index].w/alpha;
-		//oldVel[index].w = rho(oldPressure[index], PART_FLUID_NUM(info));
 		if (oldTKE)
 			oldTKE[index] = temp3/alpha;
 		if (oldEps)

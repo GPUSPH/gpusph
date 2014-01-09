@@ -101,7 +101,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float4*				newBoundElement,	// output: sorted boundary elements
 									float4*				newGradGamma,		// output: sorted gradient gamma
 									vertexinfo*			newVertices,		// output: sorted vertices
-									float*				newPressure,		// output: sorted pressure
 									float*				newTKE,				// output: k for k-e model
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
@@ -114,7 +113,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float4*		oldBoundElement,	// input: sorted boundary elements
 									const float4*		oldGradGamma,		// input: sorted gradient gamma
 									const vertexinfo*	oldVertices,		// input: sorted vertices
-									const float*		oldPressure,		// input: sorted pressure
 									const float*		oldTKE,				// input: k for k-e model
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity

@@ -250,7 +250,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float4*			sortedBoundElements,	// output: sorted boundary elements
 										float4*			sortedGradGamma,	// output: sorted gradient gamma
 										vertexinfo*		sortedVertices,		// output: sorted vertices
-										float*			sortedPressure,		// output: sorted pressure
 										float*			sortedTKE,			// output: k for k-e model
 										float*			sortedEps,			// output: e for k-e model
 										float*			sortedTurbVisc,		// output: eddy viscosity
@@ -350,10 +349,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 		if (sortedGradGamma) {
 			sortedGradGamma[index] = tex1Dfetch(gamTex, sortedIndex);
-		}
-
-		if (sortedPressure) {
-			sortedPressure[index] = tex1Dfetch(presTex, sortedIndex);
 		}
 
 		if (sortedVertices) {

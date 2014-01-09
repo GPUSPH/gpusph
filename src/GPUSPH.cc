@@ -409,10 +409,10 @@ bool GPUSPH::runSimulation() {
 
 			doCommand(MF_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -468,10 +468,10 @@ bool GPUSPH::runSimulation() {
 
 			doCommand(MF_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
@@ -694,7 +694,6 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_GRADGAMMA>();
-		gdata->s_hBuffers << new HostBuffer<BUFFER_PRESSURE>();
 	}
 
 	if (problem->m_simparams.visctype == KEPSVISC) {
@@ -1202,7 +1201,7 @@ void GPUSPH::imposeDynamicBoundaryConditions()
 	gdata->only_internal = true;
 	doCommand(MF_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 }
 
 void GPUSPH::updateValuesAtBoundaryElements()
@@ -1210,7 +1209,7 @@ void GPUSPH::updateValuesAtBoundaryElements()
 	gdata->only_internal = true;
 	doCommand(MF_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 }
 
 void GPUSPH::printStatus()
