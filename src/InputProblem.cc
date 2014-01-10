@@ -4,14 +4,15 @@
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
 
-#define SPECIFIC_PROBLEM "Box"
+#define SPECIFIC_PROBLEM "SmallChannelFlow"
 /* Implemented problems:
  *
  *	Keyword			Description
  ***********************************************
- *	StillWater		Periodic stillwater (lacking file)
- *	Spheric2		Spheric2 dambreak with obstacle
- *	Box				Small dambreak in a box
+ *	StillWater			Periodic stillwater (lacking file)
+ *	Spheric2			Spheric2 dambreak with obstacle
+ *	Box					Small dambreak in a box
+ *	SmallChannelFlow	Small channel flow for debugging
  *
  */
 
@@ -37,7 +38,7 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 		m_simparams.tend = 5.0;
 
 		//periodic boundaries
-		m_simparams.periodicbound = true;
+		m_simparams.periodicbound = XPERIODIC;
 		m_physparams.dispvect = make_float3(l, l, 0.0);
 		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
 		m_physparams.maxlimit = make_float3(l, l, 0.0f);
@@ -81,6 +82,26 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 		l = 2.0; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.0, -1.0, -1.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
+	}
+	//*************************************************************************************
+
+	//SmallChannelFlow (a small channel flow for debugging viscosity and k-epsilon)
+	//*************************************************************************************
+	else if (SPECIFIC_PROBLEM == "SmallChannelFlow") {
+		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/140109-small-channel/0.small_channel.h5sph";
+
+		set_deltap(0.0625f);
+
+		m_physparams.kinematicvisc = 1.0e-2f;
+		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
+
+		m_simparams.tend = 1.0;
+		m_simparams.periodicbound = XPERIODIC | YPERIODIC;
+		m_simparams.testpoints = false;
+		H = 1.0;
+		l = 1.0; w = 1.0; h = 1.0;
+		m_origin = make_double3(-0.5, -0.5, -0.5);
+		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	}
 	//*************************************************************************************
 	// Fishpass

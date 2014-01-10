@@ -100,14 +100,71 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		default:
-			cuneibs::calcHashDevice<XPERIODIC><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case 1:
+			cuneibs::calcHashDevice<1><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
 #endif
 					   numParticles);
 			break;
+
+		case 2:
+			cuneibs::calcHashDevice<2><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 3:
+			cuneibs::calcHashDevice<3><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 4:
+			cuneibs::calcHashDevice<4><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 5:
+			cuneibs::calcHashDevice<5><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 6:
+			cuneibs::calcHashDevice<6><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 7:
+			cuneibs::calcHashDevice<7><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		default:
+			throw std::runtime_error("Incorrect value of periodicbound!");
 	}
 
 	// check if kernel invocation generated an error
