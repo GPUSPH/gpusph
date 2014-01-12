@@ -55,8 +55,7 @@ OpenChannel::OpenChannel(const Options &options) : Problem(options)
 	m_simparams.periodicbound = XPERIODIC;
 	m_gridsize.x = 15;
 	l = m_gridsize.x*m_simparams.kernelradius*m_simparams.slength;
-	m_size.y = a;
-	m_size.z = h;
+	m_size = make_double3(l, a, h);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// Physical parameters
