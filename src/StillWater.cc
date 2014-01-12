@@ -64,7 +64,7 @@ StillWater::StillWater(const Options &options) : Problem(options)
 	m_simparams.visctype = DYNAMICVISC;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = MF_BOUNDARY;
+	m_simparams.boundarytype = SA_BOUNDARY;
 	//m_simparams.boundarytype = LJ_BOUNDARY;
 
 	// Size and origin of the simulation domain
@@ -126,7 +126,7 @@ int StillWater::fill_parts()
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
 
 	if(!m_usePlanes){
-		if(m_simparams.boundarytype == MF_BOUNDARY) {
+		if(m_simparams.boundarytype == SA_BOUNDARY) {
 			experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
 		}
 		else {

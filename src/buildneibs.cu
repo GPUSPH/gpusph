@@ -100,14 +100,71 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		default:
-			cuneibs::calcHashDevice<XPERIODIC><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case 1:
+			cuneibs::calcHashDevice<1><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
 #endif
 					   numParticles);
 			break;
+
+		case 2:
+			cuneibs::calcHashDevice<2><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 3:
+			cuneibs::calcHashDevice<3><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 4:
+			cuneibs::calcHashDevice<4><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 5:
+			cuneibs::calcHashDevice<5><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 6:
+			cuneibs::calcHashDevice<6><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case 7:
+			cuneibs::calcHashDevice<7><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		default:
+			throw std::runtime_error("Incorrect value of periodicbound!");
 	}
 
 	// check if kernel invocation generated an error
@@ -139,7 +196,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float4*				newBoundElement,	// output: sorted boundary elements
 									float4*				newGradGamma,		// output: sorted gradient gamma
 									vertexinfo*			newVertices,		// output: sorted vertices
-									float*				newPressure,		// output: sorted pressure
 									float*				newTKE,				// output: k for k-e model
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
@@ -152,7 +208,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float4*		oldBoundElement,	// input: sorted boundary elements
 									const float4*		oldGradGamma,		// input: sorted gradient gamma
 									const vertexinfo*	oldVertices,		// input: sorted vertices
-									const float*		oldPressure,		// input: sorted pressure
 									const float*		oldTKE,				// input: k for k-e model
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
@@ -179,8 +234,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
 	if (oldVertices)
 		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
-	if (oldPressure)
-		CUDA_SAFE_CALL(cudaBindTexture(0, presTex, oldPressure, numParticles*sizeof(float)));
 
 	if (oldTKE)
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
@@ -196,7 +249,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 #if HASH_KEY_SIZE >= 64
 													segmentStart,
 #endif
-		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newPressure, newTKE, newEps, newTurbVisc, newStrainRate,
+		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc, newStrainRate,
 												particleHash, particleIndex, numParticles, inversedParticleIndex);
 
 	// check if kernel invocation generated an error
@@ -212,8 +265,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 	if (oldVertices)
 		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-	if (oldPressure)
-		CUDA_SAFE_CALL(cudaUnbindTexture(presTex));
 
 	if (oldTKE)
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));

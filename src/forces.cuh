@@ -97,7 +97,6 @@ forces(
 			float4	*forces,
 	const	float4	*gradgam,
 	const	float4	*boundelem,
-	const	float	*pressure,
 			float4	*rbforces,
 			float4	*rbtorques,
 			float4	*xsph,
@@ -329,7 +328,6 @@ updatePositions(	float4*		oldPos,
 // over three vertices of this element
 void
 updateBoundValues(	float4*		oldVel,
-			float*		oldPressure,
 			float*		oldTKE,
 			float*		oldEps,
 			vertexinfo*	vertices,
@@ -345,7 +343,6 @@ updateBoundValues(	float4*		oldVel,
 void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
-			float*			oldPressure,
 			float*			oldTKE,
 			float*			oldEps,
 			const particleinfo*	info,

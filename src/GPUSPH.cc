@@ -215,7 +215,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy particles from problem to GPUSPH buffers
 	// TODO FIXME copying data from the problem doubles the host memory requirements
 	// find some smart way to have the host fill the shared buffer directly.
-	if (_sp->boundarytype == MF_BOUNDARY) {
+	if (_sp->boundarytype == SA_BOUNDARY) {
 		problem->copy_to_array(
 			gdata->s_hBuffers.getData<BUFFER_POS>(),
 			gdata->s_hBuffers.getData<BUFFER_VEL>(),
@@ -341,7 +341,7 @@ bool GPUSPH::runSimulation() {
 	// this is where we invoke initialization routines that have to be
 	// run by the GPUWokers
 
-	if (problem->get_simparams()->boundarytype == MF_BOUNDARY) {
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 		initializeGammaAndGradGamma();
 		imposeDynamicBoundaryConditions();
 		updateValuesAtBoundaryElements();
@@ -404,15 +404,15 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == MF_BOUNDARY) {
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
 			doCommand(MF_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -463,15 +463,15 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == MF_BOUNDARY) {
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
 			doCommand(MF_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
@@ -537,7 +537,7 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
-		if (problem->get_simparams()->boundarytype == MF_BOUNDARY) {
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
@@ -605,7 +605,7 @@ bool GPUSPH::runSimulation() {
 				printf("Issuing final save...\n");
 
 			// set the buffers to be dumped
-			uint which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
+			flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
@@ -617,7 +617,7 @@ bool GPUSPH::runSimulation() {
 			}
 
 			// get GradGamma
-			if (gdata->problem->get_simparams()->boundarytype == MF_BOUNDARY)
+			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
 				which_buffers |= BUFFER_GRADGAMMA;
 
 			// compute and dump normals if set
@@ -690,11 +690,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams.vorticity)
 		gdata->s_hBuffers << new HostBuffer<BUFFER_VORTICITY>();
 
-	if (problem->m_simparams.boundarytype == MF_BOUNDARY) {
+	if (problem->m_simparams.boundarytype == SA_BOUNDARY) {
 		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_GRADGAMMA>();
-		gdata->s_hBuffers << new HostBuffer<BUFFER_PRESSURE>();
 	}
 
 	if (problem->m_simparams.visctype == KEPSVISC) {
@@ -1111,7 +1110,7 @@ void GPUSPH::buildNeibList()
 
 	doCommand(CALCHASH);
 	doCommand(SORT);
-	if (problem->get_simparams()->boundarytype == MF_BOUNDARY)
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
 		doCommand(INVINDEX);
 	doCommand(REORDER);
 
@@ -1202,7 +1201,7 @@ void GPUSPH::imposeDynamicBoundaryConditions()
 	gdata->only_internal = true;
 	doCommand(MF_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 }
 
 void GPUSPH::updateValuesAtBoundaryElements()
@@ -1210,7 +1209,7 @@ void GPUSPH::updateValuesAtBoundaryElements()
 	gdata->only_internal = true;
 	doCommand(MF_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_PRESSURE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 }
 
 void GPUSPH::printStatus()
