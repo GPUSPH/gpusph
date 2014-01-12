@@ -240,7 +240,7 @@ FORCES_CUDA_KERNEL
 						else if (boundarytype == SA_BOUNDARY && d_ferrari) {
 							const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/ 
 								(d_sscoeff[PART_FLUID_NUM(info)]*d_sscoeff[PART_FLUID_NUM(info)]); //TODO-AM this does not work with multifluids
-							float3 ferraricor = max(sspeed, neib_sspeed)*(vel.w - relVel.w + grav_corr)/vel.w/r*as_float3(relPos);
+							float3 ferraricor = (r > 1e-4*slength) ? max(sspeed, neib_sspeed)*(vel.w - relVel.w + grav_corr)/vel.w/r*as_float3(relPos) : make_float3(0.0);
 							DrDt = relPos.w*dot(as_float3(relVel) + d_ferrari*ferraricor, as_float3(relPos))*f;
 						}
 						else
