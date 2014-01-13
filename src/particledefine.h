@@ -204,13 +204,13 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 // to set its mass to zero to mark the particle inactive
 
 // a particle is active if its mass is non-zero
-#define ACTIVE(p)	(p).w
-#define INACTIVE(p)	!((p).w)
+#define ACTIVE(p)	(isfinite((p).w))
+#define INACTIVE(p)	(!ACTIVE(p))
 
 // disable a particle by zeroing its mass
 inline __host__ __device__ void
 disable_particle(float4 &pos) {
-	pos.w = 0;
+	pos.w = NAN;
 }
 
 /* Tests for particle types */
