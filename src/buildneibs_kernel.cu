@@ -366,7 +366,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (sortedEps) {
 			sortedEps[index] = tex1Dfetch(keps_eTex, sortedIndex);
 		}
-		
+
 		if (sortedTurbVisc) {
 			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
 		}
@@ -401,7 +401,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 template <int periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
-			#if (__COMPUTE__ >= 20)			
+			#if (__COMPUTE__ >= 20)
 			const float4*	posArray,	///< particle's positions (in)
 			#endif
 			int3			gridPos,	///< current particle grid position
@@ -494,13 +494,13 @@ neibsInCell(
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
 		// Test points are not considered in neighboring list of other particles since they are imaginary particles.
-    	const particleinfo info = tex1Dfetch(infoTex, neib_index);
-        if (!TESTPOINTS (info)) {
-        	// Check for self interaction
+		const particleinfo info = tex1Dfetch(infoTex, neib_index);
+		if (!TESTPOINTS (info)) {
+			// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
 				// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
-				#if (__COMPUTE__ >= 20)			
+				#if (__COMPUTE__ >= 20)
 				const float3 relPos = pos - make_float3(posArray[neib_index]);
 				#else
 				const float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
@@ -546,8 +546,8 @@ neibsInCell(
 template<int periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
-buildNeibsListDevice(   
-						#if (__COMPUTE__ >= 20)			
+buildNeibsListDevice(
+						#if (__COMPUTE__ >= 20)
 						const float4*	posArray,				///< particle's positions (in)
 						#endif
 						const hashKey*	particleHash,			///< particle's hashes (in)
@@ -587,7 +587,7 @@ buildNeibsListDevice(
 					for(int x=-1; x<=1; x++) {
 						neibsInCell<periodicbound>(
 							#if (__COMPUTE__ >= 20)
-							posArray, 
+							posArray,
 							#endif
 							gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos,
 							numParticles, sqinfluenceradius, neibsList, neibs_num);
@@ -595,13 +595,13 @@ buildNeibsListDevice(
 				}
 			}
 		}
-		
+
 		// Setting the end marker
 		if (neibs_num < d_maxneibsnum) {
 			neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
 		}
 	}
-	
+
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors
 		__shared__ volatile uint sm_neibs_num[BLOCK_SIZE_BUILDNEIBS];
