@@ -637,6 +637,11 @@ SPSstressMatrixDevice(	const float4* posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		// Compute relative velocity
@@ -761,6 +766,11 @@ initGradGammaDevice(	float4*		oldPos,
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
@@ -851,6 +861,11 @@ updateGammaDevice(	const float4* oldPos,
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
@@ -922,6 +937,11 @@ updateGammaPrCorDevice( const float4*		newPos,
 
 				// Compute relative position vector and distance
 				const float4 relPos = pos_corr - newPos[neib_index];
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
@@ -1113,6 +1133,11 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 //		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1210,6 +1235,11 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		if (r < influenceradius) {
@@ -1330,6 +1360,11 @@ shepardDevice(	const float4*	posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1442,6 +1477,11 @@ MlsDevice(	const float4*	posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1496,6 +1536,11 @@ MlsDevice(	const float4*	posArray,
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
 			const float r = length(as_float3(relPos));
 
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1530,6 +1575,11 @@ MlsDevice(	const float4*	posArray,
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
 			const float r = length(as_float3(relPos));
 
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1816,6 +1866,11 @@ calcVortDevice(	const	float4*		posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		// Compute relative velocity
@@ -1896,6 +1951,11 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
@@ -1987,6 +2047,11 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float neib_density = tex1Dfetch(velTex, neib_index).w;
@@ -2040,6 +2105,11 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		float cosconeangle;

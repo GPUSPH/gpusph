@@ -191,6 +191,11 @@ FORCES_CUDA_KERNEL
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
 
 				// Compute relative velocity
