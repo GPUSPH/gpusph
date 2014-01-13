@@ -610,7 +610,7 @@ bool GPUSPH::runSimulation() {
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
 
-			// compute and dump voriticity if set
+			// compute and dump vorticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
 				doCommand(VORTICITY);
 				which_buffers |= BUFFER_VORTICITY;
@@ -1073,7 +1073,7 @@ void GPUSPH::doWrite()
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
-	// TODO MERGE REVIEW. do on each node separately?
+	// TODO MERGE REVIEW. do on each node separately? (better: in each worker thread)
 	double3 const& wo = problem->get_worldorigin();
 	for (uint i = 0; i < gdata->totParticles; i++) {
 		const float4 pos = gdata->s_hBuffers.getData<BUFFER_POS>()[i];
