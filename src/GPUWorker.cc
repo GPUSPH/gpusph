@@ -1654,24 +1654,24 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case MF_INIT_GAMMA:
-				//printf(" T %d issuing MF_INIT_GAMMA\n", deviceIndex);
+			case SA_INIT_GAMMA:
+				//printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
 				instance->kernel_initGradGamma();
 				break;
-			case MF_UPDATE_GAMMA:
-				//printf(" T %d issuing MF_UPDATE_GAMMA\n", deviceIndex);
+			case SA_UPDATE_GAMMA:
+				//printf(" T %d issuing SA_UPDATE_GAMMA\n", deviceIndex);
 				instance->kernel_updateGamma();
 				break;
-			case MF_UPDATE_POS:
-				//printf(" T %d issuing MF_UPDATE_POS\n", deviceIndex);
+			case SA_UPDATE_POS:
+				//printf(" T %d issuing SA_UPDATE_POS\n", deviceIndex);
 				instance->kernel_updatePositions();
 				break;
-			case MF_CALC_BOUND_CONDITIONS:
-				//printf(" T %d issuing MF_CALC_BOUND_CONDITIONS\n", deviceIndex);
+			case SA_CALC_BOUND_CONDITIONS:
+				//printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
 				instance->kernel_dynamicBoundaryConditions();
 				break;
-			case MF_UPDATE_BOUND_VALUES:
-				//printf(" T %d issuing MF_UPDATE_BOUND_VALUES\n", deviceIndex);
+			case SA_UPDATE_BOUND_VALUES:
+				//printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
 				instance->kernel_updateValuesAtBoundaryElements();
 				break;
 			case SPS:
