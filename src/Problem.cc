@@ -614,7 +614,8 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 
 	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
 	dWorldStep(m_ODEWorld, dt);
-	dJointGroupEmpty(m_ODEJointGroup);
+	if (m_ODEJointGroup)
+		dJointGroupEmpty(m_ODEJointGroup);
 
 	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
 		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
