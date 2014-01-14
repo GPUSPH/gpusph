@@ -104,6 +104,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 		m_dBuffers << new CUDABuffer<BUFFER_STRAIN_RATE>();
 		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
+
+	if (m_simparams->calcPrivate)
+		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
 }
 
 GPUWorker::~GPUWorker() {
@@ -1703,6 +1706,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
 				break;
+			case CALC_PRIVATE:
+				//printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
+				instance->kernel_calcPrivate();
+				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -2267,6 +2274,26 @@ void GPUWorker::kernel_updatePositions()
 					gdata->extraCommandArg,
 					m_numParticles,
 					numPartsToElaborate);
+}
+
+void GPUWorker::kernel_calcPrivate()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	calcPrivate(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_PRIVATE>(),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_simparams->slength,
+				m_simparams->influenceRadius,
+				m_numParticles,
+				numPartsToElaborate);
 }
 
 void GPUWorker::uploadConstants()

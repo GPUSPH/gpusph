@@ -629,6 +629,12 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_NORMALS;
 			}
 
+			// get private array
+			if (gdata->problem->get_simparams()->calcPrivate) {
+				doCommand(CALC_PRIVATE);
+				which_buffers |= BUFFER_PRIVATE;
+			}
+
 			if ( !gdata->nosave || final_save ) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
@@ -700,6 +706,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
 	}
+
+	if (problem->m_simparams.calcPrivate)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
 
 	// number of elements to allocate
 	const size_t numparts = gdata->totParticles;

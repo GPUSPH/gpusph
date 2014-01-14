@@ -1173,6 +1173,49 @@ updatePositions(	float4*		oldPos,
 }
 
 void
+calcPrivate(const	float4*			pos,
+			const	float4*			vel,
+			const	particleinfo*	info,
+					float*			priv,
+			const	uint*			particleHash,
+			const	uint*			cellStart,
+					neibdata*		neibsList,
+					float			slength,
+					float			inflRadius,
+					uint			numParticles,
+					uint			particleRangeEnd)
+{
+	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+
+	//execute kernel
+	cuforces::calcPrivateDevice<<<numBlocks, numThreads>>>
+		(	pos,
+			priv,
+			particleHash,
+			cellStart,
+			neibsList,
+			slength,
+			inflRadius,
+			numParticles);
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("UpdatePositions kernel execution failed");
+}
+
+void
 updateBoundValues(	float4*		oldVel,
 			float*		oldTKE,
 			float*		oldEps,

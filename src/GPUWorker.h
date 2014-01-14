@@ -191,6 +191,7 @@ private:
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();
+	void kernel_calcPrivate();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

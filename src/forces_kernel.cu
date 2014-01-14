@@ -1020,6 +1020,62 @@ updatePositionsDevice(	const float4*	oldPos,
 }
 
 __global__ void
+calcPrivateDevice(	const	float4*		pos_array,
+							float*		priv,
+					const	uint*		particleHash,
+					const	uint*		cellStart,
+					const	neibdata*	neibsList,
+					const	float		slength,
+					const	float		inflRadius,
+							uint		numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if(index < numParticles) {
+		#if( __COMPUTE__ >= 20)
+		float4 pos = pos_array[index];
+		#else
+		float4 pos = tex1Dfetch(posTex, index);
+		#endif
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		float4 vel = tex1Dfetch(velTex, index);
+
+		// Compute grid position of current particle
+		const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
+		// Persistent variables across getNeibData calls
+		char neib_cellnum = 0;
+		uint neib_cell_base_index = 0;
+
+		priv[index] = 0.0;
+
+		// Loop over all the neighbors
+		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+			neibdata neib_data = neibsList[i + index];
+
+			if (neib_data == 0xffff) break;
+
+			float3 pos_corr;
+			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+						neib_cellnum, neib_cell_base_index);
+
+			// Compute relative position vector and distance
+
+			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+			#if( __COMPUTE__ >= 20)
+			const float4 relPos = pos_corr - pos_array[neib_index];
+			#else
+			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			#endif
+			float r = length(as_float3(relPos));
+			if (r < inflRadius)
+				priv[index] += 1.0;
+		}
+
+	}
+}
+
+__global__ void
 updateBoundValuesDevice(	float4*		oldVel,
 				float*		oldTKE,
 				float*		oldEps,

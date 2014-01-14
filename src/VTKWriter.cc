@@ -107,6 +107,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float4 *gradGamma = buffers.getData<BUFFER_GRADGAMMA>();
 	const float *tke = buffers.getData<BUFFER_TKE>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
+	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
 	string filename, full_filename;
 
@@ -216,6 +217,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		offset += sizeof(float)*3*numParts+sizeof(int);
 
 		scalar_array(fid, "Float32", "Criteria", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// private
+	if (priv) {
+		scalar_array(fid, "Float32", "Private", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -421,6 +428,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 			float value = 0;
 			if (FLUID(info[i]))
 				value = normals[i].w;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	numbytes=sizeof(float)*numParts;
+
+	// private
+	if (priv) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=0; i < numParts; i++) {
+			float value = priv[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 	}
