@@ -703,6 +703,18 @@ static __inline__ __host__ __device__ double3 floor(const double3 &v)
 	return make_double3(floor(v.x), floor(v.y), floor(v.z));
 }
 
+// double4 functions
+////////////////////////////////////////////////////////////////////////////////
+static __inline__ __host__ __device__ double4 make_double4(double a)
+{
+	return make_double4(a, a, a, a);
+}
+
+static __inline__ __host__ __device__ double4 operator+(const double4 &a, const double4 &b)
+{
+	return make_double4(a.x + b.x, a.y + b.y, a.z + b.z,  a.w + b.w);
+}
+
 // float4 functions
 ////////////////////////////////////////////////////////////////////////////////
 
