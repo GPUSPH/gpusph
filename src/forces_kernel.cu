@@ -881,7 +881,7 @@ updateGammaDevice(	const float4* oldPos,
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
 			if (magnitude > 1.e-10f) {
-				gGam.w = oldGam.w + deltaGam * 0.5f*virtDt;
+				gGam.w = fmin(oldGam.w + deltaGam * 0.5f*virtDt,1.0f);
 			}
 			else
 				gGam.w = 1.0f;
@@ -957,7 +957,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 			//Update gamma value
 			float magnitude = length(make_float3(gGam));
 			if (magnitude > 1.e-10f) {
-				gGam.w = oldGam.w + deltaGam * 0.25f*virtDt;
+				gGam.w = fmin(oldGam.w + deltaGam * 0.25f*virtDt,1.0f);
 			}
 			else
 				gGam.w = 1.0f;
