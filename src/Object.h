@@ -81,7 +81,7 @@ class Object {
 		 *	\param dx : particle spacing
 		 *	\return volume of the object
 		 *
-		 *  This function is pure virtual and then as to be defined at child level
+		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual double Volume(const double dx) const = 0;
 		virtual double SetMass(const double, const double);
@@ -96,7 +96,7 @@ class Object {
 		 *	For the same reasons as volume, the inertia depends on particle spacing.
 		 *	\param dx : particle spacing
 		 *
-		 *  This function is pure virtual and then as to be defined at child level
+		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual void SetInertia(const double dx) = 0;
 		virtual void SetInertia(const double*);
@@ -109,12 +109,12 @@ class Object {
 		/// \name ODE related functions
 		//@{
 		/// Compute the matrix of inertia
-		/*! This function compute the matrix of inertia of the obkect in the inertial
-		 *  frame (i.e. the 3 diagonal components) and store it in the m_inertia array.
+		/*! This function computes the matrix of inertia of the object in the inertial
+		 *	frame (i.e. the 3 diagonal components) and stores it in the m_inertia array.
 		 *	For the same reasons as volume, the inertia depends on particle spacing.
 		 *	\param dx : particle spacing
 		 *
-		 *  This function is pure virtual and then as to be defined at child level
+		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0) {};
 
