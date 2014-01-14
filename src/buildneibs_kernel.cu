@@ -79,7 +79,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
 		if (newGridPos.x < 0) newGridPos.x += d_gridSize.x;
 		if (newGridPos.x >= d_gridSize.x) newGridPos.x -= d_gridSize.x;
 	} else {
-		newGridPos.x = min(max(0, gridPos.x), d_gridSize.x-1);
+		newGridPos.x = min(max(0, newGridPos.x), d_gridSize.x-1);
 		if (gridOffset.x != 0 && newGridPos.x == gridPos.x)
 			*clamped = true;
 		gridOffset.x = newGridPos.x - gridPos.x;
@@ -90,7 +90,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
 		if (newGridPos.y < 0) newGridPos.y += d_gridSize.y;
 		if (newGridPos.y >= d_gridSize.y) newGridPos.y -= d_gridSize.y;
 	} else {
-		newGridPos.y = min(max(0, gridPos.y), d_gridSize.y-1);
+		newGridPos.y = min(max(0, newGridPos.y), d_gridSize.y-1);
 		if (gridOffset.y != 0 && newGridPos.y == gridPos.y)
 			*clamped = true;
 		gridOffset.y = newGridPos.y - gridPos.y;
@@ -101,7 +101,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
 		if (newGridPos.z < 0) newGridPos.z += d_gridSize.z;
 		if (newGridPos.z >= d_gridSize.z) newGridPos.z -= d_gridSize.z;
 	} else {
-		newGridPos.z = min(max(0, gridPos.z), d_gridSize.z-1);
+		newGridPos.z = min(max(0, newGridPos.z), d_gridSize.z-1);
 		if (gridOffset.z != 0 && newGridPos.z == gridPos.z)
 			*clamped = true;
 		gridOffset.z = newGridPos.z - gridPos.z;
