@@ -817,7 +817,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 									const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
 
-									// special treatment for TAU, since in that case we need to transfers all 3 arrays
+									// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
 									if (bufkey != BUFFER_BIG) {
 										void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
 										if (corrected_sending_dir == B_SEND)
