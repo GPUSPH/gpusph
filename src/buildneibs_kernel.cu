@@ -420,6 +420,9 @@ neibsInCell(
 			#if (__COMPUTE__ >= 20)
 			const float4*	posArray,	///< particle's positions (in)
 			#endif
+			float2*			vertPos0,	///< relative position of vertex to segment, first vertex
+			float2*			vertPos1,	///< relative position of vertex to segment, second vertex
+			float2*			vertPos2,	///< relative position of vertex to segment, third vertex
 			int3			gridPos,	///< current particle grid position
 			const int3		gridOffset,	///< cell offset from current particle grid position
 			const uchar		cell,		///< cell number (0 ... 26)
@@ -428,7 +431,8 @@ neibsInCell(
 			const uint		numParticles,	///< total number of particles
 			const float		sqinfluenceradius,	///< squared value of influence radius
 			neibdata*		neibsList,	///< neighbor's list (out)
-			uint&			neibs_num)	///< number of neighbors for the current particle
+			uint&			neibs_num,	///< number of neighbors for the current particle
+			const bool		segment)	///< if a segment is searching we are only looking for the three vertices
 {
 	// Compute the grid position of the current cell
 	gridPos += gridOffset;
@@ -502,6 +506,28 @@ neibsInCell(
 	// Substract gridOffset*cellsize to pos so we don't need to do it each time
 	// we compute relPos respect to potential neighbor
 	pos -= gridOffset*d_cellSize;
+	
+	// get vertex indices
+	vertexinfo vertices = make_vertexinfo(0, 0, 0, 0);
+	float4 boundElement = make_float4(0.0f);
+	uint j = 0;
+	float4 coord2 = make_float4(0.0f);
+	if (segment){
+		vertices = tex1Dfetch(vertTex, index);
+		boundElement = tex1Dfetch(boundTex, index);
+		// Get index j for which n_s is minimal
+		if (fabs(boundElement.x) > fabs(boundElement.y))
+			j = 1;
+		if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
+			j = 2;
+		// compute second coordinate which is equal to n_s x e_j
+		if (j==0)
+			coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
+		else if (j==1)
+			coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
+		else
+			coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
+	}
 
 	// Get the last particle index of the cell
 	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
@@ -509,9 +535,11 @@ neibsInCell(
 	bool encode_cell = true;
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
-		// Test points are not considered in neighboring list of other particles since they are imaginary particles.
 		const particleinfo info = tex1Dfetch(infoTex, neib_index);
-		if (!TESTPOINTS (info)) {
+		// Test points are not considered in neighboring list of other particles since they are imaginary particles.
+		// If we are looking for neighbours of the boundary segments we only consider vertex particles. For the segments
+		// we actually don't want to fill up the neighbour list, but instead update the vertexPos array.
+		if (!TESTPOINTS (info) || (segment && VERTEX(info))) {
 			// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
@@ -524,13 +552,40 @@ neibsInCell(
 
 				// Check if the squared distance is smaller than the squared influence radius
 				// used for neighbor list construction
-				if (sqlength(relPos) < sqinfluenceradius) {
+				if (sqlength(relPos) < sqinfluenceradius && !segment) {
 					if (neibs_num < d_maxneibsnum) {
 						neibsList[neibs_num*d_neiblist_stride + index] =
 								neib_index - bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
 						encode_cell = false;
 					}
 					neibs_num++;
+				}
+				else if (segment) {
+					int i = -1;
+					if (neib_index == vertices.x)
+						i = 0;
+					else if (neib_index == vertices.y)
+						i = 1;
+					else if (neib_index == vertices.z)
+						i = 2;
+					if (i>-1) {
+						// relPosProj is the projected relative position of the vertex to the segment.
+						// the first coordinate system is given by the following two vectors:
+						// 1. The unit vector e_j, where j is the coordinate for which n_s is minimal
+						// 2. The cross product between n_s and e_j
+						float2 relPosProj = make_float2(0.0);
+						// relPosProj.x = relPos . e_j
+						relPosProj.x = j==0 ? relPos.x : (j==1 ? relPos.y : relPos.z);
+						// relPosProj.y = relPos . (n_s x e_j)
+						relPosProj.y = dot(relPos, as_float3(coord2));
+						// save relPosProj in vertPos buffer
+						if (i==0)
+							vertPos0[index] = relPosProj;
+						else if (i==1)
+							vertPos1[index] = relPosProj;
+						else
+							vertPos2[index] = relPosProj;
+					}
 				}
 
 			}
@@ -566,6 +621,9 @@ buildNeibsListDevice(
 						#if (__COMPUTE__ >= 20)
 						const float4*	posArray,				///< particle's positions (in)
 						#endif
+						float2*			vertPos0,				///< relative position of vertex to segment, first vertex
+						float2*			vertPos1,				///< relative position of vertex to segment, second vertex
+						float2*			vertPos2,				///< relative position of vertex to segment, third vertex
 						const hashKey*	particleHash,			///< particle's hashes (in)
 						neibdata*		neibsList,				///< neighbor's list (out)
 						const uint		numParticles,			///< total number of particles
@@ -586,7 +644,7 @@ buildNeibsListDevice(
 		// where vertex particles also need to have a list of neighbours
 
 		// Neighbor list is build for fluid, object, vertex and test particles
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) /*TODO: || BOUNDARY(info)*/) {
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || BOUNDARY(info)) {
 			// Get particle position
 			#if (__COMPUTE__ >= 20)
 			const float3 pos = make_float3(posArray[index]);
@@ -605,8 +663,18 @@ buildNeibsListDevice(
 							#if (__COMPUTE__ >= 20)
 							posArray,
 							#endif
-							gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos,
-							numParticles, sqinfluenceradius, neibsList, neibs_num);
+							vertPos0,
+							vertPos1,
+							vertPos2,
+							gridPos,
+							make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9,
+							index,
+							pos,
+							numParticles,
+							sqinfluenceradius,
+							neibsList,
+							neibs_num,
+							BOUNDARY(info));
 					}
 				}
 			}
