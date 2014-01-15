@@ -281,6 +281,9 @@ void
 buildNeibsList(	neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
+				vertexinfo*			vertices,
+				const float4		*boundelem,
+				float2*				vertPos[],
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
@@ -300,14 +303,22 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 	switch (periodicbound) {
 		case 0:
 			cuneibs::buildNeibsListDevice<0, true><<< numBlocks, numThreads >>>(
-					#if (__COMPUTE__ >= 20)
-					pos,
-					#endif
-					particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						#if (__COMPUTE__ >= 20)
+						pos,
+						#endif
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 		break;
 
 		case 1:
@@ -315,7 +326,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 
 		case 2:
@@ -323,7 +340,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 
 		case 3:
@@ -331,7 +354,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 
 		case 4:
@@ -339,7 +368,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 
 		case 5:
@@ -347,7 +382,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 
 		case 6:
@@ -355,7 +396,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 
 		case 7:
@@ -363,7 +410,13 @@ buildNeibsList(	neibdata*			neibsList,
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
-						particleHash,neibsList, particleRangeEnd, sqinfluenceradius);
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						neibsList,
+						particleRangeEnd,
+						sqinfluenceradius);
 				break;
 	}
 
@@ -376,6 +429,8 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 }
 
 void
