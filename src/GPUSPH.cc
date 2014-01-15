@@ -1141,7 +1141,7 @@ void GPUSPH::buildNeibList()
 		// crop external cells
 		doCommand(CROP);
 		// append fresh copies of the externals
-		doCommand(APPEND_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ);
+		doCommand(APPEND_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ | BUFFER_VERTPOS);
 	}
 
 	// build neib lists only for internal particles

@@ -89,8 +89,10 @@ SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 2, "Boundary Elements");
 SET_BUFFER_TRAITS(BUFFER_GRADGAMMA, float4, 2, "Gamma Gradient");
 #define BUFFER_VERTICES			(BUFFER_GRADGAMMA << 1)
 SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 2, "Vertices");
+#define BUFFER_VERTPOS			(BUFFER_VERTICES << 1)
+SET_BUFFER_TRAITS(BUFFER_VERTPOS, float2, 3, "Vertex positions relative to s");
 
-#define BUFFER_TKE			(BUFFER_VERTICES << 1)
+#define BUFFER_TKE			(BUFFER_VERTPOS << 1)
 SET_BUFFER_TRAITS(BUFFER_TKE, float, 2, "Turbulent Kinetic Energy [k]");
 #define BUFFER_EPSILON		(BUFFER_TKE << 1)
 SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
@@ -130,6 +132,9 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
 	BUFFER_TKE | BUFFER_EPSILON | \
 	BUFFER_TURBVISC | BUFFER_STRAIN_RATE)
+
+// all buffers which need to transfer more than one array
+#define BUFFER_BIG		(BUFFER_TAU | BUFFER_VERTPOS)
 
 #endif
 
