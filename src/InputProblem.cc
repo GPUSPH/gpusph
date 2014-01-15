@@ -54,14 +54,14 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 
 		set_deltap(0.01833f);
 
-		m_physparams.kinematicvisc = 1.0e-6f;
+		m_physparams.kinematicvisc = 1.0e-2f;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
 		m_simparams.testpoints = true;
 		H = 0.55;
-		l = 3.5; w = 1.0; h = 1.0;
-		m_origin = make_double3(0.0, 0.0, 0.0);
+		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
+		m_origin = make_double3(-0.01, -0.01, -0.01);
 		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
 	}
 	//*************************************************************************************
@@ -93,15 +93,18 @@ InputProblem::InputProblem(const Options &options) : Problem(options)
 		set_deltap(0.0625f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
+		m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
 
-		m_simparams.tend = 1.0;
+		m_simparams.tend = 100.0;
 		m_simparams.periodicbound = XPERIODIC | YPERIODIC;
 		m_simparams.testpoints = false;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
 		H = 1.0;
-		l = 1.0; w = 1.0; h = 1.0;
-		m_origin = make_double3(-0.5, -0.5, -0.5);
-		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
+		l = 1.0; w = 1.0; h = 1.02;
+		m_origin = make_double3(-0.5, -0.5, -0.51);
+		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
 	// Fishpass
