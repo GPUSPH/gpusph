@@ -323,32 +323,32 @@ void GPUWorker::importPeerEdgeCells()
 						peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
 						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
 						peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-											peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+											peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 					}
 					if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
 						_size = burst_numparts * sizeof(float4);
 						peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
 						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
 						peerAsyncTransfer( m_dVel[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-											peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+											peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 					}
 					if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
 						_size = burst_numparts * sizeof(particleinfo);
 						peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
 						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
 						peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-											peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+											peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 					}
 					if ( gdata->commandFlags & BUFFER_FORCES) {
 						_size = burst_numparts * sizeof(float4);
 						peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
-						peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
+						peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 					}
 					if ( gdata->commandFlags & BUFFER_TAU) {
 						_size = burst_numparts * sizeof(float2);
 						peer_dTaus = gdata->GPUWORKERS[burst_peer_dev_index]->getDTauBuffers();
 						for (uint itau = 0; itau < 3; itau++)
-							peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, burst_peer_dev_index, _size);
+							peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 					}
 
 					// reset burst to current cell
@@ -367,33 +367,33 @@ void GPUWorker::importPeerEdgeCells()
 			peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
 			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
 			peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+								peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 		}
 		if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
 			_size = burst_numparts * sizeof(float4);
 			peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
 			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
 			peerAsyncTransfer( m_dVel[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+								peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 		}
 		if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
 			_size = burst_numparts * sizeof(particleinfo);
 			peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
 			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
 			peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, burst_peer_dev_index, _size);
+								peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 		}
 		if ( gdata->commandFlags & BUFFER_FORCES) {
 			_size = burst_numparts * sizeof(float4);
 			peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
 			peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dForces + burst_peer_index_begin, burst_peer_dev_index, _size);
+								peer_dForces + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 		}
 		if ( gdata->commandFlags & BUFFER_TAU) {
 			_size = burst_numparts * sizeof(float2);
 			peer_dTaus = gdata->GPUWORKERS[burst_peer_dev_index]->getDTauBuffers();
 			for (uint itau = 0; itau < 3; itau++)
-				peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, burst_peer_dev_index, _size);
+				peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
 		}
 
 	} // burst is empty?
