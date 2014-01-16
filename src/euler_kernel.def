@@ -89,7 +89,7 @@ eulerDevice(
 
 	const particleinfo pinfo = info[index];
 
-	if(type(pinfo) != BOUNDPART) {
+	if(ACTIVE(pos) && type(pinfo) != BOUNDPART) {
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 		// mean XSPH velocity, only when XSPH is active
 		// the compiler is smart enough to actually optimize this out

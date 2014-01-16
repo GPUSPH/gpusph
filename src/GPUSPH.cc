@@ -1082,6 +1082,7 @@ void GPUSPH::doWrite()
 		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
+		dpos.w = pos.w;
 
 		gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>()[i] = dpos;
 	}

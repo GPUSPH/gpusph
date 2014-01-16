@@ -43,8 +43,8 @@ texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
 
-__constant__ idx_t d_neiblist_end; // maxneibsnum * number of allocated particles
-__constant__ idx_t d_neiblist_stride; // stride between neighbors of the same particle
+__constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particles
+__constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
 __constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
 __constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
@@ -54,7 +54,7 @@ __constant__ float	d_fcoeff_cubicspline;			// coeff = 3/(4Pi h^4)
 __constant__ float	d_fcoeff_quadratic;				// coeff = 15/(32Pi h^4)
 __constant__ float	d_fcoeff_wendland;				// coeff = 105/(128Pi h^5)
 
-__constant__ int    d_numfluids;					// number of different fluids
+__constant__ int	d_numfluids;					// number of different fluids
 
 __constant__ float	d_rho0[MAX_FLUID_TYPES];		// rest density of fluids
 
@@ -111,16 +111,16 @@ __constant__ float	d_cosconeanglenonfluid;
 // Rigid body data (test version)
 __device__ float3	d_force;
 __device__ float3	d_torque;
-__constant__ float3 d_rbcg[MAXBODIES];
+__constant__ float3	d_rbcg[MAXBODIES];
 __constant__ uint	d_rbstartindex[MAXBODIES];
-__constant__ float d_objectobjectdf;
-__constant__ float d_objectboundarydf;
+__constant__ float	d_objectobjectdf;
+__constant__ float	d_objectboundarydf;
 
 // Grid data
 #include "cellgrid.h"
 
 // Neibdata cell number to offset
-__constant__ char3 d_cell_to_offset[27];
+__constant__ char3	d_cell_to_offset[27];
 
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
@@ -219,7 +219,7 @@ F<QUADRATIC>(const float r, const float slength)
 }
 
 
-template<> 
+template<>
 __device__ __forceinline__ float
 F<WENDLAND>(const float r, const float slength)
 {
@@ -369,10 +369,10 @@ __device__ __forceinline__ void
 dtadaptBlockReduce(	float*	sm_max,
 					float*	cfl)
 {
-	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1) 
+	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
 	{
 		__syncthreads();
-		if (threadIdx.x < s) 
+		if (threadIdx.x < s)
 		{
 			sm_max[threadIdx.x] = max(sm_max[threadIdx.x + s], sm_max[threadIdx.x]);
 		}
@@ -529,8 +529,8 @@ GeometryForce(	const float3&	pos,
 
 
 __device__ __forceinline__ float
-DemInterpol(const texture<float, 2, cudaReadModeElementType> texref, 
-			const float x, 
+DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
+			const float x,
 			const float y)
 {
 	return tex2D(texref, x/d_ewres + 0.5f, y/d_nsres + 0.5f);
@@ -587,7 +587,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 						const float	influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -637,12 +637,17 @@ SPSstressMatrixDevice(	const float4* posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
@@ -719,7 +724,7 @@ initGradGammaDevice(	float4*		oldPos,
 			const float	inflRadius)
 {
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-	
+
 	if(index < numParticles) {
 		#if( __COMPUTE__ >= 20)
 		float4 pos = oldPos[index];
@@ -727,11 +732,11 @@ initGradGammaDevice(	float4*		oldPos,
 		float4 pos = tex1Dfetch(posTex, index);
 		#endif
 		const particleinfo info = tex1Dfetch(infoTex, index);
-		
+
 		// Taking info account self contribution in summation
 		float4 gGam = make_float4(0.0f);
 		float4 virtVel = make_float4(0.0f);
-		
+
 		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
 		if(FLUID(info) || VERTEX(info)) {
 			//uint counter = 0; //DEBUG
@@ -761,10 +766,15 @@ initGradGammaDevice(	float4*		oldPos,
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
-				
+
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-				
+
 				if(r < inflRadius && BOUNDARY(neibInfo)) {
 					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 					gGam += gradGamma<kerneltype>(slength, r, boundElement);
@@ -777,7 +787,7 @@ initGradGammaDevice(	float4*		oldPos,
 			//DEBUG output
 			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
 			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
-			
+
 			//Set the virtual displacement
 			float magnitude = length(make_float3(gGam));
 			if (magnitude > 1.e-10f) {
@@ -785,10 +795,10 @@ initGradGammaDevice(	float4*		oldPos,
 				virtVel.w = 0.0f;
 			}
 		}
-		
+
 		// Set gamma to 1
 		gGam.w = 1.0f;
-		
+
 		gradGam[index] = gGam;
 		virtualVel[index].x = virtVel.x;
 		virtualVel[index].y = virtVel.y;
@@ -851,6 +861,11 @@ updateGammaDevice(	const float4* oldPos,
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
@@ -922,6 +937,11 @@ updateGammaPrCorDevice( const float4*		newPos,
 
 				// Compute relative position vector and distance
 				const float4 relPos = pos_corr - newPos[neib_index];
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
 				const float r = length(as_float3(relPos));
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
@@ -1007,7 +1027,7 @@ updateBoundValuesDevice(	float4*		oldVel,
 				bool		initStep)
 {
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-	
+
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		if (BOUNDARY(info)) {
@@ -1113,6 +1133,11 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 //		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1210,6 +1235,11 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		if (r < influenceradius) {
@@ -1330,6 +1360,11 @@ shepardDevice(	const float4*	posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1442,6 +1477,11 @@ MlsDevice(	const float4*	posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1496,6 +1536,11 @@ MlsDevice(	const float4*	posArray,
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
 			const float r = length(as_float3(relPos));
 
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1530,6 +1575,11 @@ MlsDevice(	const float4*	posArray,
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
+
+			// skip inactive particles
+			if (INACTIVE(relPos))
+				continue;
+
 			const float r = length(as_float3(relPos));
 
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
@@ -1569,19 +1619,19 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
 
 	float myMax = 0;
 
-	// we reduce multiple elements per thread.  The number is determined by the 
+	// we reduce multiple elements per thread.  The number is determined by the
 	// number of active thread blocks (via gridDim).  More blocks will result
 	// in a larger gridSize and therefore fewer elements per thread
 	while (i < n)
-	{         
+	{
 		myMax = max(myMax, g_idata[i]);
 		// ensure we don't read out of bounds
-		if (i + blockSize < n) 
+		if (i + blockSize < n)
 			myMax = max(myMax, g_idata[i + blockSize]);
 		i += gridSize;
-	} 
+	}
 
-	// each thread puts its local sum into shared memory 
+	// each thread puts its local sum into shared memory
 	sdata[tid] = myMax;
 	__syncthreads();
 
@@ -1604,9 +1654,9 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
 		if (blockSize >=   2) { smem[tid] = myMax = max(myMax, smem[tid +  1]); }
 	}
 
-	// write result for this block to global mem 
-	if (tid == 0) 
-        g_odata[blockIdx.x] = sdata[0];
+	// write result for this block to global mem
+	if (tid == 0)
+		g_odata[blockIdx.x] = sdata[0];
 }
 /************************************************************************************************************/
 
@@ -1816,12 +1866,17 @@ calcVortDevice(	const	float4*		posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Compute vorticity
 		if (r < influenceradius && FLUID(neib_info)) {
@@ -1851,7 +1906,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 								const float		influenceradius)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	
+
 	if (index >= numParticles)
 		return;
 
@@ -1859,14 +1914,14 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	const particleinfo info = tex1Dfetch(infoTex, index);
 	if(type(info) != TESTPOINTSPART)
 		return;
-	
+
 	#if (__COMPUTE__ >= 20)
 	const float4 pos = oldPos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 	float4 vel = tex1Dfetch(velTex, index);
-	
+
 	// this is the velocity (x,y,z) and pressure (w)
 	float4 temp = make_float4(0.0f);
 	// this is the shepard filter sum(w_b w_{ab})
@@ -1896,10 +1951,15 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
-        const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;	// Wij*mj
@@ -1987,6 +2047,11 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		const float neib_density = tex1Dfetch(velTex, neib_index).w;
@@ -2040,6 +2105,11 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		// skip inactive particles
+		if (INACTIVE(relPos))
+			continue;
+
 		const float r = length(as_float3(relPos));
 
 		float cosconeangle;
