@@ -433,14 +433,14 @@ void GPUWorker::importPeerEdgeCells()
 							void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin);
 							const void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_peer_index_begin);
 
-							peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, burst_peer_dev_index, _size);
+							peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
 						} else {
 							// generic, so that it can work for other buffers like TAU, if they are ever
 							// introduced; just fix the conditional
 							for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
 								void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin);
 								const void *srcptr = srcbuf->get_offset_buffer(ai, burst_peer_index_begin);
-								peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, burst_peer_dev_index, _size);
+								peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
 							}
 						}
 					}
@@ -494,14 +494,14 @@ void GPUWorker::importPeerEdgeCells()
 				void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin);
 				const void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_peer_index_begin);
 
-				peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, burst_peer_dev_index, _size);
+				peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
 			} else {
 				// generic, so that it can work for other buffers like TAU, if they are ever
 				// introduced; just fix the conditional
 				for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
 					void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin);
 					const void *srcptr = srcbuf->get_offset_buffer(ai, burst_peer_index_begin);
-					peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, burst_peer_dev_index, _size);
+					peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
 				}
 			}
 		}
