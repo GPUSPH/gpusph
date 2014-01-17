@@ -1147,6 +1147,21 @@ void GPUSPH::buildNeibList()
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
 	doCommand(BUILDNEIBS);
+
+	// scan and check the peak number of neighbors and the estimated number of interactions
+	const uint maxPossibleNeibs = gdata->problem->get_simparams()->maxneibsnum;
+	gdata->lastGlobalPeakNeibsNum = 0;
+	for (int d = 0; d < gdata->devices; d++) {
+		const uint currDevMaxNeibs = gdata->timingInfo[d].maxNeibs;
+
+		if (currDevMaxNeibs > maxPossibleNeibs)
+			printf("WARNING: current max. neighbors numbers %u greather than MAXNEIBSNUM (%u)\n", currDevMaxNeibs, maxPossibleNeibs);
+
+		if (currDevMaxNeibs > gdata->lastGlobalPeakNeibsNum)
+			gdata->lastGlobalPeakNeibsNum = currDevMaxNeibs;
+
+		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
+	}
 }
 
 void GPUSPH::doCallBacks()
@@ -1225,13 +1240,13 @@ void GPUSPH::updateValuesAtBoundaryElements()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), maxneibs %u, %u files saved so far\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
 			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles),
-			gdata->writer->getLastFilenum()
+			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,
