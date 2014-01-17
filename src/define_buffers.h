@@ -110,8 +110,11 @@ SET_BUFFER_TRAITS(BUFFER_CFL_GAMMA, float, 1, "Gamma CFL array");
 #define BUFFER_CFL_KEPS		(BUFFER_CFL_GAMMA << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
 
+#define BUFFER_PRIVATE		(BUFFER_CFL_KEPS << 1)
+SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
+
 // last defined buffer. if new buffers are defined, remember to update this
-#define LAST_DEFINED_BUFFER	BUFFER_CFL_KEPS
+#define LAST_DEFINED_BUFFER	BUFFER_PRIVATE
 
 // common shortcut
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)

@@ -84,6 +84,7 @@ typedef struct SimParams {
 	GageList		gage;				// water gages
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+	bool			calcPrivate;		// add the private array for debugging / additional calculation
 
 	SimParams(void) :
 		sfactor(1.3),
@@ -116,7 +117,8 @@ typedef struct SimParams {
 		surfaceparticle(false),
 		calc_energy(true),
 		numODEbodies(0),
-		maxneibsnum(0)
+		maxneibsnum(0),
+		calcPrivate(false)
 	{};
 
 	inline double

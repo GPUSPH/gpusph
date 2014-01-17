@@ -103,6 +103,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 		m_dBuffers << new CUDABuffer<BUFFER_STRAIN_RATE>();
 		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
+
+	if (m_simparams->calcPrivate)
+		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
 }
 
 GPUWorker::~GPUWorker() {
@@ -1650,24 +1653,24 @@ void* GPUWorker::simulationThread(void *ptr) {
 				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case MF_INIT_GAMMA:
-				//printf(" T %d issuing MF_INIT_GAMMA\n", deviceIndex);
+			case SA_INIT_GAMMA:
+				//printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
 				instance->kernel_initGradGamma();
 				break;
-			case MF_UPDATE_GAMMA:
-				//printf(" T %d issuing MF_UPDATE_GAMMA\n", deviceIndex);
+			case SA_UPDATE_GAMMA:
+				//printf(" T %d issuing SA_UPDATE_GAMMA\n", deviceIndex);
 				instance->kernel_updateGamma();
 				break;
-			case MF_UPDATE_POS:
-				//printf(" T %d issuing MF_UPDATE_POS\n", deviceIndex);
+			case SA_UPDATE_POS:
+				//printf(" T %d issuing SA_UPDATE_POS\n", deviceIndex);
 				instance->kernel_updatePositions();
 				break;
-			case MF_CALC_BOUND_CONDITIONS:
-				//printf(" T %d issuing MF_CALC_BOUND_CONDITIONS\n", deviceIndex);
+			case SA_CALC_BOUND_CONDITIONS:
+				//printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
 				instance->kernel_dynamicBoundaryConditions();
 				break;
-			case MF_UPDATE_BOUND_VALUES:
-				//printf(" T %d issuing MF_UPDATE_BOUND_VALUES\n", deviceIndex);
+			case SA_UPDATE_BOUND_VALUES:
+				//printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
 				instance->kernel_updateValuesAtBoundaryElements();
 				break;
 			case SPS:
@@ -1701,6 +1704,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case UPLOAD_OBJECTS_MATRICES:
 				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
+				break;
+			case CALC_PRIVATE:
+				//printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
+				instance->kernel_calcPrivate();
 				break;
 			case QUIT:
 				//printf(" T %d issuing QUIT\n", deviceIndex);
@@ -2269,6 +2276,26 @@ void GPUWorker::kernel_updatePositions()
 					gdata->extraCommandArg,
 					m_numParticles,
 					numPartsToElaborate);
+}
+
+void GPUWorker::kernel_calcPrivate()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	calcPrivate(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_PRIVATE>(),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_simparams->slength,
+				m_simparams->influenceRadius,
+				m_numParticles,
+				numPartsToElaborate);
 }
 
 void GPUWorker::uploadConstants()

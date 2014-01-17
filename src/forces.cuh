@@ -324,6 +324,20 @@ updatePositions(	float4*		oldPos,
 			uint		numParticles,
 			uint		particleRangeEnd);
 
+// calculate a private scalar for debugging or a passive value
+void
+calcPrivate(const	float4*			pos,
+			const	float4*			vel,
+			const	particleinfo*	info,
+					float*			priv,
+			const	uint*			particleHash,
+			const	uint*			cellStart,
+					neibdata*		neibsList,
+					float			slength,
+					float			inflRadius,
+					uint			numParticles,
+					uint			particleRangeEnd);
+
 // Recomputes values at the boundary elements (currently only density) as an average
 // over three vertices of this element
 void

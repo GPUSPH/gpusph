@@ -407,10 +407,10 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
-			doCommand(MF_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
+			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
+			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 		}
@@ -466,13 +466,13 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
-			doCommand(MF_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
+			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-			doCommand(MF_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
+			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
+			doCommand(SA_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
 
@@ -539,7 +539,7 @@ bool GPUSPH::runSimulation() {
 
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
-			doCommand(MF_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
+			doCommand(SA_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
 			gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
@@ -629,6 +629,12 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_NORMALS;
 			}
 
+			// get private array
+			if (gdata->problem->get_simparams()->calcPrivate) {
+				doCommand(CALC_PRIVATE);
+				which_buffers |= BUFFER_PRIVATE;
+			}
+
 			if ( !gdata->nosave || final_save ) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
@@ -700,6 +706,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
 	}
+
+	if (problem->m_simparams.calcPrivate)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
 
 	// number of elements to allocate
 	const size_t numparts = gdata->totParticles;
@@ -1175,7 +1184,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 
 	gdata->only_internal = true;
 
-	doCommand(MF_INIT_GAMMA);
+	doCommand(SA_INIT_GAMMA);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 	gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
@@ -1192,20 +1201,20 @@ void GPUSPH::initializeGammaAndGradGamma()
 		// gamma(n+1) = gamma(n) + 0.5*[gradGam(n) + gradGam(n+1)]*[r(n+1) - r(n)]
 
 		// Update gamma 1st call
-		doCommand(MF_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
+		doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// Move the particles
-		doCommand(MF_UPDATE_POS, INITIALIZATION_STEP, deltat);
+		doCommand(SA_UPDATE_POS, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_POS);
 
 		buildNeibList();
 
-		doCommand(MF_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
+		doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
@@ -1215,7 +1224,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 void GPUSPH::imposeDynamicBoundaryConditions()
 {
 	gdata->only_internal = true;
-	doCommand(MF_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
+	doCommand(SA_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 }
@@ -1223,7 +1232,7 @@ void GPUSPH::imposeDynamicBoundaryConditions()
 void GPUSPH::updateValuesAtBoundaryElements()
 {
 	gdata->only_internal = true;
-	doCommand(MF_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
+	doCommand(SA_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
 }
