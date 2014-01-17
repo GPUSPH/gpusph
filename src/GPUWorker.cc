@@ -1538,7 +1538,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// upload planes, if any
 	instance->uploadPlanes();
 
-		// upload centers of gravity of the bodies
+	// upload centers of gravity of the bodies
 	instance->uploadBodiesCentersOfGravity();
 
 	// allocate CPU and GPU arrays
