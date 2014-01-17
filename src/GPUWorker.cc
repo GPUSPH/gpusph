@@ -38,7 +38,6 @@
 // round_up
 #include "utils.h"
 
-
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	gdata = _gdata;
 	m_deviceIndex = _deviceIndex;
@@ -1836,6 +1835,9 @@ void GPUWorker::kernel_buildNeibsList()
 					m_nGridCells,
 					m_simparams->nlSqInfluenceRadius,
 					m_simparams->periodicbound);
+
+	// download the peak number of neighbors and the estimated number of interactions
+	getneibsinfo( gdata->timingInfo[m_deviceIndex] );
 }
 
 void GPUWorker::kernel_forces()

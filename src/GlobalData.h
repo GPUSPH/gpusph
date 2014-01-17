@@ -42,6 +42,8 @@
 #include "Problem.h"
 // Options
 #include "Options.h"
+// TimingInfo
+#include "timing.h"
 
 // BufferList
 #include "buffer.h"
@@ -242,6 +244,11 @@ struct GlobalData {
 	float t;
 	float dt;
 
+	// One TimingInfo per worker, currently used for statistics about neibs and interactions
+	TimingInfo timingInfo[MAX_DEVICES_PER_NODE];
+	uint lastGlobalPeakNeibsNum;
+	uint lastGlobalNumInteractions;
+
 	// next command to be executed by workers
 	CommandType nextCommand;
 	// step parameter, e.g. for predictor/corrector scheme
@@ -294,6 +301,8 @@ struct GlobalData {
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
+		lastGlobalPeakNeibsNum(0),
+		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
