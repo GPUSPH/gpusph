@@ -637,7 +637,7 @@ buildNeibsListDevice(
 
 	if (index < numParticles) {
 		// Read particle info from texture
-    	const particleinfo info = tex1Dfetch(infoTex, index);
+		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// Only fluid particle needs to have a boundary list
 		// TODO: this is not true with dynamic boundary particles
