@@ -125,6 +125,35 @@ Problem::check_maxneibsnum(void)
 	if (m_simparams.boundarytype == SA_BOUNDARY)
 		maxneibsnum = round_up(3*maxneibsnum/2, 32U);
 
+	// more in general, it's possible to have different particle densities for the
+	// boundaries even with other boundary conditions. we do not have a universal
+	// parameter that marks the inter-particle distance for boundary particles,
+	// although we know that r0 is normally used for this too.
+	// TODO FIXME when the double meaning of r0 as inter-particle distance for
+	// boundary particles and as fluid-boundary distance is split into separate
+	// variables, the inter-particle distance should be used in the next formula
+
+	// The formula we use is based on the following:
+	// 1. a half-sphere has (3/2) pi r^3 particle
+	// 2. a full circle has pi (r/q)^2 particles, if q is the ratio beween
+	//   the inter-particle distance on the full circle and the inter-particle
+	//   distance used in the fluid
+	// * the number of neighbors that are seen by a particle which is near
+	//   a boundary plane with q*dp interparticle-distance is augmented the number
+	//   in 2. over the number in 1., giving (3/2) (1/q)^2 (1/r)
+	// * of course this does not affect the entire neighborhood, but only the part
+	//   which is close to a boundary, which we estimate to be at most 2/3rds of
+	//   the neighborhood, which cancels with the (3/2) factor
+	//   TODO check if we should assume 7/8ths instead (particle near vertex
+	//   only has 1/8th of a sphere in the fluid, the rest is all boundaries).
+	double qq = m_deltap/m_physparams.r0; // 1/q
+	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
+	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
+	// increase maxneibsnum as appropriate
+	maxneibsnum = ceil(ratio*maxneibsnum);
+	// round up to multiple of 32
+	maxneibsnum = round_up(maxneibsnum, 32U);
+
 	// if the maxneibsnum was user-set, check against computed minimum
 	if (m_simparams.maxneibsnum) {
 		if (m_simparams.maxneibsnum < maxneibsnum) {
