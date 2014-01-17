@@ -56,7 +56,7 @@ __device__ int d_maxNeibs;
  *
  *	\param[in] gridPos : grid position to be clamped
  *	\param[in] gridOffset : grid offset
- *	\param[out] clamped : has the gridPos been clamped?
+ *	\param[out] toofar : has the gridPos been clamped when the offset was of more than 1 cell?
  *
  * 	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *
@@ -65,7 +65,7 @@ __device__ int d_maxNeibs;
 // TODO: verify periodicity along multiple axis
 template <int periodicbound>
 __device__ __forceinline__ int3
-clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
+clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 {
 	int3 newGridPos = gridPos + gridOffset;
 	// For the axis involved in periodicity the new grid position reflects
@@ -80,8 +80,8 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
 		if (newGridPos.x >= d_gridSize.x) newGridPos.x -= d_gridSize.x;
 	} else {
 		newGridPos.x = min(max(0, newGridPos.x), d_gridSize.x-1);
-		if (gridOffset.x != 0 && newGridPos.x == gridPos.x)
-			*clamped = true;
+		if (abs(gridOffset.x) > 1 && newGridPos.x == gridPos.x)
+			*toofar = true;
 		gridOffset.x = newGridPos.x - gridPos.x;
 	}
 
@@ -91,8 +91,8 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
 		if (newGridPos.y >= d_gridSize.y) newGridPos.y -= d_gridSize.y;
 	} else {
 		newGridPos.y = min(max(0, newGridPos.y), d_gridSize.y-1);
-		if (gridOffset.y != 0 && newGridPos.y == gridPos.y)
-			*clamped = true;
+		if (abs(gridOffset.y) > 1 && newGridPos.y == gridPos.y)
+			*toofar = true;
 		gridOffset.y = newGridPos.y - gridPos.y;
 	}
 
@@ -102,8 +102,8 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
 		if (newGridPos.z >= d_gridSize.z) newGridPos.z -= d_gridSize.z;
 	} else {
 		newGridPos.z = min(max(0, newGridPos.z), d_gridSize.z-1);
-		if (gridOffset.z != 0 && newGridPos.z == gridPos.z)
-			*clamped = true;
+		if (abs(gridOffset.z) > 1 && newGridPos.z == gridPos.z)
+			*toofar = true;
 		gridOffset.z = newGridPos.z - gridPos.z;
 	}
 
@@ -116,13 +116,13 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *clamped)
  *
  *	\param[in] gridPos : grid position to be clamped
  *	\param[in/out] gridOffset : grid offset
- *	\param[out] clamped : has the gridPos been clamped?
+ *	\param[out] toofar : has the gridPos been clamped when the offset was of more than 1 cell?
  *
  * 	\return : new grid position
  */
 template <>
 __device__ __forceinline__ int3
-clampGridPos<0>(const int3& gridPos, int3& gridOffset, bool *clamped)
+clampGridPos<0>(const int3& gridPos, int3& gridOffset, bool *toofar)
 {
 	int3 newGridPos = gridPos + gridOffset;
 
@@ -130,10 +130,10 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset, bool *clamped)
 	newGridPos.x = min(max(0, newGridPos.x), d_gridSize.x-1);
 	newGridPos.y = min(max(0, newGridPos.y), d_gridSize.y-1);
 	newGridPos.z = min(max(0, newGridPos.z), d_gridSize.z-1);
-	if ((gridOffset.x != 0 && newGridPos.x == gridPos.x) ||
-		(gridOffset.y != 0 && newGridPos.y == gridPos.y) ||
-		(gridOffset.z != 0 && newGridPos.z == gridPos.z))
-		*clamped = true;
+	if ((abs(gridOffset.x) > 1 && newGridPos.x == gridPos.x) ||
+		(abs(gridOffset.y) > 1 && newGridPos.y == gridPos.y) ||
+		(abs(gridOffset.z) > 1 && newGridPos.z == gridPos.z))
+		*toofar = true;
 
 	// In case of change in grid position the grid offset is updated
 	gridOffset = newGridPos - gridPos;
@@ -189,9 +189,11 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		// Computing grid offset from new pos relative to old hash
 		int3 gridOffset = make_int3(floor((as_float3(pos) + 0.5f*d_cellSize)/d_cellSize));
 
+		// has the particle flown out of the domain by more than a cell? clamping
+		// its position will set this to true if necessary
+		bool toofar = false;
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
-		bool clamped = false;
-		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &clamped));
+		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
 #if HASH_KEY_SIZE >= 64
 		gridHash <<= GRIDHASH_BITSHIFT
 		gridHash |= id(pinfo[index]);
@@ -204,8 +206,8 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 
 		// Adjust position
 		as_float3(pos) -= gridOffset*d_cellSize;
-		// if the particle would have flown out of the domain, disable it
-		if (clamped)
+		// if the particle would have flown out of the domain by more than a cell, disable it
+		if (toofar)
 			disable_particle(pos);
 
 		// Store grid hash, particle index and position relative to cell
