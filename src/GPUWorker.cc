@@ -2278,6 +2278,7 @@ void GPUWorker::kernel_updateGamma()
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
 				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
 				m_dBuffers.getData<BUFFER_NEIBSLIST>(),

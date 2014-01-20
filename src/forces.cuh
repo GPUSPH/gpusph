@@ -295,23 +295,24 @@ initGradGamma(	float4*		oldPos,
 // Computes current value of the gamma gradient and update gamma value
 // according to the evolution equation { dGamma/dt = gradGamma * relVel }
 void
-updateGamma(	float4*		oldPos,
-		const float4*		newPos,
-		float4*		virtualVel,
-		particleinfo*	info,
-		float4*		boundElement,
-		float4*		oldGam,
-		float4*		newGam,
-		const hashKey*	particleHash,
-		const uint*	cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		slength,
-		float		inflRadius,
-		float		virtDt,
-		bool		predcor,
-		int			kerneltype);
+updateGamma(			float4*			oldPos,
+				const	float4*			newPos,
+						float4*			virtualVel,
+						particleinfo*	info,
+						float4*			boundElement,
+						float4*			oldGam,
+						float4*			newGam,
+						float2*			vertPos[],
+				const	hashKey*		particleHash,
+				const	uint*			cellStart,
+						neibdata*		neibsList,
+						uint			numParticles,
+						uint			particleRangeEnd,
+						float			slength,
+						float			inflRadius,
+						float			virtDt,
+						bool			predcor,
+						int				kerneltype);
 
 //Moves particles back to their initial positions during initialization of gamma
 void

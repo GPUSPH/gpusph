@@ -181,6 +181,12 @@ void*	reduce_buffer = NULL;
 				(oldPos, newGam, particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius, virtDt); \
 	break
 
+#define GAMMA_CHECK(kernel) \
+	case kernel: \
+		cuforces::gammaDevice<kernel><<< numBlocks, numThreads>>> \
+				(oldPos, newGam, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius); \
+	break
+
 #define UPDATEGAMMAPRCOR_CHECK(kernel) \
 	case kernel: \
 		cuforces::updateGammaPrCorDevice<kernel><<< numBlocks, numThreads>>> \
@@ -1084,23 +1090,24 @@ initGradGamma(	float4*			oldPos,
 }
 
 void
-updateGamma(	float4*		oldPos,
-		const float4*		newPos,
-		float4*		virtualVel,
-		particleinfo*	info,
-		float4*		boundElement,
-		float4*		oldGam,
-		float4*		newGam,
-		const hashKey*	particleHash,
-		const uint*	cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		slength,
-		float		inflRadius,
-		float		virtDt,
-		bool		predcor,
-		int			kerneltype)
+updateGamma(			float4*			oldPos,
+				const	float4*			newPos,
+						float4*			virtualVel,
+						particleinfo*	info,
+						float4*			boundElement,
+						float4*			oldGam,
+						float4*			newGam,
+						float2*			vertPos[],
+				const	hashKey*		particleHash,
+				const	uint*			cellStart,
+						neibdata*		neibsList,
+						uint			numParticles,
+						uint			particleRangeEnd,
+						float			slength,
+						float			inflRadius,
+						float			virtDt,
+						bool			predcor,
+						int				kerneltype)
 {
 	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -1114,7 +1121,10 @@ updateGamma(	float4*		oldPos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGam, numParticles*sizeof(float4)));
 	
 	//execute kernel
-	if(predcor) {
+	switch (kerneltype) {
+		GAMMA_CHECK(WENDLAND);
+	}
+/*	if(predcor) {
 		switch (kerneltype) {
 			UPDATEGAMMAPRCOR_CHECK(CUBICSPLINE);
 //			UPDATEGAMMAPRCOR_CHECK(QUADRATIC);
@@ -1127,7 +1137,7 @@ updateGamma(	float4*		oldPos,
 //			UPDATEGAMMA_CHECK(QUADRATIC);
 			UPDATEGAMMA_CHECK(WENDLAND);
 		}
-	}
+	} */
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
