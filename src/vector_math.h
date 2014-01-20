@@ -40,6 +40,7 @@ inline float rsqrtf(float x)
 inline float copysign(float a, float b)
 {
 	return b > 0 ? fabs(a) : -fabs(a);
+}
 #endif
 
 // float functions
@@ -890,6 +891,12 @@ static __inline__ __host__ __device__ float length(const float4 &v)
 static __inline__ __host__ __device__ float length3(const float4 &v)
 {
 	return sqrtf(sqlength3(v));
+}
+
+// cross product
+static __inline__ __host__ __device__ float4 cross3(const float4 &a, const float4 &b)
+{
+	return make_float4(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x, 0.0f);
 }
 
 // normalize
