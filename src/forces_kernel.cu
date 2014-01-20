@@ -806,6 +806,269 @@ initGradGammaDevice(	float4*		oldPos,
 	}
 }
 
+__device__ float2
+hf3d(float qas, float qae, float q, float pes)
+{
+	float2 ret = make_float2(0.0);
+	const float q2 = q*q;
+	const float q3 = q2*q;
+	const float q4 = q2*q2;
+	const float q5 = q3*q2;
+	const float qas2 = qas*qas;
+	const float qas3 = qas2*qas;
+	const float qas4 = qas2*qas2;
+	const float qas5 = qas3*qas2;
+	const float qas6 = qas3*qas3;
+	const float qae2 = qae*qae;
+	const float qae4 = qae2*qae2;
+	const float qae6 = qae4*qae2;
+	const float sqrtqqae = sqrt(q2-qae2);
+	const float acoshqqae = acosh(q/qae);
+	const float atanmpi2 = atan(pes/sqrtqqae)-M_PI/2.0f;
+	const float atan23 = atan(qas*pes/(q2-q*sqrtqqae-qas2))-atan(qas/pes);
+	// formula for gradGamma (h3d)
+	ret.x =	pes/2.0f*sqrtqqae*(
+				q5/24.0f - 7.0f/16.0f*q4
+				+ q3/96.0f*(6.0f*qas2+5.0f*qae2+168.0f)
+				- q*q*7.0f/48.0f*(5.0f*qas2+4*qae2+20.0f)
+				+ q/64.0f*(8.0f*qas4+5.0f*qae4+6.0f*qas2*qae2+224.0f*qas2+168.0f*qae2)
+				- 7.0f/48.0f*(15.0f*qas4+8.0f*qae4+10.0f*qas2*qae2+60.0f*qas2+40.0f*qae2-48.0f)
+			)
+			+ pes/128.0f*acoshqqae*(	16.0f*qas6+5.0f*qae6+8.0f*qas4*qae2+6.0f*qas2*qae4
+										+448.0f*qas4+168.0f*qae4+224.0f*qas2*qae2)
+			+ (35.0f*qas6+140.0f*qas4-112.0f*qas2+64.0f)/32.0f*atanmpi2
+			+ qas5*(qas2+28.0f)/8.0f*atan23;
+	// forumal for gamma (f3d)
+	ret.y =	pes/32.0f*sqrtqqae*(
+				q5/4.0f-3.0f*q4+(6.0f*qas2+5.0f*qae2+224.0f)*q3/16.0f
+				- q2*(5.0f*qas2+4.0f*qae2+28.0f)
+				+ q/64.0f*(24.0f*qas4+15.0f*qae4+8.0f*qas2*qae2+1896.0f*qas2+672.0f*qae2)
+				- 15.0f*qas4-8.0f*qae4-10.0f*qas2*qae2-84.0f*qas2-56.0f*qae2+112.0f
+			)
+			+ pes/1024.0f*acoshqqae*(	1792.0f*qas4+672.0f*qae4+896.0f*qas2*qae2+15.0f*qae6
+										+24.0f*qas4+qae2+18.0f*qas2*qae4+48.0f*qas6)
+			+ (15.0f*qas6+84.0f*qas4-112.0f*qas2+192.0f)/32.0f*atanmpi2
+			+ qas5*(3.0f*qas2+112.0f)/64.0f*atan23
+			- 2.0f/qas*atan(2.0f*qas*pes*q*sqrtqqae/((2.0f*qas2-qae2)*q2-qas2*qae2));
+	return ret;
+}
+
+template<KernelType kerneltype>
+__global__ void
+gammaDevice(const	float4* 	oldPos,
+					float4*		newGam,
+			const	float2*		vertPos0,
+			const	float2*		vertPos1,
+			const	float2*		vertPos2,
+			const	uint*		particleHash,
+			const	uint*		cellStart,
+			const	neibdata*	neibsList,
+			const	uint		numParticles,
+			const	float		slength,
+			const	float		inflRadius)
+{
+	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
+
+	if(index < numParticles) {
+		#if( __COMPUTE__ >= 20)
+		const float4 pos = oldPos[index];
+		#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		#endif
+		const particleinfo info = tex1Dfetch(infoTex, index);
+
+		float4 gGam = make_float4(0.0f);
+
+		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
+		if(FLUID(info) || VERTEX(info)) {
+			// Compute grid position of current particle
+			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+
+			// Persistent variables across getNeibData calls
+			char neib_cellnum = 0;
+			uint neib_cell_base_index = 0;
+
+			// this indicates whether we are on an edge or on a vertex to do the addition in the end
+			int finalAdd = 0;
+			float4 norm1 = make_float4(0.0f);
+			float sumOpenAngles = 0.0f;
+
+			// Loop over all the neighbors
+			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+				neibdata neib_data = neibsList[i + index];
+
+				if (neib_data == 0xffff) break;
+
+				float3 pos_corr;
+				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+							neib_cellnum, neib_cell_base_index);
+
+				// Compute relative position vector and distance
+				// Now relPos is a float4 and neib mass is stored in relPos.w
+				#if( __COMPUTE__ >= 20)
+				const float4 relPos = pos_corr - oldPos[neib_index];
+				#else
+				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+				#endif
+
+				// skip inactive particles
+				if (INACTIVE(relPos))
+					continue;
+
+				const float r = length3(relPos);
+
+				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
+
+				if (r < inflRadius && BOUNDARY(neibInfo)) {
+					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
+					const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
+
+					// define edge independent variables
+					float3 pos_corr;
+					const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+								neib_cellnum, neib_cell_base_index);
+
+					// Compute relative position vector and distance
+					// Now relPos is a float4 and neib mass is stored in relPos.w
+					#if( __COMPUTE__ >= 20)
+					const float4 relPos = pos_corr - oldPos[neib_index];
+					#else
+					const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+					#endif
+					float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
+					q_aSigma.w = fmin(length3(q_aSigma),2.0f);
+					// local coordinate system for relative positions to vertices
+					uint j = 0;
+					float4 coord1 = make_float4(0.0f);
+					float4 coord2 = make_float4(0.0f);
+					// Get index j for which n_s is minimal
+					if (fabs(boundElement.x) > fabs(boundElement.y))
+						j = 1;
+					if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
+						j = 2;
+					// compute second coordinate which is equal to n_s x e_j
+					if (j==0) {
+						coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
+						coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
+					}
+					else if (j==1) {
+						coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
+						coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
+					}
+					else {
+						coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
+						coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
+					}
+					// relative positions of vertices with respect to the segment
+					float4 v0 = vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2;
+					float4 v1 = vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2;
+					float4 v2 = vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2;
+					// calculate if the projection of a (with respect to n) is inside the segment
+					const float4 ba = v0 - v1;
+					const float4 ca = v0 - v2;
+					const float dot00 = length3(ba);
+					const float dot01 = dot3(ba,ca);
+					const float dot02 = dot3(ba,v1);
+					const float dot11 = length3(ca);
+					const float dot12 = dot3(ca,v1);
+					const float invdet = 1.0f/(dot00*dot11-dot01*dot01);
+					const float u = (dot11*dot02-dot01*dot12)*invdet;
+					const float v = (dot00*dot12-dot01*dot02)*invdet;
+					float gradGamma_as = 0.0f;
+					float gamma_as = 0.0f;
+					// check if the particle is on a vertex
+					if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
+							(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
+							(     fabs(u) < 1e-5f && fabs(v) < 1e-5f)   ) && q_aSigma.w < 1e-5f) {
+						gradGamma_as = 3.0f/4.0f;
+						// set touching vertex to v0
+						if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+							const float4 tmp = v1;
+							v1 = v0;
+							v0 = tmp;
+						}
+						else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+							const float4 tmp = v2;
+							v2 = v0;
+							v0 = tmp;
+						}
+						// compute the sum of all opening angles
+						sumOpenAngles += acos(dot3(v0-v1,v0-v2)/length(v0-v1)/length(v0-v2));
+						// count number of segments associated to vertex
+						finalAdd += 1;
+						// no term is added to gamma, this will be done at the end of the neighbourloop
+						gamma_as = 0.0f;
+					}
+					// check if particle is on an edge
+					else if ( (fabs(u) < 1e5f || fabs(v) < 1e-15 || fabs(u+v-1.0f) < 1e-5) && q_aSigma.w < 1e-5f) {
+						gradGamma_as = 3.0f/4.0f;
+						// compute the angle between two segments
+						if (finalAdd==-1){
+							const float theta0 = acos(dot3(boundElement,norm1)); // angle of the norms between 0 and pi
+							const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
+							const float4 normDir = cross3(boundElement, norm1); // this is the sin between the two norms
+							const float theta = M_PI + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+							gamma_as = (1.0f - theta/2.0f/M_PI); // this is actually two times gamma_as
+						}
+						else{
+							norm1 = boundElement;
+							gamma_as = 0.0f; // we don't know the angle yet, because we need to find the second segment first
+						}
+						finalAdd -= 1;
+					}
+					// particle is neither on edge nor vertex => general formula
+					else {
+						// additional term if projection is inside segment
+						if ( u > 0.0f && v > 0.0f && u+v < 1.0f ){
+							gradGamma_as = 3.0f/8.0f*pow(1.0f - q_aSigma.w, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w);
+							gamma_as = 1.0f/8.0f/q_aSigma.w*pow(1 - q_aSigma.w, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w);
+						}
+						// loop over all three edges
+						for (uint i=0; i<3; i++) {
+							if (i>0) {
+								//swap vertices
+								const float4 tmp = v0;
+								v0 = v1;
+								v1 = v2;
+								v2 = tmp;
+							}
+							// vector pointing outward from segment normal to segment normal and v_{01}
+							// this is only possible because Crixus makes sure that the segments are ordered correctly
+							float4 n_ds = cross3(v1-v0,boundElement);
+							float4 q_aEpsilon = q_aSigma + n_ds*dot3(n_ds,relPos+v0)/slength;
+							q_aEpsilon.w = fmin(length3(q_aEpsilon),2.0f);
+							float y0 = -dot3(relPos+v0,(v1-v0)/slength);
+							float y1 = -dot3(relPos+v1,(v1-v0)/slength);
+							float qv0 = fmin(sqrt(q_aSigma.w*q_aSigma.w+y0*y0/(slength*slength)),2.0f);
+							float qv1 = fmin(sqrt(q_aSigma.w*q_aSigma.w+y1*y1/(slength*slength)),2.0f);
+							float4 p_EpsilonSigma = q_aSigma-q_aEpsilon;
+							float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w);
+							float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w);
+							gradGamma_as += 3.0f/2.0f/M_PI*copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
+							gamma_as -= 1.0f/16.0f/M_PI*copysign(copysign(hf3d1.y,y1) - copysign(hf3d0.y,y0), dot3(n_ds, p_EpsilonSigma));
+						}
+					}
+					gGam.x += gradGamma_as*boundElement.x/slength;
+					gGam.y += gradGamma_as*boundElement.y/slength;
+					gGam.z += gradGamma_as*boundElement.z/slength;
+					gGam.w += gamma_as*dot3(boundElement,q_aSigma);
+				}
+			}
+			// if we have a particle on a vertex then we need to add another term to gamma
+			if (finalAdd > 0) {
+				// 1 - solidAngle / 4 M_PI
+				gGam.w += 1.0f - (sumOpenAngles - (float(finalAdd)-2.0f)*M_PI)/4.0f/M_PI;
+			}
+
+			//Update gamma value
+			float magnitude = length3(gGam);
+			if (magnitude < 1.e-10f)
+				gGam.w = 1.0f;
+		}
+
+		newGam[index] = gGam;
+	}
+}
 
 template<KernelType kerneltype>
 __global__ void
