@@ -516,10 +516,16 @@ neibsInCell(
 				// Compute relative position between particle and potential neighbor
 				// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
 				#if (__COMPUTE__ >= 20)
-				const float3 relPos = pos - make_float3(posArray[neib_index]);
+				const float4 neib_pos = posArray[neib_index];
 				#else
-				const float3 relPos = pos - make_float3(tex1Dfetch(posTex, neib_index));
+				const float4 neib_pos = tex1Dfetch(posTex, neib_index);
 				#endif
+
+				// skip inactive particles
+				if (INACTIVE(neib_pos))
+					continue;
+
+				const float3 relPos = pos - make_float3(neib_pos);
 
 				// Check if the squared distance is smaller than the squared influence radius
 				// used for neighbor list construction
@@ -588,24 +594,29 @@ buildNeibsListDevice(
 		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) /*TODO: || BOUNDARY(info)*/) {
 			// Get particle position
 			#if (__COMPUTE__ >= 20)
-			const float3 pos = make_float3(posArray[index]);
+			const float4 pos = posArray[index];
 			#else
-			const float3 pos = make_float3(tex1Dfetch(posTex, index));
+			const float4 pos = tex1Dfetch(posTex, index);
 			#endif
 
-			// Get particle grid position computed from particle hash
-			const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+			// skip inactive particles
+			if (ACTIVE(pos)) {
+				const float3 pos3 = make_float3(pos);
 
-			// Look trough the 26 neighboring cells and the current particle cell
-			for(int z=-1; z<=1; z++) {
-				for(int y=-1; y<=1; y++) {
-					for(int x=-1; x<=1; x++) {
-						neibsInCell<periodicbound>(
-							#if (__COMPUTE__ >= 20)
-							posArray,
-							#endif
-							gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos,
-							numParticles, sqinfluenceradius, neibsList, neibs_num);
+				// Get particle grid position computed from particle hash
+				const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+
+				// Look trough the 26 neighboring cells and the current particle cell
+				for(int z=-1; z<=1; z++) {
+					for(int y=-1; y<=1; y++) {
+						for(int x=-1; x<=1; x++) {
+							neibsInCell<periodicbound>(
+								#if (__COMPUTE__ >= 20)
+								posArray,
+								#endif
+								gridPos, make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9, index, pos3,
+								numParticles, sqinfluenceradius, neibsList, neibs_num);
+						}
 					}
 				}
 			}
