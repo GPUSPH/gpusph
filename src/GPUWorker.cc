@@ -1849,6 +1849,8 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 
 void GPUWorker::kernel_buildNeibsList()
 {
+	resetneibsinfo();
+
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
