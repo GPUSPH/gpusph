@@ -183,6 +183,12 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		// Getting the old grid hash
 		hashKey gridHash = particleHash[index];
 
+#if HASH_KEY_SIZE >= 64
+		gridHash >>= GRIDHASH_BITSHIFT;
+		// reset the 2 most significant bits
+		gridHash &= CELLTYPE_BITMASK;
+#endif
+
 		// Getting grid address of old cell (computed from old hash)
 		const int3 gridPos = calcGridPosFromHash(gridHash);
 
@@ -599,7 +605,13 @@ buildNeibsListDevice(
 			#endif
 
 			// Get particle grid position computed from particle hash
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+#if HASH_KEY_SIZE >= 64
+			uint cellHash = (particleHash[index] >> GRIDHASH_BITSHIFT) & CELLTYPE_BITMASK;
+#else
+			uint cellHash = particleHash[index];
+#endif
+
+			const int3 gridPos = calcGridPosFromHash(cellHash);
 
 			// Look trough the 26 neighboring cells and the current particle cell
 			for(int z=-1; z<=1; z++) {

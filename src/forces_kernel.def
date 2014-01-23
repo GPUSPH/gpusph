@@ -89,6 +89,12 @@ FORCES_CUDA_KERNEL
 		// read particle info from texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
+#if HASH_KEY_SIZE >= 64
+		uint cellHash = (particleHash[index] >> GRIDHASH_BITSHIFT) & CELLTYPE_BITMASK;
+#else
+		uint cellHash = particleHash[index];
+#endif
+
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
@@ -103,7 +109,7 @@ FORCES_CUDA_KERNEL
 			const float4 gradgamma = (boundarytype == SA_BOUNDARY ? tex1Dfetch(gamTex, index) : make_float4(NAN));
 
 			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash(cellHash);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -476,7 +482,7 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			// compute grid index of current particle
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash(cellHash);
 
 			const float4 vel = tex1Dfetch(velTex, index);
 			const float4 gradgamma = tex1Dfetch(gamTex, index);
@@ -575,7 +581,7 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			// compute grid index of current particle
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash(cellHash);
 
 			// persistent variables across getNeibData calls
 			char neib_cellnum = 0;

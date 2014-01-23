@@ -33,6 +33,7 @@
 #include "particledefine.h"
 #include "textures.cuh"
 #include "vector_math.h"
+#include "multi_gpu_defines.h"
 
 #define GPU_CODE
 #include "kahan.h"

@@ -32,6 +32,7 @@
 
 #include "particledefine.h"
 #include "textures.cuh"
+#include "multi_gpu_defines.h"
 
 namespace cueuler {
 __constant__ float	d_epsxsph;
