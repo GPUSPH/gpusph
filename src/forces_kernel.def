@@ -52,7 +52,7 @@ FORCES_CUDA_KERNEL
 	float4*		forces,
 	float2*		keps_dkde,
 	float*		turbvisc,
-	const uint*	particleHash,
+	const hashKey*	particleHash,
 	const uint*	cellStart,
 	# ifdef XSPH_KERNEL
 	float4*		xsph,
