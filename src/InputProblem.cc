@@ -271,9 +271,9 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), info[i], pos[i], hash[i]);
 	}
 	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
@@ -282,9 +282,9 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - buf[i].Coords_2, 0);
-			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, rho);
 			info[i] = make_particleinfo(VERTEXPART, 0, i);
+			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), info[i], pos[i], hash[i]);
 		}
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
@@ -293,9 +293,9 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
-			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 0.0), pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i] = make_particleinfo(BOUNDPART, 0, i);
+			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = buf[i].VertexParticle1;
 			vertices[i].y = buf[i].VertexParticle2;
 			vertices[i].z = buf[i].VertexParticle3;
@@ -314,9 +314,9 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = j; i < j+test_points.size(); i++) {
-			calc_localpos_and_hash(test_points[i-j], pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";

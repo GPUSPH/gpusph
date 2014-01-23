@@ -757,10 +757,17 @@ Problem::calc_grid_hash(int3 gridPos)
 
 
 void
-Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, hashKey& hash)
+Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash)
 {
 	int3 gridPos = calc_grid_pos(pos);
 	hash = calc_grid_hash(gridPos);
+
+	// if hashkey is long, use long hash (cell hash + particle ID)
+	if (HASH_KEY_SIZE >= 64) {
+		hash <<= GRIDHASH_BITSHIFT;
+		hash |= id(info);
+	}
+
 	localpos.x = float(pos(0) - m_origin.x - (gridPos.x + 0.5)*m_cellsize.x);
 	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
 	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);

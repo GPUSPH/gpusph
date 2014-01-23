@@ -336,18 +336,13 @@ void SolitaryWave::copy_planes(float4 *planes, float *planediv)
 
 void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
-	float4 localpos;
-	uint hashvalue;
 
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
-
-		pos[i] = localpos;
-		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
@@ -355,12 +350,9 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, h
 	std::cout << "\nPiston parts: " << piston_parts.size() << "\n";
 	std::cout << "     " << j << "--" << j + piston_parts.size() << "\n";
 	for (uint i = j; i < j + piston_parts.size(); i++) {
-		calc_localpos_and_hash(piston_parts[i - j], localpos, hashvalue);
-
-		pos[i] = localpos;
-		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(PISTONPART, 0, i);
+		calc_localpos_and_hash(piston_parts[i - j], info[i], pos[i], hash[i]);
 	}
 	j += piston_parts.size();
 	std::cout << "Piston part mass:" << pos[j-1].w << "\n";
@@ -368,12 +360,9 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, h
 	std::cout << "\nGate parts: " << gate_parts.size() << "\n";
 	std::cout << "       " << j << "--" << j+gate_parts.size() <<"\n";
 	for (uint i = j; i < j + gate_parts.size(); i++) {
-		calc_localpos_and_hash(gate_parts[i - j], localpos, hashvalue);
-
-		pos[i] = localpos;
-		hash[i] = hashvalue;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(GATEPART, 1, i);
+		calc_localpos_and_hash(gate_parts[i - j], info[i], pos[i], hash[i]);
 	}
 	j += gate_parts.size();
 	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
@@ -382,16 +371,12 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, h
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i - j], localpos, hashvalue);
-
-		pos[i] = localpos;
-		hash[i] = hashvalue;
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+	    info[i]= make_particleinfo(FLUIDPART,0,i);
+		calc_localpos_and_hash(parts[i - j], info[i], pos[i], hash[i]);
 		// initializing density
 		//       float rho = m_physparams.rho0*pow(1.+g*(H-pos[i].z)/m_physparams.bcoeff,1/m_physparams.gammacoeff);
 		//        vel[i] = make_float4(0, 0, 0, rho);
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART,0,i);
-
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
