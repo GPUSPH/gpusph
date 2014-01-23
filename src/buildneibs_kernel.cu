@@ -392,6 +392,82 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 	}
 }
 
+/// Compute the grid position for a neighbor cell
+/*! This function computes the grid position for a neighbor cell,
+ * according to periodicity.
+ *
+ * Returns true if the new cell is in the domain, false otherwise.
+ */
+template <int periodicbound>
+__device__ __forceinline__ bool
+calcNeibCell(
+		int3 &gridPos, ///< current grid position
+		int3 const& gridOffset) ///< cell offset from current grid position
+{
+	// Compute the grid position of the current cell
+	gridPos += gridOffset;
+
+	// With periodic boundary when the neighboring cell grid position lies
+	// outside the domain size we wrap it to the d_gridSize or 0 according
+	// with the chosen periodicity
+	// TODO: verify periodicity along multiple axis
+	if (periodicbound) {
+		// Periodicity along x axis
+		if (gridPos.x < 0) {
+			if (periodicbound & XPERIODIC)
+				gridPos.x = d_gridSize.x - 1;
+			else
+				return false;
+		}
+		else if (gridPos.x >= d_gridSize.x) {
+			if (periodicbound & XPERIODIC)
+				gridPos.x = 0;
+			else
+				return false;
+		}
+
+		// Periodicity along y axis
+		if (gridPos.y < 0) {
+			if (periodicbound & YPERIODIC)
+				gridPos.y = d_gridSize.y - 1;
+			else
+				return false;
+		}
+		else if (gridPos.y >= d_gridSize.y) {
+			if (periodicbound & YPERIODIC)
+				gridPos.y = 0;
+			else
+				return false;
+		}
+
+		// Periodicity along z axis
+		if (gridPos.z < 0) {
+			if (periodicbound & ZPERIODIC)
+				gridPos.z = d_gridSize.z - 1;
+			else
+				return false;
+		}
+		else if (gridPos.z >= d_gridSize.z) {
+			if (periodicbound & ZPERIODIC)
+				gridPos.z = 0;
+			else
+				return false;
+		}
+	}
+	// Without periodic boundary when the neighboring cell grid position lies
+	// outside the domain size there is nothing to do
+	else {
+		if ((gridPos.x < 0) || (gridPos.x >= d_gridSize.x) ||
+			(gridPos.y < 0) || (gridPos.y >= d_gridSize.y) ||
+			(gridPos.z < 0) || (gridPos.z >= d_gridSize.z))
+				return false;
+	}
+	// if we get here, the new gridPos was computed correctly, we are
+	// still in the domain
+	return true;
+
+}
+
 
 /// Find neighbors in a given cell
 /*! This function look for neighbors of the current particle in
@@ -429,64 +505,10 @@ neibsInCell(
 			neibdata*		neibsList,	///< neighbor's list (out)
 			uint&			neibs_num)	///< number of neighbors for the current particle
 {
-	// Compute the grid position of the current cell
-	gridPos += gridOffset;
-
-	// With periodic boundary when the neighboring cell grid position lies
-	// outside the domain size we wrap it to the d_gridSize or 0 according
-	// with the chosen periodicity
-	// TODO: verify periodicity along multiple axis
-	if (periodicbound) {
-		// Periodicity along x axis
-		if (gridPos.x < 0) {
-			if (periodicbound & XPERIODIC)
-				gridPos.x = d_gridSize.x - 1;
-			else
-				return;
-		}
-		else if (gridPos.x >= d_gridSize.x) {
-			if (periodicbound & XPERIODIC)
-				gridPos.x = 0;
-			else
-				return;
-		}
-
-		// Periodicity along y axis
-		if (gridPos.y < 0) {
-			if (periodicbound & YPERIODIC)
-				gridPos.y = d_gridSize.y - 1;
-			else
-				return;
-		}
-		else if (gridPos.y >= d_gridSize.y) {
-			if (periodicbound & YPERIODIC)
-				gridPos.y = 0;
-			else
-				return;
-		}
-
-		// Periodicity along z axis
-		if (gridPos.z < 0) {
-			if (periodicbound & ZPERIODIC)
-				gridPos.z = d_gridSize.z - 1;
-			else
-				return;
-		}
-		else if (gridPos.z >= d_gridSize.z) {
-			if (periodicbound & ZPERIODIC)
-				gridPos.z = 0;
-			else
-				return;
-		}
-	}
-	// Without periodic boundary when the neighboring cell grid position lies
-	// outside the domain size there is nothing to do
-	else {
-		if ((gridPos.x < 0) || (gridPos.x >= d_gridSize.x) ||
-			(gridPos.y < 0) || (gridPos.y >= d_gridSize.y) ||
-			(gridPos.z < 0) || (gridPos.z >= d_gridSize.z))
-				return;
-	}
+	// Compute the grid position of the current cell, and return if it's
+	// outside the domain
+	if (!calcNeibCell<periodicbound>(gridPos, gridOffset))
+		return;
 
 	// Get hash value from grid position
 	const uint gridHash = calcGridHash(gridPos);
