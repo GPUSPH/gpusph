@@ -236,13 +236,10 @@ void SphericTest2::fillDeviceMap(GlobalData* gdata)
 
 void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
-	float4 localpos;
-	uint hashvalue;
-
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	uint j = boundary_parts.size();
 	if (boundary_parts.size() > 0)
@@ -254,9 +251,9 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, h
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";
@@ -266,9 +263,9 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, h
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		calc_localpos_and_hash(obstacle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,1,i);
+		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
 	if (obstacle_parts.size() > 0)
@@ -278,9 +275,9 @@ void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, h
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	if (parts.size() > 0)

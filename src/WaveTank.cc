@@ -299,9 +299,9 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashK
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		std::cout << "      " << j << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			calc_localpos_and_hash(test_points[i], pos[i], hash[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
+			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";
@@ -310,9 +310,9 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashK
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
@@ -324,9 +324,9 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashK
 	std::cout << "\nPaddle parts: " << paddle_parts.size() << "\n";
 	std::cout << "      " << j  << "--" << j + paddle_parts.size() << "\n";
 	for (uint i = j; i < j + paddle_parts.size(); i++) {
-		calc_localpos_and_hash(paddle_parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(PADDLEPART, 0, i);
+		calc_localpos_and_hash(paddle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += paddle_parts.size();
 	std::cout << "Paddle part mass:" << pos[j-1].w << "\n";
@@ -334,9 +334,9 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashK
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  << "--" << j + parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

@@ -168,20 +168,20 @@ void Seiche::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey
 {
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
-	//	float rho = density(H - pos[i].z,0);
 	//	vel[i] = make_float4(0, 0, 0, rho);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
+	//	float rho = density(H - pos[i].z,0);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";

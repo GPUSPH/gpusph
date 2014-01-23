@@ -129,28 +129,19 @@ int OpenChannel::fill_parts()
 
 void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
-	float4 localpos;
-	uint hashvalue;
-
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], localpos, hashvalue);
-
-		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
-		hash[i] = hashvalue;
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], localpos, hashvalue);
-
-		pos[i] = localpos;
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
-		hash[i] = hashvalue;
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

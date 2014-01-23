@@ -179,28 +179,27 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, has
 {
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		calc_localpos_and_hash(boundary_parts[i], pos[i], hash[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		calc_localpos_and_hash(parts[i-j], pos[i], hash[i]);
 		float rho = density(H - pos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
 }
 
-void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, uint* hash)
+void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, hashKey* hash)
 {
 	float4 localpos;
-	uint hashvalue;
 
 	copy_to_array(pos, vel, info, hash);
 
@@ -208,12 +207,11 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, ver
 
 	std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
 	for (uint i = j; i < j + vertex_parts.size(); i++) {
-		calc_localpos_and_hash(vertex_parts[i-j], localpos, hashvalue);
 		pos[i] = localpos;
 		float rho = density(H - pos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(VERTEXPART, 0, i);
-		hash[i] = hashvalue;
+		calc_localpos_and_hash(vertex_parts[i-j], info[i], localpos, hash[i]);
 	}
 	j += vertex_parts.size();
 	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
