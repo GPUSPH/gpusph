@@ -207,7 +207,7 @@ class Problem {
 
 		uint calc_grid_hash(int3);
 
-		void calc_localpos_and_hash(const Point&, float4&, uint&);
+		void calc_localpos_and_hash(const Point&, float4&, hashKey&);
 
 		const SimParams *get_simparams(void) const
 		{

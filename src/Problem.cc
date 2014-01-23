@@ -757,7 +757,7 @@ Problem::calc_grid_hash(int3 gridPos)
 
 
 void
-Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, uint& hash)
+Problem::calc_localpos_and_hash(const Point& pos, float4& localpos, hashKey& hash)
 {
 	int3 gridPos = calc_grid_pos(pos);
 	hash = calc_grid_hash(gridPos);
