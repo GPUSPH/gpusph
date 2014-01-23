@@ -25,8 +25,7 @@
 #define CELLTYPE_OUTER_CELL_SHIFTED			(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
 
 // Bitmasks used to reset the cellType (in AND to reset: 0011111...)
-#define CELLTYPE_BITMASK_32 (~( 3U  << 30))
-#define CELLTYPE_BITMASK_64 (~( 3UL << 62))
+#define CELLTYPE_BITMASK (~( 3U  << 30 ))
 
 // empty segment (uint)
 #define EMPTY_SEGMENT (0xFFFFFFFFU)
