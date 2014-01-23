@@ -89,6 +89,12 @@ eulerDevice(
 
 	const particleinfo pinfo = info[index];
 
+#if HASH_KEY_SIZE >= 64
+	uint cellHash = (particleHash[index] >> GRIDHASH_BITSHIFT) & CELLTYPE_BITMASK;
+#else
+	uint cellHash = particleHash[index];
+#endif
+
 	if(ACTIVE(pos) && type(pinfo) != BOUNDPART) {
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 		// mean XSPH velocity, only when XSPH is active
@@ -138,7 +144,7 @@ eulerDevice(
 		// Updating postions for paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
 			const int i = object(pinfo);
-			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
+			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromHash(cellHash)*d_cellSize + 0.5f*d_cellSize;
 			const float2 relPos = make_float2(absPos.x - d_mbdata[i].x, absPos.z - d_mbdata[i].y);
 			const float c = cos(d_mbdata[i].z*dt) - 1.0f;
 			const float s = sin(d_mbdata[i].z*dt);
@@ -161,7 +167,7 @@ eulerDevice(
 			pos.z += d_rbtrans[i].z;
 
 			// Applying rotation around center of gravity
-			const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
+			const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromHash(cellHash)*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
 			applyrot(&d_rbsteprot[9*i], relPos, pos);
 		}
 	}
