@@ -196,7 +196,7 @@ void DamBreak3D::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
 	float4 localpos;
 	uint hashvalue;

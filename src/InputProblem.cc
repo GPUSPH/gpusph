@@ -240,7 +240,7 @@ int InputProblem::fill_parts()
 	return npart;
 }
 
-void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, uint *hash)
+void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, hashKey *hash)
 {
 	const char *ch_inputfile = inputfile.c_str();
 	uint npart = HDF5SphReader::getNParts(ch_inputfile);

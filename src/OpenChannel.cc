@@ -127,7 +127,7 @@ int OpenChannel::fill_parts()
 	return parts.size() + boundary_parts.size();
 }
 
-void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
 	float4 localpos;
 	uint hashvalue;

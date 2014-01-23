@@ -252,8 +252,8 @@ class Problem {
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
-		virtual void copy_to_array(float4*, float4*, particleinfo*, uint*) = 0;
-		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, uint*) {};
+		virtual void copy_to_array(float4*, float4*, particleinfo*, hashKey*) = 0;
+		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, hashKey*) {};
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);

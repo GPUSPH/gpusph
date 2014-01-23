@@ -48,7 +48,7 @@ class SphericTest2: public Problem {
 		virtual ~SphericTest2(void);
 
 		int fill_parts(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
 

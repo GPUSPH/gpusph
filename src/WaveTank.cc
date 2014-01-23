@@ -291,7 +291,7 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 	}
 }
 
-void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
+void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey *hash)
 {
 	int j = 0;
 	if (test_points.size()) {
