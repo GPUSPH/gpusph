@@ -234,7 +234,7 @@ void SphericTest2::fillDeviceMap(GlobalData* gdata)
 	//fillDeviceMapByEquation(gdata);
 }
 
-void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
 	float4 localpos;
 	uint hashvalue;

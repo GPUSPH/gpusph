@@ -334,7 +334,7 @@ void SolitaryWave::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
 	float4 localpos;
 	uint hashvalue;

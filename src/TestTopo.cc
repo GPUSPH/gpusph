@@ -165,7 +165,7 @@ void TestTopo::copy_planes(float4 *planes, float *planediv)
 	experiment_box->get_planes(planes, planediv);
 }
 
-void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
+void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey *hash)
 {
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {

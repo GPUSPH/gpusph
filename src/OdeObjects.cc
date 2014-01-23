@@ -217,7 +217,7 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 }
 
 
-void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
 	float4 localpos;
 	uint hashvalue;

@@ -54,7 +54,7 @@ class DamBreakGate: public Problem {
 		virtual ~DamBreakGate(void);
 
 		int fill_parts(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
 		MbCallBack& mb_callback(const float, const float, const int);
 		void release_memory(void);
 };

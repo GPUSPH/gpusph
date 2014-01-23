@@ -25,8 +25,8 @@ class StillWater: public Problem {
 
 		int fill_parts(void);
 		uint fill_planes(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, uint *);
-		void copy_to_array(float4 *, float4 *, particleinfo *, vertexinfo *, float4 *, uint *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
+		void copy_to_array(float4 *, float4 *, particleinfo *, vertexinfo *, float4 *, hashKey *);
 		void copy_planes(float4*, float*);
 
 		void release_memory(void);

@@ -208,7 +208,7 @@ int DamBreakGate::fill_parts()
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
 }
 
-void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint* hash)
+void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
 {
 	float4 localpos;
 	uint hashvalue;

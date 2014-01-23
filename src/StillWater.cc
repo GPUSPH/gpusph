@@ -175,7 +175,7 @@ void StillWater::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, uint *hash)
+void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey *hash)
 {
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
