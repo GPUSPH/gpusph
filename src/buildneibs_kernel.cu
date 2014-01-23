@@ -195,13 +195,15 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
 #if HASH_KEY_SIZE >= 64
-		gridHash <<= GRIDHASH_BITSHIFT
-		gridHash |= id(pinfo[index]);
 		// prepare the 2 most significant bits of the hash (bitwise AND with 00111111...)
-		gridHash &= CELLTYPE_BITMASK_64;
+		gridHash &= CELLTYPE_BITMASK;
+		// make room
+		gridHash <<= GRIDHASH_BITSHIFT;
+		// add id
+		gridHash |= id(info);
 		// mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-		gridHash |= ((long unsigned int)compactDeviceMap[shortGridHash]) << GRIDHASH_BITSHIFT;
+		gridHash |= ((long unsigned int)compactDeviceMap[gridHash]) << GRIDHASH_BITSHIFT;
 #endif
 
 		// Adjust position
@@ -321,14 +323,14 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (index == 0 || hash != sharedHash[threadIdx.x]) {
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
 #if HASH_KEY_SIZE >= 64
-			cellStart[hash & CELLTYPE_BITMASK_32] = index;
+			cellStart[hash & CELLTYPE_BITMASK] = index;
 #else
 			cellStart[hash] = index;
 #endif
 			// If it isn't the first particle, it must also be the cell end of
 			if (index > 0)
 #if HASH_KEY_SIZE >= 64
-				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK_32] = index;
+				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
 #else
 				cellEnd[sharedHash[threadIdx.x]] = index;
 #endif
@@ -337,7 +339,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (index == numParticles - 1) {
 			// ditto
 #if HASH_KEY_SIZE >= 64
-			cellEnd[hash & CELLTYPE_BITMASK_32] = index + 1;
+			cellEnd[hash & CELLTYPE_BITMASK] = index + 1;
 #else
 			cellEnd[hash] = index + 1;
 #endif
@@ -345,8 +347,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 #if HASH_KEY_SIZE >= 64
 		// if the particle hash is 64bits long, also find the segment start
-		uchar curr_type = (hash & (~CELLTYPE_BITMASK_32)) >> 30;
-		uchar prev_type = (sharedHash[threadIdx.x] & (~CELLTYPE_BITMASK_32)) >> 30;
+		uchar curr_type = (hash & (~CELLTYPE_BITMASK)) >> 30;
+		uchar prev_type = (sharedHash[threadIdx.x] & (~CELLTYPE_BITMASK)) >> 30;
 		if (index == 0 || curr_type != prev_type)
 			segmentStart[curr_type] = index;
 #endif
