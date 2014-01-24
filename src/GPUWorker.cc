@@ -1503,13 +1503,17 @@ void GPUWorker::enablePeerAccess()
 	for (uint d=0; d < gdata->devices; d++) {
 		// skip self
 		if (d == m_deviceIndex) continue;
+		// read peer's CUDA device number
+		uint peerCudaDevNum = gdata->device[d];
 		// is peer access possible?
 		int res;
-		cudaDeviceCanAccessPeer(&res, m_deviceIndex, d);
+		cudaDeviceCanAccessPeer(&res, m_cudaDeviceNumber, peerCudaDevNum);
 		if (res != 1)
-			printf("WARNING: device %u cannot enable peer access of device %u; peer copies will be buffered on host\n", m_deviceIndex, d);
+			// if this happens, peer copies will be buffered on host by the CUDA runtime
+			printf("WARNING: device %u (CUDA device %u) cannot enable direct peer access for device %u (CUDA device %u)\n",
+				m_deviceIndex, m_cudaDeviceNumber, d, peerCudaDevNum);
 		else
-			cudaDeviceEnablePeerAccess(d, 0);
+			cudaDeviceEnablePeerAccess(peerCudaDevNum, 0);
 	}
 }
 
