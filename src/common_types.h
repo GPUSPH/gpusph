@@ -42,12 +42,12 @@ typedef unsigned short neibdata;
 // type for index that iterates on the neighbor list
 typedef size_t idx_t;
 
-// particle info, see particledefine.h for details
-typedef short4 particleinfo;
-
 // vertex info
 typedef uint4 vertexinfo;
 #define make_vertexinfo make_uint4
+
+// particleinfo cum suis
+#include "particleinfo.h"
 
 // hashKey cum suis
 #include "hashkey.h"
