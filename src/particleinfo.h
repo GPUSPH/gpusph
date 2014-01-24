@@ -28,6 +28,10 @@
 #ifndef _PARTICLEINFO_H
 #define _PARTICLEINFO_H
 
+// for memcpy
+#include <cstring>
+
+
 /* Particle information. short4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
