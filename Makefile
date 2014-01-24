@@ -237,10 +237,11 @@ PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
 # this is not really an option, but it follows the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
 
-OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
 
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -259,6 +260,9 @@ LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 # - was fastmath enabled? (1 or 0, empty if file doesn't exist)
 LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
 	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
+# - what is the size in bits of the hashKey? (currently 32 or 64, empty if file doesn't exist)
+LAST_HASH_KEY_SIZEE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
+	grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f3 -d " ")
 
 # update GPUSPH_VERSION_OPTFILE if git version changed
 LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
@@ -345,6 +349,25 @@ else
 		FASTMATH=0
 	else
 		FASTMATH=$(LAST_FASTMATH)
+	endif
+endif
+
+# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
+# option:                 be 64 to enable multi-device simulations. For single-device simulations,
+# option:                 can be set to 32 to reduce memory usage. Default: 64
+ifdef hash_key_size
+	# user chooses
+	HASH_KEY_SIZE=$(hash_key_size)
+	# does it differ from last?
+	ifneq ($(LAST_HASH_KEY_SIZE),$(HASH_KEY_SIZE))
+		TMP:=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/HASH_KEY_SIZE $(LAST_HASH_KEY_SIZE)/HASH_KEY_SIZE $(HASH_KEY_SIZE)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
+	endif
+else
+	ifeq ($(LAST_HASH_KEY_SIZE),)
+		HASH_KEY_SIZE=64
+	else
+		HASH_KEY_SIZE=$(LAST_HASH_KEY_SIZE)
 	endif
 endif
 
@@ -555,6 +578,10 @@ $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
 	@echo "#define FASTMATH $(FASTMATH)" >> $@
+$(HASH_KEY_SIZE_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines the size in bits of the hashKey used to sort the particles on the device. */" \
+		> $@
+	@echo "#define HASH_KEY_SIZE $(HASH_KEY_SIZE)" >> $@
 
 $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 	@echo "/* git version of GPUSPH. */" \

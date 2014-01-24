@@ -26,6 +26,8 @@
 #ifndef _HASHKEY_H
 #define _HASHKEY_H
 
+#include "hash_key_size_select.opt"
+
 /*
    Particle sorting relies on a particle hash that is built from the particle
    position relative to a regular cartesian grid (gridHash).
@@ -37,7 +39,7 @@
  */
 
 #ifndef HASH_KEY_SIZE
-#define HASH_KEY_SIZE 32
+#error "undefined hash key size"
 #endif
 
 #if HASH_KEY_SIZE < 32
