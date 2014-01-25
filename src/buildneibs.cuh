@@ -33,8 +33,6 @@
 
 #include "vector_math.h"
 
-#include "hashkey.h"
-
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
 	MULTIPLE OF NEIBINDEX_INTERLEAVE

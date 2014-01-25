@@ -29,7 +29,6 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
-#include "hashkey.h"
 
 #define BLOCK_SIZE_INTEGRATE	256
 
