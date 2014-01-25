@@ -29,7 +29,6 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
-#include "hashkey.h"
 
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
@@ -292,7 +291,7 @@ initGradGamma(	float4*		oldPos,
 		float		slength,
 		float		inflRadius,
 		int			kerneltype);
-		
+
 // Computes current value of the gamma gradient and update gamma value
 // according to the evolution equation { dGamma/dt = gradGamma * relVel }
 void
