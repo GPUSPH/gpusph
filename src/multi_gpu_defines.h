@@ -1,6 +1,9 @@
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
+// for HASH_KEY_SIZE
+#include "hash_key_size_select.opt"
+
 // we use a byte (uchar) to address a device in the cluster
 #define MAX_DEVICES_PER_CLUSTER 256
 // how many bits [1...8] we reserve to the node rank in the global device index
@@ -24,8 +27,14 @@
 #define CELLTYPE_OUTER_EDGE_CELL_SHIFTED	(CELLTYPE_OUTER_EDGE_CELL<<30)
 #define CELLTYPE_OUTER_CELL_SHIFTED			(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
 
-// Bitmasks used to reset the cellType (in AND to reset: 0011111...)
+// Bitmasks used to reset the cellType (AND mask to reset the high bits, AND ~mask to extract them)
+#if HASH_KEY_SIZE == 32
+// mask: 111111...
+#define CELLTYPE_BITMASK (0xFFFFFFFFU)
+#else
+// mask: 001111...
 #define CELLTYPE_BITMASK (~( 3U  << 30 ))
+#endif
 
 // empty segment (uint)
 #define EMPTY_SEGMENT (0xFFFFFFFFU)
