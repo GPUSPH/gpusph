@@ -26,6 +26,9 @@
 #ifndef _HASHKEY_H
 #define _HASHKEY_H
 
+// for CELLTYPE_BITMASK
+#include "multi_gpu_defines.h"
+// for HAS_KEY_SIZE
 #include "hash_key_size_select.opt"
 
 /*
@@ -58,5 +61,27 @@ typedef unsigned long hashKey;
    hash should be shifted when inserted in the particle hash key.
  */
 #define GRIDHASH_BITSHIFT (HASH_KEY_SIZE - 32)
+
+#ifdef GPU_CODE
+#define __spec static inline __host__ __device__ __forceinline__
+#else
+#define __spec static inline
+#endif
+
+// utility functions to convert between cellHash <-> particleHash
+__spec
+unsigned int cellHashFromParticleHash(const hashKey &partHash, bool preserveHighbits = false) {
+	uint cellHash = (partHash >> GRIDHASH_BITSHIFT);
+	return (preserveHighbits ? cellHash : (cellHash & CELLTYPE_BITMASK) );
+}
+
+// if HASH_KEY_SIZE is 32 bits wide, this just returns the cellHash; otherwise, the extended particle hash is computed
+__spec
+hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info) {
+	// alternatively, one can use the more readable : #if HASH_KEY_SIZE == 32 -> just return cellHash, else -> shift and put the id too
+	return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | (id(info) & (EMPTY_CELL >> (32 - GRIDHASH_BITSHIFT) ));
+}
+
+#undef __spec
 
 #endif
