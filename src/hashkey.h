@@ -62,9 +62,8 @@ typedef unsigned long hashKey;
  */
 #define GRIDHASH_BITSHIFT (HASH_KEY_SIZE - 32)
 
+// now follow a few utility functions to convert between cellHash <-> particleHash, defined with the same compiler directives ___spec
 #define __spec static inline __host__ __device__
-
-// utility functions to convert between cellHash <-> particleHash, regardless the size of hashKey
 
 // In multi-device simulations the 2 high bits of the long particle hash are used to store the cell type
 // (internal/external, edge); they are reset by default, allowing for using the hash as an index for cell-based
