@@ -189,3 +189,5 @@ dot(symtensor3 const& T, float4 const& v)
 			T.xz*v.x + T.yz*v.y + T.zz*v.z);
 
 }
+
+#undef __spec
