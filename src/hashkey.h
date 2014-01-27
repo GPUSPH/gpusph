@@ -78,8 +78,13 @@ unsigned int cellHashFromParticleHash(const hashKey &partHash, bool preserveHigh
 // if HASH_KEY_SIZE is 32 bits wide, this just returns the cellHash; otherwise, the extended particle hash is computed
 __spec
 hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info) {
-	// alternatively, one can use the more readable : #if HASH_KEY_SIZE == 32 -> just return cellHash, else -> shift and put the id too
-	return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | (id(info) & (EMPTY_CELL >> (32 - GRIDHASH_BITSHIFT) ));
+#if HASH_KEY_SIZE == 32
+	return cellHash;
+#else
+	return ((hashKey)cellHash << GRIDHASH_BITSHIFT) & id(info);
+#endif
+	// alternatively, to avoid conditionals one can use the more compact but less readable:
+	// return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | (id(info) & (EMPTY_CELL >> (32 - GRIDHASH_BITSHIFT) ));
 }
 
 #undef __spec
