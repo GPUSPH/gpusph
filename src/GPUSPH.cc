@@ -945,6 +945,7 @@ void GPUSPH::sortParticlesByHash() {
 	}
 
 	// DEBUG: check if the sort was correct
+	// WARNING: this was not update with the new local coordinates system nor with the buffer list
 	/* bool monotonic = true;
 	bool count_c = true;
 	uint hcount[MAX_DEVICES_PER_NODE];
