@@ -365,11 +365,11 @@ struct GlobalData {
 	}
 
 	// TODO MERGE REVIEW. refactor with next one
-	uint3 calcGridPosFromHash(uint particleHash) {
+	uint3 calcGridPosFromHash(uint cellHash) {
 		uint3 gridPos;
-		gridPos.z = particleHash/(gridSize.x*gridSize.y);
-		gridPos.y = (particleHash - gridPos.z*gridSize.x*gridSize.y)/gridSize.x;
-		gridPos.x = particleHash - gridPos.y*gridSize.x - gridPos.z*gridSize.x*gridSize.y;
+		gridPos.z = cellHash/(gridSize.x*gridSize.y);
+		gridPos.y = (cellHash - gridPos.z*gridSize.x*gridSize.y)/gridSize.x;
+		gridPos.x = cellHash - gridPos.y*gridSize.x - gridPos.z*gridSize.x*gridSize.y;
 
 		return gridPos;
 	}
@@ -383,6 +383,7 @@ struct GlobalData {
 	}
 
 	// compute the global device Id of the cell holding pos
+	// WARNING: pos is _global_
 	uchar calcGlobalDeviceIndex(float4 pos) {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
