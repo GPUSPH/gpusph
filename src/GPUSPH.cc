@@ -831,19 +831,15 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint n = 0; n < MAX_NODES_PER_CLUSTER; n++)   gdata->processParticles[n]  = 0;
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
-	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
-	// TODO FIXME MERGE due to homogeneous precision there is already a BUFFER_HASH on host,
-	// pre-filled, should that be used?
+	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer? or: just use HASH, sorting also for cells, not only for device
 	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
 
-	float4 *hPos = gdata->s_hBuffers.getData<BUFFER_POS>();
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
-		// compute cell according to the particle's position and to the deviceMap
-		// TODO FIXE MERGE should use BUFFER_HASH instead, since with homogeneous precision
-		// the POS is only relative to the cell
-		uchar whichGlobalDev = gdata->calcGlobalDeviceIndex(hPos[p]);
+		// compute containing device according to the particle's hash
+		uint cellHash = cellHashFromParticleHash( gdata->s_hBuffers.getData<BUFFER_HASH>()[p] );
+		uchar whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
 		m_hParticleHashes[p] = whichGlobalDev;
@@ -856,7 +852,7 @@ void GPUSPH::sortParticlesByHash() {
 		// if particle is in current node, increment the device counters
 		if (gdata->RANK(whichGlobalDev) == gdata->mpi_rank)
 			// increment per-device counter
-			gdata->s_hPartsPerDevice[gdata->DEVICE(whichGlobalDev)]++;
+			gdata->s_hPartsPerDevice[ gdata->DEVICE(whichGlobalDev) ]++;
 
 		//if (whichGlobalDev != 0)
 		//printf(" ö part %u has key %u (n%dd%u) global dev %u \n", p, whichGlobalDev, gdata->RANK(whichGlobalDev), gdata->DEVICE(whichGlobalDev), gdata->GLOBAL_DEVICE_NUM(whichGlobalDev) );
@@ -1151,7 +1147,7 @@ void GPUSPH::buildNeibList()
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	const uint maxPossibleNeibs = gdata->problem->get_simparams()->maxneibsnum;
 	gdata->lastGlobalPeakNeibsNum = 0;
-	for (int d = 0; d < gdata->devices; d++) {
+	for (uint d = 0; d < gdata->devices; d++) {
 		const uint currDevMaxNeibs = gdata->timingInfo[d].maxNeibs;
 
 		if (currDevMaxNeibs > maxPossibleNeibs)
