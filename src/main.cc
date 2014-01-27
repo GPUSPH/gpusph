@@ -68,6 +68,7 @@
 #include "fastmath_select.opt"
 #include "dbg_select.opt"
 #include "compute_select.opt"
+#include "hash_key_size_select.opt"
 
 void show_version()
 {
@@ -84,6 +85,7 @@ void show_version()
 		FASTMATH ? "with" : "without",
 		COMPUTE/10, COMPUTE%10);
 	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
+	printf("Hashkey is %ubits long\n", HASH_KEY_SIZE);
 }
 
 
