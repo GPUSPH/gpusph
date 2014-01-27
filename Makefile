@@ -592,7 +592,7 @@ $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
@@ -601,7 +601,7 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	$(CMDECHO)$(MPICXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) | $(OBJDIR)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -632,9 +632,8 @@ cpuclean:
 gpuclean:
 	$(RM) $(CUOBJS)
 
-# target: cookiesclean - Clean last dbg, problem, compute and fastmath choices, forcing
-# target:                .*_select.opt files to be regenerated (use if they're
-# target:                messed up)
+# target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
+# target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
 	$(RM) -r $(OPTFILES) $(OPTSDIR)
 
@@ -679,6 +678,7 @@ show:
 	@echo "LINKER:          $(LINKER)"
 	@echo "Compute cap.:    $(COMPUTE)"
 	@echo "Fastmath:        $(FASTMATH)"
+	@echo "Hashkey size:    $(HASH_KEY_SIZE)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
