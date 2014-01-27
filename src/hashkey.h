@@ -62,11 +62,7 @@ typedef unsigned long hashKey;
  */
 #define GRIDHASH_BITSHIFT (HASH_KEY_SIZE - 32)
 
-#ifdef GPU_CODE
-#define __spec static inline __host__ __device__ __forceinline__
-#else
-#define __spec static inline
-#endif
+#define __spec static inline __host__ __device__
 
 // utility functions to convert between cellHash <-> particleHash, regardless the size of hashKey
 
