@@ -261,7 +261,7 @@ LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
 	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
 # - what is the size in bits of the hashKey? (currently 32 or 64, empty if file doesn't exist)
-LAST_HASH_KEY_SIZEE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
+LAST_HASH_KEY_SIZE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
 	grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f3 -d " ")
 
 # update GPUSPH_VERSION_OPTFILE if git version changed
