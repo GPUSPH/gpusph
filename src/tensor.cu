@@ -1,11 +1,7 @@
 #include "tensor.h"
 
-#ifdef GPU_CODE
 #include <math_functions.h>
 #define __spec __device__ __forceinline__
-#else
-#define __spec inline
-#endif
 
 // determinant of a 3x3 symmetric tensor
 __spec
