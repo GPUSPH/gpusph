@@ -68,7 +68,13 @@ typedef unsigned long hashKey;
 #define __spec static inline
 #endif
 
-// utility functions to convert between cellHash <-> particleHash
+// utility functions to convert between cellHash <-> particleHash, regardless the size of hashKey
+
+// In multi-device simulations the 2 high bits of the long particle hash are used to store the cell type
+// (internal/external, edge); they are reset by default, allowing for using the hash as an index for cell-based
+// arrays. Set preserveHighbits to true to preserve them instead.
+// FIXME TODO: check that single-device simulations with 32 or 64 bits hashes allow to use them for the actual hash
+// without resetting them
 __spec
 unsigned int cellHashFromParticleHash(const hashKey &partHash, bool preserveHighbits = false) {
 	uint cellHash = (partHash >> GRIDHASH_BITSHIFT);
