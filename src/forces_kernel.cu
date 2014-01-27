@@ -35,10 +35,8 @@
 #include "vector_math.h"
 #include "multi_gpu_defines.h"
 
-#define GPU_CODE
 #include "kahan.h"
 #include "tensor.cu"
-#undef GPU_CODE
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
