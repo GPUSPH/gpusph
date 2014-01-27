@@ -3,12 +3,8 @@
 #ifndef _KAHAN_H_
 #define _KAHAN_H_
 
-#ifdef GPU_CODE
 #include <math_functions.h>
 #define __spec __host__ __device__
-#else
-#define __spec
-#endif
 
 float
 __spec
