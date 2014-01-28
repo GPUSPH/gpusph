@@ -613,7 +613,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 	float3 dvz = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
@@ -742,7 +742,7 @@ initGradGammaDevice(	float4*		oldPos,
 			float rmin = inflRadius;
 
 			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 			// Persistent variables across getNeibData calls
 			char neib_cellnum = 0;
@@ -837,7 +837,7 @@ updateGammaDevice(	const float4* oldPos,
 		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
 		if(FLUID(info) || VERTEX(info)) {
 			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 			// Persistent variables across getNeibData calls
 			char neib_cellnum = 0;
@@ -918,7 +918,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 		// Compute gradient of gamma for fluid only
 		if(FLUID(info)) {
 			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+			const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 			// Persistent variables across getNeibData calls
 			char neib_cellnum = 0;
@@ -1040,7 +1040,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 		float4 vel = tex1Dfetch(velTex, index);
 
 		// Compute grid position of current particle
-		const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+		const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 		// Persistent variables across getNeibData calls
 		char neib_cellnum = 0;
@@ -1165,7 +1165,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	float alpha = 0;
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -1267,7 +1267,7 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 	float3 dvz = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
@@ -1392,7 +1392,7 @@ shepardDevice(	const float4*	posArray,
 	float temp2 = temp1/vel.w ;
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -1509,7 +1509,7 @@ MlsDevice(	const float4*	posArray,
 	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -1747,7 +1747,7 @@ void calcEnergiesDevice(
 	while (gid < numParticles) {
 		const float4 pos = pPos[gid];
 		const float4 vel = pVel[gid];
-		const int3 gridPos = calcGridPosFromHash(particleHash[gid]);
+		const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[gid]) );
 		particleinfo pinfo = pInfo[gid];
 		if (FLUID(pinfo)) {
 			uint fluid_num = PART_FLUID_NUM(pinfo);
@@ -1898,7 +1898,7 @@ calcVortDevice(	const	float4*		posArray,
 	float3 vort = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	const int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -1983,7 +1983,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	float alpha = 0.0f;
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
@@ -2076,7 +2076,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float4 normal = make_float4(0.0f);
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromHash(particleHash[index]);
+	int3 gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	info.x &= ~SURFACE_PARTICLE_FLAG;
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
@@ -2136,7 +2136,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Second loop over all neighbors
 
 	// Resetting grid position of current particle
-	gridPos = calcGridPosFromHash(particleHash[index]);
+	gridPos = calcGridPosFromHash( cellHashFromParticleHash(particleHash[index]) );
 
 	// Resetting persistent variables across getNeibData
 	neib_cellnum = 0;
