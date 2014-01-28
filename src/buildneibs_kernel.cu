@@ -181,13 +181,7 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	if (FLUID(info) || (type(info) & MOVINGNOTFLUID)) {
 	//if (true) {
 		// Getting the old grid hash
-		hashKey gridHash = particleHash[index];
-
-#if HASH_KEY_SIZE >= 64
-		gridHash >>= GRIDHASH_BITSHIFT;
-		// reset the 2 most significant bits
-		gridHash &= CELLTYPE_BITMASK;
-#endif
+		uint gridHash = cellHashFromParticleHash( particleHash[index] );
 
 		// Getting grid address of old cell (computed from old hash)
 		const int3 gridPos = calcGridPosFromHash(gridHash);
@@ -201,15 +195,9 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
 #if HASH_KEY_SIZE >= 64
-		// prepare the 2 most significant bits of the hash (bitwise AND with 00111111...)
-		gridHash &= CELLTYPE_BITMASK;
-		// make room
-		gridHash <<= GRIDHASH_BITSHIFT;
-		// add id
-		gridHash |= id(info);
 		// mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-		gridHash |= ((long unsigned int)compactDeviceMap[gridHash]) << GRIDHASH_BITSHIFT;
+		gridHash |= compactDeviceMap[gridHash];
 #endif
 
 		// Adjust position
@@ -219,7 +207,7 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 			disable_particle(pos);
 
 		// Store grid hash, particle index and position relative to cell
-		particleHash[index] = gridHash;
+		particleHash[index] = makeParticleHash(gridHash, info);
 		posArray[index] = pos;
 	}
 
@@ -295,22 +283,22 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 	if (index < 4) segmentStart[index] = EMPTY_SEGMENT;
 #endif
 
-	uint hash;
+	uint cellHash;
 	// Handle the case when number of particles is not multiple of block size
 	if (index < numParticles) {
 		// To find where cells start/end we only need the cell part of the hash.
 		// Note: we do not reset the high bits since we need them to find the segments
 		// (aka where the outer particles begin)
-		hash = (uint)(particleHash[index] >> GRIDHASH_BITSHIFT);
+		cellHash = cellHashFromParticleHash(particleHash[index], true);
 
 		// Load hash data into shared memory so that we can look
 		// at neighboring particle's hash value without loading
 		// two hash values per thread
-		sharedHash[threadIdx.x + 1] = hash;
+		sharedHash[threadIdx.x + 1] = cellHash;
 
 		if (index > 0 && threadIdx.x == 0) {
 			// first thread in block must load neighbor particle hash
-			sharedHash[0] = (uint)(particleHash[index-1] >> GRIDHASH_BITSHIFT);
+			sharedHash[0] = cellHashFromParticleHash(particleHash[index - 1], true);
 		}
 	}
 
@@ -326,14 +314,14 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		// Note: we need to reset the high bits of the cell hash if the particle hash is 64 bits wide
 		// everytime we use a cell hash to access an element of CellStart or CellEnd
 
-		if (index == 0 || hash != sharedHash[threadIdx.x]) {
+		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
 #if HASH_KEY_SIZE >= 64
-			cellStart[hash & CELLTYPE_BITMASK] = index;
+			cellStart[cellHash & CELLTYPE_BITMASK] = index;
 #else
-			cellStart[hash] = index;
+			cellStart[cellHash] = index;
 #endif
-			// If it isn't the first particle, it must also be the cell end of
+			// If it isn't the first particle, it must also be the end of the previous cell
 			if (index > 0)
 #if HASH_KEY_SIZE >= 64
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
@@ -345,15 +333,15 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (index == numParticles - 1) {
 			// ditto
 #if HASH_KEY_SIZE >= 64
-			cellEnd[hash & CELLTYPE_BITMASK] = index + 1;
+			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
 #else
-			cellEnd[hash] = index + 1;
+			cellEnd[cellHash] = index + 1;
 #endif
 		}
 
 #if HASH_KEY_SIZE >= 64
-		// if the particle hash is 64bits long, also find the segment start
-		uchar curr_type = (hash & (~CELLTYPE_BITMASK)) >> 30;
+		// if hashKey is 64bits long, also find the segment start
+		uchar curr_type = (cellHash & (~CELLTYPE_BITMASK)) >> 30;
 		uchar prev_type = (sharedHash[threadIdx.x] & (~CELLTYPE_BITMASK)) >> 30;
 		if (index == 0 || curr_type != prev_type)
 			segmentStart[curr_type] = index;
@@ -605,11 +593,7 @@ buildNeibsListDevice(
 			#endif
 
 			// Get particle grid position computed from particle hash
-#if HASH_KEY_SIZE >= 64
-			uint cellHash = (particleHash[index] >> GRIDHASH_BITSHIFT) & CELLTYPE_BITMASK;
-#else
-			uint cellHash = particleHash[index];
-#endif
+			uint cellHash = cellHashFromParticleHash(particleHash[index]);
 
 			const int3 gridPos = calcGridPosFromHash(cellHash);
 
