@@ -717,10 +717,10 @@ Problem::set_grid_params(void)
 {
 	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
 	// with semi-analytical boundaries, we want a cell size which is
-	// deltap + the usual influence radius
+	// deltap/2 + the usual influence radius
 	double cellSide = influenceRadius;
 	if (m_simparams.boundarytype == SA_BOUNDARY)
-		cellSide += m_deltap;
+		cellSide += m_deltap/2.0f;
 
 	m_gridsize.x = floor(m_size.x / cellSide);
 	m_gridsize.y = floor(m_size.y / cellSide);

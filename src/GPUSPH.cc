@@ -1246,7 +1246,10 @@ void GPUSPH::initializeGammaAndGradGamma()
 
 	gdata->only_internal = true;
 
-	doCommand(SA_INIT_GAMMA);
+	// Compute gamma
+	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
+
+	/*doCommand(SA_INIT_GAMMA);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 	gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
@@ -1280,7 +1283,7 @@ void GPUSPH::initializeGammaAndGradGamma()
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-	}
+	} */
 }
 
 void GPUSPH::imposeDynamicBoundaryConditions()

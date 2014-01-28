@@ -505,6 +505,7 @@ neibsInCell(
 			float3			pos,		///< current particle position
 			const uint		numParticles,	///< total number of particles
 			const float		sqinfluenceradius,	///< squared value of influence radius
+			const float		sqdpo2,		///< squared value of delta p / 2
 			neibdata*		neibsList,	///< neighbor's list (out)
 			uint&			neibs_num,	///< number of neighbors for the current particle
 			const bool		segment)	///< if a segment is searching we are only looking for the three vertices
@@ -579,7 +580,7 @@ neibsInCell(
 
 				// Check if the squared distance is smaller than the squared influence radius
 				// used for neighbor list construction
-				if (sqlength(relPos) < sqinfluenceradius && !segment) {
+				if ((sqlength(relPos) < sqinfluenceradius || (sqlength(relPos) < sqinfluenceradius + sqdpo2 && BOUNDARY(info))) && !segment) {
 					if (neibs_num < d_maxneibsnum) {
 						neibsList[neibs_num*d_neiblist_stride + index] =
 								neib_index - bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
@@ -634,6 +635,7 @@ neibsInCell(
  *	\param[out] neibList : neighbor's list
  *	\param[in] numParticles : total number of particles
  *	\param[in] sqinfluenceradius : squared value of the influence radius
+ *	\param[in] sqdpo2 : squared value of delta p / 2
  *
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *	\pparam neibcount : compute maximum neighbor number (0, 1)
@@ -654,7 +656,8 @@ buildNeibsListDevice(
 						const hashKey*	particleHash,			///< particle's hashes (in)
 						neibdata*		neibsList,				///< neighbor's list (out)
 						const uint		numParticles,			///< total number of particles
-						const float		sqinfluenceradius)		///< squared influence radius
+						const float		sqinfluenceradius,		///< squared influence radius
+						const float		sqdpo2)					///< squared delta p / 2
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -702,6 +705,7 @@ buildNeibsListDevice(
 								pos3,
 								numParticles,
 								sqinfluenceradius,
+								sqdpo2,
 								neibsList,
 								neibs_num,
 								BOUNDARY(info));
