@@ -38,6 +38,8 @@
 #include "kahan.h"
 #include "tensor.cu"
 
+#define MAXKASINDEX 10
+
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
@@ -822,15 +824,15 @@ hf3d(float qas, float qae, float q, float pes)
 	const float qae2 = qae*qae;
 	const float qae4 = qae2*qae2;
 	const float qae6 = qae4*qae2;
-	const float sqrtqqae = sqrt(q2-qae2);
-	const float acoshqqae = acosh(q/qae);
-	const float atanmpi2 = atan(pes/sqrtqqae)-M_PI/2.0f;
-	const float atan23 = atan(qas*pes/(q2-q*sqrtqqae-qas2))-atan(qas/pes);
+	const float sqrtqqae = sqrt(fmax(q2-qae2,0.0f));
+	const float acoshqqae = acosh(fmax(q/qae,1.0f));
+	const float atanmpi2 = (sqrtqqae < 1e-5f) ? 0.0f : atan(pes/sqrtqqae) - M_PI/2.0f;
+	const float atan23 = pes < 1e-5 ? 0.0f : atan(qas*pes/(q2-q*sqrtqqae-qas2)) - atan(qas/pes);
 	// formula for gradGamma (h3d)
 	ret.x =	pes/2.0f*sqrtqqae*(
 				q5/24.0f - 7.0f/16.0f*q4
 				+ q3/96.0f*(6.0f*qas2+5.0f*qae2+168.0f)
-				- q*q*7.0f/48.0f*(5.0f*qas2+4*qae2+20.0f)
+				- q2*7.0f/48.0f*(5.0f*qas2+4.0f*qae2+20.0f)
 				+ q/64.0f*(8.0f*qas4+5.0f*qae4+6.0f*qas2*qae2+224.0f*qas2+168.0f*qae2)
 				- 7.0f/48.0f*(15.0f*qas4+8.0f*qae4+10.0f*qas2*qae2+60.0f*qas2+40.0f*qae2-48.0f)
 			)
@@ -893,6 +895,11 @@ gammaDevice(const	float4* 	oldPos,
 			float4 norm1 = make_float4(0.0f);
 			float sumOpenAngles = 0.0f;
 
+			// this array saves the indices of segments which had k_{as} added
+			uint kasIndex[MAXKASINDEX];
+			// this is the current iterator for the above array
+			uint curKasInd = 0;
+
 			// Loop over all the neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 				neibdata neib_data = neibsList[i + index];
@@ -919,22 +926,13 @@ gammaDevice(const	float4* 	oldPos,
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
 
+				// AM-TODO here inflRadius is not quite correct better would be q_aSigma
 				if (r < inflRadius && BOUNDARY(neibInfo)) {
 					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 					const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
 
 					// define edge independent variables
-					float3 pos_corr;
-					const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-								neib_cellnum, neib_cell_base_index);
 
-					// Compute relative position vector and distance
-					// Now relPos is a float4 and neib mass is stored in relPos.w
-					#if( __COMPUTE__ >= 20)
-					const float4 relPos = pos_corr - oldPos[neib_index];
-					#else
-					const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-					#endif
 					float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
 					q_aSigma.w = fmin(length3(q_aSigma),2.0f);
 					// local coordinate system for relative positions to vertices
@@ -960,27 +958,26 @@ gammaDevice(const	float4* 	oldPos,
 						coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
 					}
 					// relative positions of vertices with respect to the segment
-					float4 v0 = vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2;
+					float4 v0 = vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2; // e.g. v0 = r_{v0} - r_s
 					float4 v1 = vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2;
 					float4 v2 = vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2;
 					// calculate if the projection of a (with respect to n) is inside the segment
-					const float4 ba = v0 - v1;
-					const float4 ca = v0 - v2;
+					const float4 ba = v0 - v1; // vector from v0 to v1 (changed signs due to definition of v0)
+					const float4 ca = v0 - v2; // vector from v0 to v2
+					const float4 pa = v0 + relPos; // vector from v0 to the particle
 					const float dot00 = length3(ba);
-					const float dot01 = dot3(ba,ca);
-					const float dot02 = dot3(ba,v1);
 					const float dot11 = length3(ca);
-					const float dot12 = dot3(ca,v1);
-					const float invdet = 1.0f/(dot00*dot11-dot01*dot01);
-					const float u = (dot11*dot02-dot01*dot12)*invdet;
-					const float v = (dot00*dot12-dot01*dot02)*invdet;
+					const float u = dot3(cross3(ba,pa),boundElement)/dot00/dot11;
+					const float v = dot3(cross3(pa,ca),boundElement)/dot00/dot11;
 					float gradGamma_as = 0.0f;
 					float gamma_as = 0.0f;
 					// check if the particle is on a vertex
 					if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
 							(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
 							(     fabs(u) < 1e-5f && fabs(v) < 1e-5f)   ) && q_aSigma.w < 1e-5f) {
-						gradGamma_as = 3.0f/4.0f;
+						// add gradGamma only once
+						if(finalAdd==0)
+							gradGamma_as = 3.0f/4.0f;
 						// set touching vertex to v0
 						if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
 							const float4 tmp = v1;
@@ -1001,9 +998,11 @@ gammaDevice(const	float4* 	oldPos,
 					}
 					// check if particle is on an edge
 					else if ( (fabs(u) < 1e5f || fabs(v) < 1e-15 || fabs(u+v-1.0f) < 1e-5) && q_aSigma.w < 1e-5f) {
-						gradGamma_as = 3.0f/4.0f;
+						// add gradGamma only once
+						if(finalAdd==0)
+							gradGamma_as = 3.0f/4.0f;
 						// compute the angle between two segments
-						if (finalAdd==-1){
+						else if (finalAdd==-1){
 							const float theta0 = acos(dot3(boundElement,norm1)); // angle of the norms between 0 and pi
 							const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
 							const float4 normDir = cross3(boundElement, norm1); // this is the sin between the two norms
@@ -1019,9 +1018,21 @@ gammaDevice(const	float4* 	oldPos,
 					// particle is neither on edge nor vertex => general formula
 					else {
 						// additional term if projection is inside segment
-						if ( u > 0.0f && v > 0.0f && u+v < 1.0f ){
-							gradGamma_as = 3.0f/8.0f*pow(1.0f - q_aSigma.w, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w);
-							gamma_as = 1.0f/8.0f/q_aSigma.w*pow(1 - q_aSigma.w, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w);
+						if ( u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f ){
+							//bool found = false;
+							//for (uint j=0; j<curKasInd && !found; j++) {
+							//	if (fabs(length3(boundElement + tex1Dfetch(boundTex, kasIndex[j])) - 2.0f) < 1e-5f)
+							//		found = true;
+							//}
+							//if (!found) {
+								gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w);
+								gamma_as = 1.0f/8.0f/q_aSigma.w*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w);
+							//	kasIndex[curKasInd] = neib_index;
+							//	curKasInd += curKasInd<MAXKASINDEX ? 1 : 0; // ideally this should always be one but you never know
+							//}
+							if(id(info)==272){
+								printf("ggam add: %e\t%e\t%e\t%e\n\n", gradGamma_as, gamma_as, relPos.z, pa.z);
+							}
 						}
 						// loop over all three edges
 						for (uint i=0; i<3; i++) {
@@ -1035,17 +1046,26 @@ gammaDevice(const	float4* 	oldPos,
 							// vector pointing outward from segment normal to segment normal and v_{01}
 							// this is only possible because Crixus makes sure that the segments are ordered correctly
 							float4 n_ds = cross3(v1-v0,boundElement);
+							n_ds.w = length3(n_ds);
+							n_ds /= n_ds.w;
+							// q_aEpsilon is the vector from a to the intersection of v_{01} and the plane spanned by q_aSigma and n_ds (i.e. it's on the edge)
 							float4 q_aEpsilon = q_aSigma + n_ds*dot3(n_ds,relPos+v0)/slength;
-							q_aEpsilon.w = fmin(length3(q_aEpsilon),2.0f);
-							float y0 = -dot3(relPos+v0,(v1-v0)/slength);
-							float y1 = -dot3(relPos+v1,(v1-v0)/slength);
-							float qv0 = fmin(sqrt(q_aSigma.w*q_aSigma.w+y0*y0/(slength*slength)),2.0f);
-							float qv1 = fmin(sqrt(q_aSigma.w*q_aSigma.w+y1*y1/(slength*slength)),2.0f);
-							float4 p_EpsilonSigma = q_aSigma-q_aEpsilon;
-							float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w);
-							float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w);
-							gradGamma_as += 3.0f/2.0f/M_PI*copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
-							gamma_as -= 1.0f/16.0f/M_PI*copysign(copysign(hf3d1.y,y1) - copysign(hf3d0.y,y0), dot3(n_ds, p_EpsilonSigma));
+							q_aEpsilon.w = length3(q_aEpsilon);
+							// if q_aEpsilon is greater than 2 the kernel support doest not intersect the edge
+							if(q_aEpsilon.w < 2.0f) {
+								float4 te = (v1-v0);
+								te.w = length3(te);
+								te /= te.w;
+								float y0 = dot3(relPos+v0,te);
+								float y1 = dot3(relPos+v1,te);
+								float qv0 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y0*y0/(slength*slength)),2.0f);
+								float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
+								float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
+								p_EpsilonSigma.w = length3(p_EpsilonSigma);
+								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, (id(neibInfo)==4383 && id(info) == 272));
+								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, (id(neibInfo)==4383 && id(info) == 272));
+								gradGamma_as += 3.0f/2.0f/M_PI*copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
+								gamma_as -= 1.0f/16.0f/M_PI*copysign(copysign(hf3d1.y,y1) - copysign(hf3d0.y,y0), dot3(n_ds, p_EpsilonSigma));
 						}
 					}
 					gGam.x += gradGamma_as*boundElement.x/slength;
@@ -1479,7 +1499,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		if (oldTKE)
 			oldTKE[index] = temp3/alpha;
 		if (oldEps)
-			oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
+			oldEps[index] = powf(0.09f, 0.75f)*powf(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
 	else {
 		oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];

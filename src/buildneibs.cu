@@ -291,6 +291,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
+				const float			sqdpo2,
 				const int			periodicbound)
 {
 	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
@@ -318,7 +319,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 		break;
 
 		case 1:
@@ -332,7 +334,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 
 		case 2:
@@ -346,7 +349,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 
 		case 3:
@@ -360,7 +364,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 
 		case 4:
@@ -374,7 +379,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 
 		case 5:
@@ -388,7 +394,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 
 		case 6:
@@ -402,7 +409,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 
 		case 7:
@@ -416,7 +424,8 @@ buildNeibsList(	neibdata*			neibsList,
 						particleHash,
 						neibsList,
 						particleRangeEnd,
-						sqinfluenceradius);
+						sqinfluenceradius,
+						sqdpo2);
 				break;
 	}
 
