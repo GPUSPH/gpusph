@@ -57,8 +57,34 @@ calcGridHash(int3 const& gridPos)
  *	Note : no test is done by this function to ensure that hash value is valid.
  */
 __device__ __forceinline__ int3
-calcGridPosFromHash(const uint cellHash)
+calcGridPosFromCellHash(const uint cellHash)
 {
+	int3 gridPos;
+	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
+	gridPos.z = cellHash/temp;
+	temp = cellHash - gridPos.z*temp;
+	gridPos.y = temp/d_gridSize.x;
+	gridPos.x = temp - gridPos.y*d_gridSize.x;
+
+	return gridPos;
+}
+
+/// Compute grid position from particle hash value
+/*! Compute the grid position corresponding to the given particle hash. The position
+ * 	should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
+ *
+ *	\param[in] particleHash : particle hash value
+ *
+ *	\return grid position
+ *
+ *	Note : no test is done by this function to ensure that hash value is valid.
+ *	Note : when hashKey is 32bit long, this is equivalent to calcGridPosFromCellHash()
+ */
+__device__ __forceinline__ int3
+calcGridPosFromParticleHash(const hashKey particleHash)
+{
+	// read the cellHash out of the particleHash
+	const uint cellHash = cellHashFromParticleHash(particleHash);
 	int3 gridPos;
 	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
 	gridPos.z = cellHash/temp;

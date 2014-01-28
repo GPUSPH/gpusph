@@ -105,7 +105,7 @@ FORCES_CUDA_KERNEL
 			const float4 gradgamma = (boundarytype == SA_BOUNDARY ? tex1Dfetch(gamTex, index) : make_float4(NAN));
 
 			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromHash(cellHash);
+			const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -478,7 +478,7 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			// compute grid index of current particle
-			const int3 gridPos = calcGridPosFromHash(cellHash);
+			const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
 			const float4 vel = tex1Dfetch(velTex, index);
 			const float4 gradgamma = tex1Dfetch(gamTex, index);
@@ -577,7 +577,7 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			// compute grid index of current particle
-			const int3 gridPos = calcGridPosFromHash(cellHash);
+			const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
 			// persistent variables across getNeibData calls
 			char neib_cellnum = 0;
