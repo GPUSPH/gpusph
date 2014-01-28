@@ -33,6 +33,8 @@
 #ifndef _CELLGRID_H
 #define _CELLGRID_H
 
+#include "hashkey.h"
+
 __constant__ float3 d_worldOrigin;
 __constant__ float3 d_cellSize;
 __constant__ uint3 d_gridSize;
@@ -44,24 +46,23 @@ calcGridHash(int3 const& gridPos)
 	return INTMUL(INTMUL(gridPos.z, d_gridSize.y), d_gridSize.x) + INTMUL(gridPos.y, d_gridSize.x) + gridPos.x;
 }
 
-/// Compute grid position from hash value
-/*! Compute the grid position corresponding to the given hash. The position
+/// Compute grid position from cell hash value
+/*! Compute the grid position corresponding to the given cell hash. The position
  * 	should be in the range [0, d_gridSize.x - 1]x[0, d_gridSize.y - 1]x[0, d_gridSize.z - 1].
  *
- *	\param[in] gridHash : hash value
+ *	\param[in] cellHash : cell hash value
  *
  *	\return grid position
  *
  *	Note : no test is done by this function to ensure that hash value is valid.
  */
 __device__ __forceinline__ int3
-calcGridPosFromHash(const hashKey fullGridHash)
+calcGridPosFromHash(const uint cellHash)
 {
-	const uint gridHash = (uint)(fullGridHash >> GRIDHASH_BITSHIFT);
 	int3 gridPos;
 	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
-	gridPos.z = gridHash/temp;
-	temp = gridHash - gridPos.z*temp;
+	gridPos.z = cellHash/temp;
+	temp = cellHash - gridPos.z*temp;
 	gridPos.y = temp/d_gridSize.x;
 	gridPos.x = temp - gridPos.y*d_gridSize.x;
 
