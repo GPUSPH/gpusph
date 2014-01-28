@@ -365,7 +365,7 @@ struct GlobalData {
 	}
 
 	// TODO MERGE REVIEW. refactor with next one
-	uint3 calcGridPosFromHash(uint cellHash) {
+	uint3 calcGridPosFromCellHash(uint cellHash) {
 		uint3 gridPos;
 		gridPos.z = cellHash/(gridSize.x*gridSize.y);
 		gridPos.y = (cellHash - gridPos.z*gridSize.x*gridSize.y)/gridSize.x;
