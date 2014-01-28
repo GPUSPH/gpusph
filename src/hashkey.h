@@ -82,7 +82,7 @@ hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info)
 #if HASH_KEY_SIZE == 32
 	return cellHash;
 #else
-	return ((hashKey)cellHash << GRIDHASH_BITSHIFT) & id(info);
+	return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | id(info);
 #endif
 	// alternatively, to avoid conditionals one can use the more compact but less readable:
 	// return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | (id(info) & (EMPTY_CELL >> (32 - GRIDHASH_BITSHIFT) ));
