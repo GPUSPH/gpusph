@@ -89,11 +89,7 @@ FORCES_CUDA_KERNEL
 		// read particle info from texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-#if HASH_KEY_SIZE >= 64
-		uint cellHash = (particleHash[index] >> GRIDHASH_BITSHIFT) & CELLTYPE_BITMASK;
-#else
-		uint cellHash = particleHash[index];
-#endif
+		uint cellHash = cellHashFromParticleHash(particleHash[index]);
 
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
