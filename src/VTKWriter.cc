@@ -100,6 +100,7 @@ void
 VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
 	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
+	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
 	const float4 *vel = buffers.getData<BUFFER_VEL>();
 	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
@@ -373,7 +374,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	numbytes = sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=0; i < numParts; i++) {
-		uint value = m_gdata->calcGridHashHost( m_gdata->calcGridPosHost(pos[i].x, pos[i].y, pos[i].z) );
+		uint value = cellHashFromParticleHash( particleHash[i] );
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
