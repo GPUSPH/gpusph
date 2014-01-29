@@ -85,14 +85,7 @@ calcGridPosFromParticleHash(const hashKey particleHash)
 {
 	// read the cellHash out of the particleHash
 	const uint cellHash = cellHashFromParticleHash(particleHash);
-	int3 gridPos;
-	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
-	gridPos.z = cellHash/temp;
-	temp = cellHash - gridPos.z*temp;
-	gridPos.y = temp/d_gridSize.x;
-	gridPos.x = temp - gridPos.y*d_gridSize.x;
-
-	return gridPos;
+	return calcGridPosFromCellHash(cellHash);
 }
 
 /* the neighbor cell num ranges from 1 to 27 (included), so it fits in
