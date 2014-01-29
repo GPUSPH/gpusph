@@ -981,16 +981,11 @@ void GPUSPH::sortParticlesByHash() {
 		//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
 }
 
-// Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
+// Swap two particles in all host arrays; used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
-	// list of buffers to sort on host
-	static const flag_t swappable_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO |
-		BUFFER_BOUNDELEMENTS | BUFFER_VERTICES | BUFFER_TKE | BUFFER_EPSILON;
-
 	BufferList::iterator iter = gdata->s_hBuffers.begin();
 	while (iter != gdata->s_hBuffers.end()) {
-		if (iter->first & swappable_buffers)
 			iter->second->swap_elements(idx1, idx2);
 		++iter;
 	}
