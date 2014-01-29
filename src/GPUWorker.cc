@@ -1143,7 +1143,7 @@ void GPUWorker::uploadSubdomain() {
 				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
 
 		void *dstptr = buf->get_buffer(gdata->currentRead[buf_to_up]);
-		const void *srcptr = onhost->second->get_buffer();
+		const void *srcptr = onhost->second->get_offset_buffer(0, firstInnerParticle);
 		CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
 	}
 }
