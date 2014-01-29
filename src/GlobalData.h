@@ -333,7 +333,7 @@ struct GlobalData {
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos
-	int3 calcGridPosHost(float3 pos) {
+	int3 calcGridPosHost(double3 pos) {
 		int3 gridPos;
 		gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
 		gridPos.y = floor((pos.y - worldOrigin.y) / cellSize.y);
@@ -341,7 +341,7 @@ struct GlobalData {
 		return gridPos;
 	}
 	// overloaded
-	int3 calcGridPosHost(float px, float py, float pz) {
+	int3 calcGridPosHost(double px, double py, double pz) {
 		int3 gridPos;
 		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
 		gridPos.y = floor((py - worldOrigin.y) / cellSize.y);
@@ -384,7 +384,7 @@ struct GlobalData {
 
 	// compute the global device Id of the cell holding pos
 	// WARNING: pos is _global_
-	uchar calcGlobalDeviceIndex(float4 pos) {
+	uchar calcGlobalDeviceIndex(double4 pos) {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
