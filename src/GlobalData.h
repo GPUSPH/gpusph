@@ -375,13 +375,13 @@ struct GlobalData {
 		return make_int3(cx, cy, cz);
 	}
 
-	// compute the global device Id of the cell holding pos
-	// WARNING: pos is _global_
-	uchar calcGlobalDeviceIndex(double4 pos) {
+	// compute the global device Id of the cell holding globalPos
+	// NOTE: as the name suggests, globalPos is _global_
+	uchar calcGlobalDeviceIndex(double4 globalPos) {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
-		int3 cellCoords = calcGridPosHost( pos.x, pos.y, pos.z );
+		int3 cellCoords = calcGridPosHost( globalPos.x, globalPos.y, globalPos.z );
 		// compute cell linearized index
 		uint linearizedCellIdx = calcGridHashHost( cellCoords );
 		// read which device number was assigned
