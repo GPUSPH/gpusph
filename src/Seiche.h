@@ -48,7 +48,7 @@ class Seiche: public Problem {
 		float		m_gtstart, m_gtend;
 
 	public:
-		Seiche(const Options &);
+		Seiche(const GlobalData *);
 		virtual ~Seiche(void);
 
 		int  fill_parts(void);

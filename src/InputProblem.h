@@ -14,7 +14,7 @@ class InputProblem: public Problem {
 		double		H;				// water level (used to set D constant)
 
 	public:
-		InputProblem(const Options &);
+		InputProblem(const GlobalData *);
 		~InputProblem(void) {};
 
 		int fill_parts(void);

@@ -109,7 +109,8 @@ class Problem {
 
 		string	m_name;
 
-		Options		m_options;
+		const GlobalData	*gdata;
+		const Options		*m_options;					// commodity pointer to gdata->clOptions
 		SimParams	m_simparams;
 		PhysParams	m_physparams;
 		MbCallBack	m_mbcallbackdata[MAXMOVINGBOUND];	// array of structure for moving boundary data
@@ -121,7 +122,7 @@ class Problem {
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 
-		Problem(const Options &options = Options());
+		Problem(const GlobalData *_gdata);
 
 		virtual ~Problem(void);
 
@@ -138,7 +139,7 @@ class Problem {
 
 		Options const& get_options(void) const
 		{
-			return m_options;
+			return *m_options;
 		}
 
 		double3 const& get_worldorigin(void) const
@@ -179,8 +180,8 @@ class Problem {
 
 		double set_deltap(const double dflt)
 		{
-			if (isfinite((double) m_options.deltap))
-				m_deltap = m_options.deltap;
+			if (isfinite((double) m_options->deltap))
+				m_deltap = m_options->deltap;
 			else
 				m_deltap = dflt;
 			// also udate the smoothing length

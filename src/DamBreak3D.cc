@@ -44,7 +44,7 @@
 #define OFFSET_Z 0
 #endif
 
-DamBreak3D::DamBreak3D(const Options &options) : Problem(options)
+DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 1.6;

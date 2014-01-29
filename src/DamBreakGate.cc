@@ -45,7 +45,7 @@
 // #define ORIGIN_Y	(- SIZE_Y / 2)
 // #define ORIGIN_Z	(- SIZE_Z / 2)
 
-DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
+DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z);

@@ -29,7 +29,7 @@
 #include "OpenChannel.h"
 
 
-OpenChannel::OpenChannel(const Options &options) : Problem(options)
+OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 {
 	m_writerType = VTKWRITER;
 

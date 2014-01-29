@@ -31,7 +31,7 @@
 #include "particledefine.h"
 
 
-Seiche::Seiche(const Options &options) : Problem(options)
+Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 {
 	set_deltap(0.015f);
 	H = .5f;

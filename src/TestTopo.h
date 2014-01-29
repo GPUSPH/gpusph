@@ -46,7 +46,7 @@ class TestTopo: public Problem {
 		double		H;				// still water level
 
 	public:
-		TestTopo(const Options &);
+		TestTopo(const GlobalData *);
 
 		virtual ~TestTopo(void);
 

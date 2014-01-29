@@ -18,7 +18,7 @@
 
 #define USE_PLANES 0
 
-InputProblem::InputProblem(const Options &options) : Problem(options)
+InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
 	numparticles = 0;
 

@@ -38,13 +38,13 @@
 
 #define EB experiment_box
 
-TestTopo::TestTopo(const Options &options) : Problem(options)
+TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 {
 	const char* dem_file;
-	if (options.dem.empty())
+	if (m_options->dem.empty())
 		dem_file = "half_wave0.1m.txt";
 	else
-		dem_file = options.dem.c_str();
+		dem_file = m_options->dem.c_str();
 
 	EB = TopoCube::load_ascii_grid(dem_file);
 
