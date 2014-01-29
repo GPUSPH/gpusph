@@ -333,14 +333,6 @@ struct GlobalData {
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos
-	int3 calcGridPosHost(double3 pos) {
-		int3 gridPos;
-		gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
-		gridPos.y = floor((pos.y - worldOrigin.y) / cellSize.y);
-		gridPos.z = floor((pos.z - worldOrigin.z) / cellSize.z);
-		return gridPos;
-	}
-	// overloaded
 	int3 calcGridPosHost(double px, double py, double pz) {
 		int3 gridPos;
 		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
@@ -348,20 +340,21 @@ struct GlobalData {
 		gridPos.z = floor((pz - worldOrigin.z) / cellSize.z);
 		return gridPos;
 	}
+	// overloaded
+	int3 calcGridPosHost(double3 pos) {
+		return calcGridPosHost(pos.x, pos.y, pos.z);
+	}
 
 	// compute the linearized hash of the cell located at gridPos
-	uint calcGridHashHost(int3 gridPos) {
-		gridPos.x = min( max(0, gridPos.x), gridSize.x-1);
-		gridPos.y = min( max(0, gridPos.y), gridSize.y-1);
-		gridPos.z = min( max(0, gridPos.z), gridSize.z-1);
-		return ( (gridPos.z * gridSize.y) * gridSize.x ) + (gridPos.y * gridSize.x) + gridPos.x;
-	}
-	// overloaded
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) {
 		int trimmedX = min( max(0, cellX), gridSize.x-1);
 		int trimmedY = min( max(0, cellY), gridSize.y-1);
 		int trimmedZ = min( max(0, cellZ), gridSize.z-1);
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
+	}
+	// overloaded
+	uint calcGridHashHost(int3 gridPos) {
+		return calcGridHashHost(gridPos.x, gridPos.y, gridPos.z);
 	}
 
 	// TODO MERGE REVIEW. refactor with next one
