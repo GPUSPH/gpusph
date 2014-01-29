@@ -57,6 +57,8 @@ class DamBreak3D: public Problem {
 		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
+		// override standard split
+		void fillDeviceMap(GlobalData* gdata);
 
 		void release_memory(void);
 };
