@@ -41,7 +41,7 @@ class OpenChannel: public Problem {
 		float		H; // still water level
 
 	public:
-		OpenChannel(const Options &);
+		OpenChannel(const GlobalData *);
 		virtual ~OpenChannel(void);
 
 		int fill_parts(void);

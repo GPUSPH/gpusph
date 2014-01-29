@@ -44,7 +44,7 @@ class SphericTest2: public Problem {
 		bool		m_usePlanes;	// use planes or boundaries
 
 	public:
-		SphericTest2(const Options &);
+		SphericTest2(const GlobalData *);
 		virtual ~SphericTest2(void);
 
 		int fill_parts(void);

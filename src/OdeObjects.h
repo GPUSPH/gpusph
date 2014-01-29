@@ -61,7 +61,7 @@ class OdeObjects: public Problem {
 		
 
 	public:
-		OdeObjects(const Options &);
+		OdeObjects(const GlobalData *);
 		virtual ~OdeObjects(void);
 
 		int fill_parts(void);

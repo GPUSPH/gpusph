@@ -329,7 +329,7 @@ int main(int argc, char** argv) {
 
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
-	gdata.problem = new PROBLEM(*(gdata.clOptions));
+	gdata.problem = new PROBLEM(&gdata);
 
 	// get - and actually instantiate - the existing instance of GPUSPH
 	GPUSPH *Simulator = GPUSPH::getInstance();

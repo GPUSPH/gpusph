@@ -40,9 +40,10 @@
 
 uint Problem::m_total_ODE_bodies = 0;
 
-Problem::Problem(const Options &options)
+Problem::Problem(const GlobalData *_gdata)
 {
-	m_options = options;
+	gdata = _gdata;
+	m_options = gdata->clOptions;
 	m_last_display_time = 0.0;
 	m_last_write_time = -1.0;
 	m_last_screenshot_time = 0.0;
@@ -51,7 +52,7 @@ Problem::Problem(const Options &options)
 	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
-	m_problem_dir = options.dir;
+	m_problem_dir = m_options->dir;
 }
 
 

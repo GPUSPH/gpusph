@@ -50,7 +50,7 @@ class DamBreak3D: public Problem {
 		bool		m_usePlanes;	// use planes or boundaries
 
 	public:
-		DamBreak3D(const Options &);
+		DamBreak3D(const GlobalData *);
 		virtual ~DamBreak3D(void);
 
 		int fill_parts(void);

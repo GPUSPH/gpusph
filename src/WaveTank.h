@@ -54,7 +54,7 @@ class WaveTank: public Problem {
 		double		lx, ly, lz;		// dimension of experiment box
 
 	public:
-		WaveTank(const Options &);
+		WaveTank(const GlobalData *);
 		~WaveTank(void);
 		int fill_parts(void);
 		uint fill_planes(void);

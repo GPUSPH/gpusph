@@ -42,7 +42,7 @@
 #define OFFSET_Z 0
 #endif
 
-StillWater::StillWater(const Options &options) : Problem(options)
+StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 {
 	H = 1;
 
