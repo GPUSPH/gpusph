@@ -1084,7 +1084,7 @@ void GPUSPH::doWrite()
 	for (uint i = 0; i < gdata->totParticles; i++) {
 		const float4 pos = gdata->s_hBuffers.getData<BUFFER_POS>()[i];
 		double4 dpos;
-		uint3 gridPos = gdata->calcGridPosFromCellHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]);
+		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
 		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
