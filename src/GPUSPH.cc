@@ -945,16 +945,15 @@ void GPUSPH::sortParticlesByHash() {
 	}
 
 	// DEBUG: check if the sort was correct
-	// WARNING: this was not update with the new local coordinates system nor with the buffer list
-	/* bool monotonic = true;
+	bool monotonic = true;
 	bool count_c = true;
 	uint hcount[MAX_DEVICES_PER_NODE];
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uint cdev = gdata->calcGlobalDeviceIndex( gdata->s_hPos[p] );
+		uint cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
 		uint pdev;
-		if (p > 0) pdev = gdata->calcGlobalDeviceIndex( gdata->s_hPos[p-1] );
+		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
 				p-1, gdata->RANK(pdev), gdata->	DEVICE(pdev), p, gdata->RANK(cdev), gdata->	DEVICE(cdev) );
