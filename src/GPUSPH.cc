@@ -832,7 +832,7 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer? or: just use HASH, sorting also for cells, not only for device
-	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
+	uchar* m_hParticleKeys = new uchar[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
@@ -842,7 +842,7 @@ void GPUSPH::sortParticlesByHash() {
 		uchar whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
-		m_hParticleHashes[p] = whichGlobalDev;
+		m_hParticleKeys[p] = whichGlobalDev;
 
 		// increase node and globalDev counter (only useful for multinode)
 		gdata->processParticles[gdata->RANK(whichGlobalDev)]++;
@@ -910,17 +910,17 @@ void GPUSPH::sortParticlesByHash() {
 		while (leftB < nextBucketBeginsAt) {
 
 			// translate from globalDeviceIndex to an absolute device index in 0..totDevices (the opposite convertDeviceMap does)
-			uint currPartGlobalDevice = gdata->GLOBAL_DEVICE_NUM( m_hParticleHashes[leftB] );
+			uint currPartGlobalDevice = gdata->GLOBAL_DEVICE_NUM( m_hParticleKeys[leftB] );
 
 			// if in the current position there is a particle *not* belonging to the bucket...
 			if (currPartGlobalDevice != currentGlobalDevice) {
 
 				// ...let's find a correct one, scanning from right to left
-				while ( gdata->GLOBAL_DEVICE_NUM( m_hParticleHashes[rightB] ) != currentGlobalDevice) rightB--;
+				while ( gdata->GLOBAL_DEVICE_NUM( m_hParticleKeys[rightB] ) != currentGlobalDevice) rightB--;
 
 				// here it should never happen that (rightB <= leftB). We should throw an error if it happens
 				particleSwap(leftB, rightB);
-				std::swap(m_hParticleHashes[leftB], m_hParticleHashes[rightB]);
+				std::swap(m_hParticleKeys[leftB], m_hParticleKeys[rightB]);
 			}
 
 			// already correct or swapped, time to go on
@@ -928,7 +928,7 @@ void GPUSPH::sortParticlesByHash() {
 		}
 	}
 	// delete array of keys (might be recycled instead?)
-	delete[] m_hParticleHashes;
+	delete[] m_hParticleKeys;
 
 	// initialize the outer cells values in s_dSegmentsStart. The inner_edge are still uninitialized
 	for (uint currentDevice = 0; currentDevice < gdata->devices; currentDevice++) {
