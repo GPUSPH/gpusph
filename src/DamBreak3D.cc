@@ -242,3 +242,8 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, has
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 	std::flush(std::cout);
 }
+
+void DamBreak3D::fillDeviceMap(GlobalData* gdata)
+{
+	fillDeviceMapByAxis(gdata, Y_AXIS);
+}
