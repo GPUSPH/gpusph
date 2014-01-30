@@ -111,8 +111,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// get the grid size
 	gdata->gridSize = problem->get_gridsize();
 
-	// compute the number of cells
-	gdata->nGridCells = gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
+	// compute the number of cells, in ulong first (an overflow would make the comparison with MAX_CELLS pointless)
+	ulong longNGridCells = (ulong) gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
+	if (longNGridCells > MAX_CELLS) {
+		printf("FATAL: cannot handle %lu > %u cells\n", longNGridCells, MAX_CELLS);
+		return false;
+	}
+	gdata->nGridCells = (uint)longNGridCells;
 
 	// get the cell size
 	gdata->cellSize = make_float3(problem->get_cellsize());
