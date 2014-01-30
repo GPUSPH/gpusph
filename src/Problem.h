@@ -285,17 +285,17 @@ class Problem {
 		void init_keps(float*, float*, uint, particleinfo*);
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
-		virtual void fillDeviceMap(GlobalData* gdata);
+		virtual void fillDeviceMap();
 		// partition by splitting the cells according to their linearized hash
-		void fillDeviceMapByCellHash(GlobalData* gdata);
+		void fillDeviceMapByCellHash();
 		// partition by splitting along an axis. Default: along the longest
-		void fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis);
+		void fillDeviceMapByAxis(SplitAxis preferred_split_axis);
 		// partition by coordinates satistfying an example equation
-		void fillDeviceMapByEquation(GlobalData* gdata);
+		void fillDeviceMapByEquation();
 		// partition by cutting the domain in parallelepipeds
-		void fillDeviceMapByRegularGrid(GlobalData* gdata);
+		void fillDeviceMapByRegularGrid();
 		// partition by performing the specified number of cuts along the three cartesian axes
-		void fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices);
+		void fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices);
 
 };
 #endif

@@ -335,13 +335,13 @@ Problem::g_callback(const float t)
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
 // Default algorithm: split along the longest axis
-void Problem::fillDeviceMap(GlobalData* gdata)
+void Problem::fillDeviceMap()
 {
-	fillDeviceMapByAxis(gdata, LONGEST_AXIS);
+	fillDeviceMapByAxis(LONGEST_AXIS);
 }
 
 // partition by splitting the cells according to their linearized hash.
-void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
+void Problem::fillDeviceMapByCellHash()
 {
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
@@ -349,7 +349,7 @@ void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
 }
 
 // partition by splitting along the specified axis
-void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis)
+void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 {
 	// select the longest axis
 	if (preferred_split_axis == LONGEST_AXIS) {
@@ -395,7 +395,7 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 			}
 }
 
-void Problem::fillDeviceMapByEquation(GlobalData* gdata)
+void Problem::fillDeviceMapByEquation()
 {
 	// 1st equation: (x+y+z / #devices)
 	uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
@@ -431,7 +431,7 @@ void Problem::fillDeviceMapByEquation(GlobalData* gdata)
 // This is not meant to be called directly by a problem since the number of splits (and thus the devices)
 // would be hardocded. A wrapper method (like fillDeviceMapByRegularGrid) can provide an algorithm to
 // properly factorize a given number of GPUs in 2 or 3 values.
-void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices)
+void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices)
 {
 	// is any of these zero?
 	if (Xslices * Yslices * Zslices == 0)
@@ -472,7 +472,7 @@ void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Ys
 
 // Wrapper for fillDeviceMapByAxesSplits() computing the number of cuts along each axis.
 // WARNING: assumes the total number of devices is divided by a combination of 2, 3 and 5
-void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
+void Problem::fillDeviceMapByRegularGrid()
 {
 	float Xsize = gdata->worldSize.x;
 	float Ysize = gdata->worldSize.y;
@@ -513,7 +513,7 @@ void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
 		printf("WARNING: splitting by regular grid but final distribution (%u, %u, %u) does not produce %u parallelepipeds!\n",
 			cutsX, cutsY, cutsZ, gdata->totDevices);
 
-	fillDeviceMapByAxesSplits(gdata, cutsX, cutsY, cutsZ);
+	fillDeviceMapByAxesSplits(cutsX, cutsY, cutsZ);
 }
 
 void

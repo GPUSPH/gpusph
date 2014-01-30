@@ -243,7 +243,7 @@ void DamBreak3D::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, has
 	std::flush(std::cout);
 }
 
-void DamBreak3D::fillDeviceMap(GlobalData* gdata)
+void DamBreak3D::fillDeviceMap()
 {
-	fillDeviceMapByAxis(gdata, Y_AXIS);
+	fillDeviceMapByAxis(Y_AXIS);
 }
