@@ -116,6 +116,10 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 // last defined buffer. if new buffers are defined, remember to update this
 #define LAST_DEFINED_BUFFER	BUFFER_PRIVATE
 
+// elegant way to set to 1 all bits in between the first and the last buffers
+// NOTE: READ or WRITE specification must be added for double buffers
+#define ALL_DEFINED_BUFFERS	((FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1) | LAST_DEFINED_BUFFER )
+
 // common shortcut
 #define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
 
