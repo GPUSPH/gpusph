@@ -138,6 +138,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 					// inc _clOptions->devices only if scanf was successful
 					if (sscanf(pch, "%u", &(gdata->device[gdata->devices]))>0) {
 						gdata->devices++;
+						gdata->totDevices++;
 					} else {
 						printf("WARNING: token %s is not a number - ignored\n", pch);
 						//break;
