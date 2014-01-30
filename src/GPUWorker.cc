@@ -38,6 +38,9 @@
 // round_up
 #include "utils.h"
 
+// UINT_MAX
+#include "limits.h"
+
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	gdata = _gdata;
 	m_deviceIndex = _deviceIndex;
@@ -1187,7 +1190,7 @@ void GPUWorker::dumpBuffers() {
 // Sets all cells as empty in device memory. Used before reorder
 void GPUWorker::setDeviceCellsAsEmpty()
 {
-	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, 0xffffffff, gdata->nGridCells  * sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, UINT_MAX, gdata->nGridCells  * sizeof(uint)));
 }
 
 // download cellStart and cellEnd to the shared arrays

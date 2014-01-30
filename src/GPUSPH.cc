@@ -1264,7 +1264,7 @@ void GPUSPH::rollCallParticles()
 	// reset bitmap and addrs
 	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++) {
 		m_rcBitmap[idx] = false;
-		m_rcAddrs[idx] = 0xFFFFFFFF;
+		m_rcAddrs[idx] = UINT_MAX;
 	}
 
 	// fill out the bitmap and check for duplicates

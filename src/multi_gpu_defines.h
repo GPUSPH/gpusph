@@ -30,16 +30,16 @@
 // Bitmasks used to reset the cellType (AND mask to reset the high bits, AND ~mask to extract them)
 #if HASH_KEY_SIZE == 32
 // mask: 111111...
-#define CELLTYPE_BITMASK (0xFFFFFFFFU)
+#define CELLTYPE_BITMASK (UINT_MAX)
 #else
 // mask: 001111...
 #define CELLTYPE_BITMASK (~( 3U  << 30 ))
 #endif
 
 // empty segment (uint)
-#define EMPTY_SEGMENT (0xFFFFFFFFU)
+#define EMPTY_SEGMENT (UINT_MAX)
 // guess?
-#define EMPTY_CELL (0xFFFFFFFFU)
+#define EMPTY_CELL (UINT_MAX)
 
 #endif // _MULTIGPU_DEFINES_
 
