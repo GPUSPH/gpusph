@@ -336,14 +336,18 @@ int main(int argc, char** argv) {
 	GPUSPH *Simulator = GPUSPH::getInstance();
 
 	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	bool result = Simulator->initialize(&gdata);
-	printf("GPUSPH: %s\n", (result ? "initialized" : "NOT initialized") );
+	bool initialized  = Simulator->initialize(&gdata);
 
-	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-	Simulator->runSimulation();
+	if (initialized) {
+		printf("GPUSPH: initialized\n");
 
-	// finalize everything
-	Simulator->finalize();
+		// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+		Simulator->runSimulation();
+
+		// finalize everything
+		Simulator->finalize();
+	} else
+		printf("GPUSPH: problem during initialization, aborting...\n");
 
 	// same consideration as above
 	delete gdata.problem;
