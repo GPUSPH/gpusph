@@ -333,7 +333,7 @@ struct GlobalData {
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos
-	int3 calcGridPosHost(double px, double py, double pz) {
+	int3 calcGridPosHost(double px, double py, double pz) const {
 		int3 gridPos;
 		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
 		gridPos.y = floor((py - worldOrigin.y) / cellSize.y);
@@ -341,24 +341,24 @@ struct GlobalData {
 		return gridPos;
 	}
 	// overloaded
-	int3 calcGridPosHost(double3 pos) {
+	int3 calcGridPosHost(double3 pos) const {
 		return calcGridPosHost(pos.x, pos.y, pos.z);
 	}
 
 	// compute the linearized hash of the cell located at gridPos
-	uint calcGridHashHost(int cellX, int cellY, int cellZ) {
+	uint calcGridHashHost(int cellX, int cellY, int cellZ) const {
 		int trimmedX = min( max(0, cellX), gridSize.x-1);
 		int trimmedY = min( max(0, cellY), gridSize.y-1);
 		int trimmedZ = min( max(0, cellZ), gridSize.z-1);
 		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
 	}
 	// overloaded
-	uint calcGridHashHost(int3 gridPos) {
+	uint calcGridHashHost(int3 gridPos) const {
 		return calcGridHashHost(gridPos.x, gridPos.y, gridPos.z);
 	}
 
 	// TODO MERGE REVIEW. refactor with next one
-	uint3 calcGridPosFromCellHash(uint cellHash) {
+	uint3 calcGridPosFromCellHash(uint cellHash) const {
 		uint3 gridPos;
 		gridPos.z = cellHash/(gridSize.x*gridSize.y);
 		gridPos.y = (cellHash - gridPos.z*gridSize.x*gridSize.y)/gridSize.x;
@@ -368,7 +368,7 @@ struct GlobalData {
 	}
 
 	// reverse the linearized hash of the cell and return the location in gridPos
-	int3 reverseGridHashHost(uint cell_lin_idx) {
+	int3 reverseGridHashHost(uint cell_lin_idx) const {
 		int cz = cell_lin_idx / (gridSize.y * gridSize.x);
 		int cy = (cell_lin_idx - (cz * gridSize.y * gridSize.x)) / gridSize.x;
 		int cx = cell_lin_idx - (cz * gridSize.y * gridSize.x) - (cy * gridSize.x);
@@ -377,7 +377,7 @@ struct GlobalData {
 
 	// compute the global device Id of the cell holding globalPos
 	// NOTE: as the name suggests, globalPos is _global_
-	uchar calcGlobalDeviceIndex(double4 globalPos) {
+	uchar calcGlobalDeviceIndex(double4 globalPos) const {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
@@ -404,7 +404,7 @@ struct GlobalData {
 	}
 
 	// pretty-print memory amounts
-	string memString(size_t memory) {
+	string memString(size_t memory) const {
 		static const char *memSuffix[] = {
 			"B", "KiB", "MiB", "GiB", "TiB"
 		};
@@ -424,7 +424,7 @@ struct GlobalData {
 	}
 
 	// convert to string and add thousand separators
-	string addSeparators(long int number) {
+	string addSeparators(long int number) const {
 		std::ostringstream oss;
 		ulong mod, div;
 		uchar separator = ',';
@@ -459,14 +459,14 @@ struct GlobalData {
 		return oss.str();
 	}
 
-	string to_string(uint number) {
+	string to_string(uint number) const {
 		ostringstream ss;
 		ss << number;
 		return ss.str();
 	}
 
 	// returns a string in the format "r.w" with r = process rank and w = world size
-	string rankString() {
+	string rankString() const {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
@@ -478,7 +478,7 @@ struct GlobalData {
 	inline uchar GLOBAL_DEVICE_NUM(uchar globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
-	void convertDeviceMap() {
+	void convertDeviceMap() const {
 		for (uint n = 0; n < nGridCells; n++) {
 			uchar _rank = s_hDeviceMap[n] / devices;
 			uchar _dev  = s_hDeviceMap[n] % devices;
@@ -489,7 +489,7 @@ struct GlobalData {
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
 	// set the correct fields; apply and enable visibility
-	void saveDeviceMapToFile(string prefix) {
+	void saveDeviceMapToFile(string prefix) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())
@@ -512,7 +512,7 @@ struct GlobalData {
 	}
 
 	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
-	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) {
+	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())
