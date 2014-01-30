@@ -199,7 +199,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (MULTI_DEVICE) {
 		printf("Splitting the domain in %u partitions...\n", gdata->totDevices);
 		// fill the device map with numbers from 0 to totDevices
-		gdata->problem->fillDeviceMap(gdata);
+		gdata->problem->fillDeviceMap();
 		// here it is possible to save the device map before the conversion
 		// gdata->saveDeviceMapToFile("linearIdx");
 		if (MULTI_NODE) {

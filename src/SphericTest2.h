@@ -53,7 +53,7 @@ class SphericTest2: public Problem {
 		void copy_planes(float4*, float*);
 
 		// override standard split
-		void fillDeviceMap(GlobalData* gdata);
+		void fillDeviceMap();
 
 		void release_memory(void);
 };

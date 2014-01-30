@@ -227,11 +227,11 @@ void SphericTest2::copy_planes(float4 *planes, float *planediv)
 	planediv[4] = 1.0;
 }
 
-void SphericTest2::fillDeviceMap(GlobalData* gdata)
+void SphericTest2::fillDeviceMap()
 {
 	// TODO: test which split performs better, if Y (not many particles passing) or X (smaller section)
-	fillDeviceMapByAxis(gdata, Y_AXIS);
-	//fillDeviceMapByEquation(gdata);
+	fillDeviceMapByAxis(Y_AXIS);
+	//fillDeviceMapByEquation();
 }
 
 void SphericTest2::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
