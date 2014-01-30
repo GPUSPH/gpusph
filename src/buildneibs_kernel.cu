@@ -197,7 +197,8 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 #if HASH_KEY_SIZE >= 64
 		// mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-		gridHash |= compactDeviceMap[gridHash];
+		if (compactDeviceMap)
+			gridHash |= compactDeviceMap[gridHash];
 #endif
 
 		// Adjust position
