@@ -721,15 +721,19 @@ Problem::set_grid_params(void)
 	m_cellsize.y = m_size.y / m_gridsize.y;
 	m_cellsize.z = m_size.z / m_gridsize.z;
 
+	/*
 	printf("set_grid_params\t:\n");
 	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
+	*/
 	printf("Influence radius / expected cell side\t: %g, %g\n", influenceRadius, cellSide);
+	/*
 	printf("Grid   size\t: (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
 	printf("Cell   size\t: (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
 	printf("       delta\t: (%.2f%%, %.2f%%, %.2f%%)\n",
 		(m_cellsize.x - cellSide)*100/cellSide,
 		(m_cellsize.y - cellSide)*100/cellSide,
 		(m_cellsize.z - cellSide)*100/cellSide);
+	*/
 }
 
 
