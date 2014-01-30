@@ -218,14 +218,6 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		gdata->device[gdata->devices++] = 0;
 	}
 
-#if HASH_KEY_SIZE < 64
-	// only single-node single-GPU possible with 32 bits keys
-	if (gdata->totDevices > 1) {
-		fprintf(stderr, "FATAL: multi-GPU requires the Hashkey to be at least 64 bits long\n");
-		return -1;
-	}
-#endif
-
 	// only for single-gpu
 	_clOptions->device = gdata->device[0];
 
@@ -328,6 +320,14 @@ int main(int argc, char** argv) {
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num_host was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
 
+#if HASH_KEY_SIZE < 64
+	// only single-node single-GPU possible with 32 bits keys
+	if (gdata.totDevices > 1) {
+		fprintf(stderr, "FATAL: multi-device simulations require the hashKey to be at least 64 bits long\n");
+		gdata.networkManager->finalizeNetwork();
+		return 1;
+	}
+#endif
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(&gdata);
