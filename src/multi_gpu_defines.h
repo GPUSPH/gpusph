@@ -14,6 +14,13 @@
 #define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
 #define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
 
+// if hashKey is 64 bits long, the first two bits of the cell hash are reserved; otherwise, the max number of cells is UINT_MAX
+#if HASH_KEY_SIZE == 32
+#define MAX_CELLS			(UINT_MAX)
+#else
+#define MAX_CELLS			(UINT_MAX >> 2)
+#endif
+
 // cellTypes used as array indices for the segments
 #define CELLTYPE_INNER_CELL			0U
 #define CELLTYPE_INNER_EDGE_CELL	1U
