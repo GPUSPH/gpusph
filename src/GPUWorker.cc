@@ -178,7 +178,8 @@ size_t GPUWorker::computeMemoryPerCell()
 	size_t tot = 0;
 	tot += sizeof(m_dCellStart[0]);
 	tot += sizeof(m_dCellEnd[0]);
-	tot += sizeof(m_dCompactDeviceMap[0]);
+	if (MULTI_DEVICE)
+		tot += sizeof(m_dCompactDeviceMap[0]);
 	return tot;
 }
 
@@ -995,11 +996,13 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaMalloc(&m_dCellEnd, uintCellsSize));
 	allocated += uintCellsSize;
 
-	// TODO: an array of uchar would suffice
-	CUDA_SAFE_CALL(cudaMalloc(&m_dCompactDeviceMap, uintCellsSize));
-	// initialize anyway for single-GPU simulations
-	CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
-	allocated += uintCellsSize;
+	if (MULTI_DEVICE) {
+		// TODO: an array of uchar would suffice
+		CUDA_SAFE_CALL(cudaMalloc(&m_dCompactDeviceMap, uintCellsSize));
+		// initialize anyway for single-GPU simulations
+		CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
+		allocated += uintCellsSize;
+	}
 
 	CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
 	// ditto
@@ -1071,7 +1074,8 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 
-	CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
+	if (MULTI_DEVICE)
+		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 
 	if (m_simparams->numODEbodies) {
