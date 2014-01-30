@@ -63,6 +63,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	m_hostMemory = m_deviceMemory = 0;
 
+	m_dCompactDeviceMap = NULL;
+	m_hCompactDeviceMap = NULL;
+
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
 	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
