@@ -382,6 +382,8 @@ FORCES_CUDA_KERNEL
 							DvDt = MKForce(r, slength, pos.w, pos.w);
 							break;
 						case SA_BOUNDARY:
+							// TODO FIXME this is currently encountered when the fluid interacts with a floating object
+							DvDt = LJForce(r);
 							break;
 						default:
 							DvDt = 1.0f/0.0f;
@@ -391,8 +393,9 @@ FORCES_CUDA_KERNEL
 					if(boundarytype == SA_BOUNDARY) {
 						if(BOUNDARY(neib_info)) {
 							as_float3(force) -= as_float3(bound_term_pres)/gradgamma.w + bound_term_visc/gradgamma.w/vel.w;
-						}
-						else {
+						} else if (OBJECT(neib_info)){
+							as_float3(force) += DvDt*as_float3(relPos);
+						} else {
 							as_float3(force) += DvDt*as_float3(relPos)/gradgamma.w;
 						}
 					}
