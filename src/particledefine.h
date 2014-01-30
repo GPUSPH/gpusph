@@ -245,6 +245,7 @@ disable_particle(float4 &pos) {
 /* Maximum number of floating bodies*/
 #define	MAXBODIES				10
 
+#define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
 
 #define NEIBINDEX_INTERLEAVE		32U
 
