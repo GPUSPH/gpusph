@@ -199,19 +199,16 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, has
 
 void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, hashKey* hash)
 {
-	float4 localpos;
-
 	copy_to_array(pos, vel, info, hash);
 
 	uint j = parts.size() + boundary_parts.size();
 
 	std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
 	for (uint i = j; i < j + vertex_parts.size(); i++) {
-		pos[i] = localpos;
 		float rho = density(H - pos[i].z, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(VERTEXPART, 0, i);
-		calc_localpos_and_hash(vertex_parts[i-j], info[i], localpos, hash[i]);
+		calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += vertex_parts.size();
 	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";

@@ -244,7 +244,6 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 {
 	const char *ch_inputfile = inputfile.c_str();
 	uint npart = HDF5SphReader::getNParts(ch_inputfile);
-	float4 localpos;
 
 	HDF5SphReader::ReadParticles *buf = new HDF5SphReader::ReadParticles[npart];
 	HDF5SphReader::readParticles(buf, ch_inputfile, npart);
