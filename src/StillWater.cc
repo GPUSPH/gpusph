@@ -59,7 +59,9 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.buildneibsfreq = 20;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.ferrari = 0.1;
+	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
+	// length of the problem
+	m_simparams.ferrari = H/(m_deltap*1000);
 	//m_simparams.visctype = KINEMATICVISC;
 	m_simparams.visctype = DYNAMICVISC;
 	//m_simparams.visctype = ARTVISC;
@@ -73,11 +75,18 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 
 	m_writerType = VTKWRITER;
 	m_simparams.tend = 1.0;
+	if (m_simparams.boundarytype == SA_BOUNDARY) {
+		m_simparams.maxneibsnum = 256; // needed during gamma initialization phase
+	};
 
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0f, 32.0f);
+	const float g = length(m_physparams.gravity);
+	const float maxvel = sqrt(g*H);
+	// purely for cosmetic reason, let's round the soundspeed to the next
+	// integer
+	const float c0 = ceil(10*maxvel);
+	m_physparams.set_density(0, 1000.0, 7.0f, c0);
 
 	m_physparams.dcoeff = 5.0f*g*H;
 
