@@ -731,13 +731,17 @@ Makefile: | $(OPTFILES)
 # to be interpeted as C++ files and not some other funky format. We also need
 # to define __CUDA_INTERNAL_COMPILATION__ to mute an error during traversal of
 # some CUDA system includes
-$(GPUDEPS): $(CUFILES)
+#
+# Finally, both GPUDEPS and CPUDEPS must depend on the _presence_ of the option file
+# for hash keys, to prevent errors about undefined hash key size every time
+# `src/hashkey.h` is preprocessed
+$(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	@echo [DEPS] GPU
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)$(CXX) -x c++ -D__CUDA_INTERNAL_COMPILATION__ \
 		$(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES)
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	@echo [DEPS] CPU
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)$(CXX) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
