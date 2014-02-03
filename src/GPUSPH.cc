@@ -186,6 +186,22 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
 	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->totParticles );
 
+	if (!m_rcBitmap) {
+		fprintf(stderr,"FATAL: failed to allocate roll call bitmap\n");
+		exit(1);
+	}
+
+	if (!m_rcNotified) {
+		fprintf(stderr,"FATAL: failed to allocate roll call notified map\n");
+		exit(1);
+	}
+
+	if (!m_rcAddrs) {
+		fprintf(stderr,"FATAL: failed to allocate roll call particle address space\n");
+		exit(1);
+	}
+
+
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers();
@@ -293,7 +309,7 @@ bool GPUSPH::finalize() {
 
 	printf("Deallocating...\n");
 
-	// suff for rollCallParticles()
+	// stuff for rollCallParticles()
 	free(m_rcBitmap);
 	free(m_rcNotified);
 	free(m_rcAddrs);
