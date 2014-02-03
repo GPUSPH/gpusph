@@ -209,7 +209,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// pretty print
 	printf("  allocated %s on host for %s particles\n",
 		gdata->memString(totCPUbytes).c_str(),
-		gdata->addSeparators(gdata->processParticles[gdata->mpi_rank]).c_str());
+		gdata->addSeparators(
+			MULTI_NODE ? gdata->processParticles[gdata->mpi_rank] :
+			gdata->totParticles).c_str());
 
 	// copy planes from the problem to the shared array
 	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
