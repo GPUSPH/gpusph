@@ -620,7 +620,7 @@ FORCES_CUDA_KERNEL
 
 			uint rbindex = id(info) + d_rbstartindex[object(info)];
 			rbforces[rbindex] = force;
-			rbtorques[rbindex] = make_float4(cross(as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize
+			rbtorques[rbindex] = make_float4(cross(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(force)));
 		} // else if (OBJECT(info))
 	}	// if index < numParticles)
