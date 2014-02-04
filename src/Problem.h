@@ -243,9 +243,9 @@ class Problem {
 		{ add_gage(make_double3(x, y, z)); }
 
 		bool need_display(float);
-		bool need_write(float);
-		void mark_written(float t) { m_last_write_time = t; }
-		bool need_write_rbdata(float);
+		virtual bool need_write(float);
+		inline void mark_written(float t) { m_last_write_time = t; }
+		virtual bool need_write_rbdata(float);
 		void write_rbdata(float);
 		bool need_screenshot(float);
 		// is the simulation running at the given time?
