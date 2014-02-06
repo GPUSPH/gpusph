@@ -26,6 +26,8 @@
 #ifndef OBJECT_H
 #define	OBJECT_H
 
+#include <stdexcept>
+
 #include "Point.h"
 #include "EulerParameters.h"
 #include "ode/ode.h"
@@ -107,18 +109,17 @@ class Object {
 		PointVect& GetParts(void);
 
 		/// \name ODE related functions
-		//@{
-		/// Compute the matrix of inertia
-		/*! This function computes the matrix of inertia of the object in the inertial
-		 *	frame (i.e. the 3 diagonal components) and stores it in the m_inertia array.
-		 *	For the same reasons as volume, the inertia depends on particle spacing.
-		 *	\param dx : particle spacing
-		 *
-		 *	This function is pure virtual and then has to be defined at child level
+		/* These are not pure virtual to allow new GPUSPH Objects to be defined without
+		 * needing an ODE counterpart, but the default implementation will just throw
+		 * an exception
 		 */
-		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0) {};
-
-		virtual void ODEGeomCreate(dSpaceID, const double) {};
+		//@{
+		/// Create an ODE body in the specified ODE world and space
+		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0)
+		{ throw std::runtime_error("ODEBodyCreate called but not defined!"); }
+		/// Create an ODE geometry in the specified ODE space
+		virtual void ODEGeomCreate(dSpaceID, const double)
+		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		//@}
 
 
