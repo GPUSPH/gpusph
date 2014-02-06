@@ -342,8 +342,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 #if HASH_KEY_SIZE >= 64
 		// if hashKey is 64bits long, also find the segment start
-		uchar curr_type = (cellHash & (~CELLTYPE_BITMASK)) >> 30;
-		uchar prev_type = (sharedHash[threadIdx.x] & (~CELLTYPE_BITMASK)) >> 30;
+		uchar curr_type = cellHash >> 30;
+		uchar prev_type = sharedHash[threadIdx.x] >> 30;
 		if (index == 0 || curr_type != prev_type)
 			segmentStart[curr_type] = index;
 #endif
