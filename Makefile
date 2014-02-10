@@ -555,7 +555,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo "Compiled with problem $(PROBLEM)"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage,LINK,$(TARGET)\\n)
-	$(CMDECHO)$(LINKER) $(filter-out -lineinfo,$(CUFLAGS)) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(CMDECHO)$(LINKER) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
