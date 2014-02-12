@@ -48,7 +48,7 @@
 DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
-	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z);
+	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
 	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	m_writerType = VTKWRITER;
