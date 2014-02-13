@@ -458,9 +458,9 @@ void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices
 				uint whichDevCoordZ = (cz / devSizeCellsZ);
 
 				// round if needed
-				whichDevCoordX %= Xslices;
-				whichDevCoordY %= Yslices;
-				whichDevCoordZ %= Zslices;
+				if (whichDevCoordX == Xslices) whichDevCoordX--;
+				if (whichDevCoordY == Yslices) whichDevCoordY--;
+				if (whichDevCoordZ == Zslices) whichDevCoordZ--;
 
 				// compute dest device
 				uint dstDevice = whichDevCoordZ * Yslices * Xslices + whichDevCoordY * Xslices + whichDevCoordX;
