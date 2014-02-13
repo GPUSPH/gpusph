@@ -443,9 +443,9 @@ void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices
 	if (Zslices == 0) Zslices = 1;
 
 	// divide and round
-	uint devSizeCellsX = gdata->gridSize.x + Xslices - 1 / Xslices ;
-	uint devSizeCellsY = gdata->gridSize.y + Yslices - 1 / Yslices ;
-	uint devSizeCellsZ = gdata->gridSize.z + Zslices - 1 / Zslices ;
+	uint devSizeCellsX = (gdata->gridSize.x + Xslices - 1) / Xslices ;
+	uint devSizeCellsY = (gdata->gridSize.y + Yslices - 1) / Yslices ;
+	uint devSizeCellsZ = (gdata->gridSize.z + Zslices - 1) / Zslices ;
 
 	// iterate on all cells
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
