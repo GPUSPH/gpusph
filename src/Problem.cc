@@ -33,6 +33,7 @@
 
 #include "Problem.h"
 #include "vector_math.h"
+#include "vector_print.h"
 #include "utils.h"
 
 // here we need the complete definition of the GlobalData struct
@@ -717,6 +718,18 @@ Problem::set_grid_params(void)
 	m_gridsize.x = floor(m_size.x / cellSide);
 	m_gridsize.y = floor(m_size.y / cellSide);
 	m_gridsize.z = floor(m_size.z / cellSide);
+
+	// While trying to run a simulation at very low resolution, the user might
+	// set a deltap so large that cellSide is bigger than m_size.{x,y,z}, resulting
+	// in a corresponding gridsize of 0. Check for this case (by checking if any
+	// of the gridsize components are zero) and throw.
+
+	if (!m_gridsize.x || !m_gridsize.y || !m_gridsize.z) {
+		stringstream ss;
+		ss << "resolution " << m_simparams.slength << " is too low! Resulting grid size would be "
+			<< m_gridsize;
+		throw runtime_error(ss.str());
+	}
 
 	m_cellsize.x = m_size.x / m_gridsize.x;
 	m_cellsize.y = m_size.y / m_gridsize.y;
