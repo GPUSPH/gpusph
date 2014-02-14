@@ -120,7 +120,7 @@ void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char
 		printf("WARNING: MPI_Recv returned error %d\n", mpi_err);
 	int actual_count;
 
-	mpi_err = MPI_Get_count(&status, MPI_UNSIGNED, &actual_count);
+	mpi_err = MPI_Get_count(&status, MPI_BYTE, &actual_count);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
