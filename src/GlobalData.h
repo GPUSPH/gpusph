@@ -512,6 +512,7 @@ struct GlobalData {
 	}
 
 	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
+	// NOTE: values are shifted; CELLTYPE_*_CELL is written while CELLTYPE_*_CELL_SHIFTED is in memory
 	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
