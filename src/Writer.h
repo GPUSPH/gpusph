@@ -55,6 +55,7 @@ public:
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
 
 	virtual void write_energy(float t, float4 *energy);
+
 	//WaveGage
 	virtual void write_WaveGage(float t, GageList const& gage);
 
@@ -71,8 +72,9 @@ protected:
 	FILE*			m_WaveGagefile;
 	const Problem	*m_problem;
 	string			next_filenum();
+	string			current_filenum();
 	GlobalData*		m_gdata;
 };
 
-#endif	/* _VTKWRITER_H */
+#endif	/* _WRITER_H */
 
