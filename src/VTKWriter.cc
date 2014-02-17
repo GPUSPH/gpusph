@@ -343,10 +343,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
 		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
-		// containing cell until next calchash/reorder
-		// for (uint i=0; i < numParts; i++) {
-		// uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
-		// fwrite(&value, sizeof(value), 1, fid);
+		// containing cell until next calchash/reorder.
 		for (uint d = 0; d < m_gdata->devices; d++) {
 			// compute the global device ID for each device
 			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
@@ -354,6 +351,14 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
 				fwrite(&value, sizeof(value), 1, fid);
 		}
+		// If for any reason (e.g. debug) one needs to write the device index according to the current spatial position,
+		// the following should be used instead:
+		/*
+		for (uint i=0; i < numParts; i++) {
+			uint value = m_gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+		*/
 	}
 
 	// linearized cell index (NOTE: computed on host)
