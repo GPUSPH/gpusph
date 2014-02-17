@@ -110,23 +110,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
-	string filename, full_filename;
+	string filename;
 
-	filename = "PART";
-
-	if (m_gdata && m_gdata->mpi_nodes > 1)
-		filename += "n" + m_gdata->rankString();
-
-	filename += "_" + next_filenum() + ".vtu";
-	full_filename = m_dirname + "/" + filename;
-
-	FILE *fid = fopen(full_filename.c_str(), "w");
-
-	if (fid == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << full_filename;
-		throw runtime_error(ss.str());
-		}
+	FILE *fid = open_data_file("PART", next_filenum(), &filename);
 
 	// Header
 	//====================================================================================
@@ -478,4 +464,28 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 			t, 0, filename.c_str());
 		fflush(m_timefile);
 	}
+}
+
+FILE *
+VTKWriter::open_data_file(const char* base, string const& num, string *fname)
+{
+	string filename(base), full_filename;
+
+	if (m_gdata && m_gdata->mpi_nodes > 1)
+		filename += "n" + m_gdata->rankString();
+
+	filename += "_" + num + ".vtu";
+	full_filename = m_dirname + "/" + filename;
+
+	FILE *fid = fopen(full_filename.c_str(), "w");
+
+	if (fid == NULL) {
+		stringstream ss;
+		ss << "Cannot open data file " << full_filename;
+		throw runtime_error(ss.str());
+	}
+
+	if (fname)
+		*fname = filename;
+	return fid;
 }

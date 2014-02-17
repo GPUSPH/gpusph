@@ -37,6 +37,12 @@ public:
 	~VTKWriter();
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
+
+private:
+	// open a file whose name is built from the given base and sequence number
+	// returns FILE object and stores the filename (without the dirname) into
+	// `filename` if it's not NULL
+	FILE *open_data_file(const char* base, string const& num, string *filename);
 };
 
 #endif	/* _VTKWRITER_H */
