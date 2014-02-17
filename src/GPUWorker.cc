@@ -661,7 +661,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 							gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
 							gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
 						} else
-							gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
+							curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
 
 						// update device cellStarts/Ends
 						CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
