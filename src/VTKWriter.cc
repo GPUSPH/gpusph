@@ -357,10 +357,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
 		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
-		// containing cell until next calchash/reorder
-		// for (uint i=0; i < numParts; i++) {
-		// uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
-		// fwrite(&value, sizeof(value), 1, fid);
+		// containing cell until next calchash/reorder.
+		// The current policy is: just list the particles according to how the global array is partitioned. In other words, we rely
+		// on the particle index to understad which device downloaded the particle data.
 		for (uint d = 0; d < m_gdata->devices; d++) {
 			// compute the global device ID for each device
 			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
@@ -368,6 +367,19 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
 				fwrite(&value, sizeof(value), 1, fid);
 		}
+		// There two alternate policies: 1. use particle hash or 2. compute belonging device.
+		// To use the particle hash, instead of just relying on the particle index, use the following code:
+		/*
+		for (uint i=0; i < numParts; i++) {
+			uint value = m_gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+		*/
+		// This should be equivalent to the current "listing" approach. If for any reason (e.g. debug) one needs to write the
+		// device index according to the current spatial position, it is enough to compute the particle hash from its position
+		// instead of reading it from the particlehash array. Please note that this would reflect the spatial split but not the
+		// actual assignments: until the next calchash is performed, one particle remains in the containing device even if it
+		// it is slightly outside the domain.
 	}
 
 	// linearized cell index (NOTE: computed on host)
