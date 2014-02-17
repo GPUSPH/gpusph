@@ -1109,7 +1109,6 @@ void GPUSPH::doWrite()
 
 		gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>()[i] = dpos;
 	}
-	// TODO convert writers to use the buffer list, pass node offset as an extra param
 	gdata->writer->write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
