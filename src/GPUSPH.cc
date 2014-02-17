@@ -1096,10 +1096,36 @@ void GPUSPH::doWrite()
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
+	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
+	// NOTE: it's a standard average, not an SPH smoothing, so the neighborhood is arbitrarily fixed
+	// at gage (x,y) ± 2 smoothing lengths
+	// TODO should it be an SPH smoothing instead?
+
+	GageList &gages = problem->get_simparams()->gage;
+	double slength = problem->get_simparams()->slength;
+
+	size_t numgages = gages.size();
+
+	std::vector<double2> gage_llimit, gage_ulimit; // neighborhood limits
+	std::vector<uint> gage_parts;
+	GageList::iterator gage = gages.begin();
+	GageList::iterator gage_end = gages.end();
+	while (gage != gage_end) {
+		gage_llimit.push_back(make_double2(*gage) - 2*slength);
+		gage_ulimit.push_back(make_double2(*gage) + 2*slength);
+		gage_parts.push_back(0);
+		gage->z = 0;
+		++gage;
+	}
+
 	// TODO MERGE REVIEW. do on each node separately? (better: in each worker thread)
 	double3 const& wo = problem->get_worldorigin();
+	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
+	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
+
 	for (uint i = 0; i < gdata->totParticles; i++) {
-		const float4 pos = gdata->s_hBuffers.getData<BUFFER_POS>()[i];
+		const float4 pos = lpos[i];
 		double4 dpos;
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
 		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
@@ -1107,8 +1133,29 @@ void GPUSPH::doWrite()
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 		dpos.w = pos.w;
 
-		gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>()[i] = dpos;
+		// for surface particles add the z coodinate to the appropriate wavegages
+		if (numgages && SURFACE(info[i])) {
+			for (uint g = 0; g < numgages; ++g) {
+				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
+					(dpos.y > gage_llimit[g].y) && (dpos.y < gage_ulimit[g].y)) {
+						gage_parts[g]++;
+						gages[g].z += pos.z;
+				}
+			}
+
+		}
+
+		gpos[i] = dpos;
 	}
+
+	if (numgages) {
+		for (uint g = 0 ; g < numgages; ++g) {
+			gages[g].z /= gage_parts[g];
+		}
+		//Write WaveGage information on one text file
+		gdata->writer->write_WaveGage(gdata->t, gages);
+	}
+
 	gdata->writer->write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
