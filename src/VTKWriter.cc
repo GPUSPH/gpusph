@@ -466,6 +466,60 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 }
 
+void
+VTKWriter::write_WaveGage(float t, GageList const& gage)
+{
+	// call the generic write_WaveGage first
+	Writer::write_WaveGage(t, gage);
+
+	FILE *fp = open_data_file("WaveGage", current_filenum(), NULL);
+	size_t num = gage.size();
+
+	// Header
+	fprintf(fp,"<?xml version=\"1.0\"?>\r\n");
+	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
+	fprintf(fp," <UnstructuredGrid>\r\n");
+	fprintf(fp,"  <Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\r\n", num, num);
+
+	//Writing Position
+	fprintf(fp,"   <Points>\r\n");
+	fprintf(fp,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+	for (int i=0; i <  num; i++)
+		fprintf(fp,"%f\t%f\t%f\t",gage[i].x, gage[i].y, gage[i].z);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"   </Points>\r\n");
+
+	// Cells data
+	fprintf(fp,"   <Cells>\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
+	for (int i = 0; i < num; i++)
+		fprintf(fp,"%d\t", i);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"\r\n");
+
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
+	for (int i = 0; i < num; i++)
+		fprintf(fp,"%d\t", i + 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
+	for (int i = 0; i < num; i++)
+		fprintf(fp,"%d\t", 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+
+	fprintf(fp,"   </Cells>\r\n");
+
+	fprintf(fp,"  </Piece>\r\n");
+	fprintf(fp," </UnstructuredGrid>\r\n");
+	fprintf(fp,"</VTKFile>");
+	fclose(fp);
+}
+
 FILE *
 VTKWriter::open_data_file(const char* base, string const& num, string *fname)
 {
