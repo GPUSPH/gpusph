@@ -107,23 +107,30 @@ Writer::write_WaveGage(float t, GageList const& gage)
 	}
 }
 
+string
+Writer::current_filenum() {
+	stringstream ss;
+
+	ss.width(FNUM_WIDTH);
+	ss.fill('0');
+	ss << m_FileCounter;
+
+	return ss.str();
+}
 
 string
 Writer::next_filenum()
 {
-	stringstream ss;
+	string ret = current_filenum();
 
 	if (m_FileCounter >= MAX_FILES) {
 		stringstream ss;
 		ss << "too many files created (> " << MAX_FILES;
 		throw runtime_error(ss.str());
 	}
-	ss.width(FNUM_WIDTH);
-	ss.fill('0');
-	ss << m_FileCounter;
 
 	m_FileCounter++;
-	return ss.str();
+	return ret;
 }
 
 void Writer::setGlobalData(GlobalData *_gdata)
