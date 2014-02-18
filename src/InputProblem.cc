@@ -34,6 +34,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 2.0; w = 2.0; h = 2.2;
 
 		m_physparams.kinematicvisc = 3.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 		m_simparams.tend = 5.0;
 
@@ -55,6 +56,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.01833f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
@@ -74,6 +76,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.125f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
@@ -92,8 +95,15 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.0625f);
 
-		m_physparams.kinematicvisc = 1.0e-2f;
-		m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+		// laminar
+		//m_physparams.kinematicvisc = 1.0e-2f;
+		//m_simparams.visctype = DYNAMICVISC;
+		//m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+
+		// turbulent (as in agnes' paper)
+		m_physparams.kinematicvisc = 1.5625e-3f;
+		m_simparams.visctype = KEPSVISC;
+		m_physparams.gravity = make_float3(1.0, 0.0, 0.0);
 
 		m_simparams.tend = 100.0;
 		m_simparams.periodicbound = XPERIODIC | YPERIODIC;
@@ -103,7 +113,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
@@ -177,7 +187,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 0.1;
-	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 

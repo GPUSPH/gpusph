@@ -107,6 +107,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float4 *normals = buffers.getData<BUFFER_NORMALS>();
 	const float4 *gradGamma = buffers.getData<BUFFER_GRADGAMMA>();
 	const float *tke = buffers.getData<BUFFER_TKE>();
+	const float *eps = buffers.getData<BUFFER_EPSILON>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
@@ -162,6 +163,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// turbulent kinetic energy
 	if (tke) {
 		scalar_array(fid, "Float32", "TKE", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// turbulent epsilon
+	if (eps) {
+		scalar_array(fid, "Float32", "Epsilon", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -295,6 +302,15 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = tke[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// turbulent epsilon
+	if (eps) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=0; i < numParts; i++) {
+			float value = eps[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 	}

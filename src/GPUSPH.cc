@@ -650,6 +650,10 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_NORMALS;
 			}
 
+			// get k and epsilon
+			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
+				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
+
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
 				doCommand(CALC_PRIVATE);
@@ -726,6 +730,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams.visctype == KEPSVISC) {
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
 	}
 
 	if (problem->m_simparams.calcPrivate)
@@ -1043,8 +1048,13 @@ void GPUSPH::setViscosityCoefficient()
 			pp->visccoeff = 4.0*pp->kinematicvisc;
 			break;
 
+		case KEPSVISC:
 		case DYNAMICVISC:
 			pp->visccoeff = pp->kinematicvisc;
+			break;
+
+		default:
+			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
 			break;
 	}
 }
