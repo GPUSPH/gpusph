@@ -19,7 +19,7 @@ inline float fminf(float a, float b)
 
 inline float fmaxf(float a, float b)
 {
-  return a < b ? a : b;
+	return a > b ? a : b;
 }
 
 inline int max(int a, int b)
