@@ -470,18 +470,25 @@ struct GlobalData {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
-	// MPI aux methods: conversion from/to local device ids to global ones
+	// *** MPI aux methods: conversion from/to local device ids to global ones
+	// get rank from globalDeviceIndex
 	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
+	// get deviceIndex from globalDeviceIndex
 	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
+	// get globalDeviceIndex from rank and deviceIndex
 	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << DEVICE_BITS) | (localDevId & DEVICE_BITS_MASK));} // compute global dev id
 	// compute a simple "linearized" index of the given device, as opposite to convertDevices() does. Not static because devices is known after instantiation and initialization
 	inline uchar GLOBAL_DEVICE_NUM(uchar globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
+	// opoosite of the previous: get rank
+	uchar RANK_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized / devices; }
+	// opposite of the previous: get device
+	uchar DEVICE_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized % devices; }
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
 	void convertDeviceMap() const {
 		for (uint n = 0; n < nGridCells; n++) {
-			uchar _rank = s_hDeviceMap[n] / devices;
-			uchar _dev  = s_hDeviceMap[n] % devices;
+			uchar _rank = RANK_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
+			uchar _dev  = DEVICE_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
 		}
 	}
