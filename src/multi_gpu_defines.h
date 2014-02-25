@@ -40,7 +40,8 @@
 #define CELLTYPE_BITMASK (UINT_MAX)
 #else
 // mask: 001111...
-#define CELLTYPE_BITMASK (~( 3U  << 30 ))
+#define CELLTYPE_BITMASK		(~( 3U  << 30 ))
+#define CELLTYPE_BITMASK_LONG	(~( 3LU  << 62 ))
 #endif
 
 // empty segment (uint)
