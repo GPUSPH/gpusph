@@ -191,10 +191,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// cell index
-	if (m_gdata) {
-		scalar_array(fid, "UInt32", "CellIndex", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
-	}
+	scalar_array(fid, "UInt32", "CellIndex", offset);
+	offset += sizeof(uint)*numParts+sizeof(int);
 
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
