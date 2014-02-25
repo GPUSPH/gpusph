@@ -74,6 +74,19 @@ getneibsinfo(TimingInfo & timingInfo)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibs, cuneibs::d_maxNeibs, sizeof(int), 0));
 }
 
+void
+resetHighBits(hashKey*	particleHash,
+		 const uint		numParticles)
+{
+	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
+	cuneibs::resetHighBitsDevice<<< numBlocks, numThreads >>>(particleHash, numParticles);
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("ResetHighBits kernel execution failed");
+}
+
 
 void
 calcHash(float4*	pos,
