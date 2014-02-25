@@ -241,7 +241,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// pressure
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
 		if (TESTPOINTS(info[i]))
 			value = vel[i].w;
@@ -252,7 +252,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// density
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
 		//if (FLUID(info[i]))
 			value = vel[i].w;
@@ -261,7 +261,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// mass
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = pos[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
@@ -269,7 +269,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// gamma
 	if (gradGamma) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = gradGamma[i].w;
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -278,7 +278,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// turbulent kinetic energy
 	if (tke) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = tke[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -287,7 +287,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// eddy viscosity
 	if (turbvisc) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = turbvisc[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -299,28 +299,28 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 		// type
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
 //		// flag
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (uint i=0; i < numParts; i++) {
+//		for (uint i=node_offset; i < node_offset + numParts; i++) {
 //			ushort value = PART_FLAG(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
 
 //		// fluid number
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (uint i=0; i < numParts; i++) {
+//		for (uint i=node_offset; i < node_offset + numParts; i++) {
 //			ushort value = PART_FLUID_NUM(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
 
 //		// object
 //		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (uint i=0; i < numParts; i++) {
+//		for (uint i=node_offset; i < node_offset + numParts; i++) {
 //			ushort value = object(info[i]);
 //			fwrite(&value, sizeof(value), 1, fid);
 //		}
@@ -329,7 +329,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 		// id
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uint value = id(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -354,7 +354,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// There two alternate policies: 1. use particle hash or 2. compute belonging device.
 		// To use the particle hash, instead of just relying on the particle index, use the following code:
 		/*
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uint value = m_gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -369,7 +369,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// linearized cell index (NOTE: computed on host)
 	numbytes = sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (int i=0; i < node_offset + numParts; i++) {
 		uint value = cellHashFromParticleHash( particleHash[i] );
 		fwrite(&value, sizeof(value), 1, fid);
 	}
@@ -378,7 +378,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// velocity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float *value = zeroes;
 		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
@@ -388,7 +388,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// gradient gamma
 	if (gradGamma) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
 			value = (float*)(gradGamma + i);
 			fwrite(value, sizeof(*value), 3, fid);
@@ -398,7 +398,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// vorticity
 	if (vort) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(vort + i);
@@ -410,7 +410,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// normals
 	if (normals) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(normals + i);
@@ -421,7 +421,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		numbytes=sizeof(float)*numParts;
 		// criteria
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = 0;
 			if (FLUID(info[i]))
 				value = normals[i].w;
@@ -434,7 +434,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// private
 	if (priv) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (uint i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = priv[i];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
@@ -444,7 +444,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// position
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
@@ -452,13 +452,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	numbytes=sizeof(int)*numParts;
 	// connectivity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 	// offsets
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		uint value = i+1;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
