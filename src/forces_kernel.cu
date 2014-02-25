@@ -618,6 +618,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -625,7 +626,6 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -747,6 +747,7 @@ initGradGammaDevice(	float4*		oldPos,
 			// Persistent variables across getNeibData calls
 			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
+			float3 pos_corr;
 
 			// Loop over all the neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -754,7 +755,6 @@ initGradGammaDevice(	float4*		oldPos,
 
 				if (neib_data == 0xffff) break;
 
-				float3 pos_corr;
 				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
@@ -842,6 +842,7 @@ updateGammaDevice(	const float4* oldPos,
 			// Persistent variables across getNeibData calls
 			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
+			float3 pos_corr;
 
 			// Loop over all the neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -849,7 +850,6 @@ updateGammaDevice(	const float4* oldPos,
 
 				if (neib_data == 0xffff) break;
 
-				float3 pos_corr;
 				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
@@ -923,6 +923,7 @@ updateGammaPrCorDevice( const float4*		newPos,
 			// Persistent variables across getNeibData calls
 			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
+			float3 pos_corr;
 
 			// Loop over all the neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -930,7 +931,6 @@ updateGammaPrCorDevice( const float4*		newPos,
 
 				if (neib_data == 0xffff) break;
 
-				float3 pos_corr;
 				const uint neib_index = getNeibIndex(newpos, pos_corr, cellStart, neib_data, gridPos,
 							neib_cellnum, neib_cell_base_index);
 
@@ -1045,6 +1045,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 		// Persistent variables across getNeibData calls
 		char neib_cellnum = 0;
 		uint neib_cell_base_index = 0;
+		float3 pos_corr;
 
 		priv[index] = 0.0;
 
@@ -1054,7 +1055,6 @@ calcPrivateDevice(	const	float4*		pos_array,
 
 			if (neib_data == 0xffff) break;
 
-			float3 pos_corr;
 			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
 
@@ -1170,6 +1170,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1177,7 +1178,6 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -1272,6 +1272,7 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// first loop over all the neighbors for the Velocity Gradients
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1279,7 +1280,6 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -1397,6 +1397,7 @@ shepardDevice(	const float4*	posArray,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1404,7 +1405,6 @@ shepardDevice(	const float4*	posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -1514,6 +1514,7 @@ MlsDevice(	const float4*	posArray,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// First loop over all neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1521,7 +1522,6 @@ MlsDevice(	const float4*	posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -1580,7 +1580,6 @@ MlsDevice(	const float4*	posArray,
 
 			if (neib_data == 0xffff) break;
 
-			float3 pos_corr;
 			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
 
@@ -1619,7 +1618,6 @@ MlsDevice(	const float4*	posArray,
 
 			if (neib_data == 0xffff) break;
 
-			float3 pos_corr;
 			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
 
@@ -1903,6 +1901,7 @@ calcVortDevice(	const	float4*		posArray,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// First loop over all neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1910,7 +1909,6 @@ calcVortDevice(	const	float4*		posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -1988,6 +1986,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// First loop over all neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1995,7 +1994,6 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -2084,6 +2082,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
+	float3 pos_corr;
 
 	// First loop over all neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -2091,7 +2090,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
@@ -2149,7 +2147,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 		if (neib_data == 0xffff) break;
 
-		float3 pos_corr;
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
