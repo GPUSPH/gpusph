@@ -1399,7 +1399,7 @@ void GPUSPH::updateArrayIndices() {
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// process 0 checks if total number of particles varied in the simulation
-	if (gdata->mpi_rank == 0 || true) {
+	if (gdata->mpi_rank == 0) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
