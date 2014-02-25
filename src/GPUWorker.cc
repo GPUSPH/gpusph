@@ -636,6 +636,8 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 					// is this neib mine?
 					bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
+					// is any of the two mine? if not, I will only manage closed bursts
+					bool any_mine = (curr_mine || neib_mine);
 
 					// Safely skip pairs belonging to the same *node*. This happens if
 					// - both cells belong to the same device (e.g. two inner edge cells)
@@ -665,62 +667,68 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// sending or receiving? always equal to curr_mine, but more readable
 					bool is_sending = curr_mine;
 
-					// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
-					if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
-						// read the size
-						curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
+					// if curr or neib, send / receive the cell size. Othewise, we skip to the bursts
+					if (any_mine) {
 
-						// set partsInCurrCell
-						if (curr_cell_start != EMPTY_CELL)
-							partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
-						else
-							partsInCurrCell = 0;
-					}
+						// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
+						if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
+							// read the size
+							curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
 
-					if (gdata->nextCommand == APPEND_EXTERNAL) {
+							// set partsInCurrCell
+							if (curr_cell_start != EMPTY_CELL)
+								partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
+							else
+								partsInCurrCell = 0;
+						}
 
-						if (curr_mine) {
+						if (gdata->nextCommand == APPEND_EXTERNAL) {
 
-							// the cell belongs to current process and we are in appending phase: we want to send its size to the neib process
-							gdata->networkManager->sendUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
-							if (dbg_printf)
+							if (curr_mine) {
+
+								// the cell belongs to current process and we are in appending phase: we want to send its size to the neib process
+								gdata->networkManager->sendUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
+								if (dbg_printf)
 								printf("  + I%uD%u sending uint %u \n", gdata->iterations, m_deviceIndex, partsInCurrCell);
 
-						} else {
-							// The cell belongs to a neib node and we are appending: we want to receive the size and set the cellstarts/ends:
-							// 1. receive the size
-							gdata->networkManager->receiveUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
-							if (dbg_printf)
+							} else
+							if (neib_mine) {
+								// The cell belongs to a neib node and we are appending: we want to receive the size and set the cellstarts/ends:
+								// 1. receive the size
+								gdata->networkManager->receiveUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
+								if (dbg_printf)
 								printf("  + I%uD%u receiving uint %u \n", gdata->iterations, m_deviceIndex, partsInCurrCell);
 
-							// 2. prepare to append it to the end of the present array
-							curr_cell_start = m_numParticles;
+								// 2. prepare to append it to the end of the present array
+								curr_cell_start = m_numParticles;
 
-							// 3. update host cellStarts/Ends
-							if (partsInCurrCell > 0) {
-								gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
-								gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
-							} else
-								curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
+								// 3. update host cellStarts/Ends
+								if (partsInCurrCell > 0) {
+									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
+									gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
+								} else
+									curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
 
-							// 4. update device cellStarts/Ends
-							CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
-								sizeof(uint), cudaMemcpyHostToDevice));
-							if (partsInCurrCell > 0)
-								CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
+								// 4. update device cellStarts/Ends
+								CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
 									sizeof(uint), cudaMemcpyHostToDevice));
+								if (partsInCurrCell > 0)
+									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
+										sizeof(uint), cudaMemcpyHostToDevice));
 
-							// 5. update outer edge segment, in case it was empty
-							if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
-								gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
+								// 5. update outer edge segment, in case it was empty
+								if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
+									gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
 
-							// 6. update the total number of particles
-							m_numParticles += partsInCurrCell;
-						} // neib_mine
+								// 6. update the total number of particles
+								m_numParticles += partsInCurrCell;
+							} // neib_mine
 
-					} // if (gdata->nextCommand == APPEND_EXTERNAL)
+						} // if (gdata->nextCommand == APPEND_EXTERNAL)
 
-					// if this is the sending device, we want to close the non-empty bursts sending date to devices different than neib_cell_gidx
+					} // if (any_mine)
+
+					// If this is the sending device, we want to close the non-empty bursts sending date to devices different than neib_cell_gidx
 					if (curr_mine) {
 						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
 							if (n != neib_cell_gidx && burst_numparts[n][B_SEND] > 0) {
@@ -730,7 +738,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 							}
 					} else
 					// is this not the sending nor the receiving device? then close the non-empty "receiving" bursts with the sending device
-					if (!curr_mine && !neib_mine) {
+					if (!any_mine) {
 						if (burst_numparts[curr_cell_gidx][B_RECV] > 0) {
 							burst_is_closed[curr_cell_gidx][B_RECV] = true;
 							if (dbg_printf)
@@ -738,7 +746,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 						}
 						// do NOT "continue;" here: we want to flush bursts that have just been closed
 					}
-					// last possibility: is this the receiving device? Then, we just go on
+					// last possibility: is this the receiving device? Then, we do not need to close any burst
+					// NOTE: there would be no need to close any burst if the cell was empty. However, only curr and neib devices know the size of cells. It
+					// can be tested in the future the performance of broadcasting the size of the exchanged cells; this would allow for less bursts closings.
 
 					// NOPE: might need to flush the bursts first
 					// if the cell is empty, just continue to next one
@@ -746,8 +756,8 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 					// first, let's flush all non-empty, closed bursts
 					for (uint other_device_gidx = 0; other_device_gidx < MAX_DEVICES_PER_CLUSTER; other_device_gidx++) // for each gidx
-						for (uint sending_dir = 0; sending_dir < 2; sending_dir++) // for each direction
-							if ( other_device_gidx != m_globalDeviceIdx ) {
+						if ( other_device_gidx != m_globalDeviceIdx )
+							for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
 
 								// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
 								// the same order. So we invert the direction if self gidx is bigger than the other
@@ -826,6 +836,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								burst_is_closed[other_device_gidx][corrected_sending_dir] = false;
 							} // for each non-empty, closed burst, in every direction
 
+					// if the cell is empty, there is no burst to handle
+					if (partsInCurrCell == 0) continue;
+
 					// if we are involved in the pair, let's handle the creation or extension of the burst
 					if (curr_mine || neib_mine) {
 						// the "other" device is the device owning the cell (curr or neib) which is not mine
@@ -861,8 +874,8 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 	// here: flush all the non-empty bursts (either closed or still open)
 	for (uint other_device_gidx = 0; other_device_gidx < MAX_DEVICES_PER_CLUSTER; other_device_gidx++) // for each gidx
-		for (uint sending_dir = 0; sending_dir < 2; sending_dir++) // for each direction
-			if ( other_device_gidx != m_globalDeviceIdx ) {
+		if ( other_device_gidx != m_globalDeviceIdx )
+		for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
 
 				// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
 				// the same order. So we invert the direction if self gidx is bigger than the other
@@ -941,9 +954,6 @@ void GPUWorker::importNetworkPeerEdgeCells()
 				burst_numparts[other_device_gidx][corrected_sending_dir] = 0; // probably useless here
 				burst_is_closed[other_device_gidx][corrected_sending_dir] = false; // for sure useless
 			} // for each non-empty, closed burst, in every direction
-
-	// don't need the defines anymore
-#undef BURST_IS_EMPTY
 
 }
 
