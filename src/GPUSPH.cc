@@ -1080,7 +1080,7 @@ void GPUSPH::doWrite()
 
 	// TODO MERGE REVIEW. do on each node separately? (better: in each worker thread)
 	double3 const& wo = problem->get_worldorigin();
-	for (uint i = 0; i < gdata->totParticles; i++) {
+	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = gdata->s_hBuffers.getData<BUFFER_POS>()[i];
 		double4 dpos;
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
