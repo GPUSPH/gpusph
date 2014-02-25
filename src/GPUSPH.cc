@@ -1318,8 +1318,10 @@ void GPUSPH::updateArrayIndices() {
 	uint processCount = 0;
 
 	// just store an incremental counter
-	for (uint d = 0; d < gdata->devices; d++)
-		processCount += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+	for (uint d = 0; d < gdata->devices; d++) {
+		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+		processCount += gdata->s_hPartsPerDevice[d];
+	}
 
 	// update che number of particles of the current process. Do we need to store the previous value?
 	// uint previous_process_parts = gdata->processParticles[ gdata->mpi_rank ];
