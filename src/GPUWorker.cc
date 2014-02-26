@@ -1570,10 +1570,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 			// logging here?
 			case IDLE:
 				break;
-			case RESET_HIGHBITS:
-				if (dbg_step_printf) printf(" T %d issuing RESET_HIGHBITS\n", deviceIndex);
-				instance->kernel_resetHighBits();
-				break;
 			case CALCHASH:
 				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
 				instance->kernel_calcHash();
@@ -1729,16 +1725,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
 
 	pthread_exit(NULL);
-}
-
-void GPUWorker::kernel_resetHighBits()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-	resetHighBits(m_dBuffers.getData<BUFFER_HASH>(),
-			numPartsToElaborate);
 }
 
 void GPUWorker::kernel_calcHash()

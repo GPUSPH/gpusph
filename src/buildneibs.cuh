@@ -73,10 +73,6 @@ void
 getneibsinfo(TimingInfo & timingInfo);
 
 void
-resetHighBits(hashKey*	particleHash,
-		 const uint		numParticles);
-
-void
 calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,

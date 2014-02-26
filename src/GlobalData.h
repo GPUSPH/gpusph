@@ -67,7 +67,6 @@ class GPUWorker;
 // requests to download cellStart and cellEnd
 enum CommandType {
 	IDLE,				// do a dummy cycle
-	RESET_HIGHBITS,		// reset hihg bits of particle hashes
 	CALCHASH,			// run calcHash kernel
 	SORT,				// run thrust::sort
 	INVINDEX,			// save the old index for segment connectivity
