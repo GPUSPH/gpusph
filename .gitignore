@@ -1,5 +1,6 @@
 Makefile.cpu
 Makefile.gpu
+Makefile.local
 options
 docs
 build
