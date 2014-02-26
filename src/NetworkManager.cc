@@ -36,8 +36,8 @@ void NetworkManager::initNetwork() {
 	int result;
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &result);
 	if (result < MPI_THREAD_MULTIPLE) {
-	    printf("NetworkManager: no complete thread safety, current level: %d\n", result);
-	    // MPI_Abort(MPI_COMM_WORLD, 1);
+		printf("NetworkManager: no complete thread safety, current level: %d\n", result);
+		// MPI_Abort(MPI_COMM_WORLD, 1);
 	}
 
 	// get the global number of processes
@@ -258,7 +258,7 @@ void NetworkManager::allGatherUints(unsigned int *datum, unsigned int *recv_buff
 {
 	int mpi_err = MPI_Allgather(datum, 1, MPI_INT, recv_buffer, 1, MPI_INT, MPI_COMM_WORLD);
 	if (mpi_err != MPI_SUCCESS)
-			printf("WARNING: MPI_Allgather returned error %d\n", mpi_err);
+		printf("WARNING: MPI_Allgather returned error %d\n", mpi_err);
 }
 
 // network barrier
