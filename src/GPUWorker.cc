@@ -548,11 +548,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		return;
 	}
 
-	// TODO: gidx uchar, peer as well, support for periodicity
+	// TODO: peer as well, support for periodicity
 
 	// is a double buffer specified?
 	const bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-	uint dbl_buf_idx;
+	uchar dbl_buf_idx;
 
 	// We want to send the current cell to the neigbor processes only once. To this aim, we keep a list of recipient
 	// ranks who already received the current cell. The list is reset before iterating on all the neighbor cells
@@ -597,7 +597,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
 			already_sent_to[d] = false;
 
-		uint curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
+		uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
 		uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
 		if ( curr_cell_rank >= gdata->mpi_nodes ) {
 			printf("FATAL: cell %u seems to belong to rank %u, but max is %u; probable memory corruption\n", lin_curr_cell, curr_cell_rank, gdata->mpi_nodes - 1);
@@ -624,7 +624,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 					// now compute the linearized hash of the neib cell and other properties
 					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
-					const uint neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
+					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
 					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
 
 					// is this neib mine?
