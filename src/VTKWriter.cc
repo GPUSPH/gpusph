@@ -226,7 +226,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	scalar_array(fid, "Int32", "offsets", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
 	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
-	for (uint i = 0; i < numParts; i++)
+	for (uint i = node_offset; i < node_offset + numParts; i++)
 		fprintf(fid,"%d\t", 1);
 	fprintf(fid,"\n");
 	fprintf(fid,"	</DataArray>\n");
@@ -369,7 +369,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// linearized cell index (NOTE: computed on host)
 	numbytes = sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < node_offset + numParts; i++) {
+	for (int i=node_offset; i < node_offset + numParts; i++) {
 		uint value = cellHashFromParticleHash( particleHash[i] );
 		fwrite(&value, sizeof(value), 1, fid);
 	}
@@ -452,13 +452,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	numbytes=sizeof(int)*numParts;
 	// connectivity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 	// offsets
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		uint value = i+1;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
