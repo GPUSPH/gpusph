@@ -50,20 +50,6 @@ __device__ int d_maxNeibs;
 
 #include "cellgrid.h"
 
-// Reset the high bits of the hash
-__global__ void
-__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
-resetHighBitsDevice(hashKey*			particleHash,	///< particle's hashes (in, out)
-			   const uint		numParticles)	///< total number of particles
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	particleHash[index] &= CELLTYPE_BITMASK_LONG;
-}
-
 /// Clamp grid position to edges according to periodicity
 /*! This function clamp grid position to edges according to the chosen
  * periodicity, returns the new grid position and update the grid offset.

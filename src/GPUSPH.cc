@@ -1196,7 +1196,6 @@ void GPUSPH::buildNeibList()
 		doCommand(CROP);
 		// append fresh copies of the externals
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
-		doCommand(RESET_HIGHBITS);
 	}
 
 	// build neib lists only for internal particles

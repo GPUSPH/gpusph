@@ -172,7 +172,6 @@ private:
 	void uploadBodiesTransRotMatrices();
 
 	// kernels
-	void kernel_resetHighBits();
 	void kernel_calcHash();
 	void kernel_sort();
 	void kernel_inverseParticleIndex();
