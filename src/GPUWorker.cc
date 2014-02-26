@@ -549,6 +549,8 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		return;
 	}
 
+	const bool dbg_printf = false;
+
 	// TODO: gidx uchar, constification, peer as well, support for periodicity
 
 	// is a double buffer specified?
@@ -609,6 +611,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		// is it mine?
 		bool curr_mine = (curr_cell_gidx == m_globalDeviceIdx);
 
+		if (dbg_printf)
+			printf("I%uD%u now analyzing cell %u(%u,%u,%u):%u, command %s\n", gdata->iterations, m_deviceIndex, lin_curr_cell,
+					coords_curr_cell.x, coords_curr_cell.y, coords_curr_cell.z, gdata->s_hDeviceMap[lin_curr_cell],
+					(gdata->nextCommand == APPEND_EXTERNAL ? "APP" : "UPD"));
+
 		// iterate on neighbors
 		for (int dz = -1; dz <= 1; dz++)
 			for (int dy = -1; dy <= 1; dy++)
@@ -651,6 +658,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// mark the pair current_cell:neib_node as treated
 					already_sent_to[ neib_cell_gidx ] = true;
 
+					if (dbg_printf)
+						printf(" \\ I%uD%u cell %u(%u,%u,%u):%u neib %u(%u,%u,%u):%u\n", gdata->iterations, m_deviceIndex, lin_curr_cell,
+								coords_curr_cell.x, coords_curr_cell.y, coords_curr_cell.z, gdata->s_hDeviceMap[lin_curr_cell],
+								lin_neib_cell, coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz, gdata->s_hDeviceMap[lin_neib_cell]);
+
 					// sending or receiving? always equal to curr_mine, but more readable
 					bool is_sending = curr_mine;
 
@@ -673,11 +685,15 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 							// the cell belongs to current process and we are in appending phase: we want to send its size to the neib process
 							gdata->networkManager->sendUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
+							if (dbg_printf)
+								printf("  + I%uD%u sending uint %u \n", gdata->iterations, m_deviceIndex, partsInCurrCell);
 
 						} else {
 							// The cell belongs to a neib node and we are appending: we want to receive the size and set the cellstarts/ends:
 							// 1. receive the size
 							gdata->networkManager->receiveUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
+							if (dbg_printf)
+								printf("  + I%uD%u receiving uint %u \n", gdata->iterations, m_deviceIndex, partsInCurrCell);
 
 							// 2. prepare to append it to the end of the present array
 							curr_cell_start = m_numParticles;
@@ -709,13 +725,19 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// if this is the sending device, we want to close the non-empty bursts sending date to devices different than neib_cell_gidx
 					if (curr_mine) {
 						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
-							if (n != neib_cell_gidx && burst_numparts[n][B_SEND] > 0)
+							if (n != neib_cell_gidx && burst_numparts[n][B_SEND] > 0) {
 								burst_is_closed[n][B_SEND] = true;
+								if (dbg_printf)
+									printf("   - I%uD%u cell %u - closing burst %u-%u [1]\n", gdata->iterations, m_deviceIndex, lin_curr_cell, m_globalDeviceIdx, n);
+							}
 					} else
 					// is this not the sending nor the receiving device? then close the non-empty "receiving" bursts with the sending device
 					if (!curr_mine && !neib_mine) {
-						if (burst_numparts[curr_cell_gidx][B_RECV] > 0)
+						if (burst_numparts[curr_cell_gidx][B_RECV] > 0) {
 							burst_is_closed[curr_cell_gidx][B_RECV] = true;
+							if (dbg_printf)
+								printf("   - I%uD%u cell %u - closing burst %u-%u [2]\n", gdata->iterations, m_deviceIndex, lin_curr_cell, curr_cell_gidx, m_globalDeviceIdx);
+						}
 						// do NOT "continue;" here: we want to flush bursts that have just been closed
 					}
 					// last possibility: is this the receiving device? Then, we just go on
@@ -740,6 +762,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								// the same order. So we invert the direction if self gidx is bigger than the other
 								if (m_globalDeviceIdx > other_device_gidx)
 									this_burst_is_sending = !this_burst_is_sending;
+
+								if (dbg_printf)
+									printf("    >> I%uD%u sending burst %u-%u, %u parts\n", gdata->iterations, m_deviceIndex, sender_gidx, recipient_gidx, burst_numparts[other_device_gidx][corrected_sending_dir]);
 
 								// iterate over all defined buffers and see which were requested
 								// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
@@ -808,10 +833,21 @@ void GPUWorker::importNetworkPeerEdgeCells()
 							burst_self_index_end[other_device_gidx][is_sending] = curr_cell_start + partsInCurrCell;
 							burst_numparts[other_device_gidx][is_sending] = partsInCurrCell;
 							burst_is_closed[other_device_gidx][is_sending] = false;
+							if (dbg_printf)
+								printf("     > I%uD%u new burst %u-%u, %u parts\n", gdata->iterations, m_deviceIndex,
+										(is_sending?m_globalDeviceIdx:other_device_gidx),
+										(!is_sending?m_globalDeviceIdx:other_device_gidx),
+										partsInCurrCell);
 						} else {
 							// was non-empty: extend the existing one
 							burst_self_index_end[other_device_gidx][is_sending] += partsInCurrCell;
 							burst_numparts[other_device_gidx][is_sending] += partsInCurrCell;
+							if (dbg_printf)
+								printf("     > I%uD%u ext. burst %u-%u, %u to %u  parts\n", gdata->iterations, m_deviceIndex,
+										(is_sending?m_globalDeviceIdx:other_device_gidx),
+										(!is_sending?m_globalDeviceIdx:other_device_gidx),
+										burst_numparts[other_device_gidx][is_sending],
+										burst_numparts[other_device_gidx][is_sending] + partsInCurrCell);
 						}
 					}
 
@@ -827,6 +863,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 				bool this_burst_is_sending = (sending_dir == B_SEND);
 				uint sender_gidx = (this_burst_is_sending ? m_globalDeviceIdx : other_device_gidx);
 				uint recipient_gidx = (this_burst_is_sending ? other_device_gidx : m_globalDeviceIdx);
+				if (dbg_printf)
+					printf("    >> I%uD%u flushing burst %u-%u, %u parts\n", gdata->iterations, m_deviceIndex,
+							sender_gidx, recipient_gidx, burst_numparts[other_device_gidx][corrected_sending_dir]);
 
 				// iterate over all defined buffers and see which were requested
 				// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
