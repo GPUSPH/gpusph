@@ -1314,8 +1314,18 @@ void GPUSPH::printStatus()
 void GPUSPH::printParticleDistribution()
 {
 	printf("Particle distribution for process %u at iteration %lu:\n", gdata->mpi_rank, gdata->iterations);
-	for (uint d = 0; d < gdata->devices; d++)
-		printf(" - Device %u: %u particles\n", d, gdata->s_hPartsPerDevice[d]);
+	for (uint d = 0; d < gdata->devices; d++) {
+		printf(" - Device %u: %u internal particles, %u total\n", d, gdata->s_hPartsPerDevice[d], gdata->GPUWORKERS[d]->getNumParticles());
+		// Uncomment the following to detail the segments of each device
+		/*
+		if (MULTI_DEVICE) {
+			printf("   Internal particles start at:      %u\n", gdata->s_dSegmentsStart[d][0]);
+			printf("   Internal edge particles start at: %u\n", gdata->s_dSegmentsStart[d][1]);
+			printf("   External edge particles start at: %u\n", gdata->s_dSegmentsStart[d][2]);
+			printf("   External particles start at:      %u\n", gdata->s_dSegmentsStart[d][3]);
+		}
+		*/
+	}
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
 }
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
