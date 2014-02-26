@@ -1574,6 +1574,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
+	const bool dbg_step_printf = true;
+
 	// TODO
 	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 	while (gdata->keep_going) {
@@ -1582,137 +1584,137 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case IDLE:
 				break;
 			case CALCHASH:
-				//printf(" T %d issuing HASH\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
 				instance->kernel_calcHash();
 				break;
 			case SORT:
-				//printf(" T %d issuing SORT\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
 			case INVINDEX:
-				//printf(" T %d issuing INVINDEX\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing INVINDEX\n", deviceIndex);
 				instance->kernel_inverseParticleIndex();
 				break;
 			case CROP:
-				//printf(" T %d issuing CROP\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
 				break;
 			case REORDER:
-				//printf(" T %d issuing REORDER\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing REORDER\n", deviceIndex);
 				instance->kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
-				//printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
 				instance->kernel_buildNeibsList();
 				break;
 			case FORCES:
-				//printf(" T %d issuing FORCES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing FORCES\n", deviceIndex);
 				instance->kernel_forces();
 				break;
 			case EULER:
-				//printf(" T %d issuing EULER\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
 				instance->kernel_euler();
 				break;
 			case DUMP:
-				//printf(" T %d issuing DUMP\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
 				instance->dumpBuffers();
 				break;
 			case DUMP_CELLS:
-				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
 				instance->downloadCellsIndices();
 				break;
 			case UPDATE_SEGMENTS:
-				//printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
 				break;
 			case APPEND_EXTERNAL:
-				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
 				if (MULTI_GPU)
 					instance->importPeerEdgeCells();
 				if (MULTI_NODE)
 					instance->importNetworkPeerEdgeCells();
 				break;
 			case UPDATE_EXTERNAL:
-				//printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
 				if (MULTI_GPU)
 					instance->importPeerEdgeCells();
 				if (MULTI_NODE)
 					instance->importNetworkPeerEdgeCells();
 				break;
 			case MLS:
-				//printf(" T %d issuing MLS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing MLS\n", deviceIndex);
 				instance->kernel_mls();
 				break;
 			case SHEPARD:
-				//printf(" T %d issuing SHEPARD\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SHEPARD\n", deviceIndex);
 				instance->kernel_shepard();
 				break;
 			case VORTICITY:
-				//printf(" T %d issuing VORTICITY\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing VORTICITY\n", deviceIndex);
 				instance->kernel_vorticity();
 				break;
 			case SURFACE_PARTICLES:
-				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
 			case SA_INIT_GAMMA:
-				//printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
 				instance->kernel_initGradGamma();
 				break;
 			case SA_UPDATE_GAMMA:
-				//printf(" T %d issuing SA_UPDATE_GAMMA\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_GAMMA\n", deviceIndex);
 				instance->kernel_updateGamma();
 				break;
 			case SA_UPDATE_POS:
-				//printf(" T %d issuing SA_UPDATE_POS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_POS\n", deviceIndex);
 				instance->kernel_updatePositions();
 				break;
 			case SA_CALC_BOUND_CONDITIONS:
-				//printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
 				instance->kernel_dynamicBoundaryConditions();
 				break;
 			case SA_UPDATE_BOUND_VALUES:
-				//printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
 				instance->kernel_updateValuesAtBoundaryElements();
 				break;
 			case SPS:
-				//printf(" T %d issuing SPS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
 				break;
 			case MEAN_STRAIN:
-				//printf(" T %d issuing MEAN_STRAIN\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing MEAN_STRAIN\n", deviceIndex);
 				instance->kernel_meanStrain();
 				break;
 			case REDUCE_BODIES_FORCES:
-				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
 				break;
 			case UPLOAD_MBDATA:
-				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
 				instance->uploadMBData();
 				break;
 			case UPLOAD_GRAVITY:
-				//printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
 				instance->uploadGravity();
 				break;
 			case UPLOAD_PLANES:
-				//printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
 				instance->uploadPlanes();
 				break;
 			case UPLOAD_OBJECTS_CG:
-				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesCentersOfGravity();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
-				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
 				break;
 			case CALC_PRIVATE:
-				//printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
 				instance->kernel_calcPrivate();
 				break;
 			case QUIT:
-				//printf(" T %d issuing QUIT\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 		}
