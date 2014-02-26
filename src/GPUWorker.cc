@@ -665,7 +665,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								lin_neib_cell, coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz, gdata->s_hDeviceMap[lin_neib_cell]);
 
 					// sending or receiving? always equal to curr_mine, but more readable
-					bool is_sending = curr_mine;
+					uint is_sending = ( curr_mine ? B_SEND : B_RECV );
 
 					// if curr or neib, send / receive the cell size. Othewise, we skip to the bursts
 					if (any_mine) {
