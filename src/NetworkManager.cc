@@ -10,6 +10,10 @@
 #include <GlobalData.h>
 #include <mpi.h>
 
+// Uncomment the following to define DBG_PRINTF and enable printing the details of every call (uint and buffer).
+// Useful to check the correspondence among messages without compiling in debug mode
+//#define DBG_PRINTF
+
 NetworkManager::NetworkManager() {
 	// TODO Auto-generated constructor stub
 	processor_name = new char[MPI_MAX_PROCESSOR_NAME];
@@ -73,6 +77,10 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
+#ifdef DBG_PRINTF
+	printf("  ---- MPI UINT src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, 4, tag);
+#endif
+
 	int mpi_err = MPI_Send(datum, 1, MPI_INT, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
@@ -82,6 +90,10 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+
+#ifdef DBG_PRINTF
+	printf("  ---- MPI UINT src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, 4, tag);
+#endif
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(datum, 1, MPI_INT, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -103,6 +115,10 @@ void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char ds
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
+#ifdef DBG_PRINTF
+	printf("  ---- MPI BUFFER src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
+#endif
+
 	int mpi_err = MPI_Send(src_data, count, MPI_BYTE, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
@@ -112,6 +128,10 @@ void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char ds
 void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data)
 {
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+
+#ifdef DBG_PRINTF
+	printf("  ---- MPI BUFFER src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
+#endif
 
 	MPI_Status status;
 	int mpi_err = MPI_Recv(dst_data, count, MPI_BYTE, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD, &status);
@@ -246,3 +266,6 @@ void NetworkManager::networkBarrier()
 {
 	MPI_Barrier(MPI_COMM_WORLD);
 }
+#ifdef DBG_PRINTF
+#undef DBG_PRINTF
+#endif
