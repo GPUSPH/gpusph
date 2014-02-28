@@ -130,7 +130,10 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 #define ALL_DEFINED_BUFFERS		((FIRST_DEFINED_BUFFER-1) ^ (LAST_DEFINED_BUFFER-1) | LAST_DEFINED_BUFFER )
 
 // all particle-based buffers
-#define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL))
+#define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
+
+// particle-based buffers to be imported during the APPEND_EXTERNAL command
+#define IMPORT_BUFFERS 			(BUFFER_POS | BUFFER_HASH | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ)
 
 // all double buffers TODO some template metaprogramming would help here
 #define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \

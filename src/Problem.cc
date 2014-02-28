@@ -375,7 +375,11 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 			cells_per_longest_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = cells_per_longest_axis / gdata->totDevices;
+	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (float)gdata->totDevices);
+	/*
+	printf("Splitting domain along axis %s, %u cells per part\n",
+		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_longest_axis);
+	*/
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
 		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
 			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
@@ -458,9 +462,9 @@ void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices
 				uint whichDevCoordZ = (cz / devSizeCellsZ);
 
 				// round if needed
-				whichDevCoordX %= Xslices;
-				whichDevCoordY %= Yslices;
-				whichDevCoordZ %= Zslices;
+				if (whichDevCoordX == Xslices) whichDevCoordX--;
+				if (whichDevCoordY == Yslices) whichDevCoordY--;
+				if (whichDevCoordZ == Zslices) whichDevCoordZ--;
 
 				// compute dest device
 				uint dstDevice = whichDevCoordZ * Yslices * Xslices + whichDevCoordY * Xslices + whichDevCoordX;

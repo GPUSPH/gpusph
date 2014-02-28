@@ -209,9 +209,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// pretty print
 	printf("  allocated %s on host for %s particles\n",
 		gdata->memString(totCPUbytes).c_str(),
-		gdata->addSeparators(
-			MULTI_NODE ? gdata->processParticles[gdata->mpi_rank] :
-			gdata->totParticles).c_str());
+		gdata->addSeparators(gdata->totParticles).c_str() );
 
 	// copy planes from the problem to the shared array
 	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
@@ -1118,13 +1116,13 @@ void GPUSPH::doWrite()
 		++gage;
 	}
 
-	// TODO MERGE REVIEW. do on each node separately? (better: in each worker thread)
+	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();
 	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
 	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
 	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
 
-	for (uint i = 0; i < gdata->totParticles; i++) {
+	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
 		double4 dpos;
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
@@ -1201,7 +1199,7 @@ void GPUSPH::buildNeibList()
 		// crop external cells
 		doCommand(CROP);
 		// append fresh copies of the externals
-		doCommand(APPEND_EXTERNAL, ALL_PARTICLE_BUFFERS | DBLBUFFER_READ);
+		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
 	}
 
 	// build neib lists only for internal particles
@@ -1319,8 +1317,18 @@ void GPUSPH::printStatus()
 void GPUSPH::printParticleDistribution()
 {
 	printf("Particle distribution for process %u at iteration %lu:\n", gdata->mpi_rank, gdata->iterations);
-	for (uint d = 0; d < gdata->devices; d++)
-		printf(" - Device %u: %u particles\n", d, gdata->s_hPartsPerDevice[d]);
+	for (uint d = 0; d < gdata->devices; d++) {
+		printf(" - Device %u: %u internal particles, %u total\n", d, gdata->s_hPartsPerDevice[d], gdata->GPUWORKERS[d]->getNumParticles());
+		// Uncomment the following to detail the segments of each device
+		/*
+		if (MULTI_DEVICE) {
+			printf("   Internal particles start at:      %u\n", gdata->s_dSegmentsStart[d][0]);
+			printf("   Internal edge particles start at: %u\n", gdata->s_dSegmentsStart[d][1]);
+			printf("   External edge particles start at: %u\n", gdata->s_dSegmentsStart[d][2]);
+			printf("   External particles start at:      %u\n", gdata->s_dSegmentsStart[d][3]);
+		}
+		*/
+	}
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
 }
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
@@ -1381,8 +1389,10 @@ void GPUSPH::updateArrayIndices() {
 	uint processCount = 0;
 
 	// just store an incremental counter
-	for (uint d = 0; d < gdata->devices; d++)
-		processCount += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+	for (uint d = 0; d < gdata->devices; d++) {
+		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+		processCount += gdata->s_hPartsPerDevice[d];
+	}
 
 	// update che number of particles of the current process. Do we need to store the previous value?
 	// uint previous_process_parts = gdata->processParticles[ gdata->mpi_rank ];
@@ -1400,7 +1410,7 @@ void GPUSPH::updateArrayIndices() {
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// process 0 checks if total number of particles varied in the simulation
-	if (gdata->mpi_rank == 0 || true) {
+	if (gdata->mpi_rank == 0) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
