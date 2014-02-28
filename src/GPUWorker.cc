@@ -655,6 +655,9 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// sending or receiving? always equal to curr_mine, but more readable
 					const uint is_sending = ( curr_mine ? B_SEND : B_RECV );
 
+					// the "other" device is the device owning the cell (curr or neib) which is not mine
+					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
+
 					// if curr or neib, send / receive the cell size. Othewise, we skip to the bursts
 					if (any_mine) {
 
@@ -743,22 +746,22 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// if (curr_cell_start == EMPTY_CELL) continue;
 
 					// first, let's flush all non-empty, closed bursts
-					for (uint other_device_gidx = 0; other_device_gidx < MAX_DEVICES_PER_CLUSTER; other_device_gidx++) // for each gidx
-						if ( other_device_gidx != m_globalDeviceIdx )
+					for (uint device_gidx = 0; device_gidx < MAX_DEVICES_PER_CLUSTER; device_gidx++) // for each gidx
+						if ( device_gidx != m_globalDeviceIdx )
 							for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
 
 								// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
 								// the same order. So we invert the direction if self gidx is bigger than the other
-								const uint corrected_sending_dir = (m_globalDeviceIdx < other_device_gidx ? sending_dir : 1 - sending_dir);
+								const uint corrected_sending_dir = (m_globalDeviceIdx < device_gidx ? sending_dir : 1 - sending_dir);
 
 								// skip burst if empty
-								if (burst_numparts[other_device_gidx][corrected_sending_dir] == 0) continue;
+								if (burst_numparts[device_gidx][corrected_sending_dir] == 0) continue;
 								// skip burst if still open
-								if (!burst_is_closed[other_device_gidx][corrected_sending_dir]) continue;
+								if (!burst_is_closed[device_gidx][corrected_sending_dir]) continue;
 
 								// abstract from self / other
-								const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : other_device_gidx);
-								const uint recipient_gidx = (corrected_sending_dir == B_SEND ? other_device_gidx : m_globalDeviceIdx);
+								const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : device_gidx);
+								const uint recipient_gidx = (corrected_sending_dir == B_SEND ? device_gidx : m_globalDeviceIdx);
 
 								// iterate over all defined buffers and see which were requested
 								// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
@@ -794,11 +797,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 										dbl_buf_idx = 0;
 									}
 
-									const unsigned int _size = burst_numparts[other_device_gidx][corrected_sending_dir] * buf->get_element_size();
+									const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
 
 									// special treatment for TAU, since in that case we need to transfers all 3 arrays
 									if (bufkey != BUFFER_TAU) {
-										void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[other_device_gidx][corrected_sending_dir]);
+										void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
 										if (corrected_sending_dir == B_SEND)
 											gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
 										else
@@ -807,7 +810,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 										// generic, so that it can work for other buffers like TAU, if they are ever
 										// introduced; just fix the conditional
 										for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-											void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[other_device_gidx][corrected_sending_dir]);
+											void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[device_gidx][corrected_sending_dir]);
 											if (corrected_sending_dir == B_SEND)
 												gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
 											else
@@ -817,8 +820,8 @@ void GPUWorker::importNetworkPeerEdgeCells()
 								} // for each buffer type
 
 								// reset the flushed burst
-								burst_numparts[other_device_gidx][corrected_sending_dir] = 0;
-								burst_is_closed[other_device_gidx][corrected_sending_dir] = false;
+								burst_numparts[device_gidx][corrected_sending_dir] = 0;
+								burst_is_closed[device_gidx][corrected_sending_dir] = false;
 							} // for each non-empty, closed burst, in every direction
 
 					// if the cell is empty, there is no burst to handle
@@ -826,9 +829,6 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 					// if we are involved in the pair, let's handle the creation or extension of the burst
 					if (curr_mine || neib_mine) {
-						// the "other" device is the device owning the cell (curr or neib) which is not mine
-						const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
-
 						// make a new burst with the current cell or extend the previous
 						if (burst_numparts[other_device_gidx][is_sending] == 0) {
 							// burst is empty, so create a new one and continue
@@ -847,22 +847,22 @@ void GPUWorker::importNetworkPeerEdgeCells()
 	} // iterate on cells
 
 	// here: flush all the non-empty bursts (either closed or still open)
-	for (uint other_device_gidx = 0; other_device_gidx < MAX_DEVICES_PER_CLUSTER; other_device_gidx++) // for each gidx
-		if ( other_device_gidx != m_globalDeviceIdx )
+	for (uint device_gidx = 0; device_gidx < MAX_DEVICES_PER_CLUSTER; device_gidx++) // for each gidx
+		if ( device_gidx != m_globalDeviceIdx )
 		for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
 
 				// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
 				// the same order. So we invert the direction if self gidx is bigger than the other
-				const uint corrected_sending_dir = (m_globalDeviceIdx < other_device_gidx ? sending_dir : 1 - sending_dir);
+				const uint corrected_sending_dir = (m_globalDeviceIdx < device_gidx ? sending_dir : 1 - sending_dir);
 
 				// skip burst if empty
-				if (burst_numparts[other_device_gidx][corrected_sending_dir] == 0) continue;
+				if (burst_numparts[device_gidx][corrected_sending_dir] == 0) continue;
 				// we do not skip burst if not closed. Actually, the flush is mainly meant to flush still open bursts
-				// if (!burst_is_closed[other_device_gidx][corrected_sending_dir]) continue;
+				// if (!burst_is_closed[device_gidx][corrected_sending_dir]) continue;
 
 				// abstract from self / other
-				const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : other_device_gidx);
-				const uint recipient_gidx = (corrected_sending_dir == B_SEND ? other_device_gidx : m_globalDeviceIdx);
+				const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : device_gidx);
+				const uint recipient_gidx = (corrected_sending_dir == B_SEND ? device_gidx : m_globalDeviceIdx);
 
 				// iterate over all defined buffers and see which were requested
 				// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
@@ -898,11 +898,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 						dbl_buf_idx = 0;
 					}
 
-					const unsigned int _size = burst_numparts[other_device_gidx][corrected_sending_dir] * buf->get_element_size();
+					const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
 
 					// special treatment for TAU, since in that case we need to transfers all 3 arrays
 					if (bufkey != BUFFER_TAU) {
-						void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[other_device_gidx][corrected_sending_dir]);
+						void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
 						if (corrected_sending_dir == B_SEND)
 							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
 						else
@@ -911,7 +911,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 						// generic, so that it can work for other buffers like TAU, if they are ever
 						// introduced; just fix the conditional
 						for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-							void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[other_device_gidx][corrected_sending_dir]);
+							void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[device_gidx][corrected_sending_dir]);
 							if (corrected_sending_dir == B_SEND)
 								gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
 							else
@@ -921,8 +921,8 @@ void GPUWorker::importNetworkPeerEdgeCells()
 				} // for each buffer type
 
 				// reset the flushed burst
-				burst_numparts[other_device_gidx][corrected_sending_dir] = 0; // probably useless here
-				burst_is_closed[other_device_gidx][corrected_sending_dir] = false; // for sure useless
+				burst_numparts[device_gidx][corrected_sending_dir] = 0; // probably useless here
+				burst_is_closed[device_gidx][corrected_sending_dir] = false; // for sure useless
 			} // for each non-empty, closed burst, in every direction
 
 }
