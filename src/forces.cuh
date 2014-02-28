@@ -120,7 +120,6 @@ forces(
 			float	*keps_eps,
 			float2	*keps_dkde,
 			float	*cfl,
-			float	*cflGamma,
 			float	*cflTVisc,
 			float	*tempCfl,
 	SPHFormulation	sph_formulation,

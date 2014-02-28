@@ -1246,56 +1246,24 @@ void GPUSPH::doCallBacks()
 
 void GPUSPH::initializeGammaAndGradGamma()
 {
+	// construct neighbour list
 	buildNeibList();
 
 	gdata->only_internal = true;
 
 	// Compute gamma
 	// needs to be called twice initially because gradgamma is required to compute gamma for vertices
+	// first iteration
 	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
 	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+	// second iteration
 	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
 	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-
-	/*doCommand(SA_INIT_GAMMA);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-	gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_GRADGAMMA);
-
-	buildNeibList();
-
-	// Compute virtual displacement
-	uint itNumber = 200;
-	float deltat = 1.0/itNumber;
-
-	for (uint i = 0; i < itNumber; ++i) {
-		// On every iteration updateGamma() is called twice, while updatePositions() is called only once,
-		// since evolution equation for gamma is integrated in time with a second-order time scheme:
-		// gamma(n+1) = gamma(n) + 0.5*[gradGam(n) + gradGam(n+1)]*[r(n+1) - r(n)]
-
-		// Update gamma 1st call
-		doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-
-		// Move the particles
-		doCommand(SA_UPDATE_POS, INITIALIZATION_STEP, deltat);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_POS | DBLBUFFER_WRITE);
-		gdata->swapDeviceBuffers(BUFFER_POS);
-
-		buildNeibList();
-
-		doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, deltat);
-		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-	} */
 }
 
 void GPUSPH::imposeDynamicBoundaryConditions()
