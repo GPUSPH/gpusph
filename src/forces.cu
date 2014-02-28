@@ -63,16 +63,16 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
@@ -134,7 +134,7 @@ void*	reduce_buffer = NULL;
 #define KEPS_CHECK(kernel) \
 	case kernel: \
 		cuforces::MeanScalarStrainRateDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, strainrate, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
+				(pos, vertPos[0], vertPos[1], vertPos[2], strainrate, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 		break
 
 #define SHEPARD_CHECK(kernel) \
@@ -332,6 +332,7 @@ void
 mean_strain_rate(
 			float	*strainrate,
 	const	float4	*pos,
+			float2	*vertPos[],
 	const	float4	*vel,
 const	particleinfo	*info,
 	const	hashKey	*particleHash,
@@ -433,6 +434,7 @@ const	particleinfo	*info,
 float
 forces(
 	const	float4	*pos,
+			float2	*vertPos[],
 	const	float4	*vel,
 			float4	*forces,
 	const	float4	*gradgam,

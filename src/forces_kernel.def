@@ -49,6 +49,9 @@ __global__ void
 FORCES_CUDA_KERNEL
 (	
 	const float4*	posArray,
+	const float2*	vertPos0,
+	const float2*	vertPos1,
+	const float2*	vertPos2,
 	float4*		forces,
 	float2*		keps_dkde,
 	float*		turbvisc,
@@ -165,10 +168,6 @@ FORCES_CUDA_KERNEL
 			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
 			//# endif
 
-			# ifdef DT_KERNEL
-			float gradgamU = 0;
-			# endif
-
 			// persistent variables across getNeibData calls
 			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
@@ -239,8 +238,10 @@ FORCES_CUDA_KERNEL
 
 						// density derivative
 						float DrDt = 0;
+						// grad gamma_{as}
+						const float gGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem);
 						if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info))
-							DrDt -= relVel.w*dot(as_float3(relVel), as_float3(gradGamma<kerneltype>(slength, r, belem)) );
+							DrDt -= relVel.w*dot3(relVel, belem)*gGam;
 						else if (boundarytype == SA_BOUNDARY && d_ferrari) {
 							const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/ 
 								(d_sscoeff[PART_FLUID_NUM(info)]*d_sscoeff[PART_FLUID_NUM(info)]); //TODO-AM this does not work with multifluids
@@ -313,9 +314,7 @@ FORCES_CUDA_KERNEL
 
 						if(boundarytype == SA_BOUNDARY) {
 							if(BOUNDARY(neib_info)) {
-								const float4 gradgam_as = gradGamma<kerneltype>(slength, r, belem);
-								const float abs_gradgam_as = length(as_float3(gradgam_as));
-								bound_term_pres = DvDt*relVel.w*gradgam_as;
+								bound_term_pres = DvDt*relVel.w*gGam*belem;
 
 								// normal vector
 								const float3 normal_s = as_float3(belem);
@@ -343,22 +342,17 @@ FORCES_CUDA_KERNEL
 								y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 
 								const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-								bound_term_visc = 2*vel.w*abs_u_t*abs_gradgam_as*u_t/denom_term;
+								bound_term_visc = 2*vel.w*abs_u_t*gGam*u_t/denom_term;
 								# else
-								bound_term_visc = length(gradgam_as)*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
+								bound_term_visc = gGam*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
 								# endif
 
 								# ifdef VISC_KEPS
 								//to be divided later by rho_a and gamma_a
 								diff_term_e += pow(0.09f, 0.75f)/0.41f * (dedt_precalc*pow(keps_k,1.5f)/(r_as*r_as) +
-											relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(deltap*deltap)) * abs_gradgam_as;
+											relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(deltap*deltap)) * gGam;
 								# endif
 
-								# ifdef DT_KERNEL
-								float tmp = abs(dot(as_float3(gradgam_as), as_float3(vel)));
-								if (tmp > gradgamU)
-									gradgamU = tmp;
-								# endif
 							}
 							# ifdef VISC_KEPS
 							else {
@@ -370,21 +364,22 @@ FORCES_CUDA_KERNEL
 						} // endif (boundarytype)
 
 						DvDt *= relPos.w*f;
-					} else
-					switch (boundarytype) {
-						case LJ_BOUNDARY:
-							DvDt = LJForce(r);
-							break;
-						case MK_BOUNDARY:
-							DvDt = MKForce(r, slength, pos.w, pos.w);
-							break;
-						case SA_BOUNDARY:
-							// TODO FIXME this is currently encountered when the fluid interacts with a floating object
-							DvDt = LJForce(r);
-							break;
-						default:
-							DvDt = 1.0f/0.0f;
-							break;
+					} else {
+						switch (boundarytype) {
+							case LJ_BOUNDARY:
+								DvDt = LJForce(r);
+								break;
+							case MK_BOUNDARY:
+								DvDt = MKForce(r, slength, pos.w, pos.w);
+								break;
+							case SA_BOUNDARY:
+								// TODO FIXME this is currently encountered when the fluid interacts with a floating object
+								DvDt = LJForce(r);
+								break;
+							default:
+								DvDt = 1.0f/0.0f;
+								break;
+						}
 					}
 					// interaction between two particles
 					if(boundarytype == SA_BOUNDARY) {
@@ -525,7 +520,7 @@ FORCES_CUDA_KERNEL
 						if (r_es < deltap)
 							r_es = deltap;
 
-						const float abs_gradgam_es = length(gradGamma<kerneltype>(slength, r, belem));
+						const float abs_gradgam_es = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem);
 
 						// velocity of vertex particle along the wall
 						const float3 u_t = as_float3(vel) - dot(as_float3(vel), normal_s)*normal_s;

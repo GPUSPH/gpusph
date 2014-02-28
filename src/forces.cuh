@@ -92,6 +92,7 @@ setforcesrbstart(const uint* rbfirstindex, int numbodies);
 float
 forces(
 	const	float4	*pos,
+			float2	*verPos[],
 	const	float4	*vel,
 			float4	*forces,
 	const	float4	*gradgam,
@@ -144,8 +145,9 @@ void
 mean_strain_rate(
 			float	*strainrate,
 	const	float4	*pos,
+			float2	*verPos[],
 	const	float4	*vel,
-const	particleinfo	*info,
+	const	particleinfo	*info,
 	const	hashKey	*particleHash,
 	const	uint	*cellStart,
 	const	neibdata*neibsList,
