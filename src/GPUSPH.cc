@@ -1251,7 +1251,15 @@ void GPUSPH::initializeGammaAndGradGamma()
 	gdata->only_internal = true;
 
 	// Compute gamma
+	// needs to be called twice initially because gradgamma is required to compute gamma for vertices
 	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
+	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
+	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 	/*doCommand(SA_INIT_GAMMA);
 	if (MULTI_DEVICE)

@@ -79,9 +79,10 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.tend = 5.0;
 		m_simparams.testpoints = false;
 		H = 1.0;
-		l = 2.0; w = 2.0; h = 2.0;
-		m_origin = make_double3(-1.0, -1.0, -1.0);
+		l = 2.2; w = 2.2; h = 2.2;
+		m_origin = make_double3(-1.1, -1.1, -1.1);
 		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
+		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
 

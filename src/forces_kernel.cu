@@ -812,6 +812,8 @@ __device__ float2
 hf3d(float qas, float qae, float q, float pes)
 {
 	float2 ret = make_float2(0.0);
+	if (fabs(qae) < 1e-5f || fabs(q*q-qae*qae) < 1e-5f || pes < 1e-5)
+		return ret;
 	const float q2 = q*q;
 	const float q3 = q2*q;
 	const float q4 = q2*q2;
@@ -821,37 +823,34 @@ hf3d(float qas, float qae, float q, float pes)
 	const float qas4 = qas2*qas2;
 	const float qas5 = qas3*qas2;
 	const float qas6 = qas3*qas3;
+	const float qas8 = qas4*qas4;
 	const float qae2 = qae*qae;
 	const float qae4 = qae2*qae2;
-	const float qae6 = qae4*qae2;
+	const float pes2 = pes*pes;
+	const float pes4 = pes2*pes2;
+	const float pes6 = pes4*pes2;
 	const float sqrtqqae = sqrt(fmax(q2-qae2,0.0f));
-	const float acoshqqae = acosh(fmax(q/qae,1.0f));
-	const float atanmpi2 = (sqrtqqae < 1e-5f) ? 0.0f : atan(pes/sqrtqqae) - M_PI/2.0f;
-	const float atan23 = pes < 1e-5 ? 0.0f : atan(qas*pes/(q2-q*sqrtqqae-qas2)) - atan(qas/pes);
+	const float atanqqae1 = atan2(sqrtqqae,pes);
+	const float atanqqae2 = atan2(qas*sqrtqqae,pes*q);
 	// formula for gradGamma (h3d)
-	ret.x =	pes/2.0f*sqrtqqae*(
-				q5/24.0f - 7.0f/16.0f*q4
-				+ q3/96.0f*(6.0f*qas2+5.0f*qae2+168.0f)
-				- q2*7.0f/48.0f*(5.0f*qas2+4.0f*qae2+20.0f)
-				+ q/64.0f*(8.0f*qas4+5.0f*qae4+6.0f*qas2*qae2+224.0f*qas2+168.0f*qae2)
-				- 7.0f/48.0f*(15.0f*qas4+8.0f*qae4+10.0f*qas2*qae2+60.0f*qas2+40.0f*qae2-48.0f)
-			)
-			+ pes/128.0f*acoshqqae*(	16.0f*qas6+5.0f*qae6+8.0f*qas4*qae2+6.0f*qas2*qae4
-										+448.0f*qas4+168.0f*qae4+224.0f*qas2*qae2)
-			+ (35.0f*qas6+140.0f*qas4-112.0f*qas2+64.0f)/32.0f*atanmpi2
-			+ qas5*(qas2+28.0f)/8.0f*atan23;
+	ret.x =	1.0f/4096.0f/M_PI*(
+				-24.0f*(64.0f+7.0f*qas2*(-16.0f+5.0f*qas2*(4.0f+qas2)))*atanqqae1+96.0f*qas5*(28.0f+qas2)*atanqqae2+
+				pes*(
+					2.0f*sqrtqqae*(3.0f*qas4*(-420.0f+29.0f*q)+pes4*(-420.0f+33.0f*q)+2.0f*qas2*(-210.0f*(8.0f+q2-qae2)+756.0f*q+19.0f*(q2-qae2)*q)+
+					4.0f*(336.0f+(q2-qae2)*((q2-qae2)*(-21.0f+2.0f*q)+28.0f*(-5.0f+3.0f*q)))+2.0f*pes2*(420.0f*(-2.0f+q)+6.0f*qas2*(-105.0f+8.0f*q)+(q2-qae2)*(-140.0f+13.0f*q)))-
+					3.0f*(5.0f*pes6+21.0f*pes4*(8.0f+qas2)+35.0f*pes2*qas2*(16.0f+qas2)+35.0f*qas4*(24.0f+qas2))*(log(qae2)-2.0f*log(sqrtqqae+q))
+				)
+			);
+
 	// forumal for gamma (f3d)
-	ret.y =	pes/32.0f*sqrtqqae*(
-				q5/4.0f-3.0f*q4+(6.0f*qas2+5.0f*qae2+224.0f)*q3/16.0f
-				- q2*(5.0f*qas2+4.0f*qae2+28.0f)
-				+ q/64.0f*(24.0f*qas4+15.0f*qae4+8.0f*qas2*qae2+1896.0f*qas2+672.0f*qae2)
-				- 15.0f*qas4-8.0f*qae4-10.0f*qas2*qae2-84.0f*qas2-56.0f*qae2+112.0f
-			)
-			+ pes/1024.0f*acoshqqae*(	1792.0f*qas4+672.0f*qae4+896.0f*qas2*qae2+15.0f*qae6
-										+24.0f*qas4+qae2+18.0f*qas2*qae4+48.0f*qas6)
-			+ (15.0f*qas6+84.0f*qas4-112.0f*qas2+192.0f)/32.0f*atanmpi2
-			+ qas5*(3.0f*qas2+112.0f)/64.0f*atan23
-			- 2.0f/qas*atan(2.0f*qas*pes*q*sqrtqqae/((2.0f*qas2-qae2)*q2-qas2*qae2));
+	ret.y =	1.0f/M_PI/32768.0f*(
+				pes*qas*(3.0f*qae4*(224.0f+5.0f*qae2)+2.0f*qae2*(448.0f+9.0f*qae2)*qas2+8.0f*(224.0f+3.0f*qae2)*qas4+48.0f*qas6)*
+				(log(-qae2+2.0f*q*(q+sqrtqqae))-2.0f*log(qae)) +
+				2.0f*(pes*sqrtqqae*qas*(3584.0f-896.0f*q2+448.0f*q3-96.0f*q4+8.0f*q5+
+				2.0f*(-896.0f+q*(336.0f+q*(-64.0f+5.0f*q)))*qae2+(-256.0f+15.0f*q)*qae4+4.0f*(-672.0f+q*(224.0f+q*(-40.0f+3.0f*q)))*qas2+
+				(-320.0f+18.0f*q)*qae2*qas2+24.0f*(-20.0f+q)*qas4)+8.0f*M_PI*(256.0f+112.0f*qas6+3.0f*qas8)+
+				8.0f*(64.0f+qas*(-192.0f+qas*(240.0f+qas*(-160.0f+qas*(60.0f+(-12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(2.0f+qas))*atan2(q*qas-qae2,pes*sqrtqqae)-
+				8.0f*(64.0f+qas*(192.0f+qas*(240.0f+qas*(160.0f+qas*(60.0f+(12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(-2.0f+qas))*atan2(q*qas+qae2,-pes*sqrtqqae)));
 	return ret;
 }
 
@@ -879,7 +878,7 @@ gammaDevice(const	float4* 	oldPos,
 		#endif
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-		float4 gGam = make_float4(0.0f);
+		float4 gGam = make_float4(0.0f,0.0f,0.0f,1.0f);
 
 		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
 		if(FLUID(info) || VERTEX(info)) {
@@ -893,7 +892,13 @@ gammaDevice(const	float4* 	oldPos,
 			// this indicates whether we are on an edge or on a vertex to do the addition in the end
 			int finalAdd = 0;
 			float4 norm1 = make_float4(0.0f);
-			float sumOpenAngles = 0.0f;
+			float sumSolidAngles = 0.0f;
+			// old grad gamma is used for computation of solid angle for vertices and particles on a vertex
+			float4 oldGGam = tex1Dfetch(gamTex, index);
+			// at the first initialization step this is zero so use fmax to prevent nan. During the second step this will be ok
+			oldGGam.w = fmax(length3(oldGGam),1e-5f);
+			// we only need the direction so normalizing
+			oldGGam /= oldGGam.w;
 
 			// this array saves the indices of segments which had k_{as} added
 			uint kasIndex[MAXKASINDEX];
@@ -922,17 +927,14 @@ gammaDevice(const	float4* 	oldPos,
 				if (INACTIVE(relPos))
 					continue;
 
-				const float r = length3(relPos);
 
 				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
+				if (BOUNDARY(neibInfo)) {
 
-				// AM-TODO here inflRadius is not quite correct better would be q_aSigma
-				if (r < inflRadius && BOUNDARY(neibInfo)) {
 					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 					const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
 
 					// define edge independent variables
-
 					float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
 					q_aSigma.w = fmin(length3(q_aSigma),2.0f);
 					// local coordinate system for relative positions to vertices
@@ -965,19 +967,20 @@ gammaDevice(const	float4* 	oldPos,
 					const float4 ba = v0 - v1; // vector from v0 to v1 (changed signs due to definition of v0)
 					const float4 ca = v0 - v2; // vector from v0 to v2
 					const float4 pa = v0 + relPos; // vector from v0 to the particle
-					const float dot00 = length3(ba);
-					const float dot11 = length3(ca);
-					const float u = dot3(cross3(ba,pa),boundElement)/dot00/dot11;
-					const float v = dot3(cross3(pa,ca),boundElement)/dot00/dot11;
+					const float uu = sqlength3(ba);
+					const float uv = dot(ba,ca);
+					const float vv = sqlength3(ca);
+					const float wu = dot(ba,pa);
+					const float wv = dot(ca,pa);
+					const float invdet = 1.0f/(uv*uv-uu*vv);
+					const float u = (uv*wv-vv*wu)*invdet;
+					const float v = (uv*wu-uu*wv)*invdet;
 					float gradGamma_as = 0.0f;
 					float gamma_as = 0.0f;
 					// check if the particle is on a vertex
 					if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
 							(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
 							(     fabs(u) < 1e-5f && fabs(v) < 1e-5f)   ) && q_aSigma.w < 1e-5f) {
-						// add gradGamma only once
-						if(finalAdd==0)
-							gradGamma_as = 3.0f/4.0f;
 						// set touching vertex to v0
 						if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
 							const float4 tmp = v1;
@@ -989,25 +992,35 @@ gammaDevice(const	float4* 	oldPos,
 							v2 = v0;
 							v0 = tmp;
 						}
-						// compute the sum of all opening angles
-						sumOpenAngles += acos(dot3(v0-v1,v0-v2)/length(v0-v1)/length(v0-v2));
+						// additional value of grad gamma
+						const float openingAngle = acos(dot3((v0-v1),(v0-v2)));
+						gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
+						// compute the sum of all solid angles of the tetrahedron spanned by v0-v1, v0-v2 and gradgamma
+						float l1 = length3(v0-v1);
+						float l2 = length3(v0-v2);
+						float abc = dot3((v0-v1),oldGGam)/l1 + dot3((v0-v2),oldGGam)/l2 + dot3((v0-v1),(v0-v2))/l1/l2;
+						float d = dot3(oldGGam,cross3((v0-v1),(v0-v2)))/l1/l2;
+						// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983) 
+						sumSolidAngles += 2.0f*fabs(atan(d/(1.0f+abc)));
 						// count number of segments associated to vertex
-						finalAdd += 1;
+						finalAdd = 1;
 						// no term is added to gamma, this will be done at the end of the neighbourloop
 						gamma_as = 0.0f;
 					}
 					// check if particle is on an edge
-					else if ( (fabs(u) < 1e5f || fabs(v) < 1e-15 || fabs(u+v-1.0f) < 1e-5) && q_aSigma.w < 1e-5f) {
-						// add gradGamma only once
-						if(finalAdd==0)
-							gradGamma_as = 3.0f/4.0f;
+					else if ((	(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) ||
+								(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) || 
+								(fabs(u+v-1.0f) < 1e-5 && u > -1e-5f && u < 1.0f+1e-5f && v > -1e-5f && v < 1.0f+1e-5f)
+							 ) && q_aSigma.w < 1e-5f) {
+						// grad gamma for a half-plane
+						gradGamma_as = 3.0f/4.0f/2.0f;
 						// compute the angle between two segments
-						else if (finalAdd==-1){
+						if (finalAdd==-1){
 							const float theta0 = acos(dot3(boundElement,norm1)); // angle of the norms between 0 and pi
 							const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
 							const float4 normDir = cross3(boundElement, norm1); // this is the sin between the two norms
 							const float theta = M_PI + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
-							gamma_as = (1.0f - theta/2.0f/M_PI); // this is actually two times gamma_as
+							gamma_as -= theta/2.0f/M_PI; // this is actually two times gamma_as
 						}
 						else{
 							norm1 = boundElement;
@@ -1016,23 +1029,37 @@ gammaDevice(const	float4* 	oldPos,
 						finalAdd -= 1;
 					}
 					// particle is neither on edge nor vertex => general formula
-					else {
+					else if (q_aSigma.w < 2.0f) {
 						// additional term if projection is inside segment
-						if ( u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f ){
-							//bool found = false;
-							//for (uint j=0; j<curKasInd && !found; j++) {
-							//	if (fabs(length3(boundElement + tex1Dfetch(boundTex, kasIndex[j])) - 2.0f) < 1e-5f)
-							//		found = true;
-							//}
-							//if (!found) {
-								gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w);
-								gamma_as = 1.0f/8.0f/q_aSigma.w*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w);
-							//	kasIndex[curKasInd] = neib_index;
-							//	curKasInd += curKasInd<MAXKASINDEX ? 1 : 0; // ideally this should always be one but you never know
-							//}
-							if(id(info)==272){
-								printf("ggam add: %e\t%e\t%e\t%e\n\n", gradGamma_as, gamma_as, relPos.z, pa.z);
+						if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f) {
+							float openingAngle; // angle divided by 2 M_PI
+							// check if we are on top of a vertex
+							if (fabs(u-1.0f) < 1e-5f || fabs(v-1.0f) < 1e-5f || fabs(u+v-1.0f) < 1e-5f) {
+								// set touching vertex to v0
+								if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+									const float4 tmp = v1;
+									v1 = v0;
+									v0 = tmp;
+								}
+								else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+									const float4 tmp = v2;
+									v2 = v0;
+									v0 = tmp;
+								}
+								// additional value of grad gamma
+								openingAngle = acos(dot3((v0-v1),(v0-v2)));
+								openingAngle /= 2.0f*M_PI;
 							}
+							// interior of a triangle
+							else if (u > 1e-5f && v > 1e-5f && u+v < 1.0f-1e-5f) {
+								openingAngle = 1.0f;
+							}
+							// on an edge
+							else {
+								openingAngle = 0.5f;
+							}
+							gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
+							gamma_as = -1.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
 						}
 						// loop over all three edges
 						for (uint i=0; i<3; i++) {
@@ -1062,22 +1089,23 @@ gammaDevice(const	float4* 	oldPos,
 								float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
 								float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
 								p_EpsilonSigma.w = length3(p_EpsilonSigma);
-								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, (id(neibInfo)==4383 && id(info) == 272));
-								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, (id(neibInfo)==4383 && id(info) == 272));
-								gradGamma_as += 3.0f/2.0f/M_PI*copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
-								gamma_as -= 1.0f/16.0f/M_PI*copysign(copysign(hf3d1.y,y1) - copysign(hf3d0.y,y0), dot3(n_ds, p_EpsilonSigma));
+								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w);
+								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w);
+								gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
+								gamma_as += copysign(copysign(hf3d0.y,y0) - copysign(hf3d1.y,y1), dot3(n_ds, p_EpsilonSigma));
+							}
 						}
 					}
 					gGam.x += gradGamma_as*boundElement.x/slength;
 					gGam.y += gradGamma_as*boundElement.y/slength;
 					gGam.z += gradGamma_as*boundElement.z/slength;
-					gGam.w += gamma_as*dot3(boundElement,q_aSigma);
+					gGam.w -= copysign(gamma_as,dot3(boundElement,q_aSigma));
 				}
 			}
 			// if we have a particle on a vertex then we need to add another term to gamma
 			if (finalAdd > 0) {
 				// 1 - solidAngle / 4 M_PI
-				gGam.w += 1.0f - (sumOpenAngles - (float(finalAdd)-2.0f)*M_PI)/4.0f/M_PI;
+				gGam.w -= 1.0f - sumSolidAngles/4.0f/M_PI;
 			}
 
 			//Update gamma value
