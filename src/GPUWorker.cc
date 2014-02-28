@@ -89,8 +89,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	if (m_simparams->dtadapt) {
 		m_dBuffers << new CUDABuffer<BUFFER_CFL>();
 		m_dBuffers << new CUDABuffer<BUFFER_CFL_TEMP>();
-		if (m_simparams->boundarytype == SA_BOUNDARY)
-			m_dBuffers << new CUDABuffer<BUFFER_CFL_GAMMA>();
 		if (m_simparams->visctype == KEPSVISC)
 			m_dBuffers << new CUDABuffer<BUFFER_CFL_KEPS>();
 	}
@@ -1714,17 +1712,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case SA_INIT_GAMMA:
-				if (dbg_step_printf) printf(" T %d issuing SA_INIT_GAMMA\n", deviceIndex);
-				instance->kernel_initGradGamma();
-				break;
 			case SA_UPDATE_GAMMA:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_GAMMA\n", deviceIndex);
 				instance->kernel_updateGamma();
-				break;
-			case SA_UPDATE_POS:
-				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_POS\n", deviceIndex);
-				instance->kernel_updatePositions();
 				break;
 			case SA_CALC_BOUND_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
@@ -1971,7 +1961,6 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
 						m_dBuffers.getData<BUFFER_DKDE>(),
 						m_dBuffers.getData<BUFFER_CFL>(),
-						m_dBuffers.getData<BUFFER_CFL_GAMMA>(),
 						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
 						m_simparams->sph_formulation,
@@ -2009,7 +1998,6 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),	// e(n+1/2)
 						m_dBuffers.getData<BUFFER_DKDE>(),
 						m_dBuffers.getData<BUFFER_CFL>(),
-						m_dBuffers.getData<BUFFER_CFL_GAMMA>(),
 						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
 						m_simparams->sph_formulation,
@@ -2283,30 +2271,6 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 				m_simparams->influenceRadius);
 }
 
-void GPUWorker::kernel_initGradGamma()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	initGradGamma(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-				m_dBuffers.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate,
-				gdata->problem->m_deltap,
-				m_simparams->slength,
-				m_simparams->influenceRadius,
-				m_simparams->kerneltype);
-}
-
 void GPUWorker::kernel_updateGamma()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2336,22 +2300,6 @@ void GPUWorker::kernel_updateGamma()
 				gdata->extraCommandArg,
 				!initStep, // 0 during init step, else 1
 				m_simparams->kerneltype);
-}
-
-void GPUWorker::kernel_updatePositions()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	updatePositions(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-					m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-					m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-					gdata->extraCommandArg,
-					m_numParticles,
-					numPartsToElaborate);
 }
 
 void GPUWorker::kernel_calcPrivate()

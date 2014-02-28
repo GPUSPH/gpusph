@@ -698,6 +698,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 /************************************************************************************************************/
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
+// returns grad gamma_{as} which is the integral of the kernel on a segment
 template<KernelType kerneltype>
 __device__ __forceinline__ float4
 gradGamma(	const float slength,
@@ -709,105 +710,7 @@ gradGamma(	const float slength,
 	return retval;
 }
 
-
-template<KernelType kerneltype>
-__global__ void
-initGradGammaDevice(	float4*		oldPos,
-			float4*		newPos,
-			float4*		virtualVel,
-			float4*		gradGam,
-			const hashKey*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float deltap,
-			const float	slength,
-			const float	inflRadius)
-{
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
-		float4 pos = oldPos[index];
-		#else
-		float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-
-		// Taking info account self contribution in summation
-		float4 gGam = make_float4(0.0f);
-		float4 virtVel = make_float4(0.0f);
-
-		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
-		if(FLUID(info) || VERTEX(info)) {
-			//uint counter = 0; //DEBUG
-			float rmin = inflRadius;
-
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-			// Persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// Loop over all the neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
-				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - oldPos[neib_index];
-				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-				#endif
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				const float r = length(as_float3(relPos));
-
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-
-				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-					gGam += gradGamma<kerneltype>(slength, r, boundElement);
-					//counter++; //DEBUG
-					if(r < rmin)
-						rmin = r;
-				}
-			}
-
-			//DEBUG output
-			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
-			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
-
-			//Set the virtual displacement
-			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10f) {
-				virtVel = -1.0f * inflRadius * gGam / magnitude;
-				virtVel.w = 0.0f;
-			}
-		}
-
-		// Set gamma to 1
-		gGam.w = 1.0f;
-
-		gradGam[index] = gGam;
-		virtualVel[index].x = virtVel.x;
-		virtualVel[index].y = virtVel.y;
-		virtualVel[index].z = virtVel.z;
-		newPos[index] = pos - virtVel;
-	}
-}
-
+// helper function with the analytical formulae for gamma and grad gamma for the wendland kernel
 __device__ float2
 hf3d(float qas, float qae, float q, float pes)
 {
@@ -854,6 +757,7 @@ hf3d(float qas, float qae, float q, float pes)
 	return ret;
 }
 
+// main function to compute gamma and grad gamma for the wendland kernel
 template<KernelType kerneltype>
 __global__ void
 gammaDevice(const	float4* 	oldPos,
@@ -899,11 +803,6 @@ gammaDevice(const	float4* 	oldPos,
 			oldGGam.w = fmax(length3(oldGGam),1e-5f);
 			// we only need the direction so normalizing
 			oldGGam /= oldGGam.w;
-
-			// this array saves the indices of segments which had k_{as} added
-			uint kasIndex[MAXKASINDEX];
-			// this is the current iterator for the above array
-			uint curKasInd = 0;
 
 			// Loop over all the neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1115,217 +1014,6 @@ gammaDevice(const	float4* 	oldPos,
 		}
 
 		newGam[index] = gGam;
-	}
-}
-
-template<KernelType kerneltype>
-__global__ void
-updateGammaDevice(	const float4* oldPos,
-			float4*		newGam,
-			const hashKey*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float	slength,
-			const float	inflRadius,
-			const float	virtDt)
-{
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
-		const float4 pos = oldPos[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float3 vel = make_float3(tex1Dfetch(velTex, index));
-		float4 oldGam = tex1Dfetch(gamTex, index);
-
-		float4 gGam = make_float4(0.0f);
-		float deltaGam = 0.0f;
-
-		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
-		if(FLUID(info) || VERTEX(info)) {
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-			// Persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// Loop over all the neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
-				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - oldPos[neib_index];
-				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-				#endif
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				const float r = length(as_float3(relPos));
-
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-
-				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
-					gGam += gradGamma_as;
-					deltaGam += dot(make_float3(gradGamma_as), vel);
-				}
-			}
-
-			//Update gamma value
-			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10f) {
-				gGam.w = fmin(oldGam.w + deltaGam * 0.5f*virtDt,1.0f);
-			}
-			else
-				gGam.w = 1.0f;
-		}
-
-		newGam[index] = gGam;
-	}
-}
-
-
-template<KernelType kerneltype>
-__global__ void
-updateGammaPrCorDevice( const float4*		newPos,
-			float4*		newGam,
-			const hashKey*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float	slength,
-			const float	inflRadius,
-			const float	virtDt)
-{
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		float4 newpos = newPos[index];
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float3 vel = make_float3(tex1Dfetch(velTex, index));
-		float4 oldGam = tex1Dfetch(gamTex, index);
-
-		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGam.w);
-		float deltaGam = 0.0f;
-		deltaGam += dot(make_float3(oldGam), vel); //FIXME: It is incorrect for moving boundaries
-
-		// Compute gradient of gamma for fluid only
-		if(FLUID(info)) {
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-			// Persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// Loop over all the neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(newpos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				const float4 relPos = pos_corr - newPos[neib_index];
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				const float r = length(as_float3(relPos));
-
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-
-				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
-					gGam += gradGamma_as;
-					deltaGam += dot(make_float3(gradGamma_as), vel);
-				}
-			}
-
-			//Update gamma value
-			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10f) {
-				gGam.w = fmin(oldGam.w + deltaGam * 0.25f*virtDt,1.0f);
-			}
-			else
-				gGam.w = 1.0f;
-		}
-
-		newGam[index] = gGam;
-	}
-}
-
-
-//FIXME: Modify this kernel taking into account periodic boundary
-//template<KernelType kerneltype, bool periodicbound>
-//TODO-AM: this function will be removed as it is part of init_gamma and not required, the above fixme is not needed
-__global__ void
-updatePositionsDevice(	const float4*	oldPos,
-			float4*	newPos,
-			float	virtDt,
-			uint	numParticles)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
-		float4 pos = oldPos[index];
-		#else
-		float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float4 vel = tex1Dfetch(velTex, index);
-
-		if(FLUID(info) || VERTEX(info)) {
-			pos.x += virtDt * vel.x;
-			pos.y += virtDt * vel.y;
-			pos.z += virtDt * vel.z;
-		}
-
-//		if (periodicbound) {
-//			if (d_dispvect.x) {
-//				if (pos.x >= d_maxlimit.x)
-//					pos.x -= d_dispvect.x;
-//				else if (pos.x < d_minlimit.x)
-//					pos.x += d_dispvect.x;
-//			}
-//			if (d_dispvect.y) {
-//				if (pos.y >= d_maxlimit.y)
-//					pos.y -= d_dispvect.y;
-//				else if (pos.y < d_minlimit.y)
-//					pos.y += d_dispvect.y;
-//			}
-//			if (d_dispvect.z) {
-//				if (pos.z >= d_maxlimit.z)
-//					pos.z -= d_dispvect.z;
-//				else if (pos.z < d_minlimit.z)
-//					pos.z += d_dispvect.z;
-//			}
-//		}
-
-		newPos[index] = pos;
 	}
 }
 

@@ -69,10 +69,10 @@ void*	reduce_buffer = NULL;
 						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma, cflTVisc); \
+						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflGamma, cflTVisc); \
+						(pos, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
@@ -169,28 +169,10 @@ void*	reduce_buffer = NULL;
 				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 	break
 
-#define INITGRADGAMMA_CHECK(kernel) \
-	case kernel: \
-		cuforces::initGradGammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(oldPos, newPos, virtualVel, gradGamma, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, inflRadius); \
-	break
-
-#define UPDATEGAMMA_CHECK(kernel) \
-	case kernel: \
-		cuforces::updateGammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(oldPos, newGam, particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius, virtDt); \
-	break
-
 #define GAMMA_CHECK(kernel) \
 	case kernel: \
 		cuforces::gammaDevice<kernel><<< numBlocks, numThreads>>> \
 				(oldPos, newGam, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius); \
-	break
-
-#define UPDATEGAMMAPRCOR_CHECK(kernel) \
-	case kernel: \
-		cuforces::updateGammaPrCorDevice<kernel><<< numBlocks, numThreads>>> \
-				(newPos, newGam, particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius, virtDt); \
 	break
 
 #define DYNBOUNDARY_CHECK(kernel) \
@@ -479,7 +461,6 @@ forces(
 			float	*keps_eps,
 			float2	*keps_dkde,
 			float	*cfl,
-			float	*cflGamma,
 			float	*cflTVisc,
 			float	*tempCfl,
 	SPHFormulation	sph_formulation,
@@ -576,11 +557,6 @@ forces(
 				dt = dt_visc;
 		}
 
-		if(boundarytype == SA_BOUNDARY) {
-			float dt_gamma = 0.005/cflmax(numBlocks, cflGamma, tempCfl);
-			if (dt_gamma < dt)
-				dt = dt_gamma;
-		}
 	}
 	return dt;
 }
@@ -1047,49 +1023,6 @@ void calc_energy(
 }
 
 void
-initGradGamma(	float4*			oldPos,
-				float4*			newPos,
-				float4*			virtualVel,
-				particleinfo*	info,
-				float4*			boundElement,
-				float4*			gradGamma,
-		const	hashKey*			particleHash,
-		const	uint*			cellStart,
-				neibdata*		neibsList,
-				uint			numParticles,
-				uint			particleRangeEnd,
-				float			deltap,
-				float			slength,
-				float			inflRadius,
-				int				kerneltype)
-{
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-	
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	
-	//execute kernel
-	switch (kerneltype) {
-		INITGRADGAMMA_CHECK(CUBICSPLINE);
-//		INITGRADGAMMA_CHECK(QUADRATIC);
-		INITGRADGAMMA_CHECK(WENDLAND);
-	}
-	
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("InitGradGamma kernel execution failed");
-}
-
-void
 updateGamma(			float4*			oldPos,
 				const	float4*			newPos,
 						float4*			virtualVel,
@@ -1124,20 +1057,6 @@ updateGamma(			float4*			oldPos,
 	switch (kerneltype) {
 		GAMMA_CHECK(WENDLAND);
 	}
-/*	if(predcor) {
-		switch (kerneltype) {
-			UPDATEGAMMAPRCOR_CHECK(CUBICSPLINE);
-//			UPDATEGAMMAPRCOR_CHECK(QUADRATIC);
-			UPDATEGAMMAPRCOR_CHECK(WENDLAND);
-		}
-	}
-	else {
-		switch (kerneltype) {
-			UPDATEGAMMA_CHECK(CUBICSPLINE);
-//			UPDATEGAMMA_CHECK(QUADRATIC);
-			UPDATEGAMMA_CHECK(WENDLAND);
-		}
-	} */
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
@@ -1149,37 +1068,6 @@ updateGamma(			float4*			oldPos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("UpdateGamma kernel execution failed");
-}
-
-void
-updatePositions(	float4*		oldPos,
-			float4*		newPos,
-			float4*		virtualVel,
-			particleinfo*	info,
-			float		virtDt,
-			uint		numParticles,
-			uint		particleRangeEnd)
-{
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, virtualVel, numParticles*sizeof(float4)));
-
-	//execute kernel
-	cuforces::updatePositionsDevice<<<numBlocks, numThreads>>>(oldPos, newPos, virtDt, numParticles);
-
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("UpdatePositions kernel execution failed");
 }
 
 void

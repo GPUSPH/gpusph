@@ -67,7 +67,6 @@ FORCES_CUDA_KERNEL
 	# ifdef DT_KERNEL
 	,
 	float*		cfl,
-	float*		cflGamma,
 	float*		cfltvisc
 	# endif
 )
@@ -77,8 +76,6 @@ FORCES_CUDA_KERNEL
 	# ifdef DT_KERNEL
 	__shared__ float sm_max[BLOCK_SIZE_FORCES];
 	sm_max[threadIdx.x] = 0.0f;
-	__shared__ float sm_max_g[BLOCK_SIZE_FORCES];
-	sm_max_g[threadIdx.x] = 0.0f;
 	# ifdef VISC_KEPS
 	__shared__ float sm_max_nut[BLOCK_SIZE_FORCES];
 	sm_max_nut[threadIdx.x] = 0.0f;
@@ -452,8 +449,6 @@ FORCES_CUDA_KERNEL
 			# ifdef DT_KERNEL
 			// storing data for cfl condition in shared memory			
 			sm_max[threadIdx.x] = max(length(as_float3(force)), sspeed*sspeed/slength);
-			if(boundarytype == SA_BOUNDARY)
-				sm_max_g[threadIdx.x] = gradgamU;
 			# ifdef VISC_KEPS
 			sm_max_nut[threadIdx.x] = turbVisc;
 			# endif
@@ -627,8 +622,6 @@ FORCES_CUDA_KERNEL
 
 	# ifdef DT_KERNEL
 	dtadaptBlockReduce(sm_max, cfl);
-	if(boundarytype == SA_BOUNDARY)
-		dtadaptBlockReduce(sm_max_g, cflGamma);
 	# ifdef VISC_KEPS
 	dtadaptBlockReduce(sm_max_nut, cfltvisc);
 	# endif
