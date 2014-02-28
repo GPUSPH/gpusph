@@ -729,6 +729,16 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// NOTE: there would be no need to close any burst if the cell was empty. However, only curr and neib devices know the size of cells. It
 					// can be tested in the future the performance of broadcasting the size of the exchanged cells; this would allow for less bursts closings.
 
+					// uncomment the following to disable bursts and send always one cell at a time
+					/*
+					for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
+						if (burst_numparts[n][B_SEND] > 0)
+							burst_is_closed[n][B_SEND] = true;
+						if (burst_numparts[n][B_RECV] > 0)
+							burst_is_closed[n][B_RECV] = true;
+					}
+					*/
+
 					// NOPE: might need to flush the bursts first
 					// if the cell is empty, just continue to next one
 					// if (curr_cell_start == EMPTY_CELL) continue;
