@@ -654,7 +654,7 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					already_sent_to[ neib_cell_gidx ] = true;
 
 					// sending or receiving? always equal to curr_mine, but more readable
-					const uint is_sending = ( curr_mine ? B_SEND : B_RECV );
+					const uint transfer_direction = ( curr_mine ? B_SEND : B_RECV );
 
 					// the "other" device is the device owning the cell (curr or neib) which is not mine
 					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
@@ -841,16 +841,16 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// if we are involved in the pair, let's handle the creation or extension of the burst
 					if (curr_mine || neib_mine) {
 						// make a new burst with the current cell or extend the previous
-						if (burst_numparts[other_device_gidx][is_sending] == 0) {
+						if (burst_numparts[other_device_gidx][transfer_direction] == 0) {
 							// burst is empty, so create a new one and continue
-							burst_self_index_begin[other_device_gidx][is_sending] = curr_cell_start;
-							burst_self_index_end[other_device_gidx][is_sending] = curr_cell_start + partsInCurrCell;
-							burst_numparts[other_device_gidx][is_sending] = partsInCurrCell;
-							burst_is_closed[other_device_gidx][is_sending] = false;
+							burst_self_index_begin[other_device_gidx][transfer_direction] = curr_cell_start;
+							burst_self_index_end[other_device_gidx][transfer_direction] = curr_cell_start + partsInCurrCell;
+							burst_numparts[other_device_gidx][transfer_direction] = partsInCurrCell;
+							burst_is_closed[other_device_gidx][transfer_direction] = false;
 						} else {
 							// was non-empty: extend the existing one
-							burst_self_index_end[other_device_gidx][is_sending] += partsInCurrCell;
-							burst_numparts[other_device_gidx][is_sending] += partsInCurrCell;
+							burst_self_index_end[other_device_gidx][transfer_direction] += partsInCurrCell;
+							burst_numparts[other_device_gidx][transfer_direction] += partsInCurrCell;
 						}
 					}
 
