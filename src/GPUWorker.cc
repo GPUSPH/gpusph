@@ -716,21 +716,31 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 					} // if (any_mine)
 
-					// If this is the sending device, we want to close the non-empty bursts sending date to devices different than neib_cell_gidx
+					/* We could skip empty cells, but until there is no broadcast, not all devices know then they are. So
+					 * we have to close all bursts which have the curr_cell_gidx as sender: sender closes all the other,
+					 * others close one with curr sender.
+					 * Moreover, until cellStart and cellEnd are computed immediately upon reception of the size of the cell,
+					 * and not when flushing a burst, we also have to close all buffers which have the neib device
+					 * as recipient.
+					 * So, summarizing, now we want to close:
+					 * - All bursts originating from curr_cell_gidx, except the current to neib_cell_gidx, in all nodes
+					 * - All bursts addressed to neib_cell_gidx, except the current from curr_cell_gidx, in all nodes  */
 					if (curr_mine) {
 						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
 							if (n != neib_cell_gidx && burst_numparts[n][B_SEND] > 0)
 								burst_is_closed[n][B_SEND] = true;
 					} else
-					// is this not the sending nor the receiving device? then close the non-empty "receiving" bursts with the sending device
-					if (!any_mine) {
+					if (neib_mine) {
+						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+							if (n != curr_cell_gidx && burst_numparts[n][B_RECV] > 0)
+								burst_is_closed[n][B_RECV] = true;
+					} else  {
 						if (burst_numparts[curr_cell_gidx][B_RECV] > 0)
 							burst_is_closed[curr_cell_gidx][B_RECV] = true;
-						// do NOT "continue;" here: we want to flush bursts that have just been closed
+						if (burst_numparts[neib_cell_gidx][B_SEND] > 0)
+							burst_is_closed[neib_cell_gidx][B_SEND] = true;
 					}
-					// last possibility: is this the receiving device? Then, we do not need to close any burst
-					// NOTE: there would be no need to close any burst if the cell was empty. However, only curr and neib devices know the size of cells. It
-					// can be tested in the future the performance of broadcasting the size of the exchanged cells; this would allow for less bursts closings.
+					// It can be tested in the future the performance of broadcasting the size of the exchanged cells; this would allow for less bursts closings.
 
 					// uncomment the following to disable bursts and send always one cell at a time
 					/*
