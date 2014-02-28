@@ -698,21 +698,10 @@ SPSstressMatrixDevice(	const float4* posArray,
 /************************************************************************************************************/
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
-// returns grad gamma_{as} which is the integral of the kernel on a segment
-template<KernelType kerneltype>
-__device__ __forceinline__ float4
-gradGamma(	const float slength,
-		const float r,
-		const float4 boundElement)
-{
-	float4 retval = W<kerneltype>(r, slength) * boundElement.w * boundElement;
-	retval.w = 0;
-	return retval;
-}
 
 // helper function with the analytical formulae for gamma and grad gamma for the wendland kernel
 __device__ float2
-hf3d(float qas, float qae, float q, float pes)
+hf3d(float qas, float qae, float q, float pes, bool gradGammaOnly)
 {
 	float2 ret = make_float2(0.0);
 	if (fabs(qae) < 1e-5f || fabs(q*q-qae*qae) < 1e-5f || pes < 1e-5)
@@ -745,16 +734,167 @@ hf3d(float qas, float qae, float q, float pes)
 				)
 			);
 
-	// forumal for gamma (f3d)
-	ret.y =	1.0f/M_PI/32768.0f*(
-				pes*qas*(3.0f*qae4*(224.0f+5.0f*qae2)+2.0f*qae2*(448.0f+9.0f*qae2)*qas2+8.0f*(224.0f+3.0f*qae2)*qas4+48.0f*qas6)*
-				(log(-qae2+2.0f*q*(q+sqrtqqae))-2.0f*log(qae)) +
-				2.0f*(pes*sqrtqqae*qas*(3584.0f-896.0f*q2+448.0f*q3-96.0f*q4+8.0f*q5+
-				2.0f*(-896.0f+q*(336.0f+q*(-64.0f+5.0f*q)))*qae2+(-256.0f+15.0f*q)*qae4+4.0f*(-672.0f+q*(224.0f+q*(-40.0f+3.0f*q)))*qas2+
-				(-320.0f+18.0f*q)*qae2*qas2+24.0f*(-20.0f+q)*qas4)+8.0f*M_PI*(256.0f+112.0f*qas6+3.0f*qas8)+
-				8.0f*(64.0f+qas*(-192.0f+qas*(240.0f+qas*(-160.0f+qas*(60.0f+(-12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(2.0f+qas))*atan2(q*qas-qae2,pes*sqrtqqae)-
-				8.0f*(64.0f+qas*(192.0f+qas*(240.0f+qas*(160.0f+qas*(60.0f+(12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(-2.0f+qas))*atan2(q*qas+qae2,-pes*sqrtqqae)));
+	if (!gradGammaOnly) {
+		// forumal for gamma (f3d)
+		ret.y =	1.0f/M_PI/32768.0f*(
+					pes*qas*(3.0f*qae4*(224.0f+5.0f*qae2)+2.0f*qae2*(448.0f+9.0f*qae2)*qas2+8.0f*(224.0f+3.0f*qae2)*qas4+48.0f*qas6)*
+					(log(-qae2+2.0f*q*(q+sqrtqqae))-2.0f*log(qae)) +
+					2.0f*(pes*sqrtqqae*qas*(3584.0f-896.0f*q2+448.0f*q3-96.0f*q4+8.0f*q5+
+					2.0f*(-896.0f+q*(336.0f+q*(-64.0f+5.0f*q)))*qae2+(-256.0f+15.0f*q)*qae4+4.0f*(-672.0f+q*(224.0f+q*(-40.0f+3.0f*q)))*qas2+
+					(-320.0f+18.0f*q)*qae2*qas2+24.0f*(-20.0f+q)*qas4)+8.0f*M_PI*(256.0f+112.0f*qas6+3.0f*qas8)+
+					8.0f*(64.0f+qas*(-192.0f+qas*(240.0f+qas*(-160.0f+qas*(60.0f+(-12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(2.0f+qas))*atan2(q*qas-qae2,pes*sqrtqqae)-
+					8.0f*(64.0f+qas*(192.0f+qas*(240.0f+qas*(160.0f+qas*(60.0f+(12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(-2.0f+qas))*atan2(q*qas+qae2,-pes*sqrtqqae)));
+	}
+
 	return ret;
+}
+
+// returns grad gamma_{as} which is the integral of the kernel on a segment
+template<KernelType kerneltype>
+__device__ __forceinline__ float
+gradGamma(	const	float	slength,
+			const	float4	relPos,
+			const	float2	vPos0,
+			const	float2	vPos1,
+			const	float2	vPos2,
+			const	float4	boundElement)
+{
+	// define edge independent variables
+	float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
+	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
+	// local coordinate system for relative positions to vertices
+	uint j = 0;
+	float4 coord1 = make_float4(0.0f);
+	float4 coord2 = make_float4(0.0f);
+	// Get index j for which n_s is minimal
+	if (fabs(boundElement.x) > fabs(boundElement.y))
+		j = 1;
+	if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
+		j = 2;
+	// compute second coordinate which is equal to n_s x e_j
+	if (j==0) {
+		coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
+		coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
+	}
+	else if (j==1) {
+		coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
+		coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
+	}
+	else {
+		coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
+		coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
+	}
+	// relative positions of vertices with respect to the segment
+	float4 v0 = vPos0.x*coord1 + vPos0.y*coord2; // e.g. v0 = r_{v0} - r_s
+	float4 v1 = vPos1.x*coord1 + vPos1.y*coord2;
+	float4 v2 = vPos2.x*coord1 + vPos2.y*coord2;
+	// calculate if the projection of a (with respect to n) is inside the segment
+	const float4 ba = v0 - v1; // vector from v0 to v1 (changed signs due to definition of v0)
+	const float4 ca = v0 - v2; // vector from v0 to v2
+	const float4 pa = v0 + relPos; // vector from v0 to the particle
+	const float uu = sqlength3(ba);
+	const float uv = dot(ba,ca);
+	const float vv = sqlength3(ca);
+	const float wu = dot(ba,pa);
+	const float wv = dot(ca,pa);
+	const float invdet = 1.0f/(uv*uv-uu*vv);
+	const float u = (uv*wv-vv*wu)*invdet;
+	const float v = (uv*wu-uu*wv)*invdet;
+	float gradGamma_as = 0.0f;
+	// check if the particle is on a vertex
+	if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
+			(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
+			(     fabs(u) < 1e-5f && fabs(v) < 1e-5f)   ) && q_aSigma.w < 1e-5f) {
+		// set touching vertex to v0
+		if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+			const float4 tmp = v1;
+			v1 = v0;
+			v0 = tmp;
+		}
+		else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+			const float4 tmp = v2;
+			v2 = v0;
+			v0 = tmp;
+		}
+		// additional value of grad gamma
+		const float openingAngle = acos(dot3((v0-v1),(v0-v2)));
+		gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
+	}
+	// check if particle is on an edge
+	else if ((	(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) ||
+				(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) || 
+				(fabs(u+v-1.0f) < 1e-5 && u > -1e-5f && u < 1.0f+1e-5f && v > -1e-5f && v < 1.0f+1e-5f)
+			 ) && q_aSigma.w < 1e-5f) {
+		// grad gamma for a half-plane
+		gradGamma_as = 3.0f/4.0f/2.0f;
+	}
+	// particle is neither on edge nor vertex => general formula
+	else if (q_aSigma.w < 2.0f) {
+		// additional term if projection is inside segment
+		if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f) {
+			float openingAngle; // angle divided by 2 M_PI
+			// check if we are on top of a vertex
+			if (fabs(u-1.0f) < 1e-5f || fabs(v-1.0f) < 1e-5f || fabs(u+v-1.0f) < 1e-5f) {
+				// set touching vertex to v0
+				if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+					const float4 tmp = v1;
+					v1 = v0;
+					v0 = tmp;
+				}
+				else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+					const float4 tmp = v2;
+					v2 = v0;
+					v0 = tmp;
+				}
+				// additional value of grad gamma
+				openingAngle = acos(dot3((v0-v1),(v0-v2)));
+				openingAngle /= 2.0f*M_PI;
+			}
+			// interior of a triangle
+			else if (u > 1e-5f && v > 1e-5f && u+v < 1.0f-1e-5f) {
+				openingAngle = 1.0f;
+			}
+			// on an edge
+			else {
+				openingAngle = 0.5f;
+			}
+			gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
+		}
+		// loop over all three edges
+		for (uint i=0; i<3; i++) {
+			if (i>0) {
+				//swap vertices
+				const float4 tmp = v0;
+				v0 = v1;
+				v1 = v2;
+				v2 = tmp;
+			}
+			// vector pointing outward from segment normal to segment normal and v_{01}
+			// this is only possible because Crixus makes sure that the segments are ordered correctly
+			float4 n_ds = cross3(v1-v0,boundElement);
+			n_ds.w = length3(n_ds);
+			n_ds /= n_ds.w;
+			// q_aEpsilon is the vector from a to the intersection of v_{01} and the plane spanned by q_aSigma and n_ds (i.e. it's on the edge)
+			float4 q_aEpsilon = q_aSigma + n_ds*dot3(n_ds,relPos+v0)/slength;
+			q_aEpsilon.w = length3(q_aEpsilon);
+			// if q_aEpsilon is greater than 2 the kernel support doest not intersect the edge
+			if(q_aEpsilon.w < 2.0f) {
+				float4 te = (v1-v0);
+				te.w = length3(te);
+				te /= te.w;
+				float y0 = dot3(relPos+v0,te);
+				float y1 = dot3(relPos+v1,te);
+				float qv0 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y0*y0/(slength*slength)),2.0f);
+				float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
+				float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
+				p_EpsilonSigma.w = length3(p_EpsilonSigma);
+				float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, true);
+				float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, true);
+				gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
+			}
+		}
+	}
+	return gradGamma_as/slength;
 }
 
 // main function to compute gamma and grad gamma for the wendland kernel
@@ -988,8 +1128,8 @@ gammaDevice(const	float4* 	oldPos,
 								float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
 								float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
 								p_EpsilonSigma.w = length3(p_EpsilonSigma);
-								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w);
-								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w);
+								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, false);
+								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, false);
 								gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
 								gamma_as += copysign(copysign(hf3d0.y,y0) - copysign(hf3d1.y,y1), dot3(n_ds, p_EpsilonSigma));
 							}
@@ -1233,6 +1373,9 @@ template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 MeanScalarStrainRateDevice(	const float4* posArray,
+							const float2* vertPos0,
+							const float2* vertPos1,
+							const float2* vertPos2,
 							float* strainRate,
 							const hashKey*	particleHash,
 							const uint*	cellStart,
@@ -1313,11 +1456,11 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 			// second term, interaction with boundary elements
 			if(BOUNDARY(neib_info)) {
 				const float4 belem = tex1Dfetch(boundTex, neib_index);
-				const float3 gradgam_as = make_float3(gradGamma<kerneltype>(slength, r, belem));
+				const float3 rhoGGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem)*as_float3(belem)*relVel.w;
 
-				dvx += relVel.w*relVel.x*gradgam_as;	// dvx = ∑ρs vxas ∇ɣas
-				dvy += relVel.w*relVel.y*gradgam_as;	// dvy = ∑ρs vyas ∇ɣas
-				dvz += relVel.w*relVel.z*gradgam_as;	// dvz = ∑ρs vzas ∇ɣas
+				dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
+				dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
+				dvz += relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 			}
 		} // end if
 	} // end of loop through neighbors

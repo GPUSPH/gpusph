@@ -1933,6 +1933,7 @@ void GPUWorker::kernel_forces()
 	if (numPartsToElaborate > 0 && firstStep)
 		returned_dt = forces(
 						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+						m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
 						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
@@ -1970,6 +1971,7 @@ void GPUWorker::kernel_forces()
 	// second step
 	if (numPartsToElaborate > 0 && !firstStep)
 		returned_dt = forces(  m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),  // pos(n+1/2)
+						m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
 						m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),  // vel(n+1/2)
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n+1/2)
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
@@ -2180,6 +2182,7 @@ void GPUWorker::kernel_meanStrain()
 	mean_strain_rate(
 		m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
 		m_dBuffers.getData<BUFFER_POS>(posRead),
+		m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
 		m_dBuffers.getData<BUFFER_VEL>(velRead),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 		m_dBuffers.getData<BUFFER_HASH>(),
