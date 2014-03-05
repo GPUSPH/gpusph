@@ -206,7 +206,14 @@ void GPUWorker::computeAndSetAllocableParticles()
 
 	freeMemory -= memPerCells;
 
-	m_numAllocatedParticles = (freeMemory / computeMemoryPerParticle());
+	uint numAllocableParticles = (freeMemory / computeMemoryPerParticle());
+
+	if (numAllocableParticles < gdata->allocatedParticles)
+		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
+		       numAllocableParticles, gdata->allocatedParticles);
+
+	// allocate at most the number of particles required for the whole simulation
+	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
 		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
