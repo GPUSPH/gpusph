@@ -1154,6 +1154,12 @@ void GPUSPH::doWrite()
 		gdata->writer->write_WaveGage(gdata->t, gages);
 	}
 
+	//Testpoints
+	if (gdata->problem->get_simparams()->testpoints) {
+		// Write testpoints, on buffer read
+		doCommand(COMPUTE_TESTPOINTS);
+	}
+
 	gdata->writer->write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
