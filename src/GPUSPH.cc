@@ -1195,6 +1195,8 @@ void GPUSPH::buildNeibList()
 		// crop external cells
 		doCommand(CROP);
 		// append fresh copies of the externals
+		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
+		// until next calchash; however, they are filtered out when using the particle hashes.
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
 	}
 
