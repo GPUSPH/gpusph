@@ -99,6 +99,7 @@ enum CommandType {
 	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
+	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	QUIT				// quits the simulation cycle
 };
 

@@ -192,6 +192,7 @@ private:
 	void kernel_updateGamma();
 	void kernel_updatePositions();
 	void kernel_calcPrivate();
+	void kernel_testpoints();
 	/*void uploadMbData();
 	void uploadGravity();*/
 
