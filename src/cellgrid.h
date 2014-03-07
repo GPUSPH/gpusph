@@ -35,6 +35,9 @@
 
 #include "hashkey.h"
 
+// COORD1, COORD2, COORD3
+#include "linearization.h"
+
 __constant__ float3 d_worldOrigin;
 __constant__ float3 d_cellSize;
 __constant__ uint3 d_gridSize;
@@ -43,7 +46,7 @@ __constant__ uint3 d_gridSize;
 __device__ __forceinline__ uint
 calcGridHash(int3 const& gridPos)
 {
-	return INTMUL(INTMUL(gridPos.z, d_gridSize.y), d_gridSize.x) + INTMUL(gridPos.y, d_gridSize.x) + gridPos.x;
+	return INTMUL(INTMUL(gridPos.COORD3, d_gridSize.COORD2), d_gridSize.COORD1) + INTMUL(gridPos.COORD2, d_gridSize.COORD1) + gridPos.COORD1;
 }
 
 /// Compute grid position from cell hash value
@@ -60,11 +63,11 @@ __device__ __forceinline__ int3
 calcGridPosFromCellHash(const uint cellHash)
 {
 	int3 gridPos;
-	int temp = INTMUL(d_gridSize.y, d_gridSize.x);
-	gridPos.z = cellHash/temp;
-	temp = cellHash - gridPos.z*temp;
-	gridPos.y = temp/d_gridSize.x;
-	gridPos.x = temp - gridPos.y*d_gridSize.x;
+	int temp = INTMUL(d_gridSize.COORD2, d_gridSize.COORD1);
+	gridPos.COORD3 = cellHash / temp;
+	temp = cellHash - gridPos.COORD3 * temp;
+	gridPos.COORD2 = temp / d_gridSize.COORD1;
+	gridPos.COORD1 = temp - gridPos.COORD2 * d_gridSize.COORD1;
 
 	return gridPos;
 }

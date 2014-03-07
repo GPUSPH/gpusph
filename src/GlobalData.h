@@ -48,6 +48,9 @@
 // BufferList
 #include "buffer.h"
 
+// COORD1, COORD2, COORD3
+#include "linearization.h"
+
 // GPUWorker
 // no need for a complete definition, a simple declaration will do
 // and since GPUWorker.h needs to include GlobalData.h, it solves
@@ -348,10 +351,11 @@ struct GlobalData {
 
 	// compute the linearized hash of the cell located at gridPos
 	uint calcGridHashHost(int cellX, int cellY, int cellZ) const {
-		int trimmedX = min( max(0, cellX), gridSize.x-1);
-		int trimmedY = min( max(0, cellY), gridSize.y-1);
-		int trimmedZ = min( max(0, cellZ), gridSize.z-1);
-		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
+		int3 trimmed;
+		trimmed.x = min( max(0, cellX), gridSize.x-1);
+		trimmed.y = min( max(0, cellY), gridSize.y-1);
+		trimmed.z = min( max(0, cellZ), gridSize.z-1);
+		return ( (trimmed.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (trimmed.COORD2 * gridSize.COORD1) + trimmed.COORD1;
 	}
 	// overloaded
 	uint calcGridHashHost(int3 gridPos) const {
@@ -361,19 +365,23 @@ struct GlobalData {
 	// TODO MERGE REVIEW. refactor with next one
 	uint3 calcGridPosFromCellHash(uint cellHash) const {
 		uint3 gridPos;
-		gridPos.z = cellHash/(gridSize.x*gridSize.y);
-		gridPos.y = (cellHash - gridPos.z*gridSize.x*gridSize.y)/gridSize.x;
-		gridPos.x = cellHash - gridPos.y*gridSize.x - gridPos.z*gridSize.x*gridSize.y;
+
+		gridPos.COORD3 = cellHash / (gridSize.COORD1 * gridSize.COORD2);
+		gridPos.COORD2 = (cellHash - gridPos.COORD3 * gridSize.COORD1 * gridSize.COORD2) / gridSize.COORD1;
+		gridPos.COORD1 = cellHash - gridPos.COORD2 * gridSize.COORD1 - gridPos.COORD3 * gridSize.COORD1 * gridSize.COORD2;
 
 		return gridPos;
 	}
 
 	// reverse the linearized hash of the cell and return the location in gridPos
 	int3 reverseGridHashHost(uint cell_lin_idx) const {
-		int cz = cell_lin_idx / (gridSize.y * gridSize.x);
-		int cy = (cell_lin_idx - (cz * gridSize.y * gridSize.x)) / gridSize.x;
-		int cx = cell_lin_idx - (cz * gridSize.y * gridSize.x) - (cy * gridSize.x);
-		return make_int3(cx, cy, cz);
+		int3 res;
+
+		res.COORD3 = cell_lin_idx / (gridSize.COORD2 * gridSize.COORD1);
+		res.COORD2 = (cell_lin_idx - (res.COORD3 * gridSize.COORD2 * gridSize.COORD1)) / gridSize.COORD1;
+		res.COORD1 = cell_lin_idx - (res.COORD3 * gridSize.COORD2 * gridSize.COORD1) - (res.COORD2 * gridSize.COORD1);
+
+		return make_int3(res.x, res.y, res.z);
 	}
 
 	// compute the global device Id of the cell holding globalPos
