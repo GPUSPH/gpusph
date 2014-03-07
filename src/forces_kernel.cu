@@ -1376,8 +1376,6 @@ shepardDevice(	const float4*	posArray,
 	// read particle data from sorted arrays
 	// normalize kernel only if the given particle is a fluid one
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info) && !VERTEX(info))
-		return;
 
 	#if( __COMPUTE__ >= 20)
 	const float4 pos = posArray[index];
@@ -1386,6 +1384,11 @@ shepardDevice(	const float4*	posArray,
 	#endif
 
 	float4 vel = tex1Dfetch(velTex, index);
+
+	if (NOT_FLUID(info) && !VERTEX(info)) {
+		newVel[index] = vel;
+		return;
+	}
 
 	// taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
@@ -1485,8 +1488,6 @@ MlsDevice(	const float4*	posArray,
 	// read particle data from sorted arrays
 	// computing MLS matrix only for fluid particles
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
-		return;
 
 	#if( __COMPUTE__ >= 20)
 	const float4 pos = posArray[index];
@@ -1495,6 +1496,11 @@ MlsDevice(	const float4*	posArray,
 	#endif
 
 	float4 vel = tex1Dfetch(velTex, index);
+
+	if (NOT_FLUID(info)) {
+		newVel[index] = vel;
+		return;
+	}
 
 	// MLS matrix elements
 	symtensor4 mls;
