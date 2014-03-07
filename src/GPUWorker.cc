@@ -1727,6 +1727,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
 				instance->kernel_calcPrivate();
 				break;
+			case COMPUTE_TESTPOINTS:
+				if (dbg_step_printf) printf(" T %d issuing COMPUTE_TESTPOINTS\n", deviceIndex);
+				instance->kernel_testpoints();
+				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
@@ -2316,6 +2320,26 @@ void GPUWorker::kernel_calcPrivate()
 				m_simparams->influenceRadius,
 				m_numParticles,
 				numPartsToElaborate);
+}
+
+void GPUWorker::kernel_testpoints()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	testpoints(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				numPartsToElaborate,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius);
 }
 
 void GPUWorker::uploadConstants()
