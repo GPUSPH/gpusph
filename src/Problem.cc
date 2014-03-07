@@ -39,6 +39,9 @@
 // here we need the complete definition of the GlobalData struct
 #include "GlobalData.h"
 
+// COORD1, COORD2, COORD3
+#include "linearization.h"
+
 uint Problem::m_total_ODE_bodies = 0;
 
 Problem::Problem(const GlobalData *_gdata)
@@ -775,7 +778,7 @@ Problem::calc_grid_pos(const Point&	pos)
 uint
 Problem::calc_grid_hash(int3 gridPos)
 {
-	return gridPos.z*m_gridsize.y*m_gridsize.x + gridPos.y*m_gridsize.x + gridPos.x;
+	return gridPos.COORD3 * m_gridsize.COORD2 * m_gridsize.COORD1 + gridPos.COORD2 * m_gridsize.COORD1 + gridPos.COORD1;
 }
 
 
