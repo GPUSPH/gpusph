@@ -366,7 +366,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// it is slightly outside the domain.
 	}
 
-	// linearized cell index (NOTE: computed on host)
+	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
 	numbytes = sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (int i=node_offset; i < node_offset + numParts; i++) {
