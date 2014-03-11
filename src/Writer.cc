@@ -36,6 +36,10 @@ Writer::Writer(const Problem *problem)
 	m_dirname = problem->get_dirname() + "/data";
 	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
+	// create directory for testpoints
+	if (problem->get_simparams()->csvtestpoints)
+		mkdir((m_dirname + "/testpoints").c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+
 	string energy_fn = m_dirname + "/energy.txt";
 	m_energyfile = fopen(energy_fn.c_str(), "w");
 	/*if (!m_energyfile) {

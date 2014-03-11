@@ -78,6 +78,8 @@ typedef struct SimParams {
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;			// true if we want to save vorticity
 	bool			testpoints;			// true if we want to find velocity at testpoints
+	bool			csvtestpoints;		// true to dump the testpoints also in CSV files
+	bool			csvsimplegages;		// true to dump the gages also in CSV files
 	bool			savenormals;		// true if we want to save the normals at free surface
 	bool			surfaceparticle;	// true if we want to find surface particles
 	bool			calc_energy;		// true if we want to compute system energy at save time
@@ -113,6 +115,8 @@ typedef struct SimParams {
 		boundarytype(LJ_BOUNDARY),
 		vorticity(false),
 		testpoints(false),
+		csvtestpoints(false),
+		csvsimplegages(false),
 		savenormals(false),
 		surfaceparticle(false),
 		calc_energy(true),

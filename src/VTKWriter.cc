@@ -110,6 +110,21 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
+	// CSV file for tespoints
+	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
+	FILE *testpoints_file = NULL;
+	if (m_gdata->problem->get_simparams()->csvtestpoints) {
+		testpoints_file = fopen(testpoints_fname.c_str(), "w");
+		if (testpoints_file == NULL) {
+			stringstream ss;
+			ss << "Cannot open testpoints file " << testpoints_fname;
+			throw runtime_error(ss.str());
+		}
+		// write CSV header
+		if (testpoints_file)
+			fprintf(testpoints_file,"T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ\n");
+	}
+
 	string filename;
 
 	FILE *fid = open_data_file("PART", next_filenum(), &filename);
@@ -301,6 +316,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
+			if (m_gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
+				fprintf(testpoints_file,"%g,%u,%g,%u,%u,%g,%g,%g,%g,%g,%g\n",
+					t, id(info[i]),
+					vel[i].w, object(info[i]), cellHashFromParticleHash( particleHash[i] ),
+					pos[i].x, pos[i].y, pos[i].z,
+					vel[i].x, vel[i].y, vel[i].z);
+			}
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
@@ -474,6 +496,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 			t, 0, filename.c_str());
 		fflush(m_timefile);
 	}
+
+	// close testpoints file
+	if (testpoints_file != NULL)
+		fclose(testpoints_file);
 }
 
 void
