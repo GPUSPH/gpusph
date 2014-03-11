@@ -859,7 +859,7 @@ gradGamma(	const	float	slength,
 					v0 = tmp;
 				}
 				// additional value of grad gamma
-				openingAngle = acos(dot3((v0-v1),(v0-v2)));
+				openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
 				openingAngle /= 2.0f*M_PI;
 				skipedge1 = 0;
 				skipedge2 = 2;
@@ -1123,7 +1123,7 @@ gammaDevice(const	float4* 	oldPos,
 									v0 = tmp;
 								}
 								// additional value of grad gamma
-								openingAngle = acos(dot3((v0-v1),(v0-v2)));
+								openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
 								openingAngle /= 2.0f*M_PI;
 								skipedge1 = 0;
 								skipedge2 = 2;
@@ -1178,7 +1178,7 @@ gammaDevice(const	float4* 	oldPos,
 								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, false);
 								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, false);
 								gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
-								gamma_as += copysign(copysign(hf3d0.y,y0) - copysign(hf3d1.y,y1), dot3(n_ds, p_EpsilonSigma));
+								gamma_as -= copysign(copysign(hf3d0.y,y0) - copysign(hf3d1.y,y1), dot3(n_ds, p_EpsilonSigma));
 							}
 						}
 					}
