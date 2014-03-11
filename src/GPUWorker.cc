@@ -211,7 +211,7 @@ void GPUWorker::computeAndSetAllocableParticles()
 
 	if (numAllocableParticles < gdata->allocatedParticles)
 		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
-		       numAllocableParticles, gdata->allocatedParticles);
+			m_deviceIndex, numAllocableParticles, gdata->allocatedParticles);
 
 	// allocate at most the number of particles required for the whole simulation
 	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
