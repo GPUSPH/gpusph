@@ -801,6 +801,8 @@ gradGamma(	const	float	slength,
 	const float u = (uv*wv-vv*wu)*invdet;
 	const float v = (uv*wu-uu*wv)*invdet;
 	float gradGamma_as = 0.0f;
+	int skipedge1 = -1;
+	int skipedge2 = -1;
 	// check if the particle is on a vertex
 	if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
 			(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
@@ -817,8 +819,10 @@ gradGamma(	const	float	slength,
 			v0 = tmp;
 		}
 		// additional value of grad gamma
-		const float openingAngle = acos(dot3((v0-v1),(v0-v2)));
+		const float openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
 		gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
+		skipedge1 = 0;
+		skipedge2 = 2;
 	}
 	// check if particle is on an edge
 	else if ((	(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) ||
@@ -827,28 +831,38 @@ gradGamma(	const	float	slength,
 			 ) && q_aSigma.w < 1e-5f) {
 		// grad gamma for a half-plane
 		gradGamma_as = 3.0f/4.0f/2.0f;
+		// the following edge is intersecting the particle and thus does not need to be computed
+		skipedge1 = 1;
+		if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is on v02
+			skipedge1 = 2;
+		else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is on v01
+			skipedge1 = 0;
 	}
-	// particle is neither on edge nor vertex => general formula
-	else if (q_aSigma.w < 2.0f) {
+	// general formula (also used if particle is on vertex / edge to compute remaining edges)
+	if (q_aSigma.w < 2.0f) {
 		// additional term if projection is inside segment
-		if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f) {
+		if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f && skipedge1 == -1 && skipedge2 == -1) {
 			float openingAngle; // angle divided by 2 M_PI
 			// check if we are on top of a vertex
 			if (fabs(u-1.0f) < 1e-5f || fabs(v-1.0f) < 1e-5f || fabs(u+v-1.0f) < 1e-5f) {
 				// set touching vertex to v0
 				if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
 					const float4 tmp = v1;
-					v1 = v0;
+					v1 = v2;
+					v2 = v0;
 					v0 = tmp;
 				}
 				else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
 					const float4 tmp = v2;
-					v2 = v0;
+					v2 = v1;
+					v1 = v0;
 					v0 = tmp;
 				}
 				// additional value of grad gamma
 				openingAngle = acos(dot3((v0-v1),(v0-v2)));
 				openingAngle /= 2.0f*M_PI;
+				skipedge1 = 0;
+				skipedge2 = 2;
 			}
 			// interior of a triangle
 			else if (u > 1e-5f && v > 1e-5f && u+v < 1.0f-1e-5f) {
@@ -857,6 +871,12 @@ gradGamma(	const	float	slength,
 			// on an edge
 			else {
 				openingAngle = 0.5f;
+				// the following edge is below the particle and thus does not need to be computed
+				skipedge1 = 1;
+				if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is above v02
+					skipedge1 = 2;
+				else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is above v01
+					skipedge1 = 0;
 			}
 			gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
 		}
@@ -869,6 +889,8 @@ gradGamma(	const	float	slength,
 				v1 = v2;
 				v2 = tmp;
 			}
+			if(skipedge1 == i || skipedge2 == i)
+				continue;
 			// vector pointing outward from segment normal to segment normal and v_{01}
 			// this is only possible because Crixus makes sure that the segments are ordered correctly
 			float4 n_ds = cross3(v1-v0,boundElement);
@@ -1016,6 +1038,8 @@ gammaDevice(const	float4* 	oldPos,
 					const float v = (uv*wu-uu*wv)*invdet;
 					float gradGamma_as = 0.0f;
 					float gamma_as = 0.0f;
+					int skipedge1 = -1;
+					int skipedge2 = -1;
 					// check if the particle is on a vertex
 					if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
 							(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
@@ -1023,16 +1047,18 @@ gammaDevice(const	float4* 	oldPos,
 						// set touching vertex to v0
 						if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
 							const float4 tmp = v1;
-							v1 = v0;
+							v1 = v2;
+							v2 = v0;
 							v0 = tmp;
 						}
 						else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
 							const float4 tmp = v2;
-							v2 = v0;
+							v2 = v1;
+							v1 = v0;
 							v0 = tmp;
 						}
 						// additional value of grad gamma
-						const float openingAngle = acos(dot3((v0-v1),(v0-v2)));
+						const float openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
 						gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
 						// compute the sum of all solid angles of the tetrahedron spanned by v0-v1, v0-v2 and gradgamma
 						float l1 = length3(v0-v1);
@@ -1045,6 +1071,9 @@ gammaDevice(const	float4* 	oldPos,
 						finalAdd = 1;
 						// no term is added to gamma, this will be done at the end of the neighbourloop
 						gamma_as = 0.0f;
+						// the following edges are associated with v0 and thus do not need to be computed
+						skipedge1 = 0;
+						skipedge2 = 2;
 					}
 					// check if particle is on an edge
 					else if ((	(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) ||
@@ -1066,28 +1095,38 @@ gammaDevice(const	float4* 	oldPos,
 							gamma_as = 0.0f; // we don't know the angle yet, because we need to find the second segment first
 						}
 						finalAdd -= 1;
+						// the following edge is intersecting the particle and thus does not need to be computed
+						skipedge1 = 1;
+						if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is on v02
+							skipedge1 = 2;
+						else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is on v01
+							skipedge1 = 0;
 					}
-					// particle is neither on edge nor vertex => general formula
-					else if (q_aSigma.w < 2.0f) {
+					// general formula (also used if particle is on vertex / edge to compute remaining edges)
+					if (q_aSigma.w < 2.0f) {
 						// additional term if projection is inside segment
-						if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f) {
+						if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f && skipedge1 == -1 && skipedge2 == -1) {
 							float openingAngle; // angle divided by 2 M_PI
 							// check if we are on top of a vertex
 							if (fabs(u-1.0f) < 1e-5f || fabs(v-1.0f) < 1e-5f || fabs(u+v-1.0f) < 1e-5f) {
 								// set touching vertex to v0
 								if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
 									const float4 tmp = v1;
-									v1 = v0;
+									v1 = v2;
+									v2 = v0;
 									v0 = tmp;
 								}
 								else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
 									const float4 tmp = v2;
-									v2 = v0;
+									v2 = v1;
+									v1 = v0;
 									v0 = tmp;
 								}
 								// additional value of grad gamma
 								openingAngle = acos(dot3((v0-v1),(v0-v2)));
 								openingAngle /= 2.0f*M_PI;
+								skipedge1 = 0;
+								skipedge2 = 2;
 							}
 							// interior of a triangle
 							else if (u > 1e-5f && v > 1e-5f && u+v < 1.0f-1e-5f) {
@@ -1096,6 +1135,12 @@ gammaDevice(const	float4* 	oldPos,
 							// on an edge
 							else {
 								openingAngle = 0.5f;
+								// the following edge is below the particle and thus does not need to be computed
+								skipedge1 = 1;
+								if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is above v02
+									skipedge1 = 2;
+								else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is above v01
+									skipedge1 = 0;
 							}
 							gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
 							gamma_as = -1.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
@@ -1109,6 +1154,8 @@ gammaDevice(const	float4* 	oldPos,
 								v1 = v2;
 								v2 = tmp;
 							}
+							if(skipedge1 == i || skipedge2 == i)
+								continue;
 							// vector pointing outward from segment normal to segment normal and v_{01}
 							// this is only possible because Crixus makes sure that the segments are ordered correctly
 							float4 n_ds = cross3(v1-v0,boundElement);
