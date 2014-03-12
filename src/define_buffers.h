@@ -98,9 +98,7 @@ SET_BUFFER_TRAITS(BUFFER_TKE, float, 2, "Turbulent Kinetic Energy [k]");
 SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
 #define BUFFER_TURBVISC		(BUFFER_EPSILON << 1)
 SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 2, "Eddy Viscosity");
-#define BUFFER_STRAIN_RATE	(BUFFER_TURBVISC << 1)
-SET_BUFFER_TRAITS(BUFFER_STRAIN_RATE, float, 2, "Mean Strain Rate");
-#define BUFFER_DKDE			(BUFFER_STRAIN_RATE << 1)
+#define BUFFER_DKDE			(BUFFER_TURBVISC << 1)
 SET_BUFFER_TRAITS(BUFFER_DKDE, float2, 1, "[k]-[e] derivatives");
 
 #define BUFFER_CFL			(BUFFER_DKDE << 1)
@@ -139,7 +137,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 #define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
 	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
 	BUFFER_TKE | BUFFER_EPSILON | \
-	BUFFER_TURBVISC | BUFFER_STRAIN_RATE)
+	BUFFER_TURBVISC)
 
 // all buffers which need to transfer more than one array
 #define BUFFER_BIG		(BUFFER_TAU | BUFFER_VERTPOS)

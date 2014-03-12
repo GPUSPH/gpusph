@@ -105,7 +105,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 		m_dBuffers << new CUDABuffer<BUFFER_TKE>();
 		m_dBuffers << new CUDABuffer<BUFFER_EPSILON>();
 		m_dBuffers << new CUDABuffer<BUFFER_TURBVISC>();
-		m_dBuffers << new CUDABuffer<BUFFER_STRAIN_RATE>();
 		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
 
@@ -1728,10 +1727,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
 				break;
-			case MEAN_STRAIN:
-				if (dbg_step_printf) printf(" T %d issuing MEAN_STRAIN\n", deviceIndex);
-				instance->kernel_meanStrain();
-				break;
 			case REDUCE_BODIES_FORCES:
 				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
@@ -1855,7 +1850,6 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentWrite[BUFFER_TURBVISC]),
-							m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentWrite[BUFFER_STRAIN_RATE]),
 
 							// hash
 							m_dBuffers.getData<BUFFER_HASH>(),
@@ -1872,7 +1866,6 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
-							m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
 
 							m_numParticles,
 							m_nGridCells,
@@ -2167,39 +2160,6 @@ void GPUWorker::kernel_sps()
 		m_simparams->kerneltype,
 		m_simparams->influenceRadius);
 }
-
-void GPUWorker::kernel_meanStrain()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	// pos and vel are read from curren*Read on the first step,
-	// from current*Write on the second
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
-	uint posRead = firstStep ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS];
-	uint velRead = firstStep ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL];
-
-	mean_strain_rate(
-		m_dBuffers.getData<BUFFER_STRAIN_RATE>(gdata->currentRead[BUFFER_STRAIN_RATE]),
-		m_dBuffers.getData<BUFFER_POS>(posRead),
-		m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
-		m_dBuffers.getData<BUFFER_VEL>(velRead),
-		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-		m_dBuffers.getData<BUFFER_HASH>(),
-		m_dCellStart,
-		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-		m_numParticles,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->kerneltype,
-		m_simparams->influenceRadius,
-		m_simparams->epsilon);
-}
-
 
 void GPUWorker::kernel_reduceRBForces()
 {

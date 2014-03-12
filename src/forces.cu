@@ -131,12 +131,6 @@ void*	reduce_buffer = NULL;
 				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 		break
 
-#define KEPS_CHECK(kernel) \
-	case kernel: \
-		cuforces::MeanScalarStrainRateDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, vertPos[0], vertPos[1], vertPos[2], strainrate, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius, epsilon); \
-		break
-
 #define SHEPARD_CHECK(kernel) \
 	case kernel: \
 		cuforces::shepardDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
@@ -329,60 +323,6 @@ setforcesrbstart(const uint* rbfirstindex, int numbodies)
 }
 
 void
-mean_strain_rate(
-			float	*strainrate,
-	const	float4	*pos,
-			float2	*vertPos[],
-	const	float4	*vel,
-const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-	const	float4	*gradgam,
-	const	float4	*boundelem,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-		KernelType	kerneltype,
-			float	influenceradius,
-	const	float	epsilon)
-{
-	int dummy_shared = 0;
-	// bind textures to read all particles, not only internal ones
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
-
-	uint numThreads = min(BLOCK_SIZE_SPS, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-#if (__COMPUTE__ == 20)
-	dummy_shared = 2560;
-#endif
-	switch (kerneltype) {
-		KEPS_CHECK(CUBICSPLINE);
-		//KEPS_CHECK(QUADRATIC);
-		KEPS_CHECK(WENDLAND);
-		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype);
-	}
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("MeanScalarStrainRate kernel execution failed");
-
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-
-	CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, strainrate, numParticles*sizeof(float)));
-}
-
-void
 sps(		float2*			tau[],
 	const	float4	*pos,
 	const	float4	*vel,
@@ -510,10 +450,6 @@ forces(
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
-	}
-
-	if (visctype == KEPSVISC) {
-		CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
 	}
 
 	#if (__COMPUTE__ < 20)
