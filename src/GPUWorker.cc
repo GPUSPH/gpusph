@@ -1913,6 +1913,7 @@ void GPUWorker::kernel_forces()
 						m_simparams->xsph,
 						m_simparams->kerneltype,
 						m_simparams->influenceRadius,
+						m_simparams->epsilon,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
 						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
@@ -1951,6 +1952,7 @@ void GPUWorker::kernel_forces()
 						m_simparams->xsph,
 						m_simparams->kerneltype,
 						m_simparams->influenceRadius,
+						m_simparams->epsilon,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
 						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n+1/2)
@@ -2152,7 +2154,8 @@ void GPUWorker::kernel_meanStrain()
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->kerneltype,
-		m_simparams->influenceRadius);
+		m_simparams->influenceRadius,
+		m_simparams->epsilon);
 }
 
 
@@ -2258,6 +2261,7 @@ void GPUWorker::kernel_updateGamma()
 				numPartsToElaborate,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
+				m_simparams->epsilon,
 				gdata->extraCommandArg,
 				!initStep, // 0 during init step, else 1
 				m_simparams->kerneltype);

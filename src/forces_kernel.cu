@@ -701,10 +701,10 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 // helper function with the analytical formulae for gamma and grad gamma for the wendland kernel
 __device__ float2
-hf3d(float qas, float qae, float q, float pes, bool gradGammaOnly)
+hf3d(float qas, float qae, float q, float pes, const float epsilon, bool gradGammaOnly)
 {
 	float2 ret = make_float2(0.0);
-	if (fabs(qae) < 1e-5f || fabs(q*q-qae*qae) < 1e-5f || pes < 1e-5)
+	if (fabs(qae) < epsilon || fabs(q*q-qae*qae) < epsilon || pes < 1e-5)
 		return ret;
 	const float q2 = q*q;
 	const float q3 = q2*q;
@@ -757,7 +757,8 @@ gradGamma(	const	float	slength,
 			const	float2	vPos0,
 			const	float2	vPos1,
 			const	float2	vPos2,
-			const	float4	boundElement)
+			const	float4	boundElement,
+			const	float	epsilon)
 {
 	// define edge independent variables
 	float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
@@ -804,16 +805,16 @@ gradGamma(	const	float	slength,
 	int skipedge1 = -1;
 	int skipedge2 = -1;
 	// check if the particle is on a vertex
-	if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
-			(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
-			(     fabs(u) < 1e-5f && fabs(v) < 1e-5f)   ) && q_aSigma.w < 1e-5f) {
+	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
+			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
 		// set touching vertex to v0
-		if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 			const float4 tmp = v1;
 			v1 = v0;
 			v0 = tmp;
 		}
-		else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
 			const float4 tmp = v2;
 			v2 = v0;
 			v0 = tmp;
@@ -825,34 +826,34 @@ gradGamma(	const	float	slength,
 		skipedge2 = 2;
 	}
 	// check if particle is on an edge
-	else if ((	(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) ||
-				(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) || 
-				(fabs(u+v-1.0f) < 1e-5 && u > -1e-5f && u < 1.0f+1e-5f && v > -1e-5f && v < 1.0f+1e-5f)
-			 ) && q_aSigma.w < 1e-5f) {
+	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
+				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) || 
+				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
+			 ) && q_aSigma.w < epsilon) {
 		// grad gamma for a half-plane
 		gradGamma_as = 3.0f/4.0f/2.0f;
 		// the following edge is intersecting the particle and thus does not need to be computed
 		skipedge1 = 1;
-		if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is on v02
+		if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is on v02
 			skipedge1 = 2;
-		else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is on v01
+		else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is on v01
 			skipedge1 = 0;
 	}
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
 	if (q_aSigma.w < 2.0f) {
 		// additional term if projection is inside segment
-		if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f && skipedge1 == -1 && skipedge2 == -1) {
+		if (u > - epsilon && v > -epsilon && u+v < 1.0f+epsilon && skipedge1 == -1 && skipedge2 == -1) {
 			float openingAngle; // angle divided by 2 M_PI
 			// check if we are on top of a vertex
-			if (fabs(u-1.0f) < 1e-5f || fabs(v-1.0f) < 1e-5f || fabs(u+v-1.0f) < 1e-5f) {
+			if (fabs(u-1.0f) < epsilon || fabs(v-1.0f) < epsilon || fabs(u+v-1.0f) < epsilon) {
 				// set touching vertex to v0
-				if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+				if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 					const float4 tmp = v1;
 					v1 = v2;
 					v2 = v0;
 					v0 = tmp;
 				}
-				else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+				else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
 					const float4 tmp = v2;
 					v2 = v1;
 					v1 = v0;
@@ -865,7 +866,7 @@ gradGamma(	const	float	slength,
 				skipedge2 = 2;
 			}
 			// interior of a triangle
-			else if (u > 1e-5f && v > 1e-5f && u+v < 1.0f-1e-5f) {
+			else if (u > epsilon && v > epsilon && u+v < 1.0f-epsilon) {
 				openingAngle = 1.0f;
 			}
 			// on an edge
@@ -873,9 +874,9 @@ gradGamma(	const	float	slength,
 				openingAngle = 0.5f;
 				// the following edge is below the particle and thus does not need to be computed
 				skipedge1 = 1;
-				if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is above v02
+				if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is above v02
 					skipedge1 = 2;
-				else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is above v01
+				else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is above v01
 					skipedge1 = 0;
 			}
 			gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
@@ -910,8 +911,8 @@ gradGamma(	const	float	slength,
 				float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
 				float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
 				p_EpsilonSigma.w = length3(p_EpsilonSigma);
-				float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, true);
-				float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, true);
+				float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, epsilon, true);
+				float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, epsilon, true);
 				gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
 			}
 		}
@@ -932,7 +933,8 @@ gammaDevice(const	float4* 	oldPos,
 			const	neibdata*	neibsList,
 			const	uint		numParticles,
 			const	float		slength,
-			const	float		inflRadius)
+			const	float		inflRadius,
+			const	float		epsilon)
 {
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
 
@@ -962,7 +964,7 @@ gammaDevice(const	float4* 	oldPos,
 			// old grad gamma is used for computation of solid angle for vertices and particles on a vertex
 			float4 oldGGam = tex1Dfetch(gamTex, index);
 			// at the first initialization step this is zero so use fmax to prevent nan. During the second step this will be ok
-			oldGGam.w = fmax(length3(oldGGam),1e-5f);
+			oldGGam.w = fmax(length3(oldGGam),epsilon);
 			// we only need the direction so normalizing
 			oldGGam /= oldGGam.w;
 
@@ -1041,17 +1043,17 @@ gammaDevice(const	float4* 	oldPos,
 					int skipedge1 = -1;
 					int skipedge2 = -1;
 					// check if the particle is on a vertex
-					if ((	(fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) ||
-							(fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) ||
-							(     fabs(u) < 1e-5f && fabs(v) < 1e-5f)   ) && q_aSigma.w < 1e-5f) {
+					if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
+							(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
+							(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
 						// set touching vertex to v0
-						if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+						if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 							const float4 tmp = v1;
 							v1 = v2;
 							v2 = v0;
 							v0 = tmp;
 						}
-						else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+						else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
 							const float4 tmp = v2;
 							v2 = v1;
 							v1 = v0;
@@ -1076,10 +1078,10 @@ gammaDevice(const	float4* 	oldPos,
 						skipedge2 = 2;
 					}
 					// check if particle is on an edge
-					else if ((	(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) ||
-								(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) || 
-								(fabs(u+v-1.0f) < 1e-5 && u > -1e-5f && u < 1.0f+1e-5f && v > -1e-5f && v < 1.0f+1e-5f)
-							 ) && q_aSigma.w < 1e-5f) {
+					else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
+								(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) || 
+								(fabs(u+v-1.0f) < 1e-5 && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
+							 ) && q_aSigma.w < epsilon) {
 						// grad gamma for a half-plane
 						gradGamma_as = 3.0f/4.0f/2.0f;
 						// compute the angle between two segments
@@ -1097,26 +1099,26 @@ gammaDevice(const	float4* 	oldPos,
 						finalAdd -= 1;
 						// the following edge is intersecting the particle and thus does not need to be computed
 						skipedge1 = 1;
-						if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is on v02
+						if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is on v02
 							skipedge1 = 2;
-						else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is on v01
+						else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is on v01
 							skipedge1 = 0;
 					}
 					// general formula (also used if particle is on vertex / edge to compute remaining edges)
 					if (q_aSigma.w < 2.0f) {
 						// additional term if projection is inside segment
-						if (u > - 1e-5f && v > -1e-5f && u+v < 1.0f+1e-5f && skipedge1 == -1 && skipedge2 == -1) {
+						if (u > - epsilon && v > -epsilon && u+v < 1.0f+epsilon && skipedge1 == -1 && skipedge2 == -1) {
 							float openingAngle; // angle divided by 2 M_PI
 							// check if we are on top of a vertex
-							if (fabs(u-1.0f) < 1e-5f || fabs(v-1.0f) < 1e-5f || fabs(u+v-1.0f) < 1e-5f) {
+							if (fabs(u-1.0f) < epsilon || fabs(v-1.0f) < epsilon || fabs(u+v-1.0f) < epsilon) {
 								// set touching vertex to v0
-								if (fabs(u-1.0f) < 1e-5f && fabs(v) < 1e-5f) {
+								if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 									const float4 tmp = v1;
 									v1 = v2;
 									v2 = v0;
 									v0 = tmp;
 								}
-								else if (fabs(v-1.0f) < 1e-5f && fabs(u) < 1e-5f) {
+								else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
 									const float4 tmp = v2;
 									v2 = v1;
 									v1 = v0;
@@ -1129,7 +1131,7 @@ gammaDevice(const	float4* 	oldPos,
 								skipedge2 = 2;
 							}
 							// interior of a triangle
-							else if (u > 1e-5f && v > 1e-5f && u+v < 1.0f-1e-5f) {
+							else if (u > epsilon && v > epsilon && u+v < 1.0f-epsilon) {
 								openingAngle = 1.0f;
 							}
 							// on an edge
@@ -1137,9 +1139,9 @@ gammaDevice(const	float4* 	oldPos,
 								openingAngle = 0.5f;
 								// the following edge is below the particle and thus does not need to be computed
 								skipedge1 = 1;
-								if(fabs(u) < 1e-5f && v > -1e-5f && v < 1.0f+1e-5f) // if u is 0 then pa is above v02
+								if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is above v02
 									skipedge1 = 2;
-								else if(fabs(v) < 1e-5f && u > -1e-5f && u < 1.0f+1e-5f) // if v is 0 then pa is above v01
+								else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is above v01
 									skipedge1 = 0;
 							}
 							gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
@@ -1175,8 +1177,8 @@ gammaDevice(const	float4* 	oldPos,
 								float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
 								float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
 								p_EpsilonSigma.w = length3(p_EpsilonSigma);
-								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, false);
-								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, false);
+								float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, epsilon, false);
+								float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, epsilon, false);
 								gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
 								gamma_as -= copysign(copysign(hf3d0.y,y0) - copysign(hf3d1.y,y1), dot3(n_ds, p_EpsilonSigma));
 							}
@@ -1429,7 +1431,8 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 							const neibdata*	neibsList,
 							const uint	numParticles,
 							const float	slength,
-							const float	influenceradius)
+							const float	influenceradius,
+							const float	epsilon)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1503,7 +1506,7 @@ MeanScalarStrainRateDevice(	const float4* posArray,
 			// second term, interaction with boundary elements
 			if(BOUNDARY(neib_info)) {
 				const float4 belem = tex1Dfetch(boundTex, neib_index);
-				const float3 rhoGGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem)*as_float3(belem)*relVel.w;
+				const float3 rhoGGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, epsilon)*as_float3(belem)*relVel.w;
 
 				dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
 				dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas

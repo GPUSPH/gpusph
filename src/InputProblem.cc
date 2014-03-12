@@ -50,7 +50,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//Spheric2 (DamBreak)
 	//*************************************************************************************
 	else if (SPECIFIC_PROBLEM == "Spheric2") {
-		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/0.spheric2.h5sph";
+		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/140311-spheric2/0.spheric2.h5sph";
 
 		set_deltap(0.01833f);
 
