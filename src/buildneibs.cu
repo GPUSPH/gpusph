@@ -199,7 +199,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float*				newTKE,				// output: k for k-e model
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
-									float*				newStrainRate,		// output: strain rate
 									const hashKey*		particleHash,		// input: sorted grid hashes
 									const uint*			particleIndex,		// input: sorted particle indices
 									const float4*		oldPos,				// input: unsorted positions
@@ -211,7 +210,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldTKE,				// input: k for k-e model
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
-									const float*		oldStrainRate,		// input: strain rate
 									const uint			numParticles,
 									const uint			numGridCells,
 									uint*				inversedParticleIndex)
@@ -241,15 +239,13 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
-	if (oldStrainRate)
-		CUDA_SAFE_CALL(cudaBindTexture(0, strainTex, oldStrainRate, numParticles*sizeof(float)));
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd,
 #if HASH_KEY_SIZE >= 64
 													segmentStart,
 #endif
-		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc, newStrainRate,
+		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
 												particleHash, particleIndex, numParticles, inversedParticleIndex);
 
 	// check if kernel invocation generated an error
@@ -272,8 +268,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
-	if (oldStrainRate)
-		CUDA_SAFE_CALL(cudaUnbindTexture(strainTex));
 }
 
 

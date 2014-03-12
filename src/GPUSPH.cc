@@ -444,14 +444,6 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
-		// for k-eps viscosity, compute mean scalar strain and exchange with neighbors
-		if (problem->get_simparams()->visctype == KEPSVISC) {
-			gdata->only_internal = true;
-			doCommand(MEAN_STRAIN, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_STRAIN_RATE);
-		}
-
 		// compute forces only on internal particles
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_1);
@@ -506,14 +498,6 @@ bool GPUSPH::runSimulation() {
 			doCommand(SPS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
-		}
-
-		// for k-eps viscosity, compute mean scalar strain and exchange with neighbors
-		if (problem->get_simparams()->visctype == KEPSVISC) {
-			gdata->only_internal = true;
-			doCommand(MEAN_STRAIN, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_STRAIN_RATE);
 		}
 
 		gdata->only_internal = true;

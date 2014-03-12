@@ -123,17 +123,20 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			# ifdef VISC_KEPS
-			const float strain = tex1Dfetch(strainTex, index);
 			const float keps_k = tex1Dfetch(keps_kTex, index);
 			const float keps_e = tex1Dfetch(keps_eTex, index);
 			const float turbVisc = 0.09f*keps_k*keps_k/keps_e;			// eddy viscosity
-			float Pturb = turbVisc*strain*strain;						// production of turbulent kinetic energy (TKE)
 			turbvisc[index] = turbVisc;
 
 			float diff_term_k = 0;
 			float diff_term_e = 0;
 			const float dkdt_precalc = vel.w*(d_visccoeff + turbVisc);
 			const float dedt_precalc = vel.w*(d_visccoeff + turbVisc/1.3f);
+
+			// velocity gradient components
+			float3 dvx = make_float3(0.0f);
+			float3 dvy = make_float3(0.0f);
+			float3 dvz = make_float3(0.0f);
 			# endif
 
 			// force and density derivative
@@ -199,7 +202,6 @@ FORCES_CUDA_KERNEL
 
 				// Compute relative velocity
 				// Now relVel is a float4 and neib density is stored in relVel.w
-				const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 				# ifdef VISC_KEPS
 				const float neib_keps_k = tex1Dfetch(keps_kTex, neib_index);
@@ -211,6 +213,7 @@ FORCES_CUDA_KERNEL
 					float DvDt = 0.0f;
 					float4 bound_term_pres = make_float4(0.0f);
 					float3 bound_term_visc = make_float3(0.0f);
+					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 
 					if (FLUID(neib_info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 						const float4 belem = (boundarytype == SA_BOUNDARY ? tex1Dfetch(boundTex, neib_index) : make_float4(NAN));
@@ -344,6 +347,13 @@ FORCES_CUDA_KERNEL
 
 								const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 								bound_term_visc = 2*vel.w*abs_u_t*gGam*u_t/denom_term;
+
+								// velocity gradient
+								const float3 rhoGGam = gGam*normal_s*relVel.w;
+
+								dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
+								dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
+								dvz += relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 								# else
 								bound_term_visc = gGam*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
 								# endif
@@ -360,6 +370,11 @@ FORCES_CUDA_KERNEL
 								//to be divided later by rho_a and gamma_a
 								diff_term_k += relPos.w*(dkdt_precalc + relVel.w*(d_visccoeff + neib_tvisc))*(keps_k - neib_keps_k)*f/relVel.w;
 								diff_term_e += relPos.w*(dedt_precalc + relVel.w*(d_visccoeff + neib_tvisc/1.3f))*(keps_e - neib_keps_e)*f/relVel.w;
+
+								//velocity gradient
+								dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+								dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+								dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
 							}
 							# endif
 						} // endif (boundarytype)
@@ -407,6 +422,21 @@ FORCES_CUDA_KERNEL
 			const float dynvisc = 0.0f;
 			# elif defined(VISC_KEPS)
 			const float dynvisc = 0.0f;
+
+			// velocity gradients
+			dvx /= vel.w * gradgamma.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+			dvy /= vel.w * gradgamma.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+			dvz /= vel.w * gradgamma.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+			// Calculate norm of the mean strain rate tensor
+			float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+			float temp = dvx.y + dvy.x;
+			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+			temp = dvx.z + dvz.x;
+			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+			temp = dvy.z + dvz.y;
+			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+			float S = sqrtf(SijSij_bytwo);
+			const float Pturb = turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
 
 			float dkdt = Pturb - keps_e + diff_term_k/vel.w/gradgamma.w;								// dk/dt
 			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e) + diff_term_e/vel.w/gradgamma.w;	// de/dt

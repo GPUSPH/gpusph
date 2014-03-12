@@ -143,25 +143,6 @@ const	particleinfo	*info,
 			float	influenceradius);
 
 void
-mean_strain_rate(
-			float	*strainrate,
-	const	float4	*pos,
-			float2	*verPos[],
-	const	float4	*vel,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-	const	float4	*gradgam,
-	const	float4	*boundelem,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-		KernelType	kerneltype,
-			float	influenceradius,
-	const	float	epsilon);
-
-void
 shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
