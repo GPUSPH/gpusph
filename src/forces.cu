@@ -63,16 +63,16 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques, cfl, cflTVisc); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, rbforces, rbtorques, cfl, cflTVisc); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques, cfl, cflTVisc); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
@@ -134,7 +134,7 @@ void*	reduce_buffer = NULL;
 #define KEPS_CHECK(kernel) \
 	case kernel: \
 		cuforces::MeanScalarStrainRateDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, vertPos[0], vertPos[1], vertPos[2], strainrate, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
+				(pos, vertPos[0], vertPos[1], vertPos[2], strainrate, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius, epsilon); \
 		break
 
 #define SHEPARD_CHECK(kernel) \
@@ -172,7 +172,7 @@ void*	reduce_buffer = NULL;
 #define GAMMA_CHECK(kernel) \
 	case kernel: \
 		cuforces::gammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(oldPos, newGam, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius); \
+				(oldPos, newGam, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius, epsilon); \
 	break
 
 #define DYNBOUNDARY_CHECK(kernel) \
@@ -344,7 +344,8 @@ const	particleinfo	*info,
 			uint	particleRangeEnd,
 			float	slength,
 		KernelType	kerneltype,
-			float	influenceradius)
+			float	influenceradius,
+	const	float	epsilon)
 {
 	int dummy_shared = 0;
 	// bind textures to read all particles, not only internal ones
@@ -456,6 +457,7 @@ forces(
 			bool	xsphcorr,
 	KernelType		kerneltype,
 			float	influenceradius,
+	const	float	epsilon,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -1040,6 +1042,7 @@ updateGamma(			float4*			oldPos,
 						uint			particleRangeEnd,
 						float			slength,
 						float			inflRadius,
+						float			epsilon,
 						float			virtDt,
 						bool			predcor,
 						int				kerneltype)

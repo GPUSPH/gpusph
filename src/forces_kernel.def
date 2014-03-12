@@ -65,6 +65,7 @@ FORCES_CUDA_KERNEL
 	const float deltap,
 	const float	slength,
 	const float	influenceradius,
+	const float	epsilon,
 	float4*		rbforces,
 	float4*		rbtorques
 	# ifdef DT_KERNEL
@@ -239,7 +240,7 @@ FORCES_CUDA_KERNEL
 						// density derivative
 						float DrDt = 0;
 						// grad gamma_{as}
-						const float gGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem);
+						const float gGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, epsilon);
 						if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info))
 							DrDt -= relVel.w*dot3(relVel, belem)*gGam;
 						else if (boundarytype == SA_BOUNDARY && d_ferrari) {
@@ -520,7 +521,7 @@ FORCES_CUDA_KERNEL
 						if (r_es < deltap)
 							r_es = deltap;
 
-						const float abs_gradgam_es = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem);
+						const float abs_gradgam_es = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, epsilon);
 
 						// velocity of vertex particle along the wall
 						const float3 u_t = as_float3(vel) - dot(as_float3(vel), normal_s)*normal_s;

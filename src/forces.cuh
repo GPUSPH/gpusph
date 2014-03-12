@@ -114,6 +114,7 @@ forces(
 			bool	xsphcorr,
 	KernelType		kerneltype,
 			float	influenceradius,
+	const	float	epsilon,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -157,7 +158,8 @@ mean_strain_rate(
 			uint	particleRangeEnd,
 			float	slength,
 		KernelType	kerneltype,
-			float	influenceradius);
+			float	influenceradius,
+	const	float	epsilon);
 
 void
 shepard(float4*		pos,
@@ -275,26 +277,7 @@ void calc_energy(
 			uint			numParticles,
 			uint			numFluids);
 
-// Computes initial values of the gamma gradient
-void
-initGradGamma(	float4*		oldPos,
-		float4*		newPos,
-		float4*		virtualVel,
-		particleinfo*	info,
-		float4*		boundElement,
-		float4*		gradGamma,
-		const hashKey*	particleHash,
-		const uint*	cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		deltap,
-		float		slength,
-		float		inflRadius,
-		int			kerneltype);
-
-// Computes current value of the gamma gradient and update gamma value
-// according to the evolution equation { dGamma/dt = gradGamma * relVel }
+// Computes current value of the gradient of gamma and gamma itself
 void
 updateGamma(			float4*			oldPos,
 				const	float4*			newPos,
@@ -311,19 +294,10 @@ updateGamma(			float4*			oldPos,
 						uint			particleRangeEnd,
 						float			slength,
 						float			inflRadius,
+				const	float			epsilon,
 						float			virtDt,
 						bool			predcor,
 						int				kerneltype);
-
-//Moves particles back to their initial positions during initialization of gamma
-void
-updatePositions(	float4*		oldPos,
-			float4*		newPos,
-			float4*		virtualVel,
-			particleinfo*	info,
-			float		virtDt,
-			uint		numParticles,
-			uint		particleRangeEnd);
 
 // calculate a private scalar for debugging or a passive value
 void
