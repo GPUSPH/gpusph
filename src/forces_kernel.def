@@ -103,7 +103,6 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			const float4 vel = tex1Dfetch(velTex, index);
-			const float4 gradgamma = (boundarytype == SA_BOUNDARY ? tex1Dfetch(gamTex, index) : make_float4(NAN));
 
 			// Compute grid position of current particle
 			const int3 gridPos = calcGridPosFromCellHash(cellHash);
@@ -257,9 +256,6 @@ FORCES_CUDA_KERNEL
 						/* The second formulation takes into consideration the density ratio */
 						if (sph_formulation == SPH_F2)
 							DrDt *= vel.w/relVel.w;
-						if(boundarytype == SA_BOUNDARY) {
-							DrDt /= gradgamma.w;
-						}
 						force.w += DrDt;
 
 						// pressure part of acceleration (to be multiplied by neib_mass*f)
@@ -296,12 +292,7 @@ FORCES_CUDA_KERNEL
 						# endif // VISC_DYNAMIC + elif*
 
 						if(!BOUNDARY(neib_info)) {
-							if(boundarytype == SA_BOUNDARY) {
-								as_float3(force) += visc*as_float3(relVel)/gradgamma.w;
-							}
-							else {
-								as_float3(force) += visc*as_float3(relVel);
-							}
+							as_float3(force) += visc*as_float3(relVel);
 						}
 
 						# elif defined(VISC_ARTVISC)
@@ -398,14 +389,8 @@ FORCES_CUDA_KERNEL
 						}
 					}
 					// interaction between two particles
-					if(boundarytype == SA_BOUNDARY) {
-						if(BOUNDARY(neib_info)) {
-							as_float3(force) -= as_float3(bound_term_pres)/gradgamma.w + bound_term_visc/gradgamma.w/vel.w;
-						} else if (OBJECT(neib_info)){
-							as_float3(force) += DvDt*as_float3(relPos);
-						} else {
-							as_float3(force) += DvDt*as_float3(relPos)/gradgamma.w;
-						}
+					if(BOUNDARY(neib_info) && boundarytype == SA_BOUNDARY) {
+						as_float3(force) -= as_float3(bound_term_pres) + bound_term_visc/vel.w;
 					}
 					else {
 						as_float3(force) += DvDt*as_float3(relPos);
@@ -413,6 +398,8 @@ FORCES_CUDA_KERNEL
 
 				} // r < influenceradius
 			} // end of loop over neighbors
+
+			const float4 gradgamma = (boundarytype == SA_BOUNDARY ? tex1Dfetch(gamTex, index) : make_float4(NAN));
 
 			# ifdef VISC_DYNAMIC
 			const float dynvisc = d_visccoeff*vel.w;
@@ -447,6 +434,9 @@ FORCES_CUDA_KERNEL
 			# error Unknown viscosity!
 			# endif
 
+			// Dividing by gamma
+			if (boundarytype == SA_BOUNDARY)
+				force /= gradgamma.w;
 			// Adding gravity
 			as_float3(force) += d_gravity;
 
