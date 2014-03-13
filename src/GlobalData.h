@@ -88,7 +88,6 @@ enum CommandType {
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	CALC_TESTPOINTS,	// update testpoint values
-	SA_UPDATE_GAMMA,	// update Gamma and GradGamma
 	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
 	SA_UPDATE_BOUND_VALUES, // update bounary values
 	SPS,				// SPS stress matrix computation kernel

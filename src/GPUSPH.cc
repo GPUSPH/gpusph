@@ -363,7 +363,10 @@ bool GPUSPH::runSimulation() {
 	// run by the GPUWokers
 
 	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-		initializeGammaAndGradGamma();
+
+		// compute neighbour list for the first time
+		buildNeibList();
+
 		imposeDynamicBoundaryConditions();
 		updateValuesAtBoundaryElements();
 	}
@@ -449,7 +452,8 @@ bool GPUSPH::runSimulation() {
 		doCommand(FORCES, INTEGRATOR_STEP_1);
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_XSPH);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH);
+		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
@@ -485,11 +489,6 @@ bool GPUSPH::runSimulation() {
 			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-			doCommand(SA_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
-
-			gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -504,7 +503,8 @@ bool GPUSPH::runSimulation() {
 		doCommand(FORCES, INTEGRATOR_STEP_2);
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_XSPH);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH);
+		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// reduce bodies
 		if (problem->get_simparams()->numODEbodies > 0) {
@@ -541,14 +541,6 @@ bool GPUSPH::runSimulation() {
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
-
-		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-			gdata->only_internal = true;
-			doCommand(SA_UPDATE_GAMMA, INTEGRATOR_STEP_2, gdata->dt);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
-			gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-		}
 
 		// euler needs the previous centers of gravity, so we upload CGs only here
 		if (problem->get_simparams()->numODEbodies > 0)
@@ -1224,34 +1216,13 @@ void GPUSPH::doCallBacks()
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
-void GPUSPH::initializeGammaAndGradGamma()
-{
-	// construct neighbour list
-	buildNeibList();
-
-	gdata->only_internal = true;
-
-	// Compute gamma
-	// needs to be called twice initially because gradgamma is required to compute gamma for vertices
-	// first iteration
-	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
-	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-
-	// second iteration
-	doCommand(SA_UPDATE_GAMMA, INITIALIZATION_STEP, 0.0f);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_GRADGAMMA);
-	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-}
-
 void GPUSPH::imposeDynamicBoundaryConditions()
 {
 	gdata->only_internal = true;
 	doCommand(SA_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA);
+	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 }
 
 void GPUSPH::updateValuesAtBoundaryElements()

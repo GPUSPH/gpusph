@@ -52,6 +52,7 @@ FORCES_CUDA_KERNEL
 	const float2*	vertPos0,
 	const float2*	vertPos1,
 	const float2*	vertPos2,
+	float4*		newGGam,
 	float4*		forces,
 	float2*		keps_dkde,
 	float*		turbvisc,
@@ -66,6 +67,7 @@ FORCES_CUDA_KERNEL
 	const float	slength,
 	const float	influenceradius,
 	const float	epsilon,
+	const bool	movingBoundaries,
 	float4*		rbforces,
 	float4*		rbtorques
 	# ifdef DT_KERNEL
@@ -92,6 +94,9 @@ FORCES_CUDA_KERNEL
 
 		uint cellHash = cellHashFromParticleHash(particleHash[index]);
 
+		// this is the new value of gamma and grad gamma
+		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
@@ -103,6 +108,12 @@ FORCES_CUDA_KERNEL
 			#endif
 
 			const float4 vel = tex1Dfetch(velTex, index);
+			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
+			float4 oldGGam = make_float4(NAN, NAN, NAN, 1.0f);
+			if (boundarytype == SA_BOUNDARY) {
+				oldGGam = tex1Dfetch(gamTex, index);
+				oldGGam /= -length3(oldGGam);
+			}
 
 			// Compute grid position of current particle
 			const int3 gridPos = calcGridPosFromCellHash(cellHash);
@@ -205,10 +216,14 @@ FORCES_CUDA_KERNEL
 				# ifdef VISC_KEPS
 				const float neib_keps_k = tex1Dfetch(keps_kTex, neib_index);
 				const float neib_keps_e = tex1Dfetch(keps_eTex, neib_index);
-				const float neib_tvisc = 0.09f*neib_keps_k*neib_keps_k/neib_keps_e;
+				float neib_tvisc;
+				if(FLUID(neib_info))
+					neib_tvisc = 0.09f*neib_keps_k*neib_keps_k/neib_keps_e;
+				else
+					neib_tvisc = 0.0f;
 				# endif
 
-				if (r < influenceradius) {
+				if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(info))) {
 					float DvDt = 0.0f;
 					float4 bound_term_pres = make_float4(0.0f);
 					float3 bound_term_visc = make_float3(0.0f);
@@ -242,9 +257,13 @@ FORCES_CUDA_KERNEL
 						// density derivative
 						float DrDt = 0;
 						// grad gamma_{as}
-						const float gGam = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, epsilon);
+						const float2 GamAS = Gamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, oldGGam, epsilon, true);
+						gGam.x += GamAS.x*belem.x;
+						gGam.y += GamAS.x*belem.y;
+						gGam.z += GamAS.x*belem.z;
+						gGam.w -= GamAS.y;
 						if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info))
-							DrDt -= relVel.w*dot3(relVel, belem)*gGam;
+							DrDt -= relVel.w*dot3(relVel, belem)*GamAS.x;
 						else if (boundarytype == SA_BOUNDARY && d_ferrari) {
 							const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/ 
 								(d_sscoeff[PART_FLUID_NUM(info)]*d_sscoeff[PART_FLUID_NUM(info)]); //TODO-AM this does not work with multifluids
@@ -309,7 +328,7 @@ FORCES_CUDA_KERNEL
 
 						if(boundarytype == SA_BOUNDARY) {
 							if(BOUNDARY(neib_info)) {
-								bound_term_pres = DvDt*relVel.w*gGam*belem;
+								bound_term_pres = DvDt*relVel.w*GamAS.x*belem;
 
 								// normal vector
 								const float3 normal_s = as_float3(belem);
@@ -337,22 +356,22 @@ FORCES_CUDA_KERNEL
 								y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 
 								const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-								bound_term_visc = 2*vel.w*abs_u_t*gGam*u_t/denom_term;
+								bound_term_visc = 2*vel.w*abs_u_t*GamAS.x*u_t/denom_term;
 
 								// velocity gradient
-								const float3 rhoGGam = gGam*normal_s*relVel.w;
+								const float3 rhoGGam = GamAS.x*normal_s*relVel.w;
 
 								dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
 								dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
 								dvz += relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 								# else
-								bound_term_visc = gGam*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
+								bound_term_visc = GamAS.x*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
 								# endif
 
 								# ifdef VISC_KEPS
 								//to be divided later by rho_a and gamma_a
 								diff_term_e += pow(0.09f, 0.75f)/0.41f * (dedt_precalc*pow(keps_k,1.5f)/(r_as*r_as) +
-											relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(deltap*deltap)) * gGam;
+											relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(deltap*deltap)) * GamAS.x;
 								# endif
 
 							}
@@ -399,8 +418,6 @@ FORCES_CUDA_KERNEL
 				} // r < influenceradius
 			} // end of loop over neighbors
 
-			const float4 gradgamma = (boundarytype == SA_BOUNDARY ? tex1Dfetch(gamTex, index) : make_float4(NAN));
-
 			# ifdef VISC_DYNAMIC
 			const float dynvisc = d_visccoeff*vel.w;
 			# elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
@@ -411,9 +428,9 @@ FORCES_CUDA_KERNEL
 			const float dynvisc = 0.0f;
 
 			// velocity gradients
-			dvx /= vel.w * gradgamma.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-			dvy /= vel.w * gradgamma.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-			dvz /= vel.w * gradgamma.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+			dvx /= vel.w * gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+			dvy /= vel.w * gGam.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+			dvz /= vel.w * gGam.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
 			// Calculate norm of the mean strain rate tensor
 			float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
 			float temp = dvx.y + dvy.x;
@@ -425,8 +442,8 @@ FORCES_CUDA_KERNEL
 			float S = sqrtf(SijSij_bytwo);
 			const float Pturb = turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
 
-			float dkdt = Pturb - keps_e + diff_term_k/vel.w/gradgamma.w;								// dk/dt
-			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e) + diff_term_e/vel.w/gradgamma.w;	// de/dt
+			float dkdt = Pturb - keps_e + diff_term_k/vel.w/gGam.w;								// dk/dt
+			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e) + diff_term_e/vel.w/gGam.w;	// de/dt
 
 			keps_dkde[index].x = dkdt;
 			keps_dkde[index].y = dedt;
@@ -436,7 +453,7 @@ FORCES_CUDA_KERNEL
 
 			// Dividing by gamma
 			if (boundarytype == SA_BOUNDARY)
-				force /= gradgamma.w;
+				force /= gGam.w;
 			// Adding gravity
 			as_float3(force) += d_gravity;
 
@@ -475,109 +492,145 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			forces[index] = force;
+			if (boundarytype == SA_BOUNDARY)
+				newGGam[index] = gGam;
 		}	// if (FLUID(info))
 
 		else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
 			float4 force = make_float4(0.0f);
 
-			// It is suggested that k-e model is working only with semi-analytical boundary model.
-			// Add addtional condition on boundary_type if it isn't.
-			# ifdef VISC_KEPS
+			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
+			float4 oldGGam = make_float4(NAN, NAN, NAN, 1.0f);
+			bool computeGamma = false;
+			if (boundarytype == SA_BOUNDARY) {
+				oldGGam = tex1Dfetch(gamTex, index);
+				// check whether we need to recompute gamma for vertices, this is only the case if we have moving boundaries ore if gamma is not yet set
+				computeGamma = (oldGGam.w < epsilon) || movingBoundaries;
+				// if not, then save the old values into the new array
+				if (!computeGamma)
+					gGam = oldGGam;
+				// otherwise prepare oldGGam for the gamma computation
+				else
+					oldGGam /= -length3(oldGGam);
+			}
 
-			// read other particle data from textures or global mem
-			#if( __COMPUTE__ >= 20)
-			const float4 pos = posArray[index];
-			#else
-			const float4 pos = tex1Dfetch(posTex, index);
-			#endif
+			if (computeGamma || VISC_TYPE == KEPSVISC) {
 
-			// compute grid index of current particle
-			const int3 gridPos = calcGridPosFromCellHash(cellHash);
-
-			const float4 vel = tex1Dfetch(velTex, index);
-			const float4 gradgamma = tex1Dfetch(gamTex, index);
-
-			# ifdef VISC_KEPS
-			const float keps_k = tex1Dfetch(keps_kTex, index);
-			const float keps_e = tex1Dfetch(keps_eTex, index);
-			const float turbVisc = 0.09f*keps_k*keps_k/keps_e;			// eddy viscosity
-			# endif
-
-			// persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// loop over all neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
+				// read other particle data from textures or global mem
 				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - posArray[neib_index];
+				const float4 pos = posArray[index];
 				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+				const float4 pos = tex1Dfetch(posTex, index);
 				#endif
-				const float r = length(as_float3(relPos));
 
-				const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-				const float neib_keps_k = tex1Dfetch(keps_kTex, neib_index);
-				const float neib_keps_e = tex1Dfetch(keps_eTex, neib_index);
-				const float neib_tvisc = 0.09f*neib_keps_k*neib_keps_k/neib_keps_e;
+				// compute grid index of current particle
+				const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
-				if (r < influenceradius) {
-					if (BOUNDARY(neib_info)) {
-						const float4 belem = tex1Dfetch(boundTex, neib_index);
-						const float3 normal_s = as_float3(belem);	// normal vector
-						// r_es - distance between vertex particle and boundary element along the normal
-						float r_es = dot(as_float3(relPos), normal_s);
-						if (r_es < deltap)
-							r_es = deltap;
+				# ifdef VISC_KEPS
+				const float4 vel = tex1Dfetch(velTex, index);
+				const float keps_k = tex1Dfetch(keps_kTex, index);
+				const float keps_e = tex1Dfetch(keps_eTex, index);
+				const float turbVisc = 0.0f; // 0 eddy viscosity on boundary
+				#endif
 
-						const float abs_gradgam_es = gradGamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, epsilon);
+				// persistent variables across getNeibData calls
+				char neib_cellnum = 0;
+				uint neib_cell_base_index = 0;
+				float3 pos_corr;
 
-						// velocity of vertex particle along the wall
-						const float3 u_t = as_float3(vel) - dot(as_float3(vel), normal_s)*normal_s;
-						const float abs_u_t = length(u_t);
-						float y_plus = deltap;
+				// loop over all neighbors
+				for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+					neibdata neib_data = neibsList[i + index];
 
-						// we solve iteratively the wall law equation to obtain y+ value
-						float u_star = exp(-2.132f)*d_visccoeff/r_es;
-						for (int i=0; i<10; i++) {
+					if (neib_data == 0xffff) break;
+
+					const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+								neib_cellnum, neib_cell_base_index);
+
+					// Compute relative position vector and distance
+					// Now relPos is a float4 and neib mass is stored in relPos.w
+					#if( __COMPUTE__ >= 20)
+					const float4 relPos = pos_corr - posArray[neib_index];
+					#else
+					const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+					#endif
+					const float r = length(as_float3(relPos));
+
+					const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+					# ifdef VISC_KEPS
+					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+					const float neib_keps_k = tex1Dfetch(keps_kTex, neib_index);
+					const float neib_keps_e = tex1Dfetch(keps_eTex, neib_index);
+					float neib_tvisc;
+					if(FLUID(neib_info))
+						neib_tvisc = 0.09f*neib_keps_k*neib_keps_k/neib_keps_e;
+					else
+						neib_tvisc = 0.0f;
+					#endif
+
+					if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(info))) {
+						if (BOUNDARY(neib_info)) {
+							const float4 belem = tex1Dfetch(boundTex, neib_index);
+							const float3 normal_s = as_float3(belem);	// normal vector
+							# ifdef VISC_KEPS
+							// r_es - distance between vertex particle and boundary element along the normal
+							float r_es = dot(as_float3(relPos), normal_s);
+							if (r_es < deltap)
+								r_es = deltap;
+							#endif
+
+							const float2 GamES = Gamma<kerneltype>(slength, relPos, vertPos0[neib_index], vertPos1[neib_index], vertPos2[neib_index], belem, oldGGam, epsilon, computeGamma);
+							if (computeGamma){
+								gGam.x += GamES.x*belem.x;
+								gGam.y += GamES.x*belem.y;
+								gGam.z += GamES.x*belem.z;
+								gGam.w -= GamES.y;
+							}
+
+							# ifdef VISC_KEPS
+							// velocity of vertex particle along the wall
+							const float3 u_t = as_float3(vel) - dot(as_float3(vel), normal_s)*normal_s;
+							const float abs_u_t = length(u_t);
+							float y_plus = deltap;
+
+							// we solve iteratively the wall law equation to obtain y+ value
+							float u_star = exp(-2.132f)*d_visccoeff/r_es;
+							for (int i=0; i<10; i++) {
+								y_plus = max(r_es*u_star/d_visccoeff, 11.f);
+								u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+							}
 							y_plus = max(r_es*u_star/d_visccoeff, 11.f);
-							u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+
+							const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
+
+							force.x -= 2*abs_u_t*GamES.x*u_t.x/denom_term;
+							force.y -= 2*abs_u_t*GamES.x*u_t.y/denom_term;
+							force.z -= 2*abs_u_t*GamES.x*u_t.z/denom_term;
+							#endif
 						}
-						y_plus = max(r_es*u_star/d_visccoeff, 11.f);
+						# ifdef VISC_KEPS
+						else {
+							const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
+							const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
+							const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, (d_visccoeff+turbVisc)*vel.w,
+											(d_visccoeff+neib_tvisc)*relVel.w);
 
-						const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2)*gradgamma.w;
+							force.x += visc*relVel.x;
+							force.y += visc*relVel.y;
+							force.z += visc*relVel.z;
+						} //end if BOUNDARY(neib_info)
+						#endif
+					} // r < influenceradius
+				} // end of loop over neighbors
 
-						force.x -= 2*abs_u_t*abs_gradgam_es*u_t.x/denom_term;
-						force.y -= 2*abs_u_t*abs_gradgam_es*u_t.y/denom_term;
-						force.z -= 2*abs_u_t*abs_gradgam_es*u_t.z/denom_term;
-					}
-					else {
-						const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
-						const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
-						const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, (d_visccoeff+turbVisc)*vel.w,
-										(d_visccoeff+neib_tvisc)*relVel.w);
+				force /= gGam.w;
 
-						force.x += visc*relVel.x/gradgamma.w;
-						force.y += visc*relVel.y/gradgamma.w;
-						force.z += visc*relVel.z/gradgamma.w;
-					} //end if BOUNDARY(neib_info)
-				} // r < influenceradius
-			} // end of loop over neighbors
-
-			# endif
+			} // end if (computeGamma || VISC_TYPE == KEPSVISC)
 
 			forces[index] = force;
+			if (boundarytype == SA_BOUNDARY)
+				newGGam[index] = gGam;
 		}
 
 		else if (OBJECT(info)) {

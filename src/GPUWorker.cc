@@ -1711,10 +1711,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case SA_UPDATE_GAMMA:
-				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_GAMMA\n", deviceIndex);
-				instance->kernel_updateGamma();
-				break;
 			case SA_CALC_BOUND_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
 				instance->kernel_dynamicBoundaryConditions();
@@ -1930,6 +1926,7 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 						m_dRbForces,
 						m_dRbTorques,
@@ -1949,6 +1946,7 @@ void GPUWorker::kernel_forces()
 						m_simparams->kerneltype,
 						m_simparams->influenceRadius,
 						m_simparams->epsilon,
+						m_simparams->movingBoundaries,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
 						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
@@ -1969,6 +1967,7 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),  // vel(n+1/2)
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n+1/2)
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 						m_dRbForces,
 						m_dRbTorques,
@@ -1988,6 +1987,7 @@ void GPUWorker::kernel_forces()
 						m_simparams->kerneltype,
 						m_simparams->influenceRadius,
 						m_simparams->epsilon,
+						m_simparams->movingBoundaries,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
 						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n+1/2)
@@ -2219,12 +2219,15 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 	uint velRead = secondStep ? gdata->currentWrite[BUFFER_VEL] : gdata->currentRead[BUFFER_VEL];
 	uint tkeRead = secondStep ? gdata->currentWrite[BUFFER_TKE] : gdata->currentRead[BUFFER_TKE];
 	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
+	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
 	dynamicBoundConditions(
 				m_dBuffers.getData<BUFFER_POS>(posRead),   // pos(n)
 				m_dBuffers.getData<BUFFER_VEL>(velRead),   // vel(n)
 				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
 				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
@@ -2234,39 +2237,8 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->kerneltype,
-				m_simparams->influenceRadius);
-}
-
-void GPUWorker::kernel_updateGamma()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
-	// during initStep we use currentVelRead, else currentVelWrite
-	uint velRead = initStep ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL];
-
-	updateGamma(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_VEL>(velRead),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-				m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
-				m_dBuffers.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate,
-				m_simparams->slength,
 				m_simparams->influenceRadius,
-				m_simparams->epsilon,
-				gdata->extraCommandArg,
-				!initStep, // 0 during init step, else 1
-				m_simparams->kerneltype);
+				initStep);
 }
 
 void GPUWorker::kernel_calcPrivate()

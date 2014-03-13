@@ -63,16 +63,16 @@ void*	reduce_buffer = NULL;
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques); \
 		else if (dtadapt && !xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques, cfl, cflTVisc); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques, cfl, cflTVisc); \
 		else if (dtadapt && xsphcorr) \
 				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, rbforces, rbtorques, cfl, cflTVisc); \
+						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques, cfl, cflTVisc); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
@@ -163,16 +163,10 @@ void*	reduce_buffer = NULL;
 				(pos, normals, newInfo, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 	break
 
-#define GAMMA_CHECK(kernel) \
-	case kernel: \
-		cuforces::gammaDevice<kernel><<< numBlocks, numThreads>>> \
-				(oldPos, newGam, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, inflRadius, epsilon); \
-	break
-
 #define DYNBOUNDARY_CHECK(kernel) \
 	case kernel: \
 		cuforces::dynamicBoundConditionsDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius); \
+				 (oldPos, oldVel, oldTKE, oldEps, newGam, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep); \
 	break
 
 extern "C"
@@ -378,7 +372,8 @@ forces(
 			float2	*vertPos[],
 	const	float4	*vel,
 			float4	*forces,
-	const	float4	*gradgam,
+	const	float4	*oldGGam,
+			float4	*newGGam,
 	const	float4	*boundelem,
 			float4	*rbforces,
 			float4	*rbtorques,
@@ -398,6 +393,7 @@ forces(
 	KernelType		kerneltype,
 			float	influenceradius,
 	const	float	epsilon,
+	const	bool	movingBoundaries,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -420,7 +416,7 @@ forces(
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, gradgam, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGGam, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 	}
 
@@ -963,55 +959,6 @@ void calc_energy(
 }
 
 void
-updateGamma(			float4*			oldPos,
-				const	float4*			newPos,
-						float4*			virtualVel,
-						particleinfo*	info,
-						float4*			boundElement,
-						float4*			oldGam,
-						float4*			newGam,
-						float2*			vertPos[],
-				const	hashKey*		particleHash,
-				const	uint*			cellStart,
-						neibdata*		neibsList,
-						uint			numParticles,
-						uint			particleRangeEnd,
-						float			slength,
-						float			inflRadius,
-						float			epsilon,
-						float			virtDt,
-						bool			predcor,
-						int				kerneltype)
-{
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-	
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
-	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundElement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, virtualVel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGam, numParticles*sizeof(float4)));
-	
-	//execute kernel
-	switch (kerneltype) {
-		GAMMA_CHECK(WENDLAND);
-	}
-
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("UpdateGamma kernel execution failed");
-}
-
-void
 calcPrivate(const	float4*			pos,
 			const	float4*			vel,
 			const	particleinfo*	info,
@@ -1085,6 +1032,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
+			float4*			newGam,
+			const float4*	boundelement,
 			const particleinfo*	info,
 			const hashKey*		particleHash,
 			const uint*		cellStart,
@@ -1094,7 +1043,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
-			const float		influenceradius)
+			const float		influenceradius,
+			const bool		initStep)
 {
 	int dummy_shared = 0;
 
@@ -1105,6 +1055,9 @@ dynamicBoundConditions(	const float4*		oldPos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	if(initStep)
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
@@ -1124,6 +1077,9 @@ dynamicBoundConditions(	const float4*		oldPos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	if(initStep)
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 
 }
 

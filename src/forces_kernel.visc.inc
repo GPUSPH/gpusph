@@ -86,6 +86,7 @@
 #undef VISC_TYPE
 #undef VISC_SPS
 
+// WARNING: VISC_KEPS only works in case SA_BOUNDARY is chosen
 #define VISC_TYPE KEPSVISC
 #define VISC_KEPS
 #if (__COMPUTE__ >= 30)

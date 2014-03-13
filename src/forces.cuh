@@ -95,7 +95,8 @@ forces(
 			float2	*verPos[],
 	const	float4	*vel,
 			float4	*forces,
-	const	float4	*gradgam,
+	const	float4	*oldGGam,
+			float4	*newGGam,
 	const	float4	*boundelem,
 			float4	*rbforces,
 			float4	*rbtorques,
@@ -115,6 +116,7 @@ forces(
 	KernelType		kerneltype,
 			float	influenceradius,
 	const	float	epsilon,
+	const	bool	movingBoundaries,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -258,28 +260,6 @@ void calc_energy(
 			uint			numParticles,
 			uint			numFluids);
 
-// Computes current value of the gradient of gamma and gamma itself
-void
-updateGamma(			float4*			oldPos,
-				const	float4*			newPos,
-						float4*			virtualVel,
-						particleinfo*	info,
-						float4*			boundElement,
-						float4*			oldGam,
-						float4*			newGam,
-						float2*			vertPos[],
-				const	hashKey*		particleHash,
-				const	uint*			cellStart,
-						neibdata*		neibsList,
-						uint			numParticles,
-						uint			particleRangeEnd,
-						float			slength,
-						float			inflRadius,
-				const	float			epsilon,
-						float			virtDt,
-						bool			predcor,
-						int				kerneltype);
-
 // calculate a private scalar for debugging or a passive value
 void
 calcPrivate(const	float4*			pos,
@@ -315,6 +295,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
+			float4*			newGam,
+			const float4*	boundelement,
 			const particleinfo*	info,
 			const hashKey*		particleHash,
 			const uint*		cellStart,
@@ -324,7 +306,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
-			const float		influenceradius);
+			const float		influenceradius,
+			const bool		initStep);
 
 }
 
