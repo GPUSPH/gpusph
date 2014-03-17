@@ -91,9 +91,7 @@ private:
 	void buildNeibList();
 
 	// initialization of semi-analytic boundary arrays
-	void initializeGammaAndGradGamma();
-	void imposeDynamicBoundaryConditions();
-	void updateValuesAtBoundaryElements();
+	void initializeBoundaryConditions();
 
 	// print information about the status of the simulation
 	void printStatus();

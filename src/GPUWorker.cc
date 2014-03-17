@@ -1919,7 +1919,7 @@ void GPUWorker::kernel_forces()
 	}
 
 	// first step
-	if (numPartsToElaborate > 0 && firstStep)
+	if (numPartsToElaborate > 0 )
 		returned_dt = forces(
 						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
 						m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
@@ -1959,47 +1959,6 @@ void GPUWorker::kernel_forces()
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem);
-	else
-	// second step
-	if (numPartsToElaborate > 0 && !firstStep)
-		returned_dt = forces(  m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),  // pos(n+1/2)
-						m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
-						m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),  // vel(n+1/2)
-						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n+1/2)
-						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-						m_dRbForces,
-						m_dRbTorques,
-						m_dBuffers.getData<BUFFER_XSPH>(),
-						m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-						m_dBuffers.getData<BUFFER_HASH>(),
-						m_dCellStart,
-						m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-						m_numParticles,
-						numPartsToElaborate,
-						gdata->problem->m_deltap,
-						m_simparams->slength,
-						gdata->dt, // m_dt,
-						m_simparams->dtadapt,
-						m_simparams->dtadaptfactor,
-						m_simparams->xsph,
-						m_simparams->kerneltype,
-						m_simparams->influenceRadius,
-						m_simparams->epsilon,
-						m_simparams->movingBoundaries,
-						m_simparams->visctype,
-						m_physparams->visccoeff,
-						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n+1/2)
-						m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),	// k(n+1/2)
-						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),	// e(n+1/2)
-						m_dBuffers.getData<BUFFER_DKDE>(),
-						m_dBuffers.getData<BUFFER_CFL>(),
-						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
-						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
-						m_simparams->sph_formulation,
-						m_simparams->boundarytype,
-						m_simparams->usedem );
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
 	//printf(" Step %d, bool %d, returned %g, current %g, ",
@@ -2141,15 +2100,9 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	// pos and vel are read from curren*Read on the first step,
-	// from current*Write on the second
-	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
-	uint posRead = firstStep ? gdata->currentRead[BUFFER_POS] : gdata->currentWrite[BUFFER_POS];
-	uint velRead = firstStep ? gdata->currentRead[BUFFER_VEL] : gdata->currentWrite[BUFFER_VEL];
-
 	sps(m_dBuffers.get<BUFFER_TAU>()->get_raw_ptr(),
-		m_dBuffers.getData<BUFFER_POS>(posRead),
-		m_dBuffers.getData<BUFFER_VEL>(velRead),
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 		m_dBuffers.getData<BUFFER_HASH>(),
 		m_dCellStart,
@@ -2188,16 +2141,12 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 
 	// vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
-	bool secondStep = (gdata->commandFlags & INTEGRATOR_STEP_2);
-	uint velRead = secondStep ? gdata->currentWrite[BUFFER_VEL] : gdata->currentRead[BUFFER_VEL];
-	uint tkeRead = secondStep ? gdata->currentWrite[BUFFER_TKE] : gdata->currentRead[BUFFER_TKE];
-	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
 	updateBoundValues(
-				m_dBuffers.getData<BUFFER_VEL>(velRead),
-				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
-				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
@@ -2214,18 +2163,13 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 
 	// pos, vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
-	bool secondStep = (gdata->commandFlags & INTEGRATOR_STEP_2);
-	uint posRead = secondStep ? gdata->currentWrite[BUFFER_POS] : gdata->currentRead[BUFFER_POS];
-	uint velRead = secondStep ? gdata->currentWrite[BUFFER_VEL] : gdata->currentRead[BUFFER_VEL];
-	uint tkeRead = secondStep ? gdata->currentWrite[BUFFER_TKE] : gdata->currentRead[BUFFER_TKE];
-	uint epsRead = secondStep ? gdata->currentWrite[BUFFER_EPSILON] : gdata->currentRead[BUFFER_EPSILON];
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
 	dynamicBoundConditions(
-				m_dBuffers.getData<BUFFER_POS>(posRead),   // pos(n)
-				m_dBuffers.getData<BUFFER_VEL>(velRead),   // vel(n)
-				m_dBuffers.getData<BUFFER_TKE>(tkeRead),
-				m_dBuffers.getData<BUFFER_EPSILON>(epsRead),
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),

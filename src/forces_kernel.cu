@@ -1044,13 +1044,6 @@ updateBoundValuesDevice(	float4*		oldVel,
 				oldEps[index] = (eps1 + eps2 + eps3)/3.f;
 			}
 		}
-		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma keeping initial velocity values, if given
-		if (initStep && (FLUID(info) || VERTEX(info))) {
-			oldVel[index].x = 0;
-			oldVel[index].y = 0;
-			oldVel[index].z = 0;
-			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
-		}
 	}
 }
 
