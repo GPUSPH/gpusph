@@ -771,7 +771,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	const uint infoSize = sizeof(particleinfo) * m_numAllocatedParticles;
 	const uint intSize = sizeof(uint) * m_numAllocatedParticles;
 	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
-	const uint neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numAllocatedParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
+	// ulong for the neibslistSize since it is at least 2 orders of magnitude bigger than the other sizes and could overflow
+	const ulong neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numAllocatedParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
 	const uint hashSize = sizeof(hashKey) * m_numAllocatedParticles;
 	const uint segmentsSize = sizeof(uint) * 4; // 4 = types of cells
 	//const uint neibslistSize = sizeof(uint) * 128 * m_numAlocatedParticles;
