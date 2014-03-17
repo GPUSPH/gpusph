@@ -367,8 +367,9 @@ bool GPUSPH::runSimulation() {
 		// compute neighbour list for the first time
 		buildNeibList();
 
-		imposeDynamicBoundaryConditions();
-		updateValuesAtBoundaryElements();
+		// set density and other values for segments and vertices
+		initializeBoundaryConditions();
+
 	}
 
 	printf("Entering the main simulation cycle\n");
@@ -427,18 +428,6 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
-		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-			gdata->only_internal = true;
-
-			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-		}
-
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
@@ -452,7 +441,7 @@ bool GPUSPH::runSimulation() {
 		doCommand(FORCES, INTEGRATOR_STEP_1);
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -463,9 +452,7 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		// this made sense for testing and running EULER on internals only
-		//if (MULTI_DEVICE)
-		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | DBLBUFFER_WRITE);
+		gdata->swapDeviceBuffers(BUFFER_POS);
 
 		//			//reduce bodies
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -483,13 +470,15 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
-			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
+			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
-			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
 		}
+
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
@@ -503,7 +492,7 @@ bool GPUSPH::runSimulation() {
 		doCommand(FORCES, INTEGRATOR_STEP_2);
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// reduce bodies
@@ -538,6 +527,9 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_OBJECTS_MATRICES);
 		} // if there are objects
 
+		// swap read and writes again because the write contains the variables at time n
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
@@ -546,17 +538,23 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->numODEbodies > 0)
 			doCommand(UPLOAD_OBJECTS_CG);
 
-		// this made sense for testing and running EULER on internals only
-		//if (MULTI_DEVICE)
-		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
-
 		//			//reduce bodies
 
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL);
+		gdata->swapDeviceBuffers(BUFFER_POS);
 
-		if (problem->get_simparams()->visctype == KEPSVISC) {
-			gdata->swapDeviceBuffers(BUFFER_TKE | BUFFER_EPSILON);
+		// semi-analytical boundary update
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+			gdata->only_internal = true;
+
+			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
 		}
+
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
 
 		// increase counters
 		gdata->iterations++;
@@ -1220,21 +1218,24 @@ void GPUSPH::doCallBacks()
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
-void GPUSPH::imposeDynamicBoundaryConditions()
+void GPUSPH::initializeBoundaryConditions()
 {
+	// initially data is in read so swap to write
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+
 	gdata->only_internal = true;
+	// compute values for vertices plus initial estimate for gradgamma direction
 	doCommand(SA_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA);
-	gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
-}
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
-void GPUSPH::updateValuesAtBoundaryElements()
-{
-	gdata->only_internal = true;
+	// compute values for segments
 	doCommand(SA_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON );
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+
+	// swap changed buffers back so that read contains the new data
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA);
 }
 
 void GPUSPH::printStatus()

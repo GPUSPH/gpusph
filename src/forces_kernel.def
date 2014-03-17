@@ -454,8 +454,10 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			// Dividing by gamma
-			if (boundarytype == SA_BOUNDARY)
+			if (boundarytype == SA_BOUNDARY){
+				gGam.w = fmin(fmax(gGam.w, epsilon),1.0f);
 				force /= gGam.w;
+			}
 			// Adding gravity
 			as_float3(force) += d_gravity;
 
@@ -626,6 +628,7 @@ FORCES_CUDA_KERNEL
 					} // r < influenceradius
 				} // end of loop over neighbors
 
+				gGam.w = fmin(fmax(gGam.w, epsilon),1.0f);
 				force /= gGam.w;
 
 			} // end if (computeGamma || VISC_TYPE == KEPSVISC)
