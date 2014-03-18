@@ -38,6 +38,8 @@
 #include "kahan.h"
 #include "tensor.cu"
 
+#define MAXKASINDEX 10
+
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
@@ -696,326 +698,254 @@ SPSstressMatrixDevice(	const float4* posArray,
 /************************************************************************************************************/
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
-template<KernelType kerneltype>
-__device__ __forceinline__ float4
-gradGamma(	const float slength,
-		const float r,
-		const float4 boundElement)
+
+// helper function with the analytical formulae for gamma and grad gamma for the wendland kernel
+__device__ float2
+hf3d(float qas, float qae, float q, float pes, const float epsilon, bool computeGamma)
 {
-	float4 retval = W<kerneltype>(r, slength) * boundElement.w * boundElement;
-	retval.w = 0;
-	return retval;
+	float2 ret = make_float2(0.0);
+	if (fabs(qae) < epsilon || fabs(q*q-qae*qae) < epsilon || pes < 1e-5)
+		return ret;
+	const float q2 = q*q;
+	const float q3 = q2*q;
+	const float q4 = q2*q2;
+	const float q5 = q3*q2;
+	const float qas2 = qas*qas;
+	const float qas3 = qas2*qas;
+	const float qas4 = qas2*qas2;
+	const float qas5 = qas3*qas2;
+	const float qas6 = qas3*qas3;
+	const float qas8 = qas4*qas4;
+	const float qae2 = qae*qae;
+	const float qae4 = qae2*qae2;
+	const float pes2 = pes*pes;
+	const float pes4 = pes2*pes2;
+	const float pes6 = pes4*pes2;
+	const float sqrtqqae = sqrt(fmax(q2-qae2,0.0f));
+	const float atanqqae1 = atan2(sqrtqqae,pes);
+	const float atanqqae2 = atan2(qas*sqrtqqae,pes*q);
+	// formula for gradGamma (h3d)
+	ret.x =	1.0f/4096.0f/M_PI*(
+				-24.0f*(64.0f+7.0f*qas2*(-16.0f+5.0f*qas2*(4.0f+qas2)))*atanqqae1+96.0f*qas5*(28.0f+qas2)*atanqqae2+
+				pes*(
+					2.0f*sqrtqqae*(3.0f*qas4*(-420.0f+29.0f*q)+pes4*(-420.0f+33.0f*q)+2.0f*qas2*(-210.0f*(8.0f+q2-qae2)+756.0f*q+19.0f*(q2-qae2)*q)+
+					4.0f*(336.0f+(q2-qae2)*((q2-qae2)*(-21.0f+2.0f*q)+28.0f*(-5.0f+3.0f*q)))+2.0f*pes2*(420.0f*(-2.0f+q)+6.0f*qas2*(-105.0f+8.0f*q)+(q2-qae2)*(-140.0f+13.0f*q)))-
+					3.0f*(5.0f*pes6+21.0f*pes4*(8.0f+qas2)+35.0f*pes2*qas2*(16.0f+qas2)+35.0f*qas4*(24.0f+qas2))*(log(qae2)-2.0f*log(sqrtqqae+q))
+				)
+			);
+
+	if (computeGamma) {
+		// forumal for gamma (f3d)
+		ret.y =	1.0f/M_PI/32768.0f*(
+					pes*qas*(3.0f*qae4*(224.0f+5.0f*qae2)+2.0f*qae2*(448.0f+9.0f*qae2)*qas2+8.0f*(224.0f+3.0f*qae2)*qas4+48.0f*qas6)*
+					(log(-qae2+2.0f*q*(q+sqrtqqae))-2.0f*log(qae)) +
+					2.0f*(pes*sqrtqqae*qas*(3584.0f-896.0f*q2+448.0f*q3-96.0f*q4+8.0f*q5+
+					2.0f*(-896.0f+q*(336.0f+q*(-64.0f+5.0f*q)))*qae2+(-256.0f+15.0f*q)*qae4+4.0f*(-672.0f+q*(224.0f+q*(-40.0f+3.0f*q)))*qas2+
+					(-320.0f+18.0f*q)*qae2*qas2+24.0f*(-20.0f+q)*qas4)+8.0f*M_PI*(256.0f+112.0f*qas6+3.0f*qas8)+
+					8.0f*(64.0f+qas*(-192.0f+qas*(240.0f+qas*(-160.0f+qas*(60.0f+(-12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(2.0f+qas))*atan2(q*qas-qae2,pes*sqrtqqae)-
+					8.0f*(64.0f+qas*(192.0f+qas*(240.0f+qas*(160.0f+qas*(60.0f+(12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(-2.0f+qas))*atan2(q*qas+qae2,-pes*sqrtqqae)));
+	}
+
+	return ret;
 }
 
-
+// returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate
 template<KernelType kerneltype>
-__global__ void
-initGradGammaDevice(	float4*		oldPos,
-			float4*		newPos,
-			float4*		virtualVel,
-			float4*		gradGam,
-			const hashKey*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float deltap,
-			const float	slength,
-			const float	inflRadius)
+__device__ __forceinline__ float2
+Gamma(	const	float	slength,
+		const	float4	relPos,
+		const	float2	vPos0,
+		const	float2	vPos1,
+		const	float2	vPos2,
+		const	float4	boundElement,
+				float4	oldGGam,
+		const	float	epsilon,
+		const	bool	computeGamma)
 {
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
-		float4 pos = oldPos[index];
-		#else
-		float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-
-		// Taking info account self contribution in summation
-		float4 gGam = make_float4(0.0f);
-		float4 virtVel = make_float4(0.0f);
-
-		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
-		if(FLUID(info) || VERTEX(info)) {
-			//uint counter = 0; //DEBUG
-			float rmin = inflRadius;
-
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-			// Persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// Loop over all the neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
-				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - oldPos[neib_index];
-				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-				#endif
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				const float r = length(as_float3(relPos));
-
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-
-				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-					gGam += gradGamma<kerneltype>(slength, r, boundElement);
-					//counter++; //DEBUG
-					if(r < rmin)
-						rmin = r;
+	// Sigma is the point a projected onto the plane spanned by the edge
+	// q_aSigma is the non-dimensionalized distance between this plane and the particle
+	float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
+	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
+	// local coordinate system for relative positions to vertices
+	uint j = 0;
+	float4 coord1 = make_float4(0.0f);
+	float4 coord2 = make_float4(0.0f);
+	// Get index j for which n_s is minimal
+	if (fabs(boundElement.x) > fabs(boundElement.y))
+		j = 1;
+	if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
+		j = 2;
+	// compute second coordinate which is equal to n_s x e_j
+	if (j==0) {
+		coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
+		coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
+	}
+	else if (j==1) {
+		coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
+		coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
+	}
+	else {
+		coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
+		coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
+	}
+	// relative positions of vertices with respect to the segment
+	float4 v0 = vPos0.x*coord1 + vPos0.y*coord2; // e.g. v0 = r_{v0} - r_s
+	float4 v1 = vPos1.x*coord1 + vPos1.y*coord2;
+	float4 v2 = vPos2.x*coord1 + vPos2.y*coord2;
+	// calculate if the projection of a (with respect to n) is inside the segment
+	const float4 ba = v0 - v1; // vector from v0 to v1 (changed signs due to definition of v0)
+	const float4 ca = v0 - v2; // vector from v0 to v2
+	const float4 pa = v0 + relPos; // vector from v0 to the particle
+	const float uu = sqlength3(ba);
+	const float uv = dot(ba,ca);
+	const float vv = sqlength3(ca);
+	const float wu = dot(ba,pa);
+	const float wv = dot(ca,pa);
+	const float invdet = 1.0f/(uv*uv-uu*vv);
+	const float u = (uv*wv-vv*wu)*invdet;
+	const float v = (uv*wu-uu*wv)*invdet;
+	float gradGamma_as = 0.0f;
+	float gamma_as = 0.0f;
+	float gamma_vs = 0.0f;
+	int skipedge1 = -1;
+	int skipedge2 = -1;
+	// check if the particle is on a vertex
+	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
+			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
+		// set touching vertex to v0
+		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
+			const float4 tmp = v1;
+			v1 = v2;
+			v2 = v0;
+			v0 = tmp;
+		}
+		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
+			const float4 tmp = v2;
+			v2 = v1;
+			v1 = v0;
+			v0 = tmp;
+		}
+		// additional value of grad gamma
+		const float openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
+		gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
+		// compute the sum of all solid angles of the tetrahedron spanned by v0-v1, v0-v2 and -gradgamma
+		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
+		float l1 = length3(v0-v1);
+		float l2 = length3(v0-v2);
+		float abc = dot3((v0-v1),oldGGam)/l1 + dot3((v0-v2),oldGGam)/l2 + dot3((v0-v1),(v0-v2))/l1/l2;
+		float d = dot3(oldGGam,cross3((v0-v1),(v0-v2)))/l1/l2;
+		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983) 
+		float SolidAngle = 2.0f*atan2(d,(1.0f+abc));
+		if(SolidAngle < 0.0f)
+			SolidAngle += 2.0f*M_PI;
+		gamma_vs = SolidAngle/4.0f/M_PI;
+		skipedge1 = 0;
+		skipedge2 = 2;
+	}
+	// check if particle is on an edge
+	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
+				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) || 
+				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
+			 ) && q_aSigma.w < epsilon) {
+		// grad gamma for a half-plane
+		gradGamma_as = 3.0f/4.0f/2.0f;
+		// compute the angle between a segment and -gradgamma
+		const float theta0 = acos(dot3(boundElement,oldGGam)); // angle of the norms between 0 and pi
+		const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
+		const float4 normDir = cross3(boundElement, oldGGam); // this is the sin between the two norms
+		const float theta = M_PI + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+		gamma_vs = theta/2.0f/M_PI; // this is actually two times gamma_as
+		// the following edge is intersecting the particle and thus does not need to be computed
+		// the following edge is intersecting the particle and thus does not need to be computed
+		skipedge1 = 1;
+		if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is on v02
+			skipedge1 = 2;
+		else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is on v01
+			skipedge1 = 0;
+	}
+	// general formula (also used if particle is on vertex / edge to compute remaining edges)
+	if (q_aSigma.w < 2.0f) {
+		// additional term if projection is inside segment
+		if (u > - epsilon && v > -epsilon && u+v < 1.0f+epsilon && skipedge1 == -1 && skipedge2 == -1) {
+			float openingAngle; // angle divided by 2 M_PI
+			// check if we are on top of a vertex
+			if (fabs(u-1.0f) < epsilon || fabs(v-1.0f) < epsilon || fabs(u+v-1.0f) < epsilon) {
+				// set touching vertex to v0
+				if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
+					const float4 tmp = v1;
+					v1 = v2;
+					v2 = v0;
+					v0 = tmp;
 				}
-			}
-
-			//DEBUG output
-			//if(counter && ((pos.x < 0.1 && pos.y < 0.1) || (pos.x > 1.35 && pos.y > 1.35)) )
-			//	printf("X: %g\tY: %g\tZ: %g\tnumBound: %d\n", pos.x, pos.y, pos.z, counter);
-
-			//Set the virtual displacement
-			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10f) {
-				virtVel = -1.0f * inflRadius * gGam / magnitude;
-				virtVel.w = 0.0f;
-			}
-		}
-
-		// Set gamma to 1
-		gGam.w = 1.0f;
-
-		gradGam[index] = gGam;
-		virtualVel[index].x = virtVel.x;
-		virtualVel[index].y = virtVel.y;
-		virtualVel[index].z = virtVel.z;
-		newPos[index] = pos - virtVel;
-	}
-}
-
-
-template<KernelType kerneltype>
-__global__ void
-updateGammaDevice(	const float4* oldPos,
-			float4*		newGam,
-			const hashKey*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float	slength,
-			const float	inflRadius,
-			const float	virtDt)
-{
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
-		const float4 pos = oldPos[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float3 vel = make_float3(tex1Dfetch(velTex, index));
-		float4 oldGam = tex1Dfetch(gamTex, index);
-
-		float4 gGam = make_float4(0.0f);
-		float deltaGam = 0.0f;
-
-		// Compute gradient of gamma for fluid particles and, when k-e model is used, for vertex particles
-		if(FLUID(info) || VERTEX(info)) {
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-			// Persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// Loop over all the neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				// Now relPos is a float4 and neib mass is stored in relPos.w
-				#if( __COMPUTE__ >= 20)
-				const float4 relPos = pos_corr - oldPos[neib_index];
-				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-				#endif
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				const float r = length(as_float3(relPos));
-
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-
-				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
-					gGam += gradGamma_as;
-					deltaGam += dot(make_float3(gradGamma_as), vel);
+				else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
+					const float4 tmp = v2;
+					v2 = v1;
+					v1 = v0;
+					v0 = tmp;
 				}
+				// additional value of grad gamma
+				openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
+				openingAngle /= 2.0f*M_PI;
+				skipedge1 = 0;
+				skipedge2 = 2;
 			}
-
-			//Update gamma value
-			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10f) {
-				gGam.w = fmin(oldGam.w + deltaGam * 0.5f*virtDt,1.0f);
+			// interior of a triangle
+			else if (u > epsilon && v > epsilon && u+v < 1.0f-epsilon) {
+				openingAngle = 1.0f;
 			}
-			else
-				gGam.w = 1.0f;
+			// on an edge
+			else {
+				openingAngle = 0.5f;
+				// the following edge is below the particle and thus does not need to be computed
+				skipedge1 = 1;
+				if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is above v02
+					skipedge1 = 2;
+				else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is above v01
+					skipedge1 = 0;
+			}
+			gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
+			gamma_as = -1.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
 		}
-
-		newGam[index] = gGam;
-	}
-}
-
-
-template<KernelType kerneltype>
-__global__ void
-updateGammaPrCorDevice( const float4*		newPos,
-			float4*		newGam,
-			const hashKey*	particleHash,
-			const uint*	cellStart,
-			const neibdata*	neibsList,
-			const uint	numParticles,
-			const float	slength,
-			const float	inflRadius,
-			const float	virtDt)
-{
-	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		float4 newpos = newPos[index];
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float3 vel = make_float3(tex1Dfetch(velTex, index));
-		float4 oldGam = tex1Dfetch(gamTex, index);
-
-		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, oldGam.w);
-		float deltaGam = 0.0f;
-		deltaGam += dot(make_float3(oldGam), vel); //FIXME: It is incorrect for moving boundaries
-
-		// Compute gradient of gamma for fluid only
-		if(FLUID(info)) {
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-			// Persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
-
-			// Loop over all the neighbors
-			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-				neibdata neib_data = neibsList[i + index];
-
-				if (neib_data == 0xffff) break;
-
-				const uint neib_index = getNeibIndex(newpos, pos_corr, cellStart, neib_data, gridPos,
-							neib_cellnum, neib_cell_base_index);
-
-				// Compute relative position vector and distance
-				const float4 relPos = pos_corr - newPos[neib_index];
-
-				// skip inactive particles
-				if (INACTIVE(relPos))
-					continue;
-
-				const float r = length(as_float3(relPos));
-
-				const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-
-				if(r < inflRadius && BOUNDARY(neibInfo)) {
-					const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-					const float4 gradGamma_as = gradGamma<kerneltype>(slength, r, boundElement);
-					gGam += gradGamma_as;
-					deltaGam += dot(make_float3(gradGamma_as), vel);
-				}
+		// loop over all three edges
+		for (uint i=0; i<3; i++) {
+			if (i>0) {
+				//swap vertices
+				const float4 tmp = v0;
+				v0 = v1;
+				v1 = v2;
+				v2 = tmp;
 			}
-
-			//Update gamma value
-			float magnitude = length(make_float3(gGam));
-			if (magnitude > 1.e-10f) {
-				gGam.w = fmin(oldGam.w + deltaGam * 0.25f*virtDt,1.0f);
+			if(skipedge1 == i || skipedge2 == i)
+				continue;
+			// vector pointing outward from segment normal to segment normal and v_{01}
+			// this is only possible because Crixus makes sure that the segments are ordered correctly
+			float4 n_ds = cross3(v1-v0,boundElement);
+			n_ds.w = length3(n_ds);
+			n_ds /= n_ds.w;
+			// q_aEpsilon is the vector from a to the intersection of v_{01} and the plane spanned by q_aSigma and n_ds (i.e. it's on the edge)
+			float4 q_aEpsilon = q_aSigma + n_ds*dot3(n_ds,relPos+v0)/slength;
+			q_aEpsilon.w = length3(q_aEpsilon);
+			// if q_aEpsilon is greater than 2 the kernel support doest not intersect the edge
+			if(q_aEpsilon.w < 2.0f) {
+				float4 te = (v1-v0);
+				te.w = length3(te);
+				te /= te.w;
+				float y0 = dot3(relPos+v0,te);
+				float y1 = dot3(relPos+v1,te);
+				float qv0 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y0*y0/(slength*slength)),2.0f);
+				float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
+				float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;
+				p_EpsilonSigma.w = length3(p_EpsilonSigma);
+				float2 hf3d0 = hf3d(q_aSigma.w,q_aEpsilon.w,qv0,p_EpsilonSigma.w, epsilon, computeGamma);
+				float2 hf3d1 = hf3d(q_aSigma.w,q_aEpsilon.w,qv1,p_EpsilonSigma.w, epsilon, computeGamma);
+				gradGamma_as += copysign(copysign(hf3d1.x,y1) - copysign(hf3d0.x,y0), dot3(n_ds, p_EpsilonSigma));
+				gamma_as -= copysign(copysign(hf3d0.y,y0) - copysign(hf3d1.y,y1), dot3(n_ds, p_EpsilonSigma));
 			}
-			else
-				gGam.w = 1.0f;
 		}
-
-		newGam[index] = gGam;
 	}
-}
-
-
-//FIXME: Modify this kernel taking into account periodic boundary
-//template<KernelType kerneltype, bool periodicbound>
-//TODO-AM: this function will be removed as it is part of init_gamma and not required, the above fixme is not needed
-__global__ void
-updatePositionsDevice(	const float4*	oldPos,
-			float4*	newPos,
-			float	virtDt,
-			uint	numParticles)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if(index < numParticles) {
-		#if( __COMPUTE__ >= 20)
-		float4 pos = oldPos[index];
-		#else
-		float4 pos = tex1Dfetch(posTex, index);
-		#endif
-		const particleinfo info = tex1Dfetch(infoTex, index);
-		float4 vel = tex1Dfetch(velTex, index);
-
-		if(FLUID(info) || VERTEX(info)) {
-			pos.x += virtDt * vel.x;
-			pos.y += virtDt * vel.y;
-			pos.z += virtDt * vel.z;
-		}
-
-//		if (periodicbound) {
-//			if (d_dispvect.x) {
-//				if (pos.x >= d_maxlimit.x)
-//					pos.x -= d_dispvect.x;
-//				else if (pos.x < d_minlimit.x)
-//					pos.x += d_dispvect.x;
-//			}
-//			if (d_dispvect.y) {
-//				if (pos.y >= d_maxlimit.y)
-//					pos.y -= d_dispvect.y;
-//				else if (pos.y < d_minlimit.y)
-//					pos.y += d_dispvect.y;
-//			}
-//			if (d_dispvect.z) {
-//				if (pos.z >= d_maxlimit.z)
-//					pos.z -= d_dispvect.z;
-//				else if (pos.z < d_minlimit.z)
-//					pos.z += d_dispvect.z;
-//			}
-//		}
-
-		newPos[index] = pos;
-	}
+	gamma_as = gamma_vs + copysign(gamma_as,dot3(boundElement,q_aSigma));
+	return make_float2(gradGamma_as/slength, gamma_as);
 }
 
 __global__ void
@@ -1114,13 +1044,6 @@ updateBoundValuesDevice(	float4*		oldVel,
 				oldEps[index] = (eps1 + eps2 + eps3)/3.f;
 			}
 		}
-		//FIXME: it should be implemented somewhere in initializeGammaAndGradGamma keeping initial velocity values, if given
-		if (initStep && (FLUID(info) || VERTEX(info))) {
-			oldVel[index].x = 0;
-			oldVel[index].y = 0;
-			oldVel[index].z = 0;
-			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
-		}
 	}
 }
 
@@ -1131,13 +1054,15 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 				float4*		oldVel,
 				float*		oldTKE,
 				float*		oldEps,
+				float4*		gradGamma,
 				const hashKey*	particleHash,
 				const uint*	cellStart,
 				const neibdata*	neibsList,
 				const uint	numParticles,
 				const float deltap,
 				const float	slength,
-				const float	influenceradius)
+				const float	influenceradius,
+				const bool	initStep)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1158,11 +1083,10 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	const float vel = length(make_float3(oldVel[index]));
 
-	// in contrast to Shepard filter particle itself doesn't contribute into summation
-	float temp1 = 0;
-	float temp2 = 0; // summation for computing density
-	float temp3 = 0; // summation for computing TKE
-	float alpha = 0;
+	// note that all sums below run only over fluid particles (including the Shepard filter)
+	float sumrho = 0; // summation for computing the density
+	float sumtke = 0; // summation for computing TKE
+	float alpha = 0;  // the shepard filter
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -1171,6 +1095,11 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
+	float3 avgNorm = make_float3(0.0f);
+
+	// Square of sound speed. Would need modification for multifluid
+	float sqC0 = d_sscoeff[PART_FLUID_NUM(info)];
+	sqC0 *= sqC0;
 
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1204,19 +1133,23 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
-			temp1 += w;
-			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,as_float3(relPos))/* + 0.5*(neib_vel*neib_vel-vel*vel)*/);
-			temp3 += w/neib_rho*neib_k;
+			sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w;
+			sumtke += w/neib_rho*neib_k;
 			alpha += w/neib_rho;
+		}
+		// in the initial step we need to compute an approximate grad gamma direction for the computation of gamma
+		else if (initStep && r < influenceradius && BOUNDARY(neib_info)) {
+			const float3 normal = as_float3(tex1Dfetch(boundTex, neib_index));
+			avgNorm += normal;
 		}
 	}
 
-	if (alpha) {
-		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
+	if (alpha > 1e-5f) {
+		oldVel[index].w = fmax(sumrho/alpha,d_rho0[PART_FLUID_NUM(info)]);
 		if (oldTKE)
-			oldTKE[index] = temp3/alpha;
+			oldTKE[index] = sumtke/alpha;
 		if (oldEps)
-			oldEps[index] = pow(0.09f, 0.75f)*pow(oldTKE[index], 1.5f)/0.41f/deltap;
+			oldEps[index] = powf(0.09f, 0.75f)*powf(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
 	else {
 		oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
@@ -1225,121 +1158,15 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		if (oldEps)
 			oldEps[index] = 0.0;
 	}
+
+	if (initStep) {
+		avgNorm /= length(avgNorm);
+		gradGamma[index].x = avgNorm.x;
+		gradGamma[index].y = avgNorm.y;
+		gradGamma[index].z = avgNorm.z;
+		gradGamma[index].w = 0.0f;
+	}
 }
-
-/************************************************************************************************************/
-/*		                  Computes mean strain rate tensor for k-e model									*/
-/************************************************************************************************************/
-template<KernelType kerneltype>
-__global__ void
-__launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-MeanScalarStrainRateDevice(	const float4* posArray,
-							float* strainRate,
-							const hashKey*	particleHash,
-							const uint*	cellStart,
-							const neibdata*	neibsList,
-							const uint	numParticles,
-							const float	slength,
-							const float	influenceradius)
-{
-	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-	if (index >= numParticles)
-		return;
-
-	// read particle data from sorted arrays
-	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
-		return;
-
-	// read particle data from sorted arrays
-	#if( __COMPUTE__ >= 20)
-	const float4 pos = posArray[index];
-	#else
-	const float4 pos = tex1Dfetch(posTex, index);
-	#endif
-	const float4 vel = tex1Dfetch(velTex, index);
-	const float4 gradgamma = tex1Dfetch(gamTex, index);
-
-	// Gradients of the the velocity components
-	float3 dvx = make_float3(0.0f);
-	float3 dvy = make_float3(0.0f);
-	float3 dvz = make_float3(0.0f);
-
-	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
-
-	// Persistent variables across getNeibData calls
-	char neib_cellnum = -1;
-	uint neib_cell_base_index = 0;
-	float3 pos_corr;
-
-	// first loop over all the neighbors for the Velocity Gradients
-	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
-
-		if (neib_data == 0xffff) break;
-
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
-
-		// Compute relative position vector and distance
-		// Now relPos is a float4 and neib mass is stored in relPos.w
-		#if( __COMPUTE__ >= 20)
-		const float4 relPos = pos_corr - posArray[neib_index];
-		#else
-		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-		#endif
-
-		// skip inactive particles
-		if (INACTIVE(relPos))
-			continue;
-
-		const float r = length(as_float3(relPos));
-
-		if (r < influenceradius) {
-
-			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
-			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
-
-			// first term, interaction with fluid and vertex particles
-			if(FLUID(neib_info) || VERTEX(neib_info)) {
-				const float f = F<kerneltype>(r, slength)*relPos.w;	// 1/r ∂Wab/∂r * mb
-
-				// Velocity Gradients (Wall-corrected)
-				dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
-				dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
-				dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
-			}
-			// second term, interaction with boundary elements
-			if(BOUNDARY(neib_info)) {
-				const float4 belem = tex1Dfetch(boundTex, neib_index);
-				const float3 gradgam_as = make_float3(gradGamma<kerneltype>(slength, r, belem));
-
-				dvx += relVel.w*relVel.x*gradgam_as;	// dvx = ∑ρs vxas ∇ɣas
-				dvy += relVel.w*relVel.y*gradgam_as;	// dvy = ∑ρs vyas ∇ɣas
-				dvz += relVel.w*relVel.z*gradgam_as;	// dvz = ∑ρs vzas ∇ɣas
-			}
-		} // end if
-	} // end of loop through neighbors
-
-	dvx /= vel.w * gradgamma.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-	dvy /= vel.w * gradgamma.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-	dvz /= vel.w * gradgamma.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
-
-	// Calculate norm of the mean strain rate tensor
-	float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-	float temp = dvx.y + dvy.x;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-	temp = dvx.z + dvz.x;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-	temp = dvy.z + dvz.y;
-	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-	float S = sqrtf(SijSij_bytwo);
-	strainRate[index] = S;
-}
-/************************************************************************************************************/
-
 
 /************************************************************************************************************/
 /*					   Kernels for computing acceleration without gradient correction					 */

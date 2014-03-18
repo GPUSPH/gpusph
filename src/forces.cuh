@@ -92,9 +92,11 @@ setforcesrbstart(const uint* rbfirstindex, int numbodies);
 float
 forces(
 	const	float4	*pos,
+			float2	*verPos[],
 	const	float4	*vel,
 			float4	*forces,
-	const	float4	*gradgam,
+	const	float4	*oldGGam,
+			float4	*newGGam,
 	const	float4	*boundelem,
 			float4	*rbforces,
 			float4	*rbtorques,
@@ -113,6 +115,8 @@ forces(
 			bool	xsphcorr,
 	KernelType		kerneltype,
 			float	influenceradius,
+	const	float	epsilon,
+	const	bool	movingBoundaries,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -120,7 +124,6 @@ forces(
 			float	*keps_eps,
 			float2	*keps_dkde,
 			float	*cfl,
-			float	*cflGamma,
 			float	*cflTVisc,
 			float	*tempCfl,
 	SPHFormulation	sph_formulation,
@@ -135,23 +138,6 @@ const	particleinfo	*info,
 	const	hashKey	*particleHash,
 	const	uint	*cellStart,
 	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-		KernelType	kerneltype,
-			float	influenceradius);
-
-void
-mean_strain_rate(
-			float	*strainrate,
-	const	float4	*pos,
-	const	float4	*vel,
-const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-	const	float4	*gradgam,
-	const	float4	*boundelem,
 			uint	numParticles,
 			uint	particleRangeEnd,
 			float	slength,
@@ -274,55 +260,6 @@ void calc_energy(
 			uint			numParticles,
 			uint			numFluids);
 
-// Computes initial values of the gamma gradient
-void
-initGradGamma(	float4*		oldPos,
-		float4*		newPos,
-		float4*		virtualVel,
-		particleinfo*	info,
-		float4*		boundElement,
-		float4*		gradGamma,
-		const hashKey*	particleHash,
-		const uint*	cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		deltap,
-		float		slength,
-		float		inflRadius,
-		int			kerneltype);
-
-// Computes current value of the gamma gradient and update gamma value
-// according to the evolution equation { dGamma/dt = gradGamma * relVel }
-void
-updateGamma(	float4*		oldPos,
-		const float4*		newPos,
-		float4*		virtualVel,
-		particleinfo*	info,
-		float4*		boundElement,
-		float4*		oldGam,
-		float4*		newGam,
-		const hashKey*	particleHash,
-		const uint*	cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		slength,
-		float		inflRadius,
-		float		virtDt,
-		bool		predcor,
-		int			kerneltype);
-
-//Moves particles back to their initial positions during initialization of gamma
-void
-updatePositions(	float4*		oldPos,
-			float4*		newPos,
-			float4*		virtualVel,
-			particleinfo*	info,
-			float		virtDt,
-			uint		numParticles,
-			uint		particleRangeEnd);
-
 // calculate a private scalar for debugging or a passive value
 void
 calcPrivate(const	float4*			pos,
@@ -358,6 +295,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
+			float4*			newGam,
+			const float4*	boundelement,
 			const particleinfo*	info,
 			const hashKey*		particleHash,
 			const uint*		cellStart,
@@ -367,7 +306,8 @@ dynamicBoundConditions(	const float4*		oldPos,
 			const float		deltap,
 			const float		slength,
 			const int		kerneltype,
-			const float		influenceradius);
+			const float		influenceradius,
+			const bool		initStep);
 
 }
 

@@ -102,7 +102,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float*				newTKE,				// output: k for k-e model
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
-									float*				newStrainRate,		// output: strain rate
 									const hashKey*		particleHash,		// input: sorted grid hashes
 									const uint*			particleIndex,		// input: sorted particle indices
 									const float4*		oldPos,				// input: unsorted positions
@@ -114,7 +113,6 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldTKE,				// input: k for k-e model
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
-									const float*		oldStrainRate,		// input: strain rate
 									const uint			numParticles,
 									const uint			numGridCells,
 									uint*				inversedParticleIndex);
@@ -123,6 +121,9 @@ void
 buildNeibsList(	neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
+				vertexinfo*			vertices,
+				const float4		*boundelem,
+				float2*				vertPos[],
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
@@ -130,6 +131,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
+				const float			sqdpo2,
 				const int			periodicbound);
 
 void

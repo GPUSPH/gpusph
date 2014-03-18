@@ -87,6 +87,8 @@ typedef struct SimParams {
 	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	bool			calcPrivate;		// add the private array for debugging / additional calculation
+	float			epsilon;			// if |r_a - r_b| < epsilon two positions are considered identical
+	bool			movingBoundaries;	// defines if moving boundaries are present
 
 	SimParams(void) :
 		sfactor(1.3),
@@ -122,7 +124,9 @@ typedef struct SimParams {
 		calc_energy(true),
 		numODEbodies(0),
 		maxneibsnum(0),
-		calcPrivate(false)
+		calcPrivate(false),
+		epsilon(5e-5),
+		movingBoundaries(false)
 	{};
 
 	inline double

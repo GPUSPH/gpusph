@@ -51,7 +51,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//Spheric2 (DamBreak)
 	//*************************************************************************************
 	else if (SPECIFIC_PROBLEM == "Spheric2") {
-		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/0.spheric2.h5sph";
+		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/140311-spheric2/0.spheric2.h5sph";
 
 		set_deltap(0.01833f);
 
@@ -82,9 +82,10 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.tend = 5.0;
 		m_simparams.testpoints = false;
 		H = 1.0;
-		l = 2.0; w = 2.0; h = 2.0;
-		m_origin = make_double3(-1.0, -1.0, -1.0);
+		l = 2.2; w = 2.2; h = 2.2;
+		m_origin = make_double3(-1.1, -1.1, -1.1);
 		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
+		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
 
@@ -189,6 +190,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.ferrari = 0.1;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
+	m_simparams.nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);

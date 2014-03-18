@@ -14,7 +14,7 @@ typedef unsigned short ushort;
 
 inline float fminf(float a, float b)
 {
-  return a < b ? a : b;
+	return a < b ? a : b;
 }
 
 inline float fmaxf(float a, float b)
@@ -24,17 +24,22 @@ inline float fmaxf(float a, float b)
 
 inline int max(int a, int b)
 {
-  return a > b ? a : b;
+	return a > b ? a : b;
 }
 
 inline int min(int a, int b)
 {
-  return a < b ? a : b;
+	return a < b ? a : b;
 }
 
 inline float rsqrtf(float x)
 {
 	return 1.0f / sqrtf(x);
+}
+
+inline float copysign(float a, float b)
+{
+	return b > 0 ? fabs(a) : -fabs(a);
 }
 #endif
 
@@ -858,16 +863,40 @@ static __inline__ __host__ __device__ float dot(const float4 &a, const float4 &b
 	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
+// dot product for float4 but act as if they are float3s
+static __inline__ __host__ __device__ float dot3(const float4 &a, const float4 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
 // squared length
 static __inline__ __host__ __device__ float sqlength(const float4 &v)
 {
 	return dot(v, v);
 }
 
+// squared length for float4 but act as if they are float3s
+static __inline__ __host__ __device__ float sqlength3(const float4 &v)
+{
+	return dot3(v, v);
+}
+
 // length
 static __inline__ __host__ __device__ float length(const float4 &v)
 {
 	return sqrtf(sqlength(v));
+}
+
+// length for float4 but act as if they are float3s
+static __inline__ __host__ __device__ float length3(const float4 &v)
+{
+	return sqrtf(sqlength3(v));
+}
+
+// cross product
+static __inline__ __host__ __device__ float4 cross3(const float4 &a, const float4 &b)
+{
+	return make_float4(a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x, 0.0f);
 }
 
 // normalize
