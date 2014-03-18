@@ -1,10 +1,12 @@
 #include <math.h>
+#include <string>
 #include <iostream>
 
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
 
-#define SPECIFIC_PROBLEM "SmallChannelFlow"
+static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
+
 /* Implemented problems:
  *
  *	Keyword			Description
