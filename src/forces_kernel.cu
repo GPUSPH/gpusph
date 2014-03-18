@@ -1142,8 +1142,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		}
 	}
 
-	if (alpha) {
-		oldVel[index].w = temp1/alpha; //FIXME: this can be included directly in the next line
+	if (alpha > 1e-5f) {
+		oldVel[index].w = fmax(temp1/alpha,1000.0f); //FIXME: this can be included directly in the next line
 		if (oldTKE)
 			oldTKE[index] = temp3/alpha;
 		if (oldEps)
