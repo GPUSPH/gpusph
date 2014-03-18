@@ -1337,9 +1337,9 @@ void GPUWorker::createCompactDeviceMap() {
 	enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 
 	// iterate on all cells of the world
-	for (int ix=0; ix < gdata->gridSize.x; ix++)
-		for (int iy=0; iy < gdata->gridSize.y; iy++)
-			for (int iz=0; iz < gdata->gridSize.z; iz++) {
+	for (uint ix=0; ix < gdata->gridSize.x; ix++)
+		for (uint iy=0; iy < gdata->gridSize.y; iy++)
+			for (uint iz=0; iz < gdata->gridSize.z; iz++) {
 				// data of current cell
 				uint cell_lin_idx = gdata->calcGridHashHost(ix, iy, iz);
 				uint cell_globalDevidx = gdata->s_hDeviceMap[cell_lin_idx];

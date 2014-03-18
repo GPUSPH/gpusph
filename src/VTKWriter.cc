@@ -407,7 +407,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
 	numbytes = sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=node_offset; i < node_offset + numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		uint value = cellHashFromParticleHash( particleHash[i] );
 		fwrite(&value, sizeof(value), 1, fid);
 	}
@@ -531,12 +531,12 @@ VTKWriter::write_WaveGage(float t, GageList const& gage)
 	fprintf(fp,"<?xml version=\"1.0\"?>\r\n");
 	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
 	fprintf(fp," <UnstructuredGrid>\r\n");
-	fprintf(fp,"  <Piece NumberOfPoints=\"%d\" NumberOfCells=\"%d\">\r\n", num, num);
+	fprintf(fp,"  <Piece NumberOfPoints=\"%zu\" NumberOfCells=\"%zu\">\r\n", num, num);
 
 	//Writing Position
 	fprintf(fp,"   <Points>\r\n");
 	fprintf(fp,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
-	for (int i=0; i <  num; i++)
+	for (size_t i=0; i <  num; i++)
 		fprintf(fp,"%f\t%f\t%f\t",gage[i].x, gage[i].y, gage[i].z);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
@@ -545,21 +545,21 @@ VTKWriter::write_WaveGage(float t, GageList const& gage)
 	// Cells data
 	fprintf(fp,"   <Cells>\r\n");
 	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
-	for (int i = 0; i < num; i++)
-		fprintf(fp,"%d\t", i);
+	for (size_t i = 0; i < num; i++)
+		fprintf(fp,"%zu\t", i);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
 	fprintf(fp,"\r\n");
 
 	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
-	for (int i = 0; i < num; i++)
-		fprintf(fp,"%d\t", i + 1);
+	for (size_t i = 0; i < num; i++)
+		fprintf(fp,"%zu\t", i + 1);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");
 
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
-	for (int i = 0; i < num; i++)
+	for (size_t i = 0; i < num; i++)
 		fprintf(fp,"%d\t", 1);
 	fprintf(fp,"\r\n");
 	fprintf(fp,"	</DataArray>\r\n");

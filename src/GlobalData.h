@@ -513,9 +513,9 @@ struct GlobalData {
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
-		for (int ix=0; ix < gridSize.x; ix++)
-				for (int iy=0; iy < gridSize.y; iy++)
-					for (int iz=0; iz < gridSize.z; iz++) {
+		for (uint ix=0; ix < gridSize.x; ix++)
+				for (uint iy=0; iy < gridSize.y; iy++)
+					for (uint iz=0; iz < gridSize.z; iz++) {
 						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
 						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, s_hDeviceMap[cell_lin_idx]);
 					}
@@ -537,9 +537,9 @@ struct GlobalData {
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
-		for (int ix=0; ix < gridSize.x; ix++)
-				for (int iy=0; iy < gridSize.y; iy++)
-					for (int iz=0; iz < gridSize.z; iz++) {
+		for (uint ix=0; ix < gridSize.x; ix++)
+				for (uint iy=0; iy < gridSize.y; iy++)
+					for (uint iz=0; iz < gridSize.z; iz++) {
 						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
 						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, compactDeviceMap[cell_lin_idx] >> 30);
 					}

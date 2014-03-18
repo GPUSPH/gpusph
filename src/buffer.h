@@ -60,7 +60,7 @@ public:
 
 	// number of arrays
 	// overloaded in subclasses
-	virtual int get_array_count() const
+	virtual uint get_array_count() const
 	{ return 0; }
 
 	virtual const char* get_buffer_name() const
@@ -165,7 +165,7 @@ public:
 	virtual size_t get_element_size() const
 	{ return sizeof(T); }
 
-	virtual int get_array_count() const
+	virtual uint get_array_count() const
 	{ return array_count; }
 };
 

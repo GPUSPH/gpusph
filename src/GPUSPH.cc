@@ -287,13 +287,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
-	for (int d=0; d < gdata->devices; d++)
+	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
 	gdata->keep_going = true;
 
 	// actually start the threads
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->run_worker(); // begin of INITIALIZATION ***
 
 	// The following barrier waits for GPUworkers to complete CUDA init, GPU allocation, subdomain and devmap upload
@@ -315,7 +315,7 @@ bool GPUSPH::finalize() {
 	free(m_rcAddrs);
 
 	// workers
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		delete gdata->GPUWORKERS[d];
 
 	delete gdata->GPUWORKERS;
@@ -508,7 +508,7 @@ bool GPUSPH::runSimulation() {
 				totForce[ob] = make_float3( 0.0F );
 				totTorque[ob] = make_float3( 0.0F );
 
-				for (int d = 0; d < gdata->devices; d++) {
+				for (uint d = 0; d < gdata->devices; d++) {
 					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
 					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
 				} // iterate on devices
@@ -566,7 +566,7 @@ bool GPUSPH::runSimulation() {
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
 			gdata->dt = gdata->dts[0];
-			for (int d = 1; d < gdata->devices; d++)
+			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
@@ -667,7 +667,7 @@ bool GPUSPH::runSimulation() {
 
 	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
 	// we wait for the threads to actually exit
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
 	return true;
@@ -800,7 +800,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	if (MULTI_DEVICE) {
 		delete[] gdata->s_hDeviceMap;
 		// cells
-		for (int d = 0; d < gdata->devices; d++) {
+		for (uint d = 0; d < gdata->devices; d++) {
 			cudaFreeHost(gdata->s_dCellStarts[d]);
 			cudaFreeHost(gdata->s_dCellEnds[d]);
 			//delete[] gdata->s_dCellStarts[d];
@@ -865,7 +865,7 @@ void GPUSPH::sortParticlesByHash() {
 	gdata->s_hStartPerDevice[0] = 0;
 	// zero is true for the first node. For the next ones, need to sum the number of particles of the previous nodes
 	if (MULTI_NODE)
-		for (uint prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
+		for (int prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
 			gdata->s_hStartPerDevice[0] += gdata->processParticles[prev_nodes];
 	for (uint d = 1; d < gdata->devices; d++)
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
@@ -1357,9 +1357,9 @@ void GPUSPH::updateArrayIndices() {
 
 	// now update the offsets for each device:
 	gdata->s_hStartPerDevice[0] = 0;
-	for (uint n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
+	for (int n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
 		gdata->s_hStartPerDevice[0] += gdata->processParticles[n];
-	for (int d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
+	for (uint d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// process 0 checks if total number of particles varied in the simulation

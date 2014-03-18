@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
 			// round-robin scheduling: distribute to non-empty node only if others have at least n-1 processes already
 			devIndexOffset = (gdata.mpi_rank / gdata.clOptions->num_hosts) * gdata.devices;
 
-		for (int d=0; d < gdata.devices; d++)
+		for (uint d=0; d < gdata.devices; d++)
 				gdata.device[d] += devIndexOffset;
 	} else
 		if (gdata.clOptions->byslot_scheduling)
