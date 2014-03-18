@@ -118,7 +118,7 @@ typedef cudaStream_t cudaStream_t;
 
 // quoted axis for output
 // http://gcc.gnu.org/onlinedocs/cpp/Stringification.html#Stringification
-/*#define pre_str(s) #s
+#define pre_str(s) #s
 #define str(s) pre_str(s)
 #define QUOTED_PSA str(PSA) */
 /*
