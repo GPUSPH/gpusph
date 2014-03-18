@@ -226,6 +226,9 @@ FORCES_CUDA_KERNEL
 				if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(info))) {
 					float DvDt = 0.0f;
 					float4 bound_term_pres = make_float4(0.0f);
+					//       to velTex[neib_index].w.
+					//       of the float4 remains positive. This implies that relVel.w is equal
+					// NOTE: this subtraction of float3 - float4 ensures that the .w component
 					float3 bound_term_visc = make_float3(0.0f);
 					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 
