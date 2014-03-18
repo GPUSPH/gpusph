@@ -181,6 +181,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
+	m_simparams.nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
