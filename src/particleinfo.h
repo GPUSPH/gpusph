@@ -32,7 +32,7 @@
 #include <cstring>
 
 
-/* Particle information. short4 with fields:
+/* Particle information. ushort4 with fields:
    .x: particle type (for multifluid)
    .y: object id (which object does this particle belong to?)
    (.z << 16) + .w: particle id
@@ -45,9 +45,9 @@
    2^48 (about 281 trillion) particles.
 */
 
-typedef short4 particleinfo;
+typedef ushort4 particleinfo;
 
-inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const short &z, const short &w)
+inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj, const ushort &z, const ushort &w)
 {
 	particleinfo v;
 	v.x = type;
@@ -57,7 +57,7 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	return v;
 }
 
-inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const uint &id)
+inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj, const uint &id)
 {
 	particleinfo v;
 	v.x = type;
@@ -72,23 +72,23 @@ inline __host__ particleinfo make_particleinfo(const short &type, const short &o
 	   FIXME endianness
 	 */
 	// *(uint*)&v.z = id;
-	memcpy((void *)&v.z, (const void *)&id, (unsigned int) 4);
+	memcpy((void *)&v.z, (const void *)&id, 4);
 	return v;
 }
 
-static __inline__ __host__ __device__ const short& type(const particleinfo &info)
+static __inline__ __host__ __device__ const ushort& type(const particleinfo &info)
 {
 	return info.x;
 }
 
-static __inline__ __host__ __device__ const short& object(const particleinfo &info)
+static __inline__ __host__ __device__ const ushort& object(const particleinfo &info)
 {
-	return info.y;   /***********NOTE */
+	return info.y;
 }
 
 static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
-	return *(uint*)&info.z;
+	return *(const uint*)&info.z;
 }
 
 #endif

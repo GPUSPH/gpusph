@@ -180,6 +180,9 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 
+#define SET_FLAG(info, flag) (info).x |= (flag)
+#define CLEAR_FLAG(info, flag) (info).x &= ~(flag)
+
 #define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
 
 
@@ -189,7 +192,7 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #define FLUID_TYPE_MASK	((1<<PART_FLAG_SHIFT)-(1<<MAX_FLUID_BITS))
 
 /* A particle is NOT fluid if its fluid type is non-zero */
-#define NOT_FLUID(f)	((f).x & FLUID_TYPE_MASK)
+#define NOT_FLUID(f)	(type(f) & FLUID_TYPE_MASK)
 /* otherwise it's fluid */
 #define FLUID(f)		(!(NOT_FLUID(f)))
 
@@ -213,27 +216,27 @@ disable_particle(float4 &pos) {
 
 /* Tests for particle types */
 // Testpoints
-#define TESTPOINTS(f)	((f).x == TESTPOINTSPART)
+#define TESTPOINTS(f)	(type(f) == TESTPOINTSPART)
 // Particle belonging to an object
-#define OBJECT(f)		((f).x == OBJECTPART)
+#define OBJECT(f)		(type(f) == OBJECTPART)
 // Boundary particle
-#define BOUNDARY(f)		((f).x == BOUNDPART)
+#define BOUNDARY(f)		(type(f) == BOUNDPART)
 // Vertex particle
-#define VERTEX(f)		((f).x == VERTEXPART)
+#define VERTEX(f)		(type(f) == VERTEXPART)
 
 /* Tests for particle flags */
 // Free surface detection
-#define SURFACE(f)		((f).x & SURFACE_PARTICLE_FLAG)
+#define SURFACE(f)		(type(f) & SURFACE_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data
  */
 // Extract particle type
-#define PART_TYPE(f)		(((f).x & FLUID_TYPE_MASK) >> MAX_FLUID_BITS)
+#define PART_TYPE(f)		((type(f) & FLUID_TYPE_MASK) >> MAX_FLUID_BITS)
 // Extract particle flag
-#define PART_FLAG(f)		((f).x >> PART_FLAG_SHIFT)
+#define PART_FLAG(f)		(type(f) >> PART_FLAG_SHIFT)
 // Extract particle fluid number
-#define PART_FLUID_NUM(f)	((f).x & FLUID_NUM_MASK)
+#define PART_FLUID_NUM(f)	(type(f) & FLUID_NUM_MASK)
 
 
 /* Periodic boundary */

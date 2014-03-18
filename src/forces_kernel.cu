@@ -1909,7 +1909,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	info.x &= ~SURFACE_PARTICLE_FLAG;
+	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// Persistent variables across getNeibData calls
@@ -2015,7 +2015,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	if (!nc)
-		info.x |= SURFACE_PARTICLE_FLAG;
+		SET_FLAG(info, SURFACE_PARTICLE_FLAG);
 
 	newInfo[index] = info;
 
