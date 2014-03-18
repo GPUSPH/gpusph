@@ -225,11 +225,11 @@ FORCES_CUDA_KERNEL
 
 				if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(info))) {
 					float DvDt = 0.0f;
-					float4 bound_term_pres = make_float4(0.0f);
-					//       to velTex[neib_index].w.
-					//       of the float4 remains positive. This implies that relVel.w is equal
-					// NOTE: this subtraction of float3 - float4 ensures that the .w component
+					float3 bound_term_pres = make_float3(0.0f);
 					float3 bound_term_visc = make_float3(0.0f);
+					// NOTE: this subtraction of float3 - float4 ensures that the .w component
+					//       of the float4 remains positive. This implies that relVel.w is equal
+					//       to velTex[neib_index].w.
 					const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 
 					if (FLUID(neib_info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
@@ -333,10 +333,12 @@ FORCES_CUDA_KERNEL
 
 						if(boundarytype == SA_BOUNDARY) {
 							if(BOUNDARY(neib_info)) {
-								bound_term_pres = DvDt*relVel.w*gamAS.x*belem;
-
 								// normal vector
 								const float3 normal_s = as_float3(belem);
+
+								// pressure boundary term
+								bound_term_pres = DvDt*relVel.w*gamAS.x*normal_s;
+
 								// r_as - distance between fluid particle and boundary element along the normal
 								float r_as = dot(as_float3(relPos), normal_s);
 								if (r_as < deltap)
@@ -414,7 +416,7 @@ FORCES_CUDA_KERNEL
 					}
 					// interaction between two particles
 					if(BOUNDARY(neib_info) && boundarytype == SA_BOUNDARY) {
-						as_float3(force) -= as_float3(bound_term_pres) + bound_term_visc/vel.w;
+						as_float3(force) -= bound_term_pres + bound_term_visc/vel.w;
 					}
 					else {
 						as_float3(force) += DvDt*as_float3(relPos);
