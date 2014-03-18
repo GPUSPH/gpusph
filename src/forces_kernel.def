@@ -180,6 +180,9 @@ FORCES_CUDA_KERNEL
 			//# if defined(DT_KERNEL) || defined(VISC_ARTVISC)
 			/* sound speed sspeed is computed only once for the given particle */
 			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
+			// Square of sound speed. Would need modification for multifluid
+			float sqC0 = d_sscoeff[PART_FLUID_NUM(info)];
+			sqC0 *= sqC0;
 			//# endif
 
 			// persistent variables across getNeibData calls
@@ -270,8 +273,7 @@ FORCES_CUDA_KERNEL
 							DrDt -= relVel.w*dot3(relVel, belem)*gamAS.x;
 						}
 						else if (boundarytype == SA_BOUNDARY && d_ferrari) {
-							const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/ 
-								(d_sscoeff[PART_FLUID_NUM(info)]*d_sscoeff[PART_FLUID_NUM(info)]); //TODO-AM this does not work with multifluids
+							const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/sqC0;
 							float3 ferraricor = (r > 1e-4*slength) ? max(sspeed, neib_sspeed)*(vel.w - relVel.w + grav_corr)/vel.w/r*as_float3(relPos) : make_float3(0.0);
 							DrDt = relPos.w*dot(as_float3(relVel) + d_ferrari*ferraricor, as_float3(relPos))*f;
 						}
