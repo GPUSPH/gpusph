@@ -670,7 +670,9 @@ buildNeibsListDevice(
 		// where vertex particles also need to have a list of neighbours
 
 		// Neighbor list is build for fluid, object, vertex and test particles
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || BOUNDARY(info)) {
+		// also boundary particles, but only when using SA boundary conditions, in which case
+		// (and only in which case) vertPos0 will be not NULL
+		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || (BOUNDARY(info) && vertPos0)) {
 			// Get particle position
 			#if (__COMPUTE__ >= 20)
 			const float4 pos = posArray[index];
@@ -705,7 +707,7 @@ buildNeibsListDevice(
 								sqdpo2,
 								neibsList,
 								neibs_num,
-								BOUNDARY(info));
+								BOUNDARY(info) && vertPos0);
 						}
 					}
 				}
