@@ -133,8 +133,8 @@ void GPUWorker::computeAndSetAllocableParticles()
 void GPUWorker::dropExternalParticles()
 {
 	m_particleRangeEnd =  m_numParticles = m_numInternalParticles;
-	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT;
-	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] == EMPTY_SEGMENT;
+	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = EMPTY_SEGMENT;
+	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = EMPTY_SEGMENT;
 }
 
 // Start an async inter-device transfer. This will be actually P2P if device can access peer memory
