@@ -1083,11 +1083,10 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	const float vel = length(make_float3(oldVel[index]));
 
-	// in contrast to Shepard filter particle itself doesn't contribute into summation
-	float temp1 = 0;
-	float temp2 = 0; // summation for computing density
-	float temp3 = 0; // summation for computing TKE
-	float alpha = 0;
+	// note that all sums below run only over fluid particles (including the Shepard filter)
+	float sumrho = 0; // summation for computing the density
+	float sumtke = 0; // summation for computing TKE
+	float alpha = 0;  // the shepard filter
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -1097,6 +1096,10 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 	float3 avgNorm = make_float3(0.0f);
+
+	// Square of sound speed. Would need modification for multifluid
+	float sqC0 = d_sscoeff[PART_FLUID_NUM(info)];
+	sqC0 *= sqC0;
 
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1130,9 +1133,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 		if (r < influenceradius && FLUID(neib_info)) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
-			temp1 += w;
-			temp2 += w/neib_rho*(neib_pres/neib_rho + dot(d_gravity,as_float3(relPos))/* + 0.5*(neib_vel*neib_vel-vel*vel)*/);
-			temp3 += w/neib_rho*neib_k;
+			sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w;
+			sumtke += w/neib_rho*neib_k;
 			alpha += w/neib_rho;
 		}
 		// in the initial step we need to compute an approximate grad gamma direction for the computation of gamma
@@ -1143,9 +1145,9 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	}
 
 	if (alpha > 1e-5f) {
-		oldVel[index].w = fmax(temp1/alpha,d_rho0[PART_FLUID_NUM(info)]);
+		oldVel[index].w = fmax(sumrho/alpha,d_rho0[PART_FLUID_NUM(info)]);
 		if (oldTKE)
-			oldTKE[index] = temp3/alpha;
+			oldTKE[index] = sumtke/alpha;
 		if (oldEps)
 			oldEps[index] = powf(0.09f, 0.75f)*powf(oldTKE[index], 1.5f)/0.41f/deltap;
 	}
