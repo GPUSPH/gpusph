@@ -87,7 +87,6 @@ enum CommandType {
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
-	CALC_TESTPOINTS,	// update testpoint values
 	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
 	SA_UPDATE_BOUND_VALUES, // update bounary values
 	SPS,				// SPS stress matrix computation kernel
