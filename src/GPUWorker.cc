@@ -1844,7 +1844,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 					m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-					m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
+					m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
@@ -1880,7 +1880,7 @@ void GPUWorker::kernel_forces()
 	if (numPartsToElaborate > 0 )
 		returned_dt = forces(
 						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
-						m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
+						m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
@@ -2058,7 +2058,7 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sps(m_dBuffers.get<BUFFER_TAU>()->get_raw_ptr(),
+	sps(m_dBuffers.getRawPtr<BUFFER_TAU>(),
 		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
