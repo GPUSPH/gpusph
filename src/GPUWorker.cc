@@ -1169,8 +1169,7 @@ void GPUWorker::dumpBuffers() {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	size_t _size = 0;
-	flag_t flags = gdata->commandFlags;
+	const flag_t flags = gdata->commandFlags;
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
