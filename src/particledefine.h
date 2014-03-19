@@ -180,8 +180,8 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 
-#define SET_FLAG(info, flag) (info).x |= (flag)
-#define CLEAR_FLAG(info, flag) (info).x &= ~(flag)
+#define SET_FLAG(info, flag) ((info).x |= (flag))
+#define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 
 #define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
 
