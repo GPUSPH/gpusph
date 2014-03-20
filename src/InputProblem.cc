@@ -4,6 +4,7 @@
 
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
+#include "GlobalData.h"
 
 static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
 
@@ -253,8 +254,15 @@ int InputProblem::fill_parts()
 	return npart;
 }
 
-void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, hashKey *hash)
+void InputProblem::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
+	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
+
 	const char *ch_inputfile = inputfile.c_str();
 	uint npart = HDF5SphReader::getNParts(ch_inputfile);
 

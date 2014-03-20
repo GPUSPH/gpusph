@@ -236,21 +236,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy particles from problem to GPUSPH buffers
 	// TODO FIXME copying data from the problem doubles the host memory requirements
 	// find some smart way to have the host fill the shared buffer directly.
-	if (_sp->boundarytype == SA_BOUNDARY) {
-		problem->copy_to_array(
-			gdata->s_hBuffers.getData<BUFFER_POS>(),
-			gdata->s_hBuffers.getData<BUFFER_VEL>(),
-			gdata->s_hBuffers.getData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getData<BUFFER_VERTICES>(),
-			gdata->s_hBuffers.getData<BUFFER_BOUNDELEMENTS>(),
-			gdata->s_hBuffers.getData<BUFFER_HASH>());
-	} else {
-		problem->copy_to_array(
-			gdata->s_hBuffers.getData<BUFFER_POS>(),
-			gdata->s_hBuffers.getData<BUFFER_VEL>(),
-			gdata->s_hBuffers.getData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getData<BUFFER_HASH>());
-	}
+
+	problem->copy_to_array(gdata->s_hBuffers);
+
 	printf("---\n");
 
 	// initialize values of k and e for k-e model

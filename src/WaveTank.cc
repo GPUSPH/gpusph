@@ -27,6 +27,7 @@
 #include <iostream>
 
 #include "WaveTank.h"
+#include "GlobalData.h"
 
 
 #define MK_par 2
@@ -291,8 +292,13 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 	}
 }
 
-void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey *hash)
+void WaveTank::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	int j = 0;
 	if (test_points.size()) {
 		//Testpoints

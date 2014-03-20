@@ -27,7 +27,7 @@
 #include <iostream>
 
 #include "StillWater.h"
-
+#include "GlobalData.h"
 
 #define CENTER_DOMAIN 1
 // set to coords (x,y,z) if more accuracy is needed in such point
@@ -184,8 +184,15 @@ void StillWater::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey *hash)
+void StillWater::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
+	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
@@ -204,41 +211,38 @@ void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, has
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
-}
 
-void StillWater::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, hashKey* hash)
-{
-	copy_to_array(pos, vel, info, hash);
+	if (m_simparams.boundarytype == SA_BOUNDARY) {
+			uint j = parts.size() + boundary_parts.size();
 
-	uint j = parts.size() + boundary_parts.size();
+			std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
+		for (uint i = j; i < j + vertex_parts.size(); i++) {
+			float rho = density(H - pos[i].z, 0);
+			vel[i] = make_float4(0, 0, 0, rho);
+			info[i] = make_particleinfo(VERTEXPART, 0, i);
+			calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);
+		}
+		j += vertex_parts.size();
+		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 
-	std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
-	for (uint i = j; i < j + vertex_parts.size(); i++) {
-		float rho = density(H - pos[i].z, 0);
-		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(VERTEXPART, 0, i);
-		calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += vertex_parts.size();
-	std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
+		if(vertex_indexes.size() != boundary_parts.size()) {
+			std::cout << "ERROR! Incorrect connectivity array!\n";
+			exit(1);
+		}
+		if(boundary_elems.size() != boundary_parts.size()) {
+			std::cout << "ERROR! Incorrect boundary elements array!\n";
+			exit(1);
+		}
 
-	if(vertex_indexes.size() != boundary_parts.size()) {
-		std::cout << "ERROR! Incorrect connectivity array!\n";
-		exit(1);
-	}
-	if(boundary_elems.size() != boundary_parts.size()) {
-		std::cout << "ERROR! Incorrect boundary elements array!\n";
-		exit(1);
-	}
+		uint offset = parts.size() + boundary_parts.size();
+		for (uint i = 0; i < boundary_parts.size(); i++) {
+			vertex_indexes[i].x += offset;
+			vertex_indexes[i].y += offset;
+			vertex_indexes[i].z += offset;
 
-	uint offset = parts.size() + boundary_parts.size();
-	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vertex_indexes[i].x += offset;
-		vertex_indexes[i].y += offset;
-		vertex_indexes[i].z += offset;
+			vertices[i] = vertex_indexes[i];
 
-		vertices[i] = vertex_indexes[i];
-		
-		boundelm[i] = make_float4(boundary_elems[i]);
+			boundelm[i] = make_float4(boundary_elems[i]);
+		}
 	}
 }
