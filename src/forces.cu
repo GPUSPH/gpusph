@@ -34,6 +34,8 @@
 #include "utils.h"
 #include "cuda_call.h"
 
+#include "forces_params.h"
+
 cudaArray*  dDem = NULL;
 
 /* Auxiliary data for parallel reductions */
