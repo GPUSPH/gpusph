@@ -120,16 +120,7 @@ FORCES_CUDA_KERNEL
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
-			symtensor3 tau;
-			float2 temp = tex1Dfetch(tau0Tex, index);
-			tau.xx = temp.x;
-			tau.xy = temp.y;
-			temp = tex1Dfetch(tau1Tex, index);
-			tau.xz = temp.x;
-			tau.yy = temp.y;
-			temp = tex1Dfetch(tau2Tex, index);
-			tau.yz = temp.x;
-			tau.zz = temp.y;
+			const symtensor3 tau(fetchTau(index));
 			# endif
 
 			# ifdef VISC_KEPS
@@ -245,16 +236,7 @@ FORCES_CUDA_KERNEL
 							neib_pres = P(relVel.w, PART_FLUID_NUM(neib_info)); */
 
 						# ifdef VISC_SPS
-						symtensor3 neib_tau;
-						temp = tex1Dfetch(tau0Tex, neib_index);
-						neib_tau.xx = temp.x;
-						neib_tau.xy = temp.y;
-						temp = tex1Dfetch(tau1Tex, neib_index);
-						neib_tau.xz = temp.x;
-						neib_tau.yy = temp.y;
-						temp = tex1Dfetch(tau2Tex, neib_index);
-						neib_tau.yz = temp.x;
-						neib_tau.zz = temp.y;
+						const symtensor3 neib_tau(fetchTau(neib_index));
 						# endif
 
 						const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
