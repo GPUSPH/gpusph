@@ -236,7 +236,7 @@ FORCES_CUDA_KERNEL
 				if (INACTIVE(relPos))
 					continue;
 
-				const float r = length(as_float3(relPos));
+				const float r = length3(relPos);
 
 				// Compute relative velocity
 				// Now relVel is a float4 and neib density is stored in relVel.w
@@ -273,7 +273,7 @@ FORCES_CUDA_KERNEL
 						const symtensor3 neib_tau(fetchTau(neib_index));
 						# endif
 
-						const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
+						const float vel_dot_pos = dot3(relVel, relPos);	// x.u
 						const float f = F<kerneltype>(r, slength);		// 1/r dW/dr
 
 						// density derivative
@@ -663,7 +663,7 @@ FORCES_CUDA_KERNEL
 				#else
 				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 				#endif
-				const float r = length(as_float3(relPos));
+				const float r = length3(relPos);
 
 				const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
