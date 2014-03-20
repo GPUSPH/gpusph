@@ -136,6 +136,19 @@ FORCES_CUDA_KERNEL
 		// grid (cell) coordinates of current particle
 		const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
 
+		// particle velocity
+		// TODO for vertex particles it's only needed for KEPSVISC
+		// TODO for object particles it's not used
+		const float4 vel = tex1Dfetch(velTex, index);
+
+		// TODO the next group of variables isn't used for object particles
+		# ifdef VISC_KEPS
+		const float keps_k = tex1Dfetch(keps_kTex, index);
+		const float keps_e = tex1Dfetch(keps_eTex, index);
+		// eddy viscosity, 0 on boundary
+		const float turbVisc = VERTEX(info) ? 0 : 0.09f*keps_k*keps_k/keps_e;
+		# endif
+
 		// force and density derivative
 		float4 force = make_float4(0);
 
@@ -152,7 +165,6 @@ FORCES_CUDA_KERNEL
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
-			const float4 vel = tex1Dfetch(velTex, index);
 			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
 			float4 oldGGam = make_float4(NAN, NAN, NAN, 1.0f);
 			if (boundarytype == SA_BOUNDARY) {
@@ -166,9 +178,6 @@ FORCES_CUDA_KERNEL
 			# endif
 
 			# ifdef VISC_KEPS
-			const float keps_k = tex1Dfetch(keps_kTex, index);
-			const float keps_e = tex1Dfetch(keps_eTex, index);
-			const float turbVisc = 0.09f*keps_k*keps_k/keps_e;			// eddy viscosity
 			turbvisc[index] = turbVisc;
 
 			float diff_term_k = 0;
@@ -541,13 +550,6 @@ FORCES_CUDA_KERNEL
 			}
 
 			if (computeGamma || VISC_TYPE == KEPSVISC) {
-
-				# ifdef VISC_KEPS
-				const float4 vel = tex1Dfetch(velTex, index);
-				const float keps_k = tex1Dfetch(keps_kTex, index);
-				const float keps_e = tex1Dfetch(keps_eTex, index);
-				const float turbVisc = 0.0f; // 0 eddy viscosity on boundary
-				#endif
 
 				// loop over all neighbors
 				for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
