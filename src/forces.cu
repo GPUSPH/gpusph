@@ -61,20 +61,34 @@ void*	reduce_buffer = NULL;
 			fprintf(stderr, #what " %s (%u) not implemented\n", what##Name[arg], arg); \
 			exit(1)
 
+/* Comfort macro to construct the appropriate forces_param<> instantiation for
+ * the given combination of kernel, boundary type, viscosity, dt and xsph use,
+ * since they all use the same constructor parameters (which is a huge list)
+ */
+#define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph) \
+		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
+			forces, rbforces, rbtorques, \
+			pos, particleHash, cellStart, neibsList, particleRangeEnd, \
+			deltap, slength, influenceradius, \
+			cfl, cflTVisc, \
+			xsph, \
+			newGGam, vertPos, epsilon, movingBoundaries, \
+			keps_dkde, turbvisc)
+
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos0, vertPos1, vertPos2, newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques); \
+				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, formulation, boundarytype, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
 		else if (!dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos0, vertPos1, vertPos2, newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques); \
+				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, formulation, boundarytype, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
 		else if (dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos0, vertPos1, vertPos2, newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques, cfl, cflTVisc); \
+				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, formulation, boundarytype, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
 		else if (dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos0, vertPos1, vertPos2, newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques, cfl, cflTVisc); \
+				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, formulation, boundarytype, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
@@ -410,8 +424,6 @@ forces(
 			bool	usedem)
 {
 	int dummy_shared = 0;
-	const float2 *vertPos0, *vertPos1, *vertPos2;
-	vertPos0 = vertPos1 = vertPos2 = NULL;
 
 	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
@@ -423,9 +435,6 @@ forces(
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGGam, numParticles*sizeof(float4)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
-		vertPos0 = vertPos[0];
-		vertPos1 = vertPos[1];
-		vertPos2 = vertPos[2];
 	}
 
 	if (visctype == KEPSVISC) {
