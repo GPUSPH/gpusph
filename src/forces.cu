@@ -369,7 +369,7 @@ const	particleinfo	*info,
 float
 forces(
 	const	float4	*pos,
-			float2	*vertPos[],
+	const	float2	* const vertPos[],
 	const	float4	*vel,
 			float4	*forces,
 	const	float4	*oldGGam,
@@ -408,7 +408,7 @@ forces(
 			bool	usedem)
 {
 	int dummy_shared = 0;
-	float2 *vertPos0, *vertPos1, *vertPos2;
+	const float2 *vertPos0, *vertPos1, *vertPos2;
 	vertPos0 = vertPos1 = vertPos2 = NULL;
 
 	// bind textures to read all particles, not only internal ones
