@@ -137,8 +137,17 @@ FORCES_CUDA_KERNEL
 		const uint cellHash = cellHashFromParticleHash(particleHash[index]);
 		const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
+		// force and density derivative
+		float4 force = make_float4(0);
+
 		// this is the new value of gamma and grad gamma
 		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+		// neighbor list iteration support:
+		// persistent variables across getNeibData calls
+		char neib_cellnum = 0;
+		uint neib_cell_base_index = 0;
+		float3 pos_corr;
 
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
@@ -173,9 +182,6 @@ FORCES_CUDA_KERNEL
 			float3 dvz = make_float3(0.0f);
 			# endif
 
-			// force and density derivative
-			float4 force = make_float4(0.0f);
-
 			# ifdef XSPH_KERNEL
 			// XSPH correction
 			float3 mean_vel = make_float3(0.0f);
@@ -208,11 +214,6 @@ FORCES_CUDA_KERNEL
 			float sqC0 = d_sscoeff[PART_FLUID_NUM(info)];
 			sqC0 *= sqC0;
 			//# endif
-
-			// persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
 
 			// loop over all neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -523,7 +524,6 @@ FORCES_CUDA_KERNEL
 		}	// if (FLUID(info))
 
 		else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
-			float4 force = make_float4(0.0f);
 
 			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
 			float4 oldGGam = make_float4(NAN, NAN, NAN, 1.0f);
@@ -548,11 +548,6 @@ FORCES_CUDA_KERNEL
 				const float keps_e = tex1Dfetch(keps_eTex, index);
 				const float turbVisc = 0.0f; // 0 eddy viscosity on boundary
 				#endif
-
-				// persistent variables across getNeibData calls
-				char neib_cellnum = 0;
-				uint neib_cell_base_index = 0;
-				float3 pos_corr;
 
 				// loop over all neighbors
 				for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -651,12 +646,6 @@ FORCES_CUDA_KERNEL
 		}
 
 		else if (OBJECT(info)) {
-			float4 force = make_float4(0.0f);
-
-			// persistent variables across getNeibData calls
-			char neib_cellnum = 0;
-			uint neib_cell_base_index = 0;
-			float3 pos_corr;
 
 			// loop over all neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
