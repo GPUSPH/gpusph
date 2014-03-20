@@ -88,24 +88,60 @@ FORCES_CUDA_KERNEL
 	# endif
 	# endif
 
-	if (index < numParticles) {
-		// read particle info from texture
+	// the body of this kernel easily gets a lot of indentation. to prevent that,
+	// we wrap the main part into a do { } while(0); so that rather than
+	// if (c1) { if (c2) { if (c3) { stuff } } } we can do
+	// if (!c1) break; if (!c2) break ; if (!c3) break; stuff
+	// to do stuff only if c1, c2, c3 are satisfied.
+	// This makes the code more readable and collects common data retrieval operations
+	// into one place.
+	// (The alternative would have been a label before the reduction and a
+	// bunch of goto label, but that would skip across initializations, which is an error.
+	// and some people still don't like gotos, so this is actually a better alternative).
+	do {
+		if (index >= numParticles)
+			break;
+
+		// particle info struct, always stored in a texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-		uint cellHash = cellHashFromParticleHash(particleHash[index]);
+		// Determine if the current particle must act based on the particle type.
+		// The particles for which forces are computed are:
+		// * fluid particles
+		// * object particles
+		// * vertex particles (for SA_BOUNDARY)
+
+		bool computes_stuff = FLUID(info) || OBJECT(info);
+		if (boundarytype == SA_BOUNDARY)
+			computes_stuff = computes_stuff || VERTEX(info);
+		// TODO there are additional conditions here, see computeGamma boolean
+		// under if (boundarytype == SA_BOUNDARY && VERTEX(info))
+
+		// nothing to do if the particle doesn't need to compute forces
+		if (!computes_stuff)
+			break;
+
+		// cell-local position of the particle, stored in texture
+		// or global memory depending on architecture
+		#if( __COMPUTE__ >= 20)
+		const float4 pos = posArray[index];
+		#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		#endif
+
+		// nothing to do if the particle is inactive
+		if (INACTIVE(pos))
+			break;
+
+		// grid (cell) index and coordinates of current particle
+		const uint cellHash = cellHashFromParticleHash(particleHash[index]);
+		const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
 		// this is the new value of gamma and grad gamma
 		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
 
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
-
-			// Read other particle datas from textures or global mem
-			#if( __COMPUTE__ >= 20)
-			const float4 pos = posArray[index];
-			#else
-			const float4 pos = tex1Dfetch(posTex, index);
-			#endif
 
 			const float4 vel = tex1Dfetch(velTex, index);
 			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
@@ -114,9 +150,6 @@ FORCES_CUDA_KERNEL
 				oldGGam = tex1Dfetch(gamTex, index);
 				oldGGam /= -length3(oldGGam);
 			}
-
-			// Compute grid position of current particle
-			const int3 gridPos = calcGridPosFromCellHash(cellHash);
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -509,16 +542,6 @@ FORCES_CUDA_KERNEL
 
 			if (computeGamma || VISC_TYPE == KEPSVISC) {
 
-				// read other particle data from textures or global mem
-				#if( __COMPUTE__ >= 20)
-				const float4 pos = posArray[index];
-				#else
-				const float4 pos = tex1Dfetch(posTex, index);
-				#endif
-
-				// compute grid index of current particle
-				const int3 gridPos = calcGridPosFromCellHash(cellHash);
-
 				# ifdef VISC_KEPS
 				const float4 vel = tex1Dfetch(velTex, index);
 				const float keps_k = tex1Dfetch(keps_kTex, index);
@@ -630,16 +653,6 @@ FORCES_CUDA_KERNEL
 		else if (OBJECT(info)) {
 			float4 force = make_float4(0.0f);
 
-			// read other particle data from textures or global mem
-			#if( __COMPUTE__ >= 20)
-			const float4 pos = posArray[index];
-			#else
-			const float4 pos = tex1Dfetch(posTex, index);
-			#endif
-
-			// compute grid index of current particle
-			const int3 gridPos = calcGridPosFromCellHash(cellHash);
-
 			// persistent variables across getNeibData calls
 			char neib_cellnum = 0;
 			uint neib_cell_base_index = 0;
@@ -681,7 +694,8 @@ FORCES_CUDA_KERNEL
 			rbtorques[rbindex] = make_float4(cross(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(force)));
 		} // else if (OBJECT(info))
-	}	// if index < numParticles)
+
+	} while (0);
 
 	# ifdef DT_KERNEL
 	dtadaptBlockReduce(sm_max, cfl);
