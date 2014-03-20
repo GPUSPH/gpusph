@@ -771,12 +771,12 @@ hf3d(float qas, float qae, float q, float pes, const float epsilon, bool compute
 template<KernelType kerneltype>
 __device__ __forceinline__ float2
 Gamma(	const	float	slength,
-		const	float4	relPos,
-		const	float2	vPos0,
-		const	float2	vPos1,
-		const	float2	vPos2,
-		const	float4	boundElement,
-				float4	oldGGam,
+		const	float4	&relPos,
+		const	float2	&vPos0,
+		const	float2	&vPos1,
+		const	float2	&vPos2,
+		const	float4	&boundElement,
+		const	float4	&oldGGam,
 		const	float	epsilon,
 		const	bool	computeGamma)
 {
