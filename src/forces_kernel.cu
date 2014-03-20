@@ -717,6 +717,27 @@ SPSstressMatrixDevice(	const float4* posArray,
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
 
+// load old gamma value. if a new gamma value is to be computed (computeGamma == true),
+// then normalize and change the sign of the gradient of the old one because we
+// only need it for computation of solid angles.
+// If computeGamma was false, it means the caller wants us to check gam.w against epsilon
+// to see if the new gamma is to be computed
+__device__ __forceinline__
+float4
+fetchNormalizedOldGamma(const uint index, const float epsilon, bool &computeGamma)
+{
+	float4 gam = tex1Dfetch(gamTex, index);
+	if (!computeGamma)
+		computeGamma = (gam.w < epsilon);
+	if (computeGamma) {
+		float gradnorm = -length3(gam);
+		gam.x /= gradnorm;
+		gam.y /= gradnorm;
+		gam.z /= gradnorm;
+	}
+	return gam;
+}
+
 // helper function with the analytical formulae for gamma and grad gamma for the wendland kernel
 __device__ float2
 hf3d(float qas, float qae, float q, float pes, const float epsilon, bool computeGamma)

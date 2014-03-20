@@ -114,8 +114,6 @@ FORCES_CUDA_KERNEL
 		bool computes_stuff = FLUID(info) || OBJECT(info);
 		if (boundarytype == SA_BOUNDARY)
 			computes_stuff = computes_stuff || VERTEX(info);
-		// TODO there are additional conditions here, see computeGamma boolean
-		// under if (boundarytype == SA_BOUNDARY && VERTEX(info))
 
 		// nothing to do if the particle doesn't need to compute forces
 		if (!computes_stuff)
@@ -141,6 +139,30 @@ FORCES_CUDA_KERNEL
 		// TODO for object particles it's not used
 		const float4 vel = tex1Dfetch(velTex, index);
 
+		// TODO the next two are only needed for SA_BOUNDARY
+		// TODO for object particles it's not used (currently)
+
+		// oldGGam would hold the previous value of gamma (in .w) and its gradient (in .xyz).
+		// When we want to (re)compute gamma, the old gradient is only used for
+		// the computation of solid angles for gamma, for which we actually
+		// need the opposite, normalized vector. In this case, when loading
+		// oldGGam we therefore proceed to the normalization and sign-change of
+		// the gradient part, preserving .w
+
+		// For fluid particles, we always want to recompute gamma, while for
+		// vertex particles we only want to recompute if we have moving
+		// boundaries or if gamma itself has not been computed before, where ‘computed before’
+		// is assessed by checking if its value is less than the given epsilon
+		bool computeGamma = FLUID(info) || (VERTEX(info) && movingBoundaries);
+
+		// the actual oldGGam loading: this will also set computeGamma true if it was
+		// false but .w was < epsilon
+		const float4 oldGGam = (boundarytype == SA_BOUNDARY) ?
+			fetchNormalizedOldGamma(index, epsilon, computeGamma) :
+			make_float4(NAN);
+		// now oldGGam holds the old value of gamma if computeGamma == false,
+		// and the renormalized gradient in .xyz if computeGamma == true
+
 		// TODO the next group of variables isn't used for object particles
 		# ifdef VISC_KEPS
 		const float keps_k = tex1Dfetch(keps_kTex, index);
@@ -164,13 +186,6 @@ FORCES_CUDA_KERNEL
 
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
-
-			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
-			float4 oldGGam = make_float4(NAN, NAN, NAN, 1.0f);
-			if (boundarytype == SA_BOUNDARY) {
-				oldGGam = tex1Dfetch(gamTex, index);
-				oldGGam /= -length3(oldGGam);
-			}
 
 			# ifdef VISC_SPS
 			// read particle SPS matrix
@@ -534,20 +549,8 @@ FORCES_CUDA_KERNEL
 
 		else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
 
-			// oldGGam is used for for the computation of solid angles for gamma. We actually require the inverse vector and we normalize it as all we need are angles
-			float4 oldGGam = make_float4(NAN, NAN, NAN, 1.0f);
-			bool computeGamma = false;
-			if (boundarytype == SA_BOUNDARY) {
-				oldGGam = tex1Dfetch(gamTex, index);
-				// check whether we need to recompute gamma for vertices, this is only the case if we have moving boundaries ore if gamma is not yet set
-				computeGamma = (oldGGam.w < epsilon) || movingBoundaries;
-				// if not, then save the old values into the new array
-				if (!computeGamma)
-					gGam = oldGGam;
-				// otherwise prepare oldGGam for the gamma computation
-				else
-					oldGGam /= -length3(oldGGam);
-			}
+			if (!computeGamma)
+				gGam = oldGGam;
 
 			if (computeGamma || VISC_TYPE == KEPSVISC) {
 
