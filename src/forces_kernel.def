@@ -133,14 +133,14 @@ FORCES_CUDA_KERNEL
 		if (INACTIVE(pos))
 			break;
 
-		// grid (cell) index and coordinates of current particle
-		const uint cellHash = cellHashFromParticleHash(particleHash[index]);
-		const int3 gridPos = calcGridPosFromCellHash(cellHash);
+		// grid (cell) coordinates of current particle
+		const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
 
 		// force and density derivative
 		float4 force = make_float4(0);
 
-		// this is the new value of gamma and grad gamma
+		// new value of gamma and grad gamma
+		// TODO only if boundarytype == SA_BOUNDARY
 		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
 
 		// neighbor list iteration support:
