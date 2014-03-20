@@ -98,6 +98,7 @@ FORCES_CUDA_KERNEL
 	// (The alternative would have been a label before the reduction and a
 	// bunch of goto label, but that would skip across initializations, which is an error.
 	// and some people still don't like gotos, so this is actually a better alternative).
+#pragma unroll
 	do {
 		if (index >= numParticles)
 			break;
