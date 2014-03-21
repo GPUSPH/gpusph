@@ -226,7 +226,7 @@ FORCES_CUDA_KERNEL
 					neib_tvisc = 0.0f;
 				# endif
 
-				if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(info))) {
+				if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info))) {
 					float DvDt = 0.0f;
 					float3 bound_term_pres = make_float3(0.0f);
 					float3 bound_term_visc = make_float3(0.0f);
@@ -580,7 +580,7 @@ FORCES_CUDA_KERNEL
 						neib_tvisc = 0.0f;
 					#endif
 
-					if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(info))) {
+					if (r < influenceradius || (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info))) {
 						if (BOUNDARY(neib_info)) {
 							const float4 belem = tex1Dfetch(boundTex, neib_index);
 							const float3 normal_s = as_float3(belem);	// normal vector
