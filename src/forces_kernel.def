@@ -25,6 +25,65 @@
 
 #include <vector_types.h>
 
+/* Auxiliary device functions used in forces kernel. These must only be defined _once_, so fence them */
+#ifndef _FORCES_KERNEL_AUX
+#define _FORCES_KERNEL_AUX
+
+/// Precompute pressure contribution to the momemntum equation.
+/// Two versions are available, one in the KEPS viscosity case,
+/// and a generic one
+
+// Generic:
+template<SPHFormulation sph_formulation>
+__device__ __forceinline__
+float
+precalc_pressure(const float rho, particleinfo const& info);
+
+/* when using SPH formulation 1, the precomputed pressure contribution
+   for the current particle is p/rho^2 */
+template<>
+__device__ __forceinline__
+float
+precalc_pressure<SPH_F1>(const float rho, particleinfo const& info)
+{
+	return P(rho, PART_FLUID_NUM(info))/(rho*rho);
+}
+
+/* when using SPH formulation 2, the precomputed pressure contribution
+   for the current particle is just p */
+template<>
+__device__ __forceinline__
+float
+precalc_pressure<SPH_F2>(const float rho, particleinfo const& info)
+{
+	return P(rho, PART_FLUID_NUM(info));
+}
+
+// With KEPS visc
+template<SPHFormulation sph_formulation>
+__device__ __forceinline__
+float
+precalc_pressure(const float rho, particleinfo const& info, const float keps_k)
+{
+	// in case of k-e model we use p~ = p + 2/3*rho*k
+	// TODO FIXME so far this has only be done for SPH_F1,
+	// check if this is also valid for SPH_F2
+	return precalc_pressure<sph_formulation>(rho, info) + 2*keps_k/rho/3;
+}
+
+/* Compute the square of the at-rest speed of sound */
+__device__ __forceinline__
+float
+get_sqC0(particleinfo const& info)
+{
+	float c0 = d_sscoeff[PART_FLUID_NUM(info)];
+	return c0*c0;
+}
+
+#endif
+
+// the rest is included multiple times, so no fencing
+
 #ifdef XSPH_KERNEL
 #	ifdef DT_KERNEL
 #		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph, Dt)
@@ -121,6 +180,9 @@ FORCES_CUDA_KERNEL(
 		if (INACTIVE(pos))
 			break;
 
+		// TODO only used for objects
+		const uint rbindex = id(info) + d_rbstartindex[object(info)];
+
 		// grid (cell) coordinates of current particle
 		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
 
@@ -128,6 +190,15 @@ FORCES_CUDA_KERNEL(
 		// TODO for vertex particles it's only needed for KEPSVISC
 		// TODO for object particles it's not used
 		const float4 vel = tex1Dfetch(velTex, index);
+
+		// speed of sound
+		// TODO this is only used for dyndt, ARTVISC, SA_BOUNDARY
+		const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
+
+		// square of at-rest sound speed. Would need modifications for multifluid
+		// TODO this should be computed once on the host and loaded into constant memory
+		// TODO only used for SA_BOUNDARY
+		const float sqC0 = get_sqC0(info);
 
 		// TODO the next two are only needed for SA_BOUNDARY
 		// TODO for object particles it's not used (currently)
@@ -153,13 +224,33 @@ FORCES_CUDA_KERNEL(
 		// now oldGGam holds the old value of gamma if computeGamma == false,
 		// and the renormalized gradient in .xyz if computeGamma == true
 
+		# ifdef VISC_SPS
+		// particle SPS matrix
+		// TODO only used for fluid particles
+		const symtensor3 tau(fetchTau(index));
+		# endif
+
 		// TODO the next group of variables isn't used for object particles
 		# ifdef VISC_KEPS
 		const float keps_k = tex1Dfetch(keps_kTex, index);
 		const float keps_e = tex1Dfetch(keps_eTex, index);
 		// eddy viscosity, 0 on boundary
 		const float turbVisc = VERTEX(info) ? 0 : 0.09f*keps_k*keps_k/keps_e;
+
+		// TODO only used for fluid particles
+		const float dkdt_precalc = vel.w*(d_visccoeff + turbVisc);
+		const float dedt_precalc = vel.w*(d_visccoeff + turbVisc/1.3f);
 		# endif
+
+		/* precomputed component of pressure contribution to the momentum equation */
+		const float p_precalc =
+#ifdef VISC_KEPS
+			precalc_pressure<sph_formulation>(vel.w, info, keps_k);
+#else
+			precalc_pressure<sph_formulation>(vel.w, info);
+#endif
+
+		/* From here on, we have output variables */
 
 		// force and density derivative
 		float4 force = make_float4(0);
@@ -168,7 +259,26 @@ FORCES_CUDA_KERNEL(
 		// TODO only if boundarytype == SA_BOUNDARY
 		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
 
-		// neighbor list iteration support:
+		// TODO this block of output variables is only used
+		// for fluid particles
+		# ifdef VISC_KEPS
+		// velocity gradient components
+		float3 dvx = make_float3(0.0f);
+		float3 dvy = make_float3(0.0f);
+		float3 dvz = make_float3(0.0f);
+
+		float diff_term_k = 0;
+		float diff_term_e = 0;
+		# endif
+
+		// TODO fluid particles only
+		# ifdef XSPH_KERNEL
+		// XSPH correction
+		float3 mean_vel = make_float3(0.0f);
+		# endif
+
+		/* And finally the neib list transversal support */
+
 		// persistent variables across getNeibData calls
 		char neib_cellnum = 0;
 		uint neib_cell_base_index = 0;
@@ -177,57 +287,9 @@ FORCES_CUDA_KERNEL(
 		// Compute force only if the given particle if a fluid one
 		if (FLUID(info)) {
 
-			# ifdef VISC_SPS
-			// read particle SPS matrix
-			const symtensor3 tau(fetchTau(index));
-			# endif
-
 			# ifdef VISC_KEPS
 			params.turbvisc[index] = turbVisc;
-
-			float diff_term_k = 0;
-			float diff_term_e = 0;
-			const float dkdt_precalc = vel.w*(d_visccoeff + turbVisc);
-			const float dedt_precalc = vel.w*(d_visccoeff + turbVisc/1.3f);
-
-			// velocity gradient components
-			float3 dvx = make_float3(0.0f);
-			float3 dvy = make_float3(0.0f);
-			float3 dvz = make_float3(0.0f);
 			# endif
-
-			# ifdef XSPH_KERNEL
-			// XSPH correction
-			float3 mean_vel = make_float3(0.0f);
-			# endif
-
-			/* precomputed component of DvDt */
-			float p_precalc = 0;
-			switch (sph_formulation) {
-				/* when using SPH formulation 1
-				   we precompute p/rho^2 for the current particle */
-				case SPH_F1:
-					p_precalc = P(vel.w, PART_FLUID_NUM(info))/(vel.w*vel.w);
-					//in case of k-e model we use p~ = p + 2/3*rho*k
-					# ifdef VISC_KEPS
-					p_precalc += 2*keps_k/vel.w/3.f;
-					# endif
-					break;
-				/* when using SPH formulation 2
-				   we precompute the pressure for the current particle */
-				case SPH_F2:
-					p_precalc = P(vel.w, PART_FLUID_NUM(info));
-					break;
-			}
-
-			//FIXME: Speed of sound should be calculated with SA_BOUNDARY, even when dt is constant
-			//# if defined(DT_KERNEL) || defined(VISC_ARTVISC)
-			/* sound speed sspeed is computed only once for the given particle */
-			const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
-			// Square of sound speed. Would need modification for multifluid
-			float sqC0 = d_sscoeff[PART_FLUID_NUM(info)];
-			sqC0 *= sqC0;
-			//# endif
 
 			// loop over all neighbors
 			for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -673,7 +735,6 @@ FORCES_CUDA_KERNEL(
 				}
 			}
 
-			uint rbindex = id(info) + d_rbstartindex[object(info)];
 			params.rbforces[rbindex] = force;
 			params.rbtorques[rbindex] = make_float4(cross(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(force)));
