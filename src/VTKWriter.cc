@@ -276,7 +276,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		//if (FLUID(info[i]))
+		if (TESTPOINTS(info[i]))
+			// TODO FIXME: Testpoints compute pressure only
+			// In the future we would like to have a density here
+			// but this needs to be done correctly for multifluids
+			value = NAN;
+		else
 			value = vel[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
