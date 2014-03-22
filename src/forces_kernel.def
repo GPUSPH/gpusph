@@ -23,8 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <vector_types.h>
-
 /* Auxiliary device functions used in forces kernel. These must only be defined _once_, so fence them */
 #ifndef _FORCES_KERNEL_AUX
 #define _FORCES_KERNEL_AUX
@@ -66,7 +64,7 @@ float
 precalc_pressure(const float rho, particleinfo const& info, const float keps_k)
 {
 	// in case of k-e model we use p~ = p + 2/3*rho*k
-	// TODO FIXME so far this has only be done for SPH_F1,
+	// TODO FIXME so far this has only been done for SPH_F1,
 	// check if this is also valid for SPH_F2
 	return precalc_pressure<sph_formulation>(rho, info) + 2*keps_k/rho/3;
 }
