@@ -616,6 +616,86 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 	}
 };
 
+/*
+ * Computing neighbor contributions
+ */
+
+/// A functor that computes the scalar viscous coefficient (plus additional optional contributions
+/// directly to pout and/or nout.
+/// Beware that specializations on the ViscosityType will require two template<> specifications:
+/// the first to absorb the visctype, and the other to indicate P, N, OP and ON
+template<ViscosityType visctype>
+struct compute_visc {
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__ float
+	operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ float
+compute_visc<DYNAMICVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	return laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
+		d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w);
+}
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ float
+compute_visc<KINEMATICVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	return laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
+}
+
+// SPS viscosity is just kinematic + a direct contribution to the force
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ float
+compute_visc<SPSVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	pout.force.x += ndata.relPos.w*ndata.f*(
+		(pdata.tau.xx + ndata.tau.xx)*ndata.relPos.x +
+		(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.y +
+		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.z);
+	pout.force.y += ndata.relPos.w*ndata.f*(
+		(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.x +
+		(pdata.tau.yy + ndata.tau.yy)*ndata.relPos.y +
+		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.z);
+	pout.force.z += ndata.relPos.w*ndata.f*(
+		(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.x +
+		(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.y +
+		(pdata.tau.zz + ndata.tau.zz)*ndata.relPos.z);
+	return laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
+}
+
+// k-e viscosity: dynamic + turbulent
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ float
+compute_visc<KEPSVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	return laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
+		(d_visccoeff+pdata.turbVisc)*pdata.vel.w, (d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
+}
+
+// artificial viscosity contributes directly to DvDt, so it returns 0 as viscosity scalar value
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ float
+compute_visc<ARTVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	if (ndata.vel_dot_pos < 0.0f)
+		nout.DvDt += artvisc(ndata.vel_dot_pos, pdata.vel.w, ndata.relVel.w,
+			pdata.sspeed, ndata.sspeed, ndata.r, params.slength);
+	return 0;
+}
+
+
+/*
+ * Post-processing and saving
+ */
+
 /// The next of functors are called by the post_processor
 
 /// A functor that clamps gamma and divides force by it,
@@ -964,42 +1044,9 @@ FORCES_CUDA_KERNEL(
 					}
 
 					/* Viscous forces */
-					# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS) || defined(VISC_KEPS)
-					# if defined(VISC_DYNAMIC)
-					const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-						d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w);
-					# elif defined(VISC_KINEMATIC)
-					const float visc = laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
-					# elif defined(VISC_SPS)
-					const float visc = laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
-					pout.force.x += ndata.relPos.w*ndata.f*(
-						(pdata.tau.xx + ndata.tau.xx)*ndata.relPos.x +
-						(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.y +
-						(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.z);
-					pout.force.y += ndata.relPos.w*ndata.f*(
-						(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.x +
-						(pdata.tau.yy + ndata.tau.yy)*ndata.relPos.y +
-						(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.z);
-					pout.force.z += ndata.relPos.w*ndata.f*(
-						(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.x +
-						(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.y +
-						(pdata.tau.zz + ndata.tau.zz)*ndata.relPos.z);
-					# elif defined(VISC_KEPS)
-					const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
-									(d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
-					# endif // VISC_DYNAMIC + elif*
-
-					if(!BOUNDARY(ndata.info)) {
+					const float visc(compute_visc<VISC_TYPE>()(params, pdata, ndata, pout, nout));
+					if (VISC_TYPE != ARTVISC && !BOUNDARY(ndata.info))
 						as_float3(pout.force) += visc*as_float3(ndata.relVel);
-					}
-
-					# elif defined(VISC_ARTVISC)
-					if (ndata.vel_dot_pos < 0.0f)
-						nout.DvDt += artvisc(ndata.vel_dot_pos, pdata.vel.w, ndata.relVel.w, pdata.sspeed,
-							ndata.sspeed, ndata.r, params.slength);
-					# else
-					# error Unknown viscosity!
-					# endif // VISC_*
 
 					# ifdef XSPH_KERNEL
 					pout.mean_vel -= ndata.relPos.w*W<kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
