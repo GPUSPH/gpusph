@@ -626,14 +626,15 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 template<BoundaryType>
 struct compute_boundary_force {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__ void
-	operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
 };
 
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_boundary_force<LJ_BOUNDARY>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_boundary_force<LJ_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	nout.DvDt = LJForce(ndata.r);
 }
@@ -641,7 +642,7 @@ compute_boundary_force<LJ_BOUNDARY>::operator()(FP const& params, P const& pdata
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_boundary_force<MK_BOUNDARY>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_boundary_force<MK_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w);
 }
@@ -657,7 +658,7 @@ compute_boundary_force<MK_BOUNDARY>::operator()(FP const& params, P const& pdata
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_boundary_force<SA_BOUNDARY>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_boundary_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// TODO FIXME see above
 	nout.DvDt = LJForce(ndata.r);
@@ -670,14 +671,15 @@ compute_boundary_force<SA_BOUNDARY>::operator()(FP const& params, P const& pdata
 template<ViscosityType>
 struct compute_visc {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__ float
-	operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
+	__device__ __forceinline__
+	static float
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
 };
 
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ float
-compute_visc<DYNAMICVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_visc<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	return laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w);
@@ -686,7 +688,7 @@ compute_visc<DYNAMICVISC>::operator()(FP const& params, P const& pdata, N const&
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ float
-compute_visc<KINEMATICVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_visc<KINEMATICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	return laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
 }
@@ -695,7 +697,7 @@ compute_visc<KINEMATICVISC>::operator()(FP const& params, P const& pdata, N cons
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ float
-compute_visc<SPSVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_visc<SPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	pout.force.x += ndata.relPos.w*ndata.f*(
 		(pdata.tau.xx + ndata.tau.xx)*ndata.relPos.x +
@@ -716,7 +718,7 @@ compute_visc<SPSVISC>::operator()(FP const& params, P const& pdata, N const& nda
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ float
-compute_visc<KEPSVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_visc<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	return laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		(d_visccoeff+pdata.turbVisc)*pdata.vel.w, (d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
@@ -726,7 +728,7 @@ compute_visc<KEPSVISC>::operator()(FP const& params, P const& pdata, N const& nd
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ float
-compute_visc<ARTVISC>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_visc<ARTVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	if (ndata.vel_dot_pos < 0.0f)
 		nout.DvDt += artvisc(ndata.vel_dot_pos, pdata.vel.w, ndata.relVel.w,
@@ -1087,7 +1089,7 @@ FORCES_CUDA_KERNEL(
 					}
 
 					/* Viscous forces */
-					const float visc(compute_visc<VISC_TYPE>()(params, pdata, ndata, pout, nout));
+					const float visc(compute_visc<VISC_TYPE>::with(params, pdata, ndata, pout, nout));
 					if (VISC_TYPE != ARTVISC && !BOUNDARY(ndata.info))
 						as_float3(pout.force) += visc*as_float3(ndata.relVel);
 
@@ -1164,7 +1166,7 @@ FORCES_CUDA_KERNEL(
 
 					nout.DvDt *= ndata.relPos.w*ndata.f;
 				} else {
-					compute_boundary_force<boundarytype>()(params, pdata, ndata, pout, nout);
+					compute_boundary_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 				if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
 					as_float3(pout.force) -= nout.bound_term_pres + nout.bound_term_visc/pdata.vel.w;
