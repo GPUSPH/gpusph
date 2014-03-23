@@ -748,6 +748,25 @@ compute_pressure_contrib<KEPSVISC>::with(FP const& params, P const& pdata, N con
 	nout.DvDt -= 2*ndata.keps_k/ndata.relVel.w/3.f;
 }
 
+/// A functor that computes the mean velocity (XSPH)
+template<bool usexsph>
+struct compute_mean_vel
+{
+	template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_mean_vel<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	pout.mean_vel -= ndata.relPos.w*W<kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
+}
+
 
 /// A functor that computes simple fluid/boundary forces (LJ, MK)
 template<BoundaryType>
@@ -1188,9 +1207,7 @@ FORCES_CUDA_KERNEL(
 					if (VISC_TYPE != ARTVISC && !BOUNDARY(ndata.info))
 						as_float3(pout.force) += visc*as_float3(ndata.relVel);
 
-					# ifdef XSPH_KERNEL
-					pout.mean_vel -= ndata.relPos.w*W<kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
-					# endif
+					compute_mean_vel<USEXSPH>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 					if (boundarytype == SA_BOUNDARY) {
 						if (BOUNDARY(ndata.info)) {
