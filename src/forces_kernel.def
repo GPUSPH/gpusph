@@ -93,7 +93,8 @@ get_sqC0(particleinfo const& info)
 // assembly mechanism similar to the one seen in src/forces_params.h
 
 // TODO FIXME for the time being, include everything unconditionally
-#if 1
+#define _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS 1
+#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
 #undef COND_STRUCT
 #define COND_STRUCT(some_cond, some_struct) some_struct
 #endif
@@ -431,12 +432,38 @@ struct common_neib_data
 	{}
 };
 
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
 struct sa_boundary_neib_data
 {
+	// we will get as arguments also the current particle data and forces_kernel params.
+	// Define shorthands for their data type
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
+	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
+
 	const	float4	belem;
+	const	float3&	normal_s;
+	const	float2	gamAS; // gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
 
 	__device__ __forceinline__
-	sa_boundary_neib_data(const uint index) : belem(tex1Dfetch(boundTex, index))
+	sa_boundary_neib_data(pdata_t const& pdata,  params_t const& params,
+		const uint index, float4 const& _relPos) :
+		belem(tex1Dfetch(boundTex, index)),
+		normal_s(as_float3(belem)),
+#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
+		gamAS(boundarytype == SA_BOUNDARY ?
+			Gamma<kerneltype>(params.slength, _relPos,
+				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
+				belem, pdata.oldGGam, params.epsilon, pdata.computeGamma) :
+			make_float2(NAN))
+#else
+		gamAS(Gamma<kerneltype>(params.slength, _relPos,
+				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
+				belem, pdata.oldGGam, params.epsilon, pdata.computeGamma))
+#endif
 	{}
 };
 
@@ -447,7 +474,15 @@ template<KernelType kerneltype,
 	bool dyndt, bool usexsph>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data),
+// TODO FIXME for the time being, include everything unconditionally
+// can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
+#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
+	sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
+#else
+	conditional<boundarytype == SA_BOUNDARY,
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
+		empty< sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> >::type,
+#endif
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data),
@@ -455,6 +490,15 @@ struct forces_neib_data :
 {
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> _common_neib_data;
+	typedef
+#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>
+#else
+		typename conditional<boundarytype == SA_BOUNDARY,
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
+			empty< sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> >::type
+#endif
+		_sa_boundary_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
 
@@ -465,7 +509,7 @@ struct forces_neib_data :
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)(_index),
+		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)(this->relVel.w, _info),
@@ -490,17 +534,11 @@ struct sa_boundary_neib_output
 {
 	float3	bound_term_pres;
 	float3	bound_term_visc;
-	// TODO FIXME check how these are used. maybe they should go in ndata instead?
-	union {
-		float2	gamAS; // gamAS used by ptype == PT_FLUID
-		float2	gamES; // gamES used by ptype == PT_VERTEX
-	};
 
 	__device__ __forceinline__
 	sa_boundary_neib_output() {
 		bound_term_pres = make_float3(0.0f);
 		bound_term_visc = make_float3(0.0f);
-		gamAS = make_float2(0.0f);
 	}
 };
 
@@ -896,14 +934,11 @@ FORCES_CUDA_KERNEL(
 				if (FLUID(neib_info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 					// compute DrDt and gamAS contributions
 					if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info)) {
-						nout.gamAS = Gamma<kerneltype>(params.slength, relPos,
-							params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
-							ndata.belem, pdata.oldGGam, params.epsilon, true);
-						pout.gGam.x += nout.gamAS.x*ndata.belem.x;
-						pout.gGam.y += nout.gamAS.x*ndata.belem.y;
-						pout.gGam.z += nout.gamAS.x*ndata.belem.z;
-						pout.gGam.w -= nout.gamAS.y;
-						nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
+						pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
+						pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
+						pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
+						pout.gGam.w -= ndata.gamAS.y;
+						nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*ndata.gamAS.x;
 					} else if (boundarytype == SA_BOUNDARY && d_ferrari) {
 						const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(info)]/pdata.sqC0;
 						float3 ferraricor = (ndata.r > 1e-4*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) : make_float3(0.0);
@@ -972,24 +1007,21 @@ FORCES_CUDA_KERNEL(
 
 					if (boundarytype == SA_BOUNDARY) {
 						if (BOUNDARY(ndata.info)) {
-							// normal vector
-							const float3 normal_s = as_float3(ndata.belem);
-
 							// pressure boundary term
-							nout.bound_term_pres = nout.DvDt*ndata.relVel.w*nout.gamAS.x*normal_s;
+							nout.bound_term_pres = nout.DvDt*ndata.relVel.w*ndata.gamAS.x*ndata.normal_s;
 
 							// r_as - distance between fluid particle and boundary element along the normal
-							float r_as = dot(as_float3(ndata.relPos), normal_s);
+							float r_as = dot(as_float3(ndata.relPos), ndata.normal_s);
 							if (r_as < params.deltap)
 								r_as = params.deltap;
 
 							// velocity of fluid particle along the wall
-							const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), normal_s)*normal_s;
+							const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
 
 							// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
 							# ifdef VISC_KEPS
 							// a component of fluid paricle velocity tangential to the wall
-							const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), normal_s)*normal_s;
+							const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
 							const float abs_u_t = length(u_t);
 							float y_plus = params.deltap;
 
@@ -1002,23 +1034,23 @@ FORCES_CUDA_KERNEL(
 							y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 
 							const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-							nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*nout.gamAS.x*u_t/denom_term;
+							nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*ndata.gamAS.x*u_t/denom_term;
 
 							// velocity gradient
-							const float3 rhoGGam = nout.gamAS.x*normal_s*ndata.relVel.w;
+							const float3 rhoGGam = ndata.gamAS.x*ndata.normal_s*ndata.relVel.w;
 
 							pout.dvx += ndata.relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
 							pout.dvy += ndata.relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
 							pout.dvz += ndata.relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 							# else
-							nout.bound_term_visc = nout.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/r_as*vel_tau;
+							nout.bound_term_visc = ndata.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/r_as*vel_tau;
 							# endif
 
 							# ifdef VISC_KEPS
 							//to be divided later by rho_a and gamma_a
 							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
 								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(r_as*r_as) +
-								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * nout.gamAS.x;
+								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
 							# endif
 
 						}
@@ -1068,27 +1100,23 @@ FORCES_CUDA_KERNEL(
 				// we only get here if computeGamma || VISC_TYPE == KEPSVISC
 
 				if (BOUNDARY(ndata.info)) {
-					const float3 normal_s = as_float3(ndata.belem);	// normal vector
 					# ifdef VISC_KEPS
 					// r_es - distance between vertex particle and boundary element along the normal
-					float r_es = dot(as_float3(relPos), normal_s);
+					float r_es = dot(as_float3(ndata.relPos), ndata.normal_s);
 					if (r_es < params.deltap)
 						r_es = params.deltap;
 					#endif
 
-					nout.gamES = Gamma<kerneltype>(params.slength, relPos,
-						params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
-						ndata.belem, pdata.oldGGam, params.epsilon, pdata.computeGamma);
 					if (pdata.computeGamma){
-						pout.gGam.x += nout.gamES.x*ndata.belem.x;
-						pout.gGam.y += nout.gamES.x*ndata.belem.y;
-						pout.gGam.z += nout.gamES.x*ndata.belem.z;
-						pout.gGam.w -= nout.gamES.y;
+						pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
+						pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
+						pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
+						pout.gGam.w -= ndata.gamAS.y;
 					}
 
 					# ifdef VISC_KEPS
 					// velocity of vertex particle along the wall
-					const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), normal_s)*normal_s;
+					const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
 					const float abs_u_t = length(u_t);
 					float y_plus = params.deltap;
 
@@ -1102,9 +1130,9 @@ FORCES_CUDA_KERNEL(
 
 					const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 
-					pout.force.x -= 2*abs_u_t*nout.gamES.x*u_t.x/denom_term;
-					pout.force.y -= 2*abs_u_t*nout.gamES.x*u_t.y/denom_term;
-					pout.force.z -= 2*abs_u_t*nout.gamES.x*u_t.z/denom_term;
+					pout.force.x -= 2*abs_u_t*ndata.gamAS.x*u_t.x/denom_term;
+					pout.force.y -= 2*abs_u_t*ndata.gamAS.x*u_t.y/denom_term;
+					pout.force.z -= 2*abs_u_t*ndata.gamAS.x*u_t.z/denom_term;
 					#endif
 				}
 				# ifdef VISC_KEPS
