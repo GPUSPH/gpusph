@@ -703,6 +703,50 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 		nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 }
 
+/// Functor to compute the pressure contribution to the particle acceleration.
+/// The results should be stored in nout.DvDt, which will be multiplied by neib_mass*f
+template<ViscosityType>
+struct compute_pressure_contrib
+{
+	// auxiliary function, which is used as fallback also in the KEPSVISC
+	template<SPHFormulation sph_formulation, typename FP, typename P_t, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	common_with(FP const& params, P_t const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		switch (sph_formulation) {
+		case SPH_F1:
+			nout.DvDt -= pdata.p_precalc + P(ndata.relVel.w, PART_FLUID_NUM(ndata.info))/(ndata.relVel.w*ndata.relVel.w);
+			break;
+		case SPH_F2:
+			nout.DvDt -= (pdata.p_precalc + P(ndata.relVel.w, PART_FLUID_NUM(ndata.info)))/(pdata.vel.w*ndata.relVel.w);
+			break;
+		}
+	}
+
+	// actual method
+	template<SPHFormulation sph_formulation,
+		typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		common_with<sph_formulation>(params, pdata, ndata, pout, nout);
+	}
+};
+
+/// Specialization in the KEPSVISC case
+template<>
+template<SPHFormulation sph_formulation,
+	typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_pressure_contrib<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	common_with<sph_formulation>(params, pdata, ndata, pout, nout);
+	// TODO FIXME this is only valid with SPH_F1
+	// is KEPSVISC compatible with SPH_F2? if so, find the formula in this case
+	nout.DvDt -= 2*ndata.keps_k/ndata.relVel.w/3.f;
+}
 
 
 /// A functor that computes simple fluid/boundary forces (LJ, MK)
@@ -1136,18 +1180,8 @@ FORCES_CUDA_KERNEL(
 					compute_density_derivative<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
 
-					// pressure part of acceleration (to be multiplied by neib_mass*f)
-					switch (sph_formulation) {
-						case SPH_F1:
-							nout.DvDt = -(pdata.p_precalc + P(ndata.relVel.w, PART_FLUID_NUM(ndata.info))/(ndata.relVel.w*ndata.relVel.w));
-							# ifdef VISC_KEPS
-							nout.DvDt -= 2*ndata.keps_k/ndata.relVel.w/3.f;
-							# endif
-							break;
-						case SPH_F2:
-							nout.DvDt = -(pdata.p_precalc + P(ndata.relVel.w, PART_FLUID_NUM(ndata.info)))/(pdata.vel.w*ndata.relVel.w);
-							break;
-					}
+					// compute pressure part of acceleration (to be multiplied by neib_mass*f)
+					compute_pressure_contrib<VISC_TYPE>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
 					/* Viscous forces */
 					const float visc(compute_visc<VISC_TYPE>::with(params, pdata, ndata, pout, nout));
