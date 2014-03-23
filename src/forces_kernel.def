@@ -23,7 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Auxiliary device functions used in forces kernel. These must only be defined _once_, so fence them */
+/* Auxiliary data types and device functions used in forces kernel.
+   These must only be defined once, so fence them.
+ */
+
 #ifndef _FORCES_KERNEL_AUX
 #define _FORCES_KERNEL_AUX
 
@@ -78,6 +81,517 @@ get_sqC0(particleinfo const& info)
 	return c0*c0;
 }
 
+
+/*
+ * Particle data
+ */
+
+// The amount and type of particle data retrieved for the current particle
+// being processed and for the neighbor particle depend on a variety of factors,
+// including SPH formulation, boundary type, viscosity etc, but also the
+// particle type (fluid, object, boundary, vertex). We use a conditional struct
+// assembly mechanism similar to the one seen in src/forces_params.h
+
+// TODO FIXME for the time being, include everything unconditionally
+#if 1
+#undef COND_STRUCT
+#define COND_STRUCT(some_cond, some_struct) some_struct
+#endif
+
+// data used for all particles
+struct common_particle_data
+{
+	const	particleinfo	info;
+	const	float4	pos;
+	const	int3	gridPos;
+
+	__device__ __forceinline__
+	common_particle_data(const uint index, float4 const& _pos, particleinfo const& _info, hashKey const* hash) :
+		info(_info),
+		pos(_pos),
+		gridPos(calcGridPosFromParticleHash(hash[index]))
+	{}
+};
+
+// data used only for objects
+struct rb_particle_data
+{
+	const	uint	rbindex;
+
+	__device__ __forceinline__
+	rb_particle_data(particleinfo const& info) : rbindex(id(info) + d_rbstartindex[object(info)])
+	{}
+};
+
+// velocity. used for:
+// * fluid particles
+// * vertex particles if KEPSVISC
+struct vel_particle_data
+{
+	const	float4	vel;
+
+	__device__ __forceinline__
+	vel_particle_data(const uint index) : vel(tex1Dfetch(velTex, index))
+	{}
+};
+
+// speed of sound
+// used only for dyndt, ARTVISC or SA_BOUNDARY
+struct sspeed_particle_data
+{
+	const	float	sspeed;
+
+	__device__ __forceinline__
+	sspeed_particle_data(const float rho, particleinfo const& info) :
+		sspeed(soundSpeed(rho, PART_FLUID_NUM(info)))
+	{}
+};
+
+// data used for SA_BOUNDARY
+struct sa_boundary_particle_data
+{
+	// square of at-rest sound speed. Would need modifications for multifluid
+	// This is used by fluid particles only
+	// TODO this should be computed once on the host and loaded into constant memory
+	const	float	sqC0;
+
+	// does this particle want to (re)compute gamma? see logic below
+	// this is used by vertex particles only
+			bool	computeGamma;
+
+	// oldGGam would hold the previous value of gamma (in .w) and its gradient (in .xyz).
+	// When we want to (re)compute gamma, the old gradient is only used for the
+	// computation of solid angles for gamma, for which we actually need the
+	// opposite, normalized vector. In this case, when loading oldGGam we
+	// therefore proceed to the normalization and sign-change of the gradient
+	// part, preserving .w
+	const	float4	oldGGam;
+
+	// For fluid particles, we always want to recompute gamma, while for vertex
+	// particles we only want to recompute if we have moving boundaries or if
+	// gamma itself has not been computed before, where ‘computed before’ is
+	// assessed by checking if its value is less than the given epsilon
+
+	// fluid init
+	__device__ __forceinline__
+	sa_boundary_particle_data(const uint index, particleinfo const& info,
+		const float epsilon, const bool movingBoundaries) :
+		sqC0(get_sqC0(info)),
+		computeGamma(FLUID(info) || (VERTEX(info) && movingBoundaries)),
+		// the actual oldGGam loading: this will also set computeGamma true if
+		// it was false but .w was < epsilon
+		oldGGam(fetchNormalizedOldGamma(index, epsilon, computeGamma))
+		// now oldGGam holds the old value of gamma if computeGamma == false,
+		// and the renormalized gradient in .xyz if computeGamma == true
+	{}
+};
+
+// SPSVISC particle data
+struct sps_particle_data
+{
+	const	symtensor3	tau;
+
+	__device__ __forceinline__
+	sps_particle_data(const uint index) : tau(fetchTau(index))
+	{}
+};
+
+// KEPSVISC particle data
+struct keps_particle_data
+{
+	const	float	keps_k;
+	const	float	keps_e;
+	const	float	turbVisc;
+
+	__device__ __forceinline__
+	keps_particle_data(const uint index, particleinfo const& info) :
+		keps_k(tex1Dfetch(keps_kTex, index)),
+		keps_e( tex1Dfetch(keps_eTex, index)),
+		turbVisc(FLUID(info) ? 0.09f*keps_k*keps_k/keps_e : 0)
+	{}
+};
+
+// Precomputed pressure contribution
+// Automatic initialization of this beast is a bit messy because
+// (1) we want it to be const
+// (2) the initialization depends on SPH formulation and viscosity type
+// (3) with KEPSVISC it needs one additional parameter
+// (4) the value passed to the additional parameter only exists in the KEPSVISC case
+// so the caller must be able to feed the last parameter correctly if it exsists,
+// but not even try to provide it otherwise.
+// The solution is to make this a templatized structure based on
+// SPH formulation, plus the typename of an additional parameter, which
+// will be the structure containing keps_k in the case of KEPSVISC.
+// Suggestions for a better solution are welcome
+template<SPHFormulation sph_formulation, typename T>
+struct p_precalc_particle_data
+{
+	const	float	p_precalc;
+
+	// default initializer, extra param is ignored
+	__device__ __forceinline__
+	p_precalc_particle_data(const float rho, particleinfo const& info, T const&) :
+		p_precalc(precalc_pressure<sph_formulation>(rho, info))
+	{}
+};
+
+// specialize the initializer
+template<SPHFormulation sph_formulation>
+struct p_precalc_particle_data<sph_formulation, keps_particle_data>
+{
+	const	float	p_precalc;
+
+	__device__ __forceinline__
+	p_precalc_particle_data(const float rho, particleinfo const& info, keps_particle_data const& ke) :
+		p_precalc(precalc_pressure<sph_formulation>(rho, info, ke.keps_k))
+	{}
+};
+
+// KEPSVISC precalc data, used only for fluid particles
+// again, turbVisc should only be actually accessed by the caller if we are with KEPSVISC,
+// so we assume the caller passes us a full keps_particle_data structure
+// (which they will only do in the KEPSVISC case)
+struct keps_precalc_particle_data
+{
+	const	float	dkdt_precalc;
+	const	float	dedt_precalc;
+
+	__device__ __forceinline__
+	keps_precalc_particle_data(const float rho, keps_particle_data const& ke) :
+		dkdt_precalc(rho*(d_visccoeff + ke.turbVisc)),
+		dedt_precalc(rho*(d_visccoeff + ke.turbVisc/1.3f))
+	{}
+};
+
+// And now we assemble them. Not all particle types require all particle data,
+// but for the time being we don't optimize this far and just limit ourselves
+// to conditional inclusions based on kernel specialization only, not particle tye
+
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
+struct forces_particle_data :
+	// included unconditionally for all particles:
+	common_particle_data,
+	// the next is only needed for PT_OBJECT, which in fact need no other data
+	rb_particle_data,
+	// vel included unconditionally for all particles, even though
+	// PT_VERTEX only use them for KEPSVISC, and
+	// PT_OBJECT don't use them
+	vel_particle_data,
+	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
+	// appear with SA_BOUNDARY)
+	COND_STRUCT(boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data),
+	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
+	COND_STRUCT(visctype == KEPSVISC,
+		keps_particle_data),
+	// everything else is just for PT_FLUID
+	COND_STRUCT(visctype == SPSVISC,
+		sps_particle_data),
+	COND_STRUCT(dyndt || (visctype == ARTVISC) || (boundarytype == SA_BOUNDARY),
+		sspeed_particle_data),
+	// to see why this is so messy, see definition of p_precalc_particle_data
+	p_precalc_particle_data<sph_formulation,
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
+	COND_STRUCT(visctype == KEPSVISC,
+		keps_precalc_particle_data)
+{
+	ParticleType	ptype;
+
+	// determine specialization automatically based on info and params
+	__device__ __forceinline__
+	forces_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info,
+		forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> const& params) :
+		common_particle_data(_index, _pos, _info, params.particleHash),
+		rb_particle_data(_info),
+		vel_particle_data(_index),
+		COND_STRUCT(boundarytype == SA_BOUNDARY,
+			sa_boundary_particle_data)(_index, _info, params.epsilon, params.movingBoundaries),
+		COND_STRUCT(visctype == KEPSVISC,
+			keps_particle_data)(_index, _info),
+		COND_STRUCT(visctype == SPSVISC,
+			sps_particle_data)(_index),
+		COND_STRUCT(dyndt || (visctype == ARTVISC) || (boundarytype == SA_BOUNDARY),
+			sspeed_particle_data)(vel.w, _info),
+		p_precalc_particle_data<sph_formulation,
+			COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(vel.w, _info, *this),
+		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, *this),
+		ptype(static_cast<ParticleType>PART_TYPE(_info))
+	{}
+};
+
+/// Similarly for the output variables
+
+// common
+struct common_particle_output
+{
+	float4	force;
+
+	__device__ __forceinline__
+	common_particle_output() : force(make_float4(0.0f))
+	{}
+};
+
+// SA_BOUNDARY
+struct sa_boundary_particle_output
+{
+	float4	gGam;
+
+	__device__ __forceinline__
+	sa_boundary_particle_output() : gGam(make_float4(0, 0, 0, 1))
+	{}
+};
+
+// KEPSVISC
+struct keps_particle_output
+{
+	float3	dvx;
+	float3	dvy;
+	float3	dvz;
+
+	float	diff_term_k;
+	float	diff_term_e;
+
+	__device__ __forceinline__
+	keps_particle_output()
+	{
+		dvx = dvy = dvz = make_float3(0.0f);
+		diff_term_k = diff_term_e = 0;
+	}
+};
+
+// XSPH
+struct xsph_particle_output
+{
+	float3	mean_vel;
+
+	__device__ __forceinline__
+	xsph_particle_output() : mean_vel(make_float3(0.0f))
+	{}
+};
+
+template<BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool usexsph>
+struct forces_particle_output :
+	common_particle_output,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_particle_output),
+	COND_STRUCT(visctype == KEPSVISC, keps_particle_output),
+	COND_STRUCT(usexsph, xsph_particle_output)
+{
+	__device__ __forceinline__
+	forces_particle_output() :
+		common_particle_output(),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_particle_output)(),
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
+		COND_STRUCT(usexsph, xsph_particle_output)()
+	{}
+};
+
+
+/*
+ * A lot of parts of the forces kernel behave very differently based on some template parameters.
+ * We isolate this behavior in template functions defined (and specialized) here.
+ * TODO FIXME the syntax of these functors could be OH SO MUCH CLEANER if we could use C++11 ...
+ */
+
+/// The next set of functions check  if the given particle (pdata) should skip
+/// traversing the neib list, and define the actions to be taken when skipping.
+/// Since we need partial specialization, they cannot be actual functions.
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
+struct skip_neiblist
+{
+	// typedefs to shorten argument types
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
+	typedef forces_particle_output<boundarytype, visctype, usexsph> pout_t;
+
+	/// check if the given particle must skip the neiblist traversal
+	__device__ __forceinline__
+	bool check(pdata_t const& pdata)
+	{
+		return false; // default, don't skip
+	}
+
+	/// do anything that is needed to actually skip the neiblist traversal
+	__device__ __forceinline__
+	void prepare(pdata_t const& pdata, pout_t &pout)
+	{ /* do nothing by default */ }
+
+};
+
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
+struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, usexsph>
+{
+	// typedefs to shorten argument types
+	typedef forces_particle_data<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, usexsph> pdata_t;
+	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
+
+	__device__ __forceinline__
+	bool check(pdata_t const& pdata)
+	{
+		// vertex particles will skip neighbors unless they need to compute gamma,
+		// or when using KEPSVISC
+		return visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+	}
+
+	__device__ __forceinline__
+	void prepare(pdata_t const& pdata, pout_t &pout)
+	{
+		// FIXME currently we can expect it to be a vertex particle, and this is what
+		// we need to do, but in the future there might be other cases too
+		pout.gGam = pdata.oldGGam;
+	}
+};
+
+/// The next of functors are called by the post_processor
+
+/// A functor that clamps gamma and divides force by it,
+/// but only for SA_BOUNDARY
+template<BoundaryType>
+struct _divideForceByGamma
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT &pout, PAR const& params)
+	{ /* do nothing */ }
+};
+
+template<>
+struct _divideForceByGamma<SA_BOUNDARY>
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT &pout, PAR const& params)
+	{
+		pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
+		pout.force /= pout.gGam.w;
+	}
+};
+
+/// A functor that writes out gamma,
+/// but only for SA_BOUNDARY
+template<BoundaryType>
+struct _write_gamma
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT const& pout, PAR &params, const uint index)
+	{ /* do nothing */ }
+};
+
+template<>
+struct _write_gamma<SA_BOUNDARY>
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT const& pout, PAR &params, const uint index)
+	{ params.newGGam[index] = pout.gGam; }
+};
+
+/// A functor that writes out the mean vel,
+/// but only for XSPH
+template<bool>
+struct _write_xsph
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT const& pout, PAR &params, const uint index)
+	{ /* do nothing */ }
+};
+
+template<>
+struct _write_xsph<true>
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT const& pout, PAR &params, const uint index)
+	{ params.xsph[index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
+};
+
+/// A functor that writes out turbvisc
+/// but only for KEPSVISC
+template<ViscosityType>
+struct _write_turbvisc
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT const& pdata, PAR &params, const uint index)
+	{ /* do nothing */ }
+};
+
+template<>
+struct _write_turbvisc<KEPSVISC>
+{
+	template<typename OUT, typename PAR>
+	__device__ __forceinline__ void
+	operator()(OUT const& pdata, PAR &params, const uint index)
+	{ params.turbvisc[index] = pdata.turbVisc; }
+};
+
+
+
+/// Post-processing of forces and writing out the results
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
+struct post_processor_t
+{
+	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
+	typedef forces_particle_output<boundarytype, visctype, usexsph> pout_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
+
+	uint	const&	index;
+	pdata_t	const&	pdata;
+	pout_t		&pout;
+	params_t	&params;
+
+	__device__ __forceinline__
+	post_processor_t(uint const& _index, pdata_t const& _pdata,
+		pout_t &_pout, params_t &_params) :
+		index(_index), pdata(_pdata), pout(_pout), params(_params)
+	{};
+
+	/// Dividing force by gamma. Only done with SA_BOUNDARY
+	__device__ __forceinline__ void
+	divideForceByGamma()
+	{ _divideForceByGamma<boundarytype>()(pout, params); }
+
+	// write forces to global memory
+	__device__ __forceinline__ void
+	write_forces() { params.forces[index] = pout.force; }
+
+	// write gamma to global memory
+	__device__ __forceinline__ void
+	write_gamma()
+	{ _write_gamma<boundarytype>()(pout, params, index); }
+
+	// write xsph to global memory
+	__device__ __forceinline__ void
+	write_xsph()
+	{ _write_xsph<usexsph>()(pout, params, index); }
+
+	// write turbvisc to global memory
+	__device__ __forceinline__ void
+	write_turbvisc()
+	{ _write_turbvisc<visctype>()(pdata, params, index); }
+};
+
+
+
+
+
 #endif
 
 // the rest is included multiple times, so no fencing
@@ -110,18 +624,7 @@ template<KernelType kerneltype,
 	bool usedem>
 __global__ void
 FORCES_CUDA_KERNEL(
-	forces_params<kerneltype, boundarytype, VISC_TYPE,
-#ifdef DT_KERNEL
-	true,
-#else
-	false,
-#endif
-#ifdef XSPH_KERNEL
-	true
-#else
-	false
-#endif
-	> params)
+	forces_params<kerneltype, boundarytype, VISC_TYPE, DYNDT, USEXSPH> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -178,102 +681,12 @@ FORCES_CUDA_KERNEL(
 		if (INACTIVE(pos))
 			break;
 
-		// TODO only used for objects
-		const uint rbindex = id(info) + d_rbstartindex[object(info)];
+		// load rest of particle data
+		forces_particle_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, USEXSPH> const
+			pdata(index, pos, info, params);
 
-		// grid (cell) coordinates of current particle
-		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
-
-		// particle velocity
-		// TODO for vertex particles it's only needed for KEPSVISC
-		// TODO for object particles it's not used
-		const float4 vel = tex1Dfetch(velTex, index);
-
-		// speed of sound
-		// TODO this is only used for dyndt, ARTVISC, SA_BOUNDARY
-		const float sspeed = soundSpeed(vel.w, PART_FLUID_NUM(info));
-
-		// square of at-rest sound speed. Would need modifications for multifluid
-		// TODO this should be computed once on the host and loaded into constant memory
-		// TODO only used for SA_BOUNDARY
-		const float sqC0 = get_sqC0(info);
-
-		// TODO the next two are only needed for SA_BOUNDARY
-		// TODO for object particles it's not used (currently)
-
-		// oldGGam would hold the previous value of gamma (in .w) and its gradient (in .xyz).
-		// When we want to (re)compute gamma, the old gradient is only used for
-		// the computation of solid angles for gamma, for which we actually
-		// need the opposite, normalized vector. In this case, when loading
-		// oldGGam we therefore proceed to the normalization and sign-change of
-		// the gradient part, preserving .w
-
-		// For fluid particles, we always want to recompute gamma, while for
-		// vertex particles we only want to recompute if we have moving
-		// boundaries or if gamma itself has not been computed before, where ‘computed before’
-		// is assessed by checking if its value is less than the given epsilon
-		bool computeGamma = FLUID(info) || (VERTEX(info) && params.movingBoundaries);
-
-		// the actual oldGGam loading: this will also set computeGamma true if it was
-		// false but .w was < epsilon
-		const float4 oldGGam = (boundarytype == SA_BOUNDARY) ?
-			fetchNormalizedOldGamma(index, params.epsilon, computeGamma) :
-			make_float4(NAN);
-		// now oldGGam holds the old value of gamma if computeGamma == false,
-		// and the renormalized gradient in .xyz if computeGamma == true
-
-		# ifdef VISC_SPS
-		// particle SPS matrix
-		// TODO only used for fluid particles
-		const symtensor3 tau(fetchTau(index));
-		# endif
-
-		// TODO the next group of variables isn't used for object particles
-		# ifdef VISC_KEPS
-		const float keps_k = tex1Dfetch(keps_kTex, index);
-		const float keps_e = tex1Dfetch(keps_eTex, index);
-		// eddy viscosity, 0 on boundary
-		const float turbVisc = FLUID(info) ? 0.09f*keps_k*keps_k/keps_e : 0;
-
-		// TODO only used for fluid particles
-		const float dkdt_precalc = vel.w*(d_visccoeff + turbVisc);
-		const float dedt_precalc = vel.w*(d_visccoeff + turbVisc/1.3f);
-		# endif
-
-		/* precomputed component of pressure contribution to the momentum equation */
-		const float p_precalc =
-#ifdef VISC_KEPS
-			precalc_pressure<sph_formulation>(vel.w, info, keps_k);
-#else
-			precalc_pressure<sph_formulation>(vel.w, info);
-#endif
-
-		/* From here on, we have output variables */
-
-		// force and density derivative
-		float4 force = make_float4(0);
-
-		// new value of gamma and grad gamma
-		// TODO only if boundarytype == SA_BOUNDARY
-		float4 gGam = make_float4(0.0f, 0.0f, 0.0f, 1.0f);
-
-		// TODO this block of output variables is only used
-		// for fluid particles
-		# ifdef VISC_KEPS
-		// velocity gradient components
-		float3 dvx = make_float3(0.0f);
-		float3 dvy = make_float3(0.0f);
-		float3 dvz = make_float3(0.0f);
-
-		float diff_term_k = 0;
-		float diff_term_e = 0;
-		# endif
-
-		// TODO fluid particles only
-		# ifdef XSPH_KERNEL
-		// XSPH correction
-		float3 mean_vel = make_float3(0.0f);
-		# endif
+		// prepare particle output variables
+		forces_particle_output<boundarytype, VISC_TYPE, USEXSPH> pout;
 
 		/* And finally the neib list transversal support */
 
@@ -282,13 +695,19 @@ FORCES_CUDA_KERNEL(
 		uint neib_cell_base_index = 0;
 		float3 pos_corr;
 
-		// we need to special-case VERTEX particles, since they only loop
-		// through neighbors if computeGamma is true or KEPSVISC, so we
-		// initialize the loop counter here. Setting it to d_neiblist_end
-		// will allow us to skip the loop
+		// under some conditions, some particles might want to skip the
+		// neighbor list traversal. This is checked by the check() function of
+		// the skip_neiblist struct. Any action that needs to be done then is
+		// done by the prepare() function in the same struct.
+		// Setting the neib list iterator counter i to d_neiblist_end to
+		// actually skip the neib list traversal is done in here rather than
+		// in the prepare() function.
+
+		skip_neiblist<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, USEXSPH> skip;
 		idx_t i = 0;
-		if (boundarytype == SA_BOUNDARY && VERTEX(info) && !computeGamma && VISC_TYPE != KEPSVISC) {
-			gGam = oldGGam;
+
+		if (skip.check(pdata)) {
+			skip.prepare(pdata, pout);
 			i = d_neiblist_end; // skip neighbors loop
 		}
 
@@ -298,8 +717,8 @@ FORCES_CUDA_KERNEL(
 
 			if (neib_data == 0xffff) break;
 
-			const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
-				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
+			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
+				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
 
 			// Compute relative position vector and distance
 			// Now relPos is a float4 and neib mass is stored in relPos.w
@@ -340,7 +759,7 @@ FORCES_CUDA_KERNEL(
 
 			// Compute relative velocity
 			// Now relVel is a float4 and neib density is stored in relVel.w
-			const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
+			const float4 relVel = as_float3(pdata.vel) - tex1Dfetch(velTex, neib_index);
 
 			// x.u
 			const float vel_dot_pos = dot3(relVel, relPos);
@@ -384,70 +803,78 @@ FORCES_CUDA_KERNEL(
 				if (FLUID(neib_info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 					// compute DrDt and gamAS contributions
 					if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info)) {
-						gamAS = Gamma<kerneltype>(params.slength, relPos, params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], belem, oldGGam, params.epsilon, true);
-						gGam.x += gamAS.x*belem.x;
-						gGam.y += gamAS.x*belem.y;
-						gGam.z += gamAS.x*belem.z;
-						gGam.w -= gamAS.y;
+						gamAS = Gamma<kerneltype>(params.slength, relPos,
+							params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
+							belem, pdata.oldGGam, params.epsilon, true);
+						pout.gGam.x += gamAS.x*belem.x;
+						pout.gGam.y += gamAS.x*belem.y;
+						pout.gGam.z += gamAS.x*belem.z;
+						pout.gGam.w -= gamAS.y;
 						DrDt -= relVel.w*dot3(relVel, belem)*gamAS.x;
 					} else if (boundarytype == SA_BOUNDARY && d_ferrari) {
-						const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/sqC0;
-						float3 ferraricor = (r > 1e-4*params.slength) ? max(sspeed, neib_sspeed)*(vel.w - relVel.w + grav_corr)/vel.w/r*as_float3(relPos) : make_float3(0.0);
+						const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/pdata.sqC0;
+						float3 ferraricor = (r > 1e-4*params.slength) ? max(pdata.sspeed, neib_sspeed)*(pdata.vel.w - relVel.w + grav_corr)/pdata.vel.w/r*as_float3(relPos) : make_float3(0.0);
 						DrDt = relPos.w*dot(as_float3(relVel) + d_ferrari*ferraricor, as_float3(relPos))*f;
 					} else
 						DrDt = relPos.w*vel_dot_pos*f;
 					/* The second formulation takes into consideration the density ratio */
 					if (sph_formulation == SPH_F2)
-						DrDt *= vel.w/relVel.w;
-					force.w += DrDt;
+						DrDt *= pdata.vel.w/relVel.w;
+					pout.force.w += DrDt;
 
 					// pressure part of acceleration (to be multiplied by neib_mass*f)
 					switch (sph_formulation) {
 						case SPH_F1:
-							DvDt = -(p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info))/(relVel.w*relVel.w));
+							DvDt = -(pdata.p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info))/(relVel.w*relVel.w));
 							# ifdef VISC_KEPS
 							DvDt -= 2*neib_keps_k/relVel.w/3.f;
 							# endif
 							break;
 						case SPH_F2:
-							DvDt = -(p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info)))/(vel.w*relVel.w);
+							DvDt = -(pdata.p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info)))/(pdata.vel.w*relVel.w);
 							break;
 					}
 
 					/* Viscous forces */
 					# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS) || defined(VISC_KEPS)
 					# if defined(VISC_DYNAMIC)
-					const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, d_visccoeff*vel.w,
-									d_visccoeff*relVel.w);
+					const float visc = laminarvisc_dynamic(pdata.vel.w, relVel.w, relPos.w, f,
+						d_visccoeff*pdata.vel.w, d_visccoeff*relVel.w);
 					# elif defined(VISC_KINEMATIC)
-					const float visc = laminarvisc_kinematic(vel.w, relVel.w, relPos.w, f);
+					const float visc = laminarvisc_kinematic(pdata.vel.w, relVel.w, relPos.w, f);
 					# elif defined(VISC_SPS)
-					const float visc = laminarvisc_kinematic(vel.w, relVel.w, relPos.w, f);
-					force.x += relPos.w*f*((tau.xx + neib_tau.xx)*relPos.x + (tau.xy + neib_tau.xy)*relPos.y +
-									(tau.xz + neib_tau.xz)*relPos.z);
-					force.y += relPos.w*f*((tau.xy + neib_tau.xy)*relPos.x + (tau.yy + neib_tau.yy)*relPos.y +
-									(tau.yz + neib_tau.yz)*relPos.z);
-					force.z += relPos.w*f*((tau.xz + neib_tau.xz)*relPos.x + (tau.yz + neib_tau.yz)*relPos.y +
-									(tau.zz + neib_tau.zz)*relPos.z);
+					const float visc = laminarvisc_kinematic(pdata.vel.w, relVel.w, relPos.w, f);
+					pout.force.x += relPos.w*f*(
+						(pdata.tau.xx + neib_tau.xx)*relPos.x +
+						(pdata.tau.xy + neib_tau.xy)*relPos.y +
+						(pdata.tau.xz + neib_tau.xz)*relPos.z);
+					pout.force.y += relPos.w*f*(
+						(pdata.tau.xy + neib_tau.xy)*relPos.x +
+						(pdata.tau.yy + neib_tau.yy)*relPos.y +
+						(pdata.tau.yz + neib_tau.yz)*relPos.z);
+					pout.force.z += relPos.w*f*(
+						(pdata.tau.xz + neib_tau.xz)*relPos.x +
+						(pdata.tau.yz + neib_tau.yz)*relPos.y +
+						(pdata.tau.zz + neib_tau.zz)*relPos.z);
 					# elif defined(VISC_KEPS)
-					const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, (d_visccoeff+turbVisc)*vel.w,
+					const float visc = laminarvisc_dynamic(pdata.vel.w, relVel.w, relPos.w, f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
 									(d_visccoeff+neib_tvisc)*relVel.w);
 					# endif // VISC_DYNAMIC + elif*
 
 					if(!BOUNDARY(neib_info)) {
-						as_float3(force) += visc*as_float3(relVel);
+						as_float3(pout.force) += visc*as_float3(relVel);
 					}
 
 					# elif defined(VISC_ARTVISC)
 					if (vel_dot_pos < 0.0f)
-						DvDt += artvisc(vel_dot_pos, vel.w, relVel.w, sspeed,
+						DvDt += artvisc(vel_dot_pos, pdata.vel.w, relVel.w, pdata.sspeed,
 									soundSpeed(relVel.w, PART_FLUID_NUM(neib_info)), r, params.slength);
 					# else
 					# error Unknown viscosity!
 					# endif // VISC_*
 
 					# ifdef XSPH_KERNEL
-					mean_vel -= relPos.w*W<kerneltype>(r, params.slength)*as_float3(relVel)/(vel.w + relVel.w);
+					pout.mean_vel -= relPos.w*W<kerneltype>(r, params.slength)*as_float3(relVel)/(pdata.vel.w + relVel.w);
 					# endif
 
 					if (boundarytype == SA_BOUNDARY) {
@@ -469,7 +896,7 @@ FORCES_CUDA_KERNEL(
 							// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
 							# ifdef VISC_KEPS
 							// a component of fluid paricle velocity tangential to the wall
-							const float3 u_t = as_float3(vel) - dot(as_float3(vel), normal_s)*normal_s;
+							const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), normal_s)*normal_s;
 							const float abs_u_t = length(u_t);
 							float y_plus = params.deltap;
 
@@ -482,35 +909,40 @@ FORCES_CUDA_KERNEL(
 							y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 
 							const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-							bound_term_visc = 2*vel.w*abs_u_t*gamAS.x*u_t/denom_term;
+							bound_term_visc = 2*pdata.vel.w*abs_u_t*gamAS.x*u_t/denom_term;
 
 							// velocity gradient
 							const float3 rhoGGam = gamAS.x*normal_s*relVel.w;
 
-							dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
-							dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
-							dvz += relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
+							pout.dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
+							pout.dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
+							pout.dvz += relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 							# else
-							bound_term_visc = gamAS.x*d_visccoeff*(vel.w + relVel.w)/r_as*vel_tau;
+							bound_term_visc = gamAS.x*d_visccoeff*(pdata.vel.w + relVel.w)/r_as*vel_tau;
 							# endif
 
 							# ifdef VISC_KEPS
 							//to be divided later by rho_a and gamma_a
-							diff_term_e += pow(0.09f, 0.75f)/0.41f * (dedt_precalc*pow(keps_k,1.5f)/(r_as*r_as) +
-										relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(params.deltap*params.deltap)) * gamAS.x;
+							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
+								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(r_as*r_as) +
+								relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(params.deltap*params.deltap)) * gamAS.x;
 							# endif
 
 						}
 						# ifdef VISC_KEPS
 						else {
 							//to be divided later by rho_a and gamma_a
-							diff_term_k += relPos.w*(dkdt_precalc + relVel.w*(d_visccoeff + neib_tvisc))*(keps_k - neib_keps_k)*f/relVel.w;
-							diff_term_e += relPos.w*(dedt_precalc + relVel.w*(d_visccoeff + neib_tvisc/1.3f))*(keps_e - neib_keps_e)*f/relVel.w;
+							pout.diff_term_k += relPos.w*(
+								pdata.dkdt_precalc + relVel.w*(d_visccoeff + neib_tvisc)
+								)*(pdata.keps_k - neib_keps_k)*f/relVel.w;
+							pout.diff_term_e += relPos.w*(
+								pdata.dedt_precalc + relVel.w*(d_visccoeff + neib_tvisc/1.3f)
+								)*(pdata.keps_e - neib_keps_e)*f/relVel.w;
 
 							//velocity gradient
-							dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
-							dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
-							dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
+							pout.dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+							pout.dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+							pout.dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
 						}
 						# endif
 					} // endif (boundarytype)
@@ -534,9 +966,9 @@ FORCES_CUDA_KERNEL(
 					}
 				}
 				if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info)) {
-					as_float3(force) -= bound_term_pres + bound_term_visc/vel.w;
+					as_float3(pout.force) -= bound_term_pres + bound_term_visc/pdata.vel.w;
 				} else {
-					as_float3(force) += DvDt*as_float3(relPos);
+					as_float3(pout.force) += DvDt*as_float3(relPos);
 				}
 			}
 			else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
@@ -550,18 +982,19 @@ FORCES_CUDA_KERNEL(
 					if (r_es < params.deltap)
 						r_es = params.deltap;
 					#endif
-
-					const float2 gamES = Gamma<kerneltype>(params.slength, relPos, params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index], belem, oldGGam, params.epsilon, computeGamma);
-					if (computeGamma){
-						gGam.x += gamES.x*belem.x;
-						gGam.y += gamES.x*belem.y;
-						gGam.z += gamES.x*belem.z;
-						gGam.w -= gamES.y;
+					const float2 gamES = Gamma<kerneltype>(params.slength, relPos,
+						params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
+						belem, pdata.oldGGam, params.epsilon, pdata.computeGamma);
+					if (pdata.computeGamma){
+						pout.gGam.x += gamES.x*belem.x;
+						pout.gGam.y += gamES.x*belem.y;
+						pout.gGam.z += gamES.x*belem.z;
+						pout.gGam.w -= gamES.y;
 					}
 
 					# ifdef VISC_KEPS
 					// velocity of vertex particle along the wall
-					const float3 u_t = as_float3(vel) - dot(as_float3(vel), normal_s)*normal_s;
+					const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), normal_s)*normal_s;
 					const float abs_u_t = length(u_t);
 					float y_plus = params.deltap;
 
@@ -575,59 +1008,65 @@ FORCES_CUDA_KERNEL(
 
 					const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 
-					force.x -= 2*abs_u_t*gamES.x*u_t.x/denom_term;
-					force.y -= 2*abs_u_t*gamES.x*u_t.y/denom_term;
-					force.z -= 2*abs_u_t*gamES.x*u_t.z/denom_term;
+					pout.force.x -= 2*abs_u_t*gamES.x*u_t.x/denom_term;
+					pout.force.y -= 2*abs_u_t*gamES.x*u_t.y/denom_term;
+					pout.force.z -= 2*abs_u_t*gamES.x*u_t.z/denom_term;
 					#endif
 				}
 				# ifdef VISC_KEPS
 				else {
 					const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
 					const float f = F<kerneltype>(r, params.slength);		// 1/r dW/dr
-					const float visc = laminarvisc_dynamic(vel.w, relVel.w, relPos.w, f, (d_visccoeff+turbVisc)*vel.w,
+					const float visc = laminarvisc_dynamic(pdata.vel.w, relVel.w, relPos.w, f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
 									(d_visccoeff+neib_tvisc)*relVel.w);
 
-					force.x += visc*relVel.x;
-					force.y += visc*relVel.y;
-					force.z += visc*relVel.z;
+					pout.force.x += visc*relVel.x;
+					pout.force.y += visc*relVel.y;
+					pout.force.z += visc*relVel.z;
 				} //end if BOUNDARY(neib_info)
 				#endif
 			}
 			else if (OBJECT(info)) {
 				DvDt = relPos.w*LJForce(r);
 
-				as_float3(force) += DvDt*as_float3(relPos);
+				as_float3(pout.force) += DvDt*as_float3(relPos);
 			}
 		} // end of loop over neighbors
+
+		post_processor_t<kerneltype, sph_formulation, boundarytype,
+			VISC_TYPE, DYNDT, USEXSPH> post_processor(index, pdata, pout, params);
 
 		// External forces etc
 		if (FLUID(info)) {
 			# ifdef VISC_DYNAMIC
-			const float dynvisc = d_visccoeff*vel.w;
+			const float dynvisc = d_visccoeff*pdata.vel.w;
 			# elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
-			const float dynvisc = d_visccoeff*vel.w/4.0f;				// FXME: check????????
+			const float dynvisc = d_visccoeff*pdata.vel.w/4.0f;				// FIXME: check????????
 			# elif defined(VISC_ARTVISC)
 			const float dynvisc = 0.0f;
 			# elif defined(VISC_KEPS)
 			const float dynvisc = 0.0f;
 
 			// velocity gradients
-			dvx /= vel.w * gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-			dvy /= vel.w * gGam.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-			dvz /= vel.w * gGam.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+			pout.dvx /= pdata.vel.w * pout.gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+			pout.dvy /= pdata.vel.w * pout.gGam.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+			pout.dvz /= pdata.vel.w * pout.gGam.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
 			// Calculate norm of the mean strain rate tensor
-			float SijSij_bytwo = 2.0f*(dvx.x*dvx.x + dvy.y*dvy.y + dvz.z*dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-			float temp = dvx.y + dvy.x;
+			float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
+				pout.dvy.y*pout.dvy.y +
+				pout.dvz.z*pout.dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+			float temp = pout.dvx.y + pout.dvy.x;
 			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-			temp = dvx.z + dvz.x;
+			temp = pout.dvx.z + pout.dvz.x;
 			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-			temp = dvy.z + dvz.y;
+			temp = pout.dvy.z + pout.dvz.y;
 			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
 			float S = sqrtf(SijSij_bytwo);
-			const float Pturb = turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
+			const float Pturb = pdata.turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
 
-			float dkdt = Pturb - keps_e + diff_term_k/vel.w/gGam.w;								// dk/dt
-			float dedt = keps_e/keps_k*(1.44f*Pturb - 1.92f*keps_e) + diff_term_e/vel.w/gGam.w;	// de/dt
+			float dkdt = Pturb - pdata.keps_e + pout.diff_term_k/pdata.vel.w/pout.gGam.w;								// dk/dt
+			float dedt = pdata.keps_e/pdata.keps_k*(1.44f*Pturb - 1.92f*pdata.keps_e) +
+				pout.diff_term_e/pdata.vel.w/pout.gGam.w;	// de/dt
 
 			params.keps_dkde[index].x = dkdt;
 			params.keps_dkde[index].y = dedt;
@@ -635,13 +1074,11 @@ FORCES_CUDA_KERNEL(
 			# error Unknown viscosity!
 			# endif
 
-			// Dividing by gamma
-			if (boundarytype == SA_BOUNDARY){
-				gGam.w = fmin(fmax(gGam.w, params.epsilon),1.0f);
-				force /= gGam.w;
-			}
+			// only does something if SA_BOUNDARY
+			post_processor.divideForceByGamma();
+
 			// Adding gravity
-			as_float3(force) += d_gravity;
+			as_float3(pout.force) += d_gravity;
 
 			// TODO: check for time step limitation in case of geometrical boundaries (DEM or planes)
 			// for viscous fluids
@@ -651,8 +1088,9 @@ FORCES_CUDA_KERNEL(
 			if (usedem) {
 				switch (boundarytype) {
 					case LJ_BOUNDARY:
-						geom_coeff = DemLJForce(demTex, as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
-										pos.w, as_float3(vel), dynvisc, force);
+						geom_coeff = DemLJForce(demTex,
+							as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize,
+										pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
 						break;
 					default:
 						break;
@@ -661,45 +1099,42 @@ FORCES_CUDA_KERNEL(
 
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numplanes) {
-				geom_coeff = max(geom_coeff, GeometryForce(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize,
-							pos.w, as_float3(vel), dynvisc, force));
+				geom_coeff = max(geom_coeff,
+					GeometryForce(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize,
+							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
 			# ifdef DT_KERNEL
 			// storing data for cfl condition in shared memory
-			sm_max[threadIdx.x] = max(length(as_float3(force)), sspeed*sspeed/params.slength);
+			sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
 			# ifdef VISC_KEPS
-			sm_max_nut[threadIdx.x] = turbVisc;
+			sm_max_nut[threadIdx.x] = pdata.turbVisc;
 			# endif
 			# endif
 		}
-		else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
-			gGam.w = fmin(fmax(gGam.w, params.epsilon),1.0f);
-			force /= gGam.w;
+		else if (VERTEX(info)) {
+			post_processor.divideForceByGamma();
 		}
 
 		// Writing out the results
-		if (FLUID(info) || (boundarytype == SA_BOUNDARY && VERTEX(info))) {
-			params.forces[index] = force;
-
-			if (boundarytype == SA_BOUNDARY)
-				params.newGGam[index] = gGam;
+		if (!OBJECT(info)) {
+			post_processor.write_forces();
+			post_processor.write_gamma();
 		}
 
 		if (FLUID(info)) {
-			# ifdef XSPH_KERNEL
-			params.xsph[index] = make_float4(2.0f*mean_vel, 0.0f);
-			# endif
+			post_processor.write_xsph();
 
 			# ifdef VISC_KEPS
-			params.turbvisc[index] = turbVisc;
+			post_processor.write_turbvisc();
 			# endif
 		}
 
 		if (OBJECT(info)) {
-			params.rbforces[rbindex] = force;
-			params.rbtorques[rbindex] = make_float4(cross(d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize
-								- d_rbcg[object(info)], as_float3(force)));
+			params.rbforces[pdata.rbindex] = pout.force;
+			params.rbtorques[pdata.rbindex] = make_float4(
+				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
+								- d_rbcg[object(info)], as_float3(pout.force)));
 		}
 
 	} while (0);
