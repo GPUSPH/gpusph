@@ -1169,13 +1169,6 @@ FORCES_CUDA_KERNEL(
 				// we only get here if computeGamma || VISC_TYPE == KEPSVISC
 
 				if (BOUNDARY(ndata.info)) {
-					# ifdef VISC_KEPS
-					// r_es - distance between vertex particle and boundary element along the normal
-					float r_es = dot(as_float3(ndata.relPos), ndata.normal_s);
-					if (r_es < params.deltap)
-						r_es = params.deltap;
-					#endif
-
 					if (pdata.computeGamma){
 						pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
 						pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
@@ -1184,6 +1177,9 @@ FORCES_CUDA_KERNEL(
 					}
 
 					# ifdef VISC_KEPS
+					// r_es - distance between vertex particle and boundary element along the normal
+					const float r_es = fmax(dot(as_float3(ndata.relPos), ndata.normal_s), params.deltap);
+
 					// velocity of vertex particle along the wall
 					const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
 					const float abs_u_t = length(u_t);
