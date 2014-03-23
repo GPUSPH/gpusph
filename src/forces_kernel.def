@@ -741,7 +741,7 @@ compute_visc<ARTVISC>::with(FP const& params, P const& pdata, N const& ndata, OP
  * Post-processing and saving
  */
 
-/// The next of functors are called by the post_processor
+/// The next set of functors are called by the post_processor
 
 /// A functor that clamps gamma and divides force by it,
 /// but only for SA_BOUNDARY
@@ -749,22 +749,20 @@ template<BoundaryType>
 struct _divideForceByGamma
 {
 	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT &pout, PAR const& params)
+	__device__ __forceinline__
+	static void
+	run(OUT &pout, PAR const& params)
 	{ /* do nothing */ }
 };
 
 template<>
-struct _divideForceByGamma<SA_BOUNDARY>
+template<typename OUT, typename PAR>
+__device__ __forceinline__ void
+_divideForceByGamma<SA_BOUNDARY>::run(OUT &pout, PAR const& params)
 {
-	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT &pout, PAR const& params)
-	{
-		pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
-		pout.force /= pout.gGam.w;
-	}
-};
+	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
+	pout.force /= pout.gGam.w;
+}
 
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
@@ -772,19 +770,17 @@ template<BoundaryType>
 struct _write_gamma
 {
 	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT const& pout, PAR &params, const uint index)
+	__device__ __forceinline__
+	static void
+	run(OUT const& pout, PAR &params, const uint index)
 	{ /* do nothing */ }
 };
 
 template<>
-struct _write_gamma<SA_BOUNDARY>
-{
-	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT const& pout, PAR &params, const uint index)
-	{ params.newGGam[index] = pout.gGam; }
-};
+template<typename OUT, typename PAR>
+__device__ __forceinline__ void
+_write_gamma<SA_BOUNDARY>::run(OUT const& pout, PAR &params, const uint index)
+{ params.newGGam[index] = pout.gGam; }
 
 /// A functor that writes out the mean vel,
 /// but only for XSPH
@@ -792,19 +788,17 @@ template<bool>
 struct _write_xsph
 {
 	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT const& pout, PAR &params, const uint index)
+	__device__ __forceinline__
+	static void
+	run(OUT const& pout, PAR &params, const uint index)
 	{ /* do nothing */ }
 };
 
 template<>
-struct _write_xsph<true>
-{
-	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT const& pout, PAR &params, const uint index)
-	{ params.xsph[index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
-};
+template<typename OUT, typename PAR>
+__device__ __forceinline__ void
+_write_xsph<true>::run(OUT const& pout, PAR &params, const uint index)
+{ params.xsph[index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
 
 /// A functor that writes out turbvisc
 /// but only for KEPSVISC
@@ -812,20 +806,17 @@ template<ViscosityType>
 struct _write_turbvisc
 {
 	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT const& pdata, PAR &params, const uint index)
+	__device__ __forceinline__
+	static void
+	run(OUT const& pdata, PAR &params, const uint index)
 	{ /* do nothing */ }
 };
 
 template<>
-struct _write_turbvisc<KEPSVISC>
-{
-	template<typename OUT, typename PAR>
-	__device__ __forceinline__ void
-	operator()(OUT const& pdata, PAR &params, const uint index)
-	{ params.turbvisc[index] = pdata.turbVisc; }
-};
-
+template<typename OUT, typename PAR>
+__device__ __forceinline__ void
+_write_turbvisc<KEPSVISC>::run(OUT const& pdata, PAR &params, const uint index)
+{ params.turbvisc[index] = pdata.turbVisc; }
 
 
 /// Post-processing of forces and writing out the results
@@ -854,7 +845,7 @@ struct post_processor_t
 	/// Dividing force by gamma. Only done with SA_BOUNDARY
 	__device__ __forceinline__ void
 	divideForceByGamma()
-	{ _divideForceByGamma<boundarytype>()(pout, params); }
+	{ _divideForceByGamma<boundarytype>::run(pout, params); }
 
 	// write forces to global memory
 	__device__ __forceinline__ void
@@ -863,17 +854,17 @@ struct post_processor_t
 	// write gamma to global memory
 	__device__ __forceinline__ void
 	write_gamma()
-	{ _write_gamma<boundarytype>()(pout, params, index); }
+	{ _write_gamma<boundarytype>::run(pout, params, index); }
 
 	// write xsph to global memory
 	__device__ __forceinline__ void
 	write_xsph()
-	{ _write_xsph<usexsph>()(pout, params, index); }
+	{ _write_xsph<usexsph>::run(pout, params, index); }
 
 	// write turbvisc to global memory
 	__device__ __forceinline__ void
 	write_turbvisc()
-	{ _write_turbvisc<visctype>()(pdata, params, index); }
+	{ _write_turbvisc<visctype>::run(pdata, params, index); }
 };
 
 
