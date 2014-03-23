@@ -617,12 +617,18 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 };
 
 /*
- * Computing neighbor contributions
+ * Functors to compute neighbor contributions. Template structs with a single
+ * static method (`with`) which takes params, pdata, ndata as const& input,
+ * and pout, nout as & output. The method may also return something.
+ * The method should be a template method based on the typenames of its arguments
+ * (which would otherwise be too complex to specify, and it's not even necessary
+ *  since template functions auto-match their arguments), so any specialization
+ * based on the struct template parameter(s) will have two template<> specifications:
+ * the first one for the struct, and the second (unchanged from the declaration)
+ * for the method.
  */
 
 /// A functor that computes simple fluid/boundary forces (LJ, MK)
-/// Beware that specializations on the BoundaryType will require two template<> specifications:
-/// the first to absorb the visctype, and the other to indicate P, N, OP and ON
 template<BoundaryType>
 struct compute_boundary_force {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
