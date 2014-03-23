@@ -26,35 +26,17 @@
 /* All Xsph/Dt variations. Include this after defining CORR_TYPE and
    CORR_<name> */
 
-#undef XSPH_KERNEL
 #undef DT_KERNEL
-
-#define USEXSPH false
 #define DYNDT false
 
-/* NO Xsph, NO Dt */
+/* NO Dt */
 #include "forces_kernel.visc.inc"
 
-/* Xsph, NO Dt */
-#define XSPH_KERNEL Xsph
-#undef USEXSPH
-#define USEXSPH true
-
-#include "forces_kernel.visc.inc"
-
-/* Xsph, Dt */
+/* Dt */
 #define DT_KERNEL Dt
 #undef DYNDT
 #define DYNDT true
 #include "forces_kernel.visc.inc"
 
-/* NO Xsph, Dt */
-#undef XSPH_KERNEL
-#undef USEXSPH
-#define USEXSPH false
-#include "forces_kernel.visc.inc"
-
 #undef DT_KERNEL
-#undef XSPH_KERNEL
 #undef DYNDT
-#undef USEXSPH

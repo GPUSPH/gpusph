@@ -1021,18 +1021,10 @@ struct post_processor_t
 
 // the rest is included multiple times, so no fencing
 
-#ifdef XSPH_KERNEL
-#	ifdef DT_KERNEL
-#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph, Dt)
-#	else
-#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE, Xsph,)
-#	endif
+#ifdef DT_KERNEL
+#	define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,Dt)
 #else
-#	ifdef DT_KERNEL
-#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,, Dt)
-#	else
-#		define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,,)
-#	endif
+#	define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,)
 #endif
 
 /************************************************************************************************************/
@@ -1044,12 +1036,12 @@ template<KernelType kerneltype,
 #if 0 // TODO FIXME not yet
 	ViscosityType visctype,
 	bool dyndt,
-	bool usexsph,
 #endif
+	bool usexsph,
 	bool usedem>
 __global__ void
 FORCES_CUDA_KERNEL(
-	forces_params<kerneltype, boundarytype, VISC_TYPE, DYNDT, USEXSPH> params)
+	forces_params<kerneltype, boundarytype, VISC_TYPE, DYNDT, usexsph> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -1107,11 +1099,11 @@ FORCES_CUDA_KERNEL(
 			break;
 
 		// load rest of particle data
-		forces_particle_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, USEXSPH> const
+		forces_particle_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, usexsph> const
 			pdata(index, pos, info, params);
 
 		// prepare particle output variables
-		forces_particle_output<boundarytype, VISC_TYPE, USEXSPH> pout;
+		forces_particle_output<boundarytype, VISC_TYPE, usexsph> pout;
 
 		/* And finally the neib list transversal support */
 
@@ -1128,7 +1120,7 @@ FORCES_CUDA_KERNEL(
 		// actually skip the neib list traversal is done in here rather than
 		// in the prepare() function.
 
-		skip_neiblist<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, USEXSPH> skip;
+		skip_neiblist<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, usexsph> skip;
 		idx_t i = 0;
 
 		if (skip.check(pdata)) {
@@ -1183,7 +1175,7 @@ FORCES_CUDA_KERNEL(
 				continue;
 
 			// load rest of neib data
-			forces_neib_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, USEXSPH> const
+			forces_neib_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, usexsph> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			/* Contributions from this neighbor */
@@ -1207,7 +1199,7 @@ FORCES_CUDA_KERNEL(
 					if (VISC_TYPE != ARTVISC && !BOUNDARY(ndata.info))
 						as_float3(pout.force) += visc*as_float3(ndata.relVel);
 
-					compute_mean_vel<USEXSPH>::with<kerneltype>(params, pdata, ndata, pout, nout);
+					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 					if (boundarytype == SA_BOUNDARY) {
 						if (BOUNDARY(ndata.info)) {
@@ -1333,7 +1325,7 @@ FORCES_CUDA_KERNEL(
 		} // end of loop over neighbors
 
 		post_processor_t<kerneltype, sph_formulation, boundarytype,
-			VISC_TYPE, DYNDT, USEXSPH> post_processor(index, pdata, pout, params);
+			VISC_TYPE, DYNDT, usexsph> post_processor(index, pdata, pout, params);
 
 		// External forces etc
 		if (FLUID(info)) {
