@@ -620,11 +620,54 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
  * Computing neighbor contributions
  */
 
+/// A functor that computes simple fluid/boundary forces (LJ, MK)
+/// Beware that specializations on the BoundaryType will require two template<> specifications:
+/// the first to absorb the visctype, and the other to indicate P, N, OP and ON
+template<BoundaryType>
+struct compute_boundary_force {
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__ void
+	operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_boundary_force<LJ_BOUNDARY>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DvDt = LJForce(ndata.r);
+}
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_boundary_force<MK_BOUNDARY>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w);
+}
+
+/// TODO FIXME currently this code path only computes the force between fluid particles and
+/// non-BOUNDARY, non-VERTEX particles in the SA_BOUNDARY case: specifically, this computes
+/// the interaction between FLUID and OBJECT particles when SA_BOUNDARY is active. Since
+/// OBJECT particles currently assume LJ-style behavior, we use here LJ-style behavior.
+/// This should
+/// be fixed by:
+/// (1) never mixing SA and non-SA boundary-type particles, and
+/// (2) removing this special case
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_boundary_force<SA_BOUNDARY>::operator()(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// TODO FIXME see above
+	nout.DvDt = LJForce(ndata.r);
+}
+
+
 /// A functor that computes the scalar viscous coefficient (plus additional optional contributions
 /// directly to pout and/or nout.
-/// Beware that specializations on the ViscosityType will require two template<> specifications:
-/// the first to absorb the visctype, and the other to indicate P, N, OP and ON
-template<ViscosityType visctype>
+/// See above about the double template<> in the specializations
+template<ViscosityType>
 struct compute_visc {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__ float
@@ -1008,12 +1051,12 @@ FORCES_CUDA_KERNEL(
 
 			forces_neib_output<boundarytype> nout;
 
-			/* Now compute the interactions based on info and neib_info */
+			/* Now compute the interactions based on pdata.info and ndata.info */
 
-			if (FLUID(info)) {
-				if (FLUID(neib_info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
+			if (FLUID(pdata.info)) {
+				if (FLUID(ndata.info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
 					// compute DrDt and gamAS contributions
-					if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info)) {
+					if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
 						pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
 						pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
 						pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
@@ -1121,21 +1164,7 @@ FORCES_CUDA_KERNEL(
 
 					nout.DvDt *= ndata.relPos.w*ndata.f;
 				} else {
-					switch (boundarytype) {
-						case LJ_BOUNDARY:
-							nout.DvDt = LJForce(ndata.r);
-							break;
-						case MK_BOUNDARY:
-							nout.DvDt = MKForce(ndata.r, params.slength, pos.w, pos.w);
-							break;
-						case SA_BOUNDARY:
-							// TODO FIXME this is currently encountered when the fluid interacts with a floating object
-							nout.DvDt = LJForce(ndata.r);
-							break;
-						default:
-							nout.DvDt = 1.0f/0.0f;
-							break;
-					}
+					compute_boundary_force<boundarytype>()(params, pdata, ndata, pout, nout);
 				}
 				if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
 					as_float3(pout.force) -= nout.bound_term_pres + nout.bound_term_visc/pdata.vel.w;
