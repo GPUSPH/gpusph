@@ -391,6 +391,131 @@ struct forces_particle_output :
 	{}
 };
 
+/*
+ * Neib data
+ */
+
+// Just like for particle data, we collect neib data into appropriate structures
+
+// data used fo all neibs
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
+struct common_neib_data
+{
+	// we will get as arguments also the current particle data and forces_kernel params.
+	// Define shorthands for their data type
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
+	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
+
+	const	particleinfo	info;
+	// relPos holds the distance vector in .xyz and the neib mass in .w
+	const	float4	relPos;
+	const	float	r;
+
+	// relVel holds the relative velocity in .xyz and the neib density in .w
+	const	float4	relVel;
+	const	float	vel_dot_pos;
+	const	float	f;
+
+	__device__ __forceinline__
+	common_neib_data(pdata_t const& pdata, params_t const& params,
+		const uint _index, particleinfo const& _info,
+		float4 const& _relPos, const float _r) :
+		info(_info), relPos(_relPos), r(_r),
+		relVel(as_float3(pdata.vel) - tex1Dfetch(velTex, _index)),
+		vel_dot_pos(dot3(relVel, relPos)),
+		f(F<kerneltype>(r, params.slength))
+	{}
+};
+
+struct sa_boundary_neib_data
+{
+	const	float4	belem;
+
+	__device__ __forceinline__
+	sa_boundary_neib_data(const uint index) : belem(tex1Dfetch(boundTex, index))
+	{}
+};
+
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt, bool usexsph>
+struct forces_neib_data :
+	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data),
+	// these are the same as the particle data
+	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
+	COND_STRUCT(visctype == SPSVISC, sps_particle_data),
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sspeed_particle_data)
+{
+	// shortcut typedefs
+	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> _common_neib_data;
+	typedef typename _common_neib_data::pdata_t pdata_t;
+	typedef typename _common_neib_data::params_t params_t;
+
+	ParticleType	ntype;
+
+	__device__ __forceinline__
+	forces_neib_data(pdata_t const& pdata, params_t const& params,
+		const uint _index, particleinfo const& _info,
+		float4 const& _relPos, const float _r) :
+		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_data)(_index),
+		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
+		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
+		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)(this->relVel.w, _info),
+		ntype(static_cast<ParticleType>PART_TYPE(_info))
+	{}
+};
+
+/// And finally the neib contribution to the current particle forces
+struct common_neib_output
+{
+	// acceleration
+	float	DvDt;
+	// density derivative
+	float	DrDt;
+
+	__device__ __forceinline__
+	common_neib_output() : DvDt(0), DrDt(0)
+	{}
+};
+
+struct sa_boundary_neib_output
+{
+	float3	bound_term_pres;
+	float3	bound_term_visc;
+	// TODO FIXME check how these are used. maybe they should go in ndata instead?
+	union {
+		float2	gamAS; // gamAS used by ptype == PT_FLUID
+		float2	gamES; // gamES used by ptype == PT_VERTEX
+	};
+
+	__device__ __forceinline__
+	sa_boundary_neib_output() {
+		bound_term_pres = make_float3(0.0f);
+		bound_term_visc = make_float3(0.0f);
+		gamAS = make_float2(0.0f);
+	}
+};
+
+template<BoundaryType boundarytype>
+struct forces_neib_output :
+	common_neib_output,
+	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_output)
+{
+	__device__ __forceinline__
+	forces_neib_output() :
+		common_neib_output(),
+		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_neib_output)()
+	{}
+};
+
 
 /*
  * A lot of parts of the forces kernel behave very differently based on some template parameters.
@@ -757,141 +882,109 @@ FORCES_CUDA_KERNEL(
 			if (!computes_stuff)
 				continue;
 
-			// Compute relative velocity
-			// Now relVel is a float4 and neib density is stored in relVel.w
-			const float4 relVel = as_float3(pdata.vel) - tex1Dfetch(velTex, neib_index);
-
-			// x.u
-			const float vel_dot_pos = dot3(relVel, relPos);
-			// 1/r dW/dr
-			const float f = F<kerneltype>(r, params.slength);
-
-			# ifdef VISC_SPS
-			// neighbor SPS matrix
-			// TODO only used for fluid particles
-			const symtensor3 neib_tau(fetchTau(neib_index));
-			# endif
-
-			// TODO the next group of variables isn't used for object particles
-			# ifdef VISC_KEPS
-			const float neib_keps_k = tex1Dfetch(keps_kTex, neib_index);
-			const float neib_keps_e = tex1Dfetch(keps_eTex, neib_index);
-			const float neib_tvisc = FLUID(neib_info) ?
-				0.09f*neib_keps_k*neib_keps_k/neib_keps_e : 0;
-			# endif
-
-			// TODO only if SA_BOUNDARY
-			const float4 belem = (boundarytype == SA_BOUNDARY ? tex1Dfetch(boundTex, neib_index) : make_float4(NAN));
-			const float neib_sspeed = soundSpeed(relVel.w, PART_FLUID_NUM(neib_info));
+			// load rest of neib data
+			forces_neib_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, USEXSPH> const
+				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			/* Contributions from this neighbor */
 
-			// acceleration, gets multiplied by relPos.xyz
-			float DvDt = 0;
-			// density derivative
-			float DrDt = 0;
+			forces_neib_output<boundarytype> nout;
 
 			/* Now compute the interactions based on info and neib_info */
 
 			if (FLUID(info)) {
-				// TODO only if SA_BOUNDARY
-				float3 bound_term_pres = make_float3(0.0f);
-				float3 bound_term_visc = make_float3(0.0f);
-				// grad gamma_{as}
-				float2 gamAS = make_float2(0);
-
 				if (FLUID(neib_info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(neib_info) || VERTEX(neib_info)) ) ) {
 					// compute DrDt and gamAS contributions
 					if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info)) {
-						gamAS = Gamma<kerneltype>(params.slength, relPos,
+						nout.gamAS = Gamma<kerneltype>(params.slength, relPos,
 							params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
-							belem, pdata.oldGGam, params.epsilon, true);
-						pout.gGam.x += gamAS.x*belem.x;
-						pout.gGam.y += gamAS.x*belem.y;
-						pout.gGam.z += gamAS.x*belem.z;
-						pout.gGam.w -= gamAS.y;
-						DrDt -= relVel.w*dot3(relVel, belem)*gamAS.x;
+							ndata.belem, pdata.oldGGam, params.epsilon, true);
+						pout.gGam.x += nout.gamAS.x*ndata.belem.x;
+						pout.gGam.y += nout.gamAS.x*ndata.belem.y;
+						pout.gGam.z += nout.gamAS.x*ndata.belem.z;
+						pout.gGam.w -= nout.gamAS.y;
+						nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
 					} else if (boundarytype == SA_BOUNDARY && d_ferrari) {
-						const float grav_corr = -dot(d_gravity, as_float3(relPos))*d_rho0[PART_FLUID_NUM(info)]/pdata.sqC0;
-						float3 ferraricor = (r > 1e-4*params.slength) ? max(pdata.sspeed, neib_sspeed)*(pdata.vel.w - relVel.w + grav_corr)/pdata.vel.w/r*as_float3(relPos) : make_float3(0.0);
-						DrDt = relPos.w*dot(as_float3(relVel) + d_ferrari*ferraricor, as_float3(relPos))*f;
+						const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(info)]/pdata.sqC0;
+						float3 ferraricor = (ndata.r > 1e-4*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) : make_float3(0.0);
+						nout.DrDt = ndata.relPos.w*dot(as_float3(ndata.relVel) + d_ferrari*ferraricor, as_float3(ndata.relPos))*ndata.f;
 					} else
-						DrDt = relPos.w*vel_dot_pos*f;
+						nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
 					/* The second formulation takes into consideration the density ratio */
 					if (sph_formulation == SPH_F2)
-						DrDt *= pdata.vel.w/relVel.w;
-					pout.force.w += DrDt;
+						nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+					pout.force.w += nout.DrDt;
 
 					// pressure part of acceleration (to be multiplied by neib_mass*f)
 					switch (sph_formulation) {
 						case SPH_F1:
-							DvDt = -(pdata.p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info))/(relVel.w*relVel.w));
+							nout.DvDt = -(pdata.p_precalc + P(ndata.relVel.w, PART_FLUID_NUM(ndata.info))/(ndata.relVel.w*ndata.relVel.w));
 							# ifdef VISC_KEPS
-							DvDt -= 2*neib_keps_k/relVel.w/3.f;
+							nout.DvDt -= 2*ndata.keps_k/ndata.relVel.w/3.f;
 							# endif
 							break;
 						case SPH_F2:
-							DvDt = -(pdata.p_precalc + P(relVel.w, PART_FLUID_NUM(neib_info)))/(pdata.vel.w*relVel.w);
+							nout.DvDt = -(pdata.p_precalc + P(ndata.relVel.w, PART_FLUID_NUM(ndata.info)))/(pdata.vel.w*ndata.relVel.w);
 							break;
 					}
 
 					/* Viscous forces */
 					# if defined(VISC_DYNAMIC) || defined(VISC_KINEMATIC) || defined(VISC_SPS) || defined(VISC_KEPS)
 					# if defined(VISC_DYNAMIC)
-					const float visc = laminarvisc_dynamic(pdata.vel.w, relVel.w, relPos.w, f,
-						d_visccoeff*pdata.vel.w, d_visccoeff*relVel.w);
+					const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
+						d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w);
 					# elif defined(VISC_KINEMATIC)
-					const float visc = laminarvisc_kinematic(pdata.vel.w, relVel.w, relPos.w, f);
+					const float visc = laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
 					# elif defined(VISC_SPS)
-					const float visc = laminarvisc_kinematic(pdata.vel.w, relVel.w, relPos.w, f);
-					pout.force.x += relPos.w*f*(
-						(pdata.tau.xx + neib_tau.xx)*relPos.x +
-						(pdata.tau.xy + neib_tau.xy)*relPos.y +
-						(pdata.tau.xz + neib_tau.xz)*relPos.z);
-					pout.force.y += relPos.w*f*(
-						(pdata.tau.xy + neib_tau.xy)*relPos.x +
-						(pdata.tau.yy + neib_tau.yy)*relPos.y +
-						(pdata.tau.yz + neib_tau.yz)*relPos.z);
-					pout.force.z += relPos.w*f*(
-						(pdata.tau.xz + neib_tau.xz)*relPos.x +
-						(pdata.tau.yz + neib_tau.yz)*relPos.y +
-						(pdata.tau.zz + neib_tau.zz)*relPos.z);
+					const float visc = laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f);
+					pout.force.x += ndata.relPos.w*ndata.f*(
+						(pdata.tau.xx + ndata.tau.xx)*ndata.relPos.x +
+						(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.y +
+						(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.z);
+					pout.force.y += ndata.relPos.w*ndata.f*(
+						(pdata.tau.xy + ndata.tau.xy)*ndata.relPos.x +
+						(pdata.tau.yy + ndata.tau.yy)*ndata.relPos.y +
+						(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.z);
+					pout.force.z += ndata.relPos.w*ndata.f*(
+						(pdata.tau.xz + ndata.tau.xz)*ndata.relPos.x +
+						(pdata.tau.yz + ndata.tau.yz)*ndata.relPos.y +
+						(pdata.tau.zz + ndata.tau.zz)*ndata.relPos.z);
 					# elif defined(VISC_KEPS)
-					const float visc = laminarvisc_dynamic(pdata.vel.w, relVel.w, relPos.w, f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
-									(d_visccoeff+neib_tvisc)*relVel.w);
+					const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
+									(d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
 					# endif // VISC_DYNAMIC + elif*
 
-					if(!BOUNDARY(neib_info)) {
-						as_float3(pout.force) += visc*as_float3(relVel);
+					if(!BOUNDARY(ndata.info)) {
+						as_float3(pout.force) += visc*as_float3(ndata.relVel);
 					}
 
 					# elif defined(VISC_ARTVISC)
-					if (vel_dot_pos < 0.0f)
-						DvDt += artvisc(vel_dot_pos, pdata.vel.w, relVel.w, pdata.sspeed,
-									soundSpeed(relVel.w, PART_FLUID_NUM(neib_info)), r, params.slength);
+					if (ndata.vel_dot_pos < 0.0f)
+						nout.DvDt += artvisc(ndata.vel_dot_pos, pdata.vel.w, ndata.relVel.w, pdata.sspeed,
+							ndata.sspeed, ndata.r, params.slength);
 					# else
 					# error Unknown viscosity!
 					# endif // VISC_*
 
 					# ifdef XSPH_KERNEL
-					pout.mean_vel -= relPos.w*W<kerneltype>(r, params.slength)*as_float3(relVel)/(pdata.vel.w + relVel.w);
+					pout.mean_vel -= ndata.relPos.w*W<kerneltype>(ndata.r, params.slength)*as_float3(ndata.relVel)/(pdata.vel.w + ndata.relVel.w);
 					# endif
 
 					if (boundarytype == SA_BOUNDARY) {
-						if (BOUNDARY(neib_info)) {
+						if (BOUNDARY(ndata.info)) {
 							// normal vector
-							const float3 normal_s = as_float3(belem);
+							const float3 normal_s = as_float3(ndata.belem);
 
 							// pressure boundary term
-							bound_term_pres = DvDt*relVel.w*gamAS.x*normal_s;
+							nout.bound_term_pres = nout.DvDt*ndata.relVel.w*nout.gamAS.x*normal_s;
 
 							// r_as - distance between fluid particle and boundary element along the normal
-							float r_as = dot(as_float3(relPos), normal_s);
+							float r_as = dot(as_float3(ndata.relPos), normal_s);
 							if (r_as < params.deltap)
 								r_as = params.deltap;
 
 							// velocity of fluid particle along the wall
-							const float3 vel_tau = as_float3(relVel) - dot(as_float3(relVel), normal_s)*normal_s;
+							const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), normal_s)*normal_s;
 
 							// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
 							# ifdef VISC_KEPS
@@ -909,87 +1002,88 @@ FORCES_CUDA_KERNEL(
 							y_plus = max(r_as*u_star/d_visccoeff, 11.f);
 
 							const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-							bound_term_visc = 2*pdata.vel.w*abs_u_t*gamAS.x*u_t/denom_term;
+							nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*nout.gamAS.x*u_t/denom_term;
 
 							// velocity gradient
-							const float3 rhoGGam = gamAS.x*normal_s*relVel.w;
+							const float3 rhoGGam = nout.gamAS.x*normal_s*ndata.relVel.w;
 
-							pout.dvx += relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
-							pout.dvy += relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
-							pout.dvz += relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
+							pout.dvx += ndata.relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
+							pout.dvy += ndata.relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
+							pout.dvz += ndata.relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 							# else
-							bound_term_visc = gamAS.x*d_visccoeff*(pdata.vel.w + relVel.w)/r_as*vel_tau;
+							nout.bound_term_visc = nout.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/r_as*vel_tau;
 							# endif
 
 							# ifdef VISC_KEPS
 							//to be divided later by rho_a and gamma_a
 							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
 								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(r_as*r_as) +
-								relVel.w*(d_visccoeff + neib_tvisc/1.3f)*pow(neib_keps_k,1.5f)/(params.deltap*params.deltap)) * gamAS.x;
+								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * nout.gamAS.x;
 							# endif
 
 						}
 						# ifdef VISC_KEPS
 						else {
 							//to be divided later by rho_a and gamma_a
-							pout.diff_term_k += relPos.w*(
-								pdata.dkdt_precalc + relVel.w*(d_visccoeff + neib_tvisc)
-								)*(pdata.keps_k - neib_keps_k)*f/relVel.w;
-							pout.diff_term_e += relPos.w*(
-								pdata.dedt_precalc + relVel.w*(d_visccoeff + neib_tvisc/1.3f)
-								)*(pdata.keps_e - neib_keps_e)*f/relVel.w;
+							pout.diff_term_k += ndata.relPos.w*(
+								pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
+								)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
+							pout.diff_term_e += ndata.relPos.w*(
+								pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)
+								)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
 
 							//velocity gradient
-							pout.dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
-							pout.dvy -= relVel.y*as_float3(relPos)*f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
-							pout.dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
+							pout.dvx -= ndata.relVel.x*as_float3(ndata.relPos)*ndata.f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+							pout.dvy -= ndata.relVel.y*as_float3(ndata.relPos)*ndata.f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+							pout.dvz -= ndata.relVel.z*as_float3(ndata.relPos)*ndata.f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
 						}
 						# endif
 					} // endif (boundarytype)
 
-					DvDt *= relPos.w*f;
+					nout.DvDt *= ndata.relPos.w*ndata.f;
 				} else {
 					switch (boundarytype) {
 						case LJ_BOUNDARY:
-							DvDt = LJForce(r);
+							nout.DvDt = LJForce(ndata.r);
 							break;
 						case MK_BOUNDARY:
-							DvDt = MKForce(r, params.slength, pos.w, pos.w);
+							nout.DvDt = MKForce(ndata.r, params.slength, pos.w, pos.w);
 							break;
 						case SA_BOUNDARY:
 							// TODO FIXME this is currently encountered when the fluid interacts with a floating object
-							DvDt = LJForce(r);
+							nout.DvDt = LJForce(ndata.r);
 							break;
 						default:
-							DvDt = 1.0f/0.0f;
+							nout.DvDt = 1.0f/0.0f;
 							break;
 					}
 				}
-				if (boundarytype == SA_BOUNDARY && BOUNDARY(neib_info)) {
-					as_float3(pout.force) -= bound_term_pres + bound_term_visc/pdata.vel.w;
+				if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
+					as_float3(pout.force) -= nout.bound_term_pres + nout.bound_term_visc/pdata.vel.w;
 				} else {
-					as_float3(pout.force) += DvDt*as_float3(relPos);
+					as_float3(pout.force) += nout.DvDt*as_float3(relPos);
 				}
 			}
 			else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
 				// we only get here if computeGamma || VISC_TYPE == KEPSVISC
 
-				if (BOUNDARY(neib_info)) {
-					const float3 normal_s = as_float3(belem);	// normal vector
+				if (BOUNDARY(ndata.info)) {
+					const float3 normal_s = as_float3(ndata.belem);	// normal vector
 					# ifdef VISC_KEPS
 					// r_es - distance between vertex particle and boundary element along the normal
 					float r_es = dot(as_float3(relPos), normal_s);
 					if (r_es < params.deltap)
 						r_es = params.deltap;
 					#endif
-					const float2 gamES = Gamma<kerneltype>(params.slength, relPos,
+
+					nout.gamES = Gamma<kerneltype>(params.slength, relPos,
 						params.vertPos0[neib_index], params.vertPos1[neib_index], params.vertPos2[neib_index],
-						belem, pdata.oldGGam, params.epsilon, pdata.computeGamma);
+						ndata.belem, pdata.oldGGam, params.epsilon, pdata.computeGamma);
 					if (pdata.computeGamma){
-						pout.gGam.x += gamES.x*belem.x;
-						pout.gGam.y += gamES.x*belem.y;
-						pout.gGam.z += gamES.x*belem.z;
-						pout.gGam.w -= gamES.y;
+						pout.gGam.x += nout.gamES.x*ndata.belem.x;
+						pout.gGam.y += nout.gamES.x*ndata.belem.y;
+						pout.gGam.z += nout.gamES.x*ndata.belem.z;
+						pout.gGam.w -= nout.gamES.y;
 					}
 
 					# ifdef VISC_KEPS
@@ -1008,28 +1102,26 @@ FORCES_CUDA_KERNEL(
 
 					const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 
-					pout.force.x -= 2*abs_u_t*gamES.x*u_t.x/denom_term;
-					pout.force.y -= 2*abs_u_t*gamES.x*u_t.y/denom_term;
-					pout.force.z -= 2*abs_u_t*gamES.x*u_t.z/denom_term;
+					pout.force.x -= 2*abs_u_t*nout.gamES.x*u_t.x/denom_term;
+					pout.force.y -= 2*abs_u_t*nout.gamES.x*u_t.y/denom_term;
+					pout.force.z -= 2*abs_u_t*nout.gamES.x*u_t.z/denom_term;
 					#endif
 				}
 				# ifdef VISC_KEPS
 				else {
-					const float vel_dot_pos = dot(as_float3(relVel), as_float3(relPos));	// x.u
-					const float f = F<kerneltype>(r, params.slength);		// 1/r dW/dr
-					const float visc = laminarvisc_dynamic(pdata.vel.w, relVel.w, relPos.w, f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
-									(d_visccoeff+neib_tvisc)*relVel.w);
+					const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
+									(d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
 
-					pout.force.x += visc*relVel.x;
-					pout.force.y += visc*relVel.y;
-					pout.force.z += visc*relVel.z;
+					pout.force.x += visc*ndata.relVel.x;
+					pout.force.y += visc*ndata.relVel.y;
+					pout.force.z += visc*ndata.relVel.z;
 				} //end if BOUNDARY(neib_info)
 				#endif
 			}
 			else if (OBJECT(info)) {
-				DvDt = relPos.w*LJForce(r);
+				nout.DvDt = ndata.relPos.w*LJForce(r);
 
-				as_float3(pout.force) += DvDt*as_float3(relPos);
+				as_float3(pout.force) += nout.DvDt*as_float3(ndata.relPos);
 			}
 		} // end of loop over neighbors
 
