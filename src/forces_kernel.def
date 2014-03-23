@@ -628,6 +628,32 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
  * for the method.
  */
 
+/// A functor that computes the new gamma. Obviously does something
+/// only in the case of SA_BOUNDARY
+template<BoundaryType>
+struct compute_gamma {
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// we do not compute gamma for OBJECT particles,
+	// and only BOUNDARY particles contribute to it
+	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
+		pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
+		pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
+		pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
+		pout.gGam.w -= ndata.gamAS.y;
+	}
+}
+
 /// A functor that computes simple fluid/boundary forces (LJ, MK)
 template<BoundaryType>
 struct compute_boundary_force {
@@ -1052,14 +1078,12 @@ FORCES_CUDA_KERNEL(
 
 			/* Now compute the interactions based on pdata.info and ndata.info */
 
+			compute_gamma<boundarytype>::with(params, pdata, ndata, pout, nout);
+
 			if (FLUID(pdata.info)) {
 				if (FLUID(ndata.info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
 					// compute DrDt and gamAS contributions
 					if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
-						pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
-						pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
-						pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
-						pout.gGam.w -= ndata.gamAS.y;
 						nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*ndata.gamAS.x;
 					} else if (boundarytype == SA_BOUNDARY && d_ferrari) {
 						const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(info)]/pdata.sqC0;
@@ -1175,13 +1199,6 @@ FORCES_CUDA_KERNEL(
 				// we only get here if computeGamma || VISC_TYPE == KEPSVISC
 
 				if (BOUNDARY(ndata.info)) {
-					if (pdata.computeGamma){
-						pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
-						pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
-						pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
-						pout.gGam.w -= ndata.gamAS.y;
-					}
-
 					# ifdef VISC_KEPS
 					// r_es - distance between vertex particle and boundary element along the normal
 					const float r_es = fmax(dot(as_float3(ndata.relPos), ndata.normal_s), params.deltap);
