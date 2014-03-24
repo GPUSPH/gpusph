@@ -1044,6 +1044,53 @@ add_force_contribution<SA_BOUNDARY>::with
 		simple(params, pdata, ndata, pout, nout);
 }
 
+/// Functor to compute forces on VERTEX particles in case of KEPS
+template<BoundaryType boundarytype, ViscosityType visctype>
+struct compute_vertex_keps
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+/// Implementation in the only case where it makes sense (SA_BOUNDARY and KEPSVISC)
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_vertex_keps<SA_BOUNDARY, KEPSVISC>::with
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	if (ndata.ntype == PT_BOUNDARY) {
+		// velocity of vertex particle along the wall
+		const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
+		const float abs_u_t = length(u_t);
+		float y_plus = params.deltap;
+
+		// we solve iteratively the wall law equation to obtain y+ value
+		float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
+		for (int i=0; i<10; i++) {
+			y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
+			u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+		}
+		y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
+
+		const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
+
+		pout.force.x -= 2*abs_u_t*ndata.gamAS.x*u_t.x/denom_term;
+		pout.force.y -= 2*abs_u_t*ndata.gamAS.x*u_t.y/denom_term;
+		pout.force.z -= 2*abs_u_t*ndata.gamAS.x*u_t.z/denom_term;
+	} else {
+		const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
+			(d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
+
+		pout.force.x += visc*ndata.relVel.x;
+		pout.force.y += visc*ndata.relVel.y;
+		pout.force.z += visc*ndata.relVel.z;
+	}
+}
+
 
 /*
  * Post-processing and saving
@@ -1380,41 +1427,9 @@ FORCES_CUDA_KERNEL(
 
 			}
 			else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
-				// we only get here if computeGamma || VISC_TYPE == KEPSVISC
-
-				if (BOUNDARY(ndata.info)) {
-					# ifdef VISC_KEPS
-
-					// velocity of vertex particle along the wall
-					const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
-					const float abs_u_t = length(u_t);
-					float y_plus = params.deltap;
-
-					// we solve iteratively the wall law equation to obtain y+ value
-					float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
-					for (int i=0; i<10; i++) {
-						y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
-						u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
-					}
-					y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
-
-					const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-
-					pout.force.x -= 2*abs_u_t*ndata.gamAS.x*u_t.x/denom_term;
-					pout.force.y -= 2*abs_u_t*ndata.gamAS.x*u_t.y/denom_term;
-					pout.force.z -= 2*abs_u_t*ndata.gamAS.x*u_t.z/denom_term;
-					#endif
-				}
-				# ifdef VISC_KEPS
-				else {
-					const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
-									(d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
-
-					pout.force.x += visc*ndata.relVel.x;
-					pout.force.y += visc*ndata.relVel.y;
-					pout.force.z += visc*ndata.relVel.z;
-				} //end if BOUNDARY(neib_info)
-				#endif
+				// we only get here if computeGamma || VISC_TYPE == KEPSVISC, and
+				// gamma has already been computed, so all it's left is:
+				compute_vertex_keps<boundarytype, VISC_TYPE>::with(params, pdata, ndata, pout, nout);
 			}
 			else if (OBJECT(info)) {
 				nout.DvDt = ndata.relPos.w*LJForce(r);
