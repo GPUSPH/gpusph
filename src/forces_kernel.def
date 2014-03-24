@@ -1010,6 +1010,40 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	pout.dvz += ndata.relVel.z*dvmul;
 }
 
+/// Functor to update the particle force with the neighbor contribution
+
+template<BoundaryType boundarytype>
+struct add_force_contribution
+{
+	// auxiliary method for common contribution
+	// force += DvDt * relPos;
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	simple(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ as_float3(pout.force) += nout.DvDt*as_float3(ndata.relPos); }
+
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ simple(params, pdata, ndata, pout, nout); }
+};
+
+// SA_BOUNDARY specialization
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+add_force_contribution<SA_BOUNDARY>::with
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	if (ndata.ntype == PT_BOUNDARY)
+		as_float3(pout.force) -= nout.bound_term_pres + nout.bound_term_visc/pdata.vel.w;
+	else
+		simple(params, pdata, ndata, pout, nout);
+}
+
 
 /*
  * Post-processing and saving
@@ -1315,7 +1349,9 @@ FORCES_CUDA_KERNEL(
 			compute_gamma<boundarytype>::with(params, pdata, ndata, pout, nout);
 
 			if (FLUID(pdata.info)) {
+
 				if (FLUID(ndata.info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
+
 					compute_density_derivative<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
 
@@ -1335,14 +1371,13 @@ FORCES_CUDA_KERNEL(
 					}
 
 					nout.DvDt *= ndata.relPos.w*ndata.f;
+
 				} else {
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
-				if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
-					as_float3(pout.force) -= nout.bound_term_pres + nout.bound_term_visc/pdata.vel.w;
-				} else {
-					as_float3(pout.force) += nout.DvDt*as_float3(relPos);
-				}
+
+				add_force_contribution<boundarytype>::with(params, pdata, ndata, pout, nout);
+
 			}
 			else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
 				// we only get here if computeGamma || VISC_TYPE == KEPSVISC
