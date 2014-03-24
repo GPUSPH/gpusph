@@ -446,6 +446,9 @@ struct sa_boundary_neib_data
 
 	const	float4	belem;
 	const	float3&	normal_s;
+	// distance of particle to boundary element along the normal
+	const	float	r_as; // r_as as used by ptye == PT_FLUID, r_es as used by ptype == PT_VERTEX
+
 	const	float2	gamAS; // gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
 
 	__device__ __forceinline__
@@ -453,6 +456,7 @@ struct sa_boundary_neib_data
 		const uint index, float4 const& _relPos) :
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
+		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
 #if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
 		gamAS(boundarytype == SA_BOUNDARY ?
 			Gamma<kerneltype>(params.slength, _relPos,
@@ -1206,11 +1210,6 @@ FORCES_CUDA_KERNEL(
 							// pressure boundary term
 							nout.bound_term_pres = nout.DvDt*ndata.relVel.w*ndata.gamAS.x*ndata.normal_s;
 
-							// r_as - distance between fluid particle and boundary element along the normal
-							float r_as = dot(as_float3(ndata.relPos), ndata.normal_s);
-							if (r_as < params.deltap)
-								r_as = params.deltap;
-
 							// velocity of fluid particle along the wall
 							const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
 
@@ -1222,12 +1221,12 @@ FORCES_CUDA_KERNEL(
 							float y_plus = params.deltap;
 
 							// we solve iteratively the wall law equation to obtain y+ value
-							float u_star = exp(-2.132f)*d_visccoeff/r_as;
+							float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
 							for (int i=0; i<10; i++) {
-								y_plus = max(r_as*u_star/d_visccoeff, 11.f);
+								y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
 								u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
 							}
-							y_plus = max(r_as*u_star/d_visccoeff, 11.f);
+							y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
 
 							const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 							nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*ndata.gamAS.x*u_t/denom_term;
@@ -1239,13 +1238,13 @@ FORCES_CUDA_KERNEL(
 							pout.dvy += ndata.relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
 							pout.dvz += ndata.relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
 							# else
-							nout.bound_term_visc = ndata.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/r_as*vel_tau;
+							nout.bound_term_visc = ndata.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/ndata.r_as*vel_tau;
 							# endif
 
 							# ifdef VISC_KEPS
 							//to be divided later by rho_a and gamma_a
 							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
-								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(r_as*r_as) +
+								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
 								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
 							# endif
 
@@ -1283,8 +1282,6 @@ FORCES_CUDA_KERNEL(
 
 				if (BOUNDARY(ndata.info)) {
 					# ifdef VISC_KEPS
-					// r_es - distance between vertex particle and boundary element along the normal
-					const float r_es = fmax(dot(as_float3(ndata.relPos), ndata.normal_s), params.deltap);
 
 					// velocity of vertex particle along the wall
 					const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
@@ -1292,12 +1289,12 @@ FORCES_CUDA_KERNEL(
 					float y_plus = params.deltap;
 
 					// we solve iteratively the wall law equation to obtain y+ value
-					float u_star = exp(-2.132f)*d_visccoeff/r_es;
+					float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
 					for (int i=0; i<10; i++) {
-						y_plus = max(r_es*u_star/d_visccoeff, 11.f);
+						y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
 						u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
 					}
-					y_plus = max(r_es*u_star/d_visccoeff, 11.f);
+					y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
 
 					const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 
