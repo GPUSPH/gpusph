@@ -886,6 +886,79 @@ compute_visc<ARTVISC>::with(FP const& params, P const& pdata, N const& ndata, OP
 	return 0;
 }
 
+/// Functor that computes the pressure boundary term in SA_BOUNDARY
+template<BoundaryType>
+struct compute_boundary_term
+{
+	// auxiliary functor computing the viscous term of the boundary pressure
+	template<ViscosityType visctype>
+	struct viscous_part {
+		template<typename FP, typename P, typename N, typename OP, typename ON>
+		__device__ __forceinline__
+		static void
+		with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout,
+			float3 const& vel_tau)
+		{ nout.bound_term_visc = make_float3(NAN); } // TODO FIXME we don't have a generic model for this
+	};
+
+	template<ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_boundary_term<SA_BOUNDARY>::viscous_part<DYNAMICVISC>::with
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout, float3 const& vel_tau)
+{
+	nout.bound_term_visc = ndata.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/ndata.r_as*vel_tau;
+}
+
+template<>
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_boundary_term<SA_BOUNDARY>::viscous_part<KEPSVISC>::with
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout, float3 const& vel_tau)
+{
+	// a component of fluid paricle velocity tangential to the wall
+	const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
+	const float abs_u_t = length(u_t);
+	float y_plus = params.deltap;
+
+	// we solve iteratively the wall law equation to obtain y+ value
+	float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
+	for (int i=0; i<10; i++) {
+		y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
+		u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+	}
+	y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
+
+	const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
+	nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*ndata.gamAS.x*u_t/denom_term;
+}
+
+template<>
+template<ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_boundary_term<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	if (ndata.ntype != PT_BOUNDARY)
+		return;
+
+	nout.bound_term_pres = nout.DvDt*ndata.relVel.w*ndata.gamAS.x*ndata.normal_s;
+
+	// velocity of fluid particle along the wall
+	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
+
+	viscous_part<visctype>::with(params, pdata, ndata, pout, nout, vel_tau);
+}
+
+
 
 /*
  * Post-processing and saving
@@ -1206,30 +1279,14 @@ FORCES_CUDA_KERNEL(
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 					if (boundarytype == SA_BOUNDARY) {
+						compute_boundary_term<boundarytype>::with<VISC_TYPE>(params, pdata, ndata, pout, nout);
+
+						# ifdef VISC_KEPS
 						if (BOUNDARY(ndata.info)) {
-							// pressure boundary term
-							nout.bound_term_pres = nout.DvDt*ndata.relVel.w*ndata.gamAS.x*ndata.normal_s;
-
-							// velocity of fluid particle along the wall
-							const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
-
-							// These two expressions are correct only when used together with DYNAMICVISC or KEPSVISC model
-							# ifdef VISC_KEPS
-							// a component of fluid paricle velocity tangential to the wall
-							const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
-							const float abs_u_t = length(u_t);
-							float y_plus = params.deltap;
-
-							// we solve iteratively the wall law equation to obtain y+ value
-							float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
-							for (int i=0; i<10; i++) {
-								y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
-								u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
-							}
-							y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
-
-							const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-							nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*ndata.gamAS.x*u_t/denom_term;
+							//to be divided later by rho_a and gamma_a
+							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
+								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
+								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
 
 							// velocity gradient
 							const float3 rhoGGam = ndata.gamAS.x*ndata.normal_s*ndata.relVel.w;
@@ -1237,20 +1294,7 @@ FORCES_CUDA_KERNEL(
 							pout.dvx += ndata.relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
 							pout.dvy += ndata.relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
 							pout.dvz += ndata.relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
-							# else
-							nout.bound_term_visc = ndata.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/ndata.r_as*vel_tau;
-							# endif
-
-							# ifdef VISC_KEPS
-							//to be divided later by rho_a and gamma_a
-							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
-								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
-								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
-							# endif
-
-						}
-						# ifdef VISC_KEPS
-						else {
+						} else {
 							//to be divided later by rho_a and gamma_a
 							pout.diff_term_k += ndata.relPos.w*(
 								pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
