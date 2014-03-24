@@ -1096,7 +1096,80 @@ compute_vertex_keps<SA_BOUNDARY, KEPSVISC>::with
  * Post-processing and saving
  */
 
+
 /// The next set of functors are called by the post_processor
+
+
+/// A functor that does viscosity-related post-processing, and returns a
+/// viscous coefficient to be used with DEMs and planes
+
+template<ViscosityType>
+struct _viscous_fixup
+{
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static float
+	with(FP const& params, P const& pdata, OP &pout, const uint index);
+};
+
+/// Specializations
+
+template<>
+template<typename FP, typename P, typename OP >
+__device__ __forceinline__ float
+_viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+{ return d_visccoeff*pdata.vel.w; }
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ float
+_viscous_fixup<KINEMATICVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+{ return d_visccoeff*pdata.vel.w/4; } // TODO FIXME check?
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ float
+_viscous_fixup<SPSVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+{ return d_visccoeff*pdata.vel.w/4; } // TODO FIXME check?
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ float
+_viscous_fixup<ARTVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+{ return 0; } // assumes free-slip
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ float
+_viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+{
+	// velocity gradients
+	pout.dvx /= pdata.vel.w * pout.gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+	pout.dvy /= pdata.vel.w * pout.gGam.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+	pout.dvz /= pdata.vel.w * pout.gGam.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+	// Calculate norm of the mean strain rate tensor
+	float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
+		pout.dvy.y*pout.dvy.y +
+		pout.dvz.z*pout.dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
+	float temp = pout.dvx.y + pout.dvy.x;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
+	temp = pout.dvx.z + pout.dvz.x;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
+	temp = pout.dvy.z + pout.dvz.y;
+	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+	const float S = sqrtf(SijSij_bytwo);
+	const float Pturb = pdata.turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
+
+	const float dkdt = Pturb - pdata.keps_e + pout.diff_term_k/pdata.vel.w/pout.gGam.w;								// dk/dt
+	const float dedt = pdata.keps_e/pdata.keps_k*(1.44f*Pturb - 1.92f*pdata.keps_e) +
+		pout.diff_term_e/pdata.vel.w/pout.gGam.w;	// de/dt
+
+	params.keps_dkde[index].x = dkdt;
+	params.keps_dkde[index].y = dedt;
+
+	return d_visccoeff*pdata.vel.w;
+}
+
 
 /// A functor that clamps gamma and divides force by it,
 /// but only for SA_BOUNDARY
@@ -1196,6 +1269,12 @@ struct post_processor_t
 		pout_t &_pout, params_t &_params) :
 		index(_index), pdata(_pdata), pout(_pout), params(_params)
 	{};
+
+	/// Viscous post-processing
+	__device__ __forceinline__ float
+	viscous_fixup()
+	{ return _viscous_fixup<visctype>::with(params, pdata, pout, index); }
+
 
 	/// Dividing force by gamma. Only done with SA_BOUNDARY
 	__device__ __forceinline__ void
@@ -1443,41 +1522,10 @@ FORCES_CUDA_KERNEL(
 
 		// External forces etc
 		if (FLUID(info)) {
-			# ifdef VISC_DYNAMIC
-			const float dynvisc = d_visccoeff*pdata.vel.w;
-			# elif defined(VISC_KINEMATIC) || defined(VISC_SPS)
-			const float dynvisc = d_visccoeff*pdata.vel.w/4.0f;				// FIXME: check????????
-			# elif defined(VISC_ARTVISC)
-			const float dynvisc = 0.0f;
-			# elif defined(VISC_KEPS)
-			const float dynvisc = 0.0f;
 
-			// velocity gradients
-			pout.dvx /= pdata.vel.w * pout.gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-			pout.dvy /= pdata.vel.w * pout.gGam.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-			pout.dvz /= pdata.vel.w * pout.gGam.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
-			// Calculate norm of the mean strain rate tensor
-			float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
-				pout.dvy.y*pout.dvy.y +
-				pout.dvz.z*pout.dvz.z);	// 2*SijSij = 2.0((∂vx/∂x)^2 + (∂vy/∂yx)^2 + (∂vz/∂z)^2)
-			float temp = pout.dvx.y + pout.dvy.x;
-			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂y + ∂vy/∂x)^2
-			temp = pout.dvx.z + pout.dvz.x;
-			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
-			temp = pout.dvy.z + pout.dvz.y;
-			SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
-			float S = sqrtf(SijSij_bytwo);
-			const float Pturb = pdata.turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
-
-			float dkdt = Pturb - pdata.keps_e + pout.diff_term_k/pdata.vel.w/pout.gGam.w;								// dk/dt
-			float dedt = pdata.keps_e/pdata.keps_k*(1.44f*Pturb - 1.92f*pdata.keps_e) +
-				pout.diff_term_e/pdata.vel.w/pout.gGam.w;	// de/dt
-
-			params.keps_dkde[index].x = dkdt;
-			params.keps_dkde[index].y = dedt;
-			# else
-			# error Unknown viscosity!
-			# endif
+			// post-processing for viscous terms, returns viscous coefficient
+			// to be used with planes/DEM
+			const float dynvisc = post_processor.viscous_fixup();
 
 			// only does something if SA_BOUNDARY
 			post_processor.divideForceByGamma();
