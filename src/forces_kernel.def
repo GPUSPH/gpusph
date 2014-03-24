@@ -266,7 +266,7 @@ struct keps_precalc_particle_data
 
 // And now we assemble them. Not all particle types require all particle data,
 // but for the time being we don't optimize this far and just limit ourselves
-// to conditional inclusions based on kernel specialization only, not particle tye
+// to conditional inclusions based on kernel specialization only, not particle type
 
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
@@ -447,7 +447,7 @@ struct sa_boundary_neib_data
 	const	float4	belem;
 	const	float3&	normal_s;
 	// distance of particle to boundary element along the normal
-	const	float	r_as; // r_as as used by ptye == PT_FLUID, r_es as used by ptype == PT_VERTEX
+	const	float	r_as; // r_as as used by ptype == PT_FLUID, r_es as used by ptype == PT_VERTEX
 
 	const	float2	gamAS; // gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
 
