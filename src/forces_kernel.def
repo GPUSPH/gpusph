@@ -1570,24 +1570,19 @@ FORCES_CUDA_KERNEL(
 		}
 
 		// Writing out the results
-		if (!OBJECT(info)) {
+		if (OBJECT(info)) {
+			params.rbforces[pdata.rbindex] = pout.force;
+			params.rbtorques[pdata.rbindex] = make_float4(
+				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
+								- d_rbcg[object(info)], as_float3(pout.force)));
+		} else {
 			post_processor.write_forces();
 			post_processor.write_gamma();
 		}
 
 		if (FLUID(info)) {
 			post_processor.write_xsph();
-
-			# ifdef VISC_KEPS
 			post_processor.write_turbvisc();
-			# endif
-		}
-
-		if (OBJECT(info)) {
-			params.rbforces[pdata.rbindex] = pout.force;
-			params.rbtorques[pdata.rbindex] = make_float4(
-				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
-								- d_rbcg[object(info)], as_float3(pout.force)));
 		}
 
 	} while (0);
