@@ -958,6 +958,57 @@ compute_boundary_term<SA_BOUNDARY>::with(FP const& params, P const& pdata, N con
 	viscous_part<visctype>::with(params, pdata, ndata, pout, nout, vel_tau);
 }
 
+/// Functor to compute the KEPS diffusion and velocity gradient terms
+
+template<BoundaryType boundarytype, ViscosityType visctype>
+struct compute_keps_term
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
+(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// diffusion terms, to be divided later by rho_a and gamma_a
+	if (ndata.ntype == PT_BOUNDARY) {
+		pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
+			pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
+			ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
+	} else {
+		pout.diff_term_k += ndata.relPos.w*(
+			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
+			)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
+		pout.diff_term_e += ndata.relPos.w*(
+			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)
+			)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
+	}
+
+	// velocity gradient
+	// From boundary:
+	//	dvx = ∑ρs vxas ∇ɣas
+	//	dvy = ∑ρs vyas ∇ɣas
+	//	dvz = ∑ρs vzas ∇ɣas
+	// From fluid/vertex:
+	//	dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
+	//	dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
+	//	dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
+
+	const float3 dvmul =
+		ndata.ntype == PT_BOUNDARY ?
+		ndata.gamAS.x*ndata.normal_s*ndata.relVel.w : // rhoGGam
+		-as_float3(ndata.relPos)*ndata.f ; // rab*F
+
+	pout.dvx += ndata.relVel.x*dvmul;
+	pout.dvy += ndata.relVel.y*dvmul;
+	pout.dvz += ndata.relVel.z*dvmul;
+}
 
 
 /*
@@ -1280,36 +1331,8 @@ FORCES_CUDA_KERNEL(
 
 					if (boundarytype == SA_BOUNDARY) {
 						compute_boundary_term<boundarytype>::with<VISC_TYPE>(params, pdata, ndata, pout, nout);
-
-						# ifdef VISC_KEPS
-						if (BOUNDARY(ndata.info)) {
-							//to be divided later by rho_a and gamma_a
-							pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
-								pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
-								ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
-
-							// velocity gradient
-							const float3 rhoGGam = ndata.gamAS.x*ndata.normal_s*ndata.relVel.w;
-
-							pout.dvx += ndata.relVel.x*rhoGGam;	// dvx = ∑ρs vxas ∇ɣas
-							pout.dvy += ndata.relVel.y*rhoGGam;	// dvy = ∑ρs vyas ∇ɣas
-							pout.dvz += ndata.relVel.z*rhoGGam;	// dvz = ∑ρs vzas ∇ɣas
-						} else {
-							//to be divided later by rho_a and gamma_a
-							pout.diff_term_k += ndata.relPos.w*(
-								pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
-								)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
-							pout.diff_term_e += ndata.relPos.w*(
-								pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)
-								)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
-
-							//velocity gradient
-							pout.dvx -= ndata.relVel.x*as_float3(ndata.relPos)*ndata.f;	// dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
-							pout.dvy -= ndata.relVel.y*as_float3(ndata.relPos)*ndata.f;	// dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
-							pout.dvz -= ndata.relVel.z*as_float3(ndata.relPos)*ndata.f;	// dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
-						}
-						# endif
-					} // endif (boundarytype)
+						compute_keps_term<boundarytype, VISC_TYPE>::with(params, pdata, ndata, pout, nout);
+					}
 
 					nout.DvDt *= ndata.relPos.w*ndata.f;
 				} else {
