@@ -774,7 +774,7 @@ compute_mean_vel<true>::with(FP const& params, P const& pdata, N const& ndata, O
 
 /// A functor that computes simple fluid/boundary forces (LJ, MK)
 template<BoundaryType>
-struct compute_boundary_force {
+struct compute_repulsive_force {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -784,7 +784,7 @@ struct compute_boundary_force {
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_boundary_force<LJ_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_repulsive_force<LJ_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	nout.DvDt = LJForce(ndata.r);
 }
@@ -792,7 +792,7 @@ compute_boundary_force<LJ_BOUNDARY>::with(FP const& params, P const& pdata, N co
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_boundary_force<MK_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_repulsive_force<MK_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w);
 }
@@ -808,7 +808,7 @@ compute_boundary_force<MK_BOUNDARY>::with(FP const& params, P const& pdata, N co
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_boundary_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_repulsive_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// TODO FIXME see above
 	nout.DvDt = LJForce(ndata.r);
@@ -1336,7 +1336,7 @@ FORCES_CUDA_KERNEL(
 
 					nout.DvDt *= ndata.relPos.w*ndata.f;
 				} else {
-					compute_boundary_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 				if (boundarytype == SA_BOUNDARY && BOUNDARY(ndata.info)) {
 					as_float3(pout.force) -= nout.bound_term_pres + nout.bound_term_visc/pdata.vel.w;
