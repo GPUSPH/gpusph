@@ -1301,7 +1301,100 @@ struct post_processor_t
 	{ _write_turbvisc<visctype>::run(pdata, params, index); }
 };
 
+/*
+ * Global variables
+ */
 
+/// Some forces kernel specializations have global variables which are not individual particle data
+/// and are therefore collected here
+
+struct dyndt_shared_data
+{
+	float sm_max[BLOCK_SIZE_FORCES];
+};
+
+struct dyndt_keps_shared_data
+{
+	float sm_max_nut[BLOCK_SIZE_FORCES];
+};
+
+template<bool dyndt, ViscosityType visctype>
+struct forces_shared_data // by default, depend on nothing
+{
+	// init shared data
+	__device__ __forceinline__ void init() { /* do nothing */ }
+
+	// store shared data
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{ /* do nothing */ }
+
+	// reduce shared data
+	template<typename FP>
+	__device__ __forceinline__ void reduce(FP const& params)
+	{ /* do nothing */ }
+};
+
+template<ViscosityType visctype>
+struct forces_shared_data<true, visctype> :
+	dyndt_shared_data,
+	COND_STRUCT(visctype == KEPSVISC, dyndt_keps_shared_data)
+{
+	// init shared data
+	__device__ __forceinline__ void init()
+	{ sm_max[threadIdx.x] = 0; }
+
+	// auxiliary: store common dyndt shared data
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store_sm_max(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
+	}
+
+	// auxiliary: reduce common dyndt shared data
+	template<typename FP>
+	__device__ __forceinline__ void reduce_sm_max(FP const& params)
+	{ dtadaptBlockReduce(sm_max, params.cfl); }
+
+	// store shared data
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{ store_sm_max(params, pdata, pout); }
+
+	// reduce shared data
+	template<typename FP>
+	__device__ __forceinline__ void reduce(FP const& params)
+	{ reduce_sm_max(params); }
+};
+
+template<>
+__device__ __forceinline__ void
+forces_shared_data<true, KEPSVISC>::init()
+{
+	sm_max[threadIdx.x] = 0;
+	sm_max_nut[threadIdx.x] = 0;
+}
+
+template<>
+template<typename FP, typename P, typename OP>
+__device__ __forceinline__ void
+forces_shared_data<true, KEPSVISC>::store(FP const& params, P const& pdata, OP const& pout)
+{
+	store_sm_max(params, pdata, pout);
+	sm_max_nut[threadIdx.x] = pdata.turbVisc;
+}
+
+template<>
+template<typename FP>
+__device__ __forceinline__ void
+forces_shared_data<true, KEPSVISC>::reduce(FP const& params)
+{
+	reduce_sm_max(params);
+	dtadaptBlockReduce(sm_max_nut, params.cfltvisc);
+}
 
 
 
@@ -1333,14 +1426,9 @@ FORCES_CUDA_KERNEL(
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-	# ifdef DT_KERNEL
-	__shared__ float sm_max[BLOCK_SIZE_FORCES];
-	sm_max[threadIdx.x] = 0.0f;
-	# ifdef VISC_KEPS
-	__shared__ float sm_max_nut[BLOCK_SIZE_FORCES];
-	sm_max_nut[threadIdx.x] = 0.0f;
-	# endif
-	# endif
+
+	__shared__ forces_shared_data<DYNDT, VISC_TYPE> shared;
+	shared.init();
 
 	// the body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
@@ -1557,13 +1645,7 @@ FORCES_CUDA_KERNEL(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			# ifdef DT_KERNEL
-			// storing data for cfl condition in shared memory
-			sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
-			# ifdef VISC_KEPS
-			sm_max_nut[threadIdx.x] = pdata.turbVisc;
-			# endif
-			# endif
+			shared.store(params, pdata, pout);
 		}
 		else if (VERTEX(info)) {
 			post_processor.gamma_fixup();
@@ -1587,12 +1669,7 @@ FORCES_CUDA_KERNEL(
 
 	} while (0);
 
-	# ifdef DT_KERNEL
-	dtadaptBlockReduce(sm_max, params.cfl);
-	# ifdef VISC_KEPS
-	dtadaptBlockReduce(sm_max_nut, params.cfltvisc);
-	# endif
-	# endif
+	shared.reduce(params);
 }
 /************************************************************************************************************/
 
