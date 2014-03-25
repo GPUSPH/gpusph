@@ -178,7 +178,6 @@ struct xsph_forces_params
 };
 
 /// Additional parameters passed only to kernels with SA_BOUNDARY
-// TODO FIXME for the time being this is _always_ included
 struct sa_boundary_forces_params
 {
 			float4	*newGGam;
@@ -229,11 +228,7 @@ struct forces_params :
 	common_forces_params,
 	COND_STRUCT(dyndt, dyndt_forces_params),
 	COND_STRUCT(usexsph, xsph_forces_params),
-#if 0 // TODO FIXME for the time being this is included unconditionally
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
-#else
-	sa_boundary_forces_params,
-#endif
 	COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)
 {
 	// This structure provides a constructor that takes as arguments the union of the
@@ -278,11 +273,7 @@ struct forces_params :
 			_deltap, _slength, _influenceradius),
 		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
-#if 0 // TODO FIXME for the time being this is included unconditionally
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
-#else
-		sa_boundary_forces_params
-#endif
 			(_newGGam, _vertPos, _epsilon, _movingBoundaries),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
