@@ -187,7 +187,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 1;
+	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 0.1;
@@ -237,14 +237,14 @@ int InputProblem::fill_parts()
 		add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
 		// Pressure probes
 		if (m_simparams.testpoints) {
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
-			test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.021));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.061));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.101));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.141));
+			test_points.push_back(m_origin + make_double3(2.4165, 0.5, 0.161));
+			test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161));
+			test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161));
+			test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161));
 		}
 	}
 	//*******************************************************************
