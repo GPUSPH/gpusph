@@ -1211,8 +1211,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 /*					   Kernels for computing acceleration without gradient correction					 */
 /************************************************************************************************************/
 
-/* Normal kernels */
-#include "forces_kernel.xsphdt.inc"
+/* forcesDevice kernel and auxiliary types and functions */
+#include "forces_kernel.def"
 
 /************************************************************************************************************/
 

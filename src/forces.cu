@@ -45,11 +45,6 @@ size_t	reduce_bs2 = 0;
 size_t	reduce_shmem_max = 0;
 void*	reduce_buffer = NULL;
 
-/* These defines give a shorthand for the kernel with a given viscosity
-   and dt options. They will be used in forces.cu for consistency */
-#define _FORCES_KERNEL_NAME(visc, dt) forces_##visc##_##dt##Device
-#define FORCES_KERNEL_NAME(visc, dt) _FORCES_KERNEL_NAME(visc, dt)
-
 #include "forces_kernel.cu"
 
 #define NOT_IMPLEMENTED_CHECK(what, arg) \
@@ -74,16 +69,16 @@ void*	reduce_buffer = NULL;
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,)<kernel, formulation, boundarytype, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
 		else if (!dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,)<kernel, formulation, boundarytype, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
 		else if (dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Dt)<kernel, formulation, boundarytype, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
 		else if (dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Dt)<kernel, formulation, boundarytype, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
 		break
 
