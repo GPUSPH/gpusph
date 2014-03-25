@@ -23,10 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Auxiliary data types and device functions used in forces kernel.
-   These must only be defined once, so fence them.
- */
-
 #ifndef _FORCES_KERNEL_AUX
 #define _FORCES_KERNEL_AUX
 
@@ -1397,37 +1393,24 @@ forces_shared_data<true, KEPSVISC>::reduce(FP const& params)
 }
 
 
-
-#endif
-
-// the rest is included multiple times, so no fencing
-
-#ifdef DT_KERNEL
-#	define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,Dt)
-#else
-#	define FORCES_CUDA_KERNEL FORCES_KERNEL_NAME(VISC_TYPE,)
-#endif
-
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
 /************************************************************************************************************/
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
-#if 0 // TODO FIXME not yet
 	ViscosityType visctype,
 	bool dyndt,
-#endif
 	bool usexsph,
 	bool usedem>
 __global__ void
-FORCES_CUDA_KERNEL(
-	forces_params<kerneltype, boundarytype, VISC_TYPE, DYNDT, usexsph> params)
+forcesDevice(
+	forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	__shared__ forces_shared_data<DYNDT, VISC_TYPE> shared;
+	__shared__ forces_shared_data<dyndt, visctype> shared;
 	shared.init();
 
 	// the body of this kernel easily gets a lot of indentation. to prevent that,
@@ -1475,11 +1458,11 @@ FORCES_CUDA_KERNEL(
 			break;
 
 		// load rest of particle data
-		forces_particle_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, usexsph> const
+		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> const
 			pdata(index, pos, info, params);
 
 		// prepare particle output variables
-		forces_particle_output<boundarytype, VISC_TYPE, usexsph> pout;
+		forces_particle_output<boundarytype, visctype, usexsph> pout;
 
 		/* And finally the neib list transversal support */
 
@@ -1496,7 +1479,7 @@ FORCES_CUDA_KERNEL(
 		// actually skip the neib list traversal is done in here rather than
 		// in the prepare() function.
 
-		skip_neiblist<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, usexsph> skip;
+		skip_neiblist<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> skip;
 		idx_t i = 0;
 
 		if (skip.check(pdata)) {
@@ -1551,7 +1534,7 @@ FORCES_CUDA_KERNEL(
 				continue;
 
 			// load rest of neib data
-			forces_neib_data<kerneltype, sph_formulation, boundarytype, VISC_TYPE, DYNDT, usexsph> const
+			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			/* Contributions from this neighbor */
@@ -1570,18 +1553,18 @@ FORCES_CUDA_KERNEL(
 					pout.force.w += nout.DrDt;
 
 					// compute pressure part of acceleration (to be multiplied by neib_mass*f)
-					compute_pressure_contrib<VISC_TYPE>::with<sph_formulation>(params, pdata, ndata, pout, nout);
+					compute_pressure_contrib<visctype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
 					/* Viscous forces */
-					const float visc(compute_visc<VISC_TYPE>::with(params, pdata, ndata, pout, nout));
-					if (VISC_TYPE != ARTVISC && !BOUNDARY(ndata.info))
+					const float visc(compute_visc<visctype>::with(params, pdata, ndata, pout, nout));
+					if (visctype != ARTVISC && !BOUNDARY(ndata.info))
 						as_float3(pout.force) += visc*as_float3(ndata.relVel);
 
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 					if (boundarytype == SA_BOUNDARY) {
-						compute_boundary_term<boundarytype>::with<VISC_TYPE>(params, pdata, ndata, pout, nout);
-						compute_keps_term<boundarytype, VISC_TYPE>::with(params, pdata, ndata, pout, nout);
+						compute_boundary_term<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
+						compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
 					}
 
 					nout.DvDt *= ndata.relPos.w*ndata.f;
@@ -1594,9 +1577,9 @@ FORCES_CUDA_KERNEL(
 
 			}
 			else if (boundarytype == SA_BOUNDARY && VERTEX(info)) {
-				// we only get here if computeGamma || VISC_TYPE == KEPSVISC, and
+				// we only get here if computeGamma || visctype == KEPSVISC, and
 				// gamma has already been computed, so all it's left is:
-				compute_vertex_keps<boundarytype, VISC_TYPE>::with(params, pdata, ndata, pout, nout);
+				compute_vertex_keps<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
 			}
 			else if (OBJECT(info)) {
 				nout.DvDt = ndata.relPos.w*LJForce(r);
@@ -1606,7 +1589,7 @@ FORCES_CUDA_KERNEL(
 		} // end of loop over neighbors
 
 		post_processor_t<kerneltype, sph_formulation, boundarytype,
-			VISC_TYPE, DYNDT, usexsph> post_processor(index, pdata, pout, params);
+			visctype, dyndt, usexsph> post_processor(index, pdata, pout, params);
 
 		// External forces etc
 		if (FLUID(info)) {
@@ -1673,6 +1656,6 @@ FORCES_CUDA_KERNEL(
 }
 /************************************************************************************************************/
 
-#undef FORCES_CUDA_KERNEL
+#endif
 
 /* vi:set ft=cuda: */
