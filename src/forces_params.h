@@ -69,14 +69,25 @@ using std::conditional;
 template<typename>
 struct empty
 {
-	// alternative to dyndt_forces_params
-	empty(float*, float*) {}
-	// alternative to xsph_forces_params
-	empty(float4*) {}
-	// alternative to sa_boundary_forces_params
-	empty(float4*, const float2* const[], const float, const bool) {}
-	// alternative to kepsvisc_forces_params
-	empty(float2*, float*) {}
+	// constructors
+	__host__ __device__ __forceinline__
+	empty() {}
+
+	template<typename T1>
+	__host__ __device__ __forceinline__
+	empty(T1) {}
+
+	template<typename T1, typename T2>
+	__host__ __device__ __forceinline__
+	empty(T1, T2) {}
+
+	template<typename T1, typename T2, typename T3>
+	__host__ __device__ __forceinline__
+	empty(T1, T2, T3) {}
+
+	template<typename T1, typename T2, typename T3, typename T4>
+	__host__ __device__ __forceinline__
+	empty(T1, T2, T3, T4) {}
 };
 
 
