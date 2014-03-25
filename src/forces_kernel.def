@@ -89,7 +89,7 @@ get_sqC0(particleinfo const& info)
 // assembly mechanism similar to the one seen in src/forces_params.h
 
 // TODO FIXME for the time being, include everything unconditionally
-#define _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS 1
+#define _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS 0
 #if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
 #undef COND_STRUCT
 #define COND_STRUCT(some_cond, some_struct) some_struct
@@ -292,7 +292,7 @@ struct forces_particle_data :
 		sspeed_particle_data),
 	// to see why this is so messy, see definition of p_precalc_particle_data
 	p_precalc_particle_data<sph_formulation,
-		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
+		typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
 	COND_STRUCT(visctype == KEPSVISC,
 		keps_precalc_particle_data)
 {
@@ -314,7 +314,7 @@ struct forces_particle_data :
 		COND_STRUCT(dyndt || (visctype == ARTVISC) || (boundarytype == SA_BOUNDARY),
 			sspeed_particle_data)(vel.w, _info),
 		p_precalc_particle_data<sph_formulation,
-			COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(vel.w, _info, *this),
+			typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(vel.w, _info, *this),
 		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, *this),
 		ptype(static_cast<ParticleType>PART_TYPE(_info))
 	{}
@@ -375,14 +375,18 @@ template<BoundaryType boundarytype,
 	bool usexsph>
 struct forces_particle_output :
 	common_particle_output,
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_particle_output),
+	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g _viscous_fixup<KEPSVISC),
+	// but there is no way to prevent it from being selected with other boundary conditions.
+	// When this is implemented, the || visctype == KEPSVISC should be removed
+	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output),
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_output),
 	COND_STRUCT(usexsph, xsph_particle_output)
 {
 	__device__ __forceinline__
 	forces_particle_output() :
 		common_particle_output(),
-		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_particle_output)(),
+		// TODO FIXME see above
+		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output)(),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
 		COND_STRUCT(usexsph, xsph_particle_output)()
 	{}
@@ -474,19 +478,20 @@ template<KernelType kerneltype,
 	bool dyndt, bool usexsph>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
-// TODO FIXME for the time being, include everything unconditionally
 // can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
 #if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
 	sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
 #else
 	conditional<boundarytype == SA_BOUNDARY,
 		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
-		empty< sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> >::type,
+		empty<
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>
+		> >::type,
 #endif
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data),
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sspeed_particle_data)
+	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)
 {
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> _common_neib_data;
@@ -496,7 +501,9 @@ struct forces_neib_data :
 #else
 		typename conditional<boundarytype == SA_BOUNDARY,
 			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
-			empty< sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> >::type
+			empty<
+				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>
+			> >::type
 #endif
 		_sa_boundary_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
