@@ -88,13 +88,6 @@ get_sqC0(particleinfo const& info)
 // particle type (fluid, object, boundary, vertex). We use a conditional struct
 // assembly mechanism similar to the one seen in src/forces_params.h
 
-// TODO FIXME for the time being, include everything unconditionally
-#define _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS 0
-#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
-#undef COND_STRUCT
-#define COND_STRUCT(some_cond, some_struct) some_struct
-#endif
-
 // data used for all particles
 struct common_particle_data
 {
@@ -460,17 +453,9 @@ struct sa_boundary_neib_data
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
 		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
-#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
-		gamAS(boundarytype == SA_BOUNDARY ?
-			Gamma<kerneltype>(params.slength, _relPos,
-				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
-				belem, pdata.oldGGam, params.epsilon, pdata.computeGamma) :
-			make_float2(NAN))
-#else
 		gamAS(Gamma<kerneltype>(params.slength, _relPos,
 				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
 				belem, pdata.oldGGam, params.epsilon, pdata.computeGamma))
-#endif
 	{}
 };
 
@@ -482,15 +467,11 @@ template<KernelType kerneltype,
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
 // can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
-#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
-	sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
-#else
 	conditional<boundarytype == SA_BOUNDARY,
 		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
 		empty<
 			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>
 		> >::type,
-#endif
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data),
@@ -499,15 +480,11 @@ struct forces_neib_data :
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> _common_neib_data;
 	typedef
-#if _UNCONDITIONALLY_INCLUDE_ALL_STRUCTS
-		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>
-#else
 		typename conditional<boundarytype == SA_BOUNDARY,
 			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>,
 			empty<
 				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph>
 			> >::type
-#endif
 		_sa_boundary_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
