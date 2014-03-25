@@ -274,10 +274,12 @@ int main(int argc, char** argv) {
 
 	// catch SIGINT and SIGUSR1
 	struct sigaction int_action, usr1_action;
-	int_action.sa_flags=0;
+
+	memset(&int_action, 0, sizeof(struct sigaction));
 	int_action.sa_handler = sigint_handler;
 	sigaction(SIGINT, &int_action, NULL);
-	usr1_action.sa_flags=0;
+
+	memset(&usr1_action, 0, sizeof(struct sigaction));
 	usr1_action.sa_handler = sigusr1_handler;
 	sigaction(SIGUSR1, &usr1_action, NULL);
 
