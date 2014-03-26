@@ -51,7 +51,7 @@ public:
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
 #if _DEBUG_
-			printf("\tfreeing buffer %d\n", i);
+			//printf("\tfreeing buffer %d\n", i);
 #endif
 			if (bufs[i]) {
 				CUDA_SAFE_CALL(cudaFree(bufs[i]));

@@ -201,7 +201,7 @@ public:
 
 	virtual ~Buffer() {
 #if _DEBUG_
-		printf("destroying %s\n", get_buffer_name());
+		//printf("destroying %s\n", get_buffer_name());
 #endif
 	}
 
