@@ -92,8 +92,8 @@ get_sqC0(particleinfo const& info)
 struct common_particle_data
 {
 	const	uint	index;
-	const	particleinfo	info;
-	const	float4	pos;
+	particleinfo	const& info;
+	float4	const&	pos;
 	const	int3	gridPos;
 
 	__device__ __forceinline__
@@ -409,9 +409,9 @@ struct common_neib_data
 	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
 	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
 
-	const	particleinfo	info;
+	particleinfo	const& info;
 	// relPos holds the distance vector in .xyz and the neib mass in .w
-	const	float4	relPos;
+	float4	const&	relPos;
 	const	float	r;
 
 	// relVel holds the relative velocity in .xyz and the neib density in .w
