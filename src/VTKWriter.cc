@@ -199,7 +199,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// device index
-	if (gdata) {
+	if (MULTI_DEVICE) {
 		scalar_array(fid, dev_idx_str, "DeviceIndex", offset);
 		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
@@ -385,7 +385,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// device index
-	if (gdata) {
+	if (MULTI_DEVICE) {
 		numbytes = sizeof(dev_idx_t)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
