@@ -114,7 +114,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// CSV file for tespoints
 	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
 	FILE *testpoints_file = NULL;
-	if (m_gdata->problem->get_simparams()->csvtestpoints) {
+	if (gdata->problem->get_simparams()->csvtestpoints) {
 		testpoints_file = fopen(testpoints_fname.c_str(), "w");
 		if (testpoints_file == NULL) {
 			stringstream ss;
@@ -193,7 +193,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// device index
-	if (m_gdata) {
+	if (gdata) {
 		scalar_array(fid, "UInt32", "DeviceIndex", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
@@ -332,7 +332,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
-			if (m_gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
+			if (gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
 				fprintf(testpoints_file,"%g,%u,%g,%u,%u,%g,%g,%g,%g,%g,%g\n",
 					t, id(info[i]),
 					vel[i].w, object(info[i]), cellHashFromParticleHash( particleHash[i] ),
@@ -374,7 +374,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// device index
-	if (m_gdata) {
+	if (gdata) {
 		numbytes = sizeof(uint)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
@@ -382,18 +382,18 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// containing cell until next calchash/reorder.
 		// The current policy is: just list the particles according to how the global array is partitioned. In other words, we rely
 		// on the particle index to understad which device downloaded the particle data.
-		for (uint d = 0; d < m_gdata->devices; d++) {
+		for (uint d = 0; d < gdata->devices; d++) {
 			// compute the global device ID for each device
-			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
+			uint value = gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
 			// write one for each particle (no need for the "absolute" particle index)
-			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
+			for (uint p = 0; p < gdata->s_hPartsPerDevice[d]; p++)
 				fwrite(&value, sizeof(value), 1, fid);
 		}
 		// There two alternate policies: 1. use particle hash or 2. compute belonging device.
 		// To use the particle hash, instead of just relying on the particle index, use the following code:
 		/*
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uint value = m_gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
+			uint value = gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 		*/
@@ -577,8 +577,8 @@ VTKWriter::open_data_file(const char* base, string const& num, string *fname)
 {
 	string filename(base), full_filename;
 
-	if (m_gdata && m_gdata->mpi_nodes > 1)
-		filename += "n" + m_gdata->rankString();
+	if (gdata && gdata->mpi_nodes > 1)
+		filename += "n" + gdata->rankString();
 
 	filename += "_" + num + ".vtu";
 	full_filename = m_dirname + "/" + filename;

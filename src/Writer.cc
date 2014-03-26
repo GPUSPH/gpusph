@@ -74,7 +74,7 @@ Writer::Writer(const Problem *problem)
 		fputs("\n", m_WaveGagefile);
 	}
 
-	m_gdata = NULL;
+	gdata = NULL;
 }
 
 Writer::~Writer()
@@ -139,7 +139,7 @@ Writer::next_filenum()
 
 void Writer::setGlobalData(GlobalData *_gdata)
 {
-	m_gdata = _gdata;
+	gdata = _gdata;
 }
 
 uint Writer::getLastFilenum()
