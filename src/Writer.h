@@ -73,7 +73,7 @@ protected:
 	const Problem	*m_problem;
 	string			next_filenum();
 	string			current_filenum();
-	GlobalData*		m_gdata;
+	GlobalData*		gdata;
 };
 
 #endif	/* _WRITER_H */
