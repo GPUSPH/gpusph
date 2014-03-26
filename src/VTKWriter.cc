@@ -33,6 +33,12 @@
 
 using namespace std;
 
+// TODO for the time being, we assume no more than 256 devices
+// upgrade to UInt16 / ushort if it's ever needed
+
+typedef unsigned char dev_idx_t;
+static const char dev_idx_str[] = "UInt8";
+
 VTKWriter::VTKWriter(const Problem *problem)
   : Writer(problem)
 {
@@ -194,8 +200,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// device index
 	if (gdata) {
-		scalar_array(fid, "UInt32", "DeviceIndex", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
+		scalar_array(fid, dev_idx_str, "DeviceIndex", offset);
+		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
 
 	// cell index
@@ -380,7 +386,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// device index
 	if (gdata) {
-		numbytes = sizeof(uint)*numParts;
+		numbytes = sizeof(dev_idx_t)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
 		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
@@ -389,7 +395,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// on the particle index to understad which device downloaded the particle data.
 		for (uint d = 0; d < gdata->devices; d++) {
 			// compute the global device ID for each device
-			uint value = gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+			dev_idx_t value = gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
 			// write one for each particle (no need for the "absolute" particle index)
 			for (uint p = 0; p < gdata->s_hPartsPerDevice[d]; p++)
 				fwrite(&value, sizeof(value), 1, fid);
