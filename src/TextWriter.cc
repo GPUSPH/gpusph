@@ -83,7 +83,7 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, fl
 		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
 												, pos[i].x, pos[i].y, pos[i].z);
 		// velocity
-		  
+
 		//Testpoints
 		if (FLUID(info[i])||TESTPOINTS(info[i]))
 			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);

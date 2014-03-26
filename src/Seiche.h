@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* 
+/*
  * File:   Seiche.h
  * Author: rad
  *

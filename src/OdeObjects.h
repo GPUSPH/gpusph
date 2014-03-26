@@ -58,7 +58,7 @@ class OdeObjects: public Problem {
 		Cylinder	cylinder;
 		dGeomID		planes[5];
 		dJointID	joint;
-		
+
 
 	public:
 		OdeObjects(const GlobalData *);

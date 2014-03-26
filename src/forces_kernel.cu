@@ -835,7 +835,7 @@ Gamma(	const	float	slength,
 		float l2 = length3(v0-v2);
 		float abc = dot3((v0-v1),oldGGam)/l1 + dot3((v0-v2),oldGGam)/l2 + dot3((v0-v1),(v0-v2))/l1/l2;
 		float d = dot3(oldGGam,cross3((v0-v1),(v0-v2)))/l1/l2;
-		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983) 
+		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
 		float SolidAngle = 2.0f*atan2(d,(1.0f+abc));
 		if(SolidAngle < 0.0f)
 			SolidAngle += 2.0f*M_PI;
@@ -845,7 +845,7 @@ Gamma(	const	float	slength,
 	}
 	// check if particle is on an edge
 	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
-				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) || 
+				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
 				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
 			 ) && q_aSigma.w < epsilon) {
 		// grad gamma for a half-plane

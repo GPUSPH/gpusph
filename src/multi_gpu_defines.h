@@ -104,7 +104,7 @@ typedef cudaStream_t cudaStream_t;
 	#define CALC_SIMMETRY_HASH_HOST return \
 		(gridPos.y*cdata->gridSize.z*cdata->gridSize.x) + \
 		(gridPos.z*cdata->gridSize.x) + gridPos.x;
-#else 
+#else
 	#define PROBLEM_SIMMETRY_PLANE_XY
 	#define PSA z
 	#define CALC_SIMMETRY_HASH return \

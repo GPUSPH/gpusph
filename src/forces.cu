@@ -528,7 +528,7 @@ shepard(float4*		pos,
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	
+
 	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
@@ -541,7 +541,7 @@ shepard(float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Shepard kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -576,7 +576,7 @@ mls(float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	// execute the kernel		
+	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
@@ -585,7 +585,7 @@ mls(float4*		pos,
 //		MLS_CHECK(QUADRATIC);
 		MLS_CHECK(WENDLAND);
 	}
-	
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Mls kernel execution failed");
 
@@ -629,7 +629,7 @@ vorticity(	float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Vorticity kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -670,7 +670,7 @@ testpoints( const float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("test kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -723,7 +723,7 @@ surfaceparticle(	float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("surface kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -775,9 +775,9 @@ void reduceRbForces(float4*		forces,
 	// the scan is in place); equal_to as data-key operator and plus as scan operator. The sums are in the last position
 	// of each segment (thus we retrieve them by using lastindex values).
 
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
 				forces_devptr, forces_devptr, binary_pred, binary_op);
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
 				torques_devptr, torques_devptr, binary_pred, binary_op);
 
 	for (uint i = 0; i < numbodies; i++) {
@@ -803,7 +803,7 @@ reducefmax(	const int	size,
 	dim3 dimBlock(threads, 1, 1);
 	dim3 dimGrid(blocks, 1, 1);
 
-	// when there is only one warp per block, we need to allocate two warps 
+	// when there is only one warp per block, we need to allocate two warps
 	// worth of shared memory so that we don't index shared memory out of bounds
 	int smemSize = (threads <= 32) ? 2 * threads * sizeof(float) : threads * sizeof(float);
 
@@ -833,7 +833,7 @@ reducefmax(	const int	size,
 }
 
 
-uint nextPow2(uint x ) 
+uint nextPow2(uint x )
 {
     --x;
     x |= x >> 1;
@@ -846,10 +846,10 @@ uint nextPow2(uint x )
 
 
 #define MIN(x,y) ((x < y) ? x : y)
-void getNumBlocksAndThreads(const uint	n, 
-							const uint	maxBlocks, 
-							const uint	maxThreads, 
-							uint		&blocks, 
+void getNumBlocksAndThreads(const uint	n,
+							const uint	maxBlocks,
+							const uint	maxThreads,
+							uint		&blocks,
 							uint		&threads)
 {
 	threads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
@@ -895,7 +895,7 @@ cflmax( const uint	n,
 	CUT_CHECK_ERROR("fmax kernel execution failed");
 
 	uint s = numBlocks;
-	while(s > 1) 
+	while(s > 1)
 	{
 		uint threads = 0, blocks = 0;
 		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
@@ -907,7 +907,7 @@ cflmax( const uint	n,
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
-	
+
 	return max;
 }
 

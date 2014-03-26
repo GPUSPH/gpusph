@@ -149,7 +149,7 @@ int StillWater::fill_parts()
 	// m_deltap/2 from the sides, so the total distance between particles and walls
 	// is m_deltap = r0
 	fluid.Fill(parts, m_deltap);
-	
+
 	//DEBUG: set only one fluid particle
 //	parts.clear();
 //	parts.push_back(Point(0.0, w/2.f, 0.0));
