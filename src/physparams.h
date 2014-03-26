@@ -74,8 +74,8 @@ typedef struct PhysParams {
 	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
-	float	objectobjectdf;	// damping factor for object-object interaction 
-	float	objectboundarydf;	// damping factor for object-boundary interaction 
+	float	objectobjectdf;	// damping factor for object-object interaction
+	float	objectboundarydf;	// damping factor for object-boundary interaction
 
 	PhysParams(void) :
 		partsurf(0),

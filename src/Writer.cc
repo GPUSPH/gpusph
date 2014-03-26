@@ -55,7 +55,7 @@ Writer::Writer(const Problem *problem)
 					fluid, fluid, fluid);
 		fputs("\n", m_energyfile);
 	}
-	
+
 	//WaveGage
 	string WaveGage_fn = m_dirname + "/WaveGage.txt";
 	m_WaveGagefile = fopen(WaveGage_fn.c_str(), "w");

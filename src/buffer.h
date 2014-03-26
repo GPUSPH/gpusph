@@ -97,7 +97,7 @@ public:
 	};
 };
 
-/* This class encapsulates type-specific arrays of buffers. 
+/* This class encapsulates type-specific arrays of buffers.
  * By default the array will have a single buffer, with trivial
  * extensions to N-buffers.
  */

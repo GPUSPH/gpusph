@@ -47,7 +47,7 @@ template<KernelType kerneltype, BoundaryType boundarytype, bool usedem,
 __global__ void
 //__launch_bounds__(BLOCK_SIZE_FORCES, MIN_BLOCKS_FORCES)
 FORCES_CUDA_KERNEL
-(	
+(
 	const float4*	posArray,
 	const float2*	vertPos0,
 	const float2*	vertPos1,
@@ -491,7 +491,7 @@ FORCES_CUDA_KERNEL
 			}
 
 			# ifdef DT_KERNEL
-			// storing data for cfl condition in shared memory			
+			// storing data for cfl condition in shared memory
 			sm_max[threadIdx.x] = max(length(as_float3(force)), sspeed*sspeed/slength);
 			# ifdef VISC_KEPS
 			sm_max_nut[threadIdx.x] = turbVisc;
