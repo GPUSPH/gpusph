@@ -253,11 +253,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	offset += sizeof(uint)*numParts+sizeof(int);
 	scalar_array(fid, "Int32", "offsets", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
-	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
-	for (uint i = node_offset; i < node_offset + numParts; i++)
-		fprintf(fid,"%d\t", 1);
-	fprintf(fid,"\n");
-	fprintf(fid,"	</DataArray>\n");
+	scalar_array(fid, "UInt8", "types", offset);
+	offset += sizeof(uchar)*numParts+sizeof(int);
 	fprintf(fid,"   </Cells>\n");
 	fprintf(fid,"  </Piece>\n");
 
@@ -504,6 +501,14 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=0; i < numParts; i++) {
 		uint value = i+1;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	// types (currently all cells type=1, single vertex, the particle)
+	numbytes=sizeof(uchar)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (uint i=0; i < numParts; i++) {
+		uchar value = 1;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
