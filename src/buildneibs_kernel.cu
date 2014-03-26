@@ -524,7 +524,7 @@ neibsInCell(
 	// Substract gridOffset*cellsize to pos so we don't need to do it each time
 	// we compute relPos respect to potential neighbor
 	pos -= gridOffset*d_cellSize;
-	
+
 	// get vertex indices
 	vertexinfo vertices = make_vertexinfo(0, 0, 0, 0);
 	float4 boundElement = make_float4(0.0f);
@@ -553,11 +553,11 @@ neibsInCell(
 	bool encode_cell = true;
 	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
 
-		const particleinfo info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
 		// Test points are not considered in neighboring list of other particles since they are imaginary particles.
 		// If we are looking for neighbours of the boundary segments we only consider vertex particles. For the segments
 		// we actually don't want to fill up the neighbour list, but instead update the vertexPos array.
-		if (!TESTPOINTS (info) || (segment && VERTEX(info))) {
+		if (!TESTPOINTS (neibInfo) || (segment && VERTEX(neibInfo))) {
 			// Check for self interaction
 			if (neib_index != index) {
 				// Compute relative position between particle and potential neighbor
@@ -576,7 +576,7 @@ neibsInCell(
 
 				// Check if the squared distance is smaller than the squared influence radius
 				// used for neighbor list construction
-				if ((sqlength(relPos) < sqinfluenceradius || (sqlength(relPos) < sqinfluenceradius + sqdpo2 && BOUNDARY(info))) && !segment) {
+				if ((sqlength(relPos) < sqinfluenceradius || (sqlength(relPos) < sqinfluenceradius + sqdpo2 && BOUNDARY(neibInfo))) && !segment) {
 					if (neibs_num < d_maxneibsnum) {
 						neibsList[neibs_num*d_neiblist_stride + index] =
 								neib_index - bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
