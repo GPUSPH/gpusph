@@ -91,12 +91,14 @@ get_sqC0(particleinfo const& info)
 // data used for all particles
 struct common_particle_data
 {
+	const	uint	index;
 	const	particleinfo	info;
 	const	float4	pos;
 	const	int3	gridPos;
 
 	__device__ __forceinline__
-	common_particle_data(const uint index, float4 const& _pos, particleinfo const& _info, hashKey const* hash) :
+	common_particle_data(const uint _index, float4 const& _pos, particleinfo const& _info, hashKey const* hash) :
+		index(_index),
 		info(_info),
 		pos(_pos),
 		gridPos(calcGridPosFromParticleHash(hash[index]))
@@ -371,7 +373,7 @@ template<BoundaryType boundarytype,
 	bool usexsph>
 struct forces_particle_output :
 	common_particle_output,
-	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g _viscous_fixup<KEPSVISC),
+	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g viscous_fixup<KEPSVISC>),
 	// but there is no way to prevent it from being selected with other boundary conditions.
 	// When this is implemented, the || visctype == KEPSVISC should be removed
 	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output),
@@ -1080,19 +1082,20 @@ compute_vertex_keps<SA_BOUNDARY, KEPSVISC>::with
  */
 
 
-/// The next set of functors are called by the post_processor
+/// The next set of functors post-process the particle forces and write them to
+/// the appropriate given arrays
 
 
 /// A functor that does viscosity-related post-processing, and returns a
 /// viscous coefficient to be used with DEMs and planes
 
 template<ViscosityType>
-struct _viscous_fixup
+struct viscous_fixup
 {
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static float
-	with(FP const& params, P const& pdata, OP &pout, const uint index);
+	with(FP const& params, P const& pdata, OP &pout);
 };
 
 /// Specializations
@@ -1100,31 +1103,31 @@ struct _viscous_fixup
 template<>
 template<typename FP, typename P, typename OP >
 __device__ __forceinline__ float
-_viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff*pdata.vel.w; }
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
-_viscous_fixup<KINEMATICVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+viscous_fixup<KINEMATICVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff*pdata.vel.w/4; } // TODO FIXME check?
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
-_viscous_fixup<SPSVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+viscous_fixup<SPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return d_visccoeff*pdata.vel.w/4; } // TODO FIXME check?
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
-_viscous_fixup<ARTVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+viscous_fixup<ARTVISC>::with(FP const& params, P const& pdata, OP &pout)
 { return 0; } // assumes free-slip
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
-_viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout, const uint index)
+viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 {
 	// velocity gradients
 	pout.dvx /= pdata.vel.w * pout.gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
@@ -1147,8 +1150,8 @@ _viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout, const
 	const float dedt = pdata.keps_e/pdata.keps_k*(1.44f*Pturb - 1.92f*pdata.keps_e) +
 		pout.diff_term_e/pdata.vel.w/pout.gGam.w;	// de/dt
 
-	params.keps_dkde[index].x = dkdt;
-	params.keps_dkde[index].y = dedt;
+	params.keps_dkde[pdata.index].x = dkdt;
+	params.keps_dkde[pdata.index].y = dedt;
 
 	return d_visccoeff*pdata.vel.w;
 }
@@ -1157,19 +1160,19 @@ _viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout, const
 /// A functor that clamps gamma and divides force by it,
 /// but only for SA_BOUNDARY
 template<BoundaryType>
-struct _gamma_fixup
+struct gamma_fixup
 {
-	template<typename OUT, typename PAR>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	run(OUT &pout, PAR const& params)
+	with(FP const& params, P const& pdata, OP &pout)
 	{ /* do nothing */ }
 };
 
 template<>
-template<typename OUT, typename PAR>
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-_gamma_fixup<SA_BOUNDARY>::run(OUT &pout, PAR const& params)
+gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
 	pout.force /= pout.gGam.w;
@@ -1178,110 +1181,67 @@ _gamma_fixup<SA_BOUNDARY>::run(OUT &pout, PAR const& params)
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
 template<BoundaryType>
-struct _write_gamma
+struct write_gamma
 {
-	template<typename OUT, typename PAR>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	run(OUT const& pout, PAR &params, const uint index)
+	with(FP const& params, P const& pdata, OP const& pout)
 	{ /* do nothing */ }
 };
 
 template<>
-template<typename OUT, typename PAR>
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-_write_gamma<SA_BOUNDARY>::run(OUT const& pout, PAR &params, const uint index)
-{ params.newGGam[index] = pout.gGam; }
+write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout)
+{ params.newGGam[pdata.index] = pout.gGam; }
 
 /// A functor that writes out the mean vel,
 /// but only for XSPH
 template<bool>
-struct _write_xsph
+struct write_xsph
 {
-	template<typename OUT, typename PAR>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	run(OUT const& pout, PAR &params, const uint index)
+	with(FP const& params, P const& pdata, OP const& pout)
 	{ /* do nothing */ }
 };
 
 template<>
-template<typename OUT, typename PAR>
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-_write_xsph<true>::run(OUT const& pout, PAR &params, const uint index)
-{ params.xsph[index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
+write_xsph<true>::with(FP const& params, P const& pdata, OP const& pout)
+{ params.xsph[pdata.index] = make_float4(2.0f*pout.mean_vel, 0.0f); }
 
 /// A functor that writes out turbvisc
 /// but only for KEPSVISC
 template<ViscosityType>
-struct _write_turbvisc
+struct write_turbvisc
 {
-	template<typename OUT, typename PAR>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	run(OUT const& pdata, PAR &params, const uint index)
+	with(FP const& params, P const& pdata, OP const& pout)
 	{ /* do nothing */ }
 };
 
 template<>
-template<typename OUT, typename PAR>
+template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-_write_turbvisc<KEPSVISC>::run(OUT const& pdata, PAR &params, const uint index)
-{ params.turbvisc[index] = pdata.turbVisc; }
+write_turbvisc<KEPSVISC>::with(FP const& params, P const& pdata, OP const& pout)
+{ params.turbvisc[pdata.index] = pdata.turbVisc; }
 
 
-/// Post-processing of forces and writing out the results
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	bool dyndt, bool usexsph>
-struct post_processor_t
+/// A functor that writes out forces
+/// (no templatization, not needed
+struct write_forces
 {
-	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
-	typedef forces_particle_output<boundarytype, visctype, usexsph> pout_t;
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
-
-	uint	const&	index;
-	pdata_t	const&	pdata;
-	pout_t		&pout;
-	params_t	&params;
-
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
-	post_processor_t(uint const& _index, pdata_t const& _pdata,
-		pout_t &_pout, params_t &_params) :
-		index(_index), pdata(_pdata), pout(_pout), params(_params)
-	{};
-
-	/// Viscous post-processing
-	__device__ __forceinline__ float
-	viscous_fixup()
-	{ return _viscous_fixup<visctype>::with(params, pdata, pout, index); }
-
-
-	/// Dividing force by gamma. Only done with SA_BOUNDARY
-	__device__ __forceinline__ void
-	gamma_fixup()
-	{ _gamma_fixup<boundarytype>::run(pout, params); }
-
-	// write forces to global memory
-	__device__ __forceinline__ void
-	write_forces() { params.forces[index] = pout.force; }
-
-	// write gamma to global memory
-	__device__ __forceinline__ void
-	write_gamma()
-	{ _write_gamma<boundarytype>::run(pout, params, index); }
-
-	// write xsph to global memory
-	__device__ __forceinline__ void
-	write_xsph()
-	{ _write_xsph<usexsph>::run(pout, params, index); }
-
-	// write turbvisc to global memory
-	__device__ __forceinline__ void
-	write_turbvisc()
-	{ _write_turbvisc<visctype>::run(pdata, params, index); }
+	static void
+	with(FP const& params, P const& pdata, OP const& pout)
+	{ params.forces[pdata.index] = pout.force; }
 };
 
 /*
@@ -1575,18 +1535,15 @@ forcesDevice(
 			}
 		} // end of loop over neighbors
 
-		post_processor_t<kerneltype, sph_formulation, boundarytype,
-			visctype, dyndt, usexsph> post_processor(index, pdata, pout, params);
-
 		// External forces etc
 		if (FLUID(info)) {
 
 			// post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
-			const float dynvisc = post_processor.viscous_fixup();
+			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
 
 			// only does something if SA_BOUNDARY
-			post_processor.gamma_fixup();
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
 
 			// Adding gravity
 			as_float3(pout.force) += d_gravity;
@@ -1618,7 +1575,7 @@ forcesDevice(
 			shared.store(params, pdata, pout);
 		}
 		else if (VERTEX(info)) {
-			post_processor.gamma_fixup();
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
 		}
 
 		// Writing out the results
@@ -1628,13 +1585,13 @@ forcesDevice(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(pout.force)));
 		} else {
-			post_processor.write_forces();
-			post_processor.write_gamma();
+			write_forces::with(params, pdata, pout);
+			write_gamma<boundarytype>::with(params, pdata, pout);
 		}
 
 		if (FLUID(info)) {
-			post_processor.write_xsph();
-			post_processor.write_turbvisc();
+			write_xsph<usexsph>::with(params, pdata, pout);
+			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
 
 	} while (0);
