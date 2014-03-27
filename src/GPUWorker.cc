@@ -1314,27 +1314,6 @@ void GPUWorker::createCompactDeviceMap() {
 	// at least one neib which does not ==> inner_edge). Another optimization would be to avoid linearizing all cells but exploit burst of consecutive indices. This
 	// reduces the computations but not the read/write operations.
 
-	// compute the extra_offset vector (z-lift) in terms of cells
-	int3 extra_offset = make_int3(0);
-	// Direction of the extra_offset (depents on where periodicity occurs), to add extra cells if the extra displacement
-	// does not multiply the size of the cells
-	int3 extra_offset_unit_vector = make_int3(0);
-	if (m_simparams->periodicbound) {
-		extra_offset.x = (int) (m_physparams->dispOffset.x / gdata->cellSize.x);
-		extra_offset.y = (int) (m_physparams->dispOffset.y / gdata->cellSize.y);
-		extra_offset.z = (int) (m_physparams->dispOffset.z / gdata->cellSize.z);
-	}
-
-	// when there is an extra_offset to consider, we have to repeat the same checks twice. Let's group them
-#define CHECK_CURRENT_CELL \
-	/* data of neib cell */ \
-	uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz); \
-	uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx]; \
-	any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx); \
-	any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx); \
-	/* did we read enough to decide for current cell? */ \
-	enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
-
 	// iterate on all cells of the world
 	for (int ix=0; ix < gdata->gridSize.x; ix++)
 		for (int iy=0; iy < gdata->gridSize.y; iy++)
@@ -1357,7 +1336,6 @@ void GPUWorker::createCompactDeviceMap() {
 							int cx = ix + dx;
 							int cy = iy + dy;
 							int cz = iz + dz;
-							bool apply_extra_offset = false;
 							// warp periodic boundaries
 							if (m_simparams->periodicbound) {
 								// periodicity along X
@@ -1366,76 +1344,46 @@ void GPUWorker::createCompactDeviceMap() {
 									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
 									if (cx < 0) {
 										cx = gdata->gridSize.x - 1;
-										if (extra_offset.y != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.y = extra_offset_unit_vector.z = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cx >= gdata->gridSize.x) {
 										cx = 0;
-										if (extra_offset.y != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.y = extra_offset_unit_vector.z = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.x
 								// periodicity along Y
 								if (m_physparams->dispvect.y) {
 									if (cy < 0) {
 										cy = gdata->gridSize.y - 1;
-										if (extra_offset.x != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.z = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cy >= gdata->gridSize.y) {
 										cy = 0;
-										if (extra_offset.x != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.z = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.y
 								// periodicity along Z
 								if (m_physparams->dispvect.z) {
 									if (cz < 0) {
 										cz = gdata->gridSize.z - 1;
-										if (extra_offset.x != 0 || extra_offset.y != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.y = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cz >= gdata->gridSize.z) {
 										cz = 0;
-										if (extra_offset.x != 0 || extra_offset.y != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.y = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.z
-								// apply extra displacement (e.g. zlift), if any
-								// (actually, should be safe to add without the conditional)
-								if (apply_extra_offset) {
-									cx += extra_offset.x * extra_offset_unit_vector.x;
-									cy += extra_offset.y * extra_offset_unit_vector.y;
-									cz += extra_offset.z * extra_offset_unit_vector.z;
-								}
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||
 								cy < 0 || cy >= gdata->gridSize.y ||
 								cz < 0 || cz >= gdata->gridSize.z) continue;
-							// check current cell and if we have already enough information
-							CHECK_CURRENT_CELL
-							// if there is any extra offset, check one more cell
-							// WARNING: might miss cells if the extra displacement is not parallel to one cartesian axis
-							if (m_simparams->periodicbound && apply_extra_offset) {
-								cx += extra_offset_unit_vector.x;
-								cy += extra_offset_unit_vector.y;
-								cz += extra_offset_unit_vector.z;
-								// check extra cells if extra displacement is not a multiple of the cell size
-								CHECK_CURRENT_CELL
-							}
+
+							// Read data of neib cell
+							uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz);
+							uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx];
+
+							// does self device own any of the neib cells?
+							any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx);
+							// does a non-self device own any of the neib cells?
+							any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx);
+
+							// do we know enough to decide for current cell?
+							enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 						} // iterating on offsets of neighbor cells
 				uint cellType;
 				// assign shifted values so that they are ready to be OR'd in calchash/reorder
