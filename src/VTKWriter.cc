@@ -23,6 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// UINT_MAX
+#include <cstddef>
+
 #include <sstream>
 #include <stdexcept>
 
@@ -32,6 +35,12 @@
 #include "GlobalData.h"
 
 using namespace std;
+
+// TODO for the time being, we assume no more than 256 devices
+// upgrade to UInt16 / ushort if it's ever needed
+
+typedef unsigned char dev_idx_t;
+static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const Problem *problem)
   : Writer(problem)
@@ -111,10 +120,37 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
+	// We write cell indices in Cell data, so the first thing to do is to count the number of
+	// (active) cells (where active = has particles in it). This is equal to the number of
+	// distinct cell indices we can find traversing the particleHash buffer. While we traverse it,
+	// we actually collect the cell indices (so we can just dump them at the end) and
+	// mark the offset at which each cell ends, which will be the 'offsets' DataArray
+	// for the cells.
+	// Both vectors are estimated to be numParts/4 elements long
+	std::vector<uint> cellIndex; cellIndex.reserve(numParts/4);
+	std::vector<uint> cellEnd; cellEnd.reserve(numParts/4);
+	uint last_hash = UINT_MAX;
+	for (uint i = node_offset; i < node_offset + numParts; ++i) {
+		uint hash = cellHashFromParticleHash( particleHash[i] );
+		if (hash != last_hash) {
+			// new cell
+			cellIndex.push_back(hash);
+			last_hash = hash;
+			// if we had a previous one, mark its end. Note that
+			// offset are counted in the array of saved particles,
+			// hence i - node_offset, not i
+			if (cellIndex.size() > 1) {
+				cellEnd.push_back(i - node_offset);
+			}
+		}
+	}
+	cellEnd.push_back(numParts); // 'close' last cell
+	const uint numCells = cellEnd.size();
+
 	// CSV file for tespoints
 	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
 	FILE *testpoints_file = NULL;
-	if (m_gdata->problem->get_simparams()->csvtestpoints) {
+	if (gdata->problem->get_simparams()->csvtestpoints) {
 		testpoints_file = fopen(testpoints_fname.c_str(), "w");
 		if (testpoints_file == NULL) {
 			stringstream ss;
@@ -136,7 +172,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	fprintf(fid,"<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= '%s'>\n",
 		endianness[*(char*)&endian_int & 1]);
 	fprintf(fid," <UnstructuredGrid>\n");
-	fprintf(fid,"  <Piece NumberOfPoints='%d' NumberOfCells='%d'>\n", numParts, numParts);
+	fprintf(fid,"  <Piece NumberOfPoints='%u' NumberOfCells='%u'>\n", numParts, numCells);
 
 	fprintf(fid,"   <PointData Scalars='Pressure' Vectors='Velocity'>\n");
 
@@ -193,14 +229,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// device index
-	if (m_gdata) {
-		scalar_array(fid, "UInt32", "DeviceIndex", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
+	if (MULTI_DEVICE) {
+		scalar_array(fid, dev_idx_str, "DeviceIndex", offset);
+		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
-
-	// cell index
-	scalar_array(fid, "UInt32", "CellIndex", offset);
-	offset += sizeof(uint)*numParts+sizeof(int);
 
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
@@ -242,16 +274,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	fprintf(fid,"   </Points>\n");
 
 	// Cells data
+	fprintf(fid,"   <CellData Scalars='CellIndex'>\n");
+	scalar_array(fid, "UInt32", "CellIndex", offset);
+	offset += sizeof(uint)*numCells+sizeof(int);
+	fprintf(fid,"   </CellData>\n");
 	fprintf(fid,"   <Cells>\n");
-	scalar_array(fid, "Int32", "connectivity", offset);
+	scalar_array(fid, "UInt32", "connectivity", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array(fid, "Int32", "offsets", offset);
-	offset += sizeof(uint)*numParts+sizeof(int);
-	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
-	for (uint i = node_offset; i < node_offset + numParts; i++)
-		fprintf(fid,"%d\t", 1);
-	fprintf(fid,"\n");
-	fprintf(fid,"	</DataArray>\n");
+	scalar_array(fid, "UInt32", "offsets", offset);
+	offset += sizeof(uint)*numCells+sizeof(int);
+	scalar_array(fid, "UInt8", "types", offset);
+	offset += sizeof(uchar)*numCells+sizeof(int);
 	fprintf(fid,"   </Cells>\n");
 	fprintf(fid,"  </Piece>\n");
 
@@ -332,7 +365,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
-			if (m_gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
+			if (gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
 				fprintf(testpoints_file,"%g,%u,%g,%u,%u,%g,%g,%g,%g,%g,%g\n",
 					t, id(info[i]),
 					vel[i].w, object(info[i]), cellHashFromParticleHash( particleHash[i] ),
@@ -374,26 +407,26 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	}
 
 	// device index
-	if (m_gdata) {
-		numbytes = sizeof(uint)*numParts;
+	if (MULTI_DEVICE) {
+		numbytes = sizeof(dev_idx_t)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
 		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
 		// containing cell until next calchash/reorder.
 		// The current policy is: just list the particles according to how the global array is partitioned. In other words, we rely
 		// on the particle index to understad which device downloaded the particle data.
-		for (uint d = 0; d < m_gdata->devices; d++) {
+		for (uint d = 0; d < gdata->devices; d++) {
 			// compute the global device ID for each device
-			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
+			dev_idx_t value = gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
 			// write one for each particle (no need for the "absolute" particle index)
-			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
+			for (uint p = 0; p < gdata->s_hPartsPerDevice[d]; p++)
 				fwrite(&value, sizeof(value), 1, fid);
 		}
 		// There two alternate policies: 1. use particle hash or 2. compute belonging device.
 		// To use the particle hash, instead of just relying on the particle index, use the following code:
 		/*
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uint value = m_gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
+			uint value = gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 		*/
@@ -402,14 +435,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// instead of reading it from the particlehash array. Please note that this would reflect the spatial split but not the
 		// actual assignments: until the next calchash is performed, one particle remains in the containing device even if it
 		// it is slightly outside the domain.
-	}
-
-	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
-	numbytes = sizeof(uint)*numParts;
-	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (uint i=node_offset; i < node_offset + numParts; i++) {
-		uint value = cellHashFromParticleHash( particleHash[i] );
-		fwrite(&value, sizeof(value), 1, fid);
 	}
 
 	numbytes=sizeof(float)*3*numParts;
@@ -478,26 +503,39 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		}
 	}
 
-	numbytes=sizeof(double)*3*numParts;
-
 	// position
+	numbytes=sizeof(double)*3*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 
-	numbytes=sizeof(int)*numParts;
+	// Cells data
+
+	// cell index
+	numbytes=sizeof(uint)*numCells;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	fwrite(&cellIndex[0], numbytes, 1, fid);
+
 	// connectivity
+	numbytes=sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=0; i < numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
+
 	// offsets
+	numbytes=sizeof(uint)*numCells;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	fwrite(&cellEnd[0], numbytes, 1, fid);
+
+	// types (currently all cells type=2, vertex cloud)
+	numbytes=sizeof(uchar)*numCells;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=0; i < numParts; i++) {
-		uint value = i+1;
+		uchar value = 2;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
@@ -577,8 +615,8 @@ VTKWriter::open_data_file(const char* base, string const& num, string *fname)
 {
 	string filename(base), full_filename;
 
-	if (m_gdata && m_gdata->mpi_nodes > 1)
-		filename += "n" + m_gdata->rankString();
+	if (gdata && gdata->mpi_nodes > 1)
+		filename += "n" + gdata->rankString();
 
 	filename += "_" + num + ".vtu";
 	full_filename = m_dirname + "/" + filename;
