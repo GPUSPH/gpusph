@@ -1286,20 +1286,20 @@ struct forces_shared_data<true, visctype> :
 {
 	// init shared data
 	__device__ __forceinline__ void init()
-	{ sm_max[threadIdx.x] = 0; }
+	{ this->sm_max[threadIdx.x] = 0; }
 
 	// auxiliary: store common dyndt shared data
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store_sm_max(FP const& params, P const& pdata, OP const& pout)
 	{
-		sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
+		this->sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
 	}
 
 	// auxiliary: reduce common dyndt shared data
 	template<typename FP>
 	__device__ __forceinline__ void reduce_sm_max(FP const& params)
-	{ dtadaptBlockReduce(sm_max, params.cfl); }
+	{ dtadaptBlockReduce(this->sm_max, params.cfl); }
 
 	// store shared data
 	template<typename FP, typename P, typename OP>
@@ -1317,8 +1317,8 @@ template<>
 __device__ __forceinline__ void
 forces_shared_data<true, KEPSVISC>::init()
 {
-	sm_max[threadIdx.x] = 0;
-	sm_max_nut[threadIdx.x] = 0;
+	this->sm_max[threadIdx.x] = 0;
+	this->sm_max_nut[threadIdx.x] = 0;
 }
 
 template<>
@@ -1327,7 +1327,7 @@ __device__ __forceinline__ void
 forces_shared_data<true, KEPSVISC>::store(FP const& params, P const& pdata, OP const& pout)
 {
 	store_sm_max(params, pdata, pout);
-	sm_max_nut[threadIdx.x] = pdata.turbVisc;
+	this->sm_max_nut[threadIdx.x] = pdata.turbVisc;
 }
 
 template<>
@@ -1336,7 +1336,7 @@ __device__ __forceinline__ void
 forces_shared_data<true, KEPSVISC>::reduce(FP const& params)
 {
 	reduce_sm_max(params);
-	dtadaptBlockReduce(sm_max_nut, params.cfltvisc);
+	dtadaptBlockReduce(this->sm_max_nut, params.cfltvisc);
 }
 
 
