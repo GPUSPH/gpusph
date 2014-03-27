@@ -53,7 +53,7 @@ OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 	h = 0.7;
 	H = 0.5;
 
-	m_simparams.periodicbound = XPERIODIC;
+	m_simparams.periodicbound = PERIODIC_X;
 	m_gridsize.x = 15;
 	l = m_gridsize.x*m_simparams.kernelradius*m_simparams.slength;
 	m_size = make_double3(l, a, h);

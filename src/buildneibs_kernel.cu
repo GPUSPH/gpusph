@@ -63,7 +63,7 @@ __device__ int d_maxNeibs;
  * 	\return : new grid position
  */
 // TODO: verify periodicity along multiple axis
-template <int periodicbound>
+template <Periodicity periodicbound>
 __device__ __forceinline__ int3
 clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 {
@@ -75,7 +75,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 	// is equal to the clamped old one and the grid offset is updated.
 
 	// periodicity in x
-	if (periodicbound & XPERIODIC) {
+	if (periodicbound & PERIODIC_X) {
 		if (newGridPos.x < 0) newGridPos.x += d_gridSize.x;
 		if (newGridPos.x >= d_gridSize.x) newGridPos.x -= d_gridSize.x;
 	} else {
@@ -86,7 +86,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 	}
 
 	// periodicity in y
-	if (periodicbound & YPERIODIC) {
+	if (periodicbound & PERIODIC_Y) {
 		if (newGridPos.y < 0) newGridPos.y += d_gridSize.y;
 		if (newGridPos.y >= d_gridSize.y) newGridPos.y -= d_gridSize.y;
 	} else {
@@ -97,7 +97,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 	}
 
 	// periodicity in z
-	if (periodicbound & ZPERIODIC) {
+	if (periodicbound & PERIODIC_Z) {
 		if (newGridPos.z < 0) newGridPos.z += d_gridSize.z;
 		if (newGridPos.z >= d_gridSize.z) newGridPos.z -= d_gridSize.z;
 	} else {
@@ -122,7 +122,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
  */
 template <>
 __device__ __forceinline__ int3
-clampGridPos<0>(const int3& gridPos, int3& gridOffset, bool *toofar)
+clampGridPos<PERIODIC_NONE>(const int3& gridPos, int3& gridOffset, bool *toofar)
 {
 	int3 newGridPos = gridPos + gridOffset;
 
@@ -156,7 +156,7 @@ clampGridPos<0>(const int3& gridPos, int3& gridOffset, bool *toofar)
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  */
 #define MOVINGNOTFLUID (PISTONPART | PADDLEPART | GATEPART | OBJECTPART | VERTEXPART) //TODO-AM the *PART defines are not flags
-template <int periodicbound>
+template <Periodicity periodicbound>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
@@ -394,7 +394,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
  *
  * Returns true if the new cell is in the domain, false otherwise.
  */
-template <int periodicbound>
+template <Periodicity periodicbound>
 __device__ __forceinline__ bool
 calcNeibCell(
 		int3 &gridPos, ///< current grid position
@@ -410,13 +410,13 @@ calcNeibCell(
 	if (periodicbound) {
 		// Periodicity along x axis
 		if (gridPos.x < 0) {
-			if (periodicbound & XPERIODIC)
+			if (periodicbound & PERIODIC_X)
 				gridPos.x = d_gridSize.x - 1;
 			else
 				return false;
 		}
 		else if (gridPos.x >= d_gridSize.x) {
-			if (periodicbound & XPERIODIC)
+			if (periodicbound & PERIODIC_X)
 				gridPos.x = 0;
 			else
 				return false;
@@ -424,13 +424,13 @@ calcNeibCell(
 
 		// Periodicity along y axis
 		if (gridPos.y < 0) {
-			if (periodicbound & YPERIODIC)
+			if (periodicbound & PERIODIC_Y)
 				gridPos.y = d_gridSize.y - 1;
 			else
 				return false;
 		}
 		else if (gridPos.y >= d_gridSize.y) {
-			if (periodicbound & YPERIODIC)
+			if (periodicbound & PERIODIC_Y)
 				gridPos.y = 0;
 			else
 				return false;
@@ -438,13 +438,13 @@ calcNeibCell(
 
 		// Periodicity along z axis
 		if (gridPos.z < 0) {
-			if (periodicbound & ZPERIODIC)
+			if (periodicbound & PERIODIC_Z)
 				gridPos.z = d_gridSize.z - 1;
 			else
 				return false;
 		}
 		else if (gridPos.z >= d_gridSize.z) {
-			if (periodicbound & ZPERIODIC)
+			if (periodicbound & PERIODIC_Z)
 				gridPos.z = 0;
 			else
 				return false;
@@ -485,7 +485,7 @@ calcNeibCell(
  * First and last particle index for grid cells and particle's informations
  * are read trough texture fetches.
  */
-template <int periodicbound>
+template <Periodicity periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
 			#if (__COMPUTE__ >= 20)
@@ -639,7 +639,7 @@ neibsInCell(
  * First and last particle index for grid cells and particle's informations
  * are read trough texture fetches.
  */
-template<int periodicbound, bool neibcount>
+template<Periodicity periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
 buildNeibsListDevice(

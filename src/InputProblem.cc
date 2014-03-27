@@ -42,7 +42,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.tend = 5.0;
 
 		//periodic boundaries
-		m_simparams.periodicbound = XPERIODIC;
+		m_simparams.periodicbound = PERIODIC_X;
 		m_physparams.dispvect = make_float3(l, l, 0.0);
 		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
 		m_physparams.maxlimit = make_float3(l, l, 0.0f);
@@ -110,7 +110,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_physparams.gravity = make_float3(1.0, 0.0, 0.0);
 
 		m_simparams.tend = 100.0;
-		m_simparams.periodicbound = XPERIODIC | YPERIODIC;
+		m_simparams.periodicbound = PERIODIC_XY;
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;

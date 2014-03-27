@@ -85,8 +85,6 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	m_simparams.periodicbound = false;
-
 	// Variable gravity terms:  starting with m_physparams.gravity as defined above
 	m_gtstart=0.3f;
 	m_gtend=3.0f;

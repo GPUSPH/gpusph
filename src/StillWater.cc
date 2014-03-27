@@ -98,8 +98,6 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	m_physparams.epsxsph = 0.5f;
 
-	m_simparams.periodicbound = 0;
-
 	// Drawing and saving times
 	m_displayinterval = 1.0e-4;
 	m_writefreq = 1000;

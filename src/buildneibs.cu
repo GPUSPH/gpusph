@@ -84,15 +84,14 @@ calcHash(float4*	pos,
 		 uint*		compactDeviceMap,
 #endif
 		 const uint		numParticles,
-		 const int		periodicbound)
+		 const Periodicity	periodicbound)
 {
 	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	//TODO: implement other peridodicty than XPERIODIC
 	switch (periodicbound) {
-		case 0:
-			cuneibs::calcHashDevice<0><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_NONE:
+			cuneibs::calcHashDevice<PERIODIC_NONE><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -100,8 +99,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 1:
-			cuneibs::calcHashDevice<1><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_X:
+			cuneibs::calcHashDevice<PERIODIC_X><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -109,8 +108,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 2:
-			cuneibs::calcHashDevice<2><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_Y:
+			cuneibs::calcHashDevice<PERIODIC_Y><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -118,8 +117,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 3:
-			cuneibs::calcHashDevice<3><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_XY:
+			cuneibs::calcHashDevice<PERIODIC_XY><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -127,8 +126,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 4:
-			cuneibs::calcHashDevice<4><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_Z:
+			cuneibs::calcHashDevice<PERIODIC_Z><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -136,8 +135,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 5:
-			cuneibs::calcHashDevice<5><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_XZ:
+			cuneibs::calcHashDevice<PERIODIC_XZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -145,8 +144,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 6:
-			cuneibs::calcHashDevice<6><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_YZ:
+			cuneibs::calcHashDevice<PERIODIC_YZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -154,8 +153,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 7:
-			cuneibs::calcHashDevice<7><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_XYZ:
+			cuneibs::calcHashDevice<PERIODIC_XYZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -286,7 +285,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const float			sqdpo2,
-				const int			periodicbound)
+				const Periodicity	periodicbound)
 {
 	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -313,8 +312,8 @@ buildNeibsList(	neibdata*			neibsList,
 
 
 	switch (periodicbound) {
-		case 0:
-			cuneibs::buildNeibsListDevice<0, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_NONE:
+			cuneibs::buildNeibsListDevice<PERIODIC_NONE, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -328,8 +327,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 		break;
 
-		case 1:
-				cuneibs::buildNeibsListDevice<1, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_X:
+				cuneibs::buildNeibsListDevice<PERIODIC_X, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -343,8 +342,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 				break;
 
-		case 2:
-				cuneibs::buildNeibsListDevice<2, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_Y:
+				cuneibs::buildNeibsListDevice<PERIODIC_Y, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -358,8 +357,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 				break;
 
-		case 3:
-				cuneibs::buildNeibsListDevice<3, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_XY:
+				cuneibs::buildNeibsListDevice<PERIODIC_XY, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -373,8 +372,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 				break;
 
-		case 4:
-				cuneibs::buildNeibsListDevice<4, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_Z:
+				cuneibs::buildNeibsListDevice<PERIODIC_Z, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -388,8 +387,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 				break;
 
-		case 5:
-				cuneibs::buildNeibsListDevice<5, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_XZ:
+				cuneibs::buildNeibsListDevice<PERIODIC_XZ, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -403,8 +402,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 				break;
 
-		case 6:
-				cuneibs::buildNeibsListDevice<6, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_YZ:
+				cuneibs::buildNeibsListDevice<PERIODIC_YZ, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
@@ -418,8 +417,8 @@ buildNeibsList(	neibdata*			neibsList,
 						sqdpo2);
 				break;
 
-		case 7:
-				cuneibs::buildNeibsListDevice<7, true><<< numBlocks, numThreads >>>(
+		case PERIODIC_XYZ:
+				cuneibs::buildNeibsListDevice<PERIODIC_XYZ, true><<< numBlocks, numThreads >>>(
 						#if (__COMPUTE__ >= 20)
 						pos,
 						#endif
