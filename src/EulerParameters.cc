@@ -163,9 +163,9 @@ EulerParameters::ExtractEulerZXZ(double &theta, double &phi, double &psi) const
 /*! The rotation matrix is computed according to:
  *
  *	\f$ R(q)=\begin{pmatrix}
- *  q^2_0 + q^2_1 - q^2_2 - q^2_3 & 2q_1q_0 - 2q_0q_3 & 2q_0q_2 + 2q_1q_3 \\
- *	2q_1q_0 - 2q_0q_3 & q^2_0 - q^2_1 + q^2_2 - q^2_3 & 2q_2q_3 - 2q_0q_1 \\
- *	2q_1q_3 - 2q_0q_2 & 2q_2q_3 - 2q_0q_1 & q^2_0 - q^2_1 - q^2_2 + q^2_3
+ *  q^2_0 + q^2_1 - q^2_2 - q^2_3 \& 2q_1q_0 - 2q_0q_3 \& 2q_0q_2 + 2q_1q_3 \\
+ *	2q_1q_0 - 2q_0q_3 \& q^2_0 - q^2_1 + q^2_2 - q^2_3 \& 2q_2q_3 - 2q_0q_1 \\
+ *	2q_1q_3 - 2q_0q_2 \& 2q_2q_3 - 2q_0q_1 \& q^2_0 - q^2_1 - q^2_2 + q^2_3
  *	\end{pmatrix}\f$
  *
  *	and store it in m_rot array.
@@ -245,8 +245,8 @@ EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
  *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ and \f$ q'=(q'_0, q'_1, q'_2, q'_3)\f$ two set of Euler parameters
  *	we have :
  *
- *  \f{align*}{ q*q' =& (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
- *	&q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
+ *  \f{ q*q' =\& (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
+ *	\&q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
  *
  *	This operation corresponds to a rotation composition.
  *	\param ep1 : Euler parameters
