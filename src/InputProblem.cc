@@ -334,7 +334,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = j; i < j+test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			vel[i] = make_float4(0, 0, 0, 0.0);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
 			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
 		}
