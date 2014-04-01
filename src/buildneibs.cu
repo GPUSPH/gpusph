@@ -22,6 +22,9 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#include <stdexcept>
+
 #include <stdio.h>
 
 #include <thrust/sort.h>
@@ -289,6 +292,18 @@ buildNeibsList(	neibdata*			neibsList,
 				const float			sqdpo2,
 				const Periodicity	periodicbound)
 {
+	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
+	// throw otherwise
+	if (vertices || boundelem || vertPos) {
+		if (!vertices || !boundelem || ! vertPos) {
+			fprintf(stderr, "%p vs %p vs %p\n", vertices, boundelem, vertPos);
+			throw std::runtime_error("inconsistent params to buildNeibsList");
+		}
+	}
+
+	// we are using SA_BOUNDARY if vertices is not NULL
+	bool use_sa_boundary = !!vertices;
+
 	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
@@ -299,140 +314,40 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
-	if (vertices)
-		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
-	if (boundelem)
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
-	float2 *vertPos0, *vertPos1, *vertPos2;
-	if (vertPos) {
-		vertPos0 = vertPos[0];
-		vertPos1 = vertPos[1];
-		vertPos2 = vertPos[2];
-	} else
-		vertPos0 = vertPos1 = vertPos2 = NULL;
-
-
-	switch (periodicbound) {
-		case PERIODIC_NONE:
-			cuneibs::buildNeibsListDevice<PERIODIC_NONE, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
+#define BUILDNEIBS_CASE(use_sa, periodic) \
+	case periodic: \
+		cuneibs::buildNeibsListDevice<use_sa, periodic, true><<<numBlocks, numThreads>>>(params); \
 		break;
 
-		case PERIODIC_X:
-				cuneibs::buildNeibsListDevice<PERIODIC_X, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+#define BUILDNEIBS_SWITCH(use_sa) \
+	switch(periodicbound) { \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_NONE); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_X); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_Y); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XY); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_Z); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XZ); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_YZ); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XYZ); \
+	}
 
-		case PERIODIC_Y:
-				cuneibs::buildNeibsListDevice<PERIODIC_Y, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+	if (use_sa_boundary) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
-		case PERIODIC_XY:
-				cuneibs::buildNeibsListDevice<PERIODIC_XY, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, sqdpo2);
 
-		case PERIODIC_Z:
-				cuneibs::buildNeibsListDevice<PERIODIC_Z, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		BUILDNEIBS_SWITCH(true);
 
-		case PERIODIC_XZ:
-				cuneibs::buildNeibsListDevice<PERIODIC_XZ, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	} else {
+		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, sqdpo2);
 
-		case PERIODIC_YZ:
-				cuneibs::buildNeibsListDevice<PERIODIC_YZ, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
-
-		case PERIODIC_XYZ:
-				cuneibs::buildNeibsListDevice<PERIODIC_XYZ, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos0,
-						vertPos1,
-						vertPos2,
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		BUILDNEIBS_SWITCH(false);
 	}
 
 	// check if kernel invocation generated an error
@@ -444,10 +359,6 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
-	if (vertices)
-		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-	if (boundelem)
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 }
 
 void

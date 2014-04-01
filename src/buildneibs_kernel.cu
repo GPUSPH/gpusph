@@ -464,45 +464,156 @@ calcNeibCell(
 
 }
 
+/// variables found in all specializations of neibsInCell
+struct common_niC_vars
+{
+	const	uint	gridHash;		// hash value of grid position
+	const	uint	bucketStart;	// index of first particle in cell
+	const	uint	bucketEnd;		// index of last particle in cell
+
+	__device__ __forceinline__
+	common_niC_vars(int3 const& gridPos) :
+		gridHash(calcGridHash(gridPos)),
+		bucketStart(tex1Dfetch(cellStartTex, gridHash)),
+		bucketEnd(tex1Dfetch(cellEndTex, gridHash))
+	{}
+};
+
+/// variables found in use_sa_boundary specialization of neibsInCell
+struct sa_boundary_niC_vars
+{
+	const	vertexinfo	vertices;
+	const	float4		boundElement;
+	const	uint		j;
+	const	float4		coord2;
+
+	__device__ __forceinline__
+	sa_boundary_niC_vars(const uint index) :
+		vertices(tex1Dfetch(vertTex, index)),
+		boundElement(tex1Dfetch(boundTex, index)),
+		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
+		// boundElement.{x,y,z}
+		j(
+			(fabs(boundElement.z) < fabs(boundElement.y) &&
+			fabs(boundElement.z) < fabs(boundElement.x)) ? 2 :
+			(fabs(boundElement.y) < fabs(boundElement.x) ? 1 : 0)
+		 ),
+		// compute second coordinate which is equal to n_s x e_j
+		coord2(
+			j == 0 ?
+			make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f) :
+			j == 1 ?
+			make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f) :
+			// j == 2
+			make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f)
+			)
+		{}
+};
+
+/// all neibsInCell variables
+template<bool use_sa_boundary>
+struct niC_vars :
+	common_niC_vars,
+	COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)
+{
+	__device__ __forceinline__
+	niC_vars(int3 const& gridPos, const uint index) :
+		common_niC_vars(gridPos),
+		COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)(index)
+	{}
+};
+
+/// check if a particle at distance relPos is close enough to be considered for neibslist inclusion
+template<bool use_sa_boundary>
+__device__ __forceinline__
+bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo, const bool segment,
+	buildneibs_params<use_sa_boundary> params)
+{
+	return sqlength(relPos) < params.sqinfluenceradius; // default check: against the influence radius
+}
+
+/// SA_BOUNDARY specialization
+template<>
+__device__ __forceinline__
+bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo, const bool segment,
+	buildneibs_params<true> params)
+{
+	const float rp2(sqlength(relPos));
+	// skip standard check when only checking segments, and include BOUNDARY neighbors which are
+	// a little further than sqinfluenceradius
+	return !segment && (rp2 < params.sqinfluenceradius ||
+		(rp2 < params.sqinfluenceradius + params.sqdpo2 && BOUNDARY(neibInfo)));
+}
+
+/// process SA_BOUNDARY segments in neibsInCell
+template<bool use_sa_boundary>
+__device__ __forceinline__
+void process_niC_segment(const uint index, const uint neib_index, float3 const& relPos,
+	buildneibs_params<use_sa_boundary> const& params,
+	niC_vars<use_sa_boundary> const& var)
+{ /* do nothing by default */ }
+
+template<>
+__device__ __forceinline__
+void process_niC_segment<true>(const uint index, const uint neib_index, float3 const& relPos,
+	buildneibs_params<true> const& params,
+	niC_vars<true> const& var)
+{
+	int i = -1;
+	if (neib_index == var.vertices.x)
+		i = 0;
+	else if (neib_index == var.vertices.y)
+		i = 1;
+	else if (neib_index == var.vertices.z)
+		i = 2;
+	if (i>-1) {
+		// relPosProj is the projected relative position of the vertex to the segment.
+		// the first coordinate system is given by the following two vectors:
+		// 1. The unit vector e_j, where j is the coordinate for which n_s is minimal
+		// 2. The cross product between n_s and e_j
+		float2 relPosProj = make_float2(0.0);
+		// relPosProj.x = relPos . e_j
+		relPosProj.x = var.j==0 ? relPos.x : (var.j==1 ? relPos.y : relPos.z);
+		// relPosProj.y = relPos . (n_s x e_j)
+		relPosProj.y = dot(relPos, as_float3(var.coord2));
+		// save relPosProj in vertPos buffer
+		if (i==0)
+			params.vertPos0[index] = relPosProj;
+		else if (i==1)
+			params.vertPos1[index] = relPosProj;
+		else
+			params.vertPos2[index] = relPosProj;
+	}
+}
 
 /// Find neighbors in a given cell
 /*! This function look for neighbors of the current particle in
  * a given cell
  *
- *	\param[in] posArray : particle's positions
+ *	\param[in] buildneibs_params : parameters to buildneibs
  *	\param[in] gridPos : current particle grid position
  *	\param[in] gridOffset : cell offset from current particle cell
  *	\param[in] cell : cell number
  *	\param[in] index : index of the current particle
  *	\param[in] pos : position of the current particle
- *	\param[in] numParticles : total number of particles
- *	\param[in] sqinfluenceradius : squared value of the influence radius
- *	\param[out] neibList : neighbor's list
  *	\param[in, out] neibs_num : current number of neighbors found for current particle
  *
+ *	\pparam use_sa_boundary : use SA_BOUNDARY
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *
  * First and last particle index for grid cells and particle's informations
- * are read trough texture fetches.
+ * are read through texture fetches.
  */
-template <Periodicity periodicbound>
+template <bool use_sa_boundary, Periodicity periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
-			#if (__COMPUTE__ >= 20)
-			const float4*	posArray,	///< particle's positions (in)
-			#endif
-			float2*			vertPos0,	///< relative position of vertex to segment, first vertex
-			float2*			vertPos1,	///< relative position of vertex to segment, second vertex
-			float2*			vertPos2,	///< relative position of vertex to segment, third vertex
+			buildneibs_params<use_sa_boundary>
+				const& params,	///< buildneibs params
 			int3			gridPos,	///< current particle grid position
 			const int3		gridOffset,	///< cell offset from current particle grid position
 			const uchar		cell,		///< cell number (0 ... 26)
 			const uint		index,		///< current particle index
 			float3			pos,		///< current particle position
-			const uint		numParticles,	///< total number of particles
-			const float		sqinfluenceradius,	///< squared value of influence radius
-			const float		sqdpo2,		///< squared value of delta p / 2
-			neibdata*		neibsList,	///< neighbor's list (out)
 			uint&			neibs_num,	///< number of neighbors for the current particle
 			const bool		segment)	///< if a segment is searching we are only looking for the three vertices
 {
@@ -511,109 +622,66 @@ neibsInCell(
 	if (!calcNeibCell<periodicbound>(gridPos, gridOffset))
 		return;
 
-	// Get hash value from grid position
-	const uint gridHash = calcGridHash(gridPos);
-
-	// Get the first particle index of the cell
-	const uint bucketStart = tex1Dfetch(cellStartTex, gridHash);
+	niC_vars<use_sa_boundary> var(gridPos, index);
 
 	// Return if the cell is empty
-	if (bucketStart == 0xffffffff)
+	if (var.bucketStart == 0xffffffff)
 		return;
 
 	// Substract gridOffset*cellsize to pos so we don't need to do it each time
 	// we compute relPos respect to potential neighbor
 	pos -= gridOffset*d_cellSize;
 
-	// get vertex indices
-	vertexinfo vertices = make_vertexinfo(0, 0, 0, 0);
-	float4 boundElement = make_float4(0.0f);
-	uint j = 0;
-	float4 coord2 = make_float4(0.0f);
-	if (segment){
-		vertices = tex1Dfetch(vertTex, index);
-		boundElement = tex1Dfetch(boundTex, index);
-		// Get index j for which n_s is minimal
-		if (fabs(boundElement.x) > fabs(boundElement.y))
-			j = 1;
-		if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
-			j = 2;
-		// compute second coordinate which is equal to n_s x e_j
-		if (j==0)
-			coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
-		else if (j==1)
-			coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
-		else
-			coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
-	}
-
-	// Get the last particle index of the cell
-	const uint bucketEnd = tex1Dfetch(cellEndTex, gridHash);
 	// Iterate over all particles in the cell
 	bool encode_cell = true;
-	for(uint neib_index = bucketStart; neib_index < bucketEnd; neib_index++) {
+
+	for (uint neib_index = var.bucketStart; neib_index < var.bucketEnd; neib_index++) {
+
+		// no self-interaction
+		if (neib_index == index)
+			continue;
 
 		const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
-		// Test points are not considered in neighboring list of other particles since they are imaginary particles.
-		// If we are looking for neighbours of the boundary segments we only consider vertex particles. For the segments
-		// we actually don't want to fill up the neighbour list, but instead update the vertexPos array.
-		if (!TESTPOINTS (neibInfo) || (segment && VERTEX(neibInfo))) {
-			// Check for self interaction
-			if (neib_index != index) {
-				// Compute relative position between particle and potential neighbor
-				// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
-				#if (__COMPUTE__ >= 20)
-				const float4 neib_pos = posArray[neib_index];
-				#else
-				const float4 neib_pos = tex1Dfetch(posTex, neib_index);
-				#endif
 
-				// skip inactive particles
-				if (INACTIVE(neib_pos))
-					continue;
+		// testpoints have a neibs list, but are not considered in the neibs list of other
+		// points
+		if (TESTPOINTS(neibInfo))
+			continue;
 
-				const float3 relPos = pos - make_float3(neib_pos);
+		// for SA_BOUNDARY, BOUNDARY particles only look at VERTEX neighbors,
+		// to update vertexPos (BOUNDARY particles don't need an actual neibs list
+		if (use_sa_boundary && segment && !VERTEX(neibInfo))
+			continue;
 
-				// Check if the squared distance is smaller than the squared influence radius
-				// used for neighbor list construction
-				if ((sqlength(relPos) < sqinfluenceradius || (sqlength(relPos) < sqinfluenceradius + sqdpo2 && BOUNDARY(neibInfo))) && !segment) {
-					if (neibs_num < d_maxneibsnum) {
-						neibsList[neibs_num*d_neiblist_stride + index] =
-								neib_index - bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
-						encode_cell = false;
-					}
-					neibs_num++;
-				}
-				else if (segment) {
-					int i = -1;
-					if (neib_index == vertices.x)
-						i = 0;
-					else if (neib_index == vertices.y)
-						i = 1;
-					else if (neib_index == vertices.z)
-						i = 2;
-					if (i>-1) {
-						// relPosProj is the projected relative position of the vertex to the segment.
-						// the first coordinate system is given by the following two vectors:
-						// 1. The unit vector e_j, where j is the coordinate for which n_s is minimal
-						// 2. The cross product between n_s and e_j
-						float2 relPosProj = make_float2(0.0);
-						// relPosProj.x = relPos . e_j
-						relPosProj.x = j==0 ? relPos.x : (j==1 ? relPos.y : relPos.z);
-						// relPosProj.y = relPos . (n_s x e_j)
-						relPosProj.y = dot(relPos, as_float3(coord2));
-						// save relPosProj in vertPos buffer
-						if (i==0)
-							vertPos0[index] = relPosProj;
-						else if (i==1)
-							vertPos1[index] = relPosProj;
-						else
-							vertPos2[index] = relPosProj;
-					}
-				}
+		// Compute relative position between particle and potential neighbor
+		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
+		#if (__COMPUTE__ >= 20)
+		const float4 neib_pos = params.posArray[neib_index];
+		#else
+		const float4 neib_pos = tex1Dfetch(posTex, neib_index);
+		#endif
 
+		// skip inactive particles
+		if (INACTIVE(neib_pos))
+			continue;
+
+		const float3 relPos = pos - make_float3(neib_pos);
+
+		// Check if the squared distance is smaller than the squared influence radius
+		// used for neighbor list construction
+		bool close_enough = isCloseEnough(relPos, neibInfo, segment, params);
+
+		if (close_enough) {
+			if (neibs_num < d_maxneibsnum) {
+				params.neibsList[neibs_num*d_neiblist_stride + index] =
+						neib_index - var.bucketStart + ((encode_cell) ? ENCODE_CELL(cell) : 0);
+				encode_cell = false;
 			}
-		} // if not Testpoints
+			neibs_num++;
+		} else if (segment) {
+			process_niC_segment(index, neib_index, relPos, params, var);
+		}
+
 	}
 
 	return;
@@ -622,103 +690,75 @@ neibsInCell(
 
 /// Builds particles neighbors list
 /*! This kernel computes the neighbor's indexes of all particles.
- * In order to have best performance across different compute capabilities
- * particle's positions are read from global memory for compute capability
- * greather or equal to 2.0 and from texture otherwise.
  *
- *	\param[in] posArray : particle's positions
- *	\param[in] particleHash : particle's hashes
- *	\param[out] neibList : neighbor's list
- *	\param[in] numParticles : total number of particles
- *	\param[in] sqinfluenceradius : squared value of the influence radius
- *	\param[in] sqdpo2 : squared value of delta p / 2
- *
+ *	\pparam use_sa_boundary : assume SA_BOUNDARY
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *	\pparam neibcount : compute maximum neighbor number (0, 1)
  *
  * First and last particle index for grid cells and particle's informations
- * are read trough texture fetches.
+ * are read through texture fetches.
  */
-template<Periodicity periodicbound, bool neibcount>
+template<bool use_sa_boundary, Periodicity periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
-buildNeibsListDevice(
-						#if (__COMPUTE__ >= 20)
-						const float4*	posArray,				///< particle's positions (in)
-						#endif
-						float2*			vertPos0,				///< relative position of vertex to segment, first vertex
-						float2*			vertPos1,				///< relative position of vertex to segment, second vertex
-						float2*			vertPos2,				///< relative position of vertex to segment, third vertex
-						const hashKey*	particleHash,			///< particle's hashes (in)
-						neibdata*		neibsList,				///< neighbor's list (out)
-						const uint		numParticles,			///< total number of particles
-						const float		sqinfluenceradius,		///< squared influence radius
-						const float		sqdpo2)					///< squared delta p / 2
+buildNeibsListDevice(buildneibs_params<use_sa_boundary> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	uint neibs_num = 0;		// Number of neighbors for the current particle
 
-	if (index < numParticles) {
+	// rather than nesting if's, use a do { } while (0) loop with breaks for early bailouts
+	do {
+		if (index >= params.numParticles)
+			break;
+
 		// Read particle info from texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-		// Only fluid particle needs to have a boundary list
-		// TODO: this is not true with dynamic boundary particles
-		// so change that when implementing dynamics boundary parts
-		// This is also not true for "Ferrand et al." boundary model,
-		// where vertex particles also need to have a list of neighbours
+		// the neighbor list is only constructed for fluid, testpoint, and object particles.
+		// if we use SA_BOUNDARY, also for vertex and boundary particles
+		bool build_nl = FLUID(info) || TESTPOINTS(info) || OBJECT(info);
+		if (use_sa_boundary)
+			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
+		if (!build_nl)
+			break; // nothing to do for other particles
 
-		// Neighbor list is build for fluid, object, vertex and test particles
-		// also boundary particles, but only when using SA boundary conditions, in which case
-		// (and only in which case) vertPos0 will be not NULL
-		if (FLUID(info) || TESTPOINTS (info) || OBJECT(info) || VERTEX(info) || (BOUNDARY(info) && vertPos0)) {
-			// Get particle position
-			#if (__COMPUTE__ >= 20)
-			const float4 pos = posArray[index];
-			#else
-			const float4 pos = tex1Dfetch(posTex, index);
-			#endif
+		// Get particle position
+		#if (__COMPUTE__ >= 20)
+		const float4 pos = params.posArray[index];
+		#else
+		const float4 pos = tex1Dfetch(posTex, index);
+		#endif
 
-			// skip inactive particles
-			if (ACTIVE(pos)) {
-				const float3 pos3 = make_float3(pos);
+		if (INACTIVE(pos))
+			break; // no NL for inactive particles
 
-				// Get particle grid position computed from particle hash
-				const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+		const float3 pos3 = make_float3(pos);
 
-				// Look trough the 26 neighboring cells and the current particle cell
-				for(int z=-1; z<=1; z++) {
-					for(int y=-1; y<=1; y++) {
-						for(int x=-1; x<=1; x++) {
-							neibsInCell<periodicbound>(
-								#if (__COMPUTE__ >= 20)
-								posArray,
-								#endif
-								vertPos0,
-								vertPos1,
-								vertPos2,
-								gridPos,
-								make_int3(x, y, z), (x + 1) + (y + 1)*3 + (z + 1)*9,
-								index,
-								pos3,
-								numParticles,
-								sqinfluenceradius,
-								sqdpo2,
-								neibsList,
-								neibs_num,
-								BOUNDARY(info) && vertPos0);
-						}
-					}
+		// Get particle grid position computed from particle hash
+		const int3 gridPos = calcGridPosFromParticleHash(params.particleHash[index]);
+
+		for(int z=-1; z<=1; z++) {
+			for(int y=-1; y<=1; y++) {
+				for(int x=-1; x<=1; x++) {
+					neibsInCell<use_sa_boundary, periodicbound>(params,
+						gridPos,
+						make_int3(x, y, z),
+						(x + 1) + (y + 1)*3 + (z + 1)*9,
+						index,
+						pos3,
+						neibs_num,
+						BOUNDARY(info));
 				}
 			}
 		}
 
 		// Setting the end marker
 		if (neibs_num < d_maxneibsnum) {
-			neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
+			params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
 		}
-	}
+
+	} while (0);
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors
