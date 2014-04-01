@@ -29,6 +29,8 @@
 
 #include "textures.cuh"
 #include "buildneibs.cuh"
+
+#include "buildneibs_params.h"
 #include "buildneibs_kernel.cu"
 
 #include "utils.h"
