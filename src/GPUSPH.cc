@@ -93,6 +93,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem->set_grid_params();
 
 	m_totalPerformanceCounter = new IPPSCounter();
+	m_intervalPerformanceCounter = new IPPSCounter();
 
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
@@ -324,6 +325,7 @@ bool GPUSPH::finalize() {
 	// ...anything else?
 
 	delete m_totalPerformanceCounter;
+	delete m_intervalPerformanceCounter;
 
 	initialized = false;
 
@@ -366,6 +368,7 @@ bool GPUSPH::runSimulation() {
 
 	//  IPPS counter does not take the initial uploads into consideration
 	m_totalPerformanceCounter->start();
+	m_intervalPerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
@@ -549,6 +552,7 @@ bool GPUSPH::runSimulation() {
 		// increase counters
 		gdata->iterations++;
 		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		// to check, later, that the simulation is actually progressing
 		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
@@ -636,6 +640,7 @@ bool GPUSPH::runSimulation() {
 				gdata->problem->mark_written(gdata->t);
 
 			printStatus();
+			m_intervalPerformanceCounter->restart();
 		}
 
 		if (finished || gdata->quit_request)
