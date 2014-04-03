@@ -94,6 +94,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
+	// only init if MULTI_NODE
+	m_multiNodePerformanceCounter = NULL;
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter = new IPPSCounter();
 
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
@@ -326,6 +330,8 @@ bool GPUSPH::finalize() {
 
 	delete m_totalPerformanceCounter;
 	delete m_intervalPerformanceCounter;
+	if (m_multiNodePerformanceCounter)
+		delete m_multiNodePerformanceCounter;
 
 	initialized = false;
 
@@ -369,6 +375,8 @@ bool GPUSPH::runSimulation() {
 	//  IPPS counter does not take the initial uploads into consideration
 	m_totalPerformanceCounter->start();
 	m_intervalPerformanceCounter->start();
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
@@ -553,6 +561,8 @@ bool GPUSPH::runSimulation() {
 		gdata->iterations++;
 		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		if (MULTI_NODE)
+			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 		// to check, later, that the simulation is actually progressing
 		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
@@ -647,6 +657,11 @@ bool GPUSPH::runSimulation() {
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
 	}
+
+	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
+	// the condition (gdata->mpi_rank == 0)
+	if (MULTI_NODE)
+		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
