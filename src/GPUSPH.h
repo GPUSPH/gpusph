@@ -45,7 +45,7 @@ private:
 	Options* clOptions;
 	GlobalData* gdata;
 	Problem* problem;
-	IPPSCounter *m_performanceCounter;
+	IPPSCounter *m_totalPerformanceCounter;
 
 	// aux arrays for rollCallParticles()
 	bool *m_rcBitmap;

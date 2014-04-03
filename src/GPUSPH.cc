@@ -92,7 +92,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
-	m_performanceCounter = new IPPSCounter();
+	m_totalPerformanceCounter = new IPPSCounter();
 
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
@@ -323,7 +323,7 @@ bool GPUSPH::finalize() {
 
 	// ...anything else?
 
-	delete m_performanceCounter;
+	delete m_totalPerformanceCounter;
 
 	initialized = false;
 
@@ -365,7 +365,7 @@ bool GPUSPH::runSimulation() {
 	printf("Entering the main simulation cycle\n");
 
 	//  IPPS counter does not take the initial uploads into consideration
-	m_performanceCounter->start();
+	m_totalPerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
@@ -548,7 +548,7 @@ bool GPUSPH::runSimulation() {
 
 		// increase counters
 		gdata->iterations++;
-		m_performanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		// to check, later, that the simulation is actually progressing
 		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
@@ -1247,7 +1247,7 @@ void GPUSPH::printStatus()
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
-			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(),
+			gdata->addSeparators(gdata->totParticles).c_str(), m_totalPerformanceCounter->getMIPPS(),
 			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
