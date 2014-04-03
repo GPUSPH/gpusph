@@ -134,7 +134,11 @@ class IPPSCounter
 			if (!m_started) return 0;
 			time_t now;
 			time(&now);
-			return (double(m_iterPerParts) / difftime(now, m_startTime));
+			double timeInterval = difftime(now, m_startTime);
+			if (timeInterval <= 0.0)
+				return 0.0;
+			else
+				return (double(m_iterPerParts) / timeInterval);
 		}
 
 		// almost all devices get at least 1MIPPS, so:
