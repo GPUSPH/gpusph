@@ -548,6 +548,7 @@ bool GPUSPH::runSimulation() {
 
 		// increase counters
 		gdata->iterations++;
+		m_performanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
 		// to check, later, that the simulation is actually progressing
 		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
@@ -1246,7 +1247,7 @@ void GPUSPH::printStatus()
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
-			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles),
+			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(),
 			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,

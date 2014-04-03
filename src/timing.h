@@ -98,10 +98,12 @@ class IPPSCounter
 	private:
 		time_t	m_startTime;
 		bool m_started;
+		ulong m_iterPerParts;
 	public:
 		IPPSCounter():
 			m_startTime(0),
-			m_started(false)
+			m_started(false),
+			m_iterPerParts(0)
 		{};
 
 		// start the counter
@@ -117,17 +119,27 @@ class IPPSCounter
 			return start();
 		}
 
+		// increment the internal counter of iterationsXparticles
+		void incItersTimesParts(ulong increment) {
+			m_iterPerParts += increment;
+		}
+
+		// reset the internal counter of iterationsXparticles
+		void resetItersTimesParts() {
+			m_iterPerParts = 0;
+		}
+
 		// return the throughput computed as iterations times particles per second
-		double getIPPS(ulong iterTimesParts) const {
+		double getIPPS() const {
 			if (!m_started) return 0;
 			time_t now;
 			time(&now);
-			return (double(iterTimesParts) / difftime(now, m_startTime));
+			return (double(m_iterPerParts) / difftime(now, m_startTime));
 		}
 
 		// almost all devices get at least 1MIPPS, so:
-		inline double getMIPPS(ulong iterTimesParts) const {
-			return getIPPS(iterTimesParts)/1000000.0;
+		inline double getMIPPS() const {
+			return getIPPS()/1000000.0;
 		}
 };
 
