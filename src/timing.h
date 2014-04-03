@@ -160,7 +160,7 @@ class IPPSCounter
 
 		// almost all devices get at least 1MIPPS, so:
 		inline double getMIPPS() {
-			return getIPPS()/1000000.0;
+			return getIPPS()/1.0e6;
 		}
 };
 
