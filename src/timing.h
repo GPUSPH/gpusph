@@ -96,26 +96,27 @@ struct SavingInfo {
 class IPPSCounter
 {
 	private:
-		time_t	m_startTime;
+		timespec	m_startTime;
 		bool m_started;
 		ulong m_iterPerParts;
 	public:
 		IPPSCounter():
-			m_startTime(0),
 			m_started(false),
 			m_iterPerParts(0)
-		{};
+		{
+			m_startTime.tv_sec = m_startTime.tv_nsec = 0;
+		};
 
 		// start the counter
-		time_t start() {
-			time(&m_startTime);
+		timespec start() {
+			clock_gettime(CLOCK_MONOTONIC, &m_startTime);
 			m_started = true;
 			m_iterPerParts = 0;
 			return m_startTime;
 		}
 
 		// reset the counter
-		time_t restart() {
+		timespec restart() {
 			return start();
 		}
 
@@ -124,12 +125,33 @@ class IPPSCounter
 			m_iterPerParts += increment;
 		}
 
+		// compute the difference between two timespecs and store it in ret
+		inline
+		void timespec_diff(timespec &end, timespec &start, timespec &ret)
+		{
+			ret.tv_sec = end.tv_sec - start.tv_sec;
+			if (end.tv_nsec < start.tv_nsec) {
+				ret.tv_sec -= 1;
+				ret.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
+			} else {
+				ret.tv_nsec = end.tv_nsec - start.tv_nsec;
+			}
+		}
+
+		// compute the difference between two timespecs (in seconds)
+		inline
+		double diff_seconds(timespec &end, timespec &start) {
+			timespec diff;
+			timespec_diff(end, start, diff);
+			return diff.tv_sec + diff.tv_nsec/1.0e9;
+		}
+
 		// return the throughput computed as iterations times particles per second
-		double getIPPS() const {
+		double getIPPS() {
 			if (!m_started) return 0;
-			time_t now;
-			time(&now);
-			double timeInterval = difftime(now, m_startTime);
+			timespec now;
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			double timeInterval = diff_seconds(now, m_startTime);
 			if (timeInterval <= 0.0)
 				return 0.0;
 			else
@@ -137,7 +159,7 @@ class IPPSCounter
 		}
 
 		// almost all devices get at least 1MIPPS, so:
-		inline double getMIPPS() const {
+		inline double getMIPPS() {
 			return getIPPS()/1000000.0;
 		}
 };
