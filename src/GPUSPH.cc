@@ -650,7 +650,6 @@ bool GPUSPH::runSimulation() {
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
-	printf("Global performance was: %.2g MIPPS\n", m_totalPerformanceCounter->getMIPPS());
 	printf("Simulation end, cleaning up...\n");
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
@@ -1248,12 +1247,13 @@ void GPUSPH::initializeBoundaryConditions()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), maxneibs %u, %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u, %u files saved so far\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
 			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
+			m_totalPerformanceCounter->getMIPPS(),
 			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
