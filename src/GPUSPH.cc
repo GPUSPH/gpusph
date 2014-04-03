@@ -591,8 +591,8 @@ bool GPUSPH::runSimulation() {
 			// if we are about to quit, we want to save regardless --nosave option
 			bool final_save = (finished || gdata->quit_request);
 
-			if (final_save)
-				printf("Issuing final save...\n");
+			//if (final_save)
+			//	printf("Issuing final save...\n");
 
 			// set the buffers to be dumped
 			flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
