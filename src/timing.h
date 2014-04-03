@@ -110,6 +110,7 @@ class IPPSCounter
 		time_t start() {
 			time(&m_startTime);
 			m_started = true;
+			m_iterPerParts = 0;
 			return m_startTime;
 		}
 
@@ -121,11 +122,6 @@ class IPPSCounter
 		// increment the internal counter of iterationsXparticles
 		void incItersTimesParts(ulong increment) {
 			m_iterPerParts += increment;
-		}
-
-		// reset the internal counter of iterationsXparticles
-		void resetItersTimesParts() {
-			m_iterPerParts = 0;
 		}
 
 		// return the throughput computed as iterations times particles per second
