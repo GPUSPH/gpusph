@@ -31,6 +31,23 @@
 #include <time.h>
 #include <exception>
 
+// clock_gettime() is not implemented on OSX... yet
+// NOTE: assuming this behaves similarly to CLOCK_MONOTONIC. This should be tested on a multi-GPU mac.
+#ifdef __APPLE__
+// define missing
+#define CLOCK_REALTIME				0
+#define CLOCK_MONOTONIC				0
+#include <sys/time.h>
+int clock_gettime(int /*clk_id*/, struct timespec* t) {
+	struct timeval now;
+	int rv = gettimeofday(&now, NULL);
+	if (rv) return rv;
+	t->tv_sec  = now.tv_sec;
+	t->tv_nsec = now.tv_usec * 1000;
+	return 0;
+}
+#endif
+
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
