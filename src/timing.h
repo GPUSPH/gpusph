@@ -115,7 +115,6 @@ class IPPSCounter
 
 		// reset the counter
 		time_t restart() {
-			m_started = true;
 			return start();
 		}
 
