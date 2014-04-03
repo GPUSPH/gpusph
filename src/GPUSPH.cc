@@ -650,7 +650,7 @@ bool GPUSPH::runSimulation() {
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
-	printf("Global performance was: %.2f MIPPS\n", m_totalPerformanceCounter->getMIPPS());
+	printf("Global performance was: %.2g MIPPS\n", m_totalPerformanceCounter->getMIPPS());
 	printf("Simulation end, cleaning up...\n");
 
 	// doCommand(QUIT) would be equivalent, but this is more clear
