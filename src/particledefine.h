@@ -130,6 +130,36 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 #endif
 ;
 
+/* Periodic boundary */
+enum Periodicity {
+	PERIODIC_NONE = 0,
+	PERIODIC_X   = 1,
+	PERIODIC_Y   = PERIODIC_X << 1,
+	PERIODIC_XY  = PERIODIC_X | PERIODIC_Y,
+	PERIODIC_Z   = PERIODIC_Y << 1,
+	PERIODIC_XZ  = PERIODIC_X | PERIODIC_Z,
+	PERIODIC_YZ  = PERIODIC_Y | PERIODIC_Z,
+	PERIODIC_XYZ = PERIODIC_X | PERIODIC_Y | PERIODIC_Z,
+};
+
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* PeriodicityName[PERIODIC_XYZ+1]
+#ifdef GPUSPH_MAIN
+= {
+	"none",
+	"X",
+	"Y",
+	"X and Y",
+	"Z",
+	"X and Z",
+	"Y and Z",
+	"X, Y and Z",
+}
+#endif
+;
+
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
 
@@ -251,12 +281,6 @@ disable_particle(float4 &pos) {
 #define PART_FLAG(f)		(type(f) >> PART_FLAG_SHIFT)
 // Extract particle fluid number
 #define PART_FLUID_NUM(f)	(type(f) & FLUID_NUM_MASK)
-
-
-/* Periodic boundary */
-#define XPERIODIC		0x1
-#define YPERIODIC		0x2
-#define ZPERIODIC		0x4
 
 
 /* Maximum number of floating bodies*/

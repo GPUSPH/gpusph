@@ -71,7 +71,7 @@ typedef struct SimParams {
 	uint			saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
-	int				periodicbound;		// true in case of periodic boundary
+	Periodicity		periodicbound;		// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
@@ -110,7 +110,7 @@ typedef struct SimParams {
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
-		periodicbound(0),
+		periodicbound(PERIODIC_NONE),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),
