@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -46,15 +46,14 @@ class TestTopo: public Problem {
 		double		H;				// still water level
 
 	public:
-		TestTopo(const Options &);
+		TestTopo(const GlobalData *);
 
 		virtual ~TestTopo(void);
 
 		int fill_parts(void);
 		uint fill_planes(void);
 
-		void draw_boundary(float);
-		void copy_to_array(float4*, float4*, particleinfo*);
+		void copy_to_array(BufferList &);
 		void copy_planes(float4*, float*);
 
 		void release_memory(void);

@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -276,7 +276,7 @@ void Object::Unfill(PointVect& points, const double dx) const
 	PointVect new_points;
 	new_points.reserve(points.size());
 
-	for (int i = 0; i < points.size(); i++) {
+	for (uint i = 0; i < points.size(); i++) {
 		const Point & p = points[i];
 
 		if (!IsInside(p, dx))

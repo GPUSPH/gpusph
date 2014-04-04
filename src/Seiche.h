@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -23,11 +23,11 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* 
+/*
  * File:   Seiche.h
  * Author: rad
  *
- * Created on February 11, 2011, 2:48 PM
+ * Created on February 11, 2011-2013, 2:48 PM
  */
 
 #ifndef SEICHE_H
@@ -48,15 +48,14 @@ class Seiche: public Problem {
 		float		m_gtstart, m_gtend;
 
 	public:
-		Seiche(const Options &);
+		Seiche(const GlobalData *);
 		virtual ~Seiche(void);
 
 		int  fill_parts(void);
 		uint fill_planes(void);
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(BufferList &);
 		void copy_planes(float4*, float*);
-        float3 g_callback(const float);
+		float3 g_callback(const float);
 
 		void release_memory(void);
 };

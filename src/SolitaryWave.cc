@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -26,22 +26,21 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-#ifdef __APPLE__
-#include <OpenGl/gl.h>
-#else
-#include <GL/gl.h>
-#endif
 
 #include "SolitaryWave.h"
 #include "particledefine.h"
+#include "GlobalData.h"
 
 #define MK_par 2
 
-SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
+SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(9.0f, 0.4f, 1.0f);
-	m_origin = make_float3(0.0f, 0.0f,0.0f);
+	lx = 9.0;
+	ly = 0.4;
+	lz = 3.0;
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
@@ -56,20 +55,17 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    icyl = 0;	// icyl = 0 means no cylinders
+	icyl = 0;	// icyl = 0 means no cylinders
 	icone = 0;	// icone = 0 means no cone
 	// If presents, cylinders and cone are moving alltogether with
 	// the same velocity
 	if (icyl || icone)
 		m_mbnumber++;
 
-	i_use_bottom_plane = 0; // 1 for real plane instead of boundary parts
+	i_use_bottom_plane = 1; // 1 for real plane instead of boundary parts
 
 	// SPH parameters
 	set_deltap(0.04f);  //0.005f;
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00013f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -86,7 +82,7 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 	m_simparams.vorticity = true;
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
-    // Physical parameters
+	// Physical parameters
 	H = 0.45f;
 	m_physparams.gravity = make_float3(0.0f, 0.0f, -9.81f);
 	float g = length(m_physparams.gravity);
@@ -104,7 +100,7 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 
 	// BC when using LJ
 	m_physparams.dcoeff = 5.0f*g*H;
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
 	m_physparams.MK_K = g*H;
@@ -145,7 +141,6 @@ SolitaryWave::SolitaryWave(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "SolitaryWave";
-	create_problem_dir();
 }
 
 
@@ -177,6 +172,10 @@ MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i
 				float arg = 2.0*((3.8 + m_Hoh)*((t - mbpistondata.tstart)/m_tau - 0.5)
 							- 2.0*m_Hoh*((posx/m_S) - 0.5));
 				mbpistondata.disp.x = m_S*(1.0 + tanh(arg))/2.0;
+				mbpistondata.vel.x = (3.8 + m_Hoh)*m_S/(m_tau*cosh(arg)*cosh(arg));
+			}
+			else {
+				mbpistondata.vel.x = 0;
 				}
 			}
 			break;
@@ -206,7 +205,7 @@ MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i
 int SolitaryWave::fill_parts()
 {
 	const float r0 = m_physparams.r0;
-	const float width = m_size.y;
+	const float width = ly;
 
 	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
@@ -219,13 +218,13 @@ int SolitaryWave::fill_parts()
 	piston_parts.reserve(500);
 
 	MbCallBack& mbpistondata = m_mbcallbackdata[0];
-    Rect piston = Rect(Point(mbpistondata.origin),
+	Rect piston = Rect(Point(mbpistondata.origin),
 						Vector(0, width, 0), Vector(0, 0, height));
 	piston.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	piston.Fill(piston_parts, br, true);
 
 	if (i_use_bottom_plane == 0) {
-	   experiment_box1 = Rect(Point(h_length,0,0  ), Vector(0, width, 0),
+	   experiment_box1 = Rect(Point(h_length, 0, 0), Vector(0, width, 0),
 			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
 	   experiment_box1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	   experiment_box1.Fill(boundary_parts,br,true);
@@ -286,7 +285,6 @@ int SolitaryWave::fill_parts()
 	Rect fluid;
 	float z = 0;
 	int n = 0;
-	const float amplitude = 0;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
 		float x = mbpistondata.origin.x + r0;
@@ -326,36 +324,40 @@ void SolitaryWave::copy_planes(float4 *planes, float *planediv)
 	planediv[1] = 1.0;
 	planes[2] = make_float4(0, -1.0, 0, w); //far wall
 	planediv[2] = 1.0;
- 	planes[3] = make_float4(1.0, 0, 0, 0);  //end
- 	planediv[3] = 1.0;
- 	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
- 	planediv[4] = 1.0;
- 	if (i_use_bottom_plane == 1)  {
+	planes[3] = make_float4(1.0, 0, 0, 0);  //end
+	planediv[3] = 1.0;
+	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
+	planediv[4] = 1.0;
+	if (i_use_bottom_plane == 1)  {
 		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
 		planediv[5] = 1.0;
 	}
 }
 
 
-void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void SolitaryWave::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-
 	std::cout << "\nPiston parts: " << piston_parts.size() << "\n";
 	std::cout << "     " << j << "--" << j + piston_parts.size() << "\n";
 	for (uint i = j; i < j + piston_parts.size(); i++) {
-		pos[i] = make_float4(piston_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(PISTONPART, 0, i);
+		calc_localpos_and_hash(piston_parts[i - j], info[i], pos[i], hash[i]);
 	}
 	j += piston_parts.size();
 	std::cout << "Piston part mass:" << pos[j-1].w << "\n";
@@ -363,25 +365,23 @@ void SolitaryWave::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	std::cout << "\nGate parts: " << gate_parts.size() << "\n";
 	std::cout << "       " << j << "--" << j+gate_parts.size() <<"\n";
 	for (uint i = j; i < j + gate_parts.size(); i++) {
-		pos[i] = make_float4(gate_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(GATEPART, 1, i);
+		calc_localpos_and_hash(gate_parts[i - j], info[i], pos[i], hash[i]);
 	}
 	j += gate_parts.size();
 	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
 
 
-	float g = length(m_physparams.gravity);
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+	    info[i]= make_particleinfo(FLUIDPART,0,i);
+		calc_localpos_and_hash(parts[i - j], info[i], pos[i], hash[i]);
 		// initializing density
 		//       float rho = m_physparams.rho0*pow(1.+g*(H-pos[i].z)/m_physparams.bcoeff,1/m_physparams.gammacoeff);
 		//        vel[i] = make_float4(0, 0, 0, rho);
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART,0,i);
-
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

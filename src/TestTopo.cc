@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -32,19 +32,20 @@
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
+#include "GlobalData.h"
 
 // set to 0 to use boundary particles, 1 to use boundary planes
 #define USE_PLANES 1
 
 #define EB experiment_box
 
-TestTopo::TestTopo(const Options &options) : Problem(options)
+TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 {
 	const char* dem_file;
-	if (options.dem.empty())
-		dem_file = "../half_wave0.1m.txt";
+	if (m_options->dem.empty())
+		dem_file = "half_wave0.1m.txt";
 	else
-		dem_file = options.dem.c_str();
+		dem_file = m_options->dem.c_str();
 
 	EB = TopoCube::load_ascii_grid(dem_file);
 
@@ -62,9 +63,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// SPH parameters
 	set_deltap(0.05);
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -82,15 +80,15 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	EB->SetCubeHeight(H);
 
-	m_size = make_float3(
+	// TODO FIXME adapt DEM to homogeneous precision
+	m_size = make_double3(
 			EB->get_vx()(0), // x component of vx
 			EB->get_vy()(1), // y component of vy
 			H);
 	cout << "m_size: " << m_size.x << " " << m_size.y << " " << m_size.z << "\n";
 
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0f, 7.0f, 20.f);
 
 	m_physparams.dcoeff = 50.47;
@@ -117,7 +115,6 @@ TestTopo::TestTopo(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "TestTopo";
-	create_problem_dir();
 }
 
 
@@ -169,22 +166,27 @@ void TestTopo::copy_planes(float4 *planes, float *planediv)
 	experiment_box->get_planes(planes, planediv);
 }
 
-void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void TestTopo::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART,0,i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

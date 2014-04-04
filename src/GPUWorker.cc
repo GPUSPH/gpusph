@@ -1,18 +1,45 @@
-/*
- * GPUWorker.cpp
- *
- *  Created on: Dec 19, 2012
- *      Author: rustico
- */
+/*  Copyright 2012-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// ostringstream
+#include <sstream>
+// FLT_MAX
+#include <float.h>
 
 #include "GPUWorker.h"
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
-// ostringstream
-#include <sstream>
-// FLT_MAX
-#include "float.h"
+
+#include "cudabuffer.h"
+
+// round_up
+#include "utils.h"
+
+// UINT_MAX
+#include "limits.h"
 
 GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	gdata = _gdata;
@@ -35,6 +62,54 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_nGridCells = gdata->nGridCells;
 
 	m_hostMemory = m_deviceMemory = 0;
+
+	m_dCompactDeviceMap = NULL;
+	m_hCompactDeviceMap = NULL;
+
+	m_dBuffers << new CUDABuffer<BUFFER_POS>();
+	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
+	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
+	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
+
+	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
+	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
+	m_dBuffers << new CUDABuffer<BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
+
+	if (m_simparams->xsph)
+		m_dBuffers << new CUDABuffer<BUFFER_XSPH>();
+
+	if (m_simparams->visctype == SPSVISC)
+		m_dBuffers << new CUDABuffer<BUFFER_TAU>();
+
+	if (m_simparams->savenormals)
+		m_dBuffers << new CUDABuffer<BUFFER_NORMALS>();
+	if (m_simparams->vorticity)
+		m_dBuffers << new CUDABuffer<BUFFER_VORTICITY>();
+
+	if (m_simparams->dtadapt) {
+		m_dBuffers << new CUDABuffer<BUFFER_CFL>();
+		m_dBuffers << new CUDABuffer<BUFFER_CFL_TEMP>();
+		if (m_simparams->visctype == KEPSVISC)
+			m_dBuffers << new CUDABuffer<BUFFER_CFL_KEPS>();
+	}
+
+	if (m_simparams->boundarytype == SA_BOUNDARY) {
+		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
+		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
+		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
+		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
+		m_dBuffers << new CUDABuffer<BUFFER_VERTPOS>();
+	}
+
+	if (m_simparams->visctype == KEPSVISC) {
+		m_dBuffers << new CUDABuffer<BUFFER_TKE>();
+		m_dBuffers << new CUDABuffer<BUFFER_EPSILON>();
+		m_dBuffers << new CUDABuffer<BUFFER_TURBVISC>();
+		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
+	}
+
+	if (m_simparams->calcPrivate)
+		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
 }
 
 GPUWorker::~GPUWorker() {
@@ -59,32 +134,31 @@ uint GPUWorker::getMaxParticles()
 }
 
 // Compute the bytes required for each particle.
-// NOTE: this should be updated for each new device array!
 size_t GPUWorker::computeMemoryPerParticle()
 {
 	size_t tot = 0;
 
-	tot += sizeof(m_dPos[0][0]) * 2; // double buffered
-	tot += sizeof(m_dVel[0][0]) * 2; // double buffered
-	tot += sizeof(m_dInfo[0][0]) * 2; // double buffered
-	tot += sizeof(m_dForces[0]);
-	tot += sizeof(m_dParticleHash[0]);
-	tot += sizeof(m_dParticleIndex[0]);
-	// Now we estimate the memory consumption of thrust::sort() by simply assuming another m_dParticleIndex is allocated. This might be slighly different
-	// and should be fixed if/when detailed information are found. If sorting goes out of memory, a bigger safety buffer than 100Mb might be used.
-	// To include also the size of the hash in the estimation, just add "tot += sizeof(m_dParticleHash[0]);"
-	tot += sizeof(m_dParticleIndex[0]);
-	tot += sizeof(m_dNeibsList[0]) * m_simparams->maxneibsnum; // underestimated: the total is rounded up to next multiple of NEIBINDEX_INTERLEAVE
-	// Memory for the cfl reduction is widely overestimated: there are actually 2 arrays of float but one should then divide by BLOCK_SIZE_FORCES.
-	// We consider instead a fourth of one array only, so roughly 1/8 instead of 1/128 or 1/256. It's still about 8 times more.
-	tot += sizeof(m_dCfl[0])/4;
-	// conditional here?
-	tot += sizeof(m_dXsph[0]);
+	BufferList::iterator buf = m_dBuffers.begin();
+	const BufferList::iterator stop = m_dBuffers.end();
+	while (buf != stop) {
+		size_t contrib = buf->second->get_element_size()*buf->second->get_array_count();
+		if (buf->first & BUFFER_NEIBSLIST)
+			contrib *= m_simparams->maxneibsnum;
+		// TODO compute a sensible estimate for the CFL contribution,
+		// which is currently heavily overestimated
+		else if (buf->first & BUFFERS_CFL)
+			contrib /= 4;
+		// particle index occupancy is double to account for memory allocated
+		// by thrust::sort TODO refine
+		else if (buf->first & BUFFER_PARTINDEX)
+			contrib *= 2;
 
-	// optional arrays
-	if (m_simparams->savenormals) tot += sizeof(m_dNormals[0]);
-	if (m_simparams->vorticity) tot += sizeof(m_dVort[0]);
-	if (m_simparams->visctype == SPSVISC) tot += sizeof(m_dTau[0][0]) * 3; // 6 tau per part
+		tot += contrib;
+#if _DEBUG_
+		printf("with %s: %zu\n", buf->second->get_buffer_name(), tot);
+#endif
+		++buf;
+	}
 
 	// TODO
 	//float4*		m_dRbForces;
@@ -92,8 +166,10 @@ size_t GPUWorker::computeMemoryPerParticle()
 	//uint*		m_dRbNum;
 
 	// round up to next multiple of 4
-
-	return (tot/4 + 1) * 4;
+	tot = round_up<size_t>(tot, 4);
+	if (m_deviceIndex == 0)
+		printf("Estimated memory consumption: %zuB/particle\n", tot);
+	return tot;
 }
 
 // Compute the bytes required for each cell.
@@ -103,24 +179,45 @@ size_t GPUWorker::computeMemoryPerCell()
 	size_t tot = 0;
 	tot += sizeof(m_dCellStart[0]);
 	tot += sizeof(m_dCellEnd[0]);
-	tot += sizeof(m_dCompactDeviceMap[0]);
+	if (MULTI_DEVICE)
+		tot += sizeof(m_dCompactDeviceMap[0]);
 	return tot;
 }
 
 // Compute the maximum number of particles we can allocate according to the available device memory
 void GPUWorker::computeAndSetAllocableParticles()
 {
-	size_t totMemory, freeMemory;
+	size_t totMemory, memPerCells, freeMemory, safetyMargin;
 	cudaMemGetInfo(&freeMemory, &totMemory);
-	freeMemory -= gdata->nGridCells * computeMemoryPerCell();
-	freeMemory -= 16; // segments
-	freeMemory -= 100*1024*1024; // leave 100Mb as safety margin
-	uint  numAllocableParticles = (freeMemory / computeMemoryPerParticle());
+	// TODO configurable
+	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
+	// compute how much memory is required for the cells array
+	memPerCells = (size_t)gdata->nGridCells * computeMemoryPerCell();
 
-	m_numAllocatedParticles = min( numAllocableParticles, gdata->totParticles);
+	freeMemory -= 16; // segments
+	freeMemory -= safetyMargin;
+
+	if (memPerCells > freeMemory) {
+		fprintf(stderr, "FATAL: not enough free device memory to allocate %s cells\n", gdata->addSeparators(gdata->nGridCells).c_str());
+		exit(1);
+	}
+
+	freeMemory -= memPerCells;
+
+	uint numAllocableParticles = (freeMemory / computeMemoryPerParticle());
+
+	if (numAllocableParticles < gdata->totParticles)
+		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
+			m_deviceIndex, numAllocableParticles, gdata->totParticles);
+
+	// allocate at most the number of particles required for the whole simulation
+	m_numAllocatedParticles = min( numAllocableParticles, gdata->totParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
-		printf("FATAL: thread %u needs %u particles, but there is memory for %u (plus safety margin)\n", m_deviceIndex, m_numParticles, m_numAllocatedParticles);
+		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
+			m_deviceIndex, m_numParticles, m_numAllocatedParticles,
+			gdata->memString(freeMemory).c_str(), gdata->memString(totMemory).c_str(),
+			gdata->memString(safetyMargin).c_str());
 		exit(1);
 	}
 }
@@ -179,14 +276,7 @@ void GPUWorker::importPeerEdgeCells()
 	// We aim to make the fewest possible transfers. So we keep track of each burst of consecutive
 	// cells from the same peer device, to transfer it with a single memcpy.
 	// To this aim, it is important that we iterate on the linearized index so that consecutive
-	// cells are also consecutive in memory, regardless the linearization function
-
-	// pointers to peer buffers
-	const float4** peer_dPos;
-	const float4** peer_dVel;
-	const particleinfo** peer_dInfo;
-	const float4* peer_dForces;
-	const float2** peer_dTaus;
+	// cells are also consecutive in memory, regardless of the linearization function
 
 	// aux var for transfers
 	size_t _size;
@@ -319,38 +409,58 @@ void GPUWorker::importPeerEdgeCells()
 				} else {
 					// Previous burst is not compatible, need to flush the "buffer" and reset it to the current cell.
 
-					// retrieve the appropriate peer memory pointer and transfer the requested data
-					if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-						_size = burst_numparts * sizeof(float4);
-						peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
-						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-						peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-											peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-					}
-					if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-						_size = burst_numparts * sizeof(float4);
-						peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
-						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-						peerAsyncTransfer( m_dVel[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-											peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-					}
-					if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-						_size = burst_numparts * sizeof(particleinfo);
-						peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
-						dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-						peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-											peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-					}
-					if ( gdata->commandFlags & BUFFER_FORCES) {
-						_size = burst_numparts * sizeof(float4);
-						peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
-						peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber, peer_dForces + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-					}
-					if ( gdata->commandFlags & BUFFER_TAU) {
-						_size = burst_numparts * sizeof(float2);
-						peer_dTaus = gdata->GPUWORKERS[burst_peer_dev_index]->getDTauBuffers();
-						for (uint itau = 0; itau < 3; itau++)
-							peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
+					// iterate over all defined buffers and see which were requested
+					// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+					// with the ordering set by the key, in our case the unsigned integer type flag_t,
+					// so we have guarantee that the map will always be traversed in the same order
+					// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+					BufferList::iterator bufset = m_dBuffers.begin();
+					const BufferList::iterator stop = m_dBuffers.end();
+					for ( ; bufset != stop ; ++bufset) {
+						flag_t bufkey = bufset->first;
+						if (!(gdata->commandFlags & bufkey))
+							continue; // skip unwanted buffers
+
+						AbstractBuffer *dstbuf = bufset->second;
+
+						// handling of double-buffered arrays
+						// note that TAU is not considered here
+						if (dstbuf->get_array_count() == 2) {
+							// for buffers with more than one array the caller should have specified which buffer
+							// is to be imported. complain
+							if (!dbl_buffer_specified) {
+								std::stringstream err_msg;
+								err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
+									<< " array without a specification of which buffer to use.";
+								throw runtime_error(err_msg.str());
+							}
+
+							if (gdata->commandFlags & DBLBUFFER_READ)
+								dbl_buf_idx = gdata->currentRead[bufkey];
+							else
+								dbl_buf_idx = gdata->currentWrite[bufkey];
+						} else {
+							dbl_buf_idx = 0;
+						}
+
+						const AbstractBuffer *srcbuf = gdata->GPUWORKERS[burst_peer_dev_index]->getBuffer(bufkey);
+						_size = burst_numparts * dstbuf->get_element_size();
+
+						// special treatment for TAU, since in that case we need to transfers all 3 arrays
+						if (!(bufkey & BUFFER_BIG)) {
+							void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin);
+							const void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_peer_index_begin);
+
+							peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
+						} else {
+							// generic, so that it can work for other buffers like TAU, if they are ever
+							// introduced; just fix the conditional
+							for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
+								void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin);
+								const void *srcptr = srcbuf->get_offset_buffer(ai, burst_peer_index_begin);
+								peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
+							}
+						}
 					}
 
 					// reset burst to current cell
@@ -363,41 +473,56 @@ void GPUWorker::importPeerEdgeCells()
 	// flush the burst if not empty (should always happen if at least one edge cell is not empty)
 	if (!BURST_IS_EMPTY) {
 
-		// transfer the requested data
-		if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-			_size = burst_numparts * sizeof(float4);
-			peer_dPos = gdata->GPUWORKERS[burst_peer_dev_index]->getDPosBuffers();
-			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-			peerAsyncTransfer( m_dPos[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dPos[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-		}
-		if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-			_size = burst_numparts * sizeof(float4);
-			peer_dVel = gdata->GPUWORKERS[burst_peer_dev_index]->getDVelBuffers();
-			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-			peerAsyncTransfer( m_dVel[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dVel[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-		}
-		if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-			_size = burst_numparts * sizeof(particleinfo);
-			peer_dInfo = gdata->GPUWORKERS[burst_peer_dev_index]->getDInfoBuffers();
-			dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-			peerAsyncTransfer( m_dInfo[ dbl_buf_idx ] + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dInfo[ dbl_buf_idx ] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-		}
-		if ( gdata->commandFlags & BUFFER_FORCES) {
-			_size = burst_numparts * sizeof(float4);
-			peer_dForces = gdata->GPUWORKERS[burst_peer_dev_index]->getDForceBuffer();
-			peerAsyncTransfer( m_dForces + burst_self_index_begin, m_cudaDeviceNumber,
-								peer_dForces + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-		}
-		if ( gdata->commandFlags & BUFFER_TAU) {
-			_size = burst_numparts * sizeof(float2);
-			peer_dTaus = gdata->GPUWORKERS[burst_peer_dev_index]->getDTauBuffers();
-			for (uint itau = 0; itau < 3; itau++)
-				peerAsyncTransfer( m_dTau[itau] + burst_self_index_begin, m_cudaDeviceNumber, peer_dTaus[itau] + burst_peer_index_begin, gdata->device[burst_peer_dev_index], _size);
-		}
+		// iterate over all defined buffers and see which were requested
+		// see NOTE above about std::map traversal order
+		// TODO it seems this is exactly the same code as above. Refactor?
+		BufferList::iterator bufset = m_dBuffers.begin();
+		const BufferList::iterator stop = m_dBuffers.end();
+		for ( ; bufset != stop ; ++bufset) {
+			flag_t bufkey = bufset->first;
+			if (!(gdata->commandFlags & bufkey))
+				continue; // skip unwanted buffers
 
+			AbstractBuffer *dstbuf = bufset->second;
+
+			// handling of double-buffered arrays
+			if (dstbuf->get_array_count() > 1) {
+				// for buffers with more than one array the caller should have specified which buffer
+				// is to be imported. complain
+				if (!dbl_buffer_specified) {
+					std::stringstream err_msg;
+					err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
+						<< " array without a specification of which buffer to use.";
+					throw runtime_error(err_msg.str());
+				}
+
+				if (gdata->commandFlags & DBLBUFFER_READ)
+					dbl_buf_idx = gdata->currentRead[bufkey];
+				else
+					dbl_buf_idx = gdata->currentWrite[bufkey];
+			} else {
+				dbl_buf_idx = 0;
+			}
+
+			const AbstractBuffer *srcbuf = gdata->GPUWORKERS[burst_peer_dev_index]->getBuffer(bufkey);
+			_size = burst_numparts * dstbuf->get_element_size();
+
+			// special treatment for TAU, since in that case we need to transfers all 3 arrays
+			if (!(bufkey & BUFFER_BIG)) {
+				void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin);
+				const void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_peer_index_begin);
+
+				peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
+			} else {
+				// generic, so that it can work for other buffers like TAU, if they are ever
+				// introduced; just fix the conditional
+				for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
+					void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin);
+					const void *srcptr = srcbuf->get_offset_buffer(ai, burst_peer_index_begin);
+					peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
+				}
+			}
+		}
 	} // burst is empty?
 
 	// also flush cell buffer, if any
@@ -428,37 +553,33 @@ void GPUWorker::importNetworkPeerEdgeCells()
 		return;
 	}
 
-	// is a double buffer specified?
-	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-	uint dbl_buf_idx;
+	// TODO: peer as well, support for periodicity
 
-	// We need to import every cell of the neigbor processes only once. To this aim, we keep a list of recipient
-	// ranks who already received the current cell. The list, in form of a bitmap, is reset before iterating on
-	// all the neighbor cells
-	bool recipient_devices[MAX_DEVICES_PER_CLUSTER];
+	// is a double buffer specified?
+	const bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+	uchar dbl_buf_idx;
+
+	// We want to send the current cell to the neigbor processes only once. To this aim, we keep a list of recipient
+	// ranks who already received the current cell. The list is reset before iterating on all the neighbor cells
+	bool already_sent_to[MAX_DEVICES_PER_CLUSTER];
 
 	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device;
-	// moreover, we only need the "self" address
-	uint burst_self_index_begin[MAX_DEVICES_PER_CLUSTER];
-	uint burst_self_index_end[MAX_DEVICES_PER_CLUSTER];
-	uint burst_numparts[MAX_DEVICES_PER_CLUSTER]; // redundant with burst_peer_index_end, but cleaner
-	bool burst_is_sending[MAX_DEVICES_PER_CLUSTER]; // true for bursts of sends, false for bursts of receives
+	// moreover, we only need the "self" address. We also need a separate burst for direction (send/receive)
+	uint burst_self_index_begin[MAX_DEVICES_PER_CLUSTER][2];
+	uint burst_self_index_end[MAX_DEVICES_PER_CLUSTER][2];
+	uint burst_numparts[MAX_DEVICES_PER_CLUSTER][2]; // redundant with burst_peer_index_end, but cleaner
+	bool burst_is_closed[MAX_DEVICES_PER_CLUSTER][2]; // true for closed bursts, i.e. bursts that need to be flushed immediately
+	const uchar B_SEND = 0;
+	const uchar B_RECV = 1;
 
 	// initialize bursts
-	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
-		burst_self_index_begin[n] = 0;
-		burst_self_index_end[n] = 0;
-		burst_numparts[n] = 0;
-		burst_is_sending[n] = false;
-	}
-
-	// utility defines to handle the bursts
-#define BURST_IS_EMPTY (burst_numparts[otherDeviceGlobalDevIdx] == 0)
-#define BURST_SET_CURRENT_CELL \
-	burst_self_index_begin[otherDeviceGlobalDevIdx] = curr_cell_start; \
-	burst_self_index_end[otherDeviceGlobalDevIdx] = curr_cell_start + partsInCurrCell; \
-	burst_numparts[otherDeviceGlobalDevIdx] = partsInCurrCell; \
-	burst_is_sending[otherDeviceGlobalDevIdx] = is_sending;
+	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+		for (uint direction = 0; direction < 2; direction++) {
+			burst_self_index_begin[n][direction] = 0;
+			burst_self_index_end[n][direction] = 0;
+			burst_numparts[n][direction] = 0;
+			burst_is_closed[n][direction] = false;
+		}
 
 	// While we iterate on the cells we refer as "curr" to the cell indexed by the outer cycles and as "neib"
 	// to the neib cell indexed by the inner cycles. Either cell could belong to current process (so the bools
@@ -470,257 +591,354 @@ void GPUWorker::importNetworkPeerEdgeCells()
 	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
 		// we will need the 3D coords as well
-		int3 curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
+		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
+		// NOPE
 		// optimization: if not edging, continue
-		if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
-			m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
+		// if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
+		//	m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
 
 		// reset the list for recipient neib processes
 		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
-			recipient_devices[d] = false;
+			already_sent_to[d] = false;
 
-		uint curr_cell_globalDevIdx = gdata->s_hDeviceMap[lin_curr_cell];
-		uchar curr_cell_rank = gdata->RANK( curr_cell_globalDevIdx );
+		uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
+		uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
 		if ( curr_cell_rank >= gdata->mpi_nodes ) {
 			printf("FATAL: cell %u seems to belong to rank %u, but max is %u; probable memory corruption\n", lin_curr_cell, curr_cell_rank, gdata->mpi_nodes - 1);
 			gdata->quit_request = true;
 			return;
 		}
 
-		bool curr_mine = (curr_cell_globalDevIdx == m_globalDeviceIdx);
+		// is it mine?
+		const bool curr_mine = (curr_cell_gidx == m_globalDeviceIdx);
 
 		// iterate on neighbors
 		for (int dz = -1; dz <= 1; dz++)
 			for (int dy = -1; dy <= 1; dy++)
 				for (int dx = -1; dx <= 1; dx++) {
 
-					// skip self (should be implicit with dev id check, later)
+					// skip self (also implicit with dev id check, later)
 					if (dx == 0 && dy == 0 && dz == 0) continue;
 
 					// ensure we are inside the grid
-					if (curr_cell.x + dx < 0 || curr_cell.x + dx >= gdata->gridSize.x) continue;
-					if (curr_cell.y + dy < 0 || curr_cell.y + dy >= gdata->gridSize.y) continue;
-					if (curr_cell.z + dz < 0 || curr_cell.z + dz >= gdata->gridSize.z) continue;
+					// TODO: fix for periodicity. ImportPeer* as well?
+					if (coords_curr_cell.x + dx < 0 || coords_curr_cell.x + dx >= gdata->gridSize.x) continue;
+					if (coords_curr_cell.y + dy < 0 || coords_curr_cell.y + dy >= gdata->gridSize.y) continue;
+					if (coords_curr_cell.z + dz < 0 || coords_curr_cell.z + dz >= gdata->gridSize.z) continue;
 
-					// linearized hash of neib cell
-					uint lin_neib_cell = gdata->calcGridHashHost(curr_cell.x + dx, curr_cell.y + dy, curr_cell.z + dz);
-					uint neib_cell_globalDevIdx = gdata->s_hDeviceMap[lin_neib_cell];
+					// now compute the linearized hash of the neib cell and other properties
+					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
+					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
+					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
+
+					// is this neib mine?
+					const bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
+					// is any of the two mine? if not, I will only manage closed bursts
+					const bool any_mine = (curr_mine || neib_mine);
+
+					// Safely skip pairs belonging to the same *node*. This happens if
+					// - both cells belong to the same device (e.g. two inner edge cells)
+					// - cells belong to different devices of the same node (will be imported by importPeerEdgeCells, not MPI)
+					if (curr_cell_rank == neib_cell_rank) continue;
+
+					// NOPE: we need to know if a burst has to be closed
+					// safely skip pairs where not current nor neib belong to current process
+					// (possible for edge cells neighboring two devices)
+					// if (!curr_mine && !neib_mine) continue;
 
 					// will be set in different way depending on the rank (mine, then local cellStarts, or not, then receive size via network)
-					uint partsInCurrCell;
+					uint partsInCurrCell = 0;
 					uint curr_cell_start;
 
-					bool neib_mine = (neib_cell_globalDevIdx == m_globalDeviceIdx);
-					uchar neib_cell_rank = gdata->RANK( neib_cell_globalDevIdx );
-
-					// global dev idx of the "other" device
-					uint otherDeviceGlobalDevIdx = (curr_cell_globalDevIdx == m_globalDeviceIdx ? neib_cell_globalDevIdx : curr_cell_globalDevIdx);
-					bool is_sending = curr_mine;
-
-					// did we already treat the pair (curr_rank <-> neib_rank) for this cell?
-					if (recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ]) continue;
-
-					// we can skip 1. pairs belonging to the same node 2. pairs where not current nor neib belong to current process
-					if (curr_cell_rank == neib_cell_rank || ( !curr_mine && !neib_mine ) ) continue;
-
-					// initialize the number of particles in the cell
-					partsInCurrCell = 0;
-
-					// if the cell belong to a neib node and we are appending, there are a few things to handle
-					if (neib_mine && gdata->nextCommand == APPEND_EXTERNAL) {
-
-						// prepare to append it to the end of the present array
-						curr_cell_start = m_numParticles;
-
-						// receive the size from the cell process
-						gdata->networkManager->receiveUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
-
-						// update host cellStarts/Ends
-						if (partsInCurrCell > 0) {
-							gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
-							gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
-						} else
-							gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
-
-						// update device cellStarts/Ends
-						CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
-							sizeof(uint), cudaMemcpyHostToDevice));
-						if (partsInCurrCell > 0)
-							CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
-								sizeof(uint), cudaMemcpyHostToDevice));
-
-						// update outer edge segment
-						if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
-							gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
-
-						// update the total number of particles
-						m_numParticles += partsInCurrCell;
-					} // we could "else" here and totally delete the condition (it is opposite to the previuos, but left for clarity)
-
-					// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
-					if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
-						// read the size
-						curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
-
-						// set partsInCurrCell
-						if (curr_cell_start != EMPTY_CELL)
-							partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
-					}
-
-					// finally, if the cell belongs to current process and we are in appending phase, we want to send its size to the neib process
-					if (curr_mine && gdata->nextCommand == APPEND_EXTERNAL)
-						gdata->networkManager->sendUint(curr_cell_globalDevIdx, neib_cell_globalDevIdx, &partsInCurrCell);
+					// did we already treat the pair current_cell:neib_node? (e.g. previously due to another neib cell)
+					if (already_sent_to[ neib_cell_gidx ]) continue;
 
 					// mark the pair current_cell:neib_node as treated
-					recipient_devices[ gdata->GLOBAL_DEVICE_NUM(neib_cell_globalDevIdx) ] = true;
+					already_sent_to[ neib_cell_gidx ] = true;
 
-					// if the cell is empty, just continue to next one
-					if  (curr_cell_start == EMPTY_CELL) continue;
+					// sending or receiving? always equal to curr_mine, but more readable
+					const uint transfer_direction = ( curr_mine ? B_SEND : B_RECV );
 
-					if (BURST_IS_EMPTY) {
+					// the "other" device is the device owning the cell (curr or neib) which is not mine
+					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
 
-						// burst is empty, so create a new one and continue
-						BURST_SET_CURRENT_CELL
+					// if curr or neib, send / receive the cell size. Othewise, we skip to the bursts
+					if (any_mine) {
 
-					} else
-					// condition: curr cell begins when burst end AND burst is in the same direction (send / receive)
-					if (burst_self_index_end[otherDeviceGlobalDevIdx] == curr_cell_start && burst_is_sending[otherDeviceGlobalDevIdx] == is_sending) {
+						// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
+						if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
+							// read the size
+							curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
 
-						// cell is compatible, extend the burst
-						burst_self_index_end[otherDeviceGlobalDevIdx] += partsInCurrCell;
-						burst_numparts[otherDeviceGlobalDevIdx] += partsInCurrCell;
-
-					} else {
-
-						// the burst for the current "other" node was non-empty and not compatible; flush it and make a new one
-
-						// Now partsInCurrCell and curr_cell_start are ready; let's handle the actual transfers.
-
-						if ( burst_is_sending[otherDeviceGlobalDevIdx] ) {
-							// Current is mine: send the cells to the process holding the neighbor cells
-							// (in the following, m_globalDeviceIdx === curr_cell_globalDevIdx)
-
-							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-								gdata->networkManager->sendShorts(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( gdata->commandFlags & BUFFER_FORCES )
-								gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							if ( gdata->commandFlags & BUFFER_TAU)
-								for (uint itau = 0; itau < 3; itau++)
-									gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDeviceGlobalDevIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
-											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-
-						} else {
-							// neighbor is mine: receive the cells from the process holding the current cell
-							// (in the following, m_globalDeviceIdx === neib_cell_globalDevIdx)
-
-							if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-								dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-								gdata->networkManager->receiveShorts(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							}
-							if ( gdata->commandFlags & BUFFER_FORCES )
-								gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 4,
-										(float*)(m_dForces + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-							if ( gdata->commandFlags & BUFFER_TAU)
-								for (uint itau = 0; itau < 3; itau++)
-									gdata->networkManager->receiveFloats(otherDeviceGlobalDevIdx, m_globalDeviceIdx, burst_numparts[otherDeviceGlobalDevIdx] * 2,
-											(float*)(m_dTau[itau] + burst_self_index_begin[otherDeviceGlobalDevIdx]) );
-
+							// set partsInCurrCell
+							if (curr_cell_start != EMPTY_CELL)
+								partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
+							else
+								partsInCurrCell = 0;
 						}
 
-						BURST_SET_CURRENT_CELL
-					} // end of flushing and resetting the burst
+						if (gdata->nextCommand == APPEND_EXTERNAL) {
+
+							if (curr_mine) {
+
+								// the cell belongs to current process and we are in appending phase: we want to send its size to the neib process
+								gdata->networkManager->sendUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
+
+							} else
+							if (neib_mine) {
+								// The cell belongs to a neib node and we are appending: we want to receive the size and set the cellstarts/ends:
+								// 1. receive the size
+								gdata->networkManager->receiveUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
+
+								// 2. prepare to append it to the end of the present array
+								curr_cell_start = m_numParticles;
+
+								// 3. update host cellStarts/Ends
+								if (partsInCurrCell > 0) {
+									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
+									gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
+								} else
+									curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
+
+								// 4. update device cellStarts/Ends
+								CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
+									sizeof(uint), cudaMemcpyHostToDevice));
+								if (partsInCurrCell > 0)
+									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
+										sizeof(uint), cudaMemcpyHostToDevice));
+
+								// 5. update outer edge segment, in case it was empty
+								if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
+									gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
+
+								// 6. update the total number of particles
+								m_numParticles += partsInCurrCell;
+							} // neib_mine
+
+						} // if (gdata->nextCommand == APPEND_EXTERNAL)
+
+					} // if (any_mine)
+
+					/* We could skip empty cells, but until there is no broadcast, not all devices know then they are. So
+					 * we have to close all bursts which have the curr_cell_gidx as sender: sender closes all the other,
+					 * others close one with curr sender.
+					 * Moreover, until cellStart and cellEnd are computed immediately upon reception of the size of the cell,
+					 * and not when flushing a burst, we also have to close all buffers which have the neib device
+					 * as recipient.
+					 * So, summarizing, now we want to close:
+					 * - All bursts originating from curr_cell_gidx, except the current to neib_cell_gidx, in all nodes
+					 * - All bursts addressed to neib_cell_gidx, except the current from curr_cell_gidx, in all nodes  */
+					if (curr_mine) {
+						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+							if (n != neib_cell_gidx && burst_numparts[n][B_SEND] > 0)
+								burst_is_closed[n][B_SEND] = true;
+					} else
+					if (neib_mine) {
+						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+							if (n != curr_cell_gidx && burst_numparts[n][B_RECV] > 0)
+								burst_is_closed[n][B_RECV] = true;
+					} else  {
+						if (burst_numparts[curr_cell_gidx][B_RECV] > 0)
+							burst_is_closed[curr_cell_gidx][B_RECV] = true;
+						if (burst_numparts[neib_cell_gidx][B_SEND] > 0)
+							burst_is_closed[neib_cell_gidx][B_SEND] = true;
+					}
+					// It can be tested in the future the performance of broadcasting the size of the exchanged cells; this would allow for less bursts closings.
+
+					// uncomment the following to disable bursts and send always one cell at a time
+					/*
+					for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
+						if (burst_numparts[n][B_SEND] > 0)
+							burst_is_closed[n][B_SEND] = true;
+						if (burst_numparts[n][B_RECV] > 0)
+							burst_is_closed[n][B_RECV] = true;
+					}
+					*/
+
+					// NOPE: might need to flush the bursts first
+					// if the cell is empty, just continue to next one
+					// if (curr_cell_start == EMPTY_CELL) continue;
+
+					// first, let's flush all non-empty, closed bursts
+					for (uint device_gidx = 0; device_gidx < MAX_DEVICES_PER_CLUSTER; device_gidx++) // for each gidx
+						if ( device_gidx != m_globalDeviceIdx )
+							for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
+
+								// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
+								// the same order. So we invert the direction if self gidx is bigger than the other
+								const uint corrected_sending_dir = (m_globalDeviceIdx < device_gidx ? sending_dir : 1 - sending_dir);
+
+								// skip burst if empty
+								if (burst_numparts[device_gidx][corrected_sending_dir] == 0) continue;
+								// skip burst if still open
+								if (!burst_is_closed[device_gidx][corrected_sending_dir]) continue;
+
+								// abstract from self / other
+								const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : device_gidx);
+								const uint recipient_gidx = (corrected_sending_dir == B_SEND ? device_gidx : m_globalDeviceIdx);
+
+								// iterate over all defined buffers and see which were requested
+								// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+								// with the ordering set by the key, in our case the unsigned integer type flag_t,
+								// so we have guarantee that the map will always be traversed in the same order
+								// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+								BufferList::iterator bufset = m_dBuffers.begin();
+								const BufferList::iterator stop = m_dBuffers.end();
+								for ( ; bufset != stop ; ++bufset) {
+									flag_t bufkey = bufset->first;
+									if (!(gdata->commandFlags & bufkey))
+										continue; // skip unwanted buffers
+
+									AbstractBuffer *buf = bufset->second;
+
+									// handling of double-buffered arrays
+									// note that TAU is not considered here
+									if (buf->get_array_count() == 2) {
+										// for buffers with more than one array the caller should have specified which buffer
+										// is to be imported. complain
+										if (!dbl_buffer_specified) {
+											std::stringstream err_msg;
+											err_msg << "Import request for double-buffered " << buf->get_buffer_name()
+												<< " array without a specification of which buffer to use.";
+											throw runtime_error(err_msg.str());
+										}
+
+										if (gdata->commandFlags & DBLBUFFER_READ)
+											dbl_buf_idx = gdata->currentRead[bufkey];
+										else
+											dbl_buf_idx = gdata->currentWrite[bufkey];
+									} else {
+										dbl_buf_idx = 0;
+									}
+
+									const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
+
+									// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
+									if (bufkey != BUFFER_BIG) {
+										void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
+										if (corrected_sending_dir == B_SEND)
+											gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+										else
+											gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+									} else {
+										// generic, so that it can work for other buffers like TAU, if they are ever
+										// introduced; just fix the conditional
+										for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+											void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[device_gidx][corrected_sending_dir]);
+											if (corrected_sending_dir == B_SEND)
+												gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+											else
+												gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+										}
+									}
+								} // for each buffer type
+
+								// reset the flushed burst
+								burst_numparts[device_gidx][corrected_sending_dir] = 0;
+								burst_is_closed[device_gidx][corrected_sending_dir] = false;
+							} // for each non-empty, closed burst, in every direction
+
+					// if the cell is empty, there is no burst to handle
+					if (partsInCurrCell == 0) continue;
+
+					// if we are involved in the pair, let's handle the creation or extension of the burst
+					if (curr_mine || neib_mine) {
+						// make a new burst with the current cell or extend the previous
+						if (burst_numparts[other_device_gidx][transfer_direction] == 0) {
+							// burst is empty, so create a new one and continue
+							burst_self_index_begin[other_device_gidx][transfer_direction] = curr_cell_start;
+							burst_self_index_end[other_device_gidx][transfer_direction] = curr_cell_start + partsInCurrCell;
+							burst_numparts[other_device_gidx][transfer_direction] = partsInCurrCell;
+							burst_is_closed[other_device_gidx][transfer_direction] = false;
+						} else {
+							// was non-empty: extend the existing one
+							burst_self_index_end[other_device_gidx][transfer_direction] += partsInCurrCell;
+							burst_numparts[other_device_gidx][transfer_direction] += partsInCurrCell;
+						}
+					}
 
 				} // iterate on neighbor cells
 	} // iterate on cells
 
-	// here: flush all the non-empty bursts
-	for (uint otherDevGlobalIdx = 0; otherDevGlobalIdx < MAX_DEVICES_PER_CLUSTER; otherDevGlobalIdx++)
-		if ( burst_numparts[otherDevGlobalIdx] > 0) {
+	// here: flush all the non-empty bursts (either closed or still open)
+	for (uint device_gidx = 0; device_gidx < MAX_DEVICES_PER_CLUSTER; device_gidx++) // for each gidx
+		if ( device_gidx != m_globalDeviceIdx )
+		for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
 
-			if ( burst_is_sending[otherDevGlobalIdx] ) {
-				// Current is mine: send the cells to the process holding the neighbor cells
+				// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
+				// the same order. So we invert the direction if self gidx is bigger than the other
+				const uint corrected_sending_dir = (m_globalDeviceIdx < device_gidx ? sending_dir : 1 - sending_dir);
 
-				if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-					gdata->networkManager->sendShorts(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( gdata->commandFlags & BUFFER_FORCES )
-					gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dForces + burst_self_index_begin[otherDevGlobalIdx]) );
-				if ( gdata->commandFlags & BUFFER_TAU)
-					for (uint itau = 0; itau < 3; itau++)
-						gdata->networkManager->sendFloats(m_globalDeviceIdx, otherDevGlobalIdx, burst_numparts[otherDevGlobalIdx] * 2,
-								(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
+				// skip burst if empty
+				if (burst_numparts[device_gidx][corrected_sending_dir] == 0) continue;
+				// we do not skip burst if not closed. Actually, the flush is mainly meant to flush still open bursts
+				// if (!burst_is_closed[device_gidx][corrected_sending_dir]) continue;
 
-			} else {
-				// neighbor is mine: receive the cells from the process holding the current cell
+				// abstract from self / other
+				const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : device_gidx);
+				const uint recipient_gidx = (corrected_sending_dir == B_SEND ? device_gidx : m_globalDeviceIdx);
 
-				if ( (gdata->commandFlags & BUFFER_POS) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentPosRead : gdata->currentPosWrite );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dPos[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_VEL) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentVelRead : gdata->currentVelWrite );
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dVel[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( (gdata->commandFlags & BUFFER_INFO) && dbl_buffer_specified) {
-					dbl_buf_idx = (gdata->commandFlags & DBLBUFFER_READ ? gdata->currentInfoRead : gdata->currentInfoWrite );
-					gdata->networkManager->receiveShorts(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(ushort*)(m_dInfo[ dbl_buf_idx ] + burst_self_index_begin[otherDevGlobalIdx]) );
-				}
-				if ( gdata->commandFlags & BUFFER_FORCES )
-					gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 4,
-							(float*)(m_dForces + burst_self_index_begin[otherDevGlobalIdx]) );
-				if ( gdata->commandFlags & BUFFER_TAU)
-						for (uint itau = 0; itau < 3; itau++)
-							gdata->networkManager->receiveFloats(otherDevGlobalIdx, m_globalDeviceIdx, burst_numparts[otherDevGlobalIdx] * 2,
-									(float*)(m_dTau[itau] + burst_self_index_begin[otherDevGlobalIdx]) );
+				// iterate over all defined buffers and see which were requested
+				// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+				// with the ordering set by the key, in our case the unsigned integer type flag_t,
+				// so we have guarantee that the map will always be traversed in the same order
+				// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+				BufferList::iterator bufset = m_dBuffers.begin();
+				const BufferList::iterator stop = m_dBuffers.end();
+				for ( ; bufset != stop ; ++bufset) {
+					flag_t bufkey = bufset->first;
+					if (!(gdata->commandFlags & bufkey))
+						continue; // skip unwanted buffers
 
-			}
-		}
+					AbstractBuffer *buf = bufset->second;
 
-	// don't need the defines anymore
-#undef BURST_IS_EMPTY
-#undef BURST_SET_CURRENT_CELL
+					// handling of double-buffered arrays
+					// note that TAU is not considered here
+					if (buf->get_array_count() == 2) {
+						// for buffers with more than one array the caller should have specified which buffer
+						// is to be imported. complain
+						if (!dbl_buffer_specified) {
+							std::stringstream err_msg;
+							err_msg << "Import request for double-buffered " << buf->get_buffer_name()
+								<< " array without a specification of which buffer to use.";
+							throw runtime_error(err_msg.str());
+						}
+
+						if (gdata->commandFlags & DBLBUFFER_READ)
+							dbl_buf_idx = gdata->currentRead[bufkey];
+						else
+							dbl_buf_idx = gdata->currentWrite[bufkey];
+					} else {
+						dbl_buf_idx = 0;
+					}
+
+					const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
+
+					// special treatment for TAU, since in that case we need to transfers all 3 arrays
+					if (bufkey != BUFFER_BIG) {
+						void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
+						if (corrected_sending_dir == B_SEND)
+							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+						else
+							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					} else {
+						// generic, so that it can work for other buffers like TAU, if they are ever
+						// introduced; just fix the conditional
+						for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+							void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[device_gidx][corrected_sending_dir]);
+							if (corrected_sending_dir == B_SEND)
+								gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+							else
+								gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+						}
+					}
+				} // for each buffer type
+
+				// reset the flushed burst
+				burst_numparts[device_gidx][corrected_sending_dir] = 0; // probably useless here
+				burst_is_closed[device_gidx][corrected_sending_dir] = false; // for sure useless
+			} // for each non-empty, closed burst, in every direction
 
 }
 
@@ -728,36 +946,15 @@ void GPUWorker::importNetworkPeerEdgeCells()
 // Later this will be changed since each thread does not need to allocate the global number of particles.
 size_t GPUWorker::allocateHostBuffers() {
 	// common sizes
-	const uint float3Size = sizeof(float3) * m_numAllocatedParticles;
-	const uint float4Size = sizeof(float4) * m_numAllocatedParticles;
-	const uint infoSize = sizeof(particleinfo) * m_numAllocatedParticles;
-	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
+	const size_t uintCellsSize = sizeof(uint) * m_nGridCells;
 
 	size_t allocated = 0;
-
-	/*m_hPos = new float4[m_numAllocatedParticles];
-	memset(m_hPos, 0, float4Size);
-	allocated += float4Size;
-
-	m_hVel = new float4[m_numAllocatedParticles];
-	memset(m_hVel, 0, float4Size);
-	allocated += float4Size;
-
-	m_hInfo = new particleinfo[m_numAllocatedParticles];
-	memset(m_hInfo, 0, infoSize);
-	allocated += infoSize; */
 
 	if (MULTI_DEVICE) {
 		m_hCompactDeviceMap = new uint[m_nGridCells];
 		memset(m_hCompactDeviceMap, 0, uintCellsSize);
 		allocated += uintCellsSize;
 	}
-
-	/*if (m_simparams->vorticity) {
-		m_hVort = new float3[m_numAllocatedParticles];
-		allocated += float3Size;
-		// NOTE: *not* memsetting, as in master branch
-	}*/
 
 	m_hostMemory += allocated;
 	return allocated;
@@ -766,109 +963,65 @@ size_t GPUWorker::allocateHostBuffers() {
 size_t GPUWorker::allocateDeviceBuffers() {
 	// common sizes
 	// compute common sizes (in bytes)
-	//const uint floatSize = sizeof(float) * m_numAlocatedParticles;
-	const uint float2Size = sizeof(float2) * m_numAllocatedParticles;
-	const uint float3Size = sizeof(float3) * m_numAllocatedParticles;
-	const uint float4Size = sizeof(float4) * m_numAllocatedParticles;
-	const uint infoSize = sizeof(particleinfo) * m_numAllocatedParticles;
-	const uint intSize = sizeof(uint) * m_numAllocatedParticles;
-	const uint uintCellsSize = sizeof(uint) * m_nGridCells;
-	// ulong for the neibslistSize since it is at least 2 orders of magnitude bigger than the other sizes and could overflow
-	const ulong neibslistSize = sizeof(uint) * m_simparams->maxneibsnum*(m_numAllocatedParticles/NEIBINDEX_INTERLEAVE + 1)*NEIBINDEX_INTERLEAVE;
-	const uint hashSize = sizeof(hashKey) * m_numAllocatedParticles;
-	const uint segmentsSize = sizeof(uint) * 4; // 4 = types of cells
-	//const uint neibslistSize = sizeof(uint) * 128 * m_numAlocatedParticles;
-	//const uint sliceArraySize = sizeof(uint) * m_gridSize.PSA;
+
+	const size_t uintCellsSize = sizeof(uint) * m_nGridCells;
+	const size_t segmentsSize = sizeof(uint) * 4; // 4 = types of cells
 
 	size_t allocated = 0;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dForces, float4Size));
-	CUDA_SAFE_CALL(cudaMemset(m_dForces, 0, float4Size));
-	allocated += float4Size;
+	// used to set up the number of elements in CFL arrays,
+	// will only actually be used if adaptive timestepping is enabled
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dXsph, float4Size));
-	allocated += float4Size;
+	uint fmaxElements = getFmaxElements(m_numAllocatedParticles);
+	uint tempCflEls = getFmaxTempElements(fmaxElements);
+	BufferList::iterator iter = m_dBuffers.begin();
+	while (iter != m_dBuffers.end()) {
+		// number of elements to allocate
+		// most have m_numAllocatedParticles. Exceptions follow
+		size_t nels = m_numAllocatedParticles;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[0], float4Size));
-	allocated += float4Size;
+		// iter->first: the key
+		// iter->second: the Buffer
+		if (iter->first & BUFFER_NEIBSLIST)
+			nels *= m_simparams->maxneibsnum; // number of particles times max neibs num
+		else if (iter->first & BUFFER_CFL_TEMP)
+			nels = tempCflEls;
+		else if (iter->first & BUFFERS_CFL) // other CFL buffers
+			nels = fmaxElements;
 
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dPos[1], float4Size));
-	allocated += float4Size;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVel[0], float4Size));
-	allocated += float4Size;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVel[1], float4Size));
-	allocated += float4Size;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[0], infoSize));
-	allocated += infoSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dInfo[1], infoSize));
-	allocated += infoSize;
-
-	// Free surface detection
-	if (m_simparams->savenormals) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNormals, float4Size));
-		allocated += float4Size;
+		allocated += iter->second->alloc(nels);
+		++iter;
 	}
 
-	if (m_simparams->vorticity) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dVort, float3Size));
-		allocated += float3Size;
+	CUDA_SAFE_CALL(cudaMalloc(&m_dCellStart, uintCellsSize));
+	allocated += uintCellsSize;
+
+	CUDA_SAFE_CALL(cudaMalloc(&m_dCellEnd, uintCellsSize));
+	allocated += uintCellsSize;
+
+	if (MULTI_DEVICE) {
+		// TODO: an array of uchar would suffice
+		CUDA_SAFE_CALL(cudaMalloc(&m_dCompactDeviceMap, uintCellsSize));
+		// initialize anyway for single-GPU simulations
+		CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
+		allocated += uintCellsSize;
 	}
 
-	if (m_simparams->visctype == SPSVISC) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[0], float2Size));
-		allocated += float2Size;
-
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[1], float2Size));
-		allocated += float2Size;
-
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTau[2], float2Size));
-		allocated += float2Size;
-	}
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleHash, hashSize));
-	allocated += hashSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dParticleIndex, intSize));
-	allocated += intSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellStart, uintCellsSize));
-	allocated += uintCellsSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCellEnd, uintCellsSize));
-	allocated += uintCellsSize;
-
-	//CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSliceStart, sliceArraySize));
-	//allocated += sliceArraySize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNeibsList, neibslistSize));
-	CUDA_SAFE_CALL(cudaMemset(m_dNeibsList, 0xffffffff, neibslistSize));
-	allocated += neibslistSize;
-
-	// TODO: an array of uchar would suffice
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCompactDeviceMap, uintCellsSize));
-	// initialize anyway for single-GPU simulations
-	CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
-	allocated += uintCellsSize;
-
-	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dSegmentStart, segmentsSize));
+	CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
 	// ditto
 	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
 	allocated += segmentsSize;
 
-	if (m_simparams->numbodies) {
+	if (m_simparams->numODEbodies) {
 		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
 
 		int objParticlesFloat4Size = m_numBodiesParticles*sizeof(float4);
 		int objParticlesUintSize = m_numBodiesParticles*sizeof(uint);
 
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbTorques, objParticlesFloat4Size));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbForces, objParticlesFloat4Size));
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dRbNum, objParticlesUintSize));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dRbTorques, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dRbForces, objParticlesFloat4Size));
+		CUDA_SAFE_CALL(cudaMalloc(&m_dRbNum, objParticlesUintSize));
 
 		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
 
@@ -880,13 +1033,13 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		uint* rbnum = new uint[m_numBodiesParticles];
 
 		rbfirstindex[0] = 0;
-		for (int i = 1; i < m_simparams->numbodies; i++) {
+		for (uint i = 1; i < m_simparams->numODEbodies; i++) {
 			rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(i - 1);
 		}
-		setforcesrbstart(rbfirstindex, m_simparams->numbodies);
+		setforcesrbstart(rbfirstindex, m_simparams->numODEbodies);
 
 		int offset = 0;
-		for (int i = 0; i < m_simparams->numbodies; i++) {
+		for (uint i = 0; i < m_simparams->numODEbodies; i++) {
 			gdata->s_hRbLastIndex[i] = gdata->problem->get_ODE_body_numparts(i) - 1 + offset;
 
 			for (int j = 0; j < gdata->problem->get_ODE_body_numparts(i); j++) {
@@ -898,22 +1051,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
 
 		delete[] rbnum;
-	}
-
-	if (m_simparams->dtadapt) {
-		// for the allocation we use m_numPartsFmax computed from m_numAlocatedParticles;
-		// after forces we use an updated value instead (the numblocks of forces)
-		uint m_numPartsFmax = getNumPartsFmax(m_numAllocatedParticles);
-		const uint fmaxTableSize = m_numPartsFmax*sizeof(float);
-
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dCfl, fmaxTableSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dCfl, 0, fmaxTableSize));
-
-		const uint tempCflSize = getFmaxTempStorageSize(m_numPartsFmax);
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dTempCfl, tempCflSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dTempCfl, 0, tempCflSize));
-
-		allocated += fmaxTableSize + tempCflSize;
 	}
 
 	// TODO: call setDemTexture(), which allocates and reads the DEM
@@ -928,53 +1065,23 @@ size_t GPUWorker::allocateDeviceBuffers() {
 }
 
 void GPUWorker::deallocateHostBuffers() {
-	//delete [] m_hPos;
-	//delete [] m_hVel;
-	//delete [] m_hInfo;
 	if (MULTI_DEVICE)
 		delete [] m_hCompactDeviceMap;
-	/*if (m_simparams->vorticity)
-		delete [] m_hVort;*/
 	// here: dem host buffers?
 }
 
 void GPUWorker::deallocateDeviceBuffers() {
-	CUDA_SAFE_CALL(cudaFree(m_dForces));
-	CUDA_SAFE_CALL(cudaFree(m_dXsph));
-	CUDA_SAFE_CALL(cudaFree(m_dPos[0]));
-	CUDA_SAFE_CALL(cudaFree(m_dPos[1]));
-	CUDA_SAFE_CALL(cudaFree(m_dVel[0]));
-	CUDA_SAFE_CALL(cudaFree(m_dVel[1]));
-	CUDA_SAFE_CALL(cudaFree(m_dInfo[0]));
-	CUDA_SAFE_CALL(cudaFree(m_dInfo[1]));
 
-	if (m_simparams->savenormals)
-		CUDA_SAFE_CALL(cudaFree(m_dNormals));
+	m_dBuffers.clear();
 
-	if (m_simparams->vorticity)
-		CUDA_SAFE_CALL(cudaFree(m_dVort));
-
-	if (m_simparams->visctype == SPSVISC) {
-		CUDA_SAFE_CALL(cudaFree(m_dTau[0]));
-		CUDA_SAFE_CALL(cudaFree(m_dTau[1]));
-		CUDA_SAFE_CALL(cudaFree(m_dTau[2]));
-	}
-
-	CUDA_SAFE_CALL(cudaFree(m_dParticleHash));
-	CUDA_SAFE_CALL(cudaFree(m_dParticleIndex));
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
-	CUDA_SAFE_CALL(cudaFree(m_dNeibsList));
 
-	CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
+	if (MULTI_DEVICE)
+		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 
-	if (m_simparams->dtadapt) {
-		CUDA_SAFE_CALL(cudaFree(m_dCfl));
-		CUDA_SAFE_CALL(cudaFree(m_dTempCfl));
-	}
-
-	if (m_simparams->numbodies) {
+	if (m_simparams->numODEbodies) {
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
 		CUDA_SAFE_CALL(cudaFree(m_dRbForces));
 		CUDA_SAFE_CALL(cudaFree(m_dRbNum));
@@ -1005,52 +1112,55 @@ void GPUWorker::destroyStreams()
 
 void GPUWorker::printAllocatedMemory()
 {
-	printf("Device idx %u (CUDA: %u) allocated %.2f Gb on host, %.2f Gb on device\n"
+	printf("Device idx %u (CUDA: %u) allocated %s on host, %s on device\n"
 			"  assigned particles: %s; allocated: %s\n", m_deviceIndex, m_cudaDeviceNumber,
-			getHostMemory()/1000000000.0, getDeviceMemory()/1000000000.0,
+			gdata->memString(getHostMemory()).c_str(),
+			gdata->memString(getDeviceMemory()).c_str(),
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
 // upload subdomain, just allocated and sorted by main thread
 void GPUWorker::uploadSubdomain() {
 	// indices
-	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
-	uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
+	const uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
+	const uint howManyParticles	= gdata->s_hPartsPerDevice[m_deviceIndex];
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	size_t _size = 0;
+	// buffers to skip in the upload. Rationale:
+	// POS_GLOBAL is computed on host from POS and HASH
+	// NORMALS and VORTICITY are post-processing, so always produced on device
+	// and _downloaded_ to host, never uploaded
+	static const flag_t skip_bufs = BUFFER_POS_GLOBAL |
+		BUFFER_NORMALS | BUFFER_VORTICITY;
 
-	// memcpys - recalling GPU arrays are double buffered
-	_size = howManyParticles * sizeof(float4);
-	//printf("Thread %d uploading %d POS items (%u Kb) on device %d from position %d\n",
-	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dPos[ gdata->currentPosRead ],
-								gdata->s_hPos + firstInnerParticle,
-								_size, cudaMemcpyHostToDevice));
+	// iterate over each array in the _host_ buffer list, and upload data
+	// if it is not in the skip list
+	BufferList::iterator onhost = gdata->s_hBuffers.begin();
+	const BufferList::iterator stop = gdata->s_hBuffers.end();
+	for ( ; onhost != stop ; ++onhost) {
+		flag_t buf_to_up = onhost->first;
+		if (buf_to_up & skip_bufs)
+			continue;
 
-	_size = howManyParticles * sizeof(float4);
-	//printf("Thread %d uploading %d VEL items (%u Kb) on device %d from position %d\n",
-	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dVel[ gdata->currentVelRead ],
-								gdata->s_hVel + firstInnerParticle,
-								_size, cudaMemcpyHostToDevice));
+		AbstractBuffer *buf = m_dBuffers[buf_to_up];
+		size_t _size = howManyParticles * buf->get_element_size();
 
-	_size = howManyParticles * sizeof(particleinfo);
-	//printf("Thread %d uploading %d INFO items (%u Kb) on device %d from position %d\n",
-	//		m_deviceIndex, howManyParticles, (uint)_size/1000, m_cudaDeviceNumber, firstInnerParticle);
-	CUDA_SAFE_CALL(cudaMemcpy(	m_dInfo[ gdata->currentInfoRead ],
-								gdata->s_hInfo + firstInnerParticle,
-								_size, cudaMemcpyHostToDevice));
+		printf("Thread %d uploading %d %s items (%s) on device %d from position %d\n",
+				m_deviceIndex, howManyParticles, buf->get_buffer_name(),
+				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
+
+		void *dstptr = buf->get_buffer(gdata->currentRead[buf_to_up]);
+		const void *srcptr = onhost->second->get_offset_buffer(0, firstInnerParticle);
+		CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyHostToDevice));
+	}
 }
 
 // Download the subset of the specified buffer to the correspondent shared CPU array.
 // Makes multiple transfers. Only downloads the subset relative to the internal particles.
-// For doulbe buffered arrays, uses the READ buffers unless otherwise specified. Can be
-// used for either for th read or the write buffers, not both.
-// TODO: write a macro to encapsulate all memcpys
-// TODO: use sizeof(array[0]) to make it general purpose?
+// For double buffered arrays, uses the READ buffers unless otherwise specified. Can be
+// used for either the read or the write buffers, not both.
 void GPUWorker::dumpBuffers() {
 	// indices
 	uint firstInnerParticle	= gdata->s_hStartPerDevice[m_deviceIndex];
@@ -1059,58 +1169,34 @@ void GPUWorker::dumpBuffers() {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	size_t _size = 0;
-	uint flags = gdata->commandFlags;
+	const flag_t flags = gdata->commandFlags;
 
-	if (flags & BUFFER_POS) {
-		_size = howManyParticles * sizeof(float4);
-		uchar dbl_buffer_pointer = gdata->currentPosRead;
-		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentPosRead; else
-		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentPosWrite;
-		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hPos + firstInnerParticle,
-									m_dPos[dbl_buffer_pointer],
-									_size, cudaMemcpyDeviceToHost));
-	}
+	// iterate over each array in the _host_ buffer list, and download data
+	// if it was requested
+	BufferList::iterator onhost = gdata->s_hBuffers.begin();
+	const BufferList::iterator stop = gdata->s_hBuffers.end();
+	for ( ; onhost != stop ; ++onhost) {
+		flag_t buf_to_get = onhost->first;
+		if (!(buf_to_get & flags))
+			continue;
 
-	if (flags & BUFFER_VEL) {
-		_size = howManyParticles * sizeof(float4);
-		uchar dbl_buffer_pointer = gdata->currentVelRead;
-		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentVelRead; else
-		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentVelWrite;
-		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVel + firstInnerParticle,
-									m_dVel[dbl_buffer_pointer],
-									_size, cudaMemcpyDeviceToHost));
-	}
+		const AbstractBuffer *buf = m_dBuffers[buf_to_get];
+		size_t _size = howManyParticles * buf->get_element_size();
 
-	if (flags & BUFFER_INFO) {
-		_size = howManyParticles * sizeof(particleinfo);
-		uchar dbl_buffer_pointer = gdata->currentInfoRead;
-		if (flags & DBLBUFFER_READ) dbl_buffer_pointer = gdata->currentInfoRead; else
-		if (flags & DBLBUFFER_WRITE) dbl_buffer_pointer = gdata->currentInfoWrite;
-		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hInfo + firstInnerParticle,
-									m_dInfo[dbl_buffer_pointer],
-									_size, cudaMemcpyDeviceToHost));
-	}
+		uint which_buffer = 0;
+		if (flags & DBLBUFFER_READ) which_buffer = gdata->currentRead[buf_to_get];
+		if (flags & DBLBUFFER_WRITE) which_buffer = gdata->currentWrite[buf_to_get];
 
-	if (flags & BUFFER_VORTICITY) {
-		_size = howManyParticles * sizeof(float3);
-		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hVorticity + firstInnerParticle,
-									m_dVort,
-									_size, cudaMemcpyDeviceToHost));
-	}
-
-	if (flags & BUFFER_NORMALS) {
-		_size = howManyParticles * sizeof(float3);
-		CUDA_SAFE_CALL(cudaMemcpy(	gdata->s_hNormals + firstInnerParticle,
-									m_dNormals,
-									_size, cudaMemcpyDeviceToHost));
+		const void *srcptr = buf->get_buffer(which_buffer);
+		void *dstptr = onhost->second->get_offset_buffer(0, firstInnerParticle);
+		CUDA_SAFE_CALL(cudaMemcpy(dstptr, srcptr, _size, cudaMemcpyDeviceToHost));
 	}
 }
 
 // Sets all cells as empty in device memory. Used before reorder
 void GPUWorker::setDeviceCellsAsEmpty()
 {
-	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, 0xffffffff, gdata->nGridCells  * sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, UINT_MAX, gdata->nGridCells  * sizeof(uint)));
 }
 
 // download cellStart and cellEnd to the shared arrays
@@ -1228,27 +1314,6 @@ void GPUWorker::createCompactDeviceMap() {
 	// at least one neib which does not ==> inner_edge). Another optimization would be to avoid linearizing all cells but exploit burst of consecutive indices. This
 	// reduces the computations but not the read/write operations.
 
-	// compute the extra_offset vector (z-lift) in terms of cells
-	int3 extra_offset = make_int3(0);
-	// Direction of the extra_offset (depents on where periodicity occurs), to add extra cells if the extra displacement
-	// does not multiply the size of the cells
-	int3 extra_offset_unit_vector = make_int3(0);
-	if (m_simparams->periodicbound) {
-		extra_offset.x = (int) (m_physparams->dispOffset.x / gdata->cellSize.x);
-		extra_offset.y = (int) (m_physparams->dispOffset.y / gdata->cellSize.y);
-		extra_offset.z = (int) (m_physparams->dispOffset.z / gdata->cellSize.z);
-	}
-
-	// when there is an extra_offset to consider, we have to repeat the same checks twice. Let's group them
-#define CHECK_CURRENT_CELL \
-	/* data of neib cell */ \
-	uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz); \
-	uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx]; \
-	any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx); \
-	any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx); \
-	/* did we read enough to decide for current cell? */ \
-	enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
-
 	// iterate on all cells of the world
 	for (int ix=0; ix < gdata->gridSize.x; ix++)
 		for (int iy=0; iy < gdata->gridSize.y; iy++)
@@ -1271,7 +1336,6 @@ void GPUWorker::createCompactDeviceMap() {
 							int cx = ix + dx;
 							int cy = iy + dy;
 							int cz = iz + dz;
-							bool apply_extra_offset = false;
 							// warp periodic boundaries
 							if (m_simparams->periodicbound) {
 								// periodicity along X
@@ -1280,76 +1344,46 @@ void GPUWorker::createCompactDeviceMap() {
 									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
 									if (cx < 0) {
 										cx = gdata->gridSize.x - 1;
-										if (extra_offset.y != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.y = extra_offset_unit_vector.z = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cx >= gdata->gridSize.x) {
 										cx = 0;
-										if (extra_offset.y != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.y = extra_offset_unit_vector.z = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.x
 								// periodicity along Y
 								if (m_physparams->dispvect.y) {
 									if (cy < 0) {
 										cy = gdata->gridSize.y - 1;
-										if (extra_offset.x != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.z = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cy >= gdata->gridSize.y) {
 										cy = 0;
-										if (extra_offset.x != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.z = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.y
 								// periodicity along Z
 								if (m_physparams->dispvect.z) {
 									if (cz < 0) {
 										cz = gdata->gridSize.z - 1;
-										if (extra_offset.x != 0 || extra_offset.y != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.y = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cz >= gdata->gridSize.z) {
 										cz = 0;
-										if (extra_offset.x != 0 || extra_offset.y != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.y = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.z
-								// apply extra displacement (e.g. zlift), if any
-								// (actually, should be safe to add without the conditional)
-								if (apply_extra_offset) {
-									cx += extra_offset.x * extra_offset_unit_vector.x;
-									cy += extra_offset.y * extra_offset_unit_vector.y;
-									cz += extra_offset.z * extra_offset_unit_vector.z;
-								}
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||
 								cy < 0 || cy >= gdata->gridSize.y ||
 								cz < 0 || cz >= gdata->gridSize.z) continue;
-							// check current cell and if we have already enough information
-							CHECK_CURRENT_CELL
-							// if there is any extra offset, check one more cell
-							// WARNING: might miss cells if the extra displacement is not parallel to one cartesian axis
-							if (m_simparams->periodicbound && apply_extra_offset) {
-								cx += extra_offset_unit_vector.x;
-								cy += extra_offset_unit_vector.y;
-								cz += extra_offset_unit_vector.z;
-								// check extra cells if extra displacement is not a multiple of the cell size
-								CHECK_CURRENT_CELL
-							}
+
+							// Read data of neib cell
+							uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz);
+							uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx];
+
+							// does self device own any of the neib cells?
+							any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx);
+							// does a non-self device own any of the neib cells?
+							any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx);
+
+							// do we know enough to decide for current cell?
+							enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 						} // iterating on offsets of neighbor cells
 				uint cellType;
 				// assign shifted values so that they are ready to be OR'd in calchash/reorder
@@ -1401,37 +1435,17 @@ cudaDeviceProp GPUWorker::getDeviceProperties() {
 	return m_deviceProperties;
 }
 
-unsigned long GPUWorker::getHostMemory() {
+size_t GPUWorker::getHostMemory() {
 	return m_hostMemory;
 }
 
-unsigned long GPUWorker::getDeviceMemory() {
+size_t GPUWorker::getDeviceMemory() {
 	return m_deviceMemory;
 }
 
-const float4** GPUWorker::getDPosBuffers()
+const AbstractBuffer* GPUWorker::getBuffer(flag_t key) const
 {
-	return (const float4**)m_dPos;
-}
-
-const float4** GPUWorker::getDVelBuffers()
-{
-	return (const float4**)m_dVel;
-}
-
-const particleinfo** GPUWorker::getDInfoBuffers()
-{
-	return (const particleinfo**)m_dInfo;
-}
-
-const float4* GPUWorker::getDForceBuffer()
-{
-	return (const float4*)m_dForces;
-}
-
-const float2** GPUWorker::getDTauBuffers()
-{
-	return (const float2**)m_dTau;
+	return m_dBuffers[key];
 }
 
 void GPUWorker::setDeviceProperties(cudaDeviceProp _m_deviceProperties) {
@@ -1476,17 +1490,20 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// allow peers to access the device memory (for cudaMemcpyPeer[Async])
 	instance->enablePeerAccess();
 
+	// compute #parts to allocate according to the free memory on the device
+	// must be done before uploading constants since some constants
+	// (e.g. those for neibslist traversal) depend on the number of particles
+	// allocated
+	instance->computeAndSetAllocableParticles();
+
 	// upload constants (PhysParames, some SimParams)
 	instance->uploadConstants();
 
 	// upload planes, if any
 	instance->uploadPlanes();
 
-		// upload centers of gravity of the bodies
+	// upload centers of gravity of the bodies
 	instance->uploadBodiesCentersOfGravity();
-
-	// compute #parts to allocate according to the free memory on the device
-	instance->computeAndSetAllocableParticles();
 
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
@@ -1516,6 +1533,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
+	const bool dbg_step_printf = false;
+
 	// TODO
 	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
 	while (gdata->keep_going) {
@@ -1524,105 +1543,125 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case IDLE:
 				break;
 			case CALCHASH:
-				//printf(" T %d issuing HASH\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing HASH\n", deviceIndex);
 				instance->kernel_calcHash();
 				break;
 			case SORT:
-				//printf(" T %d issuing SORT\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
+			case INVINDEX:
+				if (dbg_step_printf) printf(" T %d issuing INVINDEX\n", deviceIndex);
+				instance->kernel_inverseParticleIndex();
+				break;
 			case CROP:
-				//printf(" T %d issuing CROP\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
 				break;
 			case REORDER:
-				//printf(" T %d issuing REORDER\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing REORDER\n", deviceIndex);
 				instance->kernel_reorderDataAndFindCellStart();
 				break;
 			case BUILDNEIBS:
-				//printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
 				instance->kernel_buildNeibsList();
 				break;
 			case FORCES:
-				//printf(" T %d issuing FORCES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing FORCES\n", deviceIndex);
 				instance->kernel_forces();
 				break;
 			case EULER:
-				//printf(" T %d issuing EULER\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
 				instance->kernel_euler();
 				break;
 			case DUMP:
-				//printf(" T %d issuing DUMP\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing DUMP\n", deviceIndex);
 				instance->dumpBuffers();
 				break;
 			case DUMP_CELLS:
-				//printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing DUMP_CELLS\n", deviceIndex);
 				instance->downloadCellsIndices();
 				break;
 			case UPDATE_SEGMENTS:
-				//printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
 				break;
 			case APPEND_EXTERNAL:
-				//printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
 				if (MULTI_GPU)
 					instance->importPeerEdgeCells();
 				if (MULTI_NODE)
 					instance->importNetworkPeerEdgeCells();
 				break;
 			case UPDATE_EXTERNAL:
-				//printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
 				if (MULTI_GPU)
 					instance->importPeerEdgeCells();
 				if (MULTI_NODE)
 					instance->importNetworkPeerEdgeCells();
 				break;
 			case MLS:
-				//printf(" T %d issuing MLS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing MLS\n", deviceIndex);
 				instance->kernel_mls();
 				break;
 			case SHEPARD:
-				//printf(" T %d issuing SHEPARD\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SHEPARD\n", deviceIndex);
 				instance->kernel_shepard();
 				break;
 			case VORTICITY:
-				//printf(" T %d issuing VORTICITY\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing VORTICITY\n", deviceIndex);
 				instance->kernel_vorticity();
 				break;
 			case SURFACE_PARTICLES:
-				//printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
+			case SA_CALC_BOUND_CONDITIONS:
+				if (dbg_step_printf) printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
+				instance->kernel_dynamicBoundaryConditions();
+				break;
+			case SA_UPDATE_BOUND_VALUES:
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
+				instance->kernel_updateValuesAtBoundaryElements();
+				break;
 			case SPS:
-				//printf(" T %d issuing SPS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
 				break;
 			case REDUCE_BODIES_FORCES:
-				//printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
 				break;
 			case UPLOAD_MBDATA:
-				//printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
 				instance->uploadMBData();
 				break;
 			case UPLOAD_GRAVITY:
-				//printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
 				instance->uploadGravity();
 				break;
 			case UPLOAD_PLANES:
-				//printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_PLANES\n", deviceIndex);
 				instance->uploadPlanes();
 				break;
 			case UPLOAD_OBJECTS_CG:
-				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesCentersOfGravity();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
-				//printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
 				break;
+			case CALC_PRIVATE:
+				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
+				instance->kernel_calcPrivate();
+				break;
+			case COMPUTE_TESTPOINTS:
+				if (dbg_step_printf) printf(" T %d issuing COMPUTE_TESTPOINTS\n", deviceIndex);
+				instance->kernel_testpoints();
+				break;
 			case QUIT:
-				//printf(" T %d issuing QUIT\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
 		}
@@ -1653,17 +1692,15 @@ void GPUWorker::kernel_calcHash()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	calcHash(m_dPos[gdata->currentPosRead],
+	calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dBuffers.getData<BUFFER_PARTINDEX>(),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 #if HASH_KEY_SIZE >= 64
-					m_dInfo[gdata->currentInfoRead],
-					m_dCompactDeviceMap,
+				m_dCompactDeviceMap,
 #endif
-					m_dParticleHash,
-					m_dParticleIndex,
-					gdata->gridSize,
-					gdata->cellSize,
-					gdata->worldOrigin,
-					m_numParticles);
+				m_numParticles,
+				m_simparams->periodicbound);
 }
 
 void GPUWorker::kernel_sort()
@@ -1673,7 +1710,21 @@ void GPUWorker::kernel_sort()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sort(m_dParticleHash, m_dParticleIndex, numPartsToElaborate);
+	sort(	m_dBuffers.getData<BUFFER_HASH>(),
+			m_dBuffers.getData<BUFFER_PARTINDEX>(),
+			numPartsToElaborate);
+}
+
+void GPUWorker::kernel_inverseParticleIndex()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	inverseParticleIndex (	m_dBuffers.getData<BUFFER_PARTINDEX>(),
+							m_dBuffers.getData<BUFFER_INVINDEX>(),
+							numPartsToElaborate);
 }
 
 void GPUWorker::kernel_reorderDataAndFindCellStart()
@@ -1684,44 +1735,75 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
+	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
-							m_dPos[gdata->currentPosWrite],		 // output: sorted positions
-							m_dVel[gdata->currentVelWrite],		 // output: sorted velocities
-							m_dInfo[gdata->currentInfoWrite],		 // output: sorted info
-							m_dParticleHash,
-							m_dParticleIndex,  // input: sorted particle indices
-							m_dPos[gdata->currentPosRead],		 // input: sorted position array
-							m_dVel[gdata->currentVelRead],		 // input: sorted velocity array
-							m_dInfo[gdata->currentInfoRead],		 // input: sorted info array
 #if HASH_KEY_SIZE >= 64
 							m_dSegmentStart,
 #endif
+							// output: sorted arrays
+							m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+							m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+							m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+							m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
+							m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+							m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
+							m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentWrite[BUFFER_TURBVISC]),
+
+							// hash
+							m_dBuffers.getData<BUFFER_HASH>(),
+							// sorted particle indices
+							m_dBuffers.getData<BUFFER_PARTINDEX>(),
+
+							// input: arrays to sort
+							m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+							m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+							m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+							m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+							m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+							m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+							m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
+							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
+
 							m_numParticles,
-							m_nGridCells);
+							m_nGridCells,
+							m_dBuffers.getData<BUFFER_INVINDEX>());
 }
 
 void GPUWorker::kernel_buildNeibsList()
 {
+	resetneibsinfo();
+
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	buildNeibsList(	m_dNeibsList,
-						m_dPos[gdata->currentPosRead],
-						m_dInfo[gdata->currentInfoRead],
-						m_dParticleHash,
-						m_dCellStart,
-						m_dCellEnd,
-						gdata->gridSize,
-						gdata->cellSize,
-						gdata->worldOrigin,
-						m_numParticles,
-						numPartsToElaborate,
-						m_nGridCells,
-						m_simparams->nlSqInfluenceRadius,
-						m_simparams->periodicbound);
+	// this is the square of delta p / 2
+	// it is used to add segments into the neighbour list even if they are outside the kernel support
+	const float sqdpo2 = powf(m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
+
+	buildNeibsList(	m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+					m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+					m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+					m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+					m_dBuffers.getData<BUFFER_HASH>(),
+					m_dCellStart,
+					m_dCellEnd,
+					m_numParticles,
+					numPartsToElaborate,
+					m_nGridCells,
+					m_simparams->nlSqInfluenceRadius,
+					sqdpo2,
+					m_simparams->periodicbound);
+
+	// download the peak number of neighbors and the estimated number of interactions
+	getneibsinfo( gdata->timingInfo[m_deviceIndex] );
 }
 
 void GPUWorker::kernel_forces()
@@ -1735,24 +1817,32 @@ void GPUWorker::kernel_forces()
 
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
-	if (m_simparams->numbodies > 0 && MULTI_DEVICE) {
+	if (m_simparams->numODEbodies > 0 && MULTI_DEVICE) {
 		uint bodiesPartsSize = m_numBodiesParticles * sizeof(float4);
 		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
 		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
 	}
 
 	// first step
-	if (numPartsToElaborate > 0 && firstStep)
-		returned_dt = forces(  m_dPos[gdata->currentPosRead],   // pos(n)
-						m_dVel[gdata->currentVelRead],   // vel(n)
-						m_dForces,					// f(n
+	if (numPartsToElaborate > 0 )
+		returned_dt = forces(
+						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+						m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
+						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 						m_dRbForces,
 						m_dRbTorques,
-						m_dXsph,
-						m_dInfo[gdata->currentInfoRead],
-						m_dNeibsList,
+						m_dBuffers.getData<BUFFER_XSPH>(),
+						m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+						m_dBuffers.getData<BUFFER_HASH>(),
+						m_dCellStart,
+						m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 						m_numParticles,
 						numPartsToElaborate,
+						gdata->problem->m_deltap,
 						m_simparams->slength,
 						gdata->dt, // m_dt,
 						m_simparams->dtadapt,
@@ -1760,44 +1850,20 @@ void GPUWorker::kernel_forces()
 						m_simparams->xsph,
 						m_simparams->kerneltype,
 						m_simparams->influenceRadius,
+						m_simparams->epsilon,
+						m_simparams->movingBoundaries,
 						m_simparams->visctype,
 						m_physparams->visccoeff,
-						m_dCfl,
-						m_dTempCfl,
-						m_dTau,
-						m_simparams->periodicbound,
+						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
+						m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
+						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
+						m_dBuffers.getData<BUFFER_DKDE>(),
+						m_dBuffers.getData<BUFFER_CFL>(),
+						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem);
-	else
-	// second step
-	if (numPartsToElaborate > 0 && !firstStep)
-		returned_dt = forces(  m_dPos[gdata->currentPosWrite],  // pos(n+1/2)
-						m_dVel[gdata->currentVelWrite],  // vel(n+1/2)
-						m_dForces,					// f(n+1/2)
-						m_dRbForces,
-						m_dRbTorques,
-						m_dXsph,
-						m_dInfo[gdata->currentInfoRead],
-						m_dNeibsList,
-						m_numParticles,
-						numPartsToElaborate,
-						m_simparams->slength,
-						gdata->dt, // m_dt,
-						m_simparams->dtadapt,
-						m_simparams->dtadaptfactor,
-						m_simparams->xsph,
-						m_simparams->kerneltype,
-						m_simparams->influenceRadius,
-						m_simparams->visctype,
-						m_physparams->visccoeff,
-						m_dCfl,
-						m_dTempCfl,
-						m_dTau,
-						m_simparams->periodicbound,
-						m_simparams->sph_formulation,
-						m_simparams->boundarytype,
-						m_simparams->usedem );
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
 	//printf(" Step %d, bool %d, returned %g, current %g, ",
@@ -1818,38 +1884,31 @@ void GPUWorker::kernel_euler()
 
 	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
 
-	if (firstStep)
-		euler(  m_dPos[gdata->currentPosRead],	// pos(n)
-				m_dVel[gdata->currentVelRead],	// vel(n)
-				m_dInfo[gdata->currentInfoRead], //particleInfo
-				m_dForces,						// f(n+1/2)
-				m_dXsph,
-				m_dPos[gdata->currentPosWrite],	// pos(n+1) = pos(n) + velc(n+1/2)*dt
-				m_dVel[gdata->currentVelWrite],	// vel(n+1) = vel(n) + f(n+1/2)*dt
-				m_numParticles,
-				numPartsToElaborate,
-				gdata->dt, // m_dt,
-				gdata->dt/2.0f, // m_dt/2.0,
-				1,
-				gdata->t + gdata->dt / 2.0f, // + m_dt,
-				m_simparams->xsph,
-				m_simparams->periodicbound);
-	else
-		euler(  m_dPos[gdata->currentPosRead],   // pos(n)
-				m_dVel[gdata->currentVelRead],   // vel(n)
-				m_dInfo[gdata->currentInfoRead], //particleInfo
-				m_dForces,					// f(n+1/2)
-				m_dXsph,
-				m_dPos[gdata->currentPosWrite],  // pos(n+1) = pos(n) + velc(n+1/2)*dt
-				m_dVel[gdata->currentVelWrite],  // vel(n+1) = vel(n) + f(n+1/2)*dt
-				m_numParticles,
-				numPartsToElaborate,
-				gdata->dt, // m_dt,
-				gdata->dt/2.0f, // m_dt/2.0,
-				2,
-				gdata->t + gdata->dt,// + m_dt,
-				m_simparams->xsph,
-				m_simparams->periodicbound);
+		euler(
+			// previous pos, vel, k, e, info
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_dBuffers.getData<BUFFER_HASH>(),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			// f(n+1/2)
+			m_dBuffers.getData<BUFFER_FORCES>(),
+			// dkde(n)
+			m_dBuffers.getData<BUFFER_DKDE>(),
+			m_dBuffers.getData<BUFFER_XSPH>(),
+			// integrated pos vel, k, e
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+			m_numParticles,
+			numPartsToElaborate,
+			gdata->dt, // m_dt,
+			gdata->dt/2.0f, // m_dt/2.0,
+			firstStep ? 1 : 2,
+			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+			m_simparams->xsph);
 }
 
 void GPUWorker::kernel_mls()
@@ -1859,17 +1918,18 @@ void GPUWorker::kernel_mls()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	mls(	m_dPos[gdata->currentPosRead],
-			m_dVel[gdata->currentVelRead],
-			m_dVel[gdata->currentVelWrite],
-			m_dInfo[gdata->currentInfoRead],
-			m_dNeibsList,
-			m_numParticles,
-			numPartsToElaborate,
-			m_simparams->slength,
-			m_simparams->kerneltype,
-			m_simparams->influenceRadius,
-			m_simparams->periodicbound);
+	mls(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
+		m_dCellStart,
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->kerneltype,
+		m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_shepard()
@@ -1879,17 +1939,18 @@ void GPUWorker::kernel_shepard()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	shepard(m_dPos[gdata->currentPosRead],
-			m_dVel[gdata->currentVelRead],
-			m_dVel[gdata->currentVelWrite],
-			m_dInfo[gdata->currentInfoRead],
-			m_dNeibsList,
+	shepard(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_HASH>(),
+			m_dCellStart,
+			m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 			m_numParticles,
 			numPartsToElaborate,
 			m_simparams->slength,
 			m_simparams->kerneltype,
-			m_simparams->influenceRadius,
-			m_simparams->periodicbound);
+			m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_vorticity()
@@ -1900,16 +1961,18 @@ void GPUWorker::kernel_vorticity()
 	if (numPartsToElaborate == 0) return;
 
 	// Calling vorticity computation kernel
-	vorticity(	m_dPos[gdata->currentPosRead],
-				m_dVel[gdata->currentVelRead],
-				m_dVort,
-				m_dInfo[gdata->currentInfoRead],
-				m_dNeibsList,
+	vorticity(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_VORTICITY>(),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
 				numPartsToElaborate,
 				m_simparams->slength,
 				m_simparams->kerneltype,
-				m_simparams->influenceRadius,
-				m_simparams->periodicbound);
+				m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_surfaceParticles()
@@ -1919,18 +1982,20 @@ void GPUWorker::kernel_surfaceParticles()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	surfaceparticle( m_dPos[gdata->currentPosRead],
-					 m_dVel[gdata->currentVelRead],
-					 m_dNormals,
-					 m_dInfo[gdata->currentInfoRead],
-					 m_dInfo[gdata->currentInfoWrite],
-					 m_dNeibsList,
-					 numPartsToElaborate,
-					 m_simparams->slength,
-					 m_simparams->kerneltype,
-					 m_simparams->influenceRadius,
-					 m_simparams->periodicbound,
-					 m_simparams->savenormals);
+	surfaceparticle(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+					m_dBuffers.getData<BUFFER_NORMALS>(),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+					m_dBuffers.getData<BUFFER_HASH>(),
+					m_dCellStart,
+					m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+					m_numParticles,
+					numPartsToElaborate,
+					m_simparams->slength,
+					m_simparams->kerneltype,
+					m_simparams->influenceRadius,
+					m_simparams->savenormals);
 }
 
 void GPUWorker::kernel_sps()
@@ -1940,18 +2005,18 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sps( m_dPos[gdata->currentPosRead],
-		 m_dVel[gdata->currentVelRead],
-		 m_dInfo[gdata->currentInfoRead],
-		 m_dNeibsList,
-		 m_numParticles,
-		 numPartsToElaborate,
-		 m_simparams->slength,
-		 m_simparams->kerneltype,
-		 m_simparams->influenceRadius,
-		 m_simparams->visctype,
-		 m_dTau,
-		 m_simparams->periodicbound);
+	sps(m_dBuffers.getRawPtr<BUFFER_TAU>(),
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
+		m_dCellStart,
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->kerneltype,
+		m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_reduceRBForces()
@@ -1960,7 +2025,7 @@ void GPUWorker::kernel_reduceRBForces()
 	if (m_numParticles == 0) {
 
 		// make sure this device does not add any obsolete contribute to forces acting on objects
-		for (uint ob = 0; ob < m_simparams->numbodies; ob++) {
+		for (uint ob = 0; ob < m_simparams->numODEbodies; ob++) {
 			gdata->s_hRbTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
 			gdata->s_hRbTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
 		}
@@ -1969,7 +2034,100 @@ void GPUWorker::kernel_reduceRBForces()
 	}
 
 	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
-					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numbodies, m_numBodiesParticles);
+					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
+}
+
+void GPUWorker::kernel_updateValuesAtBoundaryElements()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	// vel, tke, eps are read from current*Read, except
+	// on the second step, whe they are read from current*Write
+	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+
+	updateBoundValues(
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_numParticles,
+				numPartsToElaborate,
+				initStep);
+}
+
+void GPUWorker::kernel_dynamicBoundaryConditions()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	// pos, vel, tke, eps are read from current*Read, except
+	// on the second step, whe they are read from current*Write
+	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+
+	dynamicBoundConditions(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				numPartsToElaborate,
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius,
+				initStep);
+}
+
+void GPUWorker::kernel_calcPrivate()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	calcPrivate(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_PRIVATE>(),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_simparams->slength,
+				m_simparams->influenceRadius,
+				m_numParticles,
+				numPartsToElaborate);
+}
+
+void GPUWorker::kernel_testpoints()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	testpoints(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				numPartsToElaborate,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius);
 }
 
 void GPUWorker::uploadConstants()
@@ -1977,20 +2135,22 @@ void GPUWorker::uploadConstants()
 	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
 
 	// Setting kernels and kernels derivative factors
-	setforcesconstants(m_simparams, m_physparams);
-	seteulerconstants(m_physparams);
-	setneibsconstants(m_simparams, m_physparams);
+	setforcesconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+		m_numAllocatedParticles);
+	seteulerconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+		m_numAllocatedParticles);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()
 {
-	setforcesrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
-	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	setforcesrbcg(gdata->s_hRbGravityCenters, m_simparams->numODEbodies);
+	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numODEbodies);
 }
 
 void GPUWorker::uploadBodiesTransRotMatrices()
 {
-	seteulerrbtrans(gdata->s_hRbTranslations, m_simparams->numbodies);
-	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numbodies);
+	seteulerrbtrans(gdata->s_hRbTranslations, m_simparams->numODEbodies);
+	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numODEbodies);
 }
 

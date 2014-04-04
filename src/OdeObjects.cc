@@ -1,13 +1,13 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-  ¬† This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -28,10 +28,10 @@
 
 #include "OdeObjects.h"
 #include "Point.h"
-#include "RigidBody.h"
+#include "particledefine.h"
+#include "GlobalData.h"
 
-
-OdeObjects::OdeObjects(const Options &options) : Problem(options)
+OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 1.6;
@@ -40,16 +40,13 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	H = 0.4;
 	wet = false;
 
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
 	set_deltap(0.015f);
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -59,7 +56,7 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	m_simparams.mlsfreq = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = DYNAMICVISC;
-    m_simparams.boundarytype= LJ_BOUNDARY;
+	m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5;
 
 	// Free surface detection
@@ -74,7 +71,7 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 	float g = length(m_physparams.gravity);
 	m_physparams.set_density(0, 1000.0, 7.0, 10);
 
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0*g*H;
 	m_physparams.r0 = m_deltap;
 
@@ -99,12 +96,11 @@ OdeObjects::OdeObjects(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01f;
-	m_writefreq = 4;
+	m_writefreq = 10;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
-	create_problem_dir();
 }
 
 
@@ -156,12 +152,12 @@ int OdeObjects::fill_parts()
 	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	/* obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
+	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
 	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
-	obstacle.FillBorder(obstacle.GetParts(), r0, true);
-	obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
-	obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(&obstacle); */
+	//obstacle.FillBorder(obstacle.GetParts(), r0, true);
+	//obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
+	//obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
+	//add_ODE_body(&obstacle);
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
@@ -170,7 +166,6 @@ int OdeObjects::fill_parts()
 		fluid1.Fill(parts, m_deltap, true);
 		obstacle.Unfill(parts, r0);
 	}
-
 
 	// Rigid body #1 : sphere
 	Point rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
@@ -193,10 +188,10 @@ int OdeObjects::fill_parts()
 	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_ODE_body(&cylinder);
 
-	/* joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
+	/*joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
 	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
 	dJointSetHingeAnchor(joint, 0.7, 0.24, 2*r0);	// Set a joint anchor
-	dJointSetHingeAxis(joint, 0, 1, 0); */
+	dJointSetHingeAxis(joint, 0, 1, 0);*/
 
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_ODE_bodies_numparts();
 }
@@ -222,24 +217,29 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 }
 
 
-void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void OdeObjects::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	for (int k = 0; k < m_simparams.numbodies; k++) {
+	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
-			pos[i] = make_float4(rbparts[i - j]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i]= make_particleinfo(OBJECTPART, k, i - j);
+			info[i] = make_particleinfo(OBJECTPART, k, i - j);
+			calc_localpos_and_hash(rbparts[i - j], info[i], pos[i], hash[i]);
 		}
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
@@ -247,25 +247,19 @@ void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		pos[i] = make_float4(obstacle_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART, 1, i);
+		info[i] = make_particleinfo(BOUNDPART, 1, i);
+		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(FLUIDPART, 0, i);
+		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
-}
-
-void OdeObjects::fillDeviceMap(GlobalData* gdata)
-{
-	// overrride default split, better balance along Y
-	fillDeviceMapByAxis(gdata, Y_AXIS);
 }

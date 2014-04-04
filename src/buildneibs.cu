@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -22,6 +22,9 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#include <stdexcept>
+
 #include <stdio.h>
 
 #include <thrust/sort.h>
@@ -29,27 +32,33 @@
 
 #include "textures.cuh"
 #include "buildneibs.cuh"
+
+#include "buildneibs_params.h"
 #include "buildneibs_kernel.cu"
+
+#include "utils.h"
 
 extern "C"
 {
 
 void
-setneibsconstants(const SimParams *simparams, const PhysParams *physparams)
+setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	idx_t const& allocatedParticles)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_dispvect, &physparams->dispvect, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_dispOffset, &physparams->dispOffset, sizeof(float3)));
-	uint maxneibs_time_neibinterleave = simparams->maxneibsnum*NEIBINDEX_INTERLEAVE;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum_time_neibindexinterleave, &maxneibs_time_neibinterleave, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
+
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_worldOrigin, &worldOrigin, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 
 void
 getneibsconstants(SimParams *simparams, PhysParams *physparams)
 {
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dispvect, cuneibs::d_dispvect, sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dispOffset, cuneibs::d_dispOffset, sizeof(float3), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->maxneibsnum, cuneibs::d_maxneibsnum, sizeof(uint), 0));
 }
 
@@ -73,52 +82,145 @@ getneibsinfo(TimingInfo & timingInfo)
 
 void
 calcHash(float4*	pos,
-#if HASH_KEY_SIZE >= 64
-		 particleinfo *pinfo,
-		 uint*		compactDeviceMap,
-#endif
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
-		 uint3		gridSize,
-		 float3		cellSize,
-		 float3		worldOrigin,
-		 uint		numParticles)
-{
-	int numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-
-	cuneibs::calcHashDevice<<< numBlocks, numThreads >>>(pos,
+		 const particleinfo* particleInfo,
 #if HASH_KEY_SIZE >= 64
-		pinfo,
-		compactDeviceMap,
+		 uint*		compactDeviceMap,
 #endif
-		particleHash, particleIndex,
-		gridSize, cellSize, worldOrigin, numParticles);
-	
+		 const uint		numParticles,
+		 const Periodicity	periodicbound)
+{
+	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
+	switch (periodicbound) {
+		case PERIODIC_NONE:
+			cuneibs::calcHashDevice<PERIODIC_NONE><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_X:
+			cuneibs::calcHashDevice<PERIODIC_X><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_Y:
+			cuneibs::calcHashDevice<PERIODIC_Y><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_XY:
+			cuneibs::calcHashDevice<PERIODIC_XY><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_Z:
+			cuneibs::calcHashDevice<PERIODIC_Z><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_XZ:
+			cuneibs::calcHashDevice<PERIODIC_XZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_YZ:
+			cuneibs::calcHashDevice<PERIODIC_YZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		case PERIODIC_XYZ:
+			cuneibs::calcHashDevice<PERIODIC_XYZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+					   particleInfo,
+#if HASH_KEY_SIZE >= 64
+					   compactDeviceMap,
+#endif
+					   numParticles);
+			break;
+
+		default:
+			throw std::runtime_error("Incorrect value of periodicbound!");
+	}
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
 
-
-void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start index
-									uint*			cellEnd,		// output: cell end index
-									float4*			newPos,			// output: sorted positions
-									float4*			newVel,			// output: sorted velocities
-									particleinfo*	newInfo,		// output: sorted info
-									hashKey*		particleHash,   // input: sorted grid hashes
-									uint*			particleIndex,  // input: sorted particle indices
-									float4*			oldPos,			// input: sorted position array
-									float4*			oldVel,			// input: sorted velocity array
-									particleinfo*	oldInfo,		// input: sorted info array
-#if HASH_KEY_SIZE >= 64
-									uint*			segmentStart,
-#endif
-									uint			numParticles,
-									uint			numGridCells)
+void
+inverseParticleIndex (	uint*	particleIndex,
+			uint*	inversedParticleIndex,
+			uint	numParticles)
 {
 	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-	
+
+	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");
+}
+
+void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
+									uint*				cellEnd,			// output: cell end index
+#if HASH_KEY_SIZE >= 64
+									uint*			segmentStart,
+#endif
+									float4*				newPos,				// output: sorted positions
+									float4*				newVel,				// output: sorted velocities
+									particleinfo*		newInfo,			// output: sorted info
+									float4*				newBoundElement,	// output: sorted boundary elements
+									float4*				newGradGamma,		// output: sorted gradient gamma
+									vertexinfo*			newVertices,		// output: sorted vertices
+									float*				newTKE,				// output: k for k-e model
+									float*				newEps,				// output: e for k-e model
+									float*				newTurbVisc,		// output: eddy viscosity
+									const hashKey*		particleHash,		// input: sorted grid hashes
+									const uint*			particleIndex,		// input: sorted particle indices
+									const float4*		oldPos,				// input: unsorted positions
+									const float4*		oldVel,				// input: unsorted velocities
+									const particleinfo*	oldInfo,			// input: unsorted info
+									const float4*		oldBoundElement,	// input: sorted boundary elements
+									const float4*		oldGradGamma,		// input: sorted gradient gamma
+									const vertexinfo*	oldVertices,		// input: sorted vertices
+									const float*		oldTKE,				// input: k for k-e model
+									const float*		oldEps,				// input: e for k-e model
+									const float*		oldTurbVisc,		// input: eddy viscosity
+									const uint			numParticles,
+									const uint			numGridCells,
+									uint*				inversedParticleIndex)
+{
+	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
 	// now in a separate function
 	// CUDA_SAFE_CALL(cudaMemset(cellStart, 0xffffffff, numGridCells*sizeof(uint)));
 
@@ -126,41 +228,84 @@ void reorderDataAndFindCellStart(	uint*			cellStart,		// output: cell start inde
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
 
+	// TODO reduce these conditionals
+
+	if (oldBoundElement)
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
+	if (oldGradGamma)
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
+	if (oldVertices)
+		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
+
+	if (oldTKE)
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
+	if (oldEps)
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
+	if (oldTurbVisc)
+		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
+
 	uint smemSize = sizeof(uint)*(numThreads+1);
-	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, newPos,
-													newVel, newInfo, particleHash, particleIndex,
+	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd,
 #if HASH_KEY_SIZE >= 64
 													segmentStart,
 #endif
-													numParticles);
-	
+		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
+												particleHash, particleIndex, numParticles, inversedParticleIndex);
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
-	
+
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	if (oldBoundElement)
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	if (oldGradGamma)
+		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+	if (oldVertices)
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+
+	if (oldTKE)
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+	if (oldEps)
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+	if (oldTurbVisc)
+		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
 }
 
 
 void
-buildNeibsList(	uint*				neibsList,
+buildNeibsList(	neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
+				vertexinfo*			vertices,
+				const float4		*boundelem,
+				float2*				vertPos[],
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
-				const uint3			gridSize,
-				const float3		cellSize,
-				const float3		worldOrigin,
 				const uint			numParticles,
 				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
-				const bool			periodicbound)
+				const float			sqdpo2,
+				const Periodicity	periodicbound)
 {
-	const int numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
-	const int numBlocks = (int) ceil(particleRangeEnd / (float) numThreads);
+	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
+	// throw otherwise
+	if (vertices || boundelem || vertPos) {
+		if (!vertices || !boundelem || ! vertPos) {
+			fprintf(stderr, "%p vs %p vs %p\n", vertices, boundelem, vertPos);
+			throw std::runtime_error("inconsistent params to buildNeibsList");
+		}
+	}
+
+	// we are using SA_BOUNDARY if vertices is not NULL
+	bool use_sa_boundary = !!vertices;
+
+	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
@@ -169,23 +314,45 @@ buildNeibsList(	uint*				neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
-	
-	if (periodicbound)
-		cuneibs::buildNeibsListDevice<true, true><<< numBlocks, numThreads >>>(
-			#if (__COMPUTE__ >= 20)			
-			pos, 
-			#endif
-			neibsList, gridSize, cellSize, worldOrigin, particleRangeEnd, sqinfluenceradius);
-	else
-		cuneibs::buildNeibsListDevice<false, true><<< numBlocks, numThreads >>>(
-			#if (__COMPUTE__ >= 20)			
-			pos, 
-			# endif
-			neibsList, gridSize, cellSize, worldOrigin, particleRangeEnd, sqinfluenceradius);
-		
+
+#define BUILDNEIBS_CASE(use_sa, periodic) \
+	case periodic: \
+		cuneibs::buildNeibsListDevice<use_sa, periodic, true><<<numBlocks, numThreads>>>(params); \
+		break;
+
+#define BUILDNEIBS_SWITCH(use_sa) \
+	switch(periodicbound) { \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_NONE); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_X); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_Y); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XY); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_Z); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XZ); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_YZ); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XYZ); \
+	}
+
+	if (use_sa_boundary) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
+
+		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, sqdpo2);
+
+		BUILDNEIBS_SWITCH(true);
+
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	} else {
+		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, sqdpo2);
+
+		BUILDNEIBS_SWITCH(false);
+	}
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -199,8 +366,10 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 {
 	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
 	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
-	
+
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+
+	CUT_CHECK_ERROR("thrust sort failed");
 
 }
 }

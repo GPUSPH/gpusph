@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -36,6 +36,10 @@ Writer::Writer(const Problem *problem)
 	m_dirname = problem->get_dirname() + "/data";
 	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
+	// create directory for testpoints
+	if (problem->get_simparams()->csvtestpoints)
+		mkdir((m_dirname + "/testpoints").c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+
 	string energy_fn = m_dirname + "/energy.txt";
 	m_energyfile = fopen(energy_fn.c_str(), "w");
 	/*if (!m_energyfile) {
@@ -51,7 +55,7 @@ Writer::Writer(const Problem *problem)
 					fluid, fluid, fluid);
 		fputs("\n", m_energyfile);
 	}
-	
+
 	//WaveGage
 	string WaveGage_fn = m_dirname + "/WaveGage.txt";
 	m_WaveGagefile = fopen(WaveGage_fn.c_str(), "w");
@@ -70,7 +74,7 @@ Writer::Writer(const Problem *problem)
 		fputs("\n", m_WaveGagefile);
 	}
 
-	m_gdata = NULL;
+	gdata = NULL;
 }
 
 Writer::~Writer()
@@ -85,7 +89,7 @@ Writer::write_energy(float t, float4 *energy)
 		fprintf(m_energyfile, "%g", t);
 		uint fluid = 0;
 		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			fprintf(m_energyfile, "\t%g\t%g",
+			fprintf(m_energyfile, "\t%g\t%g\t%g",
 					energy[fluid].x, energy[fluid].y, energy[fluid].z);
 		fputs("\n", m_energyfile);
 		fflush(m_energyfile);
@@ -98,37 +102,44 @@ Writer::write_WaveGage(float t, GageList const& gage)
 {
 	if (m_WaveGagefile) {
 		fprintf(m_WaveGagefile, "%g", t);
-		for (int i=0; i < gage.size(); i++) {
+		for (size_t i=0; i < gage.size(); i++) {
 			fprintf(m_WaveGagefile, "\t%g",
-					gage[i].z);
+				gage[i].z);
 		}
 		fputs("\n", m_WaveGagefile);
 		fflush(m_WaveGagefile);
 	}
 }
 
+string
+Writer::current_filenum() {
+	stringstream ss;
+
+	ss.width(FNUM_WIDTH);
+	ss.fill('0');
+	ss << m_FileCounter;
+
+	return ss.str();
+}
 
 string
 Writer::next_filenum()
 {
-	stringstream ss;
+	string ret = current_filenum();
 
 	if (m_FileCounter >= MAX_FILES) {
 		stringstream ss;
 		ss << "too many files created (> " << MAX_FILES;
 		throw runtime_error(ss.str());
 	}
-	ss.width(FNUM_WIDTH);
-	ss.fill('0');
-	ss << m_FileCounter;
 
 	m_FileCounter++;
-	return ss.str();
+	return ret;
 }
 
 void Writer::setGlobalData(GlobalData *_gdata)
 {
-	m_gdata = _gdata;
+	gdata = _gdata;
 }
 
 uint Writer::getLastFilenum()

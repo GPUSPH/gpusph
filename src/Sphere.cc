@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -31,15 +31,15 @@
 
 Sphere::Sphere(void)
 {
-  	m_center = Point(0,0,0);
+	m_center = Point(0,0,0);
 	m_r = 1.0;
 }
 
 
 Sphere::Sphere(const Point& center, const double radius)
 {
- 	m_center = center;
- 	m_r = radius;
+	m_center = center;
+	m_r = radius;
 	const double ep[4] = {1.0, 0.0, 0.0, 0.0};
 	m_ep = EulerParameters(ep);
 	m_ep.ComputeRot();
@@ -91,13 +91,13 @@ Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 void
 Sphere::FillBorder(PointVect& points, const double dx)
 {
-  	const double angle = dx/m_r;
-  	const int nc = (int) ceil(M_PI/angle); //number of layers
+	const double angle = dx/m_r;
+	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
-  	for (int i = - nc; i <= nc; ++i) {
+	for (int i = - nc; i <= nc; ++i) {
 		FillDiskBorder(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
-  	 }
+	}
 }
 
 
@@ -106,12 +106,12 @@ Sphere::Fill(PointVect& points, const double dx, const bool fill)
 {
 	int nparts = 0;
 	const double angle = dx/m_r;
-  	const int nc = (int) ceil(M_PI/angle); //number of layers
+	const int nc = (int) ceil(M_PI/angle); //number of layers
 	const double dtheta = M_PI/nc;
 
-  	for (int i = - nc; i <= nc; ++i) {
+	for (int i = - nc; i <= nc; ++i) {
 		nparts += FillDisk(points, m_ep, m_center, m_r*sin(i*dtheta), m_r*cos(i*dtheta), dx, fill);
-  	 }
+	}
 
 	return nparts;
 }

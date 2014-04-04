@@ -2,7 +2,7 @@
  * File:   Torus.cc
  * Author: alexis
  *
- * Created on 8 septembre 2011, 18:52
+ * Created on 8 septembre 2011-2013, 18:52
  */
 
 #include <cmath>

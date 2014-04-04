@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -98,7 +98,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	m_center = m_origin + 0.5*(m_vx + m_vy + m_vz);
 
 	Vector axis;
-	double mat[8];
+	double mat[9];
 	mat[0] = m_vx(0)/m_lx;
 	mat[3] = m_vx(1)/m_lx;
 	mat[6] = m_vx(2)/m_lx;
@@ -203,6 +203,55 @@ Cube::SetInertia(const double dx)
 	m_inertia[2] = m_mass/12.0*(lx*lx + ly*ly);
 }
 
+void
+Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
+{
+	Point   rorigin;
+	Vector  rvx, rvy;
+	std::vector<uint> edgeparts[6][4];
+	m_origin(3) = m_center(3);
+	int last_face = 6;
+
+	if (!fill_top_face)
+		last_face --;
+	for (int face_num = 0; face_num < last_face; face_num++) {
+		switch(face_num){
+			case 0:
+				rorigin = m_origin;
+				rvx = m_vx;
+				rvy = m_vz;
+				break;
+			case 1:
+				rorigin = m_origin + m_vx;
+				rvx = m_vy;
+				rvy = m_vz;
+				break;
+			case 2:
+				rorigin = m_origin + m_vx + m_vy;
+				rvx = -m_vx;
+				rvy = m_vz;
+				break;
+			case 3:
+				rorigin = m_origin + m_vy;
+				rvx = -m_vy;
+				rvy = m_vz;
+				break;
+			case 4:
+				rorigin = m_origin;
+				rvx = m_vx;
+				rvy = m_vy;
+				break;
+			case 5:
+				rorigin = m_origin + m_vz;
+				rvx = m_vx;
+				rvy = m_vy;
+				break;
+		}
+
+		Rect rect = Rect(rorigin, rvx, rvy);
+		rect.Fill(bpoints, belems, vpoints, vindexes, dx, face_num, edgeparts);
+	}
+}
 
 void
 Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

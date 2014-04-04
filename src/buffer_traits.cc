@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -23,26 +23,17 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* All Xsph/Dt variations. Include this after defining CORR_TYPE and
-   CORR_<name> */
+/* This file is only used to keep hold the actual strings
+ * defining the buffer printable names
+ */
 
-#undef XSPH_KERNEL
-#undef DT_KERNEL
+#include "GlobalData.h"
 
-/* NO Xsph, NO Dt */
-#include "forces_kernel.visc.inc"
+// re-include define-buffers to set the printable name
+#undef DEFINED_BUFFERS
+#undef SET_BUFFER_TRAITS
+#define SET_BUFFER_TRAITS(code, _type, _nbufs, _name) \
+char BufferTraits<code>::name[] = _name
+#include "define_buffers.h"
+#undef SET_BUFFER_TRAITS
 
-/* Xsph, NO Dt */
-#define XSPH_KERNEL Xsph
-#include "forces_kernel.visc.inc"
-
-/* Xsph, Dt */
-#define DT_KERNEL Dt
-#include "forces_kernel.visc.inc"
-
-/* NO Xsph, Dt */
-#undef XSPH_KERNEL
-#include "forces_kernel.visc.inc"
-
-#undef DT_KERNEL
-#undef XSPH_KERNEL

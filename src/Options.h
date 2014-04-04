@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -32,20 +32,20 @@
 using namespace std;
 
 struct Options {
-	string problem; // problem name
-	int device;  // which device to use
-	string dem; // DEM file to use
-	string custom_dir; // custom directory for dumps
-	float deltap; // deltap
-	float tend; // simulation end
-	bool nosave; // disable saving
+	string	problem; // problem name
+	int		device;  // which device to use
+	string	dem; // DEM file to use
+	string	dir; // directory where data will be saved
+	double	deltap; // deltap
+	float	tend; // simulation end
+	bool	nosave; // disable saving
 	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
 	Options(void) :
 		problem(),
 		device(-1),
 		dem(),
-		custom_dir(),
+		dir(),
 		deltap(NAN),
 		tend(NAN),
 		nosave(false),

@@ -1,27 +1,36 @@
-/*
- * GPUWorker.h
- *
- *  Created on: Dec 19, 2012
- *      Author: rustico
- */
+/*  Copyright 2012-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #ifndef GPUWORKER_H_
 #define GPUWORKER_H_
 
-class GPUWorker;
-
 #include <pthread.h>
-#include "vector_types.h"
-#include "GlobalData.h"
-#include "buildneibs.cuh" // for hashKey
 
-/* We need a forward declaration of GlobalData.
- * When the compiler includes "GlobalData.h" from somewhere else, it defines _GLOBAL_DATA_
- * and in turn includes "GPUWorker.h"; but the latter does not know the GlobalData struct
- * yet and including GloblData.h again does not work since _GLOBAL_DATA_ is defined.
- * So we need to forward-declare the struct GlobalData. GPUWorker finds it and compiles.
- * The GPUWorker class needs to be forward-declared as well, since GlobalData needs it. */
-struct GlobalData;
+#include "vector_types.h"
+#include "common_types.h"
+#include "GlobalData.h"
 
 #include "cudautil.cuh"
 
@@ -31,7 +40,8 @@ struct GlobalData;
 #include "physparams.h"
 #include "simparams.h"
 
-#include "forces.cuh"
+// buffers and buffer lists
+#include "buffer.h"
 
 // In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
@@ -61,9 +71,9 @@ private:
 	uint m_particleRangeBegin; // inclusive
 	uint m_particleRangeEnd;   // exclusive
 
-	// memory allocate
-	unsigned long m_hostMemory;
-	unsigned long m_deviceMemory;
+	// memory allocated
+	size_t m_hostMemory;
+	size_t m_deviceMemory;
 
 	// it would be easier to put the device properties in a shared array in GlobalData;
 	// this, however, would violate the principle that any CUDA-related code should be
@@ -91,24 +101,10 @@ private:
 	// TODO: CPU arrays used for debugging
 
 	// GPU arrays
-	float4*		m_dForces;				// forces array
-	float4*		m_dXsph;				// mean velocity array
-	float4*		m_dPos[2];				// position array
-	float4*		m_dVel[2];				// velocity array
-	particleinfo*	m_dInfo[2];			// particle info array
-	float4*     m_dNormals;				// normal at free surface
-	float3*		m_dVort;				// vorticity
-	//uint		m_numPartsFmax;			// number of particles divided by BLOCK_SIZE
-	float*		m_dCfl;					// cfl for each block
-	float*		m_dTempCfl;				// temporary storage for cfl computation
-	float*		m_dCfl2;				// test
-	float2*		m_dTau[3];				// SPS stress tensor
-	hashKey*	m_dParticleHash;		// hash table for sorting; 32 or 64 bit according to HASH_KEY_SIZE
-	uint*		m_dParticleIndex;		// sorted particle indexes
+	BufferList	m_dBuffers;
+
 	uint*		m_dCellStart;			// index of cell start in sorted order
 	uint*		m_dCellEnd;				// index of cell end in sorted order
-	//uint*		m_dSliceStart;			// index of first cell in slice
-	uint*		m_dNeibsList;			// neib list with maxneibsnum neibs per particle
 
 	// GPU arrays for rigid bodies (CPU ones are in GlobalData)
 	uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
@@ -178,6 +174,7 @@ private:
 	// kernels
 	void kernel_calcHash();
 	void kernel_sort();
+	void kernel_inverseParticleIndex();
 	void kernel_reorderDataAndFindCellStart();
 	void kernel_buildNeibsList();
 	void kernel_forces();
@@ -187,7 +184,15 @@ private:
 	void kernel_vorticity();
 	void kernel_surfaceParticles();
 	void kernel_sps();
+	void kernel_meanStrain();
 	void kernel_reduceRBForces();
+	void kernel_dynamicBoundaryConditions();
+	void kernel_updateValuesAtBoundaryElements();
+	void kernel_initGradGamma();
+	void kernel_updateGamma();
+	void kernel_updatePositions();
+	void kernel_calcPrivate();
+	void kernel_testpoints();
 	/*void uploadMbData();
 	void uploadGravity();*/
 
@@ -213,14 +218,10 @@ public:
 
 	// utility getters
 	cudaDeviceProp getDeviceProperties();
-	unsigned long getHostMemory();
-	unsigned long getDeviceMemory();
+	size_t getHostMemory();
+	size_t getDeviceMemory();
 	// for peer transfers
-	const float4** getDPosBuffers();
-	const float4** getDVelBuffers();
-	const particleinfo** getDInfoBuffers();
-	const float4* getDForceBuffer();
-	const float2** getDTauBuffers();
+	const AbstractBuffer* getBuffer(flag_t) const;
 };
 
 #endif /* GPUWORKER_H_ */

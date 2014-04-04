@@ -1,9 +1,9 @@
- /*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -25,6 +25,8 @@
 
 #ifndef OBJECT_H
 #define	OBJECT_H
+
+#include <stdexcept>
 
 #include "Point.h"
 #include "EulerParameters.h"
@@ -81,7 +83,7 @@ class Object {
 		 *	\param dx : particle spacing
 		 *	\return volume of the object
 		 *
-		 *  This function is pure virtual and then as to be defined at child level
+		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual double Volume(const double dx) const = 0;
 		virtual double SetMass(const double, const double);
@@ -96,7 +98,7 @@ class Object {
 		 *	For the same reasons as volume, the inertia depends on particle spacing.
 		 *	\param dx : particle spacing
 		 *
-		 *  This function is pure virtual and then as to be defined at child level
+		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual void SetInertia(const double dx) = 0;
 		virtual void SetInertia(const double*);
@@ -107,19 +109,19 @@ class Object {
 		PointVect& GetParts(void);
 
 		/// \name ODE related functions
-		//@{
-		/// Compute the matrix of inertia
-		/*! This function compute the matrix of inertia of the obkect in the inertial
-		 *  frame (i.e. the 3 diagonal components) and store it in the m_inertia array.
-		 *	For the same reasons as volume, the inertia depends on particle spacing.
-		 *	\param dx : particle spacing
-		 *
-		 *  This function is pure virtual and then as to be defined at child level
+		/* These are not pure virtual to allow new GPUSPH Objects to be defined without
+		 * needing an ODE counterpart, but the default implementation will just throw
+		 * an exception
 		 */
-		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0) {};
-
-		virtual void ODEGeomCreate(dSpaceID, const double) {};
+		//@{
+		/// Create an ODE body in the specified ODE world and space
+		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0)
+		{ throw std::runtime_error("ODEBodyCreate called but not defined!"); }
+		/// Create an ODE geometry in the specified ODE space
+		virtual void ODEGeomCreate(dSpaceID, const double)
+		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		//@}
+
 
 		/// \name Filling functions
 		//@{

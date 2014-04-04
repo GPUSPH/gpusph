@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -21,39 +21,41 @@
 
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
-#ifndef _FLUIDMIX_H
-#define	_FLUIDMIX_H
+#ifndef _SPHERICTEST2_H
+#define	_SPHERICTEST2_H
 
 #include "Problem.h"
 #include "Point.h"
 #include "Cube.h"
-#include "Rect.h"
-#include "Cylinder.h"
-#include "Vector.h"
-#include "Cone.h"
 
-
-class FluidMix: public Problem {
+class SphericTest2: public Problem {
 	private:
 		Cube		experiment_box;
-		PointVect	parts0, parts1;
+		Cube		obstacle;
+		PointVect	parts;
 		PointVect	boundary_parts;
-		float		lx, ly, lz;
-	    float		H;		// still water level
-
+		PointVect	test_points;
+		PointVect	obstacle_parts;
+		float		H;				// still water level
+		double		lx, ly, lz;		// dimension of experiment box
+		bool		wet;			// set wet to true have a wet bed experiment
+		bool		m_usePlanes;	// use planes or boundaries
 
 	public:
-		FluidMix(const Options &);
-		virtual ~FluidMix(void);
-		int fill_parts(void);
+		SphericTest2(const GlobalData *);
+		virtual ~SphericTest2(void);
 
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		int fill_parts(void);
+		void copy_to_array(BufferList &);
+		uint fill_planes(void);
+		void copy_planes(float4*, float*);
+
+		// override standard split
+		void fillDeviceMap();
 
 		void release_memory(void);
 };
-#endif	
-
+#endif	/* _SPHERICTEST2_H */
 

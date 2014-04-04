@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -36,8 +36,7 @@ public:
 	VTKLegacyWriter(const Problem *problem);
 	~VTKLegacyWriter();
 
-	void write(uint numParts, const float4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t,const bool testpoints, const float4 *normals);
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
 };
 
 #endif	/* _VTKLEGACYWRITER_H */

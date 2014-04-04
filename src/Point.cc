@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -28,7 +28,6 @@
  *  NNS
  *
  *  Created by Alexis Herault on 27/07/06.
- *  Copyright 2006. All rights reserved.
  *
  */
 
@@ -59,6 +58,29 @@ Point::Point(const Point &pnt)
 	x[1] = pnt.x[1];
 	x[2] = pnt.x[2];
 	x[3] = pnt.x[3];
+}
+
+/// Constructor from double3
+/*!	\param pt : double3
+  the fourth component (mass) is initialized to 0
+*/
+Point::Point(const double3 &pt)
+{
+	x[0] = pt.x;
+	x[1] = pt.y;
+	x[2] = pt.z;
+	x[3] = 0;
+}
+
+/// Constructor from double4
+/*!	\param pt : double4
+*/
+Point::Point(const double4 &pt)
+{
+	x[0] = pt.x;
+	x[1] = pt.y;
+	x[2] = pt.z;
+	x[3] = pt.w;
 }
 
 /// Constructor from float3
@@ -141,6 +163,12 @@ Point::SetCoord(double *data)
 	x[2] = data[2];
 }
 
+void Point::SetCoord(double X, double Y, double Z)
+{
+	x[0] = X;
+	x[1] = Y;
+	x[2] = Z;
+}
 
 /// Squared distance from origin
 /*!	\return the squared distance from origin

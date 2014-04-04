@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -42,7 +42,7 @@ typedef struct PhysParams {
 	float	sspowercoeff[MAX_FLUID_TYPES];
 
 	// Lennard-Jones boundary coefficients
- 	float	r0;		 		// influence radius of boundary repulsive force
+	float	r0;				// influence radius of boundary repulsive force
 	float	dcoeff;
 	float	p1coeff;
 	float	p2coeff;
@@ -60,7 +60,6 @@ typedef struct PhysParams {
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
 	float3	dispvect;		// offset vector for periodic boundaries
-	float3	dispOffset;		// extra offset vector which, given that a coordinate is periodic, is added to the other 2
 	float3	maxlimit;
 	float3	minlimit;
 	float	ewres;			// DEM east-west resolution
@@ -71,11 +70,11 @@ typedef struct PhysParams {
 	float	demzmin;		// demdx*demdy
 	float	smagfactor;		// Cs*∆p^2
 	float	kspsfactor;		// 2/3*Ci*∆^2
-	int     numFluids;      // number of fluids in simulation
+	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
-	float	objectobjectdf;	// damping factor for object-object interaction 
-	float	objectboundarydf;	// damping factor for object-boundary interaction 
+	float	objectobjectdf;	// damping factor for object-object interaction
+	float	objectboundarydf;	// damping factor for object-boundary interaction
 
 	PhysParams(void) :
 		partsurf(0),

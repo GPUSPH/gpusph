@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -70,7 +70,9 @@
 extern "C"
 {
 void
-setforcesconstants(const SimParams *simaprams, const PhysParams *physparams);
+setforcesconstants(const SimParams *simaprams, const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+	idx_t const& allocatedParticles);
 
 void
 getforcesconstants(PhysParams *physparams);
@@ -88,96 +90,116 @@ void
 setforcesrbstart(const uint* rbfirstindex, int numbodies);
 
 float
-forces(	float4*			pos,
-		float4*			vel,
-		float4*			forces,
-		float4*			rbforces,
-		float4*			rbtorques,
-		float4*			xsph,
-		particleinfo*	info,
-		uint*			neibsList,
-		uint			numParticles,
-		uint			particleRangeEnd,
-		float			slength,
-		float			dt,
-		bool			dtadapt,
-		float			dtadaptfactor,
-		bool			xsphcorr,
-		KernelType		kerneltype,
-		float			influenceradius,
-		ViscosityType	visctype,
-		float			visccoeff,
-		float*			cfl,
-		float*			tempCfl,
-		float2*			tau[],
-		bool			periodicbound,
-		SPHFormulation	sph_formulation,
-		BoundaryType	boundarytype,
-		bool			usedem);
+forces(
+	const	float4	*pos,
+	const	float2	* const vertPos[],
+	const	float4	*vel,
+			float4	*forces,
+	const	float4	*oldGGam,
+			float4	*newGGam,
+	const	float4	*boundelem,
+			float4	*rbforces,
+			float4	*rbtorques,
+			float4	*xsph,
+	const	particleinfo	*info,
+	const	hashKey	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	deltap,
+			float	slength,
+			float	dt,
+			bool	dtadapt,
+			float	dtadaptfactor,
+			bool	xsphcorr,
+	KernelType		kerneltype,
+			float	influenceradius,
+	const	float	epsilon,
+	const	bool	movingBoundaries,
+	ViscosityType	visctype,
+			float	visccoeff,
+			float	*turbvisc,
+			float	*keps_tke,
+			float	*keps_eps,
+			float2	*keps_dkde,
+			float	*cfl,
+			float	*cflTVisc,
+			float	*tempCfl,
+	SPHFormulation	sph_formulation,
+	BoundaryType	boundarytype,
+			bool	usedem);
 
 void
-sps(	float4*			pos,
-		float4*			vel,
-		particleinfo*	info,
-		uint*			neibsList,
-		uint			numParticles,
-		uint			particleRangeEnd,
-		float			slength,
-		KernelType		kerneltype,
-		float			influenceradius,
-		ViscosityType	visctype,
-		float2*			tau[],
-		bool			periodicbound );
+sps(		float2*			tau[],
+	const	float4	*pos,
+	const	float4	*vel,
+const	particleinfo	*info,
+	const	hashKey	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	slength,
+		KernelType	kerneltype,
+			float	influenceradius);
 
 void
 shepard(float4*		pos,
 		float4*		oldVel,
 		float4*		newVel,
-		particleinfo*	info,
-		uint*		neibsList,
+		particleinfo	*info,
+		hashKey*		particleHash,
+		uint*		cellStart,
+		neibdata*	neibsList,
 		uint		numParticles,
 		uint		particleRangeEnd,
 		float		slength,
 		int			kerneltype,
-		float		influenceradius,
-		bool		periodicbound);
+		float		influenceradius);
 
 void
 mls(float4*		pos,
 	float4*		oldVel,
 	float4*		newVel,
-	particleinfo*	info,
-	uint*		neibsList,
+	particleinfo	*info,
+	hashKey*		particleHash,
+	uint*		cellStart,
+	neibdata*	neibsList,
 	uint		numParticles,
 	uint		particleRangeEnd,
 	float		slength,
 	int			kerneltype,
-	float		influenceradius,
-	bool		periodicbound);
+	float		influenceradius);
+
 
 void
 vorticity(	float4*		pos,
 			float4*		vel,
 			float3*		vort,
 			particleinfo*	info,
-			uint*		neibsList,
+			hashKey*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			float		slength,
 			int			kerneltype,
-			float		influenceradius,
-			bool		periodicbound);
+			float		influenceradius);
 
 //Testpoints
 void
-testpoints(	float4*		pos,
+testpoints(	const float4*		pos,
 			float4*		newVel,
 			particleinfo*	info,
-			uint*		neibsList,
+			hashKey*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			float		slength,
 			int			kerneltype,
-			float		influenceradius,
-			bool		periodicbound);
+			float		influenceradius);
 
 // Free surface detection
 void
@@ -186,12 +208,14 @@ surfaceparticle(	float4*		pos,
 		    float4*     normals,
 			particleinfo*	info,
 			particleinfo*  newInfo,
-			uint*		neibsList,
+			hashKey*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
 			uint		numParticles,
+			uint		particleRangeEnd,
 			float		slength,
 			int			kerneltype,
 			float		influenceradius,
-			bool		periodicbound,
 			bool        savenormals);
 
 void
@@ -211,10 +235,10 @@ reduceRbForces(	float4*		forces,
 				uint		numBodiesParticles);
 
 uint
-getNumPartsFmax(const uint n);
+getFmaxElements(const uint n);
 
 uint
-getFmaxTempStorageSize(const uint n);
+getFmaxTempElements(const uint n);
 
 float
 cflmax( const uint	n,
@@ -228,11 +252,63 @@ void unset_reduction_params();
 
 // Compute system energy
 void calc_energy(
-		float4*			output,
-		float4	const*	pos,
-		float4	const*	vel,
-	particleinfo const*	pinfo,
-		uint			numParticles,
-		uint			numFluids);
+			float4			*output,
+	const	float4			*pos,
+	const	float4			*vel,
+	const	particleinfo	*pinfo,
+	const	hashKey			*particleHash,
+			uint			numParticles,
+			uint			numFluids);
+
+// calculate a private scalar for debugging or a passive value
+void
+calcPrivate(const	float4*			pos,
+			const	float4*			vel,
+			const	particleinfo*	info,
+					float*			priv,
+			const	hashKey*		particleHash,
+			const	uint*			cellStart,
+					neibdata*		neibsList,
+					float			slength,
+					float			inflRadius,
+					uint			numParticles,
+					uint			particleRangeEnd);
+
+// Recomputes values at the boundary elements (currently only density) as an average
+// over three vertices of this element
+void
+updateBoundValues(	float4*		oldVel,
+			float*		oldTKE,
+			float*		oldEps,
+			vertexinfo*	vertices,
+			particleinfo*	info,
+			uint		numParticles,
+			uint		particleRangeEnd,
+			bool		initStep);
+
+// Recomputes values at the vertex particles, following procedure similar to Shepard filter.
+// Only fluid particles are taken into summation
+// oldVel array is used to read density of fluid particles and to write density of vertex particles.
+// There is no need to use two velocity arrays (read and write) and swap them after.
+void
+dynamicBoundConditions(	const float4*		oldPos,
+			float4*			oldVel,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			newGam,
+			const float4*	boundelement,
+			const particleinfo*	info,
+			const hashKey*		particleHash,
+			const uint*		cellStart,
+			const neibdata*	neibsList,
+			const uint		numParticles,
+			const uint		particleRangeEnd,
+			const float		deltap,
+			const float		slength,
+			const int		kerneltype,
+			const float		influenceradius,
+			const bool		initStep);
+
 }
+
 #endif

@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -43,23 +43,22 @@ class DamBreak3D: public Problem {
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	obstacle_parts;
-		float		H;  // still watr level		
+		PointVect	test_points;
+		float		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
 		bool		m_usePlanes;	// use planes or boundaries
 
 	public:
-		DamBreak3D(const Options &);
+		DamBreak3D(const GlobalData *);
 		virtual ~DamBreak3D(void);
 
 		int fill_parts(void);
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(BufferList &);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
-
 		// override standard split
-		void fillDeviceMap(GlobalData* gdata);
+		void fillDeviceMap();
 
 		void release_memory(void);
 };

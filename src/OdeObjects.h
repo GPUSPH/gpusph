@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -52,28 +52,24 @@ class OdeObjects: public Problem {
 		double		H;				// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 		bool		wet;			// set wet to true have a wet bed experiment
-		// ODE and rigid body stuff
+		// ODE stuff
 		Sphere		sphere;
 		Cube		cube;
 		Cylinder	cylinder;
 		dGeomID		planes[5];
 		dJointID	joint;
-		
+
 
 	public:
-		OdeObjects(const Options &);
+		OdeObjects(const GlobalData *);
 		virtual ~OdeObjects(void);
 
 		int fill_parts(void);
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(BufferList &);
 
 		void ODE_near_callback(void *, dGeomID, dGeomID);
 
 		void release_memory(void);
-
-		// override standard split
-		void fillDeviceMap(GlobalData* gdata);
 };
 #endif	/* _ODEOBJECTS_H */
 

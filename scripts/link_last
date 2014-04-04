@@ -1,0 +1,5 @@
+#!/bin/bash
+if [ -L tests/last ]; then
+  unlink tests/last
+fi
+ls -t tests | head -n 1 | xargs -I target ln -s target tests/last

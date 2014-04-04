@@ -1,5 +1,6 @@
 Makefile.cpu
 Makefile.gpu
+Makefile.local
 options
 docs
 build
@@ -7,10 +8,10 @@ dist
 nbproject
 GPUSPH*
 tests
-tags
+TAGS
 *.kdev4
 .kdev*
-TODO
+TODO*
 .DS_Store
 .*.swp
 ~
@@ -20,6 +21,7 @@ TODO
 html
 latex
 Manual
+cscope*
 other/
 mpitests/
 .project
@@ -29,4 +31,3 @@ deviceQuery
 seewaves/
 *.csv
 profiling/
-

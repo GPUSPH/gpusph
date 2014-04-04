@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -23,11 +23,11 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* 
+/*
  * File:   SolitaryWave.h
  * Author: rad
  *
- * Created on February 7, 2011, 2:39 PM
+ * Created on February 7, 2011-2013, 2:39 PM
  */
 
 #ifndef SolitaryWave_H
@@ -56,22 +56,26 @@ class SolitaryWave: public Problem {
 		Cylinder	cyl5, cyl6, cyl7;
 		Cylinder	cyl8, cyl9, cyl10;
 		Cone 		cone;
-		float		h_length, height, slope_length, beta;
-        float		H;		// still water level
-		float		Hbox;	// height of experiment box
+
+		double 		lx, ly, lz;	// Dimension of the computational domain
+		double		h_length;	// Horizontal part of the experimental domain
+		double		slope_length;	// Length of the inclined plane
+		double		height;		// Still water (with z origin on the horizontal part)
+		double		beta;		// Angle of the inclined plane
+        double		H;		// still water level
+		double		Hbox;	// height of experiment box
 
 		// Moving boundary data
-		float		m_S, m_Hoh, m_tau;
+		double		m_S, m_Hoh, m_tau;
 
 	public:
-		SolitaryWave(const Options &);
+		SolitaryWave(const GlobalData *);
 		~SolitaryWave(void);
 		int fill_parts(void);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
 
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(BufferList &);
 		MbCallBack& mb_callback(const float, const float, const int);
 
 		void release_memory(void);

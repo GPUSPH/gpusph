@@ -1,31 +1,66 @@
-/*
- * GlobalData.h
- *
- *  Created on: Jan 16, 2013
- *      Author: rustico
- */
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #ifndef _GLOBAL_DATA_
 #define _GLOBAL_DATA_
+
+// ostringstream
+#include <sstream>
+
+// std::map
+#include <map>
 
 // MAX_DEVICES et al.
 #include "multi_gpu_defines.h"
 // float4 et al
 #include "vector_types.h"
-// particleinfo
-#include "particledefine.h"
+// common host types
+#include "common_types.h"
 // Problem
 #include "Problem.h"
 // Options
 #include "Options.h"
+// TimingInfo
+#include "timing.h"
+
+// BufferList
+#include "buffer.h"
+
+// COORD1, COORD2, COORD3
+#include "linearization.h"
+
 // GPUWorker
-#include "GPUWorker.h"
+// no need for a complete definition, a simple declaration will do
+// and since GPUWorker.h needs to include GlobalData.h, it solves
+// the problem of recursive inclusions
+class GPUWorker;
+
 // Synchronizer
 #include "Synchronizer.h"
 // Writer
 #include "Writer.h"
-// ostringstream
-#include <sstream>
 // NetworkManager
 #include "NetworkManager.h"
 
@@ -37,6 +72,7 @@ enum CommandType {
 	IDLE,				// do a dummy cycle
 	CALCHASH,			// run calcHash kernel
 	SORT,				// run thrust::sort
+	INVINDEX,			// save the old index for segment connectivity
 	CROP,				// crop out all the external particles
 	REORDER,			// run reorderAndFindCellStart kernel
 	BUILDNEIBS,			// run buildNeibs kernel
@@ -51,6 +87,8 @@ enum CommandType {
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
+	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
+	SA_UPDATE_BOUND_VALUES, // update bounary values
 	SPS,				// SPS stress matrix computation kernel
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
@@ -58,6 +96,8 @@ enum CommandType {
 	UPLOAD_PLANES,		// upload planes
 	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
+	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
+	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	QUIT				// quits the simulation cycle
 };
 
@@ -71,33 +111,42 @@ enum WriterType
 };
 
 // 0 reserved as "no flags"
-#define NO_FLAGS	((uint)0)
+#define NO_FLAGS	((flag_t)0)
 
-// flags for forces and euler kernels
-#define INTEGRATOR_STEP_1	((uint)1 << 0)
-#define INTEGRATOR_STEP_2	((uint)1 << 1)
+// flags for kernels that process arguments differently depending on which
+// step of the simulation we are at
+// (e.g. forces, euler)
+// these grow from the bottom
+#define INITIALIZATION_STEP	((flag_t)1)
+#define INTEGRATOR_STEP_1	(INITIALIZATION_STEP << 1)
+#define INTEGRATOR_STEP_2	(INTEGRATOR_STEP_1 << 1)
+#define	LAST_DEFINED_STEP	INTEGRATOR_STEP_2
+// if new steps are added after INTEGRATOR_STEP_2, remember to update LAST_DEFINED_STEP
 
-// buffer constants for swapDeviceBuffers() - serving also as flags for DUMP, UPDATE_INTERNAL, etc.
-// WARNING: supported flags might vary for each command
-#define BUFFER_POS	((uint)1 << 2)
-#define BUFFER_VEL	((uint)1 << 3)
-#define BUFFER_INFO	((uint)1 << 4)
-#define BUFFER_VORTICITY	((uint)1 << 5)
-#define BUFFER_NORMALS		((uint)1 << 6)
-#define BUFFER_FORCES	((uint)1 << 7)
-#define BUFFER_TAU	((uint)1 << 8)
+// flags to select which buffer to access, in case of double-buffered arrays
+// these grow from the top
+#define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
+#define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
 
-// the selection of the double buffers is also encoded (in high bits)
-#define DBLBUFFER_READ		((uint)1 << 30)
-#define DBLBUFFER_WRITE		((uint)1 << 31)
+// now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
+// these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available
+// at the top
 
-// common shortcut
-#define BUFFERS_POS_VEL_INFO	(BUFFER_POS | BUFFER_VEL | BUFFER_INFO)
+// start with a generic define that can be used to iterate over all buffers
+#define FIRST_DEFINED_BUFFER	(LAST_DEFINED_STEP << 1)
+
+// buffer definitions are set into their own include
+#include "define_buffers.h"
 
 // forward declaration of Writer
 class Writer;
 
 class Problem;
+
+// maps buffer keys to indices. used for currentRead and currentWrite:
+// currentRead[BUFFER_SOMETHING] is the current array to be read in the double-buffered
+// set BUFFER_SOMETHING
+typedef std::map<flag_t, uint> BufferIndexMap;
 
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
@@ -153,17 +202,10 @@ struct GlobalData {
 	uint3 gridSize;
 	uint nGridCells;
 
-	// ceil(totParticles/devices)
-	//uint idealSubset;
-
 	// CPU buffers ("s" stands for "shared"). Not double buffered
-	float4*			s_hPos;  // position array
-	float4*			s_hVel;  // velocity array
-	particleinfo*	s_hInfo; // particle info array
-	float3*			s_hVorticity; // vorticity
-	float4*			s_hNormals; // surface normals
-	float4*			s_hForces;  // forces (alloc by 1st thread, for striping)
-	uchar* 			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
+	BufferList s_hBuffers;
+
+	uchar*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
 	// counter: how many particles per device
 	uint s_hPartsPerDevice[MAX_DEVICES_PER_NODE]; // TODO: can change to PER_NODE if not compiling for multinode
@@ -175,44 +217,22 @@ struct GlobalData {
 	uint** s_dCellEnds;
 	uint** s_dSegmentsStart;
 
-	// pinned memory var to retrieve dt asynchronously
-	//float *pin_maxcfl;
-
-	// CPU buffers for file dump
-	//float4*			dump_hPos;  // position array
-	//float4*			dump_hVel;  // velocity array
-	//particleinfo*	dump_hInfo; // particle info array
-
-	// number of neibs overlapping with prev and next for each GPU, and offset
-	//uint s_overlapping[MAX_DEVICES][3];
-
-	// offsets; copy for async file save (for VTKWriter if cdata != NULL)
-	//uint s_last_offsets[MAX_DEVICES];
-
-	// buffers for particles crossing GPUs
-	//float4 s_pos_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
-	//float4 s_vel_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
-	//particleinfo s_info_outgoing_buf[MAX_DEVICES][2][EXCHANGE_BUF_SIZE];
-
 	// last dt for each PS
 	float dts[MAX_DEVICES_PER_NODE];
 
 	// indices for double-buffered device arrays (0 or 1)
-	uint currentPosRead;	// current index in m_dPos for position reading (0 or 1)
-	uint currentPosWrite;	// current index in m_dPos for writing (0 or 1)
-	uint currentVelRead;	// current index in m_dVel for velocity reading (0 or 1)
-	uint currentVelWrite;	// current index in m_dVel for writing (0 or 1)
-	uint currentInfoRead;		// current index in m_dInfo for info reading (0 or 1)
-	uint currentInfoWrite;	// current index in m_dInfo for writing (0 or 1)
+
+	BufferIndexMap		currentRead;
+	BufferIndexMap		currentWrite;
 
 	// moving boundaries
-	float4* s_mbData;
-	uint mbDataSize;
+	float4	*s_mbData;
+	uint	mbDataSize;
 
 	// planes
 	uint numPlanes;
-	float4* s_hPlanes;
-	float *	s_hPlanesDiv;
+	float4	*s_hPlanes;
+	float	*s_hPlanesDiv;
 
 	// variable gravity
 	float3 s_varGravity;
@@ -220,26 +240,22 @@ struct GlobalData {
 	// simulation time control
 	bool keep_going;
 	bool quit_request;
-	//bool save_request;
-	//bool save_after_bneibs;
-	//bool requestSliceStartDump;
 	unsigned long iterations;
 	float t;
 	float dt;
 
-	// using only cpu threads for comparison
-	//bool cpuonly;
-	// compute half fluid-fluid interactions per thread
-	//bool single_inter;
-
-	// how many CPU threads?
-	//uint numCpuThreads;
+	// One TimingInfo per worker, currently used for statistics about neibs and interactions
+	TimingInfo timingInfo[MAX_DEVICES_PER_NODE];
+	uint lastGlobalPeakNeibsNum;
+	uint lastGlobalNumInteractions;
 
 	// next command to be executed by workers
 	CommandType nextCommand;
 	// step parameter, e.g. for predictor/corrector scheme
 	// command flags, i.e. parameter for the command
-	uint commandFlags;
+	flag_t commandFlags;
+	// additional argument to be passed to the command
+	float extraCommandArg;
 	// set to true if next kernel has to be run only on internal particles
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
@@ -251,22 +267,7 @@ struct GlobalData {
 	// disable saving (for timing, or only for the last)
 	bool nosave;
 
-	// ids, tdatas and ranges of each cpu thread
-	//pthread_t *cpuThreadIds;
-	//dataForCPUThread *tdatas;
-	//uint *cpuThreadFromParticle;
-	//uint *cpuThreadToParticle;
-	//float *cpuThreadDts;
-	//uint runningCPU;
-	//pthread_mutex_t mutexCPU;
-	//pthread_cond_t condCPU;
-	//pthread_cond_t condCPUworker;
-
-	// objects
-	//float4 *cMbData; // just pointer
-	//float3 crbcg[MAXBODIES];
-	//float3 crbtrans[MAXBODIES];
-	//float crbsteprot[9*MAXBODIES];
+	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
 	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
 	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
@@ -275,60 +276,21 @@ struct GlobalData {
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
 
-	// least elegant way ever to pass phase number to threads
-	//bool phase1;
-
-	// phase control
-	//bool buildNeibs;
-
-	// load balancing control
-	//bool balancing_request;
-
-	// balancing ops counter
-	//uint balancing_operations;
-
-	// asynchronous file save control
-	//bool saving;
-
-	// disable file dump
-	//bool nosave;
-
-	// disable load balancing
-	//bool nobalance;
-
-	// custom balance threshold
-	//float custom_lb_threshold;
-
-	// in multigpu, alloc for every GPU the total number of parts
-	//bool alloc_max;
-
 	GlobalData(void):
 		devices(0),
 		mpi_nodes(0),
 		mpi_rank(-1),
 		totDevices(0),
-		// GPUTHREADS(NULL),
 		problem(NULL),
 		clOptions(NULL),
 		threadSynchronizer(NULL),
 		networkManager(NULL),
 		totParticles(0),
 		nGridCells(0),
-		//idealSubset(0),
-		s_hPos(NULL),
-		s_hVel(NULL),
-		s_hInfo(NULL),
-		s_hVorticity(NULL),
-		s_hNormals(NULL),
-		s_hForces(NULL),
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),
 		s_dCellEnds(NULL),
 		s_dSegmentsStart(NULL),
-		//pin_maxcfl(NULL),
-		//dump_hPos(NULL),
-		//dump_hVel(NULL),
-		//dump_hInfo(NULL),
 		s_mbData(NULL),
 		mbDataSize(0),
 		numPlanes(0),
@@ -336,18 +298,14 @@ struct GlobalData {
 		s_hPlanesDiv(NULL),
 		keep_going(true),
 		quit_request(false),
-		//save_request(false),
-		//save_after_bneibs(false),
-		//requestSliceStartDump(false),
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
-		//cpuonly(false),
-		//single_inter(false),
-		//numCpuThreads(0),
-		//cpuThreadIds(NULL),
+		lastGlobalPeakNeibsNum(0),
+		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
-		commandFlags(0),
+		commandFlags(NO_FLAGS),
+		extraCommandArg(NAN),
 		only_internal(false),
 		writerType(VTKWRITER),
 		writer(NULL),
@@ -355,18 +313,6 @@ struct GlobalData {
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL)
-		//tdatas(NULL),
-		//cpuThreadFromParticle(NULL),
-		//cpuThreadToParticle(NULL),
-		//cpuThreadDts(NULL),
-		//runningCPU(0),
-		//phase1(true),
-		//buildNeibs(false),
-		//balancing_request(false),
-		//balancing_operations(0),
-		//nobalance(false),
-		//custom_lb_threshold(0.0f),
-		//alloc_max(false)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -386,66 +332,103 @@ struct GlobalData {
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos
-	int3 calcGridPosHost(float3 pos) {
-		int3 gridPos;
-		gridPos.x = floor((pos.x - worldOrigin.x) / cellSize.x);
-		gridPos.y = floor((pos.y - worldOrigin.y) / cellSize.y);
-		gridPos.z = floor((pos.z - worldOrigin.z) / cellSize.z);
-		return gridPos;
-	}
-	// overloaded
-	int3 calcGridPosHost(float px, float py, float pz) {
+	int3 calcGridPosHost(double px, double py, double pz) const {
 		int3 gridPos;
 		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
 		gridPos.y = floor((py - worldOrigin.y) / cellSize.y);
 		gridPos.z = floor((pz - worldOrigin.z) / cellSize.z);
 		return gridPos;
 	}
+	// overloaded
+	int3 calcGridPosHost(double3 pos) const {
+		return calcGridPosHost(pos.x, pos.y, pos.z);
+	}
 
 	// compute the linearized hash of the cell located at gridPos
-	uint calcGridHashHost(int3 gridPos) {
-		gridPos.x = min( max(0, gridPos.x), gridSize.x-1);
-		gridPos.y = min( max(0, gridPos.y), gridSize.y-1);
-		gridPos.z = min( max(0, gridPos.z), gridSize.z-1);
-		return ( (gridPos.z * gridSize.y) * gridSize.x ) + (gridPos.y * gridSize.x) + gridPos.x;
+	uint calcGridHashHost(int cellX, int cellY, int cellZ) const {
+		int3 trimmed;
+		trimmed.x = min( max(0, cellX), gridSize.x-1);
+		trimmed.y = min( max(0, cellY), gridSize.y-1);
+		trimmed.z = min( max(0, cellZ), gridSize.z-1);
+		return ( (trimmed.COORD3 * gridSize.COORD2) * gridSize.COORD1 ) + (trimmed.COORD2 * gridSize.COORD1) + trimmed.COORD1;
 	}
 	// overloaded
-	uint calcGridHashHost(int cellX, int cellY, int cellZ) {
-		int trimmedX = min( max(0, cellX), gridSize.x-1);
-		int trimmedY = min( max(0, cellY), gridSize.y-1);
-		int trimmedZ = min( max(0, cellZ), gridSize.z-1);
-		return ( (trimmedZ * gridSize.y) * gridSize.x ) + (trimmedY * gridSize.x) + trimmedX;
+	uint calcGridHashHost(int3 gridPos) const {
+		return calcGridHashHost(gridPos.x, gridPos.y, gridPos.z);
+	}
+
+	// TODO MERGE REVIEW. refactor with next one
+	uint3 calcGridPosFromCellHash(uint cellHash) const {
+		uint3 gridPos;
+
+		gridPos.COORD3 = cellHash / (gridSize.COORD1 * gridSize.COORD2);
+		gridPos.COORD2 = (cellHash - gridPos.COORD3 * gridSize.COORD1 * gridSize.COORD2) / gridSize.COORD1;
+		gridPos.COORD1 = cellHash - gridPos.COORD2 * gridSize.COORD1 - gridPos.COORD3 * gridSize.COORD1 * gridSize.COORD2;
+
+		return gridPos;
 	}
 
 	// reverse the linearized hash of the cell and return the location in gridPos
-	int3 reverseGridHashHost(uint cell_lin_idx) {
-		int cz = cell_lin_idx / (gridSize.y * gridSize.x);
-		int cy = (cell_lin_idx - (cz * gridSize.y * gridSize.x)) / gridSize.x;
-		int cx = cell_lin_idx - (cz * gridSize.y * gridSize.x) - (cy * gridSize.x);
-		return make_int3(cx, cy, cz);
+	int3 reverseGridHashHost(uint cell_lin_idx) const {
+		int3 res;
+
+		res.COORD3 = cell_lin_idx / (gridSize.COORD2 * gridSize.COORD1);
+		res.COORD2 = (cell_lin_idx - (res.COORD3 * gridSize.COORD2 * gridSize.COORD1)) / gridSize.COORD1;
+		res.COORD1 = cell_lin_idx - (res.COORD3 * gridSize.COORD2 * gridSize.COORD1) - (res.COORD2 * gridSize.COORD1);
+
+		return make_int3(res.x, res.y, res.z);
 	}
 
-	// compute the global device Id of the cell holding pos
-	uchar calcGlobalDeviceIndex(float4 pos) {
+	// compute the global device Id of the cell holding globalPos
+	// NOTE: as the name suggests, globalPos is _global_
+	uchar calcGlobalDeviceIndex(double4 globalPos) const {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
-		int3 cellCoords = calcGridPosHost( pos.x, pos.y, pos.z );
+		int3 cellCoords = calcGridPosHost( globalPos.x, globalPos.y, globalPos.z );
 		// compute cell linearized index
 		uint linearizedCellIdx = calcGridHashHost( cellCoords );
 		// read which device number was assigned
 		return s_hDeviceMap[linearizedCellIdx];
 	}
 
-	// swap (indices of) double buffers for positions and velocities; optionally swaps also pInfo
-	void swapDeviceBuffers(uint buffers) {
-		if (buffers & BUFFER_POS)	std::swap(currentPosRead, currentPosWrite);
-		if (buffers & BUFFER_VEL)	std::swap(currentVelRead, currentVelWrite);
-		if (buffers & BUFFER_INFO)	std::swap(currentInfoRead, currentInfoWrite);
+	// swap (indices of) double buffered arrays
+	void swapDeviceBuffers(flag_t buffers) {
+		BufferIndexMap::iterator idxset = currentRead.begin();
+		const BufferIndexMap::iterator stop = currentRead.end();
+		for (; idxset != stop; ++idxset) {
+			flag_t bufkey = idxset->first;
+			if (!(bufkey & buffers))
+				continue; // don't swap unselected buffers
+			// manual swap, eh
+			uint prv = idxset->second;
+			currentRead[bufkey] = currentWrite[bufkey];
+			currentWrite[bufkey] = prv;
+		}
+	}
+
+	// pretty-print memory amounts
+	string memString(size_t memory) const {
+		static const char *memSuffix[] = {
+			"B", "KiB", "MiB", "GiB", "TiB"
+		};
+		static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
+
+		double mem = memory;
+		uint idx = 0;
+		while (mem > 1024 && idx < memSuffix_els - 1) {
+			mem /= 1024;
+			++idx;
+		}
+
+		std::ostringstream oss;
+		oss.precision(mem < 10 ? 3 : mem < 100 ? 4 : 5);
+		oss << mem << " " << memSuffix[idx];
+		return oss.str();
 	}
 
 	// convert to string and add thousand separators
-	string addSeparators(long int number) {
+	string addSeparators(long int number) const {
 		std::ostringstream oss;
 		ulong mod, div;
 		uchar separator = ',';
@@ -480,29 +463,36 @@ struct GlobalData {
 		return oss.str();
 	}
 
-	string to_string(uint number) {
+	string to_string(uint number) const {
 		ostringstream ss;
 		ss << number;
 		return ss.str();
 	}
 
 	// returns a string in the format "r.w" with r = process rank and w = world size
-	string rankString() {
+	string rankString() const {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
-	// MPI aux methods: conversion from/to local device ids to global ones
+	// *** MPI aux methods: conversion from/to local device ids to global ones
+	// get rank from globalDeviceIndex
 	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
+	// get deviceIndex from globalDeviceIndex
 	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
+	// get globalDeviceIndex from rank and deviceIndex
 	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << DEVICE_BITS) | (localDevId & DEVICE_BITS_MASK));} // compute global dev id
 	// compute a simple "linearized" index of the given device, as opposite to convertDevices() does. Not static because devices is known after instantiation and initialization
 	inline uchar GLOBAL_DEVICE_NUM(uchar globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
+	// opoosite of the previous: get rank
+	uchar RANK_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized / devices; }
+	// opposite of the previous: get device
+	uchar DEVICE_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized % devices; }
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
-	void convertDeviceMap() {
+	void convertDeviceMap() const {
 		for (uint n = 0; n < nGridCells; n++) {
-			uchar _rank = s_hDeviceMap[n] / devices;
-			uchar _dev  = s_hDeviceMap[n] % devices;
+			uchar _rank = RANK_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
+			uchar _dev  = DEVICE_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
 		}
 	}
@@ -510,7 +500,7 @@ struct GlobalData {
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
 	// set the correct fields; apply and enable visibility
-	void saveDeviceMapToFile(string prefix) {
+	void saveDeviceMapToFile(string prefix) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())
@@ -522,9 +512,9 @@ struct GlobalData {
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
-		for (int ix=0; ix < gridSize.x; ix++)
-				for (int iy=0; iy < gridSize.y; iy++)
-					for (int iz=0; iz < gridSize.z; iz++) {
+		for (uint ix=0; ix < gridSize.x; ix++)
+				for (uint iy=0; iy < gridSize.y; iy++)
+					for (uint iz=0; iz < gridSize.z; iz++) {
 						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
 						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, s_hDeviceMap[cell_lin_idx]);
 					}
@@ -533,7 +523,8 @@ struct GlobalData {
 	}
 
 	// Same as saveDeviceMapToFile() but saves the *compact* device map and, if multi-gpu, also appends the device number
-	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) {
+	// NOTE: values are shifted; CELLTYPE_*_CELL is written while CELLTYPE_*_CELL_SHIFTED is in memory
+	void saveCompactDeviceMapToFile(string prefix, uint srcDev, uint *compactDeviceMap) const {
 		std::ostringstream oss;
 		oss << problem->get_dirname() << "/";
 		if (!prefix.empty())
@@ -545,9 +536,9 @@ struct GlobalData {
 		std::string fname = oss.str();
 		FILE *fid = fopen(fname.c_str(), "w");
 		fprintf(fid,"X,Y,Z,LINEARIZED,VALUE\n");
-		for (int ix=0; ix < gridSize.x; ix++)
-				for (int iy=0; iy < gridSize.y; iy++)
-					for (int iz=0; iz < gridSize.z; iz++) {
+		for (uint ix=0; ix < gridSize.x; ix++)
+				for (uint iy=0; iy < gridSize.y; iy++)
+					for (uint iz=0; iz < gridSize.z; iz++) {
 						uint cell_lin_idx = calcGridHashHost(ix, iy, iz);
 						fprintf(fid,"%u,%u,%u,%u,%u\n", ix, iy, iz, cell_lin_idx, compactDeviceMap[cell_lin_idx] >> 30);
 					}

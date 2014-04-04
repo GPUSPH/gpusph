@@ -1,0 +1,52 @@
+#!/bin/sh
+
+abort() {
+	echo "$1" 1>&2
+	exit 1;
+}
+
+file="$1"
+shift
+
+test -z "$file" && abort "Please specify a file"
+
+# Support specifying just the toplevel directory
+if test -d "$file" ; then
+	test -d "$file/data" && file="$file/data"
+	test -e "$file/energy.txt" && file="$file/energy.txt" || abort "No gage file found in $file"
+fi
+
+test -f "$file" || abort "Gage file '$file' not found"
+
+cols=$(awk '{print NF-1; exit}' "$file")
+
+fluid=0
+
+col=2
+idxsum="(\$$col"
+cmd="plot '$file' using 1:$col with lines title 'kinetic$fluid'"
+col=$(($col+1))
+idxsum="$idxsum+\$$col"
+cmd="$cmd, '' using 1:$col with lines title 'potential$fluid'"
+col=$(($col+1))
+idxsum="$idxsum+\$$col)"
+cmd="$cmd, '' using 1:$col with lines title 'elastic$fluid'"
+cmd="$cmd, '' using 1:$idxsum with lines title 'total$fluid'"
+
+while test $col -lt $cols ; do
+	fluid=$(($fluid+1))
+	col=$(($col+1))
+	idxsum="(\$$col"
+	cmd="$cmd, '' using 1:$col with lines title 'kinetic$fluid'"
+	col=$(($col+1))
+	idxsum="$idxsum+\$$col"
+	cmd="$cmd, '' using 1:$col with lines title 'potential$fluid'"
+	col=$(($col+1))
+	idxsum="$idxsum+\$$col)"
+	cmd="$cmd, '' using 1:$col with lines title 'elastic$fluid'"
+	cmd="$cmd, '' using 1:$idxsum with lines title 'total$fluid'"
+done
+
+echo $cmd
+
+echo "$cmd" | gnuplot "$@"

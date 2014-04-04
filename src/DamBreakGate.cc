@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -30,6 +30,7 @@
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
+#include "GlobalData.h"
 
 #define SIZE_X		(1.60)
 #define SIZE_Y		(0.67)
@@ -45,19 +46,16 @@
 // #define ORIGIN_Y	(- SIZE_Y / 2)
 // #define ORIGIN_Z	(- SIZE_Z / 2)
 
-DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
+DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
-	m_size = make_float3(SIZE_X, SIZE_Y, SIZE_Z);
-	m_origin = make_float3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
+	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
+	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
 	set_deltap(0.015f);
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0001f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -72,8 +70,8 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	m_simparams.tend = 10.f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals =true;
+	m_simparams.surfaceparticle = false;
+	m_simparams.savenormals = false;
 
 	// Physical parameters
 	H = 0.4f;
@@ -111,12 +109,11 @@ DamBreakGate::DamBreakGate(const Options &options) : Problem(options)
 	mbgatedata.tstart = 0.2f;
 	mbgatedata.tend = 0.6f;
 	mbgatedata.vel = make_float3(0.0, 0.0, 0.0);
-	// Call mb_callback a first time to initialise values set by the call back function
+	// Call mb_callback a first time to initialize values set by the call back function
 	mb_callback(0.0, 0.0, 0);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
-	create_problem_dir();
 }
 
 
@@ -212,40 +209,45 @@ int DamBreakGate::fill_parts()
 	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
 }
 
-void DamBreakGate::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void DamBreakGate::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,0,i);
+		info[i] = make_particleinfo(BOUNDPART,0,i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-        std::cout << "Gate parts: " << gate_parts.size() << "\n";
+	std::cout << "Gate parts: " << gate_parts.size() << "\n";
 	for (uint i = j; i < j + gate_parts.size(); i++) {
-		pos[i] = make_float4(gate_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(GATEPART,0,i);
+		info[i] = make_particleinfo(GATEPART,0,i);
+		calc_localpos_and_hash(gate_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += gate_parts.size();
 	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		pos[i] = make_float4(obstacle_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,1,i);
+		info[i] = make_particleinfo(BOUNDPART,1,i);
+		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
 	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(FLUIDPART,0,i);
+		info[i] = make_particleinfo(FLUIDPART,0,i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

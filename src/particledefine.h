@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -30,12 +30,12 @@
 #ifndef _PARTICLEDEFINE_H
 #define	_PARTICLEDEFINE_H
 
-#include <cstring>
-
 #include "vector_math.h"
 #include "cuda_call.h"
 
 #include "ode/ode.h"
+
+#include "common_types.h"
 
 enum KernelType {
 	CUBICSPLINE = 1,
@@ -83,6 +83,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
+	SA_BOUNDARY,
 	INVALID_BOUNDARY
 };
 
@@ -94,6 +95,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 = {
 	"Lennard-Jones",
 	"Monaghan-Kajtar",
+	"Ferrand et al.",
 	"(invalid)"
 }
 #endif
@@ -107,6 +109,7 @@ enum ViscosityType {
 	KINEMATICVISC,
 	DYNAMICVISC,
 	SPSVISC,
+	KEPSVISC,
 	INVALID_VISCOSITY
 } ;
 
@@ -121,7 +124,38 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 	"Kinematic",
 	"Dynamic",
 	"SPS + kinematic",
+	"k-e model",
 	"(invalid)"
+}
+#endif
+;
+
+/* Periodic boundary */
+enum Periodicity {
+	PERIODIC_NONE = 0,
+	PERIODIC_X   = 1,
+	PERIODIC_Y   = PERIODIC_X << 1,
+	PERIODIC_XY  = PERIODIC_X | PERIODIC_Y,
+	PERIODIC_Z   = PERIODIC_Y << 1,
+	PERIODIC_XZ  = PERIODIC_X | PERIODIC_Z,
+	PERIODIC_YZ  = PERIODIC_Y | PERIODIC_Z,
+	PERIODIC_XYZ = PERIODIC_X | PERIODIC_Y | PERIODIC_Z,
+};
+
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char* PeriodicityName[PERIODIC_XYZ+1]
+#ifdef GPUSPH_MAIN
+= {
+	"none",
+	"X",
+	"Y",
+	"X and Y",
+	"Z",
+	"X and Z",
+	"Y and Z",
+	"X, Y and Z",
 }
 #endif
 ;
@@ -150,29 +184,48 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 
 /* non-fluid particle types are mutually exclusive (e.g. a particle is _either_
  * boundary _or_ piston, but not both, so they could be increasing from 1 to the
- * maximum number of particle types that we need. But these are encoded in the high
- * bits of the lowest byte, so they are all shifted by MAX_FLUID_BITS.
+ * maximum number of particle types that we need.
  *
- * Remember: these are numbers (but encoded in a higher position), not flags.
- * Add to them by increasing the number that gets shifted.
+ * These will then be encoded in the particle info field by shifting them by
+ * MAX_FLUID_BITS.
  *
  * The maximum number of particle types we can have with 4 fluid bits is
  * 2^4 -1 = 15 (16 including particle type 0 = fluid).
- *
  * If we ever need more, we can reduce MAX_FLUID_BITS to 2 (and force the limit of
  * 4 fluid types), and we could have up to 2^6 - 1 = 63 non-fluid particle types.
  */
 
-#define FLUIDPART		0
-#define BOUNDPART		(1<<MAX_FLUID_BITS)
-#define PISTONPART		(2<<MAX_FLUID_BITS)
-#define PADDLEPART		(3<<MAX_FLUID_BITS)
-#define GATEPART		(4<<MAX_FLUID_BITS)
-#define TESTPOINTSPART	(5<<MAX_FLUID_BITS)
-#define OBJECTPART		(6<<MAX_FLUID_BITS)
+enum ParticleType {
+	PT_FLUID = 0,
+	PT_BOUNDARY,
+	PT_PISTON,
+	PT_PADDLE,
+	PT_GATE,
+	PT_OBJECT,
+	PT_TESTPOINT,
+	PT_VERTEX,
+};
+
+/* The ParticleType enum is rarely used directly, since for storage its value
+ * is encoded in the high bits of the lowest byte of the particle info field,
+ * so they are all shifted by MAX_FLUID_BITS.
+ */
+
+#define FLUIDPART		(PT_FLUID << MAX_FLUID_BITS)
+/* non-fluid types start at (1<<MAX_FLUID_BITS) */
+#define BOUNDPART		(PT_BOUNDARY << MAX_FLUID_BITS)
+#define PISTONPART		(PT_PISTON << MAX_FLUID_BITS)
+#define PADDLEPART		(PT_PADDLE << MAX_FLUID_BITS)
+#define GATEPART		(PT_GATE << MAX_FLUID_BITS)
+#define OBJECTPART		(PT_OBJECT << MAX_FLUID_BITS)
+#define TESTPOINTSPART	(PT_TESTPOINT << MAX_FLUID_BITS)
+#define VERTEXPART		(PT_VERTEX << MAX_FLUID_BITS)
 
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
+
+#define SET_FLAG(info, flag) ((info).x |= (flag))
+#define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 
 #define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
 
@@ -180,52 +233,62 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 /* A bitmask to select only the fluid number */
 #define FLUID_NUM_MASK	((1<<MAX_FLUID_BITS)-1)
 /* A bitmask to select only the particle type */
-#define FLUID_TYPE_MASK	((1<<PART_FLAG_SHIFT)-(1<<MAX_FLUID_BITS))
+#define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-(1<<MAX_FLUID_BITS))
 
-/* A particle is NOT fluid if its fluid type is non-zero */
-#define NOT_FLUID(f)	((f).x & FLUID_TYPE_MASK)
+/* A particle is NOT fluid if its particle type is non-zero */
+#define NOT_FLUID(f)	(type(f) & PART_TYPE_MASK)
 /* otherwise it's fluid */
 #define FLUID(f)		(!(NOT_FLUID(f)))
 
+// fluid particles can be active or inactive. Particles are marked inactive under appropriate
+// conditions (e.g. after flowing out through an outlet), and are kept around until the next
+// buildneibs, that sweeps them away.
+// Since the inactivity of the particles must be accessible during neighbor list building,
+// and in particular when computing the particle hash for bucketing, we carry the information
+// in the position/mass field. Since fluid particles have positive mass, it is sufficient
+// to set its mass to zero to mark the particle inactive
+
+// a particle is active if its mass is non-zero
+#define ACTIVE(p)	(isfinite((p).w))
+#define INACTIVE(p)	(!ACTIVE(p))
+
+// disable a particle by zeroing its mass
+inline __host__ __device__ void
+disable_particle(float4 &pos) {
+	pos.w = NAN;
+}
+
 /* Tests for particle types */
 // Testpoints
-#define TESTPOINTS(f)	((f).x == TESTPOINTSPART)
+#define TESTPOINTS(f)	(type(f) == TESTPOINTSPART)
 // Particle belonging to an object
-#define OBJECT(f)		((f).x == OBJECTPART)
+#define OBJECT(f)		(type(f) == OBJECTPART)
 // Boundary particle
-#define BOUNDARY(f)		((f).x == BOUNDPART)
+#define BOUNDARY(f)		(type(f) == BOUNDPART)
+// Vertex particle
+#define VERTEX(f)		(type(f) == VERTEXPART)
 
 /* Tests for particle flags */
 // Free surface detection
-#define SURFACE_PARTICLE(f)	((f).x & SURFACE_PARTICLE_FLAG) // TODO; rename SURFACE_PARTICLE to SURFACE
+#define SURFACE(f)		(type(f) & SURFACE_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data
  */
 // Extract particle type
-#define PART_TYPE(f)		(((f).x & FLUID_TYPE_MASK) >> MAX_FLUID_BITS)
+#define PART_TYPE(f)		((type(f) & PART_TYPE_MASK) >> MAX_FLUID_BITS)
 // Extract particle flag
-#define PART_FLAG(f)		((f).x >> PART_FLAG_SHIFT)
+#define PART_FLAG(f)		(type(f) >> PART_FLAG_SHIFT)
 // Extract particle fluid number
-#define PART_FLUID_NUM(f)	((f).x & FLUID_NUM_MASK)
-
-
-/* Periodic neighborhood warping */
-#define WARPZMINUS				(1U<<31)
-#define WARPZPLUS				(1U<<30)
-#define WARPYMINUS				(1U<<29)
-#define WARPYPLUS				(1U<<28)
-#define WARPXMINUS				(1U<<27)
-#define WARPXPLUS				(1U<<26)
-#define MAXPARTICLES			WARPXPLUS
-#define NOWARP					~(WARPXPLUS|WARPXMINUS|WARPYPLUS|WARPYMINUS|WARPZPLUS|WARPZMINUS)
+#define PART_FLUID_NUM(f)	(type(f) & FLUID_NUM_MASK)
 
 
 /* Maximum number of floating bodies*/
 #define	MAXBODIES				10
 
+#define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
 
-#define NEIBINDEX_INTERLEAVE		32
+#define NEIBINDEX_INTERLEAVE		32U
 
 #if (__COMPUTE__ >= 20)
 	#define INTMUL(x,y) (x)*(y)
@@ -233,67 +296,4 @@ const char* ViscosityName[INVALID_VISCOSITY+1]
 	#define INTMUL(x,y) __mul24(x,y)
 #endif
 
-// define uint, uchar, ulong
-typedef unsigned long ulong; // only used in timing
-typedef unsigned int uint;
-typedef unsigned char uchar;
-
-/* Particle information. short4 with fields:
-   .x: particle type (for multifluid)
-   .y: object id (which object does this particle belong to?)
-   (.z << 16) + .w: particle id
-
-   The last two fields are unlikely to be used for actual computations, but
-   they allow us to track 2^32 (about 4 billion) particles.
-   In the extremely unlikely case that we need more, we can consider the
-   particle id object-local and use (((.y << 16) + .z) << 16) + .w as a
-   _global_ particle id. This would allow us to uniquely identify up to
-   2^48 (about 281 trillion) particles.
-*/
-
-typedef short4 particleinfo;
-
-inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const short &z, const short &w)
-{
-	particleinfo v;
-	v.x = type;
-	v.y = obj;
-	v.z = z;
-	v.w = w;
-	return v;
-}
-
-inline __host__ particleinfo make_particleinfo(const short &type, const short &obj, const uint &id)
-{
-	particleinfo v;
-	v.x = type;
-	v.y = obj;
-	// id is in the location of two shorts.
-	/* The following line does not work with optimization if the C99
-	   standard for strict aliasing holds. Rather than forcing
-	   -fno-strict-aliasing (which is GCC only) we resort to
-	   memcpy which is the only `portable' way of doing this stuff,
-	   allegedly. Note that even this is risky because it might fail
-	   in cases of different endianness. So I'll mark this
-	   FIXME endianness
-	 */
-	// *(uint*)&v.z = id;
-	memcpy((void *)&v.z, (const void *)&id, (unsigned int) 4);
-	return v;
-}
-
-inline __host__ __device__ const short& type(const particleinfo &info)
-{
-	return info.x;
-}
-
-inline __host__ __device__ const short& object(const particleinfo &info)
-{
-	return info.y;   /***********NOTE */
-}
-
-inline __host__ __device__ const uint & id(const particleinfo &info)
-{
-	return *(uint*)&info.z;
-}
 #endif

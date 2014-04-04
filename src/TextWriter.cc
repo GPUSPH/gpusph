@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -54,9 +54,14 @@ TextWriter::~TextWriter()
     }
 }
 
-void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
-					const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals)
+void
+TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
+	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
+
 	string filename, full_filename;
 	string filenum = next_filenum();
 	//filename = "PART_" + next_filenum() + ".txt";
@@ -73,12 +78,12 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		// position
 		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
 												, pos[i].x, pos[i].y, pos[i].z);
 		// velocity
-		  
+
 		//Testpoints
 		if (FLUID(info[i])||TESTPOINTS(info[i]))
 			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
@@ -124,7 +129,7 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	FILE *fid1 = fopen(full_filename.c_str(), "w");
 
 	// Writing datas
-	for (int i=0; i < numParts; i++) {
+	for (uint i=0; i < numParts; i++) {
 		if (TESTPOINTS(info[i])){
 		// position
 		fprintf(fid1,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
@@ -150,4 +155,3 @@ void TextWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 
 }
-

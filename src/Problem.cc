@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -33,15 +33,21 @@
 
 #include "Problem.h"
 #include "vector_math.h"
+#include "vector_print.h"
+#include "utils.h"
 
 // here we need the complete definition of the GlobalData struct
 #include "GlobalData.h"
 
-int Problem::m_total_ODE_bodies = 0;
+// COORD1, COORD2, COORD3
+#include "linearization.h"
 
-Problem::Problem(const Options &options)
+uint Problem::m_total_ODE_bodies = 0;
+
+Problem::Problem(const GlobalData *_gdata)
 {
-	m_options = options;
+	gdata = _gdata;
+	m_options = gdata->clOptions;
 	m_last_display_time = 0.0;
 	m_last_write_time = -1.0;
 	m_last_screenshot_time = 0.0;
@@ -49,38 +55,142 @@ Problem::Problem(const Options &options)
 	m_rbdatafile = NULL;
 	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
-	m_bodies = NULL;
-	if (options.custom_dir.length()>0)
-		m_problem_dir = options.custom_dir;
+	m_ODE_bodies = NULL;
+	m_problem_dir = m_options->dir;
 }
 
 
 Problem::~Problem(void)
 {
-	if (m_simparams.numbodies)
-		delete [] m_bodies;
+	if (m_ODE_bodies)
+		delete [] m_ODE_bodies;
 	if (m_rbdatafile != NULL) {
         fclose(m_rbdatafile);
     }
 }
 
+void
+Problem::check_dt(void)
+{
+	float dt_from_sspeed = INFINITY;
+	for (uint f = 0 ; f < m_physparams.numFluids; ++f) {
+		float sspeed = m_physparams.sscoeff[f];
+		dt_from_sspeed = fmin(dt_from_sspeed, m_simparams.slength/sspeed);
+	}
+	dt_from_sspeed *= m_simparams.dtadaptfactor;
+
+	float dt_from_gravity = sqrt(m_simparams.slength/length(m_physparams.gravity));
+	dt_from_gravity *= m_simparams.dtadaptfactor;
+
+	float dt_from_visc = NAN;
+	if (m_simparams.visctype != ARTVISC) {
+		dt_from_visc = m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc;
+		dt_from_visc *= 0.125; // TODO this should be configurable
+	}
+
+	float cfl_dt = fmin(dt_from_sspeed, fmin(dt_from_gravity, dt_from_visc));
+
+	if (m_simparams.dt > cfl_dt) {
+		fprintf(stderr, "WARNING: dt %g bigger than %g imposed by CFL conditions (sspeed: %g, gravity: %g, viscosity: %g)\n",
+			m_simparams.dt, cfl_dt,
+			dt_from_sspeed, dt_from_gravity, dt_from_visc);
+	} else if (!m_simparams.dt) { // dt wasn't set
+			m_simparams.dt = cfl_dt;
+			printf("setting dt = %g from CFL conditions (soundspeed: %g, gravity: %g, viscosity: %g)\n",
+				m_simparams.dt,
+				dt_from_sspeed, dt_from_gravity, dt_from_visc);
+	} else {
+			printf("dt = %g (CFL conditions from soundspeed: %g, from gravity %g, from viscosity %g)\n",
+				m_simparams.dt,
+				dt_from_sspeed, dt_from_gravity, dt_from_visc);
+	}
+
+}
+
+void
+Problem::check_maxneibsnum(void)
+{
+	// kernel radius times smoothing factor, rounded to the next integer
+	double r = m_simparams.sfactor*m_simparams.kernelradius;
+	r = ceil(r);
+
+	// volumes are computed using a coefficient which is sligthly more than π
+#define PI_PLUS_EPS 3.2
+	double vol = 4*PI_PLUS_EPS*r*r*r/3;
+	// and rounded up
+	vol = ceil(vol);
+
+	// maxneibsnum is obtained rounding up the volume to the next
+	// multiple of 32
+	uint maxneibsnum = round_up((uint)vol, 32U);
+
+	// with semi-analytical boundaries, boundary particles
+	// are doubled, so we expand by a factor of 1.5,
+	// again rounding up
+	if (m_simparams.boundarytype == SA_BOUNDARY)
+		maxneibsnum = round_up(3*maxneibsnum/2, 32U);
+
+	// more in general, it's possible to have different particle densities for the
+	// boundaries even with other boundary conditions. we do not have a universal
+	// parameter that marks the inter-particle distance for boundary particles,
+	// although we know that r0 is normally used for this too.
+	// TODO FIXME when the double meaning of r0 as inter-particle distance for
+	// boundary particles and as fluid-boundary distance is split into separate
+	// variables, the inter-particle distance should be used in the next formula
+
+	// The formula we use is based on the following:
+	// 1. a half-sphere has (3/2) pi r^3 particle
+	// 2. a full circle has pi (r/q)^2 particles, if q is the ratio beween
+	//   the inter-particle distance on the full circle and the inter-particle
+	//   distance used in the fluid
+	// * the number of neighbors that are seen by a particle which is near
+	//   a boundary plane with q*dp interparticle-distance is augmented the number
+	//   in 2. over the number in 1., giving (3/2) (1/q)^2 (1/r)
+	// * of course this does not affect the entire neighborhood, but only the part
+	//   which is close to a boundary, which we estimate to be at most 2/3rds of
+	//   the neighborhood, which cancels with the (3/2) factor
+	//   TODO check if we should assume 7/8ths instead (particle near vertex
+	//   only has 1/8th of a sphere in the fluid, the rest is all boundaries).
+	double qq = m_deltap/m_physparams.r0; // 1/q
+	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
+	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
+	// increase maxneibsnum as appropriate
+	maxneibsnum = ceil(ratio*maxneibsnum);
+	// round up to multiple of 32
+	maxneibsnum = round_up(maxneibsnum, 32U);
+
+	// if the maxneibsnum was user-set, check against computed minimum
+	if (m_simparams.maxneibsnum) {
+		if (m_simparams.maxneibsnum < maxneibsnum) {
+			fprintf(stderr, "WARNING: problem-set max neibs num too low! %u < %u\n",
+				m_simparams.maxneibsnum, maxneibsnum);
+		} else {
+			printf("Using problem-set max neibs num %u (safe computed value was %u)\n",
+				m_simparams.maxneibsnum, maxneibsnum);
+		}
+	} else {
+		printf("Using computed max neibs num %u\n", maxneibsnum);
+		m_simparams.maxneibsnum = maxneibsnum;
+	}
+}
+
 
 float
-Problem::density(float h, int i)
+Problem::density(float h, int i) const
 {
 	float density = m_physparams.rho0[i];
 
 	if (h > 0) {
-		float g = length(m_physparams.gravity);
+		//float g = length(m_physparams.gravity);
+		float g = abs(m_physparams.gravity.z);
 		density = m_physparams.rho0[i]*pow(g*m_physparams.rho0[i]*h/m_physparams.bcoeff[i] + 1,
 				1/m_physparams.gammacoeff[i]);
 		}
 	return density;
 }
 
-
 float
-Problem::soundspeed(float rho, int i)
+Problem::soundspeed(float rho, int i) const
 {
 	return m_physparams.sscoeff[i]*pow(rho/m_physparams.rho0[i], m_physparams.sspowercoeff[i]);
 }
@@ -103,30 +213,34 @@ Problem::need_display(float t)
 	return false;
 }
 
+void
+Problem::add_gage(double3 const& pt)
+{
+	m_simparams.gage.push_back(pt);
+}
 
-std::string
+std::string const&
 Problem::create_problem_dir(void)
 {
-	// if no custom dir was set, create one based on the name of the problem plus the time
-	if (m_problem_dir.length()==0) {
+	// if no data save directory was specified, default to a name
+	// composed of problem name followed by date and time
+	if (m_problem_dir.empty()) {
 		time_t  rawtime;
-		char	time_str[17];
+		char	time_str[18];
 
 		time(&rawtime);
-		strftime(time_str, 17, "%Y-%m-%d %Hh%M", localtime(&rawtime));
-		time_str[16] = '\0';
-		m_problem_dir = "./tests/" + m_name + ' ' + std::string(time_str);
-
-		// create "./tests/" if it doesn't exist yet. Assuming this yield no error...
+		strftime(time_str, 18, "_%Y-%m-%dT%Hh%M", localtime(&rawtime));
+		time_str[17] = '\0';
+		// if "./tests/" doesn't exist yet...
 		mkdir("./tests/", S_IRWXU | S_IRWXG | S_IRWXO);
+		m_problem_dir = "./tests/" + m_name + std::string(time_str);
 	}
 
-	// create the directory
-	if (mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO)) {
-		fprintf(stderr, " * WARNING: couldn't create directory %s\n",
-			m_problem_dir.c_str());
-		fprintf(stderr, "   Possible causes: no permessions, parent directory doesn't exist, etc.\n");
-	}
+	// TODO it should be possible to specify a directory with %-like
+	// replaceable strings, such as %{problem} => problem name,
+	// %{time} => launch time, etc.
+
+	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
 	if (m_rbdata_writeinterval) {
 		string rbdata_filename = m_problem_dir + "/rbdata.txt";
@@ -174,10 +288,13 @@ Problem::need_write_rbdata(float t)
 void
 Problem::write_rbdata(float t)
 {
-	if (m_simparams.numbodies) {
+	if (m_simparams.numODEbodies) {
 		if (need_write_rbdata(t)) {
-			for (int i = 0; i < m_simparams.numbodies; i++) {
-				m_bodies[i].Write(t, m_rbdatafile);
+			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
+				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
+				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
+				fprintf(m_rbdatafile, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", i, t, cg[0],
+						cg[1], cg[2], quat[0], quat[1], quat[2], quat[3]);
 			}
 		}
 	}
@@ -222,13 +339,13 @@ Problem::g_callback(const float t)
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
 // Default algorithm: split along the longest axis
-void Problem::fillDeviceMap(GlobalData* gdata)
+void Problem::fillDeviceMap()
 {
-	fillDeviceMapByAxis(gdata, LONGEST_AXIS);
+	fillDeviceMapByAxis(LONGEST_AXIS);
 }
 
 // partition by splitting the cells according to their linearized hash.
-void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
+void Problem::fillDeviceMapByCellHash()
 {
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
@@ -236,7 +353,7 @@ void Problem::fillDeviceMapByCellHash(GlobalData* gdata)
 }
 
 // partition by splitting along the specified axis
-void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_axis)
+void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 {
 	// select the longest axis
 	if (preferred_split_axis == LONGEST_AXIS) {
@@ -249,7 +366,7 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 		else
 			preferred_split_axis = Z_AXIS;
 	}
-	uint cells_per_longest_axis;
+	uint cells_per_longest_axis = 0;
 	switch (preferred_split_axis) {
 		case X_AXIS:
 			cells_per_longest_axis = gdata->gridSize.x;
@@ -261,7 +378,11 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 			cells_per_longest_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = cells_per_longest_axis / gdata->totDevices;
+	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (float)gdata->totDevices);
+	/*
+	printf("Splitting domain along axis %s, %u cells per part\n",
+		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_longest_axis);
+	*/
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
 		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
 			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
@@ -282,7 +403,7 @@ void Problem::fillDeviceMapByAxis(GlobalData* gdata, SplitAxis preferred_split_a
 			}
 }
 
-void Problem::fillDeviceMapByEquation(GlobalData* gdata)
+void Problem::fillDeviceMapByEquation()
 {
 	// 1st equation: (x+y+z / #devices)
 	uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
@@ -318,7 +439,7 @@ void Problem::fillDeviceMapByEquation(GlobalData* gdata)
 // This is not meant to be called directly by a problem since the number of splits (and thus the devices)
 // would be hardocded. A wrapper method (like fillDeviceMapByRegularGrid) can provide an algorithm to
 // properly factorize a given number of GPUs in 2 or 3 values.
-void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Yslices, uint Zslices)
+void Problem::fillDeviceMapByAxesSplits(uint Xslices, uint Yslices, uint Zslices)
 {
 	// is any of these zero?
 	if (Xslices * Yslices * Zslices == 0)
@@ -329,9 +450,9 @@ void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Ys
 	if (Zslices == 0) Zslices = 1;
 
 	// divide and round
-	uint devSizeCellsX = gdata->gridSize.x + Xslices - 1 / Xslices ;
-	uint devSizeCellsY = gdata->gridSize.y + Yslices - 1 / Yslices ;
-	uint devSizeCellsZ = gdata->gridSize.z + Zslices - 1 / Zslices ;
+	uint devSizeCellsX = (gdata->gridSize.x + Xslices - 1) / Xslices ;
+	uint devSizeCellsY = (gdata->gridSize.y + Yslices - 1) / Yslices ;
+	uint devSizeCellsZ = (gdata->gridSize.z + Zslices - 1) / Zslices ;
 
 	// iterate on all cells
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
@@ -344,9 +465,9 @@ void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Ys
 				uint whichDevCoordZ = (cz / devSizeCellsZ);
 
 				// round if needed
-				whichDevCoordX %= Xslices;
-				whichDevCoordY %= Yslices;
-				whichDevCoordZ %= Zslices;
+				if (whichDevCoordX == Xslices) whichDevCoordX--;
+				if (whichDevCoordY == Yslices) whichDevCoordY--;
+				if (whichDevCoordZ == Zslices) whichDevCoordZ--;
 
 				// compute dest device
 				uint dstDevice = whichDevCoordZ * Yslices * Xslices + whichDevCoordY * Xslices + whichDevCoordX;
@@ -359,7 +480,7 @@ void Problem::fillDeviceMapByAxesSplits(GlobalData* gdata, uint Xslices, uint Ys
 
 // Wrapper for fillDeviceMapByAxesSplits() computing the number of cuts along each axis.
 // WARNING: assumes the total number of devices is divided by a combination of 2, 3 and 5
-void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
+void Problem::fillDeviceMapByRegularGrid()
 {
 	float Xsize = gdata->worldSize.x;
 	float Ysize = gdata->worldSize.y;
@@ -400,41 +521,21 @@ void Problem::fillDeviceMapByRegularGrid(GlobalData* gdata)
 		printf("WARNING: splitting by regular grid but final distribution (%u, %u, %u) does not produce %u parallelepipeds!\n",
 			cutsX, cutsY, cutsZ, gdata->totDevices);
 
-	fillDeviceMapByAxesSplits(gdata, cutsX, cutsY, cutsZ);
+	fillDeviceMapByAxesSplits(cutsX, cutsY, cutsZ);
 }
 
 void
-Problem::allocate_bodies(const int i)
+Problem::allocate_ODE_bodies(const uint i)
 {
-	m_simparams.numbodies = i;
-	m_bodies = new RigidBody[i];
-}
-
-
-void
-Problem::allocate_ODE_bodies(const int i)
-{
-	m_simparams.numbodies = i;
+	m_simparams.numODEbodies = i;
 	m_ODE_bodies = new Object *[i];
 }
 
 
-RigidBody*
-Problem::get_body(const int i)
-{
-	if (i >= m_simparams.numbodies) {
-		stringstream ss;
-		ss << "get_body: body number " << i << " >= numbodies";
-		throw runtime_error(ss.str());
-	}
-	return &m_bodies[i];
-}
-
-
 Object*
-Problem::get_ODE_body(const int i)
+Problem::get_ODE_body(const uint i)
 {
-	if (i >= m_simparams.numbodies) {
+	if (i >= m_simparams.numODEbodies) {
 		stringstream ss;
 		ss << "get_ODE_body: body number " << i << " >= numbodies";
 		throw runtime_error(ss.str());
@@ -446,7 +547,7 @@ Problem::get_ODE_body(const int i)
 void
 Problem::add_ODE_body(Object* object)
 {
-	if (m_total_ODE_bodies >= m_simparams.numbodies) {
+	if (m_total_ODE_bodies >= m_simparams.numODEbodies) {
 		stringstream ss;
 		ss << "add_ODE_body: body number " << m_total_ODE_bodies << " >= numbodies";
 		throw runtime_error(ss.str());
@@ -455,21 +556,12 @@ Problem::add_ODE_body(Object* object)
 	m_total_ODE_bodies++;
 }
 
-int
-Problem::get_body_numparts(const int i)
-{
-	if (!m_simparams.numbodies)
-		return 0;
-
-	return m_bodies[i].GetParts().size();
-}
-
 
 int
-Problem::get_ODE_bodies_numparts(void)
+Problem::get_ODE_bodies_numparts(void) const
 {
 	int total_parts = 0;
-	for (int i = 0; i < m_simparams.numbodies; i++) {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
 		total_parts += m_ODE_bodies[i]->GetParts().size();
 	}
 
@@ -478,64 +570,28 @@ Problem::get_ODE_bodies_numparts(void)
 
 
 int
-Problem::get_ODE_body_numparts(const int i)
+Problem::get_ODE_body_numparts(const int i) const
 {
-	if (!m_simparams.numbodies)
+	if (!m_simparams.numODEbodies)
 		return 0;
 
 	return m_ODE_bodies[i]->GetParts().size();
 }
 
 
-int
-Problem::get_bodies_numparts(void)
-{
-	int total_parts = 0;
-	for (int i = 0; i < m_simparams.numbodies; i++) {
-		total_parts += m_bodies[i].GetParts().size();
-	}
-
-	return total_parts;
-}
-
-
 void
-Problem::get_rigidbodies_data(float3 * & cg, float * & steprot)
+Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
 {
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 }
 
 
-/*float3*
-Problem::get_rigidbodies_cg(void)
-{
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies[i].GetCG(m_bodies_cg[i]);
-	}
-
-	return m_bodies_cg;
-}*/
-
-
-float3*
-Problem::get_rigidbodies_cg(void)
-{
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_bodies[i].m_object->m_ODEBody));
-		//cout << "Body n " << i << "\tpos(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
-	}
-
-	return m_bodies_cg;
-}
-
-
 float3*
 Problem::get_ODE_bodies_cg(void)
 {
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
 		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
-		//cout << "Body n " << i << "\tpos(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
 	}
 
 	return m_bodies_cg;
@@ -543,33 +599,18 @@ Problem::get_ODE_bodies_cg(void)
 
 
 float*
-Problem::get_rigidbodies_steprot(void)
+Problem::get_ODE_bodies_steprot(void)
 {
 	return m_bodies_steprot;
 }
 
 
-/*void
-Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
-		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
-{
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies[i].TimeStep(force[i], m_physparams.gravity, torque[i], step, dt,
-				m_bodies_cg + i, m_bodies_trans + i, m_bodies_steprot + 9*i);
-	}
-	cg = m_bodies_cg;
-	steprot = m_bodies_steprot;
-	trans = m_bodies_trans;
-}*/
-
-// input: force, torque, step number (why?), dt
-// output: cg, trans, steprot (can be input uninitialized)
 void
-Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const int step,
+Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
 		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
 {
 	dReal prev_quat[MAXBODIES][4];
-	for (int i = 0; i < m_total_ODE_bodies; i++)  {
+	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
 		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 		prev_quat[i][0] = quat[0];
 		prev_quat[i][1] = quat[1];
@@ -581,14 +622,13 @@ Problem::rigidbodies_timestep(const float3 *force, const float3 *torque, const i
 
 	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
 	dWorldStep(m_ODEWorld, dt);
-	dJointGroupEmpty(m_ODEJointGroup);
+	if (m_ODEJointGroup)
+		dJointGroupEmpty(m_ODEJointGroup);
 
-	for (int i = 0; i < m_simparams.numbodies; i++)  {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
 		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
 		m_bodies_cg[i] = new_cg;
-		//cout << "Body n " << i << "\tcg(" << m_bodies_cg[i].x << "," << m_bodies_cg[i].y << "," << m_bodies_cg[i].z << ")\n";
-		//cout << "Body n " << i << "\ttrans(" << m_bodies_trans[i].x << "," << m_bodies_trans[i].y << "," << m_bodies_trans[i].z << ")\n";
 		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 		dQuaternion step_quat;
 		dMatrix3 R;
@@ -637,14 +677,13 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 
 		switch(mbcallbackdata.type) {
 			case PISTONPART:
-				data.x = mbcallbackdata.origin.x + mbcallbackdata.disp.x;
+				data.x = mbcallbackdata.vel.x;
 				break;
 
 			case PADDLEPART:
 				data.x = mbcallbackdata.origin.x;
 				data.y = mbcallbackdata.origin.z;
-				data.z = mbcallbackdata.sintheta;
-				data.w = mbcallbackdata.costheta;
+				data.z = mbcallbackdata.dthetadt;
 				break;
 
 			case GATEPART:
@@ -664,4 +703,108 @@ Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
 		return m_mbdata;
 
 	return NULL;
+}
+
+/*! Compute grid and cell size from the kernel influence radius
+ * The number of cell is obtained as the ratio between the domain size and the
+ * influence radius, rounded down to the closest integer.
+ * The reason for rounding down is that we want the cell size to be no smaller
+ * than the influence radius, to guarantee that all neighbors of a particle are
+ * found at most one cell away in each direction.
+ */
+void
+Problem::set_grid_params(void)
+{
+	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
+	// with semi-analytical boundaries, we want a cell size which is
+	// deltap/2 + the usual influence radius
+	double cellSide = influenceRadius;
+	if (m_simparams.boundarytype == SA_BOUNDARY)
+		cellSide += m_deltap/2.0f;
+
+	m_gridsize.x = floor(m_size.x / cellSide);
+	m_gridsize.y = floor(m_size.y / cellSide);
+	m_gridsize.z = floor(m_size.z / cellSide);
+
+	// While trying to run a simulation at very low resolution, the user might
+	// set a deltap so large that cellSide is bigger than m_size.{x,y,z}, resulting
+	// in a corresponding gridsize of 0. Check for this case (by checking if any
+	// of the gridsize components are zero) and throw.
+
+	if (!m_gridsize.x || !m_gridsize.y || !m_gridsize.z) {
+		stringstream ss;
+		ss << "resolution " << m_simparams.slength << " is too low! Resulting grid size would be "
+			<< m_gridsize;
+		throw runtime_error(ss.str());
+	}
+
+	m_cellsize.x = m_size.x / m_gridsize.x;
+	m_cellsize.y = m_size.y / m_gridsize.y;
+	m_cellsize.z = m_size.z / m_gridsize.z;
+
+	/*
+	printf("set_grid_params\t:\n");
+	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
+	*/
+	printf("Influence radius / expected cell side\t: %g, %g\n", influenceRadius, cellSide);
+	/*
+	printf("Grid   size\t: (%d, %d, %d)\n", m_gridsize.x, m_gridsize.y, m_gridsize.z);
+	printf("Cell   size\t: (%f, %f, %f)\n", m_cellsize.x, m_cellsize.y, m_cellsize.z);
+	printf("       delta\t: (%.2f%%, %.2f%%, %.2f%%)\n",
+		(m_cellsize.x - cellSide)*100/cellSide,
+		(m_cellsize.y - cellSide)*100/cellSide,
+		(m_cellsize.z - cellSide)*100/cellSide);
+	*/
+}
+
+
+// Compute position in uniform grid (clamping to edges)
+int3
+Problem::calc_grid_pos(const Point&	pos)
+{
+	int3 gridPos;
+	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
+	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
+	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
+	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
+	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);
+
+	return gridPos;
+}
+
+
+// Compute address in grid from position
+uint
+Problem::calc_grid_hash(int3 gridPos)
+{
+	return gridPos.COORD3 * m_gridsize.COORD2 * m_gridsize.COORD1 + gridPos.COORD2 * m_gridsize.COORD1 + gridPos.COORD1;
+}
+
+
+void
+Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash)
+{
+	int3 gridPos = calc_grid_pos(pos);
+
+	// automatically choose between long hash (cellHash + particleId) and short hash (cellHash)
+	hash = makeParticleHash( calc_grid_hash(gridPos), info );
+
+	localpos.x = float(pos(0) - m_origin.x - (gridPos.x + 0.5)*m_cellsize.x);
+	localpos.y = float(pos(1) - m_origin.y - (gridPos.y + 0.5)*m_cellsize.y);
+	localpos.z = float(pos(2) - m_origin.z - (gridPos.z + 0.5)*m_cellsize.z);
+	localpos.w = float(pos(3));
+}
+
+void
+Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info)
+{
+	const float Lm = fmax(2*m_deltap, 1e-5f);
+	const float k0 = pow(0.002f*m_physparams.sscoeff[0], 2);
+	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
+
+	for (uint i = 0; i < numpart; i++) {
+		k[i] = k0;
+		e[i] = e0;
+	}
 }

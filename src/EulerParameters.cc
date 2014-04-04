@@ -1,10 +1,10 @@
 
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -62,7 +62,7 @@ EulerParameters::EulerParameters(const EulerParameters &source)
 	m_ep[1] = source.m_ep[1];
 	m_ep[2] = source.m_ep[2];
 	m_ep[3] = source.m_ep[3];
-	
+
 	for (int i = 0; i < 9; i++)
 		m_rot[i] = source.m_rot[i];
 }
@@ -104,26 +104,26 @@ EulerParameters::EulerParameters(const Vector & dir, const double angle)
 		m_ep[0] = 1.0;
 		m_ep[1] = m_ep[2] = m_ep[3] = 0.0;
 	}
-	
+
 	Normalize();
 }
 
 
 //! Assignment operator
-/*! \param source : value 
+/*! \param source : value
 	\return this = value
 */
-EulerParameters& 
+EulerParameters&
 EulerParameters::operator= (const EulerParameters& source)
 {
 	m_ep[0] = source.m_ep[0];
 	m_ep[1] = source.m_ep[1];
 	m_ep[2] = source.m_ep[2];
 	m_ep[3] = source.m_ep[3];
-	
+
 	for (int i = 0; i < 9; i++)
 		m_rot[i] = source.m_rot[i];
-	
+
 	return *this;
 }
 
@@ -132,7 +132,7 @@ EulerParameters::operator= (const EulerParameters& source)
 /*! Divide the Euler parameter by the norm of the associated quaternion:
 		\f$\sqrt{q^2_0 + q^2_1 + q^2_2 + q^2_3}\f$
 */
-void 
+void
 EulerParameters::Normalize(void)
 {
 	double rnorm = 1.0/sqrt(m_ep[0]*m_ep[0] + m_ep[1]*m_ep[1] + m_ep[2]*m_ep[2] + m_ep[3]*m_ep[3]);
@@ -150,7 +150,7 @@ EulerParameters::Normalize(void)
 	\param phi : phi
 	\param psi : psi
 */
-void 
+void
 EulerParameters::ExtractEulerZXZ(double &theta, double &phi, double &psi) const
 {
 	phi = acos(2.0*(m_ep[0]*m_ep[0] + m_ep[3]*m_ep[3]) - 1.0);
@@ -161,26 +161,26 @@ EulerParameters::ExtractEulerZXZ(double &theta, double &phi, double &psi) const
 
 /// Rotation matrix computation
 /*! The rotation matrix is computed according to:
- * 
+ *
  *	\f$ R(q)=\begin{pmatrix}
- *  q^2_0 + q^2_1 - q^2_2 - q^2_3 & 2q_1q_0 - 2q_0q_3 & 2q_0q_2 + 2q_1q_3 \\ 
- *	2q_1q_0 - 2q_0q_3 & q^2_0 - q^2_1 + q^2_2 - q^2_3 & 2q_2q_3 - 2q_0q_1 \\
- *	2q_1q_3 - 2q_0q_2 & 2q_2q_3 - 2q_0q_1 & q^2_0 - q^2_1 - q^2_2 + q^2_3
+ *  q^2_0 + q^2_1 - q^2_2 - q^2_3 \& 2q_1q_0 - 2q_0q_3 \& 2q_0q_2 + 2q_1q_3 \\
+ *	2q_1q_0 - 2q_0q_3 \& q^2_0 - q^2_1 + q^2_2 - q^2_3 \& 2q_2q_3 - 2q_0q_1 \\
+ *	2q_1q_3 - 2q_0q_2 \& 2q_2q_3 - 2q_0q_1 \& q^2_0 - q^2_1 - q^2_2 + q^2_3
  *	\end{pmatrix}\f$
- * 
+ *
  *	and store it in m_rot array.
- * 
+ *
  *	This function should be called before using Rot() or TransposeRot()
 */
 void
 EulerParameters::ComputeRot(void)
 {
-	/* For a normalized quaternion (q0, q1, q2, q3) the associated rotation 
+	/* For a normalized quaternion (q0, q1, q2, q3) the associated rotation
 	 matrix R is :
 		[0] q0^2+q1^-q2^2-q3^2		[1] 2q1q2-2q0q3			[2] 2q0q2+2q1q3
 		[3] 2q0q3+2q1q2			[4] q0^2-q1^2+q2^2-q3^2		[5] 2q2q3-2q0q1
 		[6] 2q1q3-2q0q2				[7] 2q0q1+2q2q3		[8] q0^2-q1^2-q2^2+q3^2
-	 
+
 	 According to q0^2+q1^2+q2^2+q3^2=1 we can rewrite the diagonal terms:
 		r11 = 1 - 2(q2^2 + q3^2)
 		r22 = 1 - 2(q1^2 + q3^2)
@@ -220,9 +220,9 @@ EulerParameters::ComputeRot(void)
 /// Define the *= operator for Euler parameters
 /*!	\param val : EulerParameters
  *	\return this = this * val
- * 
+ *
  *	For the mathematical definition see operator*()
- * 
+ *
  *	Beware this operation is not commutative.
 */
 EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
@@ -244,15 +244,15 @@ EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 /*!	Define the * operation for EulerParmeters.
  *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ and \f$ q'=(q'_0, q'_1, q'_2, q'_3)\f$ two set of Euler parameters
  *	we have :
- * 
- *  \f{align*}{ q*q' =& (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
- *	&q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
- * 
+ *
+ *  \f{ q*q' =\& (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
+ *	\&q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
+ *
  *	This operation corresponds to a rotation composition.
  *	\param ep1 : Euler parameters
  *	\param ep2 : Euler parameters
  *	\return ep1*ep2
- * 
+ *
  *	Beware this operation is not commutative
 */
 EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2)
@@ -293,10 +293,10 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 
 
 /*!	Compute rotation matrix between the current object and another Euler paramters.
- *  The result \f$R(q).R(previous)^t\f$ is stored in the array pointed by res 
+ *  The result \f$R(q).R(previous)^t\f$ is stored in the array pointed by res
  *	\param previous : previous EulerParameters
  *	\param res : pointer to rotation matrix
- * 
+ *
  *  Beware: this method use the rotation matrix associated with each Euler parameters.
  *  Those matrix should be computed before calling the method.
 */
@@ -310,11 +310,11 @@ void EulerParameters::StepRotation(const EulerParameters & previous, float *res)
 	res[0] = (float) (m_rot[0]*previous.m_rot[0] + m_rot[1]*previous.m_rot[1] + m_rot[2]*previous.m_rot[2]);
 	res[1] = (float) (m_rot[0]*previous.m_rot[3] + m_rot[1]*previous.m_rot[4] + m_rot[2]*previous.m_rot[5]);
 	res[2] = (float) (m_rot[0]*previous.m_rot[6] + m_rot[1]*previous.m_rot[7] + m_rot[2]*previous.m_rot[8]);
-	
+
 	res[3] = (float) (m_rot[3]*previous.m_rot[0] + m_rot[4]*previous.m_rot[1] + m_rot[5]*previous.m_rot[2]);
 	res[4] = (float) (m_rot[3]*previous.m_rot[3] + m_rot[4]*previous.m_rot[4] + m_rot[5]*previous.m_rot[5]);
 	res[5] = (float) (m_rot[3]*previous.m_rot[6] + m_rot[4]*previous.m_rot[7] + m_rot[5]*previous.m_rot[8]);
-	
+
 	res[6] = (float) (m_rot[6]*previous.m_rot[0] + m_rot[7]*previous.m_rot[1] + m_rot[8]*previous.m_rot[2]);
 	res[7] = (float) (m_rot[6]*previous.m_rot[3] + m_rot[7]*previous.m_rot[4] + m_rot[8]*previous.m_rot[5]);
 	res[8] = (float) (m_rot[6]*previous.m_rot[6] + m_rot[7]*previous.m_rot[7] + m_rot[8]*previous.m_rot[8]);

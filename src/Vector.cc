@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -141,7 +141,7 @@ Vector::TransposeRot(const dMatrix3 rot)
 /// Return the norm of the vector
 /*!	\return the norm of vector
 */
-double 
+double
 Vector::norm(void) const
 {
 	return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
@@ -149,7 +149,7 @@ Vector::norm(void) const
 
 
 /// Normalize the vector
-void 
+void
 Vector::normalize(void)
 {
 	double n = norm();
@@ -159,7 +159,7 @@ Vector::normalize(void)
 }
 
 
-double 
+double
 Vector::normSquared(void) const
 {
 	return x[0]*x[0] + x[1]*x[1] + x[2]*x[2];
@@ -169,33 +169,33 @@ Vector::normSquared(void) const
 /// Return a normal vector of the vector
 /*! \return a normal vector of the vector
 */
-Vector 
+Vector
 Vector::Normal(void) const
 {
 	Point p1, p2;
 	Vector v;
-	
-	if (x[2] != 0) {		
+
+	if (x[2] != 0) {
 		v = Vector(-1.0, 1.0, -x[1]/x[2] + x[0]/x[2]);
 		v.normalize();
 	}
 	else if (x[2] != 0) {
 		v = Vector(0, 0, 1);
 	}
-	
+
 	return v;
 }
 
 
 // cross product
-Vector 
+Vector
 Vector::cross(const Vector & v) const
 {
 	return Vector(x[1]*v(2) - x[2]*v(1), x[2]*v(0) - x[0]*v(2), x[0]*v(1) - x[1]*v(0));
 }
 
 
-Vector 
+Vector
 Vector::rotated(const double &angle, const Vector &normal) const
 {
 	double vnorm = normal.norm();

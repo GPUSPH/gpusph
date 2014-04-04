@@ -1,6 +1,9 @@
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
+// for HASH_KEY_SIZE
+#include "hash_key_size_select.opt"
+
 // we use a byte (uchar) to address a device in the cluster
 #define MAX_DEVICES_PER_CLUSTER 256
 // how many bits [1...8] we reserve to the node rank in the global device index
@@ -11,11 +14,18 @@
 #define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
 #define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
 
+// if hashKey is 64 bits long, the first two bits of the cell hash are reserved; otherwise, the max number of cells is UINT_MAX
+#if HASH_KEY_SIZE == 32
+#define MAX_CELLS			(UINT_MAX)
+#else
+#define MAX_CELLS			(UINT_MAX >> 2)
+#endif
+
 // cellTypes used as array indices for the segments
-#define CELLTYPE_INNER_CELL			((uint)0)
-#define CELLTYPE_INNER_EDGE_CELL	((uint)1)
-#define CELLTYPE_OUTER_EDGE_CELL	((uint)2)
-#define CELLTYPE_OUTER_CELL			((uint)3)
+#define CELLTYPE_INNER_CELL			0U
+#define CELLTYPE_INNER_EDGE_CELL	1U
+#define CELLTYPE_OUTER_EDGE_CELL	2U
+#define CELLTYPE_OUTER_CELL			3U
 
 // 2 high bits for cell type in the compact device map. It is important in
 // the current implementation that the OUTER cells are sorted last
@@ -24,14 +34,20 @@
 #define CELLTYPE_OUTER_EDGE_CELL_SHIFTED	(CELLTYPE_OUTER_EDGE_CELL<<30)
 #define CELLTYPE_OUTER_CELL_SHIFTED			(CELLTYPE_OUTER_CELL<<30) // memset to 0xFF for making OUTER_CELL defaults
 
-// Bitmasks used to reset the cellType (in AND to reset: 0011111...)
-#define CELLTYPE_BITMASK_32 (~( (unsigned int)3 << 30))
-#define CELLTYPE_BITMASK_64 (~( (long unsigned int)3 << 62))
+// Bitmasks used to reset the cellType (AND mask to reset the high bits, AND ~mask to extract them)
+#if HASH_KEY_SIZE == 32
+// mask: 111111...
+#define CELLTYPE_BITMASK (UINT_MAX)
+#else
+// mask: 001111...
+#define CELLTYPE_BITMASK		(~( 3U  << 30 ))
+#define CELLTYPE_BITMASK_LONG	(~( 3LU  << 62 ))
+#endif
 
 // empty segment (uint)
-#define EMPTY_SEGMENT ((uint)0xFFFFFFFF)
+#define EMPTY_SEGMENT (UINT_MAX)
 // guess?
-#define EMPTY_CELL ((uint)0xFFFFFFFF)
+#define EMPTY_CELL (UINT_MAX)
 
 #endif // _MULTIGPU_DEFINES_
 
@@ -88,7 +104,7 @@ typedef cudaStream_t cudaStream_t;
 	#define CALC_SIMMETRY_HASH_HOST return \
 		(gridPos.y*cdata->gridSize.z*cdata->gridSize.x) + \
 		(gridPos.z*cdata->gridSize.x) + gridPos.x;
-#else 
+#else
 	#define PROBLEM_SIMMETRY_PLANE_XY
 	#define PSA z
 	#define CALC_SIMMETRY_HASH return \
@@ -102,7 +118,7 @@ typedef cudaStream_t cudaStream_t;
 
 // quoted axis for output
 // http://gcc.gnu.org/onlinedocs/cpp/Stringification.html#Stringification
-/*#define pre_str(s) #s
+#define pre_str(s) #s
 #define str(s) pre_str(s)
 #define QUOTED_PSA str(PSA) */
 /*

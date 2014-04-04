@@ -1,0 +1,261 @@
+# Using git
+
+The GPUSPH source code is kept in a git repository. You can find
+detailed informations about this revision control system on
+http://git-scm.org/
+
+A good book to learn to use git is ‘Pro Git’, which is freely available
+online on http://book.git-scm.com/
+
+We recap some of the most frequent commands here.
+
+## Cloning
+
+To clone the GPUSPH repository, you use the command:
+
+	git clone git://ctmgweb.ct.ingv.it/git/gpusph
+
+or, if you have write access,
+
+	git clone git@ctmgweb.ct.ingv.it:gpusph
+
+This will create a `gpusph` directory with the latest version of the
+`master` branch checked out. The clone will also hold a complete copy of
+all the development branches which are present in the upstream
+repository.
+
+If you do not have direct access to the repository, for example because
+your computer is behind a firewall, you can create an intermediate
+repository e.g. on a USB key. To do this, clone on a USB key from a
+machine that can access the repository, and remember to specify the
+`--bare` option:
+
+	git clone --bare git@ctmgweb.ct.ingv.it:gpusph
+
+This will create a `gpusph.git` directory, which only contains the
+repository data files, but in which you will not find a working
+directory with the actual project source code.
+
+Instead, you can use this directory as a remote from the machine that is
+behind the firewall:
+
+	git clone file:///path/to/usb/key/gpusph.git
+
+Then, from the machine repository you can push/pull to the USB key, and
+from the USB key (when you mount it on a machine that is not behind a
+firewall) you can push/pull to the main repository.
+
+## Staying up to date
+
+Keeping up to date is normally done with:
+
+	git pull
+
+This will fetch any changes that have been done upstream, updating the
+local copy that mirrors the remote repository, and then (try to) merge
+them with any local (committed) changes you have on your current branch.
+
+If git refuses to update due to uncommited changes, you can still update
+with the command sequence:
+
+	git stash
+	git pull
+	git stash pop
+
+where the `git stash` command sets your changes aside, returning to a
+‘clean slate’ working directory matching the latest commit, and `git
+stash pop` tries to re-applies your changes again (after the update done
+by `git pull`).
+
+If you only want to update the local copy of the upstream development
+branches, but not your working copy, you can just do:
+
+	git fetch
+
+## Making changes
+
+git is used to keep track of changes that are made throughout the source
+code. Change tracking is not automatic: changed files have to be
+committed to the repository. A commit creates a ‘snapshot’ of the status
+of the whole repository.
+
+### First steps
+
+Before any change is commited, it is a good idea to let git know who you
+are. This is done with the following commands:
+
+	git config --global user.name "Your Name"
+	git config --global user.email "your.email@here"
+
+(obviously, please use your actual name and email). This needs to be
+done only once, and will set your name and email for any contributions
+to any git-tracked project (unless you override them locally).
+
+Other options that I suggest should be set globally are:
+
+	git config --global color.ui auto
+	git config --global push.default tracking
+
+The first one tells git to use color-coded information whenever possible
+(for example when showing differences or branch status), the second
+tells git that the default action when pushing (see below) is to push
+the current branch to its tracking branch (see below).
+
+### Seeing which branches are available
+
+Development happens in separate branches (one branch per feature per
+developer). To see a list of all local branches, you can use
+
+	git branch
+
+If you want to see a list of remote branches (i.e. branches on the
+remote repository), use
+
+	git branch -r
+
+while
+
+	git branch -a
+
+to gives you a list of all branches (both local and remote).
+
+### Creating a new branch and switching between branches
+
+If you are going to develop a new feature that can potentially take many
+changes to perfect, you should start a new development branch, named
+along the feature that you are developing. This is done with the
+command:
+
+	git checkout -b branchname
+
+This will create a new local branch called `branchname` based on
+whatever is the current status of your working directory, and make it
+the currently active branch. If you want to base your work on an
+existing branch, use the syntax
+
+	git checkout -b branchname existingbranch
+
+This can also be done to check out a feature developed by some other
+developer. For example, if developer `devname` is developing feature
+`somefeat` which is tracked on the remote `origin`  (which is the default
+remote), you would do something like:
+
+	git checkout -b somefeat origin/user/devname/somefeat
+
+which will create a local `somefeat` branch tracking the remote
+`user/devname/somefeat` branch.
+
+All new commits will be made on this branch. If you ever want to switch
+to a different branch, use
+
+	git checkout otherbranch
+
+### Making a commit
+
+Committing is done by the following sequence of commands:
+
+	git add filename1 filename2 filename3 etc
+	git commit
+
+The first command marks the files whose changes should be included in
+the next snapshot. If you want to include all changed files, you can
+skip the `git add` step and run `git commit -a` instead.
+
+
+The git commit command presents you with your default editor opened on a
+text file with a number of commented lines. The editor is used to enter
+a ‘commit message’, a description of the changes that are being
+committed.
+
+Commit message should follow the following syntax:
+
+~~~
+A one-line summary of the change, less than 72 characters in length
+
+A more detailed description of the change, possibly spanning
+multiple paragraphs, with all the text wrapped at 72 characters.
+~~ 
+
+If the long text is present, it should be informative, mostly explaining
+why something was done. If it is necessary to explain how something was
+done and why it was done in that particular way, such information should
+rather be stored as a comment in the source file itself.
+
+### Pushing your changes
+
+Each developer with write access to the repository can freely write to
+remote (upstream) branches under the `user/name/` namespace. This can be
+used to share your work with the other developers, for review or for
+merge with the upstream master branch. For example, if user `bilotta` is
+developing some feature on his local branch `somefeature`, he can make
+his changes available to other (without disruption of the others’ work)
+by pushing his work to the remote branch `user/bilotta/somefeature`.
+
+The first time the changes are pushed, the user will use a command such
+as:
+
+	git push -u origin somefeature:user/bilotta/somefeature
+
+where the `-u` option marks `user/bilotta/somefeature` on origin as the
+upstream branch for `somefeature`.
+
+Subsequently pushes from the somefeature branch can be done with a simple
+
+	git push
+
+## Advanced git usage
+
+TODO
+
+// The following are just sparse notes, they should be turned into an
+// organic description.
+
+
+(09:45:34) Giuseppe Bilotta: there are essentially two ways of doing "work in progress" commits
+(09:47:07) Giuseppe Bilotta: one way is to keep one single work-in-progress commit, on top of the last 'real' commit
+(09:47:37) Giuseppe Bilotta: so say you have history A -- B -- C -- D with D being the last commit you've done, which is for something that works
+(09:48:23) Giuseppe Bilotta: now you start working on something that is slightly more complex and you want to track state even though mid-way during your work the code will not compile or work
+(09:49:02) Giuseppe Bilotta: you still create a commit halfway through your work (or whenever you reach a semi-functional situation)
+(09:49:32) Giuseppe Bilotta: I suggest you use some special notation to mark that commit as work in progress. I do this usually by prefixing the commit subject with WIP:
+(09:49:45) Giuseppe Bilotta: so for example git commit -a -m "WIP: doing some stuff"
+(09:50:14) Giuseppe Bilotta: now here is where you can do things in two ways
+(09:50:21) Giuseppe Bilotta: first way: amending commits
+(09:51:01) Giuseppe Bilotta: your situation is now A -- B -- C -- D -- WIP and your worktree has some more changes, after you reach again a semi-functional situation
+(09:51:06) Giuseppe Bilotta: what you do is git commit -a --amend
+(09:51:32) Giuseppe Bilotta: this will change your WIP commit to include also the new changes
+(09:51:52) Giuseppe Bilotta: so your situation becomes A -- B -- C -- D -- WIP2 where WIP2 includes the WIP changes and the new changes
+(09:52:09) Giuseppe Bilotta: this means you can only go back to D or WIP2, but not to WIP
+(09:52:28) Giuseppe Bilotta: (actually you can go back to WIP using the reflog, but let's leave that aside for now)
+(09:52:59) Giuseppe Bilotta: the other approach is to do a new WIP commit on top of the WIP commit, with only the new semi-functional changes:
+(09:53:27) Giuseppe Bilotta: A -- B -- C -- D -- WIP -- WIP2 -- WIP3 etc
+(09:53:47) Giuseppe Bilotta: this allows you to go back to any intermediate WIP
+(09:53:55) Giuseppe Bilotta: (easily)
+(09:54:38) Giuseppe Bilotta: of course there is no problem in pushing these WIP commits to your remote branch too, since you can do anything there
+(09:55:26) Giuseppe Bilotta: when you're finished with your work in progress thing and you reach a point where you want to do the actual commit, in the first case you don't have to do anything (well, mayb change the commit subject to remove the WIP: prefix)
+(09:55:37) Giuseppe Bilotta: (and this is again done with git commmit --amend)
+(09:55:51) Giuseppe Bilotta: (--amend allows you to change the topmost commit, you might have noticed)
+(09:56:15) Giuseppe Bilotta: if you have WIP -- WIP2 -- WIP3 -- etc, instead, you want to squash them all into a single commit
+(09:56:37) Giuseppe Bilotta: if you add more files, it will also correct the actual commit content, not just the message
+(09:56:49) Giuseppe Bilotta: it's a very powerful weapon
+(09:57:03) Giuseppe Bilotta: now, to squash multiple commits together, you use git rebase
+(09:57:09) Giuseppe Bilotta: you do something like this:
+(09:57:15) Giuseppe Bilotta: git rebase -i D
+(09:57:25) Giuseppe Bilotta: D is the hash of the last non-WIP commit, of course
+(09:57:40) Giuseppe Bilotta: the one before you started doing WIP commits
+(09:57:57) Giuseppe Bilotta: this will open your editor on a file that has a series of lines like this:
+(09:58:07) Giuseppe Bilotta: pick <commithash> <subject line>
+(09:58:14) Giuseppe Bilotta: pick <commithash> <subject line>
+(09:58:15) Giuseppe Bilotta: ...
+(09:58:17) Giuseppe Bilotta: and so on
+(09:58:29) Giuseppe Bilotta: and then there are comments explaining the commands you can use
+(09:58:56) Giuseppe Bilotta: in your case, you want to squash everything together, so you want to replace all the picks from the second one forward with fixup (or f)
+(09:59:03) Giuseppe Bilotta: so your recipe will look like this:
+(09:59:13) Giuseppe Bilotta: pick <commithash of WIP> <subject line>
+(09:59:21) Giuseppe Bilotta: f <commithash of WIP2> <subject line>
+(09:59:29) Giuseppe Bilotta: f <commithash of WIP3> <subject line>
+(09:59:29) Giuseppe Bilotta: ....
+(09:59:40) Giuseppe Bilotta: s <commithash of last WIP> <subject line>
+(09:59:59) Giuseppe Bilotta: note that for the last WIP I used s instead of f. s = squash does the same as fixup, but asks you to edit the commit message
+(10:00:25) Giuseppe Bilotta: so you just replace all the pick with f, except for the first, that remains pick, and the last, that becomes s so you can edit the commit message
+(10:00:35) Giuseppe Bilotta: this rewrites your history squashing all commits together
+

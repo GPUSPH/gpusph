@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -49,75 +49,66 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
-template<int step, int periodicbound>
+template<int step, bool xsphcorr>
 __global__ void
-EULER_KERNEL_NAME(
-	const	float4	*oldPos,
-	const	float4	*oldVel,
-	particleinfo	*info,
-	const	float4	*forces,
-#if XSPH_KERNEL
-	const	float4	*xsph,
-#endif
-			float4	*newPos,
-			float4	*newVel,
-			uint	numParticles,
-			float	dt,
-			float	dt2,
-			float	t)
+eulerDevice(
+	const float4*	oldPos,
+	const hashKey*	particleHash,
+	const float4*	oldVel,
+	const float*	oldTKE,
+	const float*	oldEps,
+	const particleinfo* info,
+	const float4*	forces,
+	float2*	keps_dkde,
+	const float4*	xsph,
+	float4*	newPos,
+	float4*	newVel,
+	float*	newTKE,
+	float*	newEps,
+	const uint	numParticles,
+	const float	full_dt,
+	const float	half_dt, /* full_dt/2 */
+	const float	t)
 {
-	int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
+
+	// we use dt/2 on the first step, the actual dt on the second step
+	const float dt = (step == 1) ? half_dt : full_dt;
 
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
 	// copying pos and vel in the new arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
+	// TODO templatize better
+	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
+	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
 
-	/* Since we never use the last two components of pinfo, the compiler is
-	   ‘smart’ enough to not load them at all. This kills coalescence on
-	   older hardware, because each thread reads 32 bits, with a 32-bit gap
-	   between one thread and the next.
-	   We can work around this by forcing the compiler to code a read for
-	   a 64-bit word by reading a long int at our interested address,
-	   and then casting the result to particleinfo.
-	   This speeds up the euler kernel by 20% on 1.1 devices, and by
-	   only doing it for older hardware we spare ourselves the very small
-	   performance loss that we'd find on 2.0 devices with the hack. */
-	#if __GPU_ARCH__ < 200
-	long int hack = *reinterpret_cast<long int*>(info + index);
-	particleinfo pinfo = *reinterpret_cast<particleinfo*>(&hack);
-	#else
-	particleinfo pinfo = info[index];
-	#endif
+	const particleinfo pinfo = info[index];
 
-	if(type(pinfo) != BOUNDPART) {
-		float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
-		# ifdef XSPH_KERNEL
-		float4 mean_vel = xsph[index];
-		# endif
+	if(ACTIVE(pos) && type(pinfo) != BOUNDPART) {
+		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
+		// mean XSPH velocity, only when XSPH is active
+		// the compiler is smart enough to actually optimize this out
+		// in the xsphcorr == false case
+		const float4 mean_vel = xsphcorr ? xsph[index] : make_float4(0);
 		/*
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
 		 */
-		float4 velc = vel + (step - 1)*forces[index]*dt2;
+		const float4 velc = vel + (step - 1)*forces[index]*half_dt;
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
-			// new position is given by pos + pos_corr, with pos_corr given by
-			// velc [ + optional xsph correction ] * dt
-			float3 pos_corr = as_float3(velc);
-			# ifdef XSPH_KERNEL
-			pos_corr += d_epsxsph*as_float3(mean_vel);
-			# endif
-			pos_corr *= dt;
-
-			pos.x += pos_corr.x;
-			pos.y += pos_corr.y;
-			pos.z += pos_corr.z;
+			// add weighted mean_vel only in xsphcorr case
+			// the compiler is smart enough to optimize it out
+			// in the xsphcorr == false case
+			pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
+			pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
+			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
 			// Updating particle velocity
 			// For step 1:
@@ -125,85 +116,62 @@ EULER_KERNEL_NAME(
 			// For step 2:
 			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
 			vel += dt*force;
+
+			// Updating k and e for k-e model
+			if (keps_dkde) {
+				const float2 dkde = keps_dkde[index];
+				keps_k += dt*dkde.x;
+				keps_e += dt*dkde.y;
+			}
 		}
-		// Updating positions for Piston particles
+		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
+		else if (VERTEX(pinfo)) {
+			vel += dt*force;
+		}
+		// Moving boundaries
+		// Updating positions for piston particles.
+		// Now d_mbdata.x contains the piston velocity
 		else if (type(pinfo) == PISTONPART) {
 			const int i = object(pinfo);
-			pos.x = d_mbdata[i].x;
+			pos.x += d_mbdata[i].x*dt;
 		}
-		// Updating positions for Paddle particles
+		// Updating postions for paddle particles
 		else if (type(pinfo)  == PADDLEPART) {
 			const int i = object(pinfo);
-			const float r = length(make_float2(pos.x - d_mbdata[i].x, pos.z - d_mbdata[i].y));
-			pos.x = d_mbdata[i].x + r*d_mbdata[i].z;	// r*sin(theta(t))
-			pos.z = d_mbdata[i].y + r*d_mbdata[i].w;	// r*cos(theta(t))
+			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
+			const float2 relPos = make_float2(absPos.x - d_mbdata[i].x, absPos.z - d_mbdata[i].y);
+			const float c = cos(d_mbdata[i].z*dt) - 1.0f;
+			const float s = sin(d_mbdata[i].z*dt);
+			// Apply rotation around y axis
+			pos.x += c*relPos.x + s*relPos.y;
+			pos.z += -s*relPos.x + c*relPos.y;
 		}
-		// Updating positions for Gate particles
-		// At each substep the gate part covers a distance equals to v*dt/2.0
-		// so in 2 substep the gate covers v*dt BUT pos is always pos(n) so
-		// at step 1 we have pos += v*dt with dt=dt/2 and at step 2 we have
-		// pos += v*dt with dt = dt
-		else if (type(pinfo)  == GATEPART) {
+		// Updating positions for gate particles
+		// mbdata.x,y,z contains gate velocity
+		else if (type(pinfo) == GATEPART) {
 			const int i = object(pinfo);
-			pos.x += d_mbdata[i].x*dt;
-			pos.y += d_mbdata[i].y*dt;
-			pos.z += d_mbdata[i].z*dt;
+			as_float3(pos) += as_float3(d_mbdata[i])*dt;
 		}
-		// TODO: test rotations
+		// TODO: change object particles velocity
 		else if (type(pinfo) == OBJECTPART && step == 2) {
 			const int i = object(pinfo);
-
-			// // Applying rotation around center of gravity
-			//applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
-
 			// Applying center of gravity translation
 			pos.x += d_rbtrans[i].x;
 			pos.y += d_rbtrans[i].y;
 			pos.z += d_rbtrans[i].z;
 
 			// Applying rotation around center of gravity
-			applyrot(&d_rbsteprot[9*i], pos, d_rbcg[i]);
-		}
-
-		if (periodicbound) {
-			if (d_dispvect.x) {
-				if (pos.x >= d_maxlimit.x) {
-					pos.x -= d_dispvect.x;
-					pos.y -= d_dispOffset.y;
-					pos.z -= d_dispOffset.z;
-				} else if (pos.x < d_minlimit.x) {
-					pos.x += d_dispvect.x;
-					pos.y += d_dispOffset.y;
-					pos.z += d_dispOffset.z;
-				}
-			}
-			if (d_dispvect.y) {
-				if (pos.y >= d_maxlimit.y) {
-					pos.y -= d_dispvect.y;
-					pos.x -= d_dispOffset.x;
-					pos.z -= d_dispOffset.z;
-				} else if (pos.y < d_minlimit.y) {
-					pos.y += d_dispvect.y;
-					pos.x += d_dispOffset.x;
-					pos.z += d_dispOffset.z;
-				}
-			}
-			if (d_dispvect.z) {
-				if (pos.z >= d_maxlimit.z) {
-					pos.z -= d_dispvect.z;
-					pos.x -= d_dispOffset.x;
-					pos.y -= d_dispOffset.y;
-				} else if (pos.z < d_minlimit.z) {
-					pos.z += d_dispvect.z;
-					pos.x += d_dispOffset.x;
-					pos.y += d_dispOffset.y;
-				}
-			}
+			const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
+			applyrot(&d_rbsteprot[9*i], relPos, pos);
 		}
 	}
 
 	newPos[index] = pos;
 	newVel[index] = vel;
+	if (newTKE)
+		newTKE[index] = keps_k;
+	if (newEps)
+		newEps[index] = keps_e;
 }
 
 /* vi:set ft=cuda: */

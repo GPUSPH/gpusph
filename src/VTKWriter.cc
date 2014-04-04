@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -23,6 +23,9 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// UINT_MAX
+#include <cstddef>
+
 #include <sstream>
 #include <stdexcept>
 
@@ -32,6 +35,12 @@
 #include "GlobalData.h"
 
 using namespace std;
+
+// TODO for the time being, we assume no more than 256 devices
+// upgrade to UInt16 / ushort if it's ever needed
+
+typedef unsigned char dev_idx_t;
+static const char dev_idx_str[] = "UInt8";
 
 VTKWriter::VTKWriter(const Problem *problem)
   : Writer(problem)
@@ -96,34 +105,74 @@ vector_array(FILE *fid, const char *type, uint dim, size_t offset)
 			type, dim, offset);
 }
 
-void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
-				const particleinfo *info, const float3 *vort, float t, const bool testpoints,
-				const float4 *normals)
+void
+VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
 {
-	string filename, full_filename;
+	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
+	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
+	const float4 *vel = buffers.getData<BUFFER_VEL>();
+	const particleinfo *info = buffers.getData<BUFFER_INFO>();
+	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
+	const float4 *normals = buffers.getData<BUFFER_NORMALS>();
+	const float4 *gradGamma = buffers.getData<BUFFER_GRADGAMMA>();
+	const float *tke = buffers.getData<BUFFER_TKE>();
+	const float *eps = buffers.getData<BUFFER_EPSILON>();
+	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
+	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
-	filename = "PART";
-
-	if (m_gdata && m_gdata->mpi_nodes > 1)
-		filename += "n" + m_gdata->rankString();
-
-	filename += "_" + next_filenum() + ".vtu";
-	full_filename = m_dirname + "/" + filename;
-
-	FILE *fid = fopen(full_filename.c_str(), "w");
-
-	if (fid == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << full_filename;
-		throw runtime_error(ss.str());
+	// We write cell indices in Cell data, so the first thing to do is to count the number of
+	// (active) cells (where active = has particles in it). This is equal to the number of
+	// distinct cell indices we can find traversing the particleHash buffer. While we traverse it,
+	// we actually collect the cell indices (so we can just dump them at the end) and
+	// mark the offset at which each cell ends, which will be the 'offsets' DataArray
+	// for the cells.
+	// Both vectors are estimated to be numParts/4 elements long
+	std::vector<uint> cellIndex; cellIndex.reserve(numParts/4);
+	std::vector<uint> cellEnd; cellEnd.reserve(numParts/4);
+	uint last_hash = UINT_MAX;
+	for (uint i = node_offset; i < node_offset + numParts; ++i) {
+		uint hash = cellHashFromParticleHash( particleHash[i] );
+		if (hash != last_hash) {
+			// new cell
+			cellIndex.push_back(hash);
+			last_hash = hash;
+			// if we had a previous one, mark its end. Note that
+			// offset are counted in the array of saved particles,
+			// hence i - node_offset, not i
+			if (cellIndex.size() > 1) {
+				cellEnd.push_back(i - node_offset);
+			}
 		}
+	}
+	cellEnd.push_back(numParts); // 'close' last cell
+	const uint numCells = cellEnd.size();
+
+	// CSV file for tespoints
+	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
+	FILE *testpoints_file = NULL;
+	if (gdata->problem->get_simparams()->csvtestpoints) {
+		testpoints_file = fopen(testpoints_fname.c_str(), "w");
+		if (testpoints_file == NULL) {
+			stringstream ss;
+			ss << "Cannot open testpoints file " << testpoints_fname;
+			throw runtime_error(ss.str());
+		}
+		// write CSV header
+		if (testpoints_file)
+			fprintf(testpoints_file,"T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ\n");
+	}
+
+	string filename;
+
+	FILE *fid = open_data_file("PART", next_filenum(), &filename);
 
 	// Header
+	//====================================================================================
 	fprintf(fid,"<?xml version='1.0'?>\n");
 	fprintf(fid,"<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= '%s'>\n",
 		endianness[*(char*)&endian_int & 1]);
 	fprintf(fid," <UnstructuredGrid>\n");
-	fprintf(fid,"  <Piece NumberOfPoints='%d' NumberOfCells='%d'>\n", numParts, numParts);
+	fprintf(fid,"  <Piece NumberOfPoints='%u' NumberOfCells='%u'>\n", numParts, numCells);
 
 	fprintf(fid,"   <PointData Scalars='Pressure' Vectors='Velocity'>\n");
 
@@ -141,35 +190,59 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	scalar_array(fid, "Float32", "Mass", offset);
 	offset += sizeof(float)*numParts+sizeof(int);
 
+	// gamma
+	if (gradGamma) {
+		scalar_array(fid, "Float32", "Gamma", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// turbulent kinetic energy
+	if (tke) {
+		scalar_array(fid, "Float32", "TKE", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// turbulent epsilon
+	if (eps) {
+		scalar_array(fid, "Float32", "Epsilon", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// eddy viscosity
+	if (turbvisc) {
+		scalar_array(fid, "Float32", "Eddy viscosity", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
 	// particle info
 	if (info) {
 		scalar_array(fid, "Int16", "Part type", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Part flag", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Fluid number", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
-		scalar_array(fid, "Int16", "Part object", offset);
-		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Part flag", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Fluid number", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
+//		scalar_array(fid, "Int16", "Part object", offset);
+//		offset += sizeof(ushort)*numParts+sizeof(int);
 		scalar_array(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
 	// device index
-	if (m_gdata) {
-		scalar_array(fid, "UInt32", "DeviceIndex", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
-	}
-
-	// cell index
-	if (m_gdata) {
-		scalar_array(fid, "UInt32", "CellIndex", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
+	if (MULTI_DEVICE) {
+		scalar_array(fid, dev_idx_str, "DeviceIndex", offset);
+		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
 
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
+
+	// gradient gamma
+	if (gradGamma) {
+		vector_array(fid, "Float32", "Gradient Gamma", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
+	}
 
 	// vorticity
 	if (vort) {
@@ -186,58 +259,102 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
+	// private
+	if (priv) {
+		scalar_array(fid, "Float32", "Private", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
 	fprintf(fid,"   </PointData>\n");
 
 	// position
 	fprintf(fid,"   <Points>\n");
-	vector_array(fid, "Float32", 3, offset);
-	offset += sizeof(float)*3*numParts+sizeof(int);
+	vector_array(fid, "Float64", 3, offset);
+	offset += sizeof(double)*3*numParts+sizeof(int);
 	fprintf(fid,"   </Points>\n");
 
 	// Cells data
+	fprintf(fid,"   <CellData Scalars='CellIndex'>\n");
+	scalar_array(fid, "UInt32", "CellIndex", offset);
+	offset += sizeof(uint)*numCells+sizeof(int);
+	fprintf(fid,"   </CellData>\n");
 	fprintf(fid,"   <Cells>\n");
-	scalar_array(fid, "Int32", "connectivity", offset);
+	scalar_array(fid, "UInt32", "connectivity", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array(fid, "Int32", "offsets", offset);
-	offset += sizeof(uint)*numParts+sizeof(int);
-	fprintf(fid,"	<DataArray type='Int32' Name='types' format='ascii'>\n");
-	for (int i = 0; i < numParts; i++)
-		fprintf(fid,"%d\t", 1);
-	fprintf(fid,"\n");
-	fprintf(fid,"	</DataArray>\n");
+	scalar_array(fid, "UInt32", "offsets", offset);
+	offset += sizeof(uint)*numCells+sizeof(int);
+	scalar_array(fid, "UInt8", "types", offset);
+	offset += sizeof(uchar)*numCells+sizeof(int);
 	fprintf(fid,"   </Cells>\n");
 	fprintf(fid,"  </Piece>\n");
 
 	fprintf(fid," </UnstructuredGrid>\n");
 	fprintf(fid," <AppendedData encoding='raw'>\n_");
+	//====================================================================================
 
 	int numbytes=sizeof(float)*numParts;
 
 	// pressure
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		if (FLUID(info[i]))
-			value = m_problem->pressure(vel[i].w, object(info[i]));
-		else if (TESTPOINTS(info[i]))
+		if (TESTPOINTS(info[i]))
 			value = vel[i].w;
+		else
+			value = m_problem->pressure(vel[i].w, object(info[i]));
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
 	// density
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		if (FLUID(info[i]))
+		//if (FLUID(info[i]))
 			value = vel[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
 	// mass
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = pos[i].w;
 		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	// gamma
+	if (gradGamma) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = gradGamma[i].w;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// turbulent kinetic energy
+	if (tke) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = tke[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// turbulent epsilon
+	if (eps) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=0; i < numParts; i++) {
+			float value = eps[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
+
+	// eddy viscosity
+	if (turbvisc) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = turbvisc[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
 	}
 
 	// particle info
@@ -246,85 +363,105 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 
 		// type
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
+			if (gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
+				fprintf(testpoints_file,"%g,%u,%g,%u,%u,%g,%g,%g,%g,%g,%g\n",
+					t, id(info[i]),
+					vel[i].w, object(info[i]), cellHashFromParticleHash( particleHash[i] ),
+					pos[i].x, pos[i].y, pos[i].z,
+					vel[i].x, vel[i].y, vel[i].z);
+			}
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
-		// flag
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = PART_FLAG(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// flag
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (uint i=node_offset; i < node_offset + numParts; i++) {
+//			ushort value = PART_FLAG(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
-		// fluid number
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = PART_FLUID_NUM(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// fluid number
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (uint i=node_offset; i < node_offset + numParts; i++) {
+//			ushort value = PART_FLUID_NUM(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
-		// object
-		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
-			ushort value = object(info[i]);
-			fwrite(&value, sizeof(value), 1, fid);
-		}
+//		// object
+//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+//		for (uint i=node_offset; i < node_offset + numParts; i++) {
+//			ushort value = object(info[i]);
+//			fwrite(&value, sizeof(value), 1, fid);
+//		}
 
 		numbytes=sizeof(uint)*numParts;
 
 		// id
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uint value = id(info[i]);
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 	}
 
 	// device index
-	if (m_gdata) {
-		numbytes = sizeof(uint)*numParts;
+	if (MULTI_DEVICE) {
+		numbytes = sizeof(dev_idx_t)*numParts;
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		// The previous way was to compute the theoretical containing cell solely according on the particle position. This, however,
 		// was inconsistent with the actual particle distribution among the devices, since one particle can be physically out of the
-		// containing cell until next calchash/reorder
-		// for (uint i=0; i < numParts; i++) {
-		// uint value = m_gdata->calcGlobalDeviceIndex(pos[i]);
-		// fwrite(&value, sizeof(value), 1, fid);
-		for (uint d = 0; d < m_gdata->devices; d++) {
+		// containing cell until next calchash/reorder.
+		// The current policy is: just list the particles according to how the global array is partitioned. In other words, we rely
+		// on the particle index to understad which device downloaded the particle data.
+		for (uint d = 0; d < gdata->devices; d++) {
 			// compute the global device ID for each device
-			uint value = m_gdata->GLOBAL_DEVICE_ID(m_gdata->mpi_rank, d);
+			dev_idx_t value = gdata->GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
 			// write one for each particle (no need for the "absolute" particle index)
-			for (uint p = 0; p < m_gdata->s_hPartsPerDevice[d]; p++)
+			for (uint p = 0; p < gdata->s_hPartsPerDevice[d]; p++)
 				fwrite(&value, sizeof(value), 1, fid);
 		}
-	}
-
-	// linearized cell index (NOTE: computed on host)
-	numbytes = sizeof(uint)*numParts;
-	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
-		uint value = m_gdata->calcGridHashHost( m_gdata->calcGridPosHost(pos[i].x, pos[i].y, pos[i].z) );
-		fwrite(&value, sizeof(value), 1, fid);
+		// There two alternate policies: 1. use particle hash or 2. compute belonging device.
+		// To use the particle hash, instead of just relying on the particle index, use the following code:
+		/*
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			uint value = gdata->s_hDeviceMap[ cellHashFromParticleHash(particleHash[i]) ];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+		*/
+		// This should be equivalent to the current "listing" approach. If for any reason (e.g. debug) one needs to write the
+		// device index according to the current spatial position, it is enough to compute the particle hash from its position
+		// instead of reading it from the particlehash array. Please note that this would reflect the spatial split but not the
+		// actual assignments: until the next calchash is performed, one particle remains in the containing device even if it
+		// it is slightly outside the domain.
 	}
 
 	numbytes=sizeof(float)*3*numParts;
 
 	// velocity
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float *value = zeroes;
-		if (FLUID(info[i]) || TESTPOINTS(info[i])) {
+		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
-		}
 		fwrite(value, sizeof(*value), 3, fid);
+	}
+
+	// gradient gamma
+	if (gradGamma) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float *value = zeroes;
+			value = (float*)(gradGamma + i);
+			fwrite(value, sizeof(*value), 3, fid);
+		}
 	}
 
 	// vorticity
 	if (vort) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(vort + i);
@@ -336,7 +473,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 	// normals
 	if (normals) {
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = zeroes;
 			if (FLUID(info[i])) {
 				value = (float*)(normals + i);
@@ -347,7 +484,7 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		numbytes=sizeof(float)*numParts;
 		// criteria
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-		for (int i=0; i < numParts; i++) {
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = 0;
 			if (FLUID(info[i]))
 				value = normals[i].w;
@@ -355,26 +492,50 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 		}
 	}
 
-	numbytes=sizeof(float)*3*numParts;
+	numbytes=sizeof(float)*numParts;
+
+	// private
+	if (priv) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = priv[i];
+			fwrite(&value, sizeof(value), 1, fid);
+		}
+	}
 
 	// position
+	numbytes=sizeof(double)*3*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
-		float *value = (float*)(pos + i);
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 
-	numbytes=sizeof(int)*numParts;
-	// connectivity
+	// Cells data
+
+	// cell index
+	numbytes=sizeof(uint)*numCells;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
+	fwrite(&cellIndex[0], numbytes, 1, fid);
+
+	// connectivity
+	numbytes=sizeof(uint)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (uint i=0; i < numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
+
 	// offsets
+	numbytes=sizeof(uint)*numCells;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	for (int i=0; i < numParts; i++) {
-		uint value = i+1;
+	fwrite(&cellEnd[0], numbytes, 1, fid);
+
+	// types (currently all cells type=2, vertex cloud)
+	numbytes=sizeof(uchar)*numCells;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (uint i=0; i < numParts; i++) {
+		uchar value = 2;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 
@@ -389,4 +550,86 @@ void VTKWriter::write(uint numParts, const float4 *pos, const float4 *vel,
 			t, 0, filename.c_str());
 		fflush(m_timefile);
 	}
+
+	// close testpoints file
+	if (testpoints_file != NULL)
+		fclose(testpoints_file);
+}
+
+void
+VTKWriter::write_WaveGage(float t, GageList const& gage)
+{
+	// call the generic write_WaveGage first
+	Writer::write_WaveGage(t, gage);
+
+	FILE *fp = open_data_file("WaveGage", current_filenum(), NULL);
+	size_t num = gage.size();
+
+	// Header
+	fprintf(fp,"<?xml version=\"1.0\"?>\r\n");
+	fprintf(fp,"<VTKFile type= \"UnstructuredGrid\"  version= \"0.1\"  byte_order= \"BigEndian\">\r\n");
+	fprintf(fp," <UnstructuredGrid>\r\n");
+	fprintf(fp,"  <Piece NumberOfPoints=\"%zu\" NumberOfCells=\"%zu\">\r\n", num, num);
+
+	//Writing Position
+	fprintf(fp,"   <Points>\r\n");
+	fprintf(fp,"	<DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\r\n");
+	for (size_t i=0; i <  num; i++)
+		fprintf(fp,"%f\t%f\t%f\t",gage[i].x, gage[i].y, gage[i].z);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"   </Points>\r\n");
+
+	// Cells data
+	fprintf(fp,"   <Cells>\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\r\n");
+	for (size_t i = 0; i < num; i++)
+		fprintf(fp,"%zu\t", i);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+	fprintf(fp,"\r\n");
+
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\r\n");
+	for (size_t i = 0; i < num; i++)
+		fprintf(fp,"%zu\t", i + 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	<DataArray type=\"Int32\" Name=\"types\" format=\"ascii\">\r\n");
+	for (size_t i = 0; i < num; i++)
+		fprintf(fp,"%d\t", 1);
+	fprintf(fp,"\r\n");
+	fprintf(fp,"	</DataArray>\r\n");
+
+	fprintf(fp,"   </Cells>\r\n");
+
+	fprintf(fp,"  </Piece>\r\n");
+	fprintf(fp," </UnstructuredGrid>\r\n");
+	fprintf(fp,"</VTKFile>");
+	fclose(fp);
+}
+
+FILE *
+VTKWriter::open_data_file(const char* base, string const& num, string *fname)
+{
+	string filename(base), full_filename;
+
+	if (gdata && gdata->mpi_nodes > 1)
+		filename += "n" + gdata->rankString();
+
+	filename += "_" + num + ".vtu";
+	full_filename = m_dirname + "/" + filename;
+
+	FILE *fid = fopen(full_filename.c_str(), "w");
+
+	if (fid == NULL) {
+		stringstream ss;
+		ss << "Cannot open data file " << full_filename;
+		throw runtime_error(ss.str());
+	}
+
+	if (fname)
+		*fname = filename;
+	return fid;
 }

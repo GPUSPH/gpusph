@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -27,7 +27,6 @@
  *  Point.h
  *
  *  Created by Alexis Herault on 27/07/06.
- *  Copyright 2006 __MyCompanyName__. All rights reserved.
  *
  */
 
@@ -56,6 +55,8 @@ class Point {
 	public:
 		Point(double xx = 0, double yy = 0, double zz = 0, double m = 0);
 		Point(const Point &);
+		Point(const double3 &);
+		Point(const double4 &);
 		Point(const float3 &);
 		Point(const float4 &);
 		Point(const float *);
@@ -63,7 +64,8 @@ class Point {
 		~Point(void) {};
 
 		void SetCoord(double *);
-		
+		void SetCoord(double, double, double);
+
 		Point Rot(const dMatrix3);
 		Point TransposeRot(const dMatrix3);
 

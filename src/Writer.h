@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -45,17 +45,17 @@ class Writer
 {
 public:
 	// maximum number of files
-	static const int MAX_FILES = 99999;
+	static const uint MAX_FILES = 99999;
 	// number of characters needed to represent MAX_FILES
-	static const int FNUM_WIDTH = 5;
+	static const uint FNUM_WIDTH = 5;
 
 	Writer(const Problem *problem);
 	virtual ~Writer();
 
-	virtual void write(uint numParts, const float4 *pos, const float4 *vel,
-			const particleinfo *info, const float3 *vort, float t, const bool testpoints, const float4 *normals) = 0;
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
 
 	virtual void write_energy(float t, float4 *energy);
+
 	//WaveGage
 	virtual void write_WaveGage(float t, GageList const& gage);
 
@@ -72,8 +72,9 @@ protected:
 	FILE*			m_WaveGagefile;
 	const Problem	*m_problem;
 	string			next_filenum();
-	GlobalData*		m_gdata;
+	string			current_filenum();
+	GlobalData*		gdata;
 };
 
-#endif	/* _VTKWRITER_H */
+#endif	/* _WRITER_H */
 

@@ -1,19 +1,16 @@
-# GPU-SPH3D Makefile
-# Rewritten from scratch by rustico@dmi.unict.it
+# GPUSPH Makefile
 #
 # TODO:
 # - Add support for versioning with git
-# - Improve list-problems problem detection
-# - If user overrides CFLAGS, avoid dbg and compute recompile?
+# - Improve list-problems problem detection (move problems to separate dir?)
 # - Recompile also if target_arch changes (like dbg and compute)
-# - Add automatic deps update?
-#   "g++ -M" or http://make.paulandlesley.org/autodep.html
-# - remember \callgraph in main classes (move from here!)
 #
 # Notes:
 # - When adding a target, comment it with "# target: name - desc" and help
 #   will always be up-to-date
 # - When adding an option, comment it with "# option: name - desc" and help
+#   will always be up-to-date
+# - When adding an overridable setting, document it with "# override: name - desc" and help
 #   will always be up-to-date
 # - Makefile is assumed to be GNU (see http://www.gnu.org/software/make/manual/)
 # - Source C++ files have extension .cc (NOT .cpp)
@@ -21,10 +18,42 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
+# Include, if present a local Makefile.
+# This can be used by the user to set additional include paths
+# (INCPATH = ....)
+# library search paths
+# (LIBPATH = ...)
+# libaries
+# (LIBS = ...)
+# and general flags
+# CPPFLAGS, CXXFLAGS, CUFLAGS, LDFLAGS,
+sinclude Makefile.local
+
+# need for some substitutions
+comma:=,
+empty:=
+space:=$(empty) $(empty)
+
+# GPUSPH version
+GPUSPH_VERSION=$(shell git describe --tags --dirty 2> /dev/null)
+
+ifeq ($(GPUSPH_VERSION), $(empty))
+$(warning Unable to determine GPUSPH version)
+GPUSPH_VERSION=unknown-version
+endif
+
 # system information
 platform=$(shell uname -s 2>/dev/null)
-platform_lcase=$(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
+platform_lcase=$(shell uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')
 arch=$(shell uname -m)
+
+# sed syntax differs a bit
+ifeq ($(platform), Darwin)
+	SED_COMMAND=sed -i "" -e
+else # Linux
+	SED_COMMAND=sed -i -e
+endif
+
 
 # option: target_arch - if set to 32, force compilation for 32 bit architecture
 ifeq ($(target_arch), 32)
@@ -58,14 +87,54 @@ OPTSDIR = ./options
 TARGETNAME := GPUSPH$(TARGET_SXF)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
-# CUDA installation/lib/include paths
-ifeq ($(platform), Linux)
-	CUDA_INSTALL_PATH=/usr/local/cuda
-	CUDA_SDK_PATH=/usr/local/cudasdk
-else ifeq ($(platform), Darwin)
-	CUDA_INSTALL_PATH=/usr/local/cuda
-	CUDA_SDK_PATH=/usr/local/cuda/samples
+# --------------- File lists
+
+# makedepend will generate dependencies in these file
+GPUDEPS = $(MAKEFILE).gpu
+CPUDEPS = $(MAKEFILE).cpu
+
+# .cc source files (CPU)
+MPICXXFILES = $(SRCDIR)/NetworkManager.cc
+CCFILES = $(filter-out $(MPICXXFILES),$(wildcard $(SRCDIR)/*.cc))
+
+# .cu source files (GPU), excluding *_kernel.cu
+CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
+
+# headers
+HEADERS = $(wildcard $(SRCDIR)/*.h)
+
+# object files via filename replacement
+MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
+CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
+CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
+
+OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
+
+PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
+
+# data files needed by some problems
+EXTRA_PROBLEM_FILES ?=
+# TestTopo uses this DEM:
+EXTRA_PROBLEM_FILES += half_wave0.1m.txt
+
+# --------------- Locate and set up compilers and flags
+
+# override: CUDA_INSTALL_PATH - where CUDA is installed
+# override:                     defaults /usr/local/cuda,
+# override:                     validity is checked by looking for bin/nvcc under it,
+# override:                     /usr is always tried as a last resort
+CUDA_INSTALL_PATH ?= /usr/local/cuda
+
+# We check the validity of the path by looking for bin/nvcc under it.
+# if not found, we look into /usr, and finally abort
+ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+	CUDA_INSTALL_PATH = /usr
+	# check again
+	ifeq ($(wildcard $(CUDA_INSTALL_PATH)/bin/nvcc),)
+$(error Could not find CUDA, please set CUDA_INSTALL_PATH)
+	endif
 endif
+
 # Here follow experimental CUDA installation detection. These work if CUDA binaries are in
 # the current PATH (i.e. when using Netbeans without system PATH set, don't work).
 # CUDA_INSTALL_PATH=$(shell which nvcc | sed "s/\/bin\/nvcc//")
@@ -80,31 +149,130 @@ NVCC=$(CUDA_INSTALL_PATH)/bin/nvcc
 NVCC_VER=$(shell $(NVCC) --version | grep release | cut -f2 -d, | cut -f3 -d' ')
 versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
-#CUDA_MINOR := $(lastword  $(versions_tmp))
+CUDA_MINOR := $(lastword  $(versions_tmp))
 
-# files to store last compile options: problem, dbg, compute
+# override: CUDA_SDK_PATH - location for the CUDA SDK samples
+# override:                 defaults to $(CUDA_INSTALL_PATH)/samples for CUDA 5 or higher,
+# override:                             /usr/local/cudasdk for older versions of CUDA.
+ifeq ($(CUDA_MAJOR), 5)
+	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
+else
+	CUDA_SDK_PATH ?= /usr/local/cudasdk
+endif
+
+# CXX is the host compiler. nvcc doesn't really allow you to use any compiler though:
+# it only supports gcc (on both Linux and Darwin). Since CUDA 5.5 it also
+# supports clang on Darwin 10.9, but only if the ccbin name actually contains the string
+# 'clang'.
+#
+# The solution to our problem is the following:
+# * we do not change anything, unless CXX is set to c++ (generic)
+# * if CXX is generic, we set it to g++, _unless_ we are on Darwin, the CUDA
+#   version is at least 5.5 and clang++ is executable, in which case we set it to /usr/bin/clang++
+# There are cases in which this might fail, but we'll fix it when we actually come across them
+WE_USE_CLANG=0
+
+# override: CXX - the host C++ compiler.
+# override:       defaults to g++, except on Darwin
+# override:       where clang++ is used if available
+ifeq ($(CXX),c++)
+	CXX = g++
+	ifeq ($(platform), Darwin)
+		versions_tmp:=$(shell [ -x /usr/bin/clang++ -a $(CUDA_MAJOR)$(CUDA_MINOR) -ge 55 ] ; echo $$?)
+		ifeq ($(versions_tmp),0)
+			CXX = /usr/bin/clang++
+			WE_USE_CLANG=1
+		endif
+	endif
+endif
+
+# override: MPICXX - the MPI compiler
+MPICXX ?= $(shell which mpicxx)
+ifeq ($(MPICXX),)
+$(error MPI compiler not found, necessary for multi-node.)
+endif
+
+# Force nvcc to use the same host compiler that we selected
+# Note that this requires the compiler to be supported by
+# nvcc.
+NVCC += -ccbin=$(CXX)
+
+# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
+# but we also need to link with MPICXX, so we would like to use:
+#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
+# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
+# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
+# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
+# options required by MPICXX at link time:
+
+## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
+# We use -show because it's supported by all implementations (otherwise we'd have to detect
+# if our compiler uses --showme:link or -link_info):
+MPISHOWFLAGS := $(shell $(MPICXX) -show)
+# But then we have to remove the compiler name from the proposed command line:
+MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+
+# mpicxx might pass to the compiler options which nvcc might not understand
+# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
+# but that means that we cannot pass options which contains commas in them,
+# since commas are already used to separate the parameters in --compiler-options.
+# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
+# a comma), so for the time being we just filter out the flags that we _know_
+# will contain commas (i.e. -Wl,stuff,stuff,stuff).
+# To make things even more complicated, nvcc does not accept -Wl, so we need
+# to replace -Wl with --linker-options.
+# The other options will be gathered into the --compiler-options passed at nvcc
+# at link time.
+MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
+MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+
+LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+
+# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+
+
+# files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
+FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
+# this is not really an option, but it follows the same mechanism
+GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
+
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
+
+# Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
+vpath %.opt $(OPTSDIR)
 
 # check compile options used last time:
 # - which problem? (name of problem, empty if file doesn't exist)
 LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
 	grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f3 -d " ")
-# - was dbg enabled? (1 or 0, empty if file doesn't exist))
+# - was dbg enabled? (1 or 0, empty if file doesn't exist)
 # "strip" added for Mac compatibility: on MacOS wc outputs a tab...
 LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
 	grep "\#define _DEBUG_" $(DBG_SELECT_OPTFILE) | wc -l))
 # - for which compute capability? (11, 12 or 20, empty if file doesn't exist)
 LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
 	grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f3 -d " ")
+# - was fastmath enabled? (1 or 0, empty if file doesn't exist)
+LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
+# - what is the size in bits of the hashKey? (currently 32 or 64, empty if file doesn't exist)
+LAST_HASH_KEY_SIZE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
+	grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f3 -d " ")
 
-# sed syntax differs a bit
-ifeq ($(platform), Darwin)
-	SED_COMAND=sed -i "" -e
-else # Linux
-	SED_COMAND=sed -i -e
+# update GPUSPH_VERSION_OPTFILE if git version changed
+LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
+
+ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
+	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
 endif
+
 
 # option: problem - Name of the problem. Default: $(PROBLEM) in makefile
 ifdef problem
@@ -112,9 +280,13 @@ ifdef problem
 	PROBLEM=$(problem)
 	# if choice differs from last...
 	ifneq ($(LAST_PROBLEM),$(PROBLEM))
+		# check that the problem is in the problem list
+		ifneq ($(filter $(PROBLEM),$(PROBLEM_LIST)),$(PROBLEM))
+			TMP:=$(error No such problem ‘$(PROBLEM)’. Known problems: $(PROBLEM_LIST))
+		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last
@@ -139,12 +311,11 @@ ifneq ($(dbg), $(LAST_DBG))
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
 	endif
 endif
 
 # option: compute - 11, 12 or 20: compute capability to compile for (default: 12)
-# option:           Override CFLAGS to compile for multiple architectures.
 # does dbg differ from last?
 ifdef compute
 	# user choice
@@ -153,7 +324,7 @@ ifdef compute
 	ifneq ($(LAST_COMPUTE),$(COMPUTE))
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
-			$(SED_COMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
 	endif
 else
 	# no user choice, use last (if any) or default
@@ -164,59 +335,170 @@ else
 	endif
 endif
 
-# -------------------------- CFLAGS section -------------------------- #
-
-# nvcc-specific CFLAGS
-CFLAGS_GPU = -arch=sm_$(COMPUTE) -D__COMPUTE__=$(COMPUTE)
-# -DdSINGLE for ODE
-CFLAGS_GPU += -DdSINGLE
-# uncomment to use --fast-math again (not recommended for multigpu)
-#CFLAGS_GPU += --use_fast_math
-# maximum precision (default?)
-#CFLAGS_GPU += -prec-div=true
-# disable multiply-add optimizations
-#CFLAGS_GPU += --fmad false
-
-# add debug flag -G
-ifeq ($(dbg), 1)
-	CFLAGS_GPU += -G
-endif
-
-# Default CFLAGS (see notes below)
-ifeq ($(platform), Darwin)
-	CFLAGS_STANDARD =
-else # Linux
-	CFLAGS_STANDARD = -O3
-endif
-# For some strange reason, when compiled with optmisation, the CPU side code
-# crashes in libstdc++ when acessing a file.
-# Default debug CFLAGS: no -O optimizations, debug (-g) option
-# Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
-# include to every source, the _DEBUG_ macro is still passed through g++
-CFLAGS_DEBUG = -g -D_DEBUG_
-
-# see above for dbg option description
-ifeq ($(dbg), 1)
-	_CFLAGS = $(CFLAGS_DEBUG)
+# option: fastmath - Enable or disable fastmath. Default: 1 (enabled)
+ifdef fastmath
+	# user chooses
+	FASTMATH=$(fastmath)
+	# does it differ from last?
+	ifneq ($(LAST_FASTMATH),$(FASTMATH))
+		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
+	endif
 else
-	_CFLAGS = $(CFLAGS_STANDARD)
+	ifeq ($(LAST_FASTMATH),)
+		FASTMATH=0
+	else
+		FASTMATH=$(LAST_FASTMATH)
+	endif
 endif
 
-# architecture switch. The *_SFX vars will be used later.
+# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
+# option:                 be 64 to enable multi-device simulations. For single-device simulations,
+# option:                 can be set to 32 to reduce memory usage. Default: 64
+ifdef hash_key_size
+	# user chooses
+	HASH_KEY_SIZE=$(hash_key_size)
+	# does it differ from last?
+	ifneq ($(LAST_HASH_KEY_SIZE),$(HASH_KEY_SIZE))
+		TMP:=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/HASH_KEY_SIZE $(LAST_HASH_KEY_SIZE)/HASH_KEY_SIZE $(HASH_KEY_SIZE)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
+	endif
+else
+	ifeq ($(LAST_HASH_KEY_SIZE),)
+		HASH_KEY_SIZE=64
+	else
+		HASH_KEY_SIZE=$(LAST_HASH_KEY_SIZE)
+	endif
+endif
+
+# --- Includes and library section start ---
+
+LIB_PATH_SFX =
+
+# override: TARGET_ARCH - set the target architecture
+# override:               defaults to -m64 for 64-bit machines
+# override:                           -m32 for 32-bit machines
 ifeq ($(arch), x86_64)
-	_CFLAGS_ARCH += -m64
-	# cuda 5.0 with 64bit libs does not require the suffix anymore
-	ifneq ($(CUDA_MAJOR), 5)
-		GLEW_ARCH_SFX=_x86_64
+	TARGET_ARCH ?= -m64
+	# on Linux, toolkit libraries are under /lib64 for 64-bit
+	ifeq ($(platform), Linux)
+		LIB_PATH_SFX = 64
 	endif
 else # i386 or i686
-	_CFLAGS_ARCH += -m32
-	GLEW_ARCH_SFX=
+	TARGET_ARCH ?= -m32
 endif
 
-# Only assign a default CFLAG if it wasn't already set by the user
-# ("export CFLAGS=... ; make")
-CFLAGS ?= $(_CFLAGS_ARCH) $(_CFLAGS) $(CFLAGS_GPU)
+# override: INCPATH - paths for include files
+# override:           add entries in the form: -I/some/path
+INCPATH ?=
+# override: LIBPATH - paths for library searches
+# override:           add entries in the form: -L/some/path
+LIBPATH ?=
+# override: LIBS - additional libraries
+# override:        add entries in the form: -lsomelib
+LIBS ?=
+
+# override: LDFLAGS - flags passed to the linker
+LDFLAGS ?=
+
+# Most of these settings are platform independent
+
+# INCPATH
+# make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
+INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
+
+# access the CUDA include files from the C++ compiler too, but mark it as a system include path
+# Note: -isystem is supported by nvcc, g++ and clang++, so this should be fine
+INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
+
+# LIBPATH
+LIBPATH += -L/usr/local/lib
+
+# CUDA libaries
+LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
+
+# On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
+# This is exactly the conditions under which we set WE_USE_CLANG
+ifeq ($(WE_USE_CLANG),1)
+	LIBS += -lc++
+endif
+
+# link to the CUDA runtime library
+LIBS += -lcudart
+# link to ODE for the objects
+LIBS += -lode
+# link to HDF5 for input reading
+LIBS += -lhdf5
+# pthread needed for the UDP writer
+LIBS += -lpthread
+
+# search paths (for CUDA 5 and higher) are platform-specific
+ifeq ($(platform), Darwin)
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/
+else
+	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
+endif
+
+LDFLAGS += $(LIBPATH) $(LIBS)
+
+# -- Includes and library section end ---
+
+# -------------------------- CFLAGS section -------------------------- #
+# We have three sets of flags:
+# CPPFLAGS are preprocessor flags; they are common to both compilers
+# CXXFLAGS are flags passed to the C++ when compiling C++ files (either directly,
+#     for .cc files, or via nvcc, for .cu files), and when linking
+# CUFLAGS are flags passed to the CUDA compiler when compiling CUDA files
+
+# override: CPPFLAGS - preprocessor flags
+CPPFLAGS ?=
+# override: CXXFLAGS - C++ host compiler options
+CXXFLAGS ?=
+# override: CUFLAGS - nvcc compiler options
+CUFLAGS  ?=
+
+# First of all, put the include paths into the CPPFLAGS
+CPPFLAGS += $(INCPATH)
+
+# We set __COMPUTE__ on the host to match that automatically defined
+# by the compiler on the device
+CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
+
+# The ODE library link is in single precision mode
+CPPFLAGS += -DdSINGLE
+
+# CXXFLAGS start with the target architecture
+CXXFLAGS += $(TARGET_ARCH)
+
+# nvcc-specific flags
+CUFLAGS += -arch=sm_$(COMPUTE) -lineinfo
+
+ifeq ($(FASTMATH),1)
+	CUFLAGS += --use_fast_math
+endif
+
+
+# Note: -D_DEBUG_ is defined in $(DBG_SELECT_OPTFILE); however, to avoid adding an
+# include to every source, the _DEBUG_ macro is actually passed on the compiler command line
+ifeq ($(dbg), 1)
+	CPPFLAGS += -D_DEBUG_
+	CXXFLAGS += -g
+	CUFLAGS  += -G
+else
+	CXXFLAGS += -O3
+endif
+
+# option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
+ifeq ($(verbose), 1)
+	CUFLAGS += --ptxas-options=-v
+else ifeq ($(verbose), 2)
+	CUFLAGS += --ptxas-options=-v
+	CXXFLAGS += -Wall
+endif
+
+# Finally, add CXXFLAGS to CUFLAGS
+
+CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
 
 # CFLAGS notes
 # * Architecture (sm_XX and compute_XX):
@@ -236,100 +518,31 @@ CFLAGS ?= $(_CFLAGS_ARCH) $(_CFLAGS) $(CFLAGS_GPU)
 
 # ------------------------ CFLAGS section end ---------------------- #
 
-# compilers
-CC=$(NVCC)
-CXX=$(NVCC)
-MPICXX=$(shell which mpicxx)
-ifeq ($(MPICXX),)
-      $(error MPI compiler not found, necessary for multi-node.)
-endif
-
-#LINKER=$(MPICXX)
-LINKER=$(NVCC) -ccbin=$(MPICXX)
-#LINKER=$(NVCC)
-#LINKER=g++
-
 # Doxygen configuration
 DOXYCONF = ./Doxygen_settings
 
+# otherwise
+# find if the working directory is dirty --this gives the number of changed files
+snap_date := $(shell git log -1 --format='%cd %h' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
+is_dirty:=
+ifneq ($(shell git status --porcelain 2> /dev/null | wc -l),0)
+	is_dirty:=+custom
+endif
 # snapshot tarball filename
-SNAPSHOT_FILE = ./GPUSPHsnapshot.tgz
+SNAPSHOT_FILE = ./GPUSPH-$(snap_date)$(is_dirty).tgz
 
-# tool to clear current line
-CARRIAGE_RETURN=printf "\r                                 \r"
-# use the following instead to output on multiple lines
-#CARRIAGE_RETURN=printf "\n"
-
-# makedepend will generate dependencies in these file
-GPUDEPS = $(MAKEFILE).gpu
-CPUDEPS = $(MAKEFILE).cpu
-
-# .cc source files (CPU)
-#CCFILES = $(wildcard $(SRCDIR)/*.cc)
-# filter-out NetworkManager, which has to be compiled with mpic++
-CCFILES = $(filter-out $(SRCDIR)/NetworkManager.%,$(wildcard $(SRCDIR)/*.cc))
-#CCFILES = $(shell ls $(SRCDIR)/*.cc) # via shell
-MPICXXFILES = $(SRCDIR)/NetworkManager.cc
-
-# .cu source files (GPU), excluding *_kernel.cu
-CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
-#CUFILES = $(shell ls $(SRCDIR)/*.cu | grep -v _kernel.cu)  # via shell
-
-# headers
-HEADERS = $(wildcard $(SRCDIR)/*.h)
-
-# object files via filename replacement
-CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
-MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
-CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
-OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
+# option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
+ifeq ($(plain), 1)
+	show_stage = @printf "[$(1)] $(2)\n"
+else
+	show_stage = @printf "\r                                 \r[$(1)] $(2)"
+endif
 
 # option: echo - 0 silent, 1 show commands
 ifeq ($(echo), 1)
 	CMDECHO :=
 else
 	CMDECHO := @
-endif
-
-# some platform-dependent configurations
-ifeq ($(platform), Linux)
-	# we need linking to SDKs for lGLEW
-	INCPATH=-I $(CUDA_INSTALL_PATH)/include -I $(CUDA_SDK_PATH)/shared/inc
-	LIBPATH=-L /usr/local/lib -L $(CUDA_SDK_PATH)shared/lib/linux -L $(CUDA_SDK_PATH)lib -L $(CUDA_SDK_PATH)/C/common/lib/linux/
-	LIBS=-lstdc++ -lcudart -lGL -lGLU -lglut -lGLEW$(GLEW_ARCH_SFX)
-	LFLAGS=
-# 	CC=nvcc
-# 	CXX=$(CC)
-# 	LINKER=$(CXX)
-else ifeq ($(platform), Darwin)
-	INCPATH=-I $(CUDA_SDK_PATH)/common/inc/
-	LIBPATH=-L/System/Library/Frameworks/OpenGL.framework/Libraries -L$(CUDA_SDK_PATH)/common/lib/darwin/ -L$(CUDA_INSTALL_PATH)/lib/
-	LIBS=-lGL -lGLU $(CUDA_SDK_PATH)/common/lib/darwin/libGLEW.a -lcudart
-	# Netbeans g++ flags: "-fPic -m32 -arch i386 -framework GLUT"
-	LFLAGS=$(_CFLAGS_ARCH) -Xlinker -framework -Xlinker GLUT -Xlinker -rpath -Xlinker $(CUDA_INSTALL_PATH)/lib
-	CC=$(NVCC)
-	CXX=$(NVCC)
-	#LINKER=$(NVCC)
-	LINKER=$(MPICXX)
-else
-	$(warning architecture $(arch) not supported by this makefile)
-endif
-
-# ODE libs
-LIBS += -lode
-
-# MPICXX does not find automatically lcudart, as nvcc does
-LIBPATH+=-L$(CUDA_INSTALL_PATH)/lib64
-
-# make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
-INCPATH+= -I$(SRCDIR) -I$(OPTSDIR)
-
-# option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
-ifeq ($(verbose), 1)
-	CFLAGS += --ptxas-options=-v
-else ifeq ($(verbose), 2)
-	CFLAGS += --ptxas-options=-v
-	CFLAGS += --compiler-options=-Wall
 endif
 
 .PHONY: all showobjs show snapshot expand deps docs test help
@@ -340,9 +553,9 @@ endif
 all: $(OBJS) | $(DISTDIR)
 	@echo
 	@echo "Compiled with problem $(PROBLEM)"
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[LINK] $(TARGET)\n" && \
-	$(LINKER) $(LFLAGS) $(LIBPATH) $(MPI_LINKING) -o $(TARGET) $(OBJS) $(LIBS) && \
+	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
+	$(call show_stage,LINK,$(TARGET)\\n)
+	$(CMDECHO)$(LINKER) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -361,28 +574,36 @@ $(COMPUTE_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Define the compute capability GPU code was compiled for. */" \
 		> $(COMPUTE_SELECT_OPTFILE)
 	@echo "#define COMPUTE $(COMPUTE)" >> $(COMPUTE_SELECT_OPTFILE)
+$(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if fastmath is enabled for GPU code. */" \
+		> $@
+	@echo "#define FASTMATH $(FASTMATH)" >> $@
+$(HASH_KEY_SIZE_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines the size in bits of the hashKey used to sort the particles on the device. */" \
+		> $@
+	@echo "#define HASH_KEY_SIZE $(HASH_KEY_SIZE)" >> $@
 
-$(OBJDIR)/GPUSph.o: $(PROBLEM_SELECT_OPTFILE)
+$(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
+	@echo "/* git version of GPUSPH. */" \
+		> $@
+	@echo "#define GPUSPH_VERSION \"$(GPUSPH_VERSION)\"" >> $@
+
 
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[CC] $(@F)..." && \
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
+	$(call show_stage,CC,$(@F))
+	$(CMDECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
-# compile CPU objects requiring MPI compiler
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[MPI] $(@F)..." && \
-	$(MPICXX) $(INCPATH) -c -o $@ $<
+	$(call show_stage,MPI,$(@F))
+	$(CMDECHO)$(MPICXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) | $(OBJDIR)
-	$(CMDECHO)$(CARRIAGE_RETURN) && \
-	printf "[CU] $(@F)" && \
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
+	$(call show_stage,CU,$(@F))
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
 # create distdir
 $(DISTDIR):
@@ -411,11 +632,10 @@ cpuclean:
 gpuclean:
 	$(RM) $(CUOBJS)
 
-# target: cookiesclean - Clean last dbg, problem and compute choices, forcing
-# target:                .*_select.opt files to be regenerated (use if they're
-# target:                messed up)
+# target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
+# target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
-	$(RM) $(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(OPTSDIR)
+	$(RM) -r $(OPTFILES) $(OPTSDIR)
 
 # target: showobjs - List detected sources and target objects
 showobjs:
@@ -435,8 +655,8 @@ showobjs:
 
 # target: show - Show platform info and compiling options
 show:
+	@echo "GPUSPH version:  $(GPUSPH_VERSION)"
 	@echo "Platform:        $(platform)"
-	@echo "NVCC version:    $(NVCC_VER)"
 	@echo "Architecture:    $(arch)"
 	@echo "Current dir:     $(CURDIR)"
 	@echo "This Makefile:   $(MAKEFILE)"
@@ -451,64 +671,98 @@ show:
 	@echo "Doxygen conf:    $(DOXYCONF)"
 	@echo "Verbose:         $(verbose)"
 	@echo "Debug:           $(dbg)"
-	@echo "CC:              $(CC)"
 	@echo "CXX:             $(CXX)"
 	@echo "MPICXX:          $(MPICXX)"
+	@echo "nvcc:            $(NVCC)"
+	@echo "nvcc version:    $(NVCC_VER)"
+	@echo "LINKER:          $(LINKER)"
 	@echo "Compute cap.:    $(COMPUTE)"
+	@echo "Fastmath:        $(FASTMATH)"
+	@echo "Hashkey size:    $(HASH_KEY_SIZE)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
-	@echo "LFLAGS:          $(LFLAGS)"
-	@echo "CFLAGS:          $(CFLAGS)"
+	@echo "LDFLAGS:         $(LDFLAGS)"
+	@echo "CPPFLAGS:        $(CPPFLAGS)"
+	@echo "CXXFLAGS:        $(CXXFLAGS)"
+	@echo "CUFLAGS:         $(CUFLAGS)"
 #	@echo "Suffixes:        $(SUFFIXES)"
 
 # target: snapshot - Make a snapshot of current sourcecode in $(SNAPSHOT_FILE)
 # it seems tar option --totals doesn't work
 # use $(shell date +%F_%T) to include date and time in filename
-snapshot:
-	$(CMDECHO)tar czf $(SNAPSHOT_FILE) ./$(MFILE_NAME) $(DOXYCONF) $(SRCDIR)/*.cc $(HEADERS) $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/ && echo "Created $(SNAPSHOT_FILE)"
+snapshot: $(SNAPSHOT_FILE)
+	$(CMDECHO)echo "Created $(SNAPSHOT_FILE)"
+
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/
+	$(CMDECHO)tar czf $@ $^
+
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
 # it is safe to say we don't actualy need this
 expand:
 	$(CMDECHO)mkdir -p $(EXPDIR)
-	$(CMDECHO)$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/euler.cu -o $(EXPDIR)/euler.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/euler_kernel.cu -o $(EXPDIR)/euler_kernel.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/forces.cu -o $(EXPDIR)/forces.expand.cc && \
-	$(CXX) $(LFLAGS) $(CFLAGS) $(INCPATH) $(LIBPATH) -E \
+	$(NVCC) $(CPPFLAGS) $(CUFLAGS) -E \
 		$(SRCDIR)/forces_kernel.cu -o $(EXPDIR)/forces_kernel.expand.cc && \
 	echo "euler* and forces* expanded in $(EXPDIR)."
 
-# target: deps - Update dependencies in $(MAKEFILE) with "makedepend"
+# target: deps - Update dependencies in $(MAKEFILE)
 deps: $(GPUDEPS) $(CPUDEPS)
 	@true
 
-$(GPUDEPS): $(CUFILES) $(SRCDIR)
-	@echo [DEPS] GPU
-	$(CMDECHO)makedepend -Y -s'# GPU sources dependencies generated with "make deps"' \
-		-w4096 -f- -- $(CFLAGS) -- $^ 2> /dev/null | \
-		sed -e 's/$(subst ./,,$(SRCDIR))/$(subst ./,,$(OBJDIR))/' > $(GPUDEPS)
+# Let Makefile depend on the presence of the option files. This ensures that they
+# are built before anything else
+Makefile: | $(OPTFILES)
 
-$(CPUDEPS): $(CCFILES) $(MPICCFILES)  $(SRCDIR)
+# Dependecies are generated by the C++ compiler, since nvcc does not understand the
+# more sophisticated -MM and -MT dependency generation options.
+# The -MM flag is used to not include system includes.
+# The -MG flag is used to add missing includes (useful to depend on the .opt files).
+# The sed expression adds $(OBJDIR) to all lines matching a literal '.o:',
+# thereby correcting the path of the would-be output of compilation.
+#
+# When generating the dependencies for the .cu files, we must specify that they are
+# to be interpeted as C++ files and not some other funky format. We also need
+# to define __CUDA_INTERNAL_COMPILATION__ to mute an error during traversal of
+# some CUDA system includes
+#
+# Finally, both GPUDEPS and CPUDEPS must depend on the _presence_ of the option file
+# for hash keys, to prevent errors about undefined hash key size every time
+# `src/hashkey.h` is preprocessed
+$(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+	@echo [DEPS] GPU
+	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
+	$(CMDECHO)$(CXX) -x c++ -D__CUDA_INTERNAL_COMPILATION__ \
+		$(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
+
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	@echo [DEPS] CPU
-	$(CMDECHO)makedepend -Y -a -s'# CPU sources dependencies generated with "make deps"' \
-		-w4096 -f- -- $(CFLAGS) -- $^ 2> /dev/null | \
-		sed -e 's/$(subst ./,,$(SRCDIR))/$(subst ./,,$(OBJDIR))/' > $(CPUDEPS)
+	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
+	$(CMDECHO)$(CXX) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
 # target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
 docs: $(DOXYCONF)
 	$(CMDECHO)mkdir -p $(DOCSDIR)
 	@echo Running Doxygen...
-	$(CMDECHO)doxygen $(DOXYCONF) > /dev/null && \
+	$(CMDECHO)doxygen $(DOXYCONF) && \
 	echo Generated Doxygen documentation in $(DOCSDIR)
 
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
 	$(CMDECHO)rm -rf $(DOCSDIR)
+
+# target: tags - Create TAGS file
+tags: TAGS
+TAGS: $(wildcard $(SRCDIR)/*)
+	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def
+
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
 test: all
@@ -517,8 +771,7 @@ test: all
 
 # target: list-problems - List available problems
 list-problems:
-	$(CMDECHO)egrep "::.*:.*Problem\(" $(CCFILES) | \
-		sed 's/.\/$(subst ./,,$(SRCDIR))\///g' | sed 's/\..*//g' | sort
+	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g' | sort
 
 # target: help - Display help
 help:
@@ -531,8 +784,10 @@ help:
 	@echo "  $$ make help-options"
 	@echo
 	@echo "for a description of available options."
-	@echo "Note: if a CFLAGS environment variable is set, it is used as is."
-	@echo "Unset it ('unset CFLAGS') to let Makefile set the flags."
+	@echo
+	@echo "  $$ make help-overrides"
+	@echo
+	@echo "for a description of possible options."
 
 # target: help-targets - Display callable targets
 help-targets:
@@ -544,6 +799,13 @@ help-options:
 	@echo "Options:"
 	@grep -e "^# option:" $(MAKEFILE) | sed 's/^# option: /    /' # | sed 's/ - /\t/'
 	@echo "(usage: make option=value)"
+
+# target: help-overrides - Document available overrides
+help-overrides:
+	@echo "Default settings for these can be overridden/extended"
+	@echo "by creating a Makefile.local that sets them:"
+	@grep -e "^# override:" $(MAKEFILE) | sed 's/^# override: /    /' # | sed 's/ - /\t/'
+
 
 # "sinclude" instead of "include" tells make not to print errors if files are missing.
 # This is necessary because during the first processing of the makefile, make complains

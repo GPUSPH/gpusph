@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -27,7 +27,7 @@
  * File:   DamBreakGate.h
  * Author: Alexis; Tony
  *
- * Created on 28 janvier 2009; Feb 2011
+ * Created on 28 janvier 2009; Feb 2011-2013
  */
 
 #ifndef _DAMBREAKGATE_H
@@ -50,12 +50,11 @@ class DamBreakGate: public Problem {
 		float		H;  // still watr level
 
 	public:
-		DamBreakGate(const Options &);
+		DamBreakGate(const GlobalData *);
 		virtual ~DamBreakGate(void);
 
 		int fill_parts(void);
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(BufferList &);
 		MbCallBack& mb_callback(const float, const float, const int);
 		void release_memory(void);
 };

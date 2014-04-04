@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -29,6 +29,7 @@
 #define _SIMPARAMS_H
 
 #include <vector>
+#include "Point.h"
 
 typedef struct MbCallBack {
 	short			type;
@@ -39,54 +40,65 @@ typedef struct MbCallBack {
 	float3			disp;
 	float			sintheta;
 	float			costheta;
+	float			dthetadt;
 	float			omega;
 	float			amplitude;
 	float			phase;
 } MbCallBack;
 
-typedef std::vector<float3> GageList;
+typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
-	float			slength;			// smoothing length
+	double			sfactor;			// smoothing factor
+	double			slength;			// smoothing length (smoothing factor * deltap)
 	KernelType		kerneltype;			// kernel type
-	float			kernelradius;		// kernel radius
-	float 			influenceRadius;	// influence radius ( = kernelradius * slength)
-	float 			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
-	float 			nlSqInfluenceRadius;	// square influence radius for neib list construction
+	double			kernelradius;		// kernel radius
+	double			influenceRadius;	// influence radius ( = kernelradius * slength)
+	double			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
+	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;					// initial timestep
 	float			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
 	bool			dtadapt;			// true if adaptive timestep
 	float			dtadaptfactor;		// safety factor in the adaptive time step formula
-	int				buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
-	int				shepardfreq;		// frequency (in iterations) of Shepard density filter
-	int				mlsfreq;			// frequency (in iterations) of MLS density filter
+	uint			buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
+	uint			shepardfreq;		// frequency (in iterations) of Shepard density filter
+	uint			mlsfreq;			// frequency (in iterations) of MLS density filter
+	float			ferrari;			// coefficient for Ferrari correction
 	ViscosityType	visctype;			// viscosity type (1 artificial, 2 laminar)
-	int				displayfreq;		// display update frequence (in seconds)
-	int				savedatafreq;		// simulation data saving frequence (in displayfreq)
-	int				saveimagefreq;		// screen capture frequence (in displayfreq)
+	uint			displayfreq;		// display update frequence (in seconds)
+	uint			savedatafreq;		// simulation data saving frequence (in displayfreq)
+	uint			saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
-	bool			periodicbound;		// true in case of periodic boundary
-	float			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
+	Periodicity		periodicbound;		// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
+	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			usedem;				// true if using a DEM
 	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;			// true if we want to save vorticity
-	bool            testpoints;         // true if we want to find velocity at testpoints
-	bool            savenormals;        // true if we want to save the normals at free surface
-	bool            surfaceparticle;    // true if we want to find surface particles
+	bool			testpoints;			// true if we want to find velocity at testpoints
+	bool			csvtestpoints;		// true to dump the testpoints also in CSV files
+	bool			csvsimplegages;		// true to dump the gages also in CSV files
+	bool			savenormals;		// true if we want to save the normals at free surface
+	bool			surfaceparticle;	// true if we want to find surface particles
+	bool			calc_energy;		// true if we want to compute system energy at save time
 	GageList		gage;				// water gages
-	int				numbodies;			// number of floating bodies
+	uint			numODEbodies;		// number of floating bodies
 	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+	bool			calcPrivate;		// add the private array for debugging / additional calculation
+	float			epsilon;			// if |r_a - r_b| < epsilon two positions are considered identical
+	bool			movingBoundaries;	// defines if moving boundaries are present
+
 	SimParams(void) :
+		sfactor(1.3),
 		slength(0),
-		kerneltype(INVALID_KERNEL),
+		kerneltype(WENDLAND),
 		kernelradius(2.0),
 		influenceRadius(0),
 		nlInfluenceRadius(0),
 		nlSqInfluenceRadius(0),
-		dt(0.00013),
+		dt(0),
 		tend(0),
 		xsph(false),
 		dtadapt(true),
@@ -94,21 +106,62 @@ typedef struct SimParams {
 		buildneibsfreq(10),
 		shepardfreq(0),
 		mlsfreq(15),
+		ferrari(0),
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
-		periodicbound(false),
+		periodicbound(PERIODIC_NONE),
 		nlexpansionfactor(1.0),
 		usedem(false),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
 		vorticity(false),
 		testpoints(false),
+		csvtestpoints(false),
+		csvsimplegages(false),
 		savenormals(false),
 		surfaceparticle(false),
-		numbodies(0),
-		maxneibsnum(128)
+		calc_energy(true),
+		numODEbodies(0),
+		maxneibsnum(0),
+		calcPrivate(false),
+		epsilon(5e-5),
+		movingBoundaries(false)
 	{};
+
+	inline double
+	set_smoothing(double smooth, double deltap)
+	{
+		sfactor = smooth;
+		slength = smooth*deltap;
+
+		set_influenceradius();
+
+		return slength;
+	}
+
+	inline double
+	set_kernel(KernelType kernel, double radius=0)
+	{
+		kerneltype = kernel;
+		// TODO currently all our kernels have radius 2,
+		// remember to adjust this when we have kernels
+		// with different radii
+		kernelradius = radius ? radius : 2.0;
+
+		return set_influenceradius();
+	}
+
+	// internal: update the influence radius et al
+	inline double
+	set_influenceradius() {
+		influenceRadius = slength * kernelradius;
+		nlInfluenceRadius = nlexpansionfactor * influenceRadius;
+		nlSqInfluenceRadius = nlInfluenceRadius * nlInfluenceRadius;
+
+		return influenceRadius;
+	}
+
 } SimParams;
 
 #endif

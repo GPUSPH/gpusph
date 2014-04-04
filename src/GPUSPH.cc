@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -23,39 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-
-/*! \mainpage GPUSPH Developer's documentation
- *
- *
- * \section intro_sec  Introduction
- *
- * GPUSPH is a CUDA-based 3D SPH simulator (STUB).
- *
- * \section compile_sec Compiling and installing
- *
- * See "make help" (STUB).
- *
- * \section quick_links Internal links
- * - \ref main \n
- * - ParticleSystem
- *
- * \section links Links
- * - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Complete Doxygen manual</a>
- * - <a href="http://www.nvidia.com/object/cuda_gpus.html">GPUs and compute capabilites</a>
- *
- *
- * GPUSPH is a CUDA-based 3D SPH simulator (FIX).
- *
- * This document was generated with Doxygen.\n
- *
- */
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <cmath>
-#include <time.h>
-#include <string.h>
-#include <signal.h>
 #include <float.h> // FLT_EPSILON
 
 #define GPUSPH_MAIN
@@ -66,8 +33,11 @@
 // This inclusion problem should be solved
 #include "GPUSPH.h"
 
-#include "ParticleSystem.h"
-#include "Problem.h"
+// HostBuffer
+#include "hostbuffer.h"
+
+// GPUWorker
+#include "GPUWorker.h"
 
 // Writer types
 #include "TextWriter.h"
@@ -79,415 +49,24 @@
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
+/* Include all other opt file for show_version */
+#include "gpusph_version.opt"
+#include "fastmath_select.opt"
+#include "compute_select.opt"
+
 using namespace std;
 
-FILE *timing_log = NULL;
-
-ParticleSystem *psystem = 0;
-
-// timing
-TimingInfo  const* timingInfo = NULL;
-char title[256];
-
-// viewing parameters
-float3 worldOrigin;
-float3 worldSize;
-float3 camera_pos;
-float3 target_pos;
-float3 camera_up;
-enum rotation_mode { ROT_NONE, ROT_ORT, ROT_VEC };
-rotation_mode rotating = ROT_NONE;
-
-#define view_angle 60.0
-/* cotg(view_angle/2) */
-#define view_trig (1.0/tan(M_PI*view_angle/360))
-
-const float3 x_axis(make_float3(1, 0, 0));
-const float3 y_axis(make_float3(0, 1, 0));
-const float3 z_axis(make_float3(0, 0, 1));
-
-float near_plane = 0.1;
-float far_plane = 100;
-
-float3 box_corner[8];
-
-Problem *problem;
-
-void cleanup(void)
-{
-	if (psystem)
-		delete psystem;
-	if (timing_log != NULL)
-		fclose(timing_log);
-}
-
-void quit(int ret)
-{
-	double elapsed_sec = (clock() - timingInfo->startTime)/CLOCKS_PER_SEC;
-	printf("\nTotal time %es, throughput %.4g MIPPS\n", elapsed_sec, timingInfo->getMIPPS());
-	printf("Quitting\n");
-	cleanup();
-	exit(ret);
-}
-
-void show_timing(int ret)
-{
-#define ti timingInfo
-	printf(
-		"\nt=%es dt=%es %u parts.\n"
-		"%e neibs. in %es, mean %e neibs/s, max %u neibs\n"
-		"%e ints., %e ints/s, mean %e ints/s)\n"
-		"integration in %es (mean %es)\n"
-		"throughput %.4g MIPPS\n",
-		ti->t, ti->dt, ti->numParticles,
-		(double)ti->numInteractions, ti->timeNeibsList, ti->meanTimeNeibsList, ti->maxNeibs,
-		(double)ti->meanNumInteractions, ti->numInteractions/ti->timeInteract, ti->meanNumInteractions/ti->meanTimeInteract,
-		ti->timeEuler, ti->meanTimeEuler,
-		ti->getMIPPS());
-	fflush(stdout);
-#undef ti
-}
-
-/* Command line options */
-Options clOptions;
-
-// TODO: delete this, use "make list-problems" to list problems instead
-void problem_list(void) {
-	cout << "GPUSph problems:\n";
-	cout << "\tDamBreak3D\n";
-	cout << "\tOpenCoast\n";
-	cout << "\tTestTopo\n";
-	cout << "\tWaveTank\n";
-	cout << "FIXME: this list is static, use \"make problem-list\" for an updated one\n";
-	cout << endl;
-}
-
-
-void parse_options(int argc, char **argv)
-{
-	const char *arg(NULL);
-
-	/* skip arg 0 (program name) */
-	argv++; argc--;
-
-	while (argc > 0) {
-		arg = *argv;
-		argv++;
-		argc--;
-		if (!strcmp(arg, "--device")) {
-			/* read the next arg as an integer */
-			sscanf(*argv, "%d", &(clOptions.device));
-			argv++;
-			argc--;
-		} else if (!strcmp(arg, "--deltap")) {
-			/* read the next arg as a float */
-			sscanf(*argv, "%f", &(clOptions.deltap));
-			argv++;
-			argc--;
-		} else if (!strcmp(arg, "--tend")) {
-			/* read the next arg as a float */
-			sscanf(*argv, "%f", &(clOptions.tend));
-			argv++;
-			argc--;
-		} else if (!strcmp(arg, "--dem")) {
-			clOptions.dem = std::string(*argv);
-			argv++;
-			argc--;
-		} else if (!strcmp(arg, "--")) {
-			cout << "Skipping unsupported option " << arg << endl;
-		} else {
-			cout << "FATAL: Unknown option: " << arg << endl;
-			exit(0);
-
-			// Left for future dynamic loading:
-			/*if (clOptions.problem.empty()) {
-				clOptions.problem = std::string(arg);
-			} else {
-				cout << "Problem " << arg << " selected after problem " << clOptions.problem << endl;
-			}*/
-		}
-	}
-
-	clOptions.problem = std::string( QUOTED_PROBLEM );
-	cout << "Compiled for problem \"" << QUOTED_PROBLEM << "\"" << endl;
-
-	// Left for future dynamic loading:
-	/*if (clOptions.problem.empty()) {
-		problem_list();
-		exit(0);
-	}*/
-}
-
-
-void init(const char *arg)
-{
-	problem = new PROBLEM(clOptions);
-
-	/* TODO do it this way for all options? */
-	if (isfinite(clOptions.tend))
-		problem->get_simparams()->tend = clOptions.tend;
-
-	// set the influence radii - should be encapsulated somewhere as this is physics logic
-	SimParams *sp = problem->get_simparams();
-	sp->influenceRadius = sp->kernelradius * sp->slength;
-	sp->nlInfluenceRadius = sp->influenceRadius * sp->nlexpansionfactor;
-	sp->nlSqInfluenceRadius = sp->nlInfluenceRadius * sp->nlInfluenceRadius;
-
-	psystem = new ParticleSystem(problem);
-
-	psystem->printPhysParams();
-	psystem->printSimParams();
-
-	// filling simulation domain with particles
-	uint numParticles = problem->fill_parts();
-	psystem->allocate(numParticles);
-	problem->copy_to_array(psystem->m_hPos, psystem->m_hVel, psystem->m_hInfo);
-	psystem->setArray(ParticleSystem::POSITION);
-	psystem->setArray(ParticleSystem::VELOCITY);
-	psystem->setArray(ParticleSystem::INFO);
-
-	uint numPlanes = problem->fill_planes();
-	if (numPlanes > 0) {
-		if (numPlanes > MAXPLANES) {
-			fprintf(stderr, "Number of planes too high: %u > %u\n", numPlanes, MAXPLANES);
-			exit(1);
-		}
-		psystem->allocate_planes(numPlanes);
-		problem->copy_planes(psystem->m_hPlanes, psystem->m_hPlanesDiv);
-		psystem->setPlanes();
-	}
-
-	timingInfo = psystem->markStart();
-}
-
-void get_arrays(bool need_write)
-{
-	psystem->getArray(ParticleSystem::POSITION, need_write);
-	psystem->getArray(ParticleSystem::VELOCITY, need_write);
-	psystem->getArray(ParticleSystem::INFO, need_write);
-	if (need_write) {
-		if (problem->m_simparams.vorticity)
-			psystem->getArray(ParticleSystem::VORTICITY, need_write);
-
-		if (problem->m_simparams.savenormals)
-			psystem->getArray(ParticleSystem::NORMALS, need_write);
-	}
-}
-
-void do_write()
-{
-	#define ti timingInfo
-	printf(	"\nSaving file at t=%es iterations=%ld dt=%es %u parts.\n"
-			"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
-			"mean neib list in %es\n"
-			"mean integration in %es\n"
-			"throughput %.4g MIPPS\n",
-			ti->t, ti->iterations, ti->dt, ti->numParticles, (double) ti->meanNumInteractions,
-			ti->meanTimeInteract, ((double)ti->meanNumInteractions)/ti->meanTimeInteract, ti->maxNeibs,
-			ti->meanTimeNeibsList,
-			ti->meanTimeEuler,
-			ti->getMIPPS());
-	fflush(stdout);
-	#undef ti
-	if (problem->m_simparams.gage.size() > 0) {
-		psystem->writeWaveGage();
-	}
-	psystem->writeToFile();
-}
-
-// commented out for possible future use
-/*void display()
-{
-	if (!bPause)
-	{
-		try {
-			timingInfo = psystem->PredcorrTimeStep(true);
-		} catch (TimingException &e) {
-			fprintf(stderr, "[%g]: %s (dt = %g)\n", e.simTime, e.what(), e.dt);
-			quit(1);
-		}
-#ifdef TIMING_LOG
-		fprintf(timing_log,"%9.4e\t%9.4e\t%9.4e\t%9.4e\t%9.4e\n", timingInfo.t, timingInfo.dt,
-				timingInfo.timeInteract, timingInfo.timeEuler, timingInfo.timeNeibsList);
-		fflush(timing_log);
-#endif
-	}
-
-	// render
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	bool finished = problem->finished(timingInfo->t);
-
-	bool need_display = displayEnabled && problem->need_display(timingInfo->t);
-	bool need_write = problem->need_write(timingInfo->t) || finished;
-	problem->write_rbdata(timingInfo->t);
-
-	if (stepping_mode) {
-		need_display = true;
-		bPause = true;
-	}
-
-	if (need_display || need_write)
-	{
-		get_arrays(need_write);
-		if (need_write)
-			do_write();
-	}
-
-	if (displayEnabled)
-	{
-		psystem->drawParts(show_boundary, show_floating, view_field);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		problem->draw_boundary(psystem->getTime());
-		problem->draw_axis();
-
-		char s[1024];
-		size_t len = sprintf(s, "t=%7.4es", timingInfo->t, timingInfo->dt);
-		if (stepping_mode)
-			len += sprintf(s + len, "    (stepping mode)");
-		else if (bPause)
-			len += sprintf(s + len, "    (paused)");
-		displayStatus(s);
-
-		glutSwapBuffers();
-	}
-
-	// view transform
-	// look();
-
-	glutSwapBuffers();
-
-#define ti timingInfo
-	switch (timing) {
-		case M_INTERACTION:
-			sprintf(title, "t=%7.2es dt=%7.2es %d parts. %7.2eint. : %7.2eint./s (mean %7.2eint./s) (maxneibs %d)",
-				ti->t, ti->dt, ti->numParticles, (double) ti->meanNumInteractions,
-				((double) ti->numInteractions)/ti->timeInteract,
-				((double) ti->meanNumInteractions)/ti->meanTimeInteract, ti->maxNeibs);
-			break;
-
-		case M_NEIBSLIST:
-			sprintf(title, "t=%7.2es dt=%7.2es %d parts. %7.2e neibs in %7.2es (mean %7.2es) (maxneibs %d)",
-				ti->t, ti->dt, ti->numParticles, (double) ti->numInteractions,
-				ti->timeNeibsList, ti->meanTimeNeibsList, ti->maxNeibs);
-			break;
-
-		case M_EULER:
-			sprintf(title, "t=%7.2es dt=%7.2es %d parts. integration in %7.2es (mean %7.2es)",
-				ti->t, ti->dt, ti->numParticles, ti->timeEuler, ti->meanTimeEuler);
-			break;
-
-		case M_MEAN:
-			sprintf(title, "%7.2e interactions (%7.2eint./s) - Neibs list %7.2es - Euler %7.2es",
-				(double) ti->meanNumInteractions, (double) ti->meanNumInteractions/ti->meanTimeInteract,
-				ti->meanTimeNeibsList, ti->meanTimeEuler);
-			break;
-
-		case M_IPPS:
-			sprintf(title, "t=%7.2es dt=%7.2es %10u parts. %10lu iters. %7.2g MIPPS\n",
-				ti->t, ti->dt, ti->numParticles, ti->iterations,
-				ti->getMIPPS());
-			break;
-
-		case M_NOTIMING:
-			title[0] = '\0';
-			break;
-	}
-#undef ti
-
-	// leave the "Hit space to start" message until unpaused
-	if (!bPause)
-		glutSetWindowTitle(title);
-
-	glutSwapBuffers();
-
-	glutReportErrors();
-
-	// Taking a screenshot
-	if (displayEnabled && (problem->need_screenshot(timingInfo->t) || screenshotNow))
-	{
-		glscreenshot->TakeScreenshot(timingInfo->t);
-		if (screenshotNow) {
-			cout << "Screenshot @ " << timingInfo->t << endl;
-			screenshotNow = false;
-		}
-	}
-
-	if (finished)
-		quit(0);
-} */
-
-void console_loop(void)
-{
-	int error = 0;
-	bool finished = false;
-	while (!finished) {
-		try {
-			timingInfo = psystem->PredcorrTimeStep(true);
-		} catch (TimingException &e) {
-			fprintf(stderr, "[%g] :::ERROR::: %s (dt = %g)\n", e.simTime, e.what(), e.dt);
-			finished = true;
-			error = 1;
-		}
-
-		finished |= problem->finished(timingInfo->t);
-
-		bool need_write = problem->need_write(timingInfo->t) || finished;
-
-		if (need_write)
-		{
-			get_arrays(need_write);
-			do_write();
-		}
-	}
-
-	if (finished)
-		quit(error);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Program main
-////////////////////////////////////////////////////////////////////////////////
-int
-oldMain( int argc, char** argv)
-{
-	if (sizeof(uint) != 2*sizeof(short)) {
-		fprintf(stderr, "FATAL: this architecture does not have uint = 2 short\n");
-		exit(1);
-	}
-	signal(SIGINT, quit);
-	signal(SIGUSR1, show_timing);
-
-	parse_options(argc, argv);
-
-	init(clOptions.problem.c_str());
-
-	// do an initial write
-	get_arrays(true);
-	do_write();
-
-	console_loop();
-
-
-	quit(0);
-
-	return 0;
-}
-
-/***  here follow the new methods - all that's above should be checked and moved or deleted ***/
-
-GPUSPH& GPUSPH::getInstance() {
+GPUSPH* GPUSPH::getInstance() {
 	// guaranteed to be destroyed; instantiated on first use
 	static GPUSPH instance;
 	// return a reference, not just a pointer
-	return instance;
+	return &instance;
 }
 
 GPUSPH::GPUSPH() {
 	clOptions = NULL;
 	gdata = NULL;
 	problem = NULL;
-	psystem = NULL;
 	initialized = false;
 }
 
@@ -505,6 +84,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
+	// run post-construction functions
+	problem->check_dt();
+	problem->check_maxneibsnum();
+	problem->create_problem_dir();
+
+	printf("Problem calling set grid params\n");
+	problem->set_grid_params();
+
 	m_performanceCounter = new IPPSCounter();
 
 	// utility pointer
@@ -516,42 +103,49 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		_sp-> tend = clOptions->tend;
 
 	// update the GlobalData copies of the sizes of the domain
-	gdata->worldOrigin = problem->get_worldorigin();
-	gdata->worldSize = problem->get_worldsize();
+	gdata->worldOrigin = make_float3(problem->get_worldorigin());
+	gdata->worldSize = make_float3(problem->get_worldsize());
 	// TODO: re-enable the followin after the WriterType rampage is over
 	// gdata->writerType = problem->get_writertype();
 
-	// initialize the influence radius and its derived parameters
-	_sp->influenceRadius = _sp->kernelradius * _sp->slength;
-	_sp->nlInfluenceRadius = _sp->influenceRadius * _sp->nlexpansionfactor;
-	_sp->nlSqInfluenceRadius = _sp->nlInfluenceRadius * _sp->nlInfluenceRadius;
+	// get the grid size
+	gdata->gridSize = problem->get_gridsize();
 
-	// compute the size of grid
-	gdata->gridSize.x = (uint) (gdata->worldSize.x / _sp->influenceRadius);
-	gdata->gridSize.y = (uint) (gdata->worldSize.y / _sp->influenceRadius);
-	gdata->gridSize.z = (uint) (gdata->worldSize.z / _sp->influenceRadius);
+	// compute the number of cells, in ulong first (an overflow would make the comparison with MAX_CELLS pointless)
+	ulong longNGridCells = (ulong) gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
+	if (longNGridCells > MAX_CELLS) {
+		printf("FATAL: cannot handle %lu > %u cells\n", longNGridCells, MAX_CELLS);
+		return false;
+	}
+	gdata->nGridCells = (uint)longNGridCells;
 
-	// compute the number of cells
-	gdata->nGridCells = gdata->gridSize.x * gdata->gridSize.y * gdata->gridSize.z;
-
-	// since the gridsize was obtained by truncation, make the cellSize and exact divisor
-	gdata->cellSize.x = gdata->worldSize.x / gdata->gridSize.x;
-	gdata->cellSize.y = gdata->worldSize.y / gdata->gridSize.y;
-	gdata->cellSize.z = gdata->worldSize.z / gdata->gridSize.z;
+	// get the cell size
+	gdata->cellSize = make_float3(problem->get_cellsize());
 
 	printf(" - World origin: %g , %g , %g\n", gdata->worldOrigin.x, gdata->worldOrigin.y, gdata->worldOrigin.z);
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
+	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
+	printf(" - R0:   %g\n", gdata->problem->get_physparams()->r0);
 
 
 	// initial dt (or, just dt in case adaptive is enabled)
 	gdata->dt = _sp->dt;
 
+	// double buffer indexing (READ vs WRITE)
 	// the initial assignment is arbitrary, just need to be complementary
 	// (caveat: as long as these pointers, and not just 0 and 1 values, are always used)
-	gdata->currentPosRead = gdata->currentVelRead = gdata->currentInfoRead = 0;
-	gdata->currentPosWrite = gdata->currentVelWrite = gdata->currentInfoWrite = 1;
+
+	// TODO this can be done more elegantly using TMP, relying on the BufferTraits
+	// to iterate automatically over all double-buffered arrays. Presently we depend on
+	// there being a _correct_ define in define_buffers
+	for (flag_t bufkey = FIRST_DEFINED_BUFFER; bufkey <= LAST_DEFINED_BUFFER; bufkey <<= 1) {
+		if (bufkey & BUFFERS_ALL_DBL) {
+			gdata->currentRead[bufkey] = 0;
+			gdata->currentWrite[bufkey] = 1;
+		}
+	}
 
 	// check the number of moving boundaries
 	if (problem->m_mbnumber > MAXMOVINGBOUND) {
@@ -586,15 +180,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
-	// TODO:  before allocating everything else we should check if the number of particles is too high.
-	// Not only the mere number of particles should be compared to a hardcoded system limit, but a good
-	// estimation of the required memory should be computed
-	if (gdata->totParticles >= MAXPARTICLES) {
-		fprintf(stderr, "Cannot handle %u > %u particles, sorry\n", gdata->totParticles, MAXPARTICLES);
-		// exit(1);
-		return false;
-	}
-
 	// initialize CGs (or, the problem could directly write on gdata)
 	initializeObjectsCGs();
 
@@ -603,19 +188,30 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
 	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->totParticles );
 
-	// Self-explicative check - but could be moved elsewhere
-	uint _maxneibsnum = gdata->problem->get_simparams()->maxneibsnum;
-	if (_maxneibsnum % NEIBINDEX_INTERLEAVE != 0) {
-		fprintf(stderr, "The maximum number of neibs per particle (%u) should be a multiple of NEIBINDEX_INTERLEAVE (%u)\n",
-				_maxneibsnum, NEIBINDEX_INTERLEAVE);
-		// exit(1);
-		return false;
+	if (!m_rcBitmap) {
+		fprintf(stderr,"FATAL: failed to allocate roll call bitmap\n");
+		exit(1);
 	}
+
+	if (!m_rcNotified) {
+		fprintf(stderr,"FATAL: failed to allocate roll call notified map\n");
+		exit(1);
+	}
+
+	if (!m_rcAddrs) {
+		fprintf(stderr,"FATAL: failed to allocate roll call particle address space\n");
+		exit(1);
+	}
+
 
 	printf("Allocating shared host buffers...\n");
 	// allocate cpu buffers, 1 per process
 	size_t totCPUbytes = allocateGlobalHostBuffers();
-	printf("  allocated %.2g Gb on host for %s particles\n", (ulong)totCPUbytes/1000000000.0F, gdata->addSeparators(gdata->processParticles[gdata->mpi_rank]).c_str());
+
+	// pretty print
+	printf("  allocated %s on host for %s particles\n",
+		gdata->memString(totCPUbytes).c_str(),
+		gdata->addSeparators(gdata->totParticles).c_str() );
 
 	// copy planes from the problem to the shared array
 	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
@@ -626,7 +222,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (MULTI_DEVICE) {
 		printf("Splitting the domain in %u partitions...\n", gdata->totDevices);
 		// fill the device map with numbers from 0 to totDevices
-		gdata->problem->fillDeviceMap(gdata);
+		gdata->problem->fillDeviceMap();
 		// here it is possible to save the device map before the conversion
 		// gdata->saveDeviceMapToFile("linearIdx");
 		if (MULTI_NODE) {
@@ -639,10 +235,21 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("Copying the particles to shared arrays...\n");
 	printf("---\n");
-	// Check: is this mandatory? this requires double the memory!
 	// copy particles from problem to GPUSPH buffers
-	problem->copy_to_array(gdata->s_hPos, gdata->s_hVel, gdata->s_hInfo);
+	// TODO FIXME copying data from the problem doubles the host memory requirements
+	// find some smart way to have the host fill the shared buffer directly.
+
+	problem->copy_to_array(gdata->s_hBuffers);
+
 	printf("---\n");
+
+	// initialize values of k and e for k-e model
+	if (_sp->visctype == KEPSVISC)
+		problem->init_keps(
+			gdata->s_hBuffers.getData<BUFFER_TKE>(),
+			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
+			gdata->totParticles,
+			gdata->s_hBuffers.getData<BUFFER_INFO>());
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
@@ -670,13 +277,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
-	for (int d=0; d < gdata->devices; d++)
+	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
 	gdata->keep_going = true;
 
 	// actually start the threads
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->run_worker(); // begin of INITIALIZATION ***
 
 	// The following barrier waits for GPUworkers to complete CUDA init, GPU allocation, subdomain and devmap upload
@@ -692,16 +299,16 @@ bool GPUSPH::finalize() {
 
 	printf("Deallocating...\n");
 
-	// suff for rollCallParticles()
+	// stuff for rollCallParticles()
 	free(m_rcBitmap);
 	free(m_rcNotified);
 	free(m_rcAddrs);
 
 	// workers
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		delete gdata->GPUWORKERS[d];
 
-	delete gdata->GPUWORKERS;
+	free(gdata->GPUWORKERS);
 
 	// Synchronizer
 	delete gdata->threadSynchronizer;
@@ -742,6 +349,19 @@ bool GPUSPH::runSimulation() {
 	gdata->threadSynchronizer->barrier(); // end of UPLOAD, begins SIMULATION ***
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 1
 
+	// this is where we invoke initialization routines that have to be
+	// run by the GPUWokers
+
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+
+		// compute neighbour list for the first time
+		buildNeibList();
+
+		// set density and other values for segments and vertices
+		initializeBoundaryConditions();
+
+	}
+
 	printf("Entering the main simulation cycle\n");
 
 	//  IPPS counter does not take the initial uploads into consideration
@@ -756,36 +376,7 @@ bool GPUSPH::runSimulation() {
 
 		// build neighbors list
 		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
-			// run most of the following commands on all particles
-			gdata->only_internal = false;
-
-			doCommand(CALCHASH);
-			doCommand(SORT);
-			doCommand(REORDER);
-
-			// swap pos, vel and info double buffers
-			gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_INFO);
-
-			// if running on multiple GPUs, update the external cells
-			if (MULTI_DEVICE) {
-				// copy cellStarts, cellEnds and segments on host
-				doCommand(DUMP_CELLS);
-				doCommand(UPDATE_SEGMENTS);
-
-				// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
-				// maybe overlapping with dumping cells (run async before dumping the cells)
-
-				// update particle offsets
-				updateArrayIndices();
-				// crop external cells
-				doCommand(CROP);
-				// append fresh copies of the externals
-				doCommand(APPEND_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_INFO | DBLBUFFER_READ);
-			}
-
-			// build neib lists only for internal particles
-			gdata->only_internal = true;
-			doCommand(BUILDNEIBS);
+			buildNeibList();
 		}
 
 		uint shepardfreq = problem->get_simparams()->shepardfreq;
@@ -830,8 +421,9 @@ bool GPUSPH::runSimulation() {
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
-			doCommand(SPS);
-			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
+			doCommand(SPS, INTEGRATOR_STEP_1);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
 		// compute forces only on internal particles
@@ -839,7 +431,8 @@ bool GPUSPH::runSimulation() {
 		doCommand(FORCES, INTEGRATOR_STEP_1);
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
+		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
@@ -849,22 +442,11 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		// this made sense for testing and running EULER on internals only
-		//if (MULTI_DEVICE)
-		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | DBLBUFFER_WRITE);
+		gdata->swapDeviceBuffers(BUFFER_POS);
 
 		//			//reduce bodies
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
-
-		// moving boundaries
-		if (problem->get_simparams()->mbcallback) {
-			// ask the Problem to update mbData, one per process
-			gdata->commandFlags = INTEGRATOR_STEP_2;
-			doCallBacks();
-			// upload on the GPU, one per device
-			doCommand(UPLOAD_MBDATA);
-		}
 
 		// variable gravity
 		if (problem->get_simparams()->gcallback) {
@@ -874,34 +456,49 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
+		// semi-analytical boundary update
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+			gdata->only_internal = true;
+
+			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+		}
+
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
-			doCommand(SPS);
-			doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
+			doCommand(SPS, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_TAU);
 		}
 
 		gdata->only_internal = true;
 		doCommand(FORCES, INTEGRATOR_STEP_2);
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
+		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// reduce bodies
-		if (problem->get_simparams()->numbodies > 0) {
+		if (problem->get_simparams()->numODEbodies > 0) {
 			doCommand(REDUCE_BODIES_FORCES);
 
-			float3* totForce = new float3[problem->get_simparams()->numbodies];
-			float3* totTorque = new float3[problem->get_simparams()->numbodies];
+			float3* totForce = new float3[problem->get_simparams()->numODEbodies];
+			float3* totTorque = new float3[problem->get_simparams()->numODEbodies];
 
 			// now sum up the partial forces and momenta computed in each gpu
-			for (uint ob = 0; ob < problem->get_simparams()->numbodies; ob ++) {
+			for (uint ob = 0; ob < problem->get_simparams()->numODEbodies; ob ++) {
 
 				totForce[ob] = make_float3( 0.0F );
 				totTorque[ob] = make_float3( 0.0F );
 
-				for (int d = 0; d < gdata->devices; d++) {
+				for (uint d = 0; d < gdata->devices; d++) {
 					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
 					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
 				} // iterate on devices
@@ -910,31 +507,44 @@ bool GPUSPH::runSimulation() {
 			// if running multinode, also reduce across nodes
 			if (MULTI_NODE) {
 				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numbodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
 			}
 
-			problem->rigidbodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);
 		} // if there are objects
+
+		// swap read and writes again because the write contains the variables at time n
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
 		// euler needs the previous centers of gravity, so we upload CGs only here
-		if (problem->get_simparams()->numbodies > 0)
+		if (problem->get_simparams()->numODEbodies > 0)
 			doCommand(UPLOAD_OBJECTS_CG);
-
-		// this made sense for testing and running EULER on internals only
-		//if (MULTI_DEVICE)
-		//doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL);
 
 		//			//reduce bodies
 
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL);
+		gdata->swapDeviceBuffers(BUFFER_POS);
+
+		// semi-analytical boundary update
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+			gdata->only_internal = true;
+
+			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+		}
+
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
 
 		// increase counters
 		gdata->iterations++;
@@ -946,7 +556,7 @@ bool GPUSPH::runSimulation() {
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
 			gdata->dt = gdata->dts[0];
-			for (int d = 1; d < gdata->devices; d++)
+			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
@@ -980,16 +590,20 @@ bool GPUSPH::runSimulation() {
 				printf("Issuing final save...\n");
 
 			// set the buffers to be dumped
-			uint which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO;
+			flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
 
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
 
-			// compute and dump voriticity if set
+			// compute and dump vorticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
 				doCommand(VORTICITY);
 				which_buffers |= BUFFER_VORTICITY;
 			}
+
+			// get GradGamma
+			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
+				which_buffers |= BUFFER_GRADGAMMA;
 
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
@@ -998,6 +612,16 @@ bool GPUSPH::runSimulation() {
 				doCommand(SURFACE_PARTICLES);
 				gdata->swapDeviceBuffers(BUFFER_INFO);
 				which_buffers |= BUFFER_NORMALS;
+			}
+
+			// get k and epsilon
+			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
+				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
+
+			// get private array
+			if (gdata->problem->get_simparams()->calcPrivate) {
+				doCommand(CALC_PRIVATE);
+				which_buffers |= BUFFER_PRIVATE;
 			}
 
 			if ( !gdata->nosave || final_save ) {
@@ -1033,7 +657,7 @@ bool GPUSPH::runSimulation() {
 
 	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
 	// we wait for the threads to actually exit
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
 	return true;
@@ -1042,55 +666,63 @@ bool GPUSPH::runSimulation() {
 // Allocate the shared buffers, i.e. those accessed by all workers
 // Returns the number of allocated bytes.
 // This does *not* include what was previously allocated (e.g. particles in problem->fillparts())
-long unsigned int GPUSPH::allocateGlobalHostBuffers()
+size_t GPUSPH::allocateGlobalHostBuffers()
 {
 
-	long unsigned int numparts = gdata->totParticles;
-	unsigned int numcells = gdata->nGridCells;
-	const uint float3Size = sizeof(float3) * numparts;
-	const uint float4Size = sizeof(float4) * numparts;
-	const uint infoSize = sizeof(particleinfo) * numparts;
-	const uint ucharCellSize = sizeof(uchar) * numcells;
-	const uint uintCellSize = sizeof(uint) * numcells;
+	// define host buffers
+	gdata->s_hBuffers << new HostBuffer<BUFFER_POS_GLOBAL>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_POS>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_HASH>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_VEL>();
+	gdata->s_hBuffers << new HostBuffer<BUFFER_INFO>();
 
-	long unsigned int totCPUbytes = 0;
+#if _DEBUG_
+	gdata->s_hBuffers << new HostBuffer<BUFFER_FORCES>();
+#endif
 
-	// allocate pinned memory
-	//s_hPos = (float*)
-	// test also cudaHostAllocWriteCombined
-	//cudaHostAlloc(&s_hPos, memSize4, cudaHostAllocPortable);
-	//cudaMallocHost(&s_hPos, memSize4, cudaHostAllocPortable);
-	gdata->s_hPos = new float4[numparts];
-	memset(gdata->s_hPos, 0, float4Size);
-	totCPUbytes += float4Size;
+	if (problem->m_simparams.savenormals)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_NORMALS>();
+	if (problem->m_simparams.vorticity)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_VORTICITY>();
 
-	gdata->s_hVel = new float4[numparts];
-	memset(gdata->s_hVel, 0, float4Size);
-	totCPUbytes += float4Size;
-
-	gdata->s_hInfo = new particleinfo[numparts];
-	memset(gdata->s_hInfo, 0, infoSize);
-	totCPUbytes += infoSize;
-
-	if (problem->m_simparams.vorticity) {
-		gdata->s_hVorticity = new float3[numparts];
-		memset(gdata->s_hVorticity, 0, float3Size);
-		totCPUbytes += float3Size;
+	if (problem->m_simparams.boundarytype == SA_BOUNDARY) {
+		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_GRADGAMMA>();
 	}
 
-	if (problem->m_simparams.surfaceparticle) {
-		gdata->s_hNormals = new float4[numparts];
-		memset(gdata->s_hNormals, 0, float4Size);
-		totCPUbytes += float4Size;
+	if (problem->m_simparams.visctype == KEPSVISC) {
+		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
 	}
+
+	if (problem->m_simparams.calcPrivate)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
+
+	// number of elements to allocate
+	const size_t numparts = gdata->totParticles;
+
+	const uint numcells = gdata->nGridCells;
+	const size_t ucharCellSize = sizeof(uchar) * numcells;
+	const size_t uintCellSize = sizeof(uint) * numcells;
+
+	size_t totCPUbytes = 0;
+
+	BufferList::iterator iter = gdata->s_hBuffers.begin();
+	while (iter != gdata->s_hBuffers.end()) {
+		totCPUbytes += iter->second->alloc(numparts);
+		++iter;
+	}
+
 
 	if (gdata->numPlanes > 0) {
 		if (gdata->numPlanes > MAXPLANES) {
 			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAXPLANES);
 			exit(1);
 		}
-		const uint planeSize4 = sizeof(float4) * gdata->numPlanes;
-		const uint planeSize  = sizeof(float) * gdata->numPlanes;
+		const size_t planeSize4 = sizeof(float4) * gdata->numPlanes;
+		const size_t planeSize  = sizeof(float) * gdata->numPlanes;
 
 		gdata->s_hPlanes = new float4[gdata->numPlanes];
 		memset(gdata->s_hPlanes, 0, planeSize4);
@@ -1146,24 +778,19 @@ long unsigned int GPUSPH::allocateGlobalHostBuffers()
 
 // Deallocate the shared buffers, i.e. those accessed by all workers
 void GPUSPH::deallocateGlobalHostBuffers() {
+	gdata->s_hBuffers.clear();
+
 	// planes
 	if (gdata->numPlanes > 0) {
 		delete[] gdata->s_hPlanes;
 		delete[] gdata->s_hPlanesDiv;
 	}
-	//cudaFreeHost(s_hPos); // pinned memory
-	delete[] gdata->s_hPos;
-	delete[] gdata->s_hVel;
-	delete[] gdata->s_hInfo;
-	if (problem->m_simparams.vorticity)
-		delete[] gdata->s_hVorticity;
-	if (problem->m_simparams.surfaceparticle)
-		delete[] gdata->s_hNormals;
+
 	// multi-GPU specific arrays
 	if (MULTI_DEVICE) {
 		delete[] gdata->s_hDeviceMap;
 		// cells
-		for (int d = 0; d < gdata->devices; d++) {
+		for (uint d = 0; d < gdata->devices; d++) {
 			cudaFreeHost(gdata->s_dCellStarts[d]);
 			cudaFreeHost(gdata->s_dCellEnds[d]);
 			//delete[] gdata->s_dCellStarts[d];
@@ -1194,17 +821,18 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint n = 0; n < MAX_NODES_PER_CLUSTER; n++)   gdata->processParticles[n]  = 0;
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
-	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer?
-	uchar* m_hParticleHashes = new uchar[gdata->totParticles];
+	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer? or: just use HASH, sorting also for cells, not only for device
+	uchar* m_hParticleKeys = new uchar[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
-		// compute cell according to the particle's position and to the deviceMap
-		uchar whichGlobalDev = gdata->calcGlobalDeviceIndex(gdata->s_hPos[p]);
+		// compute containing device according to the particle's hash
+		uint cellHash = cellHashFromParticleHash( gdata->s_hBuffers.getData<BUFFER_HASH>()[p] );
+		uchar whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
-		m_hParticleHashes[p] = whichGlobalDev;
+		m_hParticleKeys[p] = whichGlobalDev;
 
 		// increase node and globalDev counter (only useful for multinode)
 		gdata->processParticles[gdata->RANK(whichGlobalDev)]++;
@@ -1214,7 +842,7 @@ void GPUSPH::sortParticlesByHash() {
 		// if particle is in current node, increment the device counters
 		if (gdata->RANK(whichGlobalDev) == gdata->mpi_rank)
 			// increment per-device counter
-			gdata->s_hPartsPerDevice[gdata->DEVICE(whichGlobalDev)]++;
+			gdata->s_hPartsPerDevice[ gdata->DEVICE(whichGlobalDev) ]++;
 
 		//if (whichGlobalDev != 0)
 		//printf(" ö part %u has key %u (n%dd%u) global dev %u \n", p, whichGlobalDev, gdata->RANK(whichGlobalDev), gdata->DEVICE(whichGlobalDev), gdata->GLOBAL_DEVICE_NUM(whichGlobalDev) );
@@ -1227,7 +855,7 @@ void GPUSPH::sortParticlesByHash() {
 	gdata->s_hStartPerDevice[0] = 0;
 	// zero is true for the first node. For the next ones, need to sum the number of particles of the previous nodes
 	if (MULTI_NODE)
-		for (uint prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
+		for (int prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
 			gdata->s_hStartPerDevice[0] += gdata->processParticles[prev_nodes];
 	for (uint d = 1; d < gdata->devices; d++)
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
@@ -1272,17 +900,17 @@ void GPUSPH::sortParticlesByHash() {
 		while (leftB < nextBucketBeginsAt) {
 
 			// translate from globalDeviceIndex to an absolute device index in 0..totDevices (the opposite convertDeviceMap does)
-			uint currPartGlobalDevice = gdata->GLOBAL_DEVICE_NUM( m_hParticleHashes[leftB] );
+			uint currPartGlobalDevice = gdata->GLOBAL_DEVICE_NUM( m_hParticleKeys[leftB] );
 
 			// if in the current position there is a particle *not* belonging to the bucket...
 			if (currPartGlobalDevice != currentGlobalDevice) {
 
 				// ...let's find a correct one, scanning from right to left
-				while ( gdata->GLOBAL_DEVICE_NUM( m_hParticleHashes[rightB] ) != currentGlobalDevice) rightB--;
+				while ( gdata->GLOBAL_DEVICE_NUM( m_hParticleKeys[rightB] ) != currentGlobalDevice) rightB--;
 
 				// here it should never happen that (rightB <= leftB). We should throw an error if it happens
 				particleSwap(leftB, rightB);
-				std::swap(m_hParticleHashes[leftB], m_hParticleHashes[rightB]);
+				std::swap(m_hParticleKeys[leftB], m_hParticleKeys[rightB]);
 			}
 
 			// already correct or swapped, time to go on
@@ -1290,7 +918,7 @@ void GPUSPH::sortParticlesByHash() {
 		}
 	}
 	// delete array of keys (might be recycled instead?)
-	delete[] m_hParticleHashes;
+	delete[] m_hParticleKeys;
 
 	// initialize the outer cells values in s_dSegmentsStart. The inner_edge are still uninitialized
 	for (uint currentDevice = 0; currentDevice < gdata->devices; currentDevice++) {
@@ -1307,15 +935,15 @@ void GPUSPH::sortParticlesByHash() {
 	}
 
 	// DEBUG: check if the sort was correct
-	/* bool monotonic = true;
+	bool monotonic = true;
 	bool count_c = true;
 	uint hcount[MAX_DEVICES_PER_NODE];
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uint cdev = gdata->calcGlobalDeviceIndex( gdata->s_hPos[p] );
+		uint cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
 		uint pdev;
-		if (p > 0) pdev = gdata->calcGlobalDeviceIndex( gdata->s_hPos[p-1] );
+		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
 				p-1, gdata->RANK(pdev), gdata->	DEVICE(pdev), p, gdata->RANK(cdev), gdata->	DEVICE(cdev) );
@@ -1342,17 +970,18 @@ void GPUSPH::sortParticlesByHash() {
 		//printf(" p %d has id %u, dev %d\n", p, id(gdata->s_hInfo[p]), gdata->calcDevice(gdata->s_hPos[p]) ); // */
 }
 
-// Swap two particles in shared arrays (pos, vel, pInfo); used in host sort
+// Swap two particles in all host arrays; used in host sort
 void GPUSPH::particleSwap(uint idx1, uint idx2)
 {
-	// could keep a counter
-	swap(gdata->s_hPos[idx1], gdata->s_hPos[idx2]);
-	swap(gdata->s_hVel[idx1], gdata->s_hVel[idx2]);
-	swap(gdata->s_hInfo[idx1], gdata->s_hInfo[idx2]);
+	BufferList::iterator iter = gdata->s_hBuffers.begin();
+	while (iter != gdata->s_hBuffers.end()) {
+			iter->second->swap_elements(idx1, idx2);
+		++iter;
+	}
 }
 
 // set nextCommand, unlock the threads and wait for them to complete
-void GPUSPH::doCommand(CommandType cmd, uint flags)
+void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 {
 	// resetting the host buffers is useful to check if the arrays are completely filled
 	/*/ if (cmd==DUMP) {
@@ -1364,6 +993,7 @@ void GPUSPH::doCommand(CommandType cmd, uint flags)
 	 } */
 	gdata->nextCommand = cmd;
 	gdata->commandFlags = flags;
+	gdata->extraCommandArg = arg;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
 }
@@ -1382,8 +1012,13 @@ void GPUSPH::setViscosityCoefficient()
 			pp->visccoeff = 4.0*pp->kinematicvisc;
 			break;
 
+		case KEPSVISC:
 		case DYNAMICVISC:
 			pp->visccoeff = pp->kinematicvisc;
+			break;
+
+		default:
+			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
 			break;
 	}
 }
@@ -1433,11 +1068,77 @@ void GPUSPH::doWrite()
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
-	gdata->writer->write(gdata->processParticles[gdata->mpi_rank],
-		gdata->s_hPos + node_offset, gdata->s_hVel + node_offset, gdata->s_hInfo + node_offset,
-		( gdata->s_hVorticity ? gdata->s_hVorticity + node_offset : NULL),
-		gdata->t, gdata->problem->get_simparams()->testpoints,
-		( gdata->s_hNormals ? gdata->s_hNormals + node_offset : NULL));
+	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
+	// NOTE: it's a standard average, not an SPH smoothing, so the neighborhood is arbitrarily fixed
+	// at gage (x,y) ± 2 smoothing lengths
+	// TODO should it be an SPH smoothing instead?
+
+	GageList &gages = problem->get_simparams()->gage;
+	double slength = problem->get_simparams()->slength;
+
+	size_t numgages = gages.size();
+
+	std::vector<double2> gage_llimit, gage_ulimit; // neighborhood limits
+	std::vector<uint> gage_parts;
+	GageList::iterator gage = gages.begin();
+	GageList::iterator gage_end = gages.end();
+	while (gage != gage_end) {
+		gage_llimit.push_back(make_double2(*gage) - 2*slength);
+		gage_ulimit.push_back(make_double2(*gage) + 2*slength);
+		gage_parts.push_back(0);
+		gage->z = 0;
+		++gage;
+	}
+
+	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
+	double3 const& wo = problem->get_worldorigin();
+	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
+	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
+
+	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
+		const float4 pos = lpos[i];
+		double4 dpos;
+		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
+		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
+		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
+		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
+		dpos.w = pos.w;
+
+		// for surface particles add the z coodinate to the appropriate wavegages
+		if (numgages && SURFACE(info[i])) {
+			for (uint g = 0; g < numgages; ++g) {
+				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
+					(dpos.y > gage_llimit[g].y) && (dpos.y < gage_ulimit[g].y)) {
+						gage_parts[g]++;
+						gages[g].z += pos.z;
+				}
+			}
+
+		}
+
+		gpos[i] = dpos;
+	}
+
+	if (numgages) {
+		for (uint g = 0 ; g < numgages; ++g) {
+			gages[g].z /= gage_parts[g];
+		}
+		//Write WaveGage information on one text file
+		gdata->writer->write_WaveGage(gdata->t, gages);
+	}
+
+	//Testpoints
+	if (gdata->problem->get_simparams()->testpoints) {
+		// Write testpoints, on buffer read
+		doCommand(COMPUTE_TESTPOINTS);
+	}
+
+	gdata->writer->write(
+		gdata->processParticles[gdata->mpi_rank],
+		gdata->s_hBuffers,
+		node_offset,
+		gdata->t, gdata->problem->get_simparams()->testpoints);
 	gdata->problem->mark_written(gdata->t);
 
 	// TODO: enable energy computation and dump
@@ -1450,34 +1151,103 @@ void GPUSPH::doWrite()
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
 }
 
+void GPUSPH::buildNeibList()
+{
+	// run most of the following commands on all particles
+	gdata->only_internal = false;
+
+	doCommand(CALCHASH);
+	doCommand(SORT);
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
+		doCommand(INVINDEX);
+	doCommand(REORDER);
+
+	// swap pos, vel and info double buffers
+	gdata->swapDeviceBuffers(BUFFERS_ALL_DBL);
+
+	// if running on multiple GPUs, update the external cells
+	if (MULTI_DEVICE) {
+		// copy cellStarts, cellEnds and segments on host
+		doCommand(DUMP_CELLS);
+		doCommand(UPDATE_SEGMENTS);
+
+		// here or later, before update indices: MPI_Allgather (&sendbuf,sendcount,sendtype,&recvbuf, recvcount,recvtype,comm)
+		// maybe overlapping with dumping cells (run async before dumping the cells)
+
+		// update particle offsets
+		updateArrayIndices();
+		// crop external cells
+		doCommand(CROP);
+		// append fresh copies of the externals
+		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
+		// until next calchash; however, they are filtered out when using the particle hashes.
+		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
+	}
+
+	// build neib lists only for internal particles
+	gdata->only_internal = true;
+	doCommand(BUILDNEIBS);
+
+	// scan and check the peak number of neighbors and the estimated number of interactions
+	const uint maxPossibleNeibs = gdata->problem->get_simparams()->maxneibsnum;
+	gdata->lastGlobalPeakNeibsNum = 0;
+	for (uint d = 0; d < gdata->devices; d++) {
+		const uint currDevMaxNeibs = gdata->timingInfo[d].maxNeibs;
+
+		if (currDevMaxNeibs > maxPossibleNeibs)
+			printf("WARNING: current max. neighbors numbers %u greather than MAXNEIBSNUM (%u)\n", currDevMaxNeibs, maxPossibleNeibs);
+
+		if (currDevMaxNeibs > gdata->lastGlobalPeakNeibsNum)
+			gdata->lastGlobalPeakNeibsNum = currDevMaxNeibs;
+
+		gdata->lastGlobalNumInteractions += gdata->timingInfo[d].numInteractions;
+	}
+}
+
 void GPUSPH::doCallBacks()
 {
 	Problem *pb = gdata->problem;
 
-	float addendum = gdata->dt;
-	if (gdata->commandFlags == INTEGRATOR_STEP_1)
-		addendum /= 2.0f;
-
 	if (pb->m_simparams.mbcallback)
 		gdata->s_mbData = pb->get_mbdata(
-			gdata->t + addendum,
-			gdata->dt/2.0f,
+			gdata->t,
+			gdata->dt,
 			gdata->iterations == 0);
 
 	if (pb->m_simparams.gcallback)
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
+void GPUSPH::initializeBoundaryConditions()
+{
+	// initially data is in read so swap to write
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+
+	gdata->only_internal = true;
+	// compute values for vertices plus initial estimate for gradgamma direction
+	doCommand(SA_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+
+	// compute values for segments
+	doCommand(SA_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+
+	// swap changed buffers back so that read contains the new data
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA);
+}
+
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), maxneibs %u, %u files saved so far\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
 			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles),
-			gdata->writer->getLastFilenum()
+			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,
@@ -1490,8 +1260,18 @@ void GPUSPH::printStatus()
 void GPUSPH::printParticleDistribution()
 {
 	printf("Particle distribution for process %u at iteration %lu:\n", gdata->mpi_rank, gdata->iterations);
-	for (uint d = 0; d < gdata->devices; d++)
-		printf(" - Device %u: %u particles\n", d, gdata->s_hPartsPerDevice[d]);
+	for (uint d = 0; d < gdata->devices; d++) {
+		printf(" - Device %u: %u internal particles, %u total\n", d, gdata->s_hPartsPerDevice[d], gdata->GPUWORKERS[d]->getNumParticles());
+		// Uncomment the following to detail the segments of each device
+		/*
+		if (MULTI_DEVICE) {
+			printf("   Internal particles start at:      %u\n", gdata->s_dSegmentsStart[d][0]);
+			printf("   Internal edge particles start at: %u\n", gdata->s_dSegmentsStart[d][1]);
+			printf("   External edge particles start at: %u\n", gdata->s_dSegmentsStart[d][2]);
+			printf("   External particles start at:      %u\n", gdata->s_dSegmentsStart[d][3]);
+		}
+		*/
+	}
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
 }
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
@@ -1504,12 +1284,12 @@ void GPUSPH::rollCallParticles()
 	// reset bitmap and addrs
 	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++) {
 		m_rcBitmap[idx] = false;
-		m_rcAddrs[idx] = 0xFFFFFFFF;
+		m_rcAddrs[idx] = UINT_MAX;
 	}
 
 	// fill out the bitmap and check for duplicates
 	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
-		uint idx = id(gdata->s_hInfo[pos]);
+		uint idx = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[pos]);
 		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
 			printf("WARNING: at iteration %lu, time %g particle idx %u is in pos %u and %u!\n",
 					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);
@@ -1552,8 +1332,10 @@ void GPUSPH::updateArrayIndices() {
 	uint processCount = 0;
 
 	// just store an incremental counter
-	for (uint d = 0; d < gdata->devices; d++)
-		processCount += gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+	for (uint d = 0; d < gdata->devices; d++) {
+		gdata->s_hPartsPerDevice[d] = gdata->GPUWORKERS[d]->getNumInternalParticles();
+		processCount += gdata->s_hPartsPerDevice[d];
+	}
 
 	// update che number of particles of the current process. Do we need to store the previous value?
 	// uint previous_process_parts = gdata->processParticles[ gdata->mpi_rank ];
@@ -1565,13 +1347,13 @@ void GPUSPH::updateArrayIndices() {
 
 	// now update the offsets for each device:
 	gdata->s_hStartPerDevice[0] = 0;
-	for (uint n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
+	for (int n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
 		gdata->s_hStartPerDevice[0] += gdata->processParticles[n];
-	for (int d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
+	for (uint d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// process 0 checks if total number of particles varied in the simulation
-	if (gdata->mpi_rank == 0 || true) {
+	if (gdata->mpi_rank == 0) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
@@ -1596,7 +1378,7 @@ void GPUSPH::updateArrayIndices() {
 // initialize the centers of gravity of objects
 void GPUSPH::initializeObjectsCGs()
 {
-	if (gdata->problem->get_simparams()->numbodies > 0) {
+	if (gdata->problem->get_simparams()->numODEbodies > 0) {
 		gdata->s_hRbGravityCenters = gdata->problem->get_ODE_bodies_cg();
 
 		// Debug

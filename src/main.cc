@@ -1,8 +1,53 @@
-/*
- * main.cc
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
+/*! \mainpage GPUSPH Developer's documentation
  *
- *  Created on: Jan 16, 2013
- *      Author: rustico
+ *
+ * \section intro_sec  Introduction
+ *
+ * GPUSPH is a CUDA-based 3D SPH simulator (STUB).
+ *
+ * \section compile_sec Compiling and installing
+ *
+ * See "make help" (STUB).
+ *
+ * \section quick_links Internal links
+ * - \ref main \n
+ * - GPUSPH
+ *
+ * \section links Links
+ * - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Complete Doxygen manual</a>
+ * - <a href="http://www.nvidia.com/object/cuda_gpus.html">GPUs and compute capabilites</a>
+ *
+ *
+ * GPUSPH is a CUDA-based 3D SPH simulator (FIX).
+ *
+ * This document was generated with Doxygen.\n
+ *
  */
 
 // endl, cerr, etc.
@@ -18,36 +63,58 @@
 // Include only the problem selected at compile time (PROBLEM, QUOTED_PROBLEM)
 #include "problem_select.opt"
 
+/* Include all other opt file for show_version */
+#include "gpusph_version.opt"
+#include "fastmath_select.opt"
+#include "dbg_select.opt"
+#include "compute_select.opt"
+#include "hash_key_size_select.opt"
+
+void show_version()
+{
+	static const char dbg_or_rel[] =
+#if defined(_DEBUG_)
+		"Debug";
+#else
+		"Release";
+#endif
+
+	printf("GPUSPH version %s\n", GPUSPH_VERSION);
+	printf("%s version %s fastmath for compute capability %u.%u\n",
+		dbg_or_rel,
+		FASTMATH ? "with" : "without",
+		COMPUTE/10, COMPUTE%10);
+	printf("Compiled for problem \"%s\"\n", QUOTED_PROBLEM);
+	printf("Hashkey is %ubits long\n", HASH_KEY_SIZE);
+}
+
+
 // TODO: cleanup, no exit
 void print_usage() {
-	cerr << "Syntax: " << endl;
-	cerr << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cerr << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
-	cerr << "\tGPUSPH --help\n\n";
-	cerr << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
-	cerr << " --dem : Use given DEM (if problem supports it)\n";
-	cerr << " --deltap : Use given deltap (VAL is cast to float)\n";
-	cerr << " --tend: Break at given time (VAL is cast to float)\n";
-	cerr << " --dir : Use given directory for dumps instead of date-based one\n";
-	//cerr << " --pthreads : Force use of threads even if single GPU\n";
-	cerr << " --nosave : Disable all file dumps but the last\n";
-	cerr << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
-	cerr << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
-	//cerr << " --nobalance : Disable dynamic load balancing\n";
-	//cerr << " --alloc-max : Alloc total number of particles for every device\n";
-	//cerr << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
-	//cerr << " --cpuonly : Simulates on the CPU using VAL pthreads\n";
-	//cerr << " --single : Computes fluid-fluid interactions once per pair\n";
-	cerr << " --help: Show this help and exit\n";
-	//exit(-1);
+	show_version();
+	cout << "Syntax: " << endl;
+	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
+	cout << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
+	cout << "\tGPUSPH --help\n\n";
+	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
+	cout << " --dem : Use given DEM (if problem supports it)\n";
+	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
+	cout << " --tend: Break at given time (VAL is cast to float)\n";
+	cout << " --dir : Use given directory for dumps instead of date-based one\n";
+	cout << " --nosave : Disable all file dumps but the last\n";
+	cout << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
+	cout << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
+	//cout << " --nobalance : Disable dynamic load balancing\n";
+	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
+	cout << " --help: Show this help and exit\n";
 }
 
 // if some option needs to be passed to GlobalData, remember to set it in GPUSPH::initialize()
-bool parse_options(int argc, char **argv, GlobalData *gdata)
+int parse_options(int argc, char **argv, GlobalData *gdata)
 {
 	const char *arg(NULL);
 
-	if (!gdata) return NULL;
+	if (!gdata) return -1;
 	Options* _clOptions = gdata->clOptions;
 
 	// skip arg 0 (program name)
@@ -71,6 +138,7 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 					// inc _clOptions->devices only if scanf was successful
 					if (sscanf(pch, "%u", &(gdata->device[gdata->devices]))>0) {
 						gdata->devices++;
+						gdata->totDevices++;
 					} else {
 						printf("WARNING: token %s is not a number - ignored\n", pch);
 						//break;
@@ -79,14 +147,14 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 				pch = strtok (NULL, " ,.-");
 			}
 			if (gdata->devices<1) {
-				printf("ERROR: --device option given, but no device specified\n");
-				exit(1);
+				fprintf(stderr, "ERROR: --device option given, but no device specified\n");
+				return -1;
 			}
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--deltap")) {
-			/* read the next arg as a float */
-			sscanf(*argv, "%f", &(_clOptions->deltap));
+			/* read the next arg as a double */
+			sscanf(*argv, "%lf", &(_clOptions->deltap));
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--tend")) {
@@ -99,22 +167,10 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			argv++;
 			argc--;
 		} else if (!strcmp(arg, "--dir")) {
-			_clOptions->custom_dir = std::string(*argv);
+			_clOptions->dir = std::string(*argv);
 			argv++;
 			argc--;
-		} /* else if (!strcmp(arg, "--console")) {
-			_clOptions->console = true;
-		} else if (!strcmp(arg, "--pthreads")) {
-			_clOptions->forcePthreads = true;
-		} else if (!strcmp(arg, "--cpuonly")) {
-			_clOptions->cpuonly = true;
-			gdata->cpuonly = true;
-			sscanf(*argv, "%d", &(gdata->numCpuThreads));
-			argv++;
-			argc--;
-		} else if (!strcmp(arg, "--single")) {
-			gdata->single_inter = true;
-		} */ else if (!strcmp(arg, "--nosave")) {
+		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
 			gdata->nosave = true;
 		} else if (!strcmp(arg, "--num_hosts")) {
@@ -122,33 +178,30 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 			sscanf(*argv, "%u", &(_clOptions->num_hosts));
 			argv++;
 			argc--;
+		} else if (!strcmp(arg, "--version")) {
+			show_version();
+			return 0;
 		} else if (!strcmp(arg, "--byslot_scheduling")) {
 			_clOptions->byslot_scheduling = true;
-		}
-		/*else if (!strcmp(arg, "--nobalance")) {
+#if 0 // options will be enabled later
+		} else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
 			gdata->nobalance = true;
-		} else if (!strcmp(arg, "--alloc-max")) {
-			_clOptions->alloc_max = true;
-			gdata->alloc_max = true;
 		} else if (!strcmp(arg, "--lb-threshold")) {
 			// read the next arg as a float
 			sscanf(*argv, "%f", &(_clOptions->custom_lb_threshold));
 			gdata->custom_lb_threshold = _clOptions->custom_lb_threshold;
 			argv++;
 			argc--;
-		} */ else if (!strcmp(arg, "--help")) {
+#endif
+		} else if (!strcmp(arg, "--help")) {
 			print_usage();
-			//exit(0);
-			return false;
-		//} else if (!strcmp(arg, "--nopause")) {
-		//	bPause = false;
-		} else if (!strcmp(arg, "--")) {
-			cout << "Skipping unsupported option " << arg << endl;
+			return 0;
+		} else if (!strncmp(arg, "--", 2)) {
+			cerr << "Skipping unsupported option " << arg << endl;
 		} else {
-			cout << "Fatal: Unknown option: " << arg << endl;
-			// exit(0);
-			return false;
+			cerr << "Fatal: Unknown option: " << arg << endl;
+			return -1;
 
 			// Left for future dynamic loading:
 			/*if (_clOptions->problem.empty()) {
@@ -165,19 +218,10 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 		gdata->device[gdata->devices++] = 0;
 	}
 
-#if HASH_KEY_SIZE < 64
-	// only single-node single-GPU possible with 32 bits keys
-	if (gdata->totDevices > 1) {
-		printf(" FATAL: multi-GPU requires the Hashkey to be at least 64 bits long\n");
-		return false;
-	}
-#endif
-
 	// only for single-gpu
 	_clOptions->device = gdata->device[0];
 
 	_clOptions->problem = std::string( QUOTED_PROBLEM );
-	cout << "Compiled for problem \"" << QUOTED_PROBLEM << "\"" << endl;
 
 	// Left for future dynamic loading:
 	/*if (_clOptions->problem.empty()) {
@@ -185,7 +229,7 @@ bool parse_options(int argc, char **argv, GlobalData *gdata)
 		exit(0);
 	}*/
 
-	return true;
+	return 1;
 }
 
 bool check_short_length() {
@@ -230,17 +274,21 @@ int main(int argc, char** argv) {
 
 	// catch SIGINT and SIGUSR1
 	struct sigaction int_action, usr1_action;
-	int_action.sa_flags=0;
+
+	memset(&int_action, 0, sizeof(struct sigaction));
 	int_action.sa_handler = sigint_handler;
 	sigaction(SIGINT, &int_action, NULL);
-	usr1_action.sa_flags=0;
+
+	memset(&usr1_action, 0, sizeof(struct sigaction));
 	usr1_action.sa_handler = sigusr1_handler;
 	sigaction(SIGUSR1, &usr1_action, NULL);
 
 	// parse command-line options
-	// NOTE: here gdata is almost complete, only the problem is not allocated yet
-	if (!parse_options(argc, argv, &gdata))
-		exit(1);
+	int ret = parse_options(argc, argv, &gdata);
+	if (ret <= 0)
+		exit(ret);
+
+	show_version();
 
 	// TODO: check options, i.e. consistency
 
@@ -263,7 +311,7 @@ int main(int argc, char** argv) {
 			// round-robin scheduling: distribute to non-empty node only if others have at least n-1 processes already
 			devIndexOffset = (gdata.mpi_rank / gdata.clOptions->num_hosts) * gdata.devices;
 
-		for (int d=0; d < gdata.devices; d++)
+		for (uint d=0; d < gdata.devices; d++)
 				gdata.device[d] += devIndexOffset;
 	} else
 		if (gdata.clOptions->byslot_scheduling)
@@ -274,22 +322,34 @@ int main(int argc, char** argv) {
 	if (gdata.clOptions->num_hosts > 0)
 		printf(" num_host was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
 
+#if HASH_KEY_SIZE < 64
+	// only single-node single-GPU possible with 32 bits keys
+	if (gdata.totDevices > 1) {
+		fprintf(stderr, "FATAL: multi-device simulations require the hashKey to be at least 64 bits long\n");
+		gdata.networkManager->finalizeNetwork();
+		return 1;
+	}
+#endif
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
-	gdata.problem = new PROBLEM(*(gdata.clOptions));
+	gdata.problem = new PROBLEM(&gdata);
 
 	// get - and actually instantiate - the existing instance of GPUSPH
-	GPUSPH Simulator = GPUSPH::getInstance();
+	GPUSPH *Simulator = GPUSPH::getInstance();
 
 	// initialize CUDA, start workers, allocate CPU and GPU buffers
-	bool result = Simulator.initialize(&gdata);
-	printf("GPUSPH: %s\n", (result ? "initialized" : "NOT initialized") );
+	bool initialized  = Simulator->initialize(&gdata);
 
-	// run the simulation until a quit request is triggered or an exception is thrown (TODO)
-	Simulator.runSimulation();
+	if (initialized) {
+		printf("GPUSPH: initialized\n");
 
-	// finalize everything
-	Simulator.finalize();
+		// run the simulation until a quit request is triggered or an exception is thrown (TODO)
+		Simulator->runSimulation();
+
+		// finalize everything
+		Simulator->finalize();
+	} else
+		printf("GPUSPH: problem during initialization, aborting...\n");
 
 	// same consideration as above
 	delete gdata.problem;

@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -27,19 +27,20 @@
 #include <iostream>
 
 #include "WaveTank.h"
+#include "GlobalData.h"
 
 
 #define MK_par 2
 
-WaveTank::WaveTank(const Options &options) : Problem(options)
+WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 9.0;
 	ly = 0.6;
 	lz = 1.0;
 
-	m_size = make_float3(lx, ly, lz);
-	m_origin = make_float3(0.0, 0.0, 0.0);
+	m_size = make_double3(lx, ly, lz);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
@@ -54,17 +55,14 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-    use_cyl = false;
-	use_cone = true;
+	use_cyl = false;
+	use_cone = false;
 
 	// use a plane for the bottom
-	use_bottom_plane = false;
+	use_bottom_plane = 1;
 
 	// SPH parameters
 	set_deltap(0.04);  //0.005f;
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00013;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -73,26 +71,26 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 	m_simparams.shepardfreq = 20;
 	m_simparams.mlsfreq = 0;
 	//m_simparams.visctype = ARTVISC;
-	 m_simparams.visctype = KINEMATICVISC;
+	m_simparams.visctype = KINEMATICVISC;
 	//m_simparams.visctype = SPSVISC;
 	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
 
-	m_simparams.vorticity = true;
+	m_simparams.vorticity = false;
 	//Testpoints
-	m_simparams.testpoints = true;
+	m_simparams.testpoints = false;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = true;
-	m_simparams.savenormals = true;
+	m_simparams.savenormals = false;
 
 	//WaveGage
-	m_simparams.gage.push_back(make_float3(1, 0.3, 0));
-	m_simparams.gage.push_back(make_float3(0.5, 0.3, 0));
+	add_gage(1, 0.3);
+	add_gage(0.5, 0.3);
 
 	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
-    // Physical parameters
+	// Physical parameters
 	H = 0.45;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
@@ -110,7 +108,7 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// BC when using LJ
 	m_physparams.dcoeff = 5.0*g*H;
-    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
 	m_physparams.MK_K = g*H;
@@ -137,12 +135,11 @@ WaveTank::WaveTank(const Options &options) : Problem(options)
 
 	// Drawing and saving times
 	m_displayinterval = 0.01;
-	m_writefreq = 1;
+	m_writefreq = 20;
 	m_screenshotfreq = 0;
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
-	create_problem_dir();
 }
 
 
@@ -166,12 +163,15 @@ MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	float theta = mbpaddledata.amplitude;
+	float dthetadt = 0;
 	if (t >= mbpaddledata.tstart && t < mbpaddledata.tend) {
-		theta = mbpaddledata.amplitude*cos(mbpaddledata.omega*(t - mbpaddledata.tstart));
+		const float arg = mbpaddledata.omega*(t - mbpaddledata.tstart);
+		theta = mbpaddledata.amplitude*cos(arg);
+		dthetadt = - mbpaddledata.amplitude*mbpaddledata.omega*sin(arg);
 		}
 	mbpaddledata.sintheta = sin(theta);
 	mbpaddledata.costheta = cos(theta);
-
+	mbpaddledata.dthetadt = dthetadt;
 	return m_mbcallbackdata[0];
 }
 
@@ -181,7 +181,7 @@ int WaveTank::fill_parts()
 	const float r0 = m_physparams.r0;
 	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
-    experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
+	experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, height));
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
@@ -200,7 +200,6 @@ int WaveTank::fill_parts()
 	if (!use_bottom_plane) {
 	   bottom_rect.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	   bottom_rect.Fill(boundary_parts,br,true);
-	   std::cout << "bottom rectangle defined" <<"\n";
 	   }
 
 	Rect fluid;
@@ -293,31 +292,35 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 	}
 }
 
-
-void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void WaveTank::copy_to_array(BufferList &buffers)
 {
-    int j = 0;
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
+	int j = 0;
 	if (test_points.size()) {
 		//Testpoints
 		std::cout << "\nTest points: " << test_points.size() << "\n";
-		std::cout << "      " << 0  << "--" << test_points.size() << "\n";
+		std::cout << "      " << j << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			pos[i] = make_float4(test_points[i]);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
+			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 		j += test_points.size();
+		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
 
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
-		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
+	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
 	}
-    j += boundary_parts.size();
+	j += boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
@@ -325,21 +328,21 @@ void WaveTank::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
 	//		1. object id must be unique (you cannot have a PADDLE with object id 0 and a GATEPART with same id)
 	//		2. particle of the same type having the object id move in the same way
 	std::cout << "\nPaddle parts: " << paddle_parts.size() << "\n";
-		std::cout << "      "<< j  <<"--"<< j+ paddle_parts.size() << "\n";
+	std::cout << "      " << j  << "--" << j + paddle_parts.size() << "\n";
 	for (uint i = j; i < j + paddle_parts.size(); i++) {
-		pos[i] = make_float4(paddle_parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(PADDLEPART, 0, i);
+		calc_localpos_and_hash(paddle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += paddle_parts.size();
 	std::cout << "Paddle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
-	std::cout << "      "<< j  <<"--"<< j + parts.size() << "\n";
+	std::cout << "      "<< j  << "--" << j + parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART, 0, i);
+		info[i]= make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";

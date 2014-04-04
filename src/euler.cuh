@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -35,7 +35,8 @@
 extern "C"
 {
 void
-seteulerconstants(const PhysParams *physparams);
+seteulerconstants(const PhysParams *physparams,
+	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize);
 
 void
 geteulerconstants(PhysParams *physparams);
@@ -53,20 +54,25 @@ void
 seteulerrbsteprot(const float* rot, int numbodies);
 
 void
-euler(	const float4	*oldPos,
-		const float4	*oldVel,
-		particleinfo	*info,
-		const float4	*forces,
-		const float4	*xsph,
-		float4		*newPos,
-		float4		*newVel,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		dt,
-		float		dt2,
-		int			step,
-		float		t,
-		bool		xsphcorr,
-		bool		periodicbound);
+euler(	const float4*		oldPos,
+		const hashKey*		particleHash,
+		const float4*		oldVel,
+		const float*		oldTKE,
+		const float*		oldEps,
+		const particleinfo* info,
+		const float4*		forces,
+		float2*				keps_dkde,
+		const float4*		xsph,
+		float4*				newPos,
+		float4*				newVel,
+		float*				newTKE,
+		float*				newEps,
+		const uint			numParticles,
+		const uint			particleRangeEnd,
+		const float			dt,
+		const float			dt2,
+		const int			step,
+		const float			t,
+		const bool			xsphcorr);
 }
 #endif

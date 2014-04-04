@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -29,9 +29,9 @@
 #include <stdexcept>
 #include "Seiche.h"
 #include "particledefine.h"
+#include "GlobalData.h"
 
-
-Seiche::Seiche(const Options &options) : Problem(options)
+Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 {
 	set_deltap(0.015f);
 	H = .5f;
@@ -41,15 +41,12 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	std::cout << "h = " << h <<"\n";
 
 	// Size and origin of the simulation domain
-	m_size = make_float3(l, w ,h);
-	m_origin = make_float3(0.0f, 0.0f, 0.0f);
+	m_size = make_double3(l, w ,h);
+	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_writerType = VTKWRITER;
 
 	// SPH parameters
-	m_simparams.slength = 1.3f*m_deltap;
-	m_simparams.kernelradius = 2.0f;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
@@ -74,7 +71,6 @@ Seiche::Seiche(const Options &options) : Problem(options)
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
-	float r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
 	#define MK_par 2
@@ -89,8 +85,6 @@ Seiche::Seiche(const Options &options) : Problem(options)
 	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	m_simparams.periodicbound = false;
-
 	// Variable gravity terms:  starting with m_physparams.gravity as defined above
 	m_gtstart=0.3f;
 	m_gtend=3.0f;
@@ -102,7 +96,6 @@ Seiche::Seiche(const Options &options) : Problem(options)
 
 	// Name of problem used for directory creation
 	m_name = "Seiche";
-	create_problem_dir();
 }
 
 
@@ -169,24 +162,29 @@ void Seiche::copy_planes(float4 *planes, float *planediv)
 }
 
 
-void Seiche::copy_to_array(float4 *pos, float4 *vel, particleinfo *info)
+void Seiche::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		pos[i] = make_float4(boundary_parts[i]);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		pos[i] = make_float4(parts[i-j]);
-	//	float rho = density(H - pos[i].z,0);
 	//	vel[i] = make_float4(0, 0, 0, rho);
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
+	//	float rho = density(H - pos[i].z,0);
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";

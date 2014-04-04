@@ -1,11 +1,7 @@
 #include "tensor.h"
 
-#ifdef GPU_CODE
 #include <math_functions.h>
 #define __spec __device__ __forceinline__
-#else
-#define __spec inline
-#endif
 
 // determinant of a 3x3 symmetric tensor
 __spec
@@ -193,3 +189,5 @@ dot(symtensor3 const& T, float4 const& v)
 			T.xz*v.x + T.yz*v.y + T.zz*v.z);
 
 }
+
+#undef __spec

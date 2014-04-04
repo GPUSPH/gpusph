@@ -1,9 +1,9 @@
-/*  Copyright 2011 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-	Istituto de Nazionale di Geofisica e Vulcanologia
-          Sezione di Catania, Catania, Italy
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
 
-    Universita di Catania, Catania, Italy
+    Università di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
@@ -46,22 +46,21 @@ class WaveTank: public Problem {
 		PointVect	test_points;
 
 		Cylinder	cyl[11];
-		Cone 		cone;
+		Cone		cone;
 		double		paddle_length;
 		double		paddle_width;
 		double		h_length, height, slope_length, beta;
-	    double		H;		// still water level
+		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of experiment box
 
 	public:
-		WaveTank(const Options &);
+		WaveTank(const GlobalData *);
 		~WaveTank(void);
 		int fill_parts(void);
 		uint fill_planes(void);
 		void copy_planes(float4*, float*);
 
-		void draw_boundary(float);
-		void copy_to_array(float4 *, float4 *, particleinfo *);
+		void copy_to_array(BufferList &);
 		MbCallBack& mb_callback(const float, const float, const int);
 
 		void release_memory(void);
