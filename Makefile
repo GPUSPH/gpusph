@@ -431,6 +431,8 @@ LIBS += -lode
 LIBS += -lhdf5
 # pthread needed for the UDP writer
 LIBS += -lpthread
+# Realtime Extensions library (for clock_gettime)
+LIBS += -lrt
 
 # search paths (for CUDA 5 and higher) are platform-specific
 ifeq ($(platform), Darwin)

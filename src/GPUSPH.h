@@ -45,7 +45,11 @@ private:
 	Options* clOptions;
 	GlobalData* gdata;
 	Problem* problem;
-	IPPSCounter *m_performanceCounter;
+
+	// performance counters (in MIPPS)
+	IPPSCounter *m_totalPerformanceCounter;
+	IPPSCounter *m_intervalPerformanceCounter;
+	IPPSCounter *m_multiNodePerformanceCounter; // only used if MULTI_NODE
 
 	// aux arrays for rollCallParticles()
 	bool *m_rcBitmap;

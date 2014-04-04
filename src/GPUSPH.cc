@@ -92,7 +92,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
-	m_performanceCounter = new IPPSCounter();
+	m_totalPerformanceCounter = new IPPSCounter();
+	m_intervalPerformanceCounter = new IPPSCounter();
+	// only init if MULTI_NODE
+	m_multiNodePerformanceCounter = NULL;
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter = new IPPSCounter();
 
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
@@ -323,7 +328,10 @@ bool GPUSPH::finalize() {
 
 	// ...anything else?
 
-	delete m_performanceCounter;
+	delete m_totalPerformanceCounter;
+	delete m_intervalPerformanceCounter;
+	if (m_multiNodePerformanceCounter)
+		delete m_multiNodePerformanceCounter;
 
 	initialized = false;
 
@@ -365,7 +373,10 @@ bool GPUSPH::runSimulation() {
 	printf("Entering the main simulation cycle\n");
 
 	//  IPPS counter does not take the initial uploads into consideration
-	m_performanceCounter->start();
+	m_totalPerformanceCounter->start();
+	m_intervalPerformanceCounter->start();
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
@@ -548,6 +559,10 @@ bool GPUSPH::runSimulation() {
 
 		// increase counters
 		gdata->iterations++;
+		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		if (MULTI_NODE)
+			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 		// to check, later, that the simulation is actually progressing
 		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
@@ -586,8 +601,8 @@ bool GPUSPH::runSimulation() {
 			// if we are about to quit, we want to save regardless --nosave option
 			bool final_save = (finished || gdata->quit_request);
 
-			if (final_save)
-				printf("Issuing final save...\n");
+			//if (final_save)
+			//	printf("Issuing final save...\n");
 
 			// set the buffers to be dumped
 			flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
@@ -635,12 +650,18 @@ bool GPUSPH::runSimulation() {
 				gdata->problem->mark_written(gdata->t);
 
 			printStatus();
+			m_intervalPerformanceCounter->restart();
 		}
 
 		if (finished || gdata->quit_request)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
 	}
+
+	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
+	// the condition (gdata->mpi_rank == 0)
+	if (MULTI_NODE)
+		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
@@ -1241,12 +1262,13 @@ void GPUSPH::initializeBoundaryConditions()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), maxneibs %u, %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u, %u files saved so far\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
-			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles),
+			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
+			m_totalPerformanceCounter->getMIPPS(),
 			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
