@@ -717,7 +717,8 @@ FILE_PATTERNS          = *.c \
                          *.cu \
                          *.cuh \
                          *.def \
-                         *.inc
+                         *.inc \
+                         *.opt
 
 # The RECURSIVE tag can be used to turn specify whether or not subdirectories 
 # should be searched for input files as well. Possible values are YES and NO. 
@@ -1530,7 +1531,8 @@ SEARCH_INCLUDES        = YES
 # the preprocessor.
 
 INCLUDE_PATH           = /usr/local/cuda/include/ \
-                         /usr/include/
+                         /usr/include/ \
+                        ./options
 
 # You can use the INCLUDE_FILE_PATTERNS tag to specify one or more wildcard 
 # patterns (like *.h and *.hpp) to filter out the header-files in the 

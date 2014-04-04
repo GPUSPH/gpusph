@@ -54,22 +54,22 @@ HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 
 	// Create the memory data type
 	mem_type_id = H5Tcreate (H5T_COMPOUND, sizeof(ReadParticles));
-	H5Tinsert(mem_type_id, "Coords_0"       , HOFFSET(ReadParticles, Coords_0),        H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Coords_1"       , HOFFSET(ReadParticles, Coords_1),        H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Coords_2"       , HOFFSET(ReadParticles, Coords_2),        H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Normal_0"       , HOFFSET(ReadParticles, Normal_0),        H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Normal_1"       , HOFFSET(ReadParticles, Normal_1),        H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Normal_2"       , HOFFSET(ReadParticles, Normal_2),        H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Volume"         , HOFFSET(ReadParticles, Volume),          H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "Surface"        , HOFFSET(ReadParticles, Surface),         H5T_NATIVE_DOUBLE); 
-	H5Tinsert(mem_type_id, "ParticleType"   , HOFFSET(ReadParticles, ParticleType),    H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "FluidType"      , HOFFSET(ReadParticles, FluidType),       H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "KENT"           , HOFFSET(ReadParticles, KENT),            H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "MovingBoundary" , HOFFSET(ReadParticles, MovingBoundary),  H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "AbsoluteIndex"  , HOFFSET(ReadParticles, AbsoluteIndex),   H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "VertexParticle1", HOFFSET(ReadParticles, VertexParticle1), H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "VertexParticle2", HOFFSET(ReadParticles, VertexParticle2), H5T_NATIVE_INT); 
-	H5Tinsert(mem_type_id, "VertexParticle3", HOFFSET(ReadParticles, VertexParticle3), H5T_NATIVE_INT); 
+	H5Tinsert(mem_type_id, "Coords_0"       , HOFFSET(ReadParticles, Coords_0),        H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Coords_1"       , HOFFSET(ReadParticles, Coords_1),        H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Coords_2"       , HOFFSET(ReadParticles, Coords_2),        H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Normal_0"       , HOFFSET(ReadParticles, Normal_0),        H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Normal_1"       , HOFFSET(ReadParticles, Normal_1),        H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Normal_2"       , HOFFSET(ReadParticles, Normal_2),        H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Volume"         , HOFFSET(ReadParticles, Volume),          H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "Surface"        , HOFFSET(ReadParticles, Surface),         H5T_NATIVE_DOUBLE);
+	H5Tinsert(mem_type_id, "ParticleType"   , HOFFSET(ReadParticles, ParticleType),    H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "FluidType"      , HOFFSET(ReadParticles, FluidType),       H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "KENT"           , HOFFSET(ReadParticles, KENT),            H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "MovingBoundary" , HOFFSET(ReadParticles, MovingBoundary),  H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "AbsoluteIndex"  , HOFFSET(ReadParticles, AbsoluteIndex),   H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "VertexParticle1", HOFFSET(ReadParticles, VertexParticle1), H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "VertexParticle2", HOFFSET(ReadParticles, VertexParticle2), H5T_NATIVE_INT);
+	H5Tinsert(mem_type_id, "VertexParticle3", HOFFSET(ReadParticles, VertexParticle3), H5T_NATIVE_INT);
 
 	//create a memory file_space_id independently
 	count[0] = num;

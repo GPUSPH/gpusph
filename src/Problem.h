@@ -42,6 +42,7 @@
 #include "simparams.h"
 #include "vector_math.h"
 #include "Object.h"
+#include "buffer.h"
 
 #include "ode/ode.h"
 
@@ -253,8 +254,7 @@ class Problem {
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
-		virtual void copy_to_array(float4*, float4*, particleinfo*, hashKey*) = 0;
-		virtual void copy_to_array(float4*, float4*, particleinfo*, vertexinfo*, float4*, hashKey*) {};
+		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 		virtual MbCallBack& mb_callback(const float, const float, const int);

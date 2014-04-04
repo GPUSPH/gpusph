@@ -12,16 +12,6 @@ typedef unsigned short ushort;
 #ifndef __CUDACC__
 #include <cmath>
 
-inline float fminf(float a, float b)
-{
-	return a < b ? a : b;
-}
-
-inline float fmaxf(float a, float b)
-{
-	return a > b ? a : b;
-}
-
 inline int max(int a, int b)
 {
 	return a > b ? a : b;
@@ -37,10 +27,6 @@ inline float rsqrtf(float x)
 	return 1.0f / sqrtf(x);
 }
 
-inline float copysign(float a, float b)
-{
-	return b > 0 ? fabs(a) : -fabs(a);
-}
 #endif
 
 // float functions

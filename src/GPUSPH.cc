@@ -126,6 +126,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
+	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
+	printf(" - R0:   %g\n", gdata->problem->get_physparams()->r0);
 
 
 	// initial dt (or, just dt in case adaptive is enabled)
@@ -236,21 +238,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// copy particles from problem to GPUSPH buffers
 	// TODO FIXME copying data from the problem doubles the host memory requirements
 	// find some smart way to have the host fill the shared buffer directly.
-	if (_sp->boundarytype == SA_BOUNDARY) {
-		problem->copy_to_array(
-			gdata->s_hBuffers.getData<BUFFER_POS>(),
-			gdata->s_hBuffers.getData<BUFFER_VEL>(),
-			gdata->s_hBuffers.getData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getData<BUFFER_VERTICES>(),
-			gdata->s_hBuffers.getData<BUFFER_BOUNDELEMENTS>(),
-			gdata->s_hBuffers.getData<BUFFER_HASH>());
-	} else {
-		problem->copy_to_array(
-			gdata->s_hBuffers.getData<BUFFER_POS>(),
-			gdata->s_hBuffers.getData<BUFFER_VEL>(),
-			gdata->s_hBuffers.getData<BUFFER_INFO>(),
-			gdata->s_hBuffers.getData<BUFFER_HASH>());
-	}
+
+	problem->copy_to_array(gdata->s_hBuffers);
+
 	printf("---\n");
 
 	// initialize values of k and e for k-e model
@@ -287,13 +277,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// allocate workers
 	gdata->GPUWORKERS = (GPUWorker**)calloc(gdata->devices, sizeof(GPUWorker*));
-	for (int d=0; d < gdata->devices; d++)
+	for (uint d=0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d] = new GPUWorker(gdata, d);
 
 	gdata->keep_going = true;
 
 	// actually start the threads
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->run_worker(); // begin of INITIALIZATION ***
 
 	// The following barrier waits for GPUworkers to complete CUDA init, GPU allocation, subdomain and devmap upload
@@ -315,10 +305,10 @@ bool GPUSPH::finalize() {
 	free(m_rcAddrs);
 
 	// workers
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		delete gdata->GPUWORKERS[d];
 
-	delete gdata->GPUWORKERS;
+	free(gdata->GPUWORKERS);
 
 	// Synchronizer
 	delete gdata->threadSynchronizer;
@@ -508,7 +498,7 @@ bool GPUSPH::runSimulation() {
 				totForce[ob] = make_float3( 0.0F );
 				totTorque[ob] = make_float3( 0.0F );
 
-				for (int d = 0; d < gdata->devices; d++) {
+				for (uint d = 0; d < gdata->devices; d++) {
 					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
 					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
 				} // iterate on devices
@@ -566,7 +556,7 @@ bool GPUSPH::runSimulation() {
 		// choose minimum dt among the devices
 		if (gdata->problem->get_simparams()->dtadapt) {
 			gdata->dt = gdata->dts[0];
-			for (int d = 1; d < gdata->devices; d++)
+			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
@@ -624,6 +614,10 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_NORMALS;
 			}
 
+			// get k and epsilon
+			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
+				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
+
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
 				doCommand(CALC_PRIVATE);
@@ -663,7 +657,7 @@ bool GPUSPH::runSimulation() {
 
 	// after the last barrier has been reached by all threads (or after the Synchronizer has been forcedly unlocked),
 	// we wait for the threads to actually exit
-	for (int d = 0; d < gdata->devices; d++)
+	for (uint d = 0; d < gdata->devices; d++)
 		gdata->GPUWORKERS[d]->join_worker();
 
 	return true;
@@ -700,6 +694,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams.visctype == KEPSVISC) {
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
+		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
 	}
 
 	if (problem->m_simparams.calcPrivate)
@@ -795,7 +790,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	if (MULTI_DEVICE) {
 		delete[] gdata->s_hDeviceMap;
 		// cells
-		for (int d = 0; d < gdata->devices; d++) {
+		for (uint d = 0; d < gdata->devices; d++) {
 			cudaFreeHost(gdata->s_dCellStarts[d]);
 			cudaFreeHost(gdata->s_dCellEnds[d]);
 			//delete[] gdata->s_dCellStarts[d];
@@ -860,7 +855,7 @@ void GPUSPH::sortParticlesByHash() {
 	gdata->s_hStartPerDevice[0] = 0;
 	// zero is true for the first node. For the next ones, need to sum the number of particles of the previous nodes
 	if (MULTI_NODE)
-		for (uint prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
+		for (int prev_nodes = 0; prev_nodes < gdata->mpi_rank; prev_nodes++)
 			gdata->s_hStartPerDevice[0] += gdata->processParticles[prev_nodes];
 	for (uint d = 1; d < gdata->devices; d++)
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
@@ -1017,8 +1012,13 @@ void GPUSPH::setViscosityCoefficient()
 			pp->visccoeff = 4.0*pp->kinematicvisc;
 			break;
 
+		case KEPSVISC:
 		case DYNAMICVISC:
 			pp->visccoeff = pp->kinematicvisc;
+			break;
+
+		default:
+			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
 			break;
 	}
 }
@@ -1090,10 +1090,14 @@ void GPUSPH::doWrite()
 		++gage;
 	}
 
-	// TODO MERGE REVIEW. do on each node separately? (better: in each worker thread)
+	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
 	double3 const& wo = problem->get_worldorigin();
+	const float4 *lpos = gdata->s_hBuffers.getData<BUFFER_POS>();
+	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
+	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
+
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
-		const float4 pos = gdata->s_hBuffers.getData<BUFFER_POS>()[i];
+		const float4 pos = lpos[i];
 		double4 dpos;
 		uint3 gridPos = gdata->calcGridPosFromCellHash( cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[i]) );
 		dpos.x = ((double) gdata->cellSize.x)*(gridPos.x + 0.5) + (double) pos.x + wo.x;
@@ -1343,9 +1347,9 @@ void GPUSPH::updateArrayIndices() {
 
 	// now update the offsets for each device:
 	gdata->s_hStartPerDevice[0] = 0;
-	for (uint n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
+	for (int n = 0; n < gdata->mpi_rank; n++) // first shift s_hStartPerDevice[0] by means of the previous nodes...
 		gdata->s_hStartPerDevice[0] += gdata->processParticles[n];
-	for (int d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
+	for (uint d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
 	// process 0 checks if total number of particles varied in the simulation

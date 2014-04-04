@@ -32,6 +32,7 @@
 #include "Cube.h"
 #include "Point.h"
 #include "Vector.h"
+#include "GlobalData.h"
 
 // set to 0 to use boundary particles, 1 to use boundary planes
 #define USE_PLANES 1
@@ -165,8 +166,13 @@ void TestTopo::copy_planes(float4 *planes, float *planediv)
 	experiment_box->get_planes(planes, planediv);
 }
 
-void TestTopo::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey *hash)
+void TestTopo::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);

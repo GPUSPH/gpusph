@@ -22,6 +22,9 @@
     You should have received a copy of the GNU General Public License
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#include <stdexcept>
+
 #include <stdio.h>
 
 #include <thrust/sort.h>
@@ -29,6 +32,8 @@
 
 #include "textures.cuh"
 #include "buildneibs.cuh"
+
+#include "buildneibs_params.h"
 #include "buildneibs_kernel.cu"
 
 #include "utils.h"
@@ -84,15 +89,14 @@ calcHash(float4*	pos,
 		 uint*		compactDeviceMap,
 #endif
 		 const uint		numParticles,
-		 const int		periodicbound)
+		 const Periodicity	periodicbound)
 {
 	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	//TODO: implement other peridodicty than XPERIODIC
 	switch (periodicbound) {
-		case 0:
-			cuneibs::calcHashDevice<0><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_NONE:
+			cuneibs::calcHashDevice<PERIODIC_NONE><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -100,8 +104,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 1:
-			cuneibs::calcHashDevice<1><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_X:
+			cuneibs::calcHashDevice<PERIODIC_X><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -109,8 +113,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 2:
-			cuneibs::calcHashDevice<2><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_Y:
+			cuneibs::calcHashDevice<PERIODIC_Y><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -118,8 +122,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 3:
-			cuneibs::calcHashDevice<3><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_XY:
+			cuneibs::calcHashDevice<PERIODIC_XY><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -127,8 +131,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 4:
-			cuneibs::calcHashDevice<4><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_Z:
+			cuneibs::calcHashDevice<PERIODIC_Z><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -136,8 +140,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 5:
-			cuneibs::calcHashDevice<5><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_XZ:
+			cuneibs::calcHashDevice<PERIODIC_XZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -145,8 +149,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 6:
-			cuneibs::calcHashDevice<6><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_YZ:
+			cuneibs::calcHashDevice<PERIODIC_YZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -154,8 +158,8 @@ calcHash(float4*	pos,
 					   numParticles);
 			break;
 
-		case 7:
-			cuneibs::calcHashDevice<7><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
+		case PERIODIC_XYZ:
+			cuneibs::calcHashDevice<PERIODIC_XYZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
 					   particleInfo,
 #if HASH_KEY_SIZE >= 64
 					   compactDeviceMap,
@@ -286,8 +290,20 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const float			sqdpo2,
-				const int			periodicbound)
+				const Periodicity	periodicbound)
 {
+	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
+	// throw otherwise
+	if (vertices || boundelem || vertPos) {
+		if (!vertices || !boundelem || ! vertPos) {
+			fprintf(stderr, "%p vs %p vs %p\n", vertices, boundelem, vertPos);
+			throw std::runtime_error("inconsistent params to buildNeibsList");
+		}
+	}
+
+	// we are using SA_BOUNDARY if vertices is not NULL
+	bool use_sa_boundary = !!vertices;
+
 	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
@@ -301,126 +317,39 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
-	switch (periodicbound) {
-		case 0:
-			cuneibs::buildNeibsListDevice<0, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
+#define BUILDNEIBS_CASE(use_sa, periodic) \
+	case periodic: \
+		cuneibs::buildNeibsListDevice<use_sa, periodic, true><<<numBlocks, numThreads>>>(params); \
 		break;
 
-		case 1:
-				cuneibs::buildNeibsListDevice<1, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+#define BUILDNEIBS_SWITCH(use_sa) \
+	switch(periodicbound) { \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_NONE); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_X); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_Y); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XY); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_Z); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XZ); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_YZ); \
+		BUILDNEIBS_CASE(use_sa, PERIODIC_XYZ); \
+	}
 
-		case 2:
-				cuneibs::buildNeibsListDevice<2, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+	if (use_sa_boundary) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
-		case 3:
-				cuneibs::buildNeibsListDevice<3, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, sqdpo2);
 
-		case 4:
-				cuneibs::buildNeibsListDevice<4, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		BUILDNEIBS_SWITCH(true);
 
-		case 5:
-				cuneibs::buildNeibsListDevice<5, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	} else {
+		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, sqdpo2);
 
-		case 6:
-				cuneibs::buildNeibsListDevice<6, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
-
-		case 7:
-				cuneibs::buildNeibsListDevice<7, true><<< numBlocks, numThreads >>>(
-						#if (__COMPUTE__ >= 20)
-						pos,
-						#endif
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
-						particleHash,
-						neibsList,
-						particleRangeEnd,
-						sqinfluenceradius,
-						sqdpo2);
-				break;
+		BUILDNEIBS_SWITCH(false);
 	}
 
 	// check if kernel invocation generated an error

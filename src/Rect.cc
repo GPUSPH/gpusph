@@ -335,7 +335,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 
 				uint4 vertices2 = {vpoint_index, vpoints.size() + i, vpoints.size() + i + 1, 0};
 				vindexes.push_back(vertices2);
-				
+
 				belems.push_back(belm);
 				belems.push_back(belm);
 			}
@@ -344,7 +344,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 		case 2: //front face
 			startx++;
 			belm.SetCoord(0, -1, 0);
-			
+
 			predef_vparts = edgeparts[1][2].size();
 			if(predef_vparts)
 			for(uint i=0; i<predef_vparts-1; i++) {
@@ -372,7 +372,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 			startx++;
 			endx--;
 			belm.SetCoord(1, 0, 0);
-			
+
 			predef_vparts = edgeparts[2][2].size();
 			if(predef_vparts)
 			for(uint i=0; i<predef_vparts-1; i++) {
@@ -421,7 +421,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 			endx--;
 			endy--;
 			belm.SetCoord(0, 0, 1);
-			
+
 			predef_vparts = edgeparts[3][1].size();
 			if(predef_vparts)
 			for(uint i=1; i<predef_vparts; i++) {
@@ -513,7 +513,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 					vertices2.z = edgeparts[1][1][0];
 				vindexes.push_back(vertices2);
 			}
-			
+
 			for(uint i=0; i<8*(predef_vparts-2); i++)
 				belems.push_back(belm);
 
@@ -524,7 +524,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 			endx--;
 			endy--;
 			belm.SetCoord(0, 0, -1);
-			
+
 			break;
 		}
 
@@ -550,7 +550,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 			if (j == ny) {
 				edgeparts[face_num][3].push_back(nvertex);
 			}
-			
+
 			vpoints.push_back(vp);
 
 			//Fill rectangular plane with boundary particles and set connectivity for them
@@ -566,7 +566,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 
 				uint4 vertices2 = {nvertex, nvertex + (endy-starty) + 1, nvertex + (endy-starty) + 2, 0};
 				vindexes.push_back(vertices2);
-				
+
 				belems.push_back(belm);
 				belems.push_back(belm);
 			}

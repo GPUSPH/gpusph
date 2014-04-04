@@ -366,7 +366,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 		else
 			preferred_split_axis = Z_AXIS;
 	}
-	uint cells_per_longest_axis;
+	uint cells_per_longest_axis = 0;
 	switch (preferred_split_axis) {
 		case X_AXIS:
 			cells_per_longest_axis = gdata->gridSize.x;

@@ -1,10 +1,13 @@
 #include <math.h>
+#include <string>
 #include <iostream>
 
 #include "InputProblem.h"
 #include "HDF5SphReader.h"
+#include "GlobalData.h"
 
-#define SPECIFIC_PROBLEM "SmallChannelFlow"
+static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
+
 /* Implemented problems:
  *
  *	Keyword			Description
@@ -34,11 +37,12 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 2.0; w = 2.0; h = 2.2;
 
 		m_physparams.kinematicvisc = 3.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 		m_simparams.tend = 5.0;
 
 		//periodic boundaries
-		m_simparams.periodicbound = XPERIODIC;
+		m_simparams.periodicbound = PERIODIC_X;
 		m_physparams.dispvect = make_float3(l, l, 0.0);
 		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
 		m_physparams.maxlimit = make_float3(l, l, 0.0f);
@@ -55,6 +59,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.01833f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
@@ -74,6 +79,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		set_deltap(0.125f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
@@ -93,18 +99,25 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.0625f);
 
-		m_physparams.kinematicvisc = 1.0e-2f;
-		m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+		// laminar
+		//m_physparams.kinematicvisc = 1.0e-2f;
+		//m_simparams.visctype = DYNAMICVISC;
+		//m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+
+		// turbulent (as in agnes' paper)
+		m_physparams.kinematicvisc = 1.5625e-3f;
+		m_simparams.visctype = KEPSVISC;
+		m_physparams.gravity = make_float3(1.0, 0.0, 0.0);
 
 		m_simparams.tend = 100.0;
-		m_simparams.periodicbound = XPERIODIC | YPERIODIC;
+		m_simparams.periodicbound = PERIODIC_XY;
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
@@ -174,11 +187,10 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 1;
+	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 0.1;
-	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
@@ -225,14 +237,14 @@ int InputProblem::fill_parts()
 		add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
 		// Pressure probes
 		if (m_simparams.testpoints) {
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
-			test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.021));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.061));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.101));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.141));
+			test_points.push_back(m_origin + make_double3(2.4165, 0.5, 0.161));
+			test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161));
+			test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161));
+			test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161));
 		}
 	}
 	//*******************************************************************
@@ -242,8 +254,15 @@ int InputProblem::fill_parts()
 	return npart;
 }
 
-void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, vertexinfo *vertices, float4 *boundelm, hashKey *hash)
+void InputProblem::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
+	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
+
 	const char *ch_inputfile = inputfile.c_str();
 	uint npart = HDF5SphReader::getNParts(ch_inputfile);
 
@@ -315,7 +334,7 @@ void InputProblem::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, v
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = j; i < j+test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			vel[i] = make_float4(0, 0, 0, 0.0);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
 			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
 		}

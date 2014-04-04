@@ -55,7 +55,7 @@ Writer::Writer(const Problem *problem)
 					fluid, fluid, fluid);
 		fputs("\n", m_energyfile);
 	}
-	
+
 	//WaveGage
 	string WaveGage_fn = m_dirname + "/WaveGage.txt";
 	m_WaveGagefile = fopen(WaveGage_fn.c_str(), "w");
@@ -74,7 +74,7 @@ Writer::Writer(const Problem *problem)
 		fputs("\n", m_WaveGagefile);
 	}
 
-	m_gdata = NULL;
+	gdata = NULL;
 }
 
 Writer::~Writer()
@@ -139,7 +139,7 @@ Writer::next_filenum()
 
 void Writer::setGlobalData(GlobalData *_gdata)
 {
-	m_gdata = _gdata;
+	gdata = _gdata;
 }
 
 uint Writer::getLastFilenum()

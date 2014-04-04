@@ -60,7 +60,6 @@ typedef struct PhysParams {
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
 	float3	dispvect;		// offset vector for periodic boundaries
-	float3	dispOffset;		// extra offset vector which, given that a coordinate is periodic, is added to the other 2
 	float3	maxlimit;
 	float3	minlimit;
 	float	ewres;			// DEM east-west resolution
@@ -74,8 +73,8 @@ typedef struct PhysParams {
 	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
-	float	objectobjectdf;	// damping factor for object-object interaction 
-	float	objectboundarydf;	// damping factor for object-boundary interaction 
+	float	objectobjectdf;	// damping factor for object-object interaction
+	float	objectboundarydf;	// damping factor for object-boundary interaction
 
 	PhysParams(void) :
 		partsurf(0),

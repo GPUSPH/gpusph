@@ -60,7 +60,7 @@ public:
 
 	// number of arrays
 	// overloaded in subclasses
-	virtual int get_array_count() const
+	virtual uint get_array_count() const
 	{ return 0; }
 
 	virtual const char* get_buffer_name() const
@@ -97,7 +97,7 @@ public:
 	};
 };
 
-/* This class encapsulates type-specific arrays of buffers. 
+/* This class encapsulates type-specific arrays of buffers.
  * By default the array will have a single buffer, with trivial
  * extensions to N-buffers.
  */
@@ -114,6 +114,13 @@ class GenericBuffer : public AbstractBuffer
 protected:
 	enum { array_count = N };
 
+	// accessors to the raw pointers. used by specializations
+	// to easily handle allocs and frees
+	virtual T** get_raw_ptr()
+	{ return m_bufs; }
+	virtual const T* const* get_raw_ptr() const
+	{ return m_bufs; }
+
 public:
 	typedef T element_type;
 
@@ -125,14 +132,6 @@ public:
 	}
 
 	virtual ~GenericBuffer() {} ;
-
-	// accessors to the raw pointers. used by specializations
-	// to easily handle allocs and frees, but must be public
-	// because it's also used in GPUSPH proper for the TAU buffer
-	virtual T** get_raw_ptr()
-	{ return m_bufs; }
-	virtual const T* const* get_raw_ptr() const
-	{ return m_bufs; }
 
 	// return an (untyped) pointer to the idx buffer,
 	// if valid. Must return void since we overload
@@ -166,7 +165,7 @@ public:
 	virtual size_t get_element_size() const
 	{ return sizeof(T); }
 
-	virtual int get_array_count() const
+	virtual uint get_array_count() const
 	{ return array_count; }
 };
 
@@ -179,6 +178,10 @@ public:
  * we just add a method to get the printable name associated with the given Key.
  */
 
+// Forward-declare the BufferList class, which we want to be friend with the
+// Buffer classes so that it may access the protected get_raw_ptr() methods.
+class BufferList;
+
 // since some people find this particular aspect of the C++ syntax a bit too ugly,
 // let's introduce a de-uglifying macro that just returns the expected data type for
 // elements in array Key (e.g. float4 for BUFFER_POS):
@@ -190,6 +193,7 @@ class Buffer : public GenericBuffer<DATA_TYPE(Key), BufferTraits<Key>::num_buffe
 	// we want to use baseclass as a shortcut for the parent class of Buffer<Key>
 	typedef GenericBuffer<DATA_TYPE(Key), BufferTraits<Key>::num_buffers> baseclass;
 
+	friend class BufferList;
 public:
 
 	// constructor, specifying the memset initializer
@@ -197,7 +201,7 @@ public:
 
 	virtual ~Buffer() {
 #if _DEBUG_
-		printf("destroying %s\n", get_buffer_name());
+		//printf("destroying %s\n", get_buffer_name());
 #endif
 	}
 
@@ -308,6 +312,28 @@ public:
 		const_iterator exists = this->find(Key);
 		if (exists != this->end())
 			return static_cast<const DATA_TYPE(Key)*>(exists->second->get_buffer(num));
+		else return NULL;
+	}
+
+	/* In a few cases, the user may want to access the base pointer to
+	 * multi-buffer arrays. This could be done using get<Key>()->get_raw_ptr,
+	 * but this causes a segmentation fault when the Key array isn't actually
+	 * allocated, while we really want to return NULL in this case. Wrap it up
+	 * for safety.
+	 */
+	template<flag_t Key>
+	DATA_TYPE(Key) **getRawPtr() {
+		Buffer<Key> *exists = this->get<Key>();
+		if (exists)
+			return exists->get_raw_ptr();
+		else return NULL;
+	}
+	// const version
+	template<flag_t Key>
+	const DATA_TYPE(Key)* const* getRawPtr() const {
+		Buffer<Key> *exists = this->get<Key>();
+		if (exists)
+			return exists->get_raw_ptr();
 		else return NULL;
 	}
 

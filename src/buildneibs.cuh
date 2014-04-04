@@ -81,7 +81,7 @@ calcHash(float4*	pos,
 		 uint*		compactDeviceMap,
 #endif
 		 const uint		numParticles,
-		 const int		periodicbound);
+		 const Periodicity	periodicbound);
 
 void
 inverseParticleIndex (	uint*	particleIndex,
@@ -132,7 +132,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const float			sqdpo2,
-				const int			periodicbound);
+				const Periodicity	periodicbound);
 
 void
 sort(	hashKey*	particleHash,

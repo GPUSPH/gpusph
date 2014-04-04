@@ -34,6 +34,7 @@
 // define uint, uchar, ulong
 typedef unsigned long ulong; // only used in timing
 typedef unsigned int uint;
+typedef unsigned short ushort;
 typedef unsigned char uchar;
 
 // neighbor data

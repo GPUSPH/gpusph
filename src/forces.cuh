@@ -92,7 +92,7 @@ setforcesrbstart(const uint* rbfirstindex, int numbodies);
 float
 forces(
 	const	float4	*pos,
-			float2	*verPos[],
+	const	float2	* const vertPos[],
 	const	float4	*vel,
 			float4	*forces,
 	const	float4	*oldGGam,

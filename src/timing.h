@@ -62,8 +62,6 @@ typedef struct TimingInfo {
 	// avg. time to integrate
 	//double  meanTimeEuler;
 
-	// clock time when simulation started
-	//clock_t	startTime;
 	// number of iterations times number of particles
 
 	/* Note: this is computed by adding to it the current number of particles
@@ -84,27 +82,6 @@ typedef struct TimingInfo {
 
 	TimingInfo(void) : maxNeibs(0), numInteractions(0) {}
 
-	// a method to return the throughput computed as iterations times particles per second
-	/*
-	double	getIPPS(void) const {
-		return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;
-	}
-	*/
-	// almost all devices get at least 1MIPPS, so:
-	/*
-	inline
-
-	double	getMIPPS(void) const {
-		return getIPPS()/1000000.0;
-	}
-	*/
-	// set the startTime of the simulation
-	/*
-	clock_t	start(void) {
-		startTime = clock();
-		return startTime;
-	}
-	*/
 } TimingInfo;
 
 
@@ -119,27 +96,33 @@ struct SavingInfo {
 class IPPSCounter
 {
 	private:
-		clock_t	startTime;
+		time_t	m_startTime;
+		bool m_started;
 	public:
 		IPPSCounter():
-			startTime(0)
+			m_startTime(0),
+			m_started(false)
 		{};
 
 		// start the counter
-		clock_t start() {
-			startTime = clock();
-			return startTime;
+		time_t start() {
+			time(&m_startTime);
+			m_started = true;
+			return m_startTime;
 		}
 
 		// reset the counter
-		clock_t restart() {
+		time_t restart() {
+			m_started = true;
 			return start();
 		}
 
 		// return the throughput computed as iterations times particles per second
 		double getIPPS(ulong iterTimesParts) const {
-			if (startTime == 0) return 0;
-			return (double(iterTimesParts)/(clock()-startTime))*CLOCKS_PER_SEC;
+			if (!m_started) return 0;
+			time_t now;
+			time(&now);
+			return (double(iterTimesParts) / difftime(now, m_startTime));
 		}
 
 		// almost all devices get at least 1MIPPS, so:

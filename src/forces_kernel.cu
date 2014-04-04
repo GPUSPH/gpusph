@@ -38,6 +38,24 @@
 #include "kahan.h"
 #include "tensor.cu"
 
+// an auxiliary function that fetches the tau tensor
+// for particle i from the textures where it's stored
+__device__
+symtensor3 fetchTau(uint i)
+{
+	symtensor3 tau;
+	float2 temp = tex1Dfetch(tau0Tex, i);
+	tau.xx = temp.x;
+	tau.xy = temp.y;
+	temp = tex1Dfetch(tau1Tex, i);
+	tau.xz = temp.x;
+	tau.yy = temp.y;
+	temp = tex1Dfetch(tau2Tex, i);
+	tau.yz = temp.x;
+	tau.zz = temp.y;
+	return tau;
+}
+
 #define MAXKASINDEX 10
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
@@ -699,6 +717,27 @@ SPSstressMatrixDevice(	const float4* posArray,
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
 
+// load old gamma value. if a new gamma value is to be computed (computeGamma == true),
+// then normalize and change the sign of the gradient of the old one because we
+// only need it for computation of solid angles.
+// If computeGamma was false, it means the caller wants us to check gam.w against epsilon
+// to see if the new gamma is to be computed
+__device__ __forceinline__
+float4
+fetchNormalizedOldGamma(const uint index, const float epsilon, bool &computeGamma)
+{
+	float4 gam = tex1Dfetch(gamTex, index);
+	if (!computeGamma)
+		computeGamma = (gam.w < epsilon);
+	if (computeGamma) {
+		float gradnorm = -length3(gam);
+		gam.x /= gradnorm;
+		gam.y /= gradnorm;
+		gam.z /= gradnorm;
+	}
+	return gam;
+}
+
 // helper function with the analytical formulae for gamma and grad gamma for the wendland kernel
 __device__ float2
 hf3d(float qas, float qae, float q, float pes, const float epsilon, bool computeGamma)
@@ -753,12 +792,12 @@ hf3d(float qas, float qae, float q, float pes, const float epsilon, bool compute
 template<KernelType kerneltype>
 __device__ __forceinline__ float2
 Gamma(	const	float	slength,
-		const	float4	relPos,
-		const	float2	vPos0,
-		const	float2	vPos1,
-		const	float2	vPos2,
-		const	float4	boundElement,
-				float4	oldGGam,
+		const	float4	&relPos,
+		const	float2	&vPos0,
+		const	float2	&vPos1,
+		const	float2	&vPos2,
+		const	float4	&boundElement,
+		const	float4	&oldGGam,
 		const	float	epsilon,
 		const	bool	computeGamma)
 {
@@ -835,7 +874,7 @@ Gamma(	const	float	slength,
 		float l2 = length3(v0-v2);
 		float abc = dot3((v0-v1),oldGGam)/l1 + dot3((v0-v2),oldGGam)/l2 + dot3((v0-v1),(v0-v2))/l1/l2;
 		float d = dot3(oldGGam,cross3((v0-v1),(v0-v2)))/l1/l2;
-		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983) 
+		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
 		float SolidAngle = 2.0f*atan2(d,(1.0f+abc));
 		if(SolidAngle < 0.0f)
 			SolidAngle += 2.0f*M_PI;
@@ -845,7 +884,7 @@ Gamma(	const	float	slength,
 	}
 	// check if particle is on an edge
 	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
-				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) || 
+				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
 				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
 			 ) && q_aSigma.w < epsilon) {
 		// grad gamma for a half-plane
@@ -1172,8 +1211,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 /*					   Kernels for computing acceleration without gradient correction					 */
 /************************************************************************************************************/
 
-/* Normal kernels */
-#include "forces_kernel.xsphdt.inc"
+/* forcesDevice kernel and auxiliary types and functions */
+#include "forces_kernel.def"
 
 /************************************************************************************************************/
 
@@ -1909,7 +1948,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	info.x &= ~SURFACE_PARTICLE_FLAG;
+	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// Persistent variables across getNeibData calls
@@ -2015,7 +2054,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	if (!nc)
-		info.x |= SURFACE_PARTICLE_FLAG;
+		SET_FLAG(info, SURFACE_PARTICLE_FLAG);
 
 	newInfo[index] = info;
 

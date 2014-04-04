@@ -45,7 +45,7 @@ class OpenChannel: public Problem {
 		virtual ~OpenChannel(void);
 
 		int fill_parts(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
+		void copy_to_array(BufferList &);
 
 		void release_memory(void);
 };

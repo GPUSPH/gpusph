@@ -58,14 +58,14 @@ class OdeObjects: public Problem {
 		Cylinder	cylinder;
 		dGeomID		planes[5];
 		dJointID	joint;
-		
+
 
 	public:
 		OdeObjects(const GlobalData *);
 		virtual ~OdeObjects(void);
 
 		int fill_parts(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
+		void copy_to_array(BufferList &);
 
 		void ODE_near_callback(void *, dGeomID, dGeomID);
 

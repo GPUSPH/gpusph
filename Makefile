@@ -751,7 +751,7 @@ $(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 docs: $(DOXYCONF)
 	$(CMDECHO)mkdir -p $(DOCSDIR)
 	@echo Running Doxygen...
-	$(CMDECHO)doxygen $(DOXYCONF) > /dev/null && \
+	$(CMDECHO)doxygen $(DOXYCONF) && \
 	echo Generated Doxygen documentation in $(DOCSDIR)
 
 # target: docsclean - Remove $(DOCSDIR)

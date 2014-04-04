@@ -18,8 +18,7 @@ class InputProblem: public Problem {
 		~InputProblem(void) {};
 
 		int fill_parts(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *hash) {};
-		void copy_to_array(float4 *, float4 *, particleinfo *, vertexinfo *, float4 *, hashKey *hash);
+		void copy_to_array(BufferList &);
 
 		void release_memory(void) {};
 };

@@ -29,7 +29,7 @@
 #include "OdeObjects.h"
 #include "Point.h"
 #include "particledefine.h"
-
+#include "GlobalData.h"
 
 OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 {
@@ -217,8 +217,13 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 }
 
 
-void OdeObjects::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
+void OdeObjects::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);

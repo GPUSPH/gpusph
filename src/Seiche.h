@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* 
+/*
  * File:   Seiche.h
  * Author: rad
  *
@@ -53,7 +53,7 @@ class Seiche: public Problem {
 
 		int  fill_parts(void);
 		uint fill_planes(void);
-		void copy_to_array(float4 *, float4 *, particleinfo *, hashKey *);
+		void copy_to_array(BufferList &);
 		void copy_planes(float4*, float*);
 		float3 g_callback(const float);
 

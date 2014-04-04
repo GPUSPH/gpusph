@@ -230,8 +230,8 @@ void GPUWorker::computeAndSetAllocableParticles()
 void GPUWorker::dropExternalParticles()
 {
 	m_particleRangeEnd =  m_numParticles = m_numInternalParticles;
-	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT;
-	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] == EMPTY_SEGMENT;
+	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = EMPTY_SEGMENT;
+	gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] = EMPTY_SEGMENT;
 }
 
 // Start an async inter-device transfer. This will be actually P2P if device can access peer memory
@@ -935,52 +935,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					}
 				} // for each buffer type
 
-					AbstractBuffer *dstbuf = bufset->second;
-
-					// handling of double-buffered arrays
-					// note that TAU is not considered here
-					if (dstbuf->get_array_count() == 2) {
-						// for buffers with more than one array the caller should have specified which buffer
-						// is to be imported. complain
-						if (!dbl_buffer_specified) {
-							std::stringstream err_msg;
-							err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
-								<< " array without a specification of which buffer to use.";
-							throw runtime_error(err_msg.str());
-						}
-
-						if (gdata->commandFlags & DBLBUFFER_READ)
-							dbl_buf_idx = gdata->currentRead[bufkey];
-						else
-							dbl_buf_idx = gdata->currentWrite[bufkey];
-					} else {
-						dbl_buf_idx = 0;
-					}
-
-					unsigned int _size = burst_numparts[otherDevGlobalIdx] * dstbuf->get_element_size();
-
-					// special treatment for TAU, since in that case we need to transfers all 3 arrays
-					if (!(bufkey & BUFFER_BIG)) {
-						void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[otherDevGlobalIdx]);
-						gdata->networkManager->receiveBuffer(otherDevGlobalIdx, m_globalDeviceIdx, _size, dstptr);
-					} else {
-						// generic, so that it can work for other buffers like TAU, if they are ever
-						// introduced; just fix the conditional
-						for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
-							void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin[otherDevGlobalIdx]);
-							gdata->networkManager->receiveBuffer(otherDevGlobalIdx, m_globalDeviceIdx, _size, dstptr);
-						}
-					}
-				}
-			}
-
-		}
-=======
 				// reset the flushed burst
 				burst_numparts[device_gidx][corrected_sending_dir] = 0; // probably useless here
 				burst_is_closed[device_gidx][corrected_sending_dir] = false; // for sure useless
 			} // for each non-empty, closed burst, in every direction
->>>>>>> GPUWorker::importNetworkPeerEdgeCells() rewritten and fixed
 
 }
 
@@ -1211,8 +1169,7 @@ void GPUWorker::dumpBuffers() {
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (howManyParticles == 0) return;
 
-	size_t _size = 0;
-	flag_t flags = gdata->commandFlags;
+	const flag_t flags = gdata->commandFlags;
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
@@ -1357,27 +1314,6 @@ void GPUWorker::createCompactDeviceMap() {
 	// at least one neib which does not ==> inner_edge). Another optimization would be to avoid linearizing all cells but exploit burst of consecutive indices. This
 	// reduces the computations but not the read/write operations.
 
-	// compute the extra_offset vector (z-lift) in terms of cells
-	int3 extra_offset = make_int3(0);
-	// Direction of the extra_offset (depents on where periodicity occurs), to add extra cells if the extra displacement
-	// does not multiply the size of the cells
-	int3 extra_offset_unit_vector = make_int3(0);
-	if (m_simparams->periodicbound) {
-		extra_offset.x = (int) (m_physparams->dispOffset.x / gdata->cellSize.x);
-		extra_offset.y = (int) (m_physparams->dispOffset.y / gdata->cellSize.y);
-		extra_offset.z = (int) (m_physparams->dispOffset.z / gdata->cellSize.z);
-	}
-
-	// when there is an extra_offset to consider, we have to repeat the same checks twice. Let's group them
-#define CHECK_CURRENT_CELL \
-	/* data of neib cell */ \
-	uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz); \
-	uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx]; \
-	any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx); \
-	any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx); \
-	/* did we read enough to decide for current cell? */ \
-	enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
-
 	// iterate on all cells of the world
 	for (int ix=0; ix < gdata->gridSize.x; ix++)
 		for (int iy=0; iy < gdata->gridSize.y; iy++)
@@ -1400,7 +1336,6 @@ void GPUWorker::createCompactDeviceMap() {
 							int cx = ix + dx;
 							int cy = iy + dy;
 							int cz = iz + dz;
-							bool apply_extra_offset = false;
 							// warp periodic boundaries
 							if (m_simparams->periodicbound) {
 								// periodicity along X
@@ -1409,76 +1344,46 @@ void GPUWorker::createCompactDeviceMap() {
 									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
 									if (cx < 0) {
 										cx = gdata->gridSize.x - 1;
-										if (extra_offset.y != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.y = extra_offset_unit_vector.z = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cx >= gdata->gridSize.x) {
 										cx = 0;
-										if (extra_offset.y != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.y = extra_offset_unit_vector.z = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.x
 								// periodicity along Y
 								if (m_physparams->dispvect.y) {
 									if (cy < 0) {
 										cy = gdata->gridSize.y - 1;
-										if (extra_offset.x != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.z = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cy >= gdata->gridSize.y) {
 										cy = 0;
-										if (extra_offset.x != 0 || extra_offset.z != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.z = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.y
 								// periodicity along Z
 								if (m_physparams->dispvect.z) {
 									if (cz < 0) {
 										cz = gdata->gridSize.z - 1;
-										if (extra_offset.x != 0 || extra_offset.y != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.y = 1;
-											apply_extra_offset = true;
-										}
 									} else
 									if (cz >= gdata->gridSize.z) {
 										cz = 0;
-										if (extra_offset.x != 0 || extra_offset.y != 0) {
-											extra_offset_unit_vector.x = extra_offset_unit_vector.y = -1;
-											apply_extra_offset = true;
-										}
 									}
 								} // if dispvect.z
-								// apply extra displacement (e.g. zlift), if any
-								// (actually, should be safe to add without the conditional)
-								if (apply_extra_offset) {
-									cx += extra_offset.x * extra_offset_unit_vector.x;
-									cy += extra_offset.y * extra_offset_unit_vector.y;
-									cz += extra_offset.z * extra_offset_unit_vector.z;
-								}
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||
 								cy < 0 || cy >= gdata->gridSize.y ||
 								cz < 0 || cz >= gdata->gridSize.z) continue;
-							// check current cell and if we have already enough information
-							CHECK_CURRENT_CELL
-							// if there is any extra offset, check one more cell
-							// WARNING: might miss cells if the extra displacement is not parallel to one cartesian axis
-							if (m_simparams->periodicbound && apply_extra_offset) {
-								cx += extra_offset_unit_vector.x;
-								cy += extra_offset_unit_vector.y;
-								cz += extra_offset_unit_vector.z;
-								// check extra cells if extra displacement is not a multiple of the cell size
-								CHECK_CURRENT_CELL
-							}
+
+							// Read data of neib cell
+							uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz);
+							uint neib_globalDevidx = gdata->s_hDeviceMap[neib_lin_idx];
+
+							// does self device own any of the neib cells?
+							any_mine_neib	 |= (neib_globalDevidx == m_globalDeviceIdx);
+							// does a non-self device own any of the neib cells?
+							any_foreign_neib |= (neib_globalDevidx != m_globalDeviceIdx);
+
+							// do we know enough to decide for current cell?
+							enough_info = (is_mine && any_foreign_neib) || (!is_mine && any_mine_neib);
 						} // iterating on offsets of neighbor cells
 				uint cellType;
 				// assign shifted values so that they are ready to be OR'd in calchash/reorder
@@ -1886,7 +1791,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 					m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-					m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
+					m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
@@ -1922,7 +1827,7 @@ void GPUWorker::kernel_forces()
 	if (numPartsToElaborate > 0 )
 		returned_dt = forces(
 						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
-						m_dBuffers.get<BUFFER_VERTPOS>()->get_raw_ptr(),
+						m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
 						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
@@ -2100,7 +2005,7 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sps(m_dBuffers.get<BUFFER_TAU>()->get_raw_ptr(),
+	sps(m_dBuffers.getRawPtr<BUFFER_TAU>(),
 		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),

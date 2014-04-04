@@ -27,6 +27,7 @@
 #include <iostream>
 
 #include "OpenChannel.h"
+#include "GlobalData.h"
 
 
 OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
@@ -52,7 +53,7 @@ OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 	h = 0.7;
 	H = 0.5;
 
-	m_simparams.periodicbound = XPERIODIC;
+	m_simparams.periodicbound = PERIODIC_X;
 	m_gridsize.x = 15;
 	l = m_gridsize.x*m_simparams.kernelradius*m_simparams.slength;
 	m_size = make_double3(l, a, h);
@@ -127,8 +128,13 @@ int OpenChannel::fill_parts()
 	return parts.size() + boundary_parts.size();
 }
 
-void OpenChannel::copy_to_array(float4 *pos, float4 *vel, particleinfo *info, hashKey* hash)
+void OpenChannel::copy_to_array(BufferList &buffers)
 {
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	hashKey *hash = buffers.getData<BUFFER_HASH>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	particleinfo *info = buffers.getData<BUFFER_INFO>();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);

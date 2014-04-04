@@ -34,6 +34,8 @@
 #include "utils.h"
 #include "cuda_call.h"
 
+#include "forces_params.h"
+
 cudaArray*  dDem = NULL;
 
 /* Auxiliary data for parallel reductions */
@@ -43,15 +45,6 @@ size_t	reduce_bs2 = 0;
 size_t	reduce_shmem_max = 0;
 void*	reduce_buffer = NULL;
 
-/* These defines give a shorthand for the kernel with a given correction,
-   viscosity, xsph and dt options. They will be used in forces.cu for
-   consistency */
-#define _FORCES_KERNEL_NAME(visc, xsph, dt) forces_##visc##_##xsph##dt##Device
-#define FORCES_KERNEL_NAME(visc, xsph, dt) _FORCES_KERNEL_NAME(visc, xsph, dt)
-
-#define _FORCE_PAIR_NAME(visc, xsph) force_pair_##visc##_##xsph
-#define FORCE_PAIR_NAME(visc, xsph) _FORCE_PAIR_NAME(visc, xsph)
-
 #include "forces_kernel.cu"
 
 #define NOT_IMPLEMENTED_CHECK(what, arg) \
@@ -59,20 +52,34 @@ void*	reduce_buffer = NULL;
 			fprintf(stderr, #what " %s (%u) not implemented\n", what##Name[arg], arg); \
 			exit(1)
 
+/* Comfort macro to construct the appropriate forces_param<> instantiation for
+ * the given combination of kernel, boundary type, viscosity, dt and xsph use,
+ * since they all use the same constructor parameters (which is a huge list)
+ */
+#define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph) \
+		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
+			forces, rbforces, rbtorques, \
+			pos, particleHash, cellStart, neibsList, particleRangeEnd, \
+			deltap, slength, influenceradius, \
+			cfl, cflTVisc, \
+			xsph, \
+			newGGam, vertPos, epsilon, movingBoundaries, \
+			keps_dkde, turbvisc)
+
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
 		if (!dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
 		else if (!dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph,)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
 		else if (dtadapt && !xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc,, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques, cfl, cflTVisc); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
 		else if (dtadapt && xsphcorr) \
-				cuforces::FORCES_KERNEL_NAME(visc, Xsph, Dt)<kernel, boundarytype, dem, formulation><<< numBlocks, numThreads, dummy_shared >>>\
-						(pos, vertPos[0], vertPos[1], vertPos[2], newGGam, forces, keps_dkde, turbvisc, particleHash, cellStart, xsph, neibsList, particleRangeEnd, deltap, slength, influenceradius, epsilon, movingBoundaries, rbforces, rbtorques, cfl, cflTVisc); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
@@ -369,7 +376,7 @@ const	particleinfo	*info,
 float
 forces(
 	const	float4	*pos,
-			float2	*vertPos[],
+	const	float2	* const vertPos[],
 	const	float4	*vel,
 			float4	*forces,
 	const	float4	*oldGGam,
@@ -408,6 +415,7 @@ forces(
 			bool	usedem)
 {
 	int dummy_shared = 0;
+
 	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -522,7 +530,7 @@ shepard(float4*		pos,
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	
+
 	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
@@ -535,7 +543,7 @@ shepard(float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Shepard kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -570,7 +578,7 @@ mls(float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	// execute the kernel		
+	// execute the kernel
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
@@ -579,7 +587,7 @@ mls(float4*		pos,
 //		MLS_CHECK(QUADRATIC);
 		MLS_CHECK(WENDLAND);
 	}
-	
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Mls kernel execution failed");
 
@@ -623,7 +631,7 @@ vorticity(	float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Vorticity kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -664,7 +672,7 @@ testpoints( const float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("test kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -717,7 +725,7 @@ surfaceparticle(	float4*		pos,
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("surface kernel execution failed");
-	
+
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
@@ -769,9 +777,9 @@ void reduceRbForces(float4*		forces,
 	// the scan is in place); equal_to as data-key operator and plus as scan operator. The sums are in the last position
 	// of each segment (thus we retrieve them by using lastindex values).
 
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
 				forces_devptr, forces_devptr, binary_pred, binary_op);
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles, 
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
 				torques_devptr, torques_devptr, binary_pred, binary_op);
 
 	for (uint i = 0; i < numbodies; i++) {
@@ -797,7 +805,7 @@ reducefmax(	const int	size,
 	dim3 dimBlock(threads, 1, 1);
 	dim3 dimGrid(blocks, 1, 1);
 
-	// when there is only one warp per block, we need to allocate two warps 
+	// when there is only one warp per block, we need to allocate two warps
 	// worth of shared memory so that we don't index shared memory out of bounds
 	int smemSize = (threads <= 32) ? 2 * threads * sizeof(float) : threads * sizeof(float);
 
@@ -827,7 +835,7 @@ reducefmax(	const int	size,
 }
 
 
-uint nextPow2(uint x ) 
+uint nextPow2(uint x )
 {
     --x;
     x |= x >> 1;
@@ -840,10 +848,10 @@ uint nextPow2(uint x )
 
 
 #define MIN(x,y) ((x < y) ? x : y)
-void getNumBlocksAndThreads(const uint	n, 
-							const uint	maxBlocks, 
-							const uint	maxThreads, 
-							uint		&blocks, 
+void getNumBlocksAndThreads(const uint	n,
+							const uint	maxBlocks,
+							const uint	maxThreads,
+							uint		&blocks,
 							uint		&threads)
 {
 	threads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
@@ -889,7 +897,7 @@ cflmax( const uint	n,
 	CUT_CHECK_ERROR("fmax kernel execution failed");
 
 	uint s = numBlocks;
-	while(s > 1) 
+	while(s > 1)
 	{
 		uint threads = 0, blocks = 0;
 		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
@@ -901,7 +909,7 @@ cflmax( const uint	n,
 	}
 
 	CUDA_SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
-	
+
 	return max;
 }
 
