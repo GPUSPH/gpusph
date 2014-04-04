@@ -1296,6 +1296,50 @@ void GPUSPH::printParticleDistribution()
 	}
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
 }
+
+// print peer accessibility for all devices
+void GPUSPH::printDeviceAccessibilityTable()
+{
+	printf("Peer accessibility table:\n");
+	// init line
+	printf("-");
+	for (uint d = 0; d <= gdata->devices; d++) printf("--------");
+	printf("\n");
+
+	// header
+	printf("| READ >|");
+	for (uint d = 0; d < gdata->devices; d++)
+		printf(" %u (%u) |", d, gdata->device[d]);
+	printf("\n");
+
+	// header line
+	printf("-");
+	for (uint d = 0; d <= gdata->devices; d++) printf("--------");
+	printf("\n");
+
+	// rows
+	for (uint d = 0; d < gdata->devices; d++) {
+		printf("|");
+		printf(" %u (%u) |", d, gdata->device[d]);
+		for (uint p = 0; p < gdata->devices; p++) {
+			if (p == d)
+				printf("   -   |");
+			else
+			if (gdata->s_hDeviceCanAccessPeer[d][p])
+				printf("   Y   |");
+			else
+				printf("   n   |");
+		}
+		printf("\n");
+	}
+
+	// closing line
+	printf("-");
+	for (uint d = 0; d <= gdata->devices; d++) printf("--------");
+	printf("\n");
+}
+
+
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
 // NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)

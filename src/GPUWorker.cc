@@ -1509,7 +1509,9 @@ void GPUWorker::enablePeerAccess()
 		// is peer access possible?
 		int res;
 		cudaDeviceCanAccessPeer(&res, m_cudaDeviceNumber, peerCudaDevNum);
-		if (res != 1) {
+		// update value in table
+		gdata->s_hDeviceCanAccessPeer[m_deviceIndex][d] = (res == 1);
+		if (res == 0) {
 			// if this happens, peer copies will be buffered on host. We do it explicitly on a dedicated
 			// host buffer instead of letting the CUDA runtime do it automatically
 			m_disableP2Ptranfers = true;
