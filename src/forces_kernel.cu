@@ -983,7 +983,7 @@ Gamma(	const	float	slength,
 			}
 		}
 	}
-	gamma_as = gamma_vs + copysign(gamma_as,dot3(boundElement,q_aSigma));
+	gamma_as = gamma_vs - gamma_as*copysign(1.0f,dot3(boundElement,q_aSigma));
 	return make_float2(gradGamma_as/slength, gamma_as);
 }
 
