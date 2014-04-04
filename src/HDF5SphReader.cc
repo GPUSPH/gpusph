@@ -27,7 +27,7 @@ HDF5SphReader::getNParts(const char *filename)
 	int		npart;
 
 	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
-	dataset_id = H5Dopen(loc_id, DATASETNAME, H5P_DEFAULT);
+	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
 	file_space_id = H5Dget_space(dataset_id);
 
 	ndim = H5Sget_simple_extent_ndims(file_space_id);
@@ -50,7 +50,7 @@ HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 	herr_t		status;
 
 	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
-	dataset_id = H5Dopen(loc_id, DATASETNAME, H5P_DEFAULT);
+	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
 
 	// Create the memory data type
 	mem_type_id = H5Tcreate (H5T_COMPOUND, sizeof(ReadParticles));
