@@ -289,7 +289,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
-				const float			sqdpo2,
+				const float			boundNlSqInflRad,
 				const Periodicity	periodicbound)
 {
 	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
@@ -337,7 +337,7 @@ buildNeibsList(	neibdata*			neibsList,
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, sqdpo2);
+			vertPos, boundNlSqInflRad);
 
 		BUILDNEIBS_SWITCH(true);
 
@@ -345,7 +345,7 @@ buildNeibsList(	neibdata*			neibsList,
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	} else {
 		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, sqdpo2);
+			vertPos, boundNlSqInflRad);
 
 		BUILDNEIBS_SWITCH(false);
 	}
