@@ -909,7 +909,7 @@ Gamma(	const	float	slength,
 		if (u > - epsilon && v > -epsilon && u+v < 1.0f+epsilon && skipedge1 == -1 && skipedge2 == -1) {
 			float openingAngle; // angle divided by 2 M_PI
 			// check if we are on top of a vertex
-			if (fabs(u-1.0f) < epsilon || fabs(v-1.0f) < epsilon || fabs(u+v-1.0f) < epsilon) {
+			if (fabs(u-1.0f) < epsilon || fabs(v-1.0f) < epsilon || fabs(u+v) < epsilon) {
 				// set touching vertex to v0
 				if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 					const float4 tmp = v1;
