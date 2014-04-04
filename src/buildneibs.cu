@@ -314,8 +314,6 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 #define BUILDNEIBS_CASE(use_sa, periodic) \
 	case periodic: \
@@ -361,8 +359,6 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellStartTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 }
 
 void

@@ -1545,11 +1545,6 @@ forcesDevice(
 			// only does something if SA_BOUNDARY
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
 
-			// Dividing by gamma
-			if (boundarytype == SA_BOUNDARY){
-				gGam.w = fmin(fmax(gGam.w, epsilon),1.0f);
-				force /= gGam.w;
-			}
 			// Adding gravity
 			as_float3(pout.force) += d_gravity;
 

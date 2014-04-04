@@ -631,28 +631,6 @@ neibsInCell(
 	// Substract gridOffset*cellsize to pos so we don't need to do it each time
 	// we compute relPos respect to potential neighbor
 	pos -= gridOffset*d_cellSize;
-	
-	// get vertex indices
-	vertexinfo vertices = make_vertexinfo(0, 0, 0, 0);
-	float4 boundElement = make_float4(0.0f);
-	uint j = 0;
-	float4 coord2 = make_float4(0.0f);
-	if (segment){
-		vertices = tex1Dfetch(vertTex, index);
-		boundElement = tex1Dfetch(boundTex, index);
-		// Get index j for which n_s is minimal
-		if (fabs(boundElement.x) > fabs(boundElement.y))
-			j = 1;
-		if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
-			j = 2;
-		// compute second coordinate which is equal to n_s x e_j
-		if (j==0)
-			coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
-		else if (j==1)
-			coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
-		else
-			coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
-	}
 
 	// Iterate over all particles in the cell
 	bool encode_cell = true;
