@@ -296,7 +296,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
 	// peer accessibility is checked and set in the initialization phase
-	if (gdata->devices > 1)
+	if (MULTI_GPU)
 		printDeviceAccessibilityTable();
 
 	return (initialized = true);
