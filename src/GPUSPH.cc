@@ -596,6 +596,10 @@ bool GPUSPH::runSimulation() {
 
 		bool finished = gdata->problem->finished(gdata->t);
 		bool need_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
+		if (gdata->save_request) {
+			need_write = true;
+			gdata->save_request = false;
+		}
 
 		if (need_write) {
 			// if we are about to quit, we want to save regardless --nosave option

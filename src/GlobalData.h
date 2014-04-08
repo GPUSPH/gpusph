@@ -240,6 +240,7 @@ struct GlobalData {
 	// simulation time control
 	bool keep_going;
 	bool quit_request;
+	bool save_request;
 	unsigned long iterations;
 	float t;
 	float dt;
@@ -298,6 +299,7 @@ struct GlobalData {
 		s_hPlanesDiv(NULL),
 		keep_going(true),
 		quit_request(false),
+		save_request(false),
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
