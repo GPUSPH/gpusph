@@ -303,13 +303,6 @@ void GPUWorker::computeCellBursts()
 		// we need the 3D coords as well
 		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
-		// find its cellStart and cellEnd
-		//uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
-		//uint peerCellEnd = gdata->s_dCellEnds[peerDevIndex][cell];
-
-		//gdata->RANK(gdata->s_hDeviceMap[cell]) == gdata->mpi_rank
-		//if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED && )
-
 		// reset the list for recipient neib processes
 		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
 			already_sent_to[d] = false;
@@ -351,12 +344,6 @@ void GPUWorker::computeCellBursts()
 					const bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
 					// is any of the two mine? if not, I will only manage closed bursts
 					const bool any_mine = (curr_mine || neib_mine);
-
-					///if (curr_cell_rank == neib_cell_rank)
-
-					// will be set in different way depending on the rank (mine, then local cellStarts, or not, then receive size via network)
-					//uint partsInCurrCell = 0;
-					//uint curr_cell_start;
 
 					// skip pairs belonging to the same device
 					if (curr_cell_gidx == neib_cell_gidx) continue;
