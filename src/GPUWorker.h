@@ -43,6 +43,9 @@
 // buffers and buffer lists
 #include "buffer.h"
 
+// Bursts handling
+#include "bursts.h"
+
 // In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
@@ -126,6 +129,9 @@ private:
 	uint*		m_hCompactDeviceMap;
 	uint*		m_dCompactDeviceMap;
 
+	// bursts of cells to be transferred
+	BurstList	m_bursts;
+
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
@@ -136,6 +142,13 @@ private:
 
 	// cuts all external particles
 	void dropExternalParticles();
+
+	// compute list of bursts
+	void computeCellBursts();
+	// iterate on the list and send/receive/read cell sizes
+	void transferBurstsSizes();
+	// iterate on the list and send/receive/read bursts of particles
+	void transferBursts();
 
 	// append or update the external cells of other devices in the device memory
 	void importPeerEdgeCells();
