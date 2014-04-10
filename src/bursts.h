@@ -32,7 +32,7 @@ typedef enum {SND, RCV} TransferDirection;
 
 typedef enum {NODE_SCOPE, NETWORK_SCOPE} TransferScope;
 
-typedef struct CellBurst {
+typedef struct {
 	uint firstCell;		// inclusive
 	uint lastCell;		// exclusive
 	TransferDirection direction;
