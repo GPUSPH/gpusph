@@ -391,7 +391,8 @@ void GPUWorker::computeCellBursts()
 								lin_curr_cell + 1,
 								transfer_direction,
 								transfer_scope,
-								other_device_gidx
+								other_device_gidx,
+								0, 0
 							};
 							// store (ovewrite, if was non-empty) its forthcoming index
 							burst_vector_index[other_device_gidx][transfer_direction] = m_bursts.size();
@@ -455,13 +456,22 @@ void GPUWorker::computeCellBursts()
 // iterate on the list and send/receive/read cell sizes
 void GPUWorker::transferBurstsSizes()
 {
-	uint minLinearCellIdx = 0xFFFFFFFF;
+	// first non-empty, received cell marks the beginning of the cell range to upload
+	bool rcvOneNonEmptyCell = false;
+	uint minLinearCellIdx = 0;
 	uint maxLinearCellIdx = 0;
+
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
 		// only transfer cell sizes to/from different nodes
 		if (!m_bursts[i].scope == NETWORK_SCOPE) continue;
+
+		// first non-empty cell in this burst marks the beginning of its particle range
+		bool anyNonEmptyCell = false;
+
+		// reset particle range
+		m_bursts[i].firstParticle = m_bursts[i].lastParticle = 0;
 
 		for (uint lin_cell = m_bursts[i].firstCell; lin_cell < m_bursts[i].lastCell; lin_cell++) {
 
@@ -490,10 +500,6 @@ void GPUWorker::transferBurstsSizes()
 					if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
 						gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
 
-					// update indices of cellStart range to upload on device
-					if (lin_cell < minLinearCellIdx) minLinearCellIdx = lin_cell;
-					if (lin_cell > maxLinearCellIdx) maxLinearCellIdx = lin_cell;
-
 					// update numParticles
 					m_numParticles += numPartsInCell;
 
@@ -501,14 +507,32 @@ void GPUWorker::transferBurstsSizes()
 					// just set the cell as empty
 					gdata->s_dCellStarts[m_deviceIndex][lin_cell] = EMPTY_CELL;
 
+				// Update indices of cell range to be uploaded to device. We only care about RCV, non empty cells
+				if (numPartsInCell > 0) {
+					if (!rcvOneNonEmptyCell) {
+						minLinearCellIdx = lin_cell;
+						rcvOneNonEmptyCell = true;
+					}
+					maxLinearCellIdx = lin_cell;
+				}
+
 			} // direction is RCV
+
+			// Update indices of particle ranges (SND and RCV) which will be used for burst transfers
+			if (numPartsInCell > 0) {
+				if (!anyNonEmptyCell) {
+					m_bursts[i].firstParticle = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
+					anyNonEmptyCell = true;
+				}
+				m_bursts[i].lastParticle = gdata->s_dCellEnds[m_deviceIndex][lin_cell];
+			}
 
 		} // iterate on cells of the current burst
 
 	} // iterate on bursts
 
 	// update device cellStarts/Ends, if any cell needs update
-	if (minLinearCellIdx != 0xFFFFFFFF) {
+	if (rcvOneNonEmptyCell) {
 		// maxLinearCellIdx is inclusive, so remember to add 1
 		const uint numCells = maxLinearCellIdx - minLinearCellIdx + 1;
 		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + minLinearCellIdx),
@@ -532,19 +556,8 @@ void GPUWorker::transferBursts()
 		// only transfer cell sizes to/from different nodes
 		if (!m_bursts[i].scope == NETWORK_SCOPE) continue;
 
-		uint numPartsInBurst = 0;
-		uint startParticleIndex = 0;
-		bool firstNonEmptyCellEncountered = false;
-
-		for (uint lin_cell = m_bursts[i].firstCell; lin_cell < m_bursts[i].lastCell; lin_cell++) {
-
-			if (gdata->s_dCellStarts[m_deviceIndex][lin_cell] != EMPTY_CELL) {
-				numPartsInBurst += gdata->s_dCellEnds[m_deviceIndex][lin_cell] - gdata->s_dCellStarts[m_deviceIndex][lin_cell];
-				if (!firstNonEmptyCellEncountered)
-					startParticleIndex = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
-				firstNonEmptyCellEncountered = true;
-			}
-		} // iterate on cells of the current burst
+		const uint numPartsInBurst = m_bursts[i].lastParticle - m_bursts[i].firstParticle;
+		const uint startParticleIndex = m_bursts[i].firstParticle;
 
 		// abstract from self / other
 		const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);

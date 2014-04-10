@@ -38,6 +38,8 @@ typedef struct CellBurst {
 	TransferDirection direction;
 	TransferScope scope;
 	uchar peer_gidx;	// global device index of sending/receiving peer
+	uint firstParticle; // help caching the particle indices, which change after every bneeibs
+	uint lastParticle;
 } CellBurst;
 
 typedef std::vector<CellBurst> BurstList;
