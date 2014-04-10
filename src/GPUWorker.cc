@@ -455,6 +455,8 @@ void GPUWorker::computeCellBursts()
 // iterate on the list and send/receive/read cell sizes
 void GPUWorker::transferBurstsSizes()
 {
+	uint minLinearCellIdx = 0xFFFFFFFF;
+	uint maxLinearCellIdx = 0;
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
@@ -488,6 +490,10 @@ void GPUWorker::transferBurstsSizes()
 					if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
 						gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
 
+					// update indices of cellStart range to upload on device
+					if (lin_cell < minLinearCellIdx) minLinearCellIdx = lin_cell;
+					if (lin_cell > maxLinearCellIdx) maxLinearCellIdx = lin_cell;
+
 					// update numParticles
 					m_numParticles += numPartsInCell;
 
@@ -501,11 +507,17 @@ void GPUWorker::transferBurstsSizes()
 
 	} // iterate on bursts
 
-	// update device cellStarts/Ends
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + 0), (gdata->s_dCellStarts[m_deviceIndex] + 0),
-		sizeof(uint) * gdata->nGridCells, cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + 0), (gdata->s_dCellEnds[m_deviceIndex] + 0),
-		sizeof(uint) * gdata->nGridCells, cudaMemcpyHostToDevice));
+	// update device cellStarts/Ends, if any cell needs update
+	if (minLinearCellIdx != 0xFFFFFFFF) {
+		// maxLinearCellIdx is inclusive, so remember to add 1
+		const uint numCells = maxLinearCellIdx - minLinearCellIdx + 1;
+		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + minLinearCellIdx),
+											(gdata->s_dCellStarts[m_deviceIndex] + minLinearCellIdx),
+											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
+		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + minLinearCellIdx),
+											(gdata->s_dCellEnds[m_deviceIndex] + minLinearCellIdx),
+											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
+	}
 }
 
 // iterate on the list and send/receive bursts of particles across different nodes
