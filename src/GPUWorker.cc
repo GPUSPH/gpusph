@@ -270,18 +270,15 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 // Compute list of bursts. Currently computes both scopes, but only network scope is used
 void GPUWorker::computeCellBursts()
 {
-	// We want to send the current cell to the neigbor processes only once. To this aim, we keep a list of recipient
-	// ranks who already received the current cell. The list is reset before iterating on all the neighbor cells
-	bool already_sent_to[MAX_DEVICES_PER_CLUSTER];
-
 	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device
 	// and for each direction. The following can be considered a list of pointers to open bursts in the m_bursts vector.
 	// When a pointer is negative, there is no open bursts with the specified peer:direction pair.
 	int burst_vector_index[MAX_DEVICES_PER_CLUSTER][2];
 
-	// Auxiliary macros. Note that closing a burst means dropping the associated pointer index
+	// Auxiliary macros. Use with parentheses when possibile
 #define BURST_IS_EMPTY(peer, direction) \
 	(burst_vector_index[peer][direction] == -1)
+	// closing a burst means dropping the associated pointer index
 #define CLOSE_BURST(peer, direction) \
 	burst_vector_index[peer][direction] = -1;
 
@@ -296,16 +293,22 @@ void GPUWorker::computeCellBursts()
 	// iterate on all cells
 	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
+		// We want to send the current cell to the neigbor processes only once, but multiple neib cells could
+		// belong the the same process. Therefore we keep a list of recipient gidx who already received the
+		// current cell. We will also use this list as a "recipient list", esp. to check which bursts need to
+		// be closed. The list is reset for every cell, before iterating the neighbors.
+		bool neighboring_device[MAX_DEVICES_PER_CLUSTER];
+
+		// reset the lists of recipient neighbors
+		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
+			neighboring_device[d] = false;
+
 		// NOTE: we must not skip cells that are non-edge for self
 		//if (m_hCompactDeviceMap[cell] == CELLTYPE_INNER_CELL_SHIFTED) return;
 		//if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_CELL_SHIFTED) return;
 
 		// we need the 3D coords as well
 		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
-
-		// reset the list for recipient neib processes
-		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
-			already_sent_to[d] = false;
 
 		// find the owner
 		const uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
@@ -335,6 +338,11 @@ void GPUWorker::computeCellBursts()
 					if (coords_curr_cell.y + dy < 0 || coords_curr_cell.y + dy >= gdata->gridSize.y) continue;
 					if (coords_curr_cell.z + dz < 0 || coords_curr_cell.z + dz >= gdata->gridSize.z) continue;
 
+					// NOTE: we could skip empty cells if all the nodes in the network knew the content of all the cells.
+					// Instead, each process only knows the empty cells of its workers, so empty cells still break bursts
+					// as if they weren't empty. One could check the performances with broadcasting all-to-all the empty
+					// cells (possibly in bursts).
+
 					// now compute the linearized hash of the neib cell and other properties
 					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
 					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
@@ -348,11 +356,11 @@ void GPUWorker::computeCellBursts()
 					// skip pairs belonging to the same device
 					if (curr_cell_gidx == neib_cell_gidx) continue;
 
-					// did we already treat the pair current_cell:neib_node? (e.g. previously due to another neib cell)
-					if (already_sent_to[ neib_cell_gidx ]) continue;
+					// did we already treat the pair current_cell:neib_node? (i.e. previously, due to another neib cell)
+					if (neighboring_device[ neib_cell_gidx ]) continue;
 
-					// mark the pair current_cell:neib_node as treated
-					already_sent_to[ neib_cell_gidx ] = true;
+					// mark the pair current_cell:neib_node as treated (aka: include the device in the recipient "list")
+					neighboring_device[ neib_cell_gidx ] = true;
 
 					// sending or receiving?
 					const TransferDirection transfer_direction = ( curr_mine ? SND : RCV );
@@ -391,41 +399,49 @@ void GPUWorker::computeCellBursts()
 						}
 					}
 
-					/* We could skip empty cells but we do not know the content of the cells here (and it potentially
-					 * changes after every buildneibs. So we have to close all bursts which have the curr_cell_gidx as
-					 * sender: sender closes all the other, others close one with curr sender.
-					 * Moreover, until cellStart and cellEnd are computed immediately upon reception of the size of the cell,
-					 * and not when flushing a burst, we also have to close all buffers which have the neib device
-					 * as recipient.
-					 * So, summarizing, now we want to close:
-					 * - All bursts originating from curr_cell_gidx, except the current to neib_cell_gidx, in all nodes
-					 * - All bursts addressed to neib_cell_gidx, except the current from curr_cell_gidx, in all nodes
-					 * TODO FIXME: we should first list the neighbors of the current cell, then close the bursts with
-					 * devices not in the list! The current implementation only keeps the burst with the first encountered
-					 * device!
+					/* NOTES on burst breaking conditions
+					 *
+					 * A cell which needs to be sent from a node N1, device D1 to a node N2, device D2 will break:
+					 * 1. All bursts in any node with recipient D2 (except of course the current from D1): that is because
+					 *    burst are imported as series of consecutive cells and would be broken by current.
+					 * 2. All bursts originating from D1 to any recipient that is not among the neighbors of the cell:
+					 *    any device which is not neighboring the current cell will not expect to receive it.
+					 * The former will be true while cellStart and cellEnd are computed immediately upon reception of the
+					 * size of the cell. One could instead compute them only after having received all the cell sizes, thus
+					 * compacting more bursts and also optimizing out empty cells.
+					 * Condition nr. 1 is checked here while nr. 2 is checked immediately after the iteration on neighbor
+					 * cells.
 					 */
-					if (curr_mine) {
-						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
-							if (n != neib_cell_gidx && !BURST_IS_EMPTY(n,SND)) {
-								CLOSE_BURST(n,SND)
-							}
-					} else {
-						if (neib_mine) {
-							for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
-								if (n != curr_cell_gidx && !BURST_IS_EMPTY(n,RCV)) {
-									CLOSE_BURST(n,RCV)
-								}
-						} else  {
-							if (!BURST_IS_EMPTY(curr_cell_gidx,RCV)) {
-								CLOSE_BURST(curr_cell_gidx,RCV)
-							}
-							if (!BURST_IS_EMPTY(neib_cell_gidx,SND)) {
-								CLOSE_BURST(neib_cell_gidx,SND)
-							}
+
+					// Checking condition nr. 1 (see comment before)
+					if (!any_mine) {
+						// I am not the sender nor the recipient; close all bursts SND to the receiver
+						if (!BURST_IS_EMPTY(neib_cell_gidx,SND)) {
+							CLOSE_BURST(neib_cell_gidx,SND)
 						}
-					} // !curr_mine
+					} else
+					if (neib_mine) {
+						// I am the recipient device: close all other RCV bursts
+						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+							if (n != curr_cell_gidx && !BURST_IS_EMPTY(n,RCV)) {
+								CLOSE_BURST(n,RCV)
+							}
+					}
 
 				} // iterate on neibs of current cells
+
+		// Checking condition nr. 2 (see comment before)
+		for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
+			// I am the sender; let's close all bursts directed to devices which are not recipients of curr cell
+			if (curr_mine && !neighboring_device[n] && !BURST_IS_EMPTY(n,SND)) {
+				CLOSE_BURST(n,SND)
+			}
+			// I am not among th recipients and I have an open burst from curr; let's close it
+			if (!neighboring_device[m_globalDeviceIdx] && !BURST_IS_EMPTY(curr_cell_gidx,RCV)) {
+				CLOSE_BURST(curr_cell_gidx,RCV)
+			}
+		}
+
 	} // iterate on cells
 
 	printf("Data transfers compacted in %u bursts\n", m_bursts.size());
