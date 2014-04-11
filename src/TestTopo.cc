@@ -110,8 +110,7 @@ TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
-	m_writefreq = 0;
-	m_screenshotfreq = 10;
+	m_writefreq = 100;
 
 	// Name of problem used for directory creation
 	m_name = "TestTopo";
