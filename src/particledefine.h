@@ -228,6 +228,7 @@ enum ParticleType {
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 
 #define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
+#define FIXED_PARTICLE_FLAG		(PART_FLAG_START<<1)
 
 
 /* A bitmask to select only the fluid number */
@@ -271,6 +272,8 @@ disable_particle(float4 &pos) {
 /* Tests for particle flags */
 // Free surface detection
 #define SURFACE(f)		(type(f) & SURFACE_PARTICLE_FLAG)
+// Fixed particle (e.g. Dalrymple's dynamic bounary particles)
+#define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data
