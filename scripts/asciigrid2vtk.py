@@ -29,6 +29,10 @@ vts = None
 
 md = {}
 
+# ASCII GRID stores lines north to south, but in the VTK we want them south
+# to north, so we load them all and then write them in reverse order
+datalines = []
+
 for line in grid:
     if string.find(line, ': ') >= 0:
         key, val = string.split(line, ': ', 2)
@@ -48,5 +52,8 @@ for line in grid:
             vts.write("SPACING {0} {0} {0}\n".format(resolution))
             vts.write("POINT_DATA {0}\n".format(md['rows']*md['cols']))
             vts.write("SCALARS Height float 1\nLOOKUP_TABLE default\n")
-        vts.write(line)
+        datalines.append(line)
 
+datalines.reverse()
+for line in datalines:
+    vts.write(line)
