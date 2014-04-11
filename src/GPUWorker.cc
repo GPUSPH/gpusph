@@ -1725,8 +1725,16 @@ void GPUWorker::kernel_calcHash()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
+	hashKey* _particleHashDPointer = m_dBuffers.getData<BUFFER_HASH>();
+
+	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles might be lost
+	// (if a GPU computes a different hash and does not recognize the particles as "own"). We tell this
+	// by passing a NULL particleHash pointer.
+	if (MULTI_DEVICE && gdata->iterations == 0)
+		_particleHashDPointer = NULL;
+
 	calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_HASH>(),
+				_particleHashDPointer,
 				m_dBuffers.getData<BUFFER_PARTINDEX>(),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 #if HASH_KEY_SIZE >= 64

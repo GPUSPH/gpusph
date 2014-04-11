@@ -177,8 +177,9 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	float4 pos = posArray[index];
 	const particleinfo info = particelInfo[index];
 
-	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
-	if (FLUID(info) || (type(info) & MOVINGNOTFLUID)) {
+	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries).
+	// Also, if particleHash is NULL we just want to set particleIndex (see comment in GPUWorker::kernel_calcHash())
+	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID)) && particleHash) {
 	//if (true) {
 		// Getting the old grid hash
 		uint gridHash = cellHashFromParticleHash( particleHash[index] );
