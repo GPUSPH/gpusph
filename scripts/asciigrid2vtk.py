@@ -46,10 +46,11 @@ for line in grid:
             vts.write("ASCII\nDATASET STRUCTURED_POINTS\n")
             vts.write("DIMENSIONS {cols} {rows} 1\n".format(**md))
             vts.write("ORIGIN {west} {south} 0\n".format(**md))
-            resolution = min(
+            resolution = [
                 (md['east']-md['west'])/md['cols'],
-                (md['north'] - md['south'])/md['rows'])
-            vts.write("SPACING {0} {0} {0}\n".format(resolution))
+                (md['north'] - md['south'])/md['rows'],
+                1]
+            vts.write("SPACING {0} {1} {2}\n".format(*resolution))
             vts.write("POINT_DATA {0}\n".format(md['rows']*md['cols']))
             vts.write("SCALARS Height float 1\nLOOKUP_TABLE default\n")
         datalines.append(line)
