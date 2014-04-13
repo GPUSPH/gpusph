@@ -144,6 +144,10 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 	j += parts.size();
 
 	std::cout << "Fluid part mass: " << pos[j-1].w << std::endl;
+
+	float flowvel = H*H*fabs(m_physparams.gravity.x)/(8*m_physparams.kinematicvisc);
+	cout << "Expected maximum flow velocity: " << flowvel << endl;
+
 	std::flush(std::cout);
 }
 
