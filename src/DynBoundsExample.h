@@ -33,6 +33,7 @@ class DynBoundsExample: public Problem
 	PointVect	parts;
 	PointVect	boundary_parts;
 	float	H; // still water level
+	float	W; // 2D cell side
 	float	w; // boundary thickness
 	float	alpha; // slope angle
 

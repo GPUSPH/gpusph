@@ -42,23 +42,24 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 {
 	m_writerType = VTKWRITER;
 
-	H = 1; // still water height
+	W = 1; // 2D cell side
+	H = 2*W; // still water height
 
-	set_deltap(H/32);
+	set_deltap(W/64);
 
 	w = m_deltap*4;
 
-	m_size = make_double3(H, H, H + 2*w);
+	m_size = make_double3(W, W, H + 2*w);
 	m_origin = -m_size/2;
 
 	m_simparams.mlsfreq = 0;
-	m_simparams.tend = 20;
+	m_simparams.tend = 2;
 
 	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.periodicbound = PERIODIC_XY;
 
 	/* slope */
-	float degs = 20; /* degrees */
+	float degs = 60; /* degrees */
 	alpha = M_PI*degs/180; /* radians */
 
 	float g = 9.81f;
@@ -69,10 +70,10 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.set_density(0, 1, 7, 10*maxvel);
 
 	m_physparams.r0 = m_deltap/2;
-	m_physparams.kinematicvisc = 1;
+	m_physparams.kinematicvisc = 120;
 
 	m_displayinterval = 1.0e-4;
-	m_writefreq = 1000;
+	m_writefreq = 100;
 
 	m_name = "DynBoundsExample";
 }
@@ -95,14 +96,14 @@ DynBoundsExample::fill_parts(void)
 	float r0 = m_deltap/2;
 
 	Cube fluid = Cube(m_origin + make_double3(0, 0, w),
-		Vector(H, 0, 0), Vector(0, H, 0), Vector(0, 0, H));
+		Vector(W, 0, 0), Vector(0, W, 0), Vector(0, 0, H));
 	fluid.InnerFill(parts, m_deltap);
 
-	Cube *bp = new Cube(m_origin, Vector(H, 0, 0), Vector(0, H, 0), Vector(0, 0, w));
+	Cube *bp = new Cube(m_origin, Vector(W, 0, 0), Vector(0, W, 0), Vector(0, 0, w));
 	bp->InnerFill(boundary_parts, m_deltap);
 	delete bp;
 	bp = new Cube(m_origin + make_double3(0, 0, H + w),
-		Vector(H, 0, 0), Vector(0, H, 0), Vector(0, 0, w));
+		Vector(W, 0, 0), Vector(0, W, 0), Vector(0, 0, w));
 	bp->InnerFill(boundary_parts, m_deltap);
 	delete bp;
 
