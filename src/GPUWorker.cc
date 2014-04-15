@@ -275,6 +275,9 @@ void GPUWorker::computeCellBursts()
 	// When a pointer is negative, there is no open bursts with the specified peer:direction pair.
 	int burst_vector_index[MAX_DEVICES_PER_CLUSTER][2];
 
+	uint network_bursts = 0;
+	uint node_bursts = 0;
+
 	// Auxiliary macros. Use with parentheses when possibile
 #define BURST_IS_EMPTY(peer, direction) \
 	(burst_vector_index[peer][direction] == -1)
@@ -400,6 +403,12 @@ void GPUWorker::computeCellBursts()
 							// NOTE: we should not keep the structure and append it to vector later, or bursts
 							// could result in a sorting which can cause a deadlock (e.g. all devices try to
 							// send before receiving)
+
+							// update counters
+							if (transfer_scope == NODE_SCOPE)
+								node_bursts++;
+							else
+								network_bursts++;
 						}
 					}
 
@@ -448,7 +457,7 @@ void GPUWorker::computeCellBursts()
 
 	} // iterate on cells
 
-	printf("Data transfers compacted in %u bursts\n", m_bursts.size());
+	printf("Data transfers compacted in %u bursts [%u node + %u network]\n", m_bursts.size(), node_bursts, network_bursts);
 	/*
 	for (uint i = 0; i < m_bursts.size(); i++) {
 		printf("  Burst %u: cells (%u...%u), peer %u, dir %s, scope %u\n",
