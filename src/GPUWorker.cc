@@ -679,14 +679,14 @@ void GPUWorker::transferBursts()
 
 // Import the external edge cells of other devices to the self device arrays. Can append the cells at the end of the current
 // list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
-// command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
-// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info, forces and tau; for the
-// double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
-// for the non-buffered arrays (e.g. forces).
-// The data is transferred in bursts of consecutive cells when possible. Transfers are actually D2D if peer access is enabled.
-void GPUWorker::importPeerEdgeCells()
+// GlobalData::nextCommand. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments
+// (host only). The arrays to be imported must be specified in the command flags. If double buffered arrays are included, it
+// is mandatory to specify also the buffer to be used (read or write). This information is ignored for non-buffered ones (e.g.
+// forces).
+// The data is transferred in bursts of consecutive cells when possible. Intra-node transfers are D2D if peer access is enabled,
+// staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
+void GPUWorker::importExternalCells()
 {
-
 	if (gdata->nextCommand == APPEND_EXTERNAL)
 		transferBurstsSizes();
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
@@ -694,24 +694,11 @@ void GPUWorker::importPeerEdgeCells()
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
 	// transfers to be complete.
-	cudaDeviceSynchronize();
-}
+	if (MULTI_GPU)
+		cudaDeviceSynchronize();
 
-// Import the external edge cells of other nodes to the self device arrays. Can append the cells at the end of the current
-// list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
-// command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
-// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info, forces and tau; for the
-// double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
-// for the non-buffered arrays (e.g. forces).
-// The data is transferred in bursts of consecutive cells when possible.
-void GPUWorker::importNetworkPeerEdgeCells()
-{
-	if (gdata->nextCommand == APPEND_EXTERNAL)
-		transferBurstsSizes();
-	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
-		transferBursts();
-
-	// remember to sync here the MPI transfers when (if) we'll switch to non-blocking MPI transfers
+	// here will  sync the MPI transfers when (if) we'll switch to non-blocking calls
+	// if (MULTI_NODE)...
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
@@ -1401,17 +1388,11 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case APPEND_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
-				if (MULTI_GPU)
-					instance->importPeerEdgeCells();
-				if (MULTI_NODE)
-					instance->importNetworkPeerEdgeCells();
+				instance->importExternalCells();
 				break;
 			case UPDATE_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
-				if (MULTI_GPU)
-					instance->importPeerEdgeCells();
-				if (MULTI_NODE)
-					instance->importNetworkPeerEdgeCells();
+				instance->importExternalCells();
 				break;
 			case MLS:
 				if (dbg_step_printf) printf(" T %d issuing MLS\n", deviceIndex);

@@ -151,9 +151,7 @@ private:
 	void transferBursts();
 
 	// append or update the external cells of other devices in the device memory
-	void importPeerEdgeCells();
-	// MPI versions of the previous method
-	void importNetworkPeerEdgeCells();
+	void importExternalCells();
 	// aux methods for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
