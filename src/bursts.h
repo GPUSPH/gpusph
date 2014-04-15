@@ -40,6 +40,7 @@ typedef struct {
 	uchar peer_gidx;	// global device index of sending/receiving peer
 	uint firstParticle; // help caching the particle indices, which change after every bneeibs
 	uint lastParticle;
+	uint firstPeerParticle; // cache peer particle index for intra-node transfers
 } CellBurst;
 
 typedef std::vector<CellBurst> BurstList;

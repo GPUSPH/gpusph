@@ -488,10 +488,12 @@ void GPUWorker::transferBurstsSizes()
 
 		// reset particle range
 		m_bursts[i].firstParticle = m_bursts[i].lastParticle = 0;
+		m_bursts[i].firstPeerParticle = 0;
 
 		for (uint lin_cell = m_bursts[i].firstCell; lin_cell < m_bursts[i].lastCell; lin_cell++) {
 
 			uint numPartsInCell = 0;
+			uchar peerDeviceIndex = gdata->DEVICE(m_bursts[i].peer_gidx);
 
 			// if direction is SND, scope can only be NETWORK
 			if (m_bursts[i].direction == SND) {
@@ -509,7 +511,6 @@ void GPUWorker::transferBurstsSizes()
 				if (m_bursts[i].scope == NETWORK_SCOPE)
 					gdata->networkManager->receiveUint(m_bursts[i].peer_gidx, m_globalDeviceIdx, &numPartsInCell);
 				else {
-					uchar peerDeviceIndex = gdata->DEVICE(m_bursts[i].peer_gidx);
 					if (gdata->s_dCellStarts[peerDeviceIndex][lin_cell] != EMPTY_CELL)
 						numPartsInCell = gdata->s_dCellEnds[peerDeviceIndex][lin_cell] -
 							gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
@@ -547,6 +548,7 @@ void GPUWorker::transferBurstsSizes()
 			if (numPartsInCell > 0) {
 				if (!receivedOneNonEmptyCellInBurst) {
 					m_bursts[i].firstParticle = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
+					m_bursts[i].firstPeerParticle = gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
 					receivedOneNonEmptyCellInBurst = true;
 				}
 				m_bursts[i].lastParticle = gdata->s_dCellEnds[m_deviceIndex][lin_cell];
@@ -630,13 +632,11 @@ void GPUWorker::transferBursts()
 
 				// retrieve peer's indices, if intra-node
 				const AbstractBuffer *peerbuf = NULL;
-				uint peerFirstParticle = 0;
 				uchar peerCudaDevNum = 0;
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
 					peerCudaDevNum = gdata->device[peerDevIdx];
-					peerFirstParticle = gdata->s_dCellStarts[peerDevIdx][m_bursts[i].firstCell];
 				}
 
 				// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
@@ -644,7 +644,7 @@ void GPUWorker::transferBursts()
 					void *ptr = buf->get_offset_buffer(dbl_buf_idx, startParticleIndex);
 					if (m_bursts[i].scope == NODE_SCOPE) {
 						// node scope: just read it
-						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, peerFirstParticle);
+						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].firstPeerParticle);
 						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 					} else {
 						// network scope: SND/RCV
@@ -660,7 +660,7 @@ void GPUWorker::transferBursts()
 						void *ptr = buf->get_offset_buffer(ai, startParticleIndex);
 						if (m_bursts[i].scope == NODE_SCOPE) {
 							// node scope: just read it
-							const void *peerptr = peerbuf->get_offset_buffer(ai, peerFirstParticle);
+							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].firstPeerParticle);
 							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 						} else {
 							// network scope: SND/RCV
