@@ -317,27 +317,15 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-#if HASH_KEY_SIZE >= 64
 			cellStart[cellHash & CELLTYPE_BITMASK] = index;
-#else
-			cellStart[cellHash] = index;
-#endif
 			// If it isn't the first particle, it must also be the end of the previous cell
 			if (index > 0)
-#if HASH_KEY_SIZE >= 64
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
-#else
-				cellEnd[sharedHash[threadIdx.x]] = index;
-#endif
 		}
 
 		if (index == numParticles - 1) {
 			// ditto
-#if HASH_KEY_SIZE >= 64
 			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
-#else
-			cellEnd[cellHash] = index + 1;
-#endif
 		}
 
 #if HASH_KEY_SIZE >= 64
