@@ -77,9 +77,7 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
-#if HASH_KEY_SIZE >= 64
 		 uint*		compactDeviceMap,
-#endif
 		 const uint		numParticles,
 		 const Periodicity	periodicbound);
 

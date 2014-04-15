@@ -163,9 +163,7 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 			   hashKey*			particleHash,	///< particle's hashes (in, out)
 			   uint*			particleIndex,	///< particle's indexes (out)
 			   const particleinfo*	particelInfo,	///< particle's informations (in)
-#if HASH_KEY_SIZE >= 64
-			   uint			*compactDeviceMap,
-#endif
+			   uint				*compactDeviceMap,
 			   const uint		numParticles)	///< total number of particles
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -195,12 +193,11 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		bool toofar = false;
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
-#if HASH_KEY_SIZE >= 64
+
 		// mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
 		if (compactDeviceMap)
 			gridHash |= compactDeviceMap[gridHash];
-#endif
 
 		// Adjust position
 		as_float3(pos) -= gridOffset*d_cellSize;

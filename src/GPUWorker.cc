@@ -1503,9 +1503,7 @@ void GPUWorker::kernel_calcHash()
 				_particleHashDPointer,
 				m_dBuffers.getData<BUFFER_PARTINDEX>(),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-#if HASH_KEY_SIZE >= 64
 				m_dCompactDeviceMap,
-#endif
 				m_numParticles,
 				m_simparams->periodicbound);
 }

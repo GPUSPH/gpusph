@@ -85,9 +85,7 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
-#if HASH_KEY_SIZE >= 64
 		 uint*		compactDeviceMap,
-#endif
 		 const uint		numParticles,
 		 const Periodicity	periodicbound)
 {
@@ -97,74 +95,42 @@ calcHash(float4*	pos,
 	switch (periodicbound) {
 		case PERIODIC_NONE:
 			cuneibs::calcHashDevice<PERIODIC_NONE><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_X:
 			cuneibs::calcHashDevice<PERIODIC_X><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_Y:
 			cuneibs::calcHashDevice<PERIODIC_Y><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_XY:
 			cuneibs::calcHashDevice<PERIODIC_XY><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_Z:
 			cuneibs::calcHashDevice<PERIODIC_Z><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_XZ:
 			cuneibs::calcHashDevice<PERIODIC_XZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_YZ:
 			cuneibs::calcHashDevice<PERIODIC_YZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_XYZ:
 			cuneibs::calcHashDevice<PERIODIC_XYZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		default:
