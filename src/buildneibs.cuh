@@ -90,9 +90,7 @@ inverseParticleIndex (	uint*	particleIndex,
 
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
-#if HASH_KEY_SIZE >= 64
-									uint*			segmentStart,
-#endif
+									uint*				segmentStart,
 									float4*				newPos,				// output: sorted positions
 									float4*				newVel,				// output: sorted velocities
 									particleinfo*		newInfo,			// output: sorted info

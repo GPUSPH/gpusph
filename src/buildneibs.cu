@@ -191,9 +191,7 @@ inverseParticleIndex (	uint*	particleIndex,
 
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
-#if HASH_KEY_SIZE >= 64
-									uint*			segmentStart,
-#endif
+									uint*				segmentStart,
 									float4*				newPos,				// output: sorted positions
 									float4*				newVel,				// output: sorted velocities
 									particleinfo*		newInfo,			// output: sorted info
@@ -245,10 +243,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
-	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd,
-#if HASH_KEY_SIZE >= 64
-													segmentStart,
-#endif
+	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
 												particleHash, particleIndex, numParticles, inversedParticleIndex);
 

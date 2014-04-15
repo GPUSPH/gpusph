@@ -70,6 +70,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	m_dCompactDeviceMap = NULL;
 	m_hCompactDeviceMap = NULL;
+	m_dSegmentStart = NULL;
 
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
@@ -771,12 +772,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		// initialize anyway for single-GPU simulations
 		CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
 		allocated += uintCellsSize;
-	}
 
-	CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
-	// ditto
-	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
-	allocated += segmentsSize;
+		// alloc segment only if not single_device
+		CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
+		allocated += segmentsSize;
+	}
 
 	if (m_simparams->numODEbodies) {
 		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
@@ -847,9 +848,10 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 
-	if (MULTI_DEVICE)
+	if (MULTI_DEVICE) {
 		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
-	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+	}
 
 	if (m_simparams->numODEbodies) {
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
@@ -1543,9 +1545,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
-#if HASH_KEY_SIZE >= 64
 							m_dSegmentStart,
-#endif
 							// output: sorted arrays
 							m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 							m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),

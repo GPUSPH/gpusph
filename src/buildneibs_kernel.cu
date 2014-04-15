@@ -257,9 +257,7 @@ __global__
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells first particle (out)
 										uint*			cellEnd,		///< index of cells last particle (out)
-#if HASH_KEY_SIZE >= 64
 										uint*			segmentStart,
-#endif
 										float4*			sortedPos,		///< new sorted particle's positions (out)
 										float4*			sortedVel,		///< new sorted particle's velocities (out)
 										particleinfo*	sortedInfo,		///< new sorted particle's informations (out)
@@ -279,10 +277,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-#if HASH_KEY_SIZE >= 64
 	// initialize segmentStarts
-	if (index < 4) segmentStart[index] = EMPTY_SEGMENT;
-#endif
+	if (segmentStart && index < 4) segmentStart[index] = EMPTY_SEGMENT;
 
 	uint cellHash;
 	// Handle the case when number of particles is not multiple of block size
@@ -328,13 +324,13 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
 		}
 
-#if HASH_KEY_SIZE >= 64
-		// if hashKey is 64bits long, also find the segment start
-		uchar curr_type = cellHash >> 30;
-		uchar prev_type = sharedHash[threadIdx.x] >> 30;
-		if (index == 0 || curr_type != prev_type)
-			segmentStart[curr_type] = index;
-#endif
+		if (segmentStart) {
+			// if segment start is given, hash key size is 64 and we detect the segments
+			uchar curr_type = cellHash >> 30;
+			uchar prev_type = sharedHash[threadIdx.x] >> 30;
+			if (index == 0 || curr_type != prev_type)
+				segmentStart[curr_type] = index;
+		}
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
