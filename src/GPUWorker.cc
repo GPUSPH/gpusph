@@ -576,9 +576,6 @@ void GPUWorker::transferBursts()
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
-		// only transfer cell sizes to/from different nodes
-		if (!m_bursts[i].scope == NETWORK_SCOPE) continue;
-
 		const uint numPartsInBurst = m_bursts[i].lastParticle - m_bursts[i].firstParticle;
 		const uint startParticleIndex = m_bursts[i].firstParticle;
 
@@ -629,22 +626,47 @@ void GPUWorker::transferBursts()
 
 				const unsigned int _size = numPartsInBurst * buf->get_element_size();
 
+				// retrieve peer's indices, if intra-node
+				const AbstractBuffer *peerbuf = NULL;
+				uint peerFirstParticle = 0;
+				uchar peerCudaDevNum = 0;
+				if (m_bursts[i].scope == NODE_SCOPE) {
+					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
+					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
+					peerCudaDevNum = gdata->device[peerDevIdx];
+					peerFirstParticle = gdata->s_dCellStarts[peerDevIdx][m_bursts[i].firstCell];
+				}
+
 				// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
 				if (bufkey != BUFFER_BIG) {
 					void *ptr = buf->get_offset_buffer(dbl_buf_idx, startParticleIndex);
-					if (m_bursts[i].direction == SND)
-						gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-					else
-						gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					if (m_bursts[i].scope == NODE_SCOPE) {
+						// node scope: just read it
+						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, peerFirstParticle);
+						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+					} else {
+						// network scope: SND/RCV
+						if (m_bursts[i].direction == SND)
+							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+						else
+							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					}
 				} else {
 					// generic, so that it can work for other buffers like TAU, if they are ever
 					// introduced; just fix the conditional
 					for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
 						void *ptr = buf->get_offset_buffer(ai, startParticleIndex);
-						if (m_bursts[i].direction == SND)
-							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-						else
-							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+						if (m_bursts[i].scope == NODE_SCOPE) {
+							// node scope: just read it
+							const void *peerptr = peerbuf->get_offset_buffer(ai, peerFirstParticle);
+							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+						} else {
+							// network scope: SND/RCV
+							if (m_bursts[i].direction == SND)
+								gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+							else
+								gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+						}
 					}
 				}
 			} // for each buffer type
