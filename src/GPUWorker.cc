@@ -241,7 +241,7 @@ void GPUWorker::dropExternalParticles()
 
 // Start an async inter-device transfer. This will be actually P2P if device can access peer memory
 // (actually, since it is currently used only to import data from other devices, the dstDevice could be omitted or implicit)
-void GPUWorker::peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count)
+void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int srcDevice, size_t count)
 {
 	if (m_disableP2Ptranfers) {
 		// reallocate if necessary
