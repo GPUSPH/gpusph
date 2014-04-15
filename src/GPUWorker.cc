@@ -480,9 +480,6 @@ void GPUWorker::transferBurstsSizes()
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
-		// only transfer cell sizes to/from different nodes
-		if (!m_bursts[i].scope == NETWORK_SCOPE) continue;
-
 		// first non-empty cell in this burst marks the beginning of its particle range
 		bool anyNonEmptyCell = false;
 
@@ -493,6 +490,7 @@ void GPUWorker::transferBurstsSizes()
 
 			uint numPartsInCell = 0;
 
+			// if direction is SND, scope can only be NETWORK
 			if (m_bursts[i].direction == SND) {
 
 				// compute cell size
@@ -503,9 +501,18 @@ void GPUWorker::transferBurstsSizes()
 
 			} else {
 
-				// receive cell size
-				gdata->networkManager->receiveUint(m_bursts[i].peer_gidx, m_globalDeviceIdx, &numPartsInCell);
-				// append it
+				// If the direction is RCV, the scope can be NODE or NETWORK. In the former case, read the
+				// cell content from the shared cellStarts; in the latter, receive if from the node
+				if (m_bursts[i].scope == NETWORK_SCOPE)
+					gdata->networkManager->receiveUint(m_bursts[i].peer_gidx, m_globalDeviceIdx, &numPartsInCell);
+				else {
+					uchar peerDeviceIndex = gdata->DEVICE(m_bursts[i].peer_gidx);
+					if (gdata->s_dCellStarts[peerDeviceIndex][lin_cell] != EMPTY_CELL)
+						numPartsInCell = gdata->s_dCellEnds[peerDeviceIndex][lin_cell] -
+							gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
+				}
+
+				// append the cell
 				if (numPartsInCell > 0) {
 
 					// set cell start and end
