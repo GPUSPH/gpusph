@@ -472,16 +472,19 @@ void GPUWorker::computeCellBursts()
 // iterate on the list and send/receive/read cell sizes
 void GPUWorker::transferBurstsSizes()
 {
-	// first non-empty, received cell marks the beginning of the cell range to upload
-	bool rcvOneNonEmptyCell = false;
+	// first received cell marks the beginning of the cell range to upload
+	bool receivedOneCell = false;
 	uint minLinearCellIdx = 0;
 	uint maxLinearCellIdx = 0;
+	// Alternatively, we could initialize the minimum to gdata->nGridCells and the maximum to 0, and
+	// check the min/max against them. However, in case we receive no cells at all, we want that
+	// 1. max > min 2. 0 cells are uploaded
 
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
 		// first non-empty cell in this burst marks the beginning of its particle range
-		bool anyNonEmptyCell = false;
+		bool receivedOneNonEmptyCellInBurst = false;
 
 		// reset particle range
 		m_bursts[i].firstParticle = m_bursts[i].lastParticle = 0;
@@ -530,22 +533,21 @@ void GPUWorker::transferBurstsSizes()
 					// just set the cell as empty
 					gdata->s_dCellStarts[m_deviceIndex][lin_cell] = EMPTY_CELL;
 
-				// Update indices of cell range to be uploaded to device. We only care about RCV, non empty cells
-				if (numPartsInCell > 0) {
-					if (!rcvOneNonEmptyCell) {
-						minLinearCellIdx = lin_cell;
-						rcvOneNonEmptyCell = true;
-					}
-					maxLinearCellIdx = lin_cell;
+				// Update indices of cell range to be uploaded to device. We only care about RCV cells
+				if (!receivedOneCell) {
+					minLinearCellIdx = lin_cell;
+					receivedOneCell = true;
 				}
+				// since lin_cell is increasing, the max is always updated
+				maxLinearCellIdx = lin_cell;
 
 			} // direction is RCV
 
 			// Update indices of particle ranges (SND and RCV) which will be used for burst transfers
 			if (numPartsInCell > 0) {
-				if (!anyNonEmptyCell) {
+				if (!receivedOneNonEmptyCellInBurst) {
 					m_bursts[i].firstParticle = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
-					anyNonEmptyCell = true;
+					receivedOneNonEmptyCellInBurst = true;
 				}
 				m_bursts[i].lastParticle = gdata->s_dCellEnds[m_deviceIndex][lin_cell];
 			}
@@ -555,7 +557,7 @@ void GPUWorker::transferBurstsSizes()
 	} // iterate on bursts
 
 	// update device cellStarts/Ends, if any cell needs update
-	if (rcvOneNonEmptyCell) {
+	if (receivedOneCell) {
 		// maxLinearCellIdx is inclusive, so remember to add 1
 		const uint numCells = maxLinearCellIdx - minLinearCellIdx + 1;
 		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + minLinearCellIdx),
