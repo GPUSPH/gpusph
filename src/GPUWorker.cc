@@ -368,6 +368,10 @@ void GPUWorker::computeCellBursts()
 					// simple peer copy or mpi transfer?
 					const TransferScope transfer_scope = (curr_cell_rank == neib_cell_rank ? NODE_SCOPE : NETWORK_SCOPE);
 
+					// devices fecth peers' memory with any intervention from the sender (aka: only RCV bursts in same node)
+					if (transfer_scope == NODE_SCOPE && transfer_direction == SND)
+						continue;
+
 					// the "other" device is the device owning the cell (curr or neib) which is not mine
 					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
 
