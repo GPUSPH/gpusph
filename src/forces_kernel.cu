@@ -743,8 +743,14 @@ __device__ float2
 hf3d(float qas, float qae, float q, float pes, const float epsilon, bool computeGamma)
 {
 	float2 ret = make_float2(0.0);
-	if (fabs(qae) < epsilon || fabs(q*q-qae*qae) < epsilon || pes < 1e-5)
+	if (fabs(qae) < epsilon || fabs(q*q-qae*qae) < epsilon || pes < epsilon)
 		return ret;
+	// smoothing the return value if pes is close to 0
+	float smooth = 1.0f;
+	if (pes < 11.0f*epsilon){
+		const float x = fmax(fmin((pes - epsilon)/10.0f/epsilon, 1.0f), 0.0f);
+		smooth = x*x*x*(x*(x*6.0f-15.0f)+10.0f); //smootherstep function
+	}
 	const float q2 = q*q;
 	const float q3 = q2*q;
 	const float q4 = q2*q2;
@@ -774,7 +780,7 @@ hf3d(float qas, float qae, float q, float pes, const float epsilon, bool compute
 			);
 
 	if (computeGamma) {
-		// forumal for gamma (f3d)
+		// formula for gamma (f3d)
 		ret.y =	1.0f/M_PI/32768.0f*(
 					pes*qas*(3.0f*qae4*(224.0f+5.0f*qae2)+2.0f*qae2*(448.0f+9.0f*qae2)*qas2+8.0f*(224.0f+3.0f*qae2)*qas4+48.0f*qas6)*
 					(log(-qae2+2.0f*q*(q+sqrtqqae))-2.0f*log(qae)) +
@@ -785,7 +791,7 @@ hf3d(float qas, float qae, float q, float pes, const float epsilon, bool compute
 					8.0f*(64.0f+qas*(192.0f+qas*(240.0f+qas*(160.0f+qas*(60.0f+(12.0f+qas)*qas)))))*(4.0f+3.0f*qas*(-2.0f+qas))*atan2(q*qas+qae2,-pes*sqrtqqae)));
 	}
 
-	return ret;
+	return ret*smooth;
 }
 
 // returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate
@@ -798,12 +804,14 @@ Gamma(	const	float	slength,
 		const	float2	&vPos2,
 		const	float4	&boundElement,
 		const	float4	&oldGGam,
+				int		&nPlanes,
+				float4*	kPlane,
 		const	float	epsilon,
 		const	bool	computeGamma)
 {
 	// Sigma is the point a projected onto the plane spanned by the edge
 	// q_aSigma is the non-dimensionalized distance between this plane and the particle
-	float4 q_aSigma = boundElement*dot(boundElement,relPos)/slength;
+	float4 q_aSigma = boundElement*dot3(boundElement,relPos)/slength;
 	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
 	// local coordinate system for relative positions to vertices
 	uint j = 0;
@@ -828,21 +836,22 @@ Gamma(	const	float	slength,
 		coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
 	}
 	// relative positions of vertices with respect to the segment
-	float4 v0 = vPos0.x*coord1 + vPos0.y*coord2; // e.g. v0 = r_{v0} - r_s
-	float4 v1 = vPos1.x*coord1 + vPos1.y*coord2;
-	float4 v2 = vPos2.x*coord1 + vPos2.y*coord2;
+	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2); // e.g. v0 = r_{v0} - r_s
+	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2);
+	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2);
 	// calculate if the projection of a (with respect to n) is inside the segment
-	const float4 ba = v0 - v1; // vector from v0 to v1 (changed signs due to definition of v0)
-	const float4 ca = v0 - v2; // vector from v0 to v2
-	const float4 pa = v0 + relPos; // vector from v0 to the particle
+	const float4 ba = v1 - v0; // vector from v0 to v1
+	const float4 ca = v2 - v0; // vector from v0 to v2
+	const float4 pa = relPos - v0; // vector from v0 to the particle
 	const float uu = sqlength3(ba);
-	const float uv = dot(ba,ca);
+	const float uv = dot3(ba,ca);
 	const float vv = sqlength3(ca);
-	const float wu = dot(ba,pa);
-	const float wv = dot(ca,pa);
+	const float wu = dot3(ba,pa);
+	const float wv = dot3(ca,pa);
 	const float invdet = 1.0f/(uv*uv-uu*vv);
 	const float u = (uv*wv-vv*wu)*invdet;
 	const float v = (uv*wu-uu*wv)*invdet;
+	const float w = 1.0f - u - v;
 	float gradGamma_as = 0.0f;
 	float gamma_as = 0.0f;
 	float gamma_vs = 0.0f;
@@ -866,18 +875,16 @@ Gamma(	const	float	slength,
 			v0 = tmp;
 		}
 		// additional value of grad gamma
-		const float openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
+		const float openingAngle = acos(dot3((v1-v0),(v2-v0))/sqrt(sqlength3(v1-v0)*sqlength3(v2-v0)));
 		gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
-		// compute the sum of all solid angles of the tetrahedron spanned by v0-v1, v0-v2 and -gradgamma
+		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
-		float l1 = length3(v0-v1);
-		float l2 = length3(v0-v2);
-		float abc = dot3((v0-v1),oldGGam)/l1 + dot3((v0-v2),oldGGam)/l2 + dot3((v0-v1),(v0-v2))/l1/l2;
-		float d = dot3(oldGGam,cross3((v0-v1),(v0-v2)))/l1/l2;
+		float l1 = length3(v1-v0);
+		float l2 = length3(v2-v0);
+		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
+		float d = dot3(oldGGam,cross3((v1-v0),(v2-v0)))/l1/l2;
 		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
-		float SolidAngle = 2.0f*atan2(d,(1.0f+abc));
-		if(SolidAngle < 0.0f)
-			SolidAngle += 2.0f*M_PI;
+		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
 		gamma_vs = SolidAngle/4.0f/M_PI;
 		skipedge1 = 0;
 		skipedge2 = 2;
@@ -906,45 +913,24 @@ Gamma(	const	float	slength,
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
 	if (q_aSigma.w < 2.0f) {
 		// additional term if projection is inside segment
-		if (u > - epsilon && v > -epsilon && u+v < 1.0f+epsilon && skipedge1 == -1 && skipedge2 == -1) {
-			float openingAngle; // angle divided by 2 M_PI
-			// check if we are on top of a vertex
-			if (fabs(u-1.0f) < epsilon || fabs(v-1.0f) < epsilon || fabs(u+v) < epsilon) {
-				// set touching vertex to v0
-				if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
-					const float4 tmp = v1;
-					v1 = v2;
-					v2 = v0;
-					v0 = tmp;
+		if (skipedge1 == -1 && skipedge2 == -1) {
+			if (abs(u-0.5) < 0.5+epsilon && fabs(v-0.5) < 0.5+epsilon && fabs(w-0.5) < 0.5 + epsilon) {
+				bool found = false;
+				for (int i=0; i<nPlanes; i++) {
+					if(fabs(q_aSigma.w - kPlane[i].w) < epsilon &&
+						fabs(dot3(boundElement, kPlane[i])-1.0f) < epsilon) {
+						found = true;
+						break;
+					}
 				}
-				else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
-					const float4 tmp = v2;
-					v2 = v1;
-					v1 = v0;
-					v0 = tmp;
+				if (!found && nPlanes < MAXPLANES) {
+					kPlane[nPlanes] = boundElement;
+					kPlane[nPlanes].w = q_aSigma.w;
+					nPlanes++;
+					gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w);
+					gamma_as = -1.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w);
 				}
-				// additional value of grad gamma
-				openingAngle = acos(dot3((v0-v1),(v0-v2))/sqrt(sqlength3(v0-v1)*sqlength3(v0-v2)));
-				openingAngle /= 2.0f*M_PI;
-				skipedge1 = 0;
-				skipedge2 = 2;
 			}
-			// interior of a triangle
-			else if (u > epsilon && v > epsilon && u+v < 1.0f-epsilon) {
-				openingAngle = 1.0f;
-			}
-			// on an edge
-			else {
-				openingAngle = 0.5f;
-				// the following edge is below the particle and thus does not need to be computed
-				skipedge1 = 1;
-				if(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) // if u is 0 then pa is above v02
-					skipedge1 = 2;
-				else if(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) // if v is 0 then pa is above v01
-					skipedge1 = 0;
-			}
-			gradGamma_as = 3.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 5.0f)*(2.0f+5.0f*q_aSigma.w+4.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
-			gamma_as = -1.0f/8.0f*__powf(1.0f - q_aSigma.w/2.0f, 6.0f)*(4.0f+6.0f*q_aSigma.w+3.0f*q_aSigma.w*q_aSigma.w)*openingAngle;
 		}
 		// loop over all three edges
 		for (uint i=0; i<3; i++) {
@@ -959,19 +945,19 @@ Gamma(	const	float	slength,
 				continue;
 			// vector pointing outward from segment normal to segment normal and v_{01}
 			// this is only possible because Crixus makes sure that the segments are ordered correctly
-			float4 n_ds = cross3(v1-v0,boundElement);
+			float4 n_ds = cross3(v0-v1,boundElement);
 			n_ds.w = length3(n_ds);
 			n_ds /= n_ds.w;
 			// q_aEpsilon is the vector from a to the intersection of v_{01} and the plane spanned by q_aSigma and n_ds (i.e. it's on the edge)
-			float4 q_aEpsilon = q_aSigma + n_ds*dot3(n_ds,relPos+v0)/slength;
+			float4 q_aEpsilon = q_aSigma + n_ds*dot3(n_ds,relPos-v0)/slength;
 			q_aEpsilon.w = length3(q_aEpsilon);
 			// if q_aEpsilon is greater than 2 the kernel support doest not intersect the edge
 			if(q_aEpsilon.w < 2.0f) {
-				float4 te = (v1-v0);
+				float4 te = (v0-v1);
 				te.w = length3(te);
 				te /= te.w;
-				float y0 = dot3(relPos+v0,te);
-				float y1 = dot3(relPos+v1,te);
+				float y0 = dot3(relPos-v0,te);
+				float y1 = dot3(relPos-v1,te);
 				float qv0 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y0*y0/(slength*slength)),2.0f);
 				float qv1 = fmin(sqrt(q_aEpsilon.w*q_aEpsilon.w+y1*y1/(slength*slength)),2.0f);
 				float4 p_EpsilonSigma = q_aEpsilon - q_aSigma;

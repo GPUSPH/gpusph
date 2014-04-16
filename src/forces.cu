@@ -60,7 +60,7 @@ void*	reduce_buffer = NULL;
 		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
 			forces, rbforces, rbtorques, \
 			pos, particleHash, cellStart, neibsList, particleRangeEnd, \
-			deltap, slength, influenceradius, \
+			dt, deltap, slength, influenceradius, \
 			cfl, cflTVisc, \
 			xsph, \
 			newGGam, vertPos, epsilon, movingBoundaries, \

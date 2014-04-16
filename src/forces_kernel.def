@@ -149,7 +149,7 @@ struct sa_boundary_particle_data
 
 	// does this particle want to (re)compute gamma? see logic below
 	// this is used by vertex particles only
-			bool	computeGamma;
+	bool	computeGamma;
 
 	// oldGGam would hold the previous value of gamma (in .w) and its gradient (in .xyz).
 	// When we want to (re)compute gamma, the old gradient is only used for the
@@ -335,8 +335,15 @@ struct sa_boundary_particle_output
 {
 	float4	gGam;
 
+	// the following is a hack to determine the discontinuous contributions from the
+	// gamma formulation so that they are only added once per wall
+	int		nPlanes;
+	float4	kPlane[MAXPLANES];
+
 	__device__ __forceinline__
-	sa_boundary_particle_output() : gGam(make_float4(0, 0, 0, 1))
+	sa_boundary_particle_output() :
+		gGam(make_float4(0, 0, 0, 1)),
+		nPlanes(0)
 	{}
 };
 
@@ -441,6 +448,7 @@ struct sa_boundary_neib_data
 	// Define shorthands for their data type
 	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
 	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
+	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
 
 	const	float4	belem;
 	const	float3&	normal_s;
@@ -451,13 +459,14 @@ struct sa_boundary_neib_data
 
 	__device__ __forceinline__
 	sa_boundary_neib_data(pdata_t const& pdata,  params_t const& params,
-		const uint index, float4 const& _relPos) :
+		const uint index, float4 const& _relPos, pout_t &pout) :
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
 		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
 		gamAS(Gamma<kerneltype>(params.slength, _relPos,
 				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
-				belem, pdata.oldGGam, params.epsilon, pdata.computeGamma))
+				belem, pdata.oldGGam, pout.nPlanes, pout.kPlane,
+				params.epsilon, pdata.computeGamma))
 	{}
 };
 
@@ -490,15 +499,16 @@ struct forces_neib_data :
 		_sa_boundary_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
+	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
 
 	ParticleType	ntype;
 
 	__device__ __forceinline__
 	forces_neib_data(pdata_t const& pdata, params_t const& params,
 		const uint _index, particleinfo const& _info,
-		float4 const& _relPos, const float _r) :
+		float4 const& _relPos, const float _r, pout_t &_pout) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
-		_sa_boundary_neib_data(pdata, params, _index, _relPos),
+		_sa_boundary_neib_data(pdata, params, _index, _relPos, _pout),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)(this->relVel.w, _info),
@@ -1174,7 +1184,21 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
+	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
+	// Sometimes the above formula can run into small numerical issues. To avoid this we check with the estimate
+	// given by the old governing equation. If the values diverge too much, then we take the estimate as in general
+	// this hickup only shows up during one time step.
+	const float gamEstimate = pdata.oldGGam.w + 0.5f*params.dt*dot3(pdata.vel, pdata.oldGGam+pout.gGam);
+	if (fabs(pout.gGam.w - gamEstimate) > 10.0f*fmax(fabs(pdata.oldGGam.w-gamEstimate),params.epsilon) &&
+		sqlength3(pdata.oldGGam-pout.gGam)/(9.0f/16.0f/params.slength/params.slength) > params.epsilon*1e-2f &&
+		pout.gGam.w < 1.0f-params.epsilon &&
+		pdata.oldGGam.w > params.epsilon)
+	{
+//		printf("gam %e \t%e \t%e \t%e \t%e \t%e \t%e \t%d\n", gGam.x, gGam.y, gGam.z, gGam.w, 0.5f*dt*dot(lagrangianVel, as_float3(oldGam+gGam)), gGam.w - gamEstimate, sqlength3(oldGam-gGam)/(9.0f/16.0f/slength/slength), id(info));
+		pout.gGam = 0.5f*(pdata.oldGGam + pout.gGam);
+		pout.gGam.w = gamEstimate;
+	}
 	pout.force /= pout.gGam.w;
 }
 
@@ -1482,7 +1506,7 @@ forcesDevice(
 
 			// load rest of neib data
 			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> const
-				ndata(pdata, params, neib_index, neib_info, relPos, r);
+				ndata(pdata, params, neib_index, neib_info, relPos, r, pout);
 
 			/* Contributions from this neighbor */
 
@@ -1538,12 +1562,12 @@ forcesDevice(
 		// External forces etc
 		if (FLUID(info)) {
 
+			// only does something if SA_BOUNDARY
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
+
 			// post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
-
-			// only does something if SA_BOUNDARY
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
 
 			// Adding gravity
 			as_float3(pout.force) += d_gravity;

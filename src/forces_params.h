@@ -65,6 +65,7 @@ struct common_forces_params
 	const	uint	numParticles;
 
 	// TODO these should probably go into constant memory
+	const	float	dt;
 	const	float	deltap;
 	const	float	slength;
 	const	float	influenceradius;
@@ -79,6 +80,7 @@ struct common_forces_params
 		const	uint	*_cellStart,
 		const	neibdata	*_neibsList,
 		const	uint	_numParticles,
+		const	float	_dt,
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius) :
@@ -90,6 +92,7 @@ struct common_forces_params
 		cellStart(_cellStart),
 		neibsList(_neibsList),
 		numParticles(_numParticles),
+		dt(_dt),
 		deltap(_deltap),
 		slength(_slength),
 		influenceradius(_influenceradius)
@@ -185,6 +188,7 @@ struct forces_params :
 		const	neibdata*_neibsList,
 				uint	_numParticles,
 
+		const	float	_dt,
 				float	_deltap,
 				float	_slength,
 				float	_influenceradius,
@@ -209,7 +213,7 @@ struct forces_params :
 		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _numParticles,
-			_deltap, _slength, _influenceradius),
+			_dt, _deltap, _slength, _influenceradius),
 		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
@@ -217,8 +221,6 @@ struct forces_params :
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
 };
-
-
 
 #endif // _FORCES_PARAMS_H
 
