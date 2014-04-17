@@ -32,15 +32,22 @@ typedef enum {SND, RCV} TransferDirection;
 
 typedef enum {NODE_SCOPE, NETWORK_SCOPE} TransferScope;
 
+typedef std::vector<uint> CellList;
+
 typedef struct {
-	uint firstCell;		// inclusive
-	uint lastCell;		// exclusive
+	// list of cells (linear indices)
+	CellList cells;
+
+	// global device index of sending/receiving peer
+	uchar peer_gidx;
+	// scope & direction (SND or RCV if NETWORK_SCOPE, only RCV for NODE_SCOPE)
 	TransferDirection direction;
 	TransferScope scope;
-	uchar peer_gidx;	// global device index of sending/receiving peer
-	uint firstParticle; // help caching the particle indices, which change after every bneeibs
-	uint lastParticle;
-	uint firstPeerParticle; // cache peer particle index for intra-node transfers
+
+	// caching burst edges in terms of particle indices, after every buildneibs
+	uint selfFirstParticle; // self p.index
+	uint peerFirstParticle; // only useful for intra-node
+	uint numParticles;
 } CellBurst;
 
 typedef std::vector<CellBurst> BurstList;

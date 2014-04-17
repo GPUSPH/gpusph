@@ -286,7 +286,7 @@ void GPUWorker::computeCellBursts()
 #define CLOSE_BURST(peer, direction) \
 	burst_vector_index[peer][direction] = -1;
 
-	// initialize bursts
+	// initialize bursts pointers
 	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
 		for (uint direction = SND; direction <= RCV; direction++)
 			burst_vector_index[n][direction] = -1;
@@ -328,6 +328,10 @@ void GPUWorker::computeCellBursts()
 		// is it mine?
 		const bool curr_mine = (curr_cell_gidx == m_globalDeviceIdx);
 
+		// if cell is not edging at all, it should be skipped without breaking any burst
+		// (at all = between any pair of devices, unrelated to any_mine)
+		bool edging = false;
+
 		// iterate on neighbors
 		for (int dz = -1; dz <= 1; dz++)
 			for (int dy = -1; dy <= 1; dy++)
@@ -360,6 +364,9 @@ void GPUWorker::computeCellBursts()
 					// skip pairs belonging to the same device
 					if (curr_cell_gidx == neib_cell_gidx) continue;
 
+					// if we are here, at least one neib cell belongs to a different device
+					edging = true;
+
 					// did we already treat the pair current_cell:neib_node? (i.e. previously, due to another neib cell)
 					if (neighboring_device[ neib_cell_gidx ]) continue;
 
@@ -381,22 +388,27 @@ void GPUWorker::computeCellBursts()
 
 					if (any_mine) {
 
-						// if existing burst is non-empty and compatible, expand it
-						if (! BURST_IS_EMPTY(other_device_gidx,transfer_direction) &&
-							m_bursts[ burst_vector_index[other_device_gidx][transfer_direction] ].lastCell == lin_curr_cell) {
+						// if existing burst is non-empty, was not closed till now, so it is compatible: extend it
+						if (! BURST_IS_EMPTY(other_device_gidx,transfer_direction)) {
 
-							m_bursts[ burst_vector_index[other_device_gidx][transfer_direction] ].lastCell++;
+							// cell index is higher than the last enqueued; it is edging as well; no other cell
+							// interrrupted the burst until now. So cell is consecutive with previous in both
+							// the sending the the receiving device
+							m_bursts[ burst_vector_index[other_device_gidx][transfer_direction] ].cells.push_back(lin_curr_cell);
 
 						} else {
 							// if we are here, either the burst was empty or not compatabile. In both cases, create a new one
+							CellList list;
+							list.push_back(lin_curr_cell);
+
 							CellBurst burst = {
-								lin_curr_cell,
-								lin_curr_cell + 1,
+								list,
+								other_device_gidx,
 								transfer_direction,
 								transfer_scope,
-								other_device_gidx,
-								0, 0
+								0, 0, 0
 							};
+
 							// store (ovewrite, if was non-empty) its forthcoming index
 							burst_vector_index[other_device_gidx][transfer_direction] = m_bursts.size();
 							// append it
@@ -444,13 +456,19 @@ void GPUWorker::computeCellBursts()
 
 				} // iterate on neibs of current cells
 
+		// There was no neib cell (i.e. it was an internal cell for every device), so skip burst-breaking conditinals.
+		// NOTE: comment the following line to allow bursts only along linearization (e.g. with Y-split and XYZ linearizazion,
+		// only one burst will be used with the following line active; several, aka one per Y line, will be used with the
+		// following commented). This can useful only for debugging or profiling purposes
+		if (!edging) continue;
+
 		// Checking condition nr. 2 (see comment before)
 		for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
 			// I am the sender; let's close all bursts directed to devices which are not recipients of curr cell
 			if (curr_mine && !neighboring_device[n] && !BURST_IS_EMPTY(n,SND)) {
 				CLOSE_BURST(n,SND)
 			}
-			// I am not among th recipients and I have an open burst from curr; let's close it
+			// I am not among the recipients and I have an open burst from curr; let's close it
 			if (!neighboring_device[m_globalDeviceIdx] && !BURST_IS_EMPTY(curr_cell_gidx,RCV)) {
 				CLOSE_BURST(curr_cell_gidx,RCV)
 			}
@@ -462,8 +480,8 @@ void GPUWorker::computeCellBursts()
 		m_deviceIndex, m_bursts.size(), node_bursts, network_bursts);
 	/*
 	for (uint i = 0; i < m_bursts.size(); i++) {
-		printf("  Burst %u: cells (%u...%u), peer %u, dir %s, scope %u\n",
-			i, m_bursts[i].firstCell, m_bursts[i].lastCell, m_bursts[i].peer_gidx,
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u\n", m_deviceIndex,
+			i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
 			(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope);
 	}
 	*/
@@ -489,10 +507,12 @@ void GPUWorker::transferBurstsSizes()
 		bool receivedOneNonEmptyCellInBurst = false;
 
 		// reset particle range
-		m_bursts[i].firstParticle = m_bursts[i].lastParticle = 0;
-		m_bursts[i].firstPeerParticle = 0;
+		m_bursts[i].selfFirstParticle = m_bursts[i].peerFirstParticle = 0;
+		m_bursts[i].numParticles = 0;
 
-		for (uint lin_cell = m_bursts[i].firstCell; lin_cell < m_bursts[i].lastCell; lin_cell++) {
+		// iterate over the cells of the burst
+		for (uint j = 0; j < m_bursts[i].cells.size(); j++) {
+			uint lin_cell = m_bursts[i].cells[j];
 
 			uint numPartsInCell = 0;
 			uchar peerDeviceIndex = gdata->DEVICE(m_bursts[i].peer_gidx);
@@ -546,18 +566,22 @@ void GPUWorker::transferBurstsSizes()
 
 			} // direction is RCV
 
-			// Update indices of particle ranges (SND and RCV) which will be used for burst transfers
+			// Update indices of particle ranges (SND and RCV), which will be used for burst transfers
 			if (numPartsInCell > 0) {
 				if (!receivedOneNonEmptyCellInBurst) {
-					m_bursts[i].firstParticle = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
-					m_bursts[i].firstPeerParticle = gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
+					m_bursts[i].selfFirstParticle = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
+					if (m_bursts[i].scope == NODE_SCOPE)
+						m_bursts[i].peerFirstParticle = gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
 					receivedOneNonEmptyCellInBurst = true;
 				}
-				m_bursts[i].lastParticle = gdata->s_dCellEnds[m_deviceIndex][lin_cell];
+				m_bursts[i].numParticles += numPartsInCell;
+				if (m_deviceIndex == 1 && gdata->iterations == 30 && false)
+					printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i,
+						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles,
+							numPartsInCell, lin_cell );
 			}
 
 		} // iterate on cells of the current burst
-
 	} // iterate on bursts
 
 	// update device cellStarts/Ends, if any cell needs update
@@ -571,9 +595,18 @@ void GPUWorker::transferBurstsSizes()
 											(gdata->s_dCellEnds[m_deviceIndex] + minLinearCellIdx),
 											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
 	}
+
+	/* for (uint i = 0; i < m_bursts.size(); i++) {
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u, range %u-%u, peer %u, (tot %u parts)\n", m_deviceIndex,
+				i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
+				(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope,
+				m_bursts[i].selfFirstParticle, m_bursts[i].selfFirstParticle + m_bursts[i].numParticles,
+				m_bursts[i].peerFirstParticle, m_bursts[i].numParticles
+			);
+	} */
 }
 
-// iterate on the list and send/receive bursts of particles across different nodes
+// Iterate on the list and send/receive bursts of particles across different nodes
 void GPUWorker::transferBursts()
 {
 	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
@@ -582,15 +615,8 @@ void GPUWorker::transferBursts()
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
-		const uint numPartsInBurst = m_bursts[i].lastParticle - m_bursts[i].firstParticle;
-		const uint startParticleIndex = m_bursts[i].firstParticle;
-
-		// abstract from self / other
-		const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
-		const uint recipient_gidx = (m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx);
-
 		// now transfer the data
-		if (numPartsInBurst > 0) {
+		if (m_bursts[i].numParticles > 0) {
 
 			// abstract from self / other
 			const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
@@ -630,7 +656,7 @@ void GPUWorker::transferBursts()
 					dbl_buf_idx = 0;
 				}
 
-				const unsigned int _size = numPartsInBurst * buf->get_element_size();
+				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
 
 				// retrieve peer's indices, if intra-node
 				const AbstractBuffer *peerbuf = NULL;
@@ -643,10 +669,10 @@ void GPUWorker::transferBursts()
 
 				// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
 				if (bufkey != BUFFER_BIG) {
-					void *ptr = buf->get_offset_buffer(dbl_buf_idx, startParticleIndex);
+					void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
 					if (m_bursts[i].scope == NODE_SCOPE) {
 						// node scope: just read it
-						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].firstPeerParticle);
+						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
 						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 					} else {
 						// network scope: SND/RCV
@@ -659,10 +685,10 @@ void GPUWorker::transferBursts()
 					// generic, so that it can work for other buffers like TAU, if they are ever
 					// introduced; just fix the conditional
 					for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-						void *ptr = buf->get_offset_buffer(ai, startParticleIndex);
+						void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
 						if (m_bursts[i].scope == NODE_SCOPE) {
 							// node scope: just read it
-							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].firstPeerParticle);
+							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
 							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 						} else {
 							// network scope: SND/RCV
