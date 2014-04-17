@@ -1491,21 +1491,24 @@ void GPUWorker::kernel_calcHash()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	hashKey* _particleHashDPointer = m_dBuffers.getData<BUFFER_HASH>();
-
 	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles might be lost
-	// (if a GPU computes a different hash and does not recognize the particles as "own"). We tell this
-	// by passing a NULL particleHash pointer.
-	if (MULTI_DEVICE && gdata->iterations == 0)
-		_particleHashDPointer = NULL;
+	// (if a GPU computes a different hash and does not recognize the particles as "own"). However, the
+	// high bits should be set, or edge cells won't be compacted at the end and bursts will be sparse
 
-	calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				_particleHashDPointer,
-				m_dBuffers.getData<BUFFER_PARTINDEX>(),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dCompactDeviceMap,
-				m_numParticles,
-				m_simparams->periodicbound);
+	if (MULTI_DEVICE && gdata->iterations == 0)
+		fixHash(	m_dBuffers.getData<BUFFER_HASH>(),
+					m_dBuffers.getData<BUFFER_PARTINDEX>(),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dCompactDeviceMap,
+					m_numParticles);
+	else
+		calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_HASH>(),
+					m_dBuffers.getData<BUFFER_PARTINDEX>(),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dCompactDeviceMap,
+					m_numParticles,
+					m_simparams->periodicbound);
 }
 
 void GPUWorker::kernel_sort()

@@ -175,9 +175,8 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	float4 pos = posArray[index];
 	const particleinfo info = particelInfo[index];
 
-	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries).
-	// Also, if particleHash is NULL we just want to set particleIndex (see comment in GPUWorker::kernel_calcHash())
-	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID)) && particleHash) {
+	// we compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
+	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID))) {
 	//if (true) {
 		// Getting the old grid hash
 		uint gridHash = cellHashFromParticleHash( particleHash[index] );
@@ -213,6 +212,40 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
+
+// Similar to calcHash but specific for 1st iteration in MULTI_DEVICE simulations: does not change the cellHash,
+// but only sets the high bits according to the compact device map. also, initializes particleIndex
+__global__ void
+__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+fixHashDevice(hashKey*			particleHash,	///< particle's hashes (in, out)
+			   uint*			particleIndex,	///< particle's indexes (out)
+			   const particleinfo*	particelInfo,	///< particle's informations (in)
+			   uint				*compactDeviceMap,
+			   const uint		numParticles)	///< total number of particles
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = particelInfo[index];
+
+	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries).
+	// Also, if particleHash is NULL we just want to set particleIndex (see comment in GPUWorker::kernel_calcHash())
+	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID)) && particleHash) {
+
+		uint gridHash = cellHashFromParticleHash( particleHash[index] );
+
+		// mark the cell as inner/outer and/or edge by setting the high bits
+		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
+		if (compactDeviceMap)
+			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << 32);
+	}
+
+	// Preparing particle index array for the sort phase
+	particleIndex[index] = index;
+}
+
 #undef MOVINGNOTFLUID
 
 __global__

@@ -142,6 +142,24 @@ calcHash(float4*	pos,
 }
 
 void
+fixHash(hashKey*	particleHash,
+		 uint*		particleIndex,
+		 const particleinfo* particleInfo,
+		 uint*		compactDeviceMap,
+		 const uint		numParticles)
+{
+	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
+	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(particleHash, particleIndex,
+				particleInfo, compactDeviceMap, numParticles);
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("FixHash kernel execution failed");
+}
+
+
+void
 inverseParticleIndex (	uint*	particleIndex,
 			uint*	inversedParticleIndex,
 			uint	numParticles)

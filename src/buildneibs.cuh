@@ -82,6 +82,13 @@ calcHash(float4*	pos,
 		 const Periodicity	periodicbound);
 
 void
+fixHash(hashKey*	particleHash,
+		uint*		particleIndex,
+		const particleinfo* particleInfo,
+		uint*		compactDeviceMap,
+		const uint		numParticles);
+
+void
 inverseParticleIndex (	uint*	particleIndex,
 			uint*	inversedParticleIndex,
 			uint	numParticles);
