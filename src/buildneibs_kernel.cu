@@ -177,7 +177,6 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 
 	// we compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
 	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID))) {
-	//if (true) {
 		// Getting the old grid hash
 		uint gridHash = cellHashFromParticleHash( particleHash[index] );
 
