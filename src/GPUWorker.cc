@@ -615,64 +615,80 @@ void GPUWorker::transferBursts()
 	// iterate on all bursts
 	for (uint i = 0; i < m_bursts.size(); i++) {
 
-		// now transfer the data
-		if (m_bursts[i].numParticles > 0) {
+		// transfer the data if burst is not empty
+		if (m_bursts[i].numParticles == 0) continue;
 
-			// abstract from self / other
-			const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
-			const uint recipient_gidx = (m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx);
+		// abstract from self / other
+		const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
+		const uint recipient_gidx = (m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx);
 
-			// iterate over all defined buffers and see which were requested
-			// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
-			// with the ordering set by the key, in our case the unsigned integer type flag_t,
-			// so we have guarantee that the map will always be traversed in the same order
-			// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
-			BufferList::iterator bufset = m_dBuffers.begin();
-			const BufferList::iterator stop = m_dBuffers.end();
-			for ( ; bufset != stop ; ++bufset) {
-				flag_t bufkey = bufset->first;
-				if (!(gdata->commandFlags & bufkey))
-					continue; // skip unwanted buffers
+		// iterate over all defined buffers and see which were requested
+		// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+		// with the ordering set by the key, in our case the unsigned integer type flag_t,
+		// so we have guarantee that the map will always be traversed in the same order
+		// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+		BufferList::iterator bufset = m_dBuffers.begin();
+		const BufferList::iterator stop = m_dBuffers.end();
+		for ( ; bufset != stop ; ++bufset) {
+			flag_t bufkey = bufset->first;
+			if (!(gdata->commandFlags & bufkey))
+				continue; // skip unwanted buffers
 
-				AbstractBuffer *buf = bufset->second;
+			AbstractBuffer *buf = bufset->second;
 
-				// handling of double-buffered arrays
-				// note that TAU is not considered here
-				if (buf->get_array_count() == 2) {
-					// for buffers with more than one array the caller should have specified which buffer
-					// is to be imported. complain
-					if (!dbl_buffer_specified) {
-						std::stringstream err_msg;
-						err_msg << "Import request for double-buffered " << buf->get_buffer_name()
-						<< " array without a specification of which buffer to use.";
-						throw runtime_error(err_msg.str());
-					}
-
-					if (gdata->commandFlags & DBLBUFFER_READ)
-						dbl_buf_idx = gdata->currentRead[bufkey];
-					else
-						dbl_buf_idx = gdata->currentWrite[bufkey];
-				} else {
-					dbl_buf_idx = 0;
+			// handling of double-buffered arrays
+			// note that TAU is not considered here
+			if (buf->get_array_count() == 2) {
+				// for buffers with more than one array the caller should have specified which buffer
+				// is to be imported. complain
+				if (!dbl_buffer_specified) {
+					std::stringstream err_msg;
+					err_msg << "Import request for double-buffered " << buf->get_buffer_name()
+					<< " array without a specification of which buffer to use.";
+					throw runtime_error(err_msg.str());
 				}
 
-				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
+				if (gdata->commandFlags & DBLBUFFER_READ)
+					dbl_buf_idx = gdata->currentRead[bufkey];
+				else
+					dbl_buf_idx = gdata->currentWrite[bufkey];
+			} else {
+				dbl_buf_idx = 0;
+			}
 
-				// retrieve peer's indices, if intra-node
-				const AbstractBuffer *peerbuf = NULL;
-				uchar peerCudaDevNum = 0;
+			const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
+
+			// retrieve peer's indices, if intra-node
+			const AbstractBuffer *peerbuf = NULL;
+			uchar peerCudaDevNum = 0;
+			if (m_bursts[i].scope == NODE_SCOPE) {
+				uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
+				peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
+				peerCudaDevNum = gdata->device[peerDevIdx];
+			}
+
+			// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
+			if (bufkey != BUFFER_BIG) {
+				void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
 				if (m_bursts[i].scope == NODE_SCOPE) {
-					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
-					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
-					peerCudaDevNum = gdata->device[peerDevIdx];
+					// node scope: just read it
+					const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
+					peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+				} else {
+					// network scope: SND/RCV
+					if (m_bursts[i].direction == SND)
+						gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					else
+						gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
 				}
-
-				// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
-				if (bufkey != BUFFER_BIG) {
-					void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
+			} else {
+				// generic, so that it can work for other buffers like TAU, if they are ever
+				// introduced; just fix the conditional
+				for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+					void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
 					if (m_bursts[i].scope == NODE_SCOPE) {
 						// node scope: just read it
-						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
+						const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
 						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 					} else {
 						// network scope: SND/RCV
@@ -681,27 +697,10 @@ void GPUWorker::transferBursts()
 						else
 							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
 					}
-				} else {
-					// generic, so that it can work for other buffers like TAU, if they are ever
-					// introduced; just fix the conditional
-					for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-						void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
-						if (m_bursts[i].scope == NODE_SCOPE) {
-							// node scope: just read it
-							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
-							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-						} else {
-							// network scope: SND/RCV
-							if (m_bursts[i].direction == SND)
-								gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-							else
-								gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-						}
-					}
 				}
-			} // for each buffer type
+			} // buf is BUFFER_BIG
 
-		} // if bursts contains particles
+		} // for each buffer type
 
 	} // iterate on bursts
 }
