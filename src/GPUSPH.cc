@@ -131,6 +131,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
+#define STR(macro) #macro
+#define COORD_NAME(coord) STR(coord)
+	printf(" - Cell linearizazion: %s,%s,%s\n", COORD_NAME(COORD1), COORD_NAME(COORD2),
+		COORD_NAME(COORD3));
+#undef COORD_NAME
+#undef STR
 	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
 	printf(" - R0:   %g\n", gdata->problem->get_physparams()->r0);
 
