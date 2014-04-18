@@ -498,6 +498,12 @@ else ifeq ($(verbose), 2)
 	CXXFLAGS += -Wall
 endif
 
+# Enable host profile with gprof. Pipeline to profile:
+# enable -pg, make, run, gprof ./GPUSPH gmon.out > results.txt
+# http://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html#index-pg-621
+# CXXFLAGS += -pg
+# LDFLAGS += -pg
+
 # Finally, add CXXFLAGS to CUFLAGS
 
 CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
