@@ -103,6 +103,9 @@ private:
 	// print information about the status of the simulation
 	void printParticleDistribution();
 
+	// print peer accessibility for all devices
+	void printDeviceAccessibilityTable();
+
 	// do a roll call of particle IDs
 	void rollCallParticles();
 

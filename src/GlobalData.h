@@ -277,6 +277,9 @@ struct GlobalData {
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
 
+	// peer accessibility table (indexed with device indices, not CUDA dev nums)
+	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
+
 	GlobalData(void):
 		devices(0),
 		mpi_nodes(0),
@@ -330,6 +333,10 @@ struct GlobalData {
 		// init last indices for segmented scans for objects
 		for (uint ob=0; ob < MAXBODIES; ob++)
 			s_hRbLastIndex[ob] = 0;
+
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
+				s_hDeviceCanAccessPeer[d][p] = false;
 
 	};
 

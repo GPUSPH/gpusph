@@ -63,8 +63,14 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	m_hostMemory = m_deviceMemory = 0;
 
+	// set to true to force host staging even if peer access is set successfully
+	m_disableP2Ptranfers = false;
+	m_hTransferBuffer = NULL;
+	m_hTransferBufferSize = 0;
+
 	m_dCompactDeviceMap = NULL;
 	m_hCompactDeviceMap = NULL;
+	m_dSegmentStart = NULL;
 
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
@@ -236,9 +242,17 @@ void GPUWorker::dropExternalParticles()
 
 // Start an async inter-device transfer. This will be actually P2P if device can access peer memory
 // (actually, since it is currently used only to import data from other devices, the dstDevice could be omitted or implicit)
-void GPUWorker::peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count)
+void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int srcDevice, size_t count)
 {
-	CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
+	if (m_disableP2Ptranfers) {
+		// reallocate if necessary
+		if (count > m_hTransferBufferSize)
+			resizeTransferBuffer(count);
+		// transfer Dsrc -> H -> Ddst
+		CUDA_SAFE_CALL( cudaMemcpy(m_hTransferBuffer, src, count, cudaMemcpyDeviceToHost) );
+		CUDA_SAFE_CALL( cudaMemcpy(dst, m_hTransferBuffer, count, cudaMemcpyHostToDevice) );
+	} else
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
 
 // Uploads cellStart and cellEnd from the shared arrays to the device memory.
@@ -254,356 +268,57 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 }
 
-// Import the external edge cells of other devices to the self device arrays. Can append the cells at the end of the current
-// list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
-// command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
-// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info, forces and tau; for the
-// double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
-// for the non-buffered arrays (e.g. forces).
-// The data is transferred in bursts of consecutive cells when possible. Transfers are actually D2D if peer access is enabled.
-void GPUWorker::importPeerEdgeCells()
+// Compute list of bursts. Currently computes both scopes, but only network scope is used
+void GPUWorker::computeCellBursts()
 {
-	// if next command is not an import nor an append, something wrong is going on
-	if (! ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) ) ) {
-		printf("WARNING: importPeerEdgeCells() was called, but current command is not APPEND nor UPDATE!\n");
-		return;
-	}
+	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device
+	// and for each direction. The following can be considered a list of pointers to open bursts in the m_bursts vector.
+	// When a pointer is negative, there is no open bursts with the specified peer:direction pair.
+	int burst_vector_index[MAX_DEVICES_PER_CLUSTER][2];
 
-	// check if at least one double buffer was specified
-	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-	uint dbl_buf_idx;
+	uint network_bursts = 0;
+	uint node_bursts = 0;
 
-	// We aim to make the fewest possible transfers. So we keep track of each burst of consecutive
-	// cells from the same peer device, to transfer it with a single memcpy.
-	// To this aim, it is important that we iterate on the linearized index so that consecutive
-	// cells are also consecutive in memory, regardless of the linearization function
+	// Auxiliary macros. Use with parentheses when possibile
+#define BURST_IS_EMPTY(peer, direction) \
+	(burst_vector_index[peer][direction] == -1)
+	// closing a burst means dropping the associated pointer index
+#define CLOSE_BURST(peer, direction) \
+	burst_vector_index[peer][direction] = -1;
 
-	// aux var for transfers
-	size_t _size;
-
-	// indices of current burst
-	uint burst_self_index_begin = 0;
-	uint burst_peer_index_begin = 0;
-	uint burst_peer_index_end = 0;
-	uint burst_numparts = 0; // this is redundant with burst_peer_index_end, but cleaner
-	uint burst_peer_dev_index = 0;
-
-	// utility defines to handle the bursts
-#define BURST_IS_EMPTY (burst_numparts == 0)
-#define BURST_SET_CURRENT_CELL \
-	burst_self_index_begin = selfCellStart; \
-	burst_peer_index_begin = peerCellStart; \
-	burst_peer_index_end = peerCellEnd; \
-	burst_numparts = numPartsInPeerCell; \
-	burst_peer_dev_index = peerDevIndex;
-
-	// Burst of cells (for cellStart / cellEnd). Please not the burst of cells is independent from the one of cells.
-	// More specifically, it is a superset, since we are also interested in empty cells; for code readability reasons
-	// we handle it as if it were completely independent.
-	uint cellsBurst_begin = 0;
-	uint cellsBurst_end = 0;
-#define CELLS_BURST_IS_EMPTY (cellsBurst_end - cellsBurst_begin == 0)
-
-	// iterate on all cells
-	for (uint cell=0; cell < m_nGridCells; cell++)
-
-		// if the current is an external edge cell and it belongs to a device of the same process...
-		if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_EDGE_CELL_SHIFTED && gdata->RANK(gdata->s_hDeviceMap[cell]) == gdata->mpi_rank) {
-
-			// handle the cell burst: as long as it is OUTER_EDGE and we are appending, we need to copy it, also if empty
-			if (gdata->nextCommand == APPEND_EXTERNAL) {
-				// 1st case: burst is empty, let's initialize it
-				if (CELLS_BURST_IS_EMPTY) {
-					cellsBurst_begin = cell;
-					cellsBurst_end = cell + 1;
-				} else
-				// 2nd case: burst is not emtpy but ends with current cell; let's append the cell
-				if (cellsBurst_end == cell) {
-					cellsBurst_end++;
-				} else { // 3rd case: the burst is not emtpy and not compatible; need to flush it and make it new
-					// this will also transfer cellEnds for empty cells but this is not a problem since we won't use that
-					asyncCellIndicesUpload(cellsBurst_begin, cellsBurst_end);
-					cellsBurst_begin = cell;
-					cellsBurst_end = cell + 1;
-				}
-			}
-
-			// check in which device it is
-			uchar peerDevIndex = gdata->DEVICE( gdata->s_hDeviceMap[cell] );
-			if (peerDevIndex == m_deviceIndex)
-				printf("WARNING: cell %u is outer edge for thread %u, but SELF in the device map!\n", cell, m_deviceIndex);
-			if (peerDevIndex >= gdata->devices) {
-				printf("FATAL: cell %u has peer index %u, probable memory corruption\n", cell, peerDevIndex);
-				gdata->quit_request = true;
-				return;
-			}
-			uint peerCudaDevNum = gdata->device[peerDevIndex];
-
-			// find its cellStart and cellEnd
-			uint peerCellStart = gdata->s_dCellStarts[peerDevIndex][cell];
-			uint peerCellEnd = gdata->s_dCellEnds[peerDevIndex][cell];
-
-			// cellStart and cellEnd on self
-			uint selfCellStart;
-			uint selfCellEnd;
-
-			// if it is empty, we might only update cellStarts
-			if (peerCellStart == EMPTY_CELL) {
-
-				if (gdata->nextCommand == APPEND_EXTERNAL) {
-					// set the cell as empty
-					gdata->s_dCellStarts[m_deviceIndex][cell] = EMPTY_CELL;
-				}
-
-			} else {
-				// cellEnd is exclusive
-				uint numPartsInPeerCell = peerCellEnd - peerCellStart;
-
-				if (gdata->nextCommand == UPDATE_EXTERNAL) {
-					// if updating, we already have cell indices
-					selfCellStart = gdata->s_dCellStarts[m_deviceIndex][cell];
-					selfCellEnd = gdata->s_dCellEnds[m_deviceIndex][cell];
-				} else {
-					// otherwise, we are importing and cell is being appended at current numParts
-					selfCellStart = m_numParticles;
-					selfCellEnd = m_numParticles + numPartsInPeerCell;
-				}
-
-				if (gdata->nextCommand == APPEND_EXTERNAL) {
-					// Only when appending, we also need to update cellStarts and cellEnds, both on host (for next updatee) and on device (for accessing cells).
-					// Now we write
-					//   cellStart[cell] = m_numParticles
-					//   cellEnd[cell] = m_numParticles + numPartsInPeerCell
-					// in both device memory (used in neib search) and host buffers (partially used in next update: if
-					// only the receiving device reads them, they are not used).
-
-					// Update host copy of cellStart and cellEnd. Since it is an external cell,
-					// it is unlikely that the host copy will be used, but it is always good to keep
-					// indices consistent. The device copy is being updated throught the burst mechanism.
-					gdata->s_dCellStarts[m_deviceIndex][cell] = selfCellStart;
-					gdata->s_dCellEnds[m_deviceIndex][cell] = selfCellEnd;
-
-					// Also update outer edge segment, if it was empty.
-					// NOTE: keeping correctness only if there are no OUTER particles (which we assume)
-					if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
-						gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = selfCellStart;
-
-					// finally, update the total number of particles
-					m_numParticles += numPartsInPeerCell;
-				}
-
-				// now we deal with the actual data in the cells
-
-				if (BURST_IS_EMPTY) {
-
-					// no burst yet; initialize with current cell
-					BURST_SET_CURRENT_CELL
-
-				} else
-				if (burst_peer_dev_index == peerDevIndex && burst_peer_index_end == peerCellStart) {
-
-					// previous burst is compatible with current cell: extend it
-					burst_peer_index_end = peerCellEnd;
-					burst_numparts += numPartsInPeerCell;
-
-				} else {
-					// Previous burst is not compatible, need to flush the "buffer" and reset it to the current cell.
-
-					// iterate over all defined buffers and see which were requested
-					// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
-					// with the ordering set by the key, in our case the unsigned integer type flag_t,
-					// so we have guarantee that the map will always be traversed in the same order
-					// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
-					BufferList::iterator bufset = m_dBuffers.begin();
-					const BufferList::iterator stop = m_dBuffers.end();
-					for ( ; bufset != stop ; ++bufset) {
-						flag_t bufkey = bufset->first;
-						if (!(gdata->commandFlags & bufkey))
-							continue; // skip unwanted buffers
-
-						AbstractBuffer *dstbuf = bufset->second;
-
-						// handling of double-buffered arrays
-						// note that TAU is not considered here
-						if (dstbuf->get_array_count() == 2) {
-							// for buffers with more than one array the caller should have specified which buffer
-							// is to be imported. complain
-							if (!dbl_buffer_specified) {
-								std::stringstream err_msg;
-								err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
-									<< " array without a specification of which buffer to use.";
-								throw runtime_error(err_msg.str());
-							}
-
-							if (gdata->commandFlags & DBLBUFFER_READ)
-								dbl_buf_idx = gdata->currentRead[bufkey];
-							else
-								dbl_buf_idx = gdata->currentWrite[bufkey];
-						} else {
-							dbl_buf_idx = 0;
-						}
-
-						const AbstractBuffer *srcbuf = gdata->GPUWORKERS[burst_peer_dev_index]->getBuffer(bufkey);
-						_size = burst_numparts * dstbuf->get_element_size();
-
-						// special treatment for TAU, since in that case we need to transfers all 3 arrays
-						if (!(bufkey & BUFFER_BIG)) {
-							void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin);
-							const void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_peer_index_begin);
-
-							peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
-						} else {
-							// generic, so that it can work for other buffers like TAU, if they are ever
-							// introduced; just fix the conditional
-							for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
-								void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin);
-								const void *srcptr = srcbuf->get_offset_buffer(ai, burst_peer_index_begin);
-								peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
-							}
-						}
-					}
-
-					// reset burst to current cell
-					BURST_SET_CURRENT_CELL
-				} // burst flush
-
-			} // if cell is not empty
-		} // if cell is external edge and in the same node
-
-	// flush the burst if not empty (should always happen if at least one edge cell is not empty)
-	if (!BURST_IS_EMPTY) {
-
-		// iterate over all defined buffers and see which were requested
-		// see NOTE above about std::map traversal order
-		// TODO it seems this is exactly the same code as above. Refactor?
-		BufferList::iterator bufset = m_dBuffers.begin();
-		const BufferList::iterator stop = m_dBuffers.end();
-		for ( ; bufset != stop ; ++bufset) {
-			flag_t bufkey = bufset->first;
-			if (!(gdata->commandFlags & bufkey))
-				continue; // skip unwanted buffers
-
-			AbstractBuffer *dstbuf = bufset->second;
-
-			// handling of double-buffered arrays
-			if (dstbuf->get_array_count() > 1) {
-				// for buffers with more than one array the caller should have specified which buffer
-				// is to be imported. complain
-				if (!dbl_buffer_specified) {
-					std::stringstream err_msg;
-					err_msg << "Import request for double-buffered " << dstbuf->get_buffer_name()
-						<< " array without a specification of which buffer to use.";
-					throw runtime_error(err_msg.str());
-				}
-
-				if (gdata->commandFlags & DBLBUFFER_READ)
-					dbl_buf_idx = gdata->currentRead[bufkey];
-				else
-					dbl_buf_idx = gdata->currentWrite[bufkey];
-			} else {
-				dbl_buf_idx = 0;
-			}
-
-			const AbstractBuffer *srcbuf = gdata->GPUWORKERS[burst_peer_dev_index]->getBuffer(bufkey);
-			_size = burst_numparts * dstbuf->get_element_size();
-
-			// special treatment for TAU, since in that case we need to transfers all 3 arrays
-			if (!(bufkey & BUFFER_BIG)) {
-				void *dstptr = dstbuf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin);
-				const void *srcptr = srcbuf->get_offset_buffer(dbl_buf_idx, burst_peer_index_begin);
-
-				peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
-			} else {
-				// generic, so that it can work for other buffers like TAU, if they are ever
-				// introduced; just fix the conditional
-				for (uint ai = 0; ai < dstbuf->get_array_count(); ++ai) {
-					void *dstptr = dstbuf->get_offset_buffer(ai, burst_self_index_begin);
-					const void *srcptr = srcbuf->get_offset_buffer(ai, burst_peer_index_begin);
-					peerAsyncTransfer(dstptr, m_cudaDeviceNumber, srcptr, gdata->device[burst_peer_dev_index], _size);
-				}
-			}
-		}
-	} // burst is empty?
-
-	// also flush cell buffer, if any
-	if (gdata->nextCommand == APPEND_EXTERNAL && !CELLS_BURST_IS_EMPTY)
-		asyncCellIndicesUpload(cellsBurst_begin, cellsBurst_end);
-
-#undef BURST_IS_EMPTY
-#undef BURST_SET_CURRENT_CELL
-#undef CELLS_BURST_IS_EMPTY
-
-	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
-	// transfers to be complete.
-	cudaDeviceSynchronize();
-}
-
-// Import the external edge cells of other nodes to the self device arrays. Can append the cells at the end of the current
-// list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
-// command. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments (host only).
-// The arrays to be imported must be specified in the command flags. Currently supports pos, vel, info, forces and tau; for the
-// double buffered arrays, it is mandatory to specify also the buffer to be used (read or write). This information is ignored
-// for the non-buffered arrays (e.g. forces).
-// The data is transferred in bursts of consecutive cells when possible.
-void GPUWorker::importNetworkPeerEdgeCells()
-{
-	// if next command is not an import nor an append, something wrong is going on
-	if (! ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) ) ) {
-		printf("WARNING: importNetworkPeerEdgeCells() was called, but current command is not APPEND nor UPDATE!\n");
-		return;
-	}
-
-	// TODO: peer as well, support for periodicity
-
-	// is a double buffer specified?
-	const bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
-	uchar dbl_buf_idx;
-
-	// We want to send the current cell to the neigbor processes only once. To this aim, we keep a list of recipient
-	// ranks who already received the current cell. The list is reset before iterating on all the neighbor cells
-	bool already_sent_to[MAX_DEVICES_PER_CLUSTER];
-
-	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device;
-	// moreover, we only need the "self" address. We also need a separate burst for direction (send/receive)
-	uint burst_self_index_begin[MAX_DEVICES_PER_CLUSTER][2];
-	uint burst_self_index_end[MAX_DEVICES_PER_CLUSTER][2];
-	uint burst_numparts[MAX_DEVICES_PER_CLUSTER][2]; // redundant with burst_peer_index_end, but cleaner
-	bool burst_is_closed[MAX_DEVICES_PER_CLUSTER][2]; // true for closed bursts, i.e. bursts that need to be flushed immediately
-	const uchar B_SEND = 0;
-	const uchar B_RECV = 1;
-
-	// initialize bursts
+	// initialize bursts pointers
 	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
-		for (uint direction = 0; direction < 2; direction++) {
-			burst_self_index_begin[n][direction] = 0;
-			burst_self_index_end[n][direction] = 0;
-			burst_numparts[n][direction] = 0;
-			burst_is_closed[n][direction] = false;
-		}
+		for (uint direction = SND; direction <= RCV; direction++)
+			burst_vector_index[n][direction] = -1;
 
-	// While we iterate on the cells we refer as "curr" to the cell indexed by the outer cycles and as "neib"
-	// to the neib cell indexed by the inner cycles. Either cell could belong to current process (so the bools
-	// curr_mine and neib_mine); one should not think that neib_cell is necessary in a neib device or process.
-	// Instead, otherDeviceGlobalDevIdx, which is used to handle the bursts, is always the global index of the
-	// "other" device.
+	// empty list of bursts
+	m_bursts.clear();
 
 	// iterate on all cells
 	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
-		// we will need the 3D coords as well
+		// We want to send the current cell to the neigbor processes only once, but multiple neib cells could
+		// belong the the same process. Therefore we keep a list of recipient gidx who already received the
+		// current cell. We will also use this list as a "recipient list", esp. to check which bursts need to
+		// be closed. The list is reset for every cell, before iterating the neighbors.
+		bool neighboring_device[MAX_DEVICES_PER_CLUSTER];
+
+		// reset the lists of recipient neighbors
+		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
+			neighboring_device[d] = false;
+
+		// NOTE: we must not skip cells that are non-edge for self
+		//if (m_hCompactDeviceMap[cell] == CELLTYPE_INNER_CELL_SHIFTED) return;
+		//if (m_hCompactDeviceMap[cell] == CELLTYPE_OUTER_CELL_SHIFTED) return;
+
+		// we need the 3D coords as well
 		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
-		// NOPE
-		// optimization: if not edging, continue
-		// if (m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_OUTER_CELL_SHIFTED ||
-		//	m_hCompactDeviceMap[lin_curr_cell] == CELLTYPE_INNER_CELL_SHIFTED ) continue;
+		// find the owner
+		const uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
+		const uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
 
-		// reset the list for recipient neib processes
-		for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++)
-			already_sent_to[d] = false;
-
-		uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
-		uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
+		// redundant correctness check
 		if ( curr_cell_rank >= gdata->mpi_nodes ) {
 			printf("FATAL: cell %u seems to belong to rank %u, but max is %u; probable memory corruption\n", lin_curr_cell, curr_cell_rank, gdata->mpi_nodes - 1);
 			gdata->quit_request = true;
@@ -612,6 +327,10 @@ void GPUWorker::importNetworkPeerEdgeCells()
 
 		// is it mine?
 		const bool curr_mine = (curr_cell_gidx == m_globalDeviceIdx);
+
+		// if cell is not edging at all, it should be skipped without breaking any burst
+		// (at all = between any pair of devices, unrelated to any_mine)
+		bool edging = false;
 
 		// iterate on neighbors
 		for (int dz = -1; dz <= 1; dz++)
@@ -627,6 +346,11 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					if (coords_curr_cell.y + dy < 0 || coords_curr_cell.y + dy >= gdata->gridSize.y) continue;
 					if (coords_curr_cell.z + dz < 0 || coords_curr_cell.z + dz >= gdata->gridSize.z) continue;
 
+					// NOTE: we could skip empty cells if all the nodes in the network knew the content of all the cells.
+					// Instead, each process only knows the empty cells of its workers, so empty cells still break bursts
+					// as if they weren't empty. One could check the performances with broadcasting all-to-all the empty
+					// cells (possibly in bursts).
+
 					// now compute the linearized hash of the neib cell and other properties
 					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
 					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
@@ -637,309 +361,373 @@ void GPUWorker::importNetworkPeerEdgeCells()
 					// is any of the two mine? if not, I will only manage closed bursts
 					const bool any_mine = (curr_mine || neib_mine);
 
-					// Safely skip pairs belonging to the same *node*. This happens if
-					// - both cells belong to the same device (e.g. two inner edge cells)
-					// - cells belong to different devices of the same node (will be imported by importPeerEdgeCells, not MPI)
-					if (curr_cell_rank == neib_cell_rank) continue;
+					// skip pairs belonging to the same device
+					if (curr_cell_gidx == neib_cell_gidx) continue;
 
-					// NOPE: we need to know if a burst has to be closed
-					// safely skip pairs where not current nor neib belong to current process
-					// (possible for edge cells neighboring two devices)
-					// if (!curr_mine && !neib_mine) continue;
+					// if we are here, at least one neib cell belongs to a different device
+					edging = true;
 
-					// will be set in different way depending on the rank (mine, then local cellStarts, or not, then receive size via network)
-					uint partsInCurrCell = 0;
-					uint curr_cell_start;
+					// did we already treat the pair current_cell:neib_node? (i.e. previously, due to another neib cell)
+					if (neighboring_device[ neib_cell_gidx ]) continue;
 
-					// did we already treat the pair current_cell:neib_node? (e.g. previously due to another neib cell)
-					if (already_sent_to[ neib_cell_gidx ]) continue;
+					// mark the pair current_cell:neib_node as treated (aka: include the device in the recipient "list")
+					neighboring_device[ neib_cell_gidx ] = true;
 
-					// mark the pair current_cell:neib_node as treated
-					already_sent_to[ neib_cell_gidx ] = true;
+					// sending or receiving?
+					const TransferDirection transfer_direction = ( curr_mine ? SND : RCV );
 
-					// sending or receiving? always equal to curr_mine, but more readable
-					const uint transfer_direction = ( curr_mine ? B_SEND : B_RECV );
+					// simple peer copy or mpi transfer?
+					const TransferScope transfer_scope = (curr_cell_rank == neib_cell_rank ? NODE_SCOPE : NETWORK_SCOPE);
+
+					// devices fecth peers' memory with any intervention from the sender (aka: only RCV bursts in same node)
+					if (transfer_scope == NODE_SCOPE && transfer_direction == SND)
+						continue;
 
 					// the "other" device is the device owning the cell (curr or neib) which is not mine
 					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
 
-					// if curr or neib, send / receive the cell size. Othewise, we skip to the bursts
 					if (any_mine) {
 
-						// if current cell is mine or if we already imported it and we just need to update, read its size from cellStart/End
-						if (curr_mine || gdata->nextCommand == UPDATE_EXTERNAL) {
-							// read the size
-							curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell];
+						// if existing burst is non-empty, was not closed till now, so it is compatible: extend it
+						if (! BURST_IS_EMPTY(other_device_gidx,transfer_direction)) {
 
-							// set partsInCurrCell
-							if (curr_cell_start != EMPTY_CELL)
-								partsInCurrCell = gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] - curr_cell_start;
+							// cell index is higher than the last enqueued; it is edging as well; no other cell
+							// interrrupted the burst until now. So cell is consecutive with previous in both
+							// the sending the the receiving device
+							m_bursts[ burst_vector_index[other_device_gidx][transfer_direction] ].cells.push_back(lin_curr_cell);
+
+						} else {
+							// if we are here, either the burst was empty or not compatabile. In both cases, create a new one
+							CellList list;
+							list.push_back(lin_curr_cell);
+
+							CellBurst burst = {
+								list,
+								other_device_gidx,
+								transfer_direction,
+								transfer_scope,
+								0, 0, 0
+							};
+
+							// store (ovewrite, if was non-empty) its forthcoming index
+							burst_vector_index[other_device_gidx][transfer_direction] = m_bursts.size();
+							// append it
+							m_bursts.push_back(burst);
+							// NOTE: we should not keep the structure and append it to vector later, or bursts
+							// could result in a sorting which can cause a deadlock (e.g. all devices try to
+							// send before receiving)
+
+							// update counters
+							if (transfer_scope == NODE_SCOPE)
+								node_bursts++;
 							else
-								partsInCurrCell = 0;
+								network_bursts++;
 						}
+					}
 
-						if (gdata->nextCommand == APPEND_EXTERNAL) {
+					/* NOTES on burst breaking conditions
+					 *
+					 * A cell which needs to be sent from a node N1, device D1 to a node N2, device D2 will break:
+					 * 1. All bursts in any node with recipient D2 (except of course the current from D1): that is because
+					 *    burst are imported as series of consecutive cells and would be broken by current.
+					 * 2. All bursts originating from D1 to any recipient that is not among the neighbors of the cell:
+					 *    any device which is not neighboring the current cell will not expect to receive it.
+					 * The former will be true while cellStart and cellEnd are computed immediately upon reception of the
+					 * size of the cell. One could instead compute them only after having received all the cell sizes, thus
+					 * compacting more bursts and also optimizing out empty cells.
+					 * Condition nr. 1 is checked here while nr. 2 is checked immediately after the iteration on neighbor
+					 * cells.
+					 */
 
-							if (curr_mine) {
-
-								// the cell belongs to current process and we are in appending phase: we want to send its size to the neib process
-								gdata->networkManager->sendUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
-
-							} else
-							if (neib_mine) {
-								// The cell belongs to a neib node and we are appending: we want to receive the size and set the cellstarts/ends:
-								// 1. receive the size
-								gdata->networkManager->receiveUint(curr_cell_gidx, neib_cell_gidx, &partsInCurrCell);
-
-								// 2. prepare to append it to the end of the present array
-								curr_cell_start = m_numParticles;
-
-								// 3. update host cellStarts/Ends
-								if (partsInCurrCell > 0) {
-									gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = curr_cell_start;
-									gdata->s_dCellEnds[m_deviceIndex][lin_curr_cell] = curr_cell_start + partsInCurrCell;
-								} else
-									curr_cell_start = gdata->s_dCellStarts[m_deviceIndex][lin_curr_cell] = EMPTY_CELL;
-
-								// 4. update device cellStarts/Ends
-								CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + lin_curr_cell), (gdata->s_dCellStarts[m_deviceIndex] + lin_curr_cell),
-									sizeof(uint), cudaMemcpyHostToDevice));
-								if (partsInCurrCell > 0)
-									CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + lin_curr_cell), (gdata->s_dCellEnds[m_deviceIndex] + lin_curr_cell),
-										sizeof(uint), cudaMemcpyHostToDevice));
-
-								// 5. update outer edge segment, in case it was empty
-								if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT && partsInCurrCell > 0)
-									gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
-
-								// 6. update the total number of particles
-								m_numParticles += partsInCurrCell;
-							} // neib_mine
-
-						} // if (gdata->nextCommand == APPEND_EXTERNAL)
-
-					} // if (any_mine)
-
-					/* We could skip empty cells, but until there is no broadcast, not all devices know then they are. So
-					 * we have to close all bursts which have the curr_cell_gidx as sender: sender closes all the other,
-					 * others close one with curr sender.
-					 * Moreover, until cellStart and cellEnd are computed immediately upon reception of the size of the cell,
-					 * and not when flushing a burst, we also have to close all buffers which have the neib device
-					 * as recipient.
-					 * So, summarizing, now we want to close:
-					 * - All bursts originating from curr_cell_gidx, except the current to neib_cell_gidx, in all nodes
-					 * - All bursts addressed to neib_cell_gidx, except the current from curr_cell_gidx, in all nodes  */
-					if (curr_mine) {
-						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
-							if (n != neib_cell_gidx && burst_numparts[n][B_SEND] > 0)
-								burst_is_closed[n][B_SEND] = true;
+					// Checking condition nr. 1 (see comment before)
+					if (!any_mine) {
+						// I am not the sender nor the recipient; close all bursts SND to the receiver
+						if (!BURST_IS_EMPTY(neib_cell_gidx,SND)) {
+							CLOSE_BURST(neib_cell_gidx,SND)
+						}
 					} else
 					if (neib_mine) {
+						// I am the recipient device: close all other RCV bursts
 						for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
-							if (n != curr_cell_gidx && burst_numparts[n][B_RECV] > 0)
-								burst_is_closed[n][B_RECV] = true;
-					} else  {
-						if (burst_numparts[curr_cell_gidx][B_RECV] > 0)
-							burst_is_closed[curr_cell_gidx][B_RECV] = true;
-						if (burst_numparts[neib_cell_gidx][B_SEND] > 0)
-							burst_is_closed[neib_cell_gidx][B_SEND] = true;
-					}
-					// It can be tested in the future the performance of broadcasting the size of the exchanged cells; this would allow for less bursts closings.
-
-					// uncomment the following to disable bursts and send always one cell at a time
-					/*
-					for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
-						if (burst_numparts[n][B_SEND] > 0)
-							burst_is_closed[n][B_SEND] = true;
-						if (burst_numparts[n][B_RECV] > 0)
-							burst_is_closed[n][B_RECV] = true;
-					}
-					*/
-
-					// NOPE: might need to flush the bursts first
-					// if the cell is empty, just continue to next one
-					// if (curr_cell_start == EMPTY_CELL) continue;
-
-					// first, let's flush all non-empty, closed bursts
-					for (uint device_gidx = 0; device_gidx < MAX_DEVICES_PER_CLUSTER; device_gidx++) // for each gidx
-						if ( device_gidx != m_globalDeviceIdx )
-							for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
-
-								// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
-								// the same order. So we invert the direction if self gidx is bigger than the other
-								const uint corrected_sending_dir = (m_globalDeviceIdx < device_gidx ? sending_dir : 1 - sending_dir);
-
-								// skip burst if empty
-								if (burst_numparts[device_gidx][corrected_sending_dir] == 0) continue;
-								// skip burst if still open
-								if (!burst_is_closed[device_gidx][corrected_sending_dir]) continue;
-
-								// abstract from self / other
-								const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : device_gidx);
-								const uint recipient_gidx = (corrected_sending_dir == B_SEND ? device_gidx : m_globalDeviceIdx);
-
-								// iterate over all defined buffers and see which were requested
-								// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
-								// with the ordering set by the key, in our case the unsigned integer type flag_t,
-								// so we have guarantee that the map will always be traversed in the same order
-								// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
-								BufferList::iterator bufset = m_dBuffers.begin();
-								const BufferList::iterator stop = m_dBuffers.end();
-								for ( ; bufset != stop ; ++bufset) {
-									flag_t bufkey = bufset->first;
-									if (!(gdata->commandFlags & bufkey))
-										continue; // skip unwanted buffers
-
-									AbstractBuffer *buf = bufset->second;
-
-									// handling of double-buffered arrays
-									// note that TAU is not considered here
-									if (buf->get_array_count() == 2) {
-										// for buffers with more than one array the caller should have specified which buffer
-										// is to be imported. complain
-										if (!dbl_buffer_specified) {
-											std::stringstream err_msg;
-											err_msg << "Import request for double-buffered " << buf->get_buffer_name()
-												<< " array without a specification of which buffer to use.";
-											throw runtime_error(err_msg.str());
-										}
-
-										if (gdata->commandFlags & DBLBUFFER_READ)
-											dbl_buf_idx = gdata->currentRead[bufkey];
-										else
-											dbl_buf_idx = gdata->currentWrite[bufkey];
-									} else {
-										dbl_buf_idx = 0;
-									}
-
-									const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
-
-									// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
-									if (bufkey != BUFFER_BIG) {
-										void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
-										if (corrected_sending_dir == B_SEND)
-											gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-										else
-											gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-									} else {
-										// generic, so that it can work for other buffers like TAU, if they are ever
-										// introduced; just fix the conditional
-										for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-											void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[device_gidx][corrected_sending_dir]);
-											if (corrected_sending_dir == B_SEND)
-												gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-											else
-												gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-										}
-									}
-								} // for each buffer type
-
-								// reset the flushed burst
-								burst_numparts[device_gidx][corrected_sending_dir] = 0;
-								burst_is_closed[device_gidx][corrected_sending_dir] = false;
-							} // for each non-empty, closed burst, in every direction
-
-					// if the cell is empty, there is no burst to handle
-					if (partsInCurrCell == 0) continue;
-
-					// if we are involved in the pair, let's handle the creation or extension of the burst
-					if (curr_mine || neib_mine) {
-						// make a new burst with the current cell or extend the previous
-						if (burst_numparts[other_device_gidx][transfer_direction] == 0) {
-							// burst is empty, so create a new one and continue
-							burst_self_index_begin[other_device_gidx][transfer_direction] = curr_cell_start;
-							burst_self_index_end[other_device_gidx][transfer_direction] = curr_cell_start + partsInCurrCell;
-							burst_numparts[other_device_gidx][transfer_direction] = partsInCurrCell;
-							burst_is_closed[other_device_gidx][transfer_direction] = false;
-						} else {
-							// was non-empty: extend the existing one
-							burst_self_index_end[other_device_gidx][transfer_direction] += partsInCurrCell;
-							burst_numparts[other_device_gidx][transfer_direction] += partsInCurrCell;
-						}
+							if (n != curr_cell_gidx && !BURST_IS_EMPTY(n,RCV)) {
+								CLOSE_BURST(n,RCV)
+							}
 					}
 
-				} // iterate on neighbor cells
+				} // iterate on neibs of current cells
+
+		// There was no neib cell (i.e. it was an internal cell for every device), so skip burst-breaking conditinals.
+		// NOTE: comment the following line to allow bursts only along linearization (e.g. with Y-split and XYZ linearizazion,
+		// only one burst will be used with the following line active; several, aka one per Y line, will be used with the
+		// following commented). This can useful only for debugging or profiling purposes
+		if (!edging) continue;
+
+		// Checking condition nr. 2 (see comment before)
+		for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++) {
+			// I am the sender; let's close all bursts directed to devices which are not recipients of curr cell
+			if (curr_mine && !neighboring_device[n] && !BURST_IS_EMPTY(n,SND)) {
+				CLOSE_BURST(n,SND)
+			}
+			// I am not among the recipients and I have an open burst from curr; let's close it
+			if (!neighboring_device[m_globalDeviceIdx] && !BURST_IS_EMPTY(curr_cell_gidx,RCV)) {
+				CLOSE_BURST(curr_cell_gidx,RCV)
+			}
+		}
+
 	} // iterate on cells
 
-	// here: flush all the non-empty bursts (either closed or still open)
-	for (uint device_gidx = 0; device_gidx < MAX_DEVICES_PER_CLUSTER; device_gidx++) // for each gidx
-		if ( device_gidx != m_globalDeviceIdx )
-		for (uint sending_dir = 0; sending_dir < 2; sending_dir++) { // for each direction
+	printf("D%u: data transfers compacted in %u bursts [%u node + %u network]\n",
+		m_deviceIndex, (uint)m_bursts.size(), node_bursts, network_bursts);
+	/*
+	for (uint i = 0; i < m_bursts.size(); i++) {
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u\n", m_deviceIndex,
+			i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
+			(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope);
+	}
+	*/
+#undef BURST_IS_EMPTY
+#undef CLOSE_BURST
+}
 
-				// The same pair of gidx usually needs both to send and receive, but this would lead to deadlock if both used
-				// the same order. So we invert the direction if self gidx is bigger than the other
-				const uint corrected_sending_dir = (m_globalDeviceIdx < device_gidx ? sending_dir : 1 - sending_dir);
+// iterate on the list and send/receive/read cell sizes
+void GPUWorker::transferBurstsSizes()
+{
+	// first received cell marks the beginning of the cell range to upload
+	bool receivedOneCell = false;
+	uint minLinearCellIdx = 0;
+	uint maxLinearCellIdx = 0;
+	// Alternatively, we could initialize the minimum to gdata->nGridCells and the maximum to 0, and
+	// check the min/max against them. However, in case we receive no cells at all, we want that
+	// 1. max > min 2. 0 cells are uploaded
 
-				// skip burst if empty
-				if (burst_numparts[device_gidx][corrected_sending_dir] == 0) continue;
-				// we do not skip burst if not closed. Actually, the flush is mainly meant to flush still open bursts
-				// if (!burst_is_closed[device_gidx][corrected_sending_dir]) continue;
+	// iterate on all bursts
+	for (uint i = 0; i < m_bursts.size(); i++) {
 
-				// abstract from self / other
-				const uint sender_gidx = (corrected_sending_dir == B_SEND ? m_globalDeviceIdx : device_gidx);
-				const uint recipient_gidx = (corrected_sending_dir == B_SEND ? device_gidx : m_globalDeviceIdx);
+		// first non-empty cell in this burst marks the beginning of its particle range
+		bool receivedOneNonEmptyCellInBurst = false;
 
-				// iterate over all defined buffers and see which were requested
-				// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
-				// with the ordering set by the key, in our case the unsigned integer type flag_t,
-				// so we have guarantee that the map will always be traversed in the same order
-				// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
-				BufferList::iterator bufset = m_dBuffers.begin();
-				const BufferList::iterator stop = m_dBuffers.end();
-				for ( ; bufset != stop ; ++bufset) {
-					flag_t bufkey = bufset->first;
-					if (!(gdata->commandFlags & bufkey))
-						continue; // skip unwanted buffers
+		// reset particle range
+		m_bursts[i].selfFirstParticle = m_bursts[i].peerFirstParticle = 0;
+		m_bursts[i].numParticles = 0;
 
-					AbstractBuffer *buf = bufset->second;
+		// iterate over the cells of the burst
+		for (uint j = 0; j < m_bursts[i].cells.size(); j++) {
+			uint lin_cell = m_bursts[i].cells[j];
 
-					// handling of double-buffered arrays
-					// note that TAU is not considered here
-					if (buf->get_array_count() == 2) {
-						// for buffers with more than one array the caller should have specified which buffer
-						// is to be imported. complain
-						if (!dbl_buffer_specified) {
-							std::stringstream err_msg;
-							err_msg << "Import request for double-buffered " << buf->get_buffer_name()
-								<< " array without a specification of which buffer to use.";
-							throw runtime_error(err_msg.str());
-						}
+			uint numPartsInCell = 0;
+			uchar peerDeviceIndex = gdata->DEVICE(m_bursts[i].peer_gidx);
 
-						if (gdata->commandFlags & DBLBUFFER_READ)
-							dbl_buf_idx = gdata->currentRead[bufkey];
-						else
-							dbl_buf_idx = gdata->currentWrite[bufkey];
+			// if direction is SND, scope can only be NETWORK
+			if (m_bursts[i].direction == SND) {
+
+				// compute cell size
+				if (gdata->s_dCellStarts[m_deviceIndex][lin_cell] != EMPTY_CELL)
+					numPartsInCell = gdata->s_dCellEnds[m_deviceIndex][lin_cell] - gdata->s_dCellStarts[m_deviceIndex][lin_cell];
+				// send cell size
+				gdata->networkManager->sendUint(m_globalDeviceIdx, m_bursts[i].peer_gidx, &numPartsInCell);
+
+			} else {
+
+				// If the direction is RCV, the scope can be NODE or NETWORK. In the former case, read the
+				// cell content from the shared cellStarts; in the latter, receive if from the node
+				if (m_bursts[i].scope == NETWORK_SCOPE)
+					gdata->networkManager->receiveUint(m_bursts[i].peer_gidx, m_globalDeviceIdx, &numPartsInCell);
+				else {
+					if (gdata->s_dCellStarts[peerDeviceIndex][lin_cell] != EMPTY_CELL)
+						numPartsInCell = gdata->s_dCellEnds[peerDeviceIndex][lin_cell] -
+							gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
+				}
+
+				// append the cell
+				if (numPartsInCell > 0) {
+
+					// set cell start and end
+					gdata->s_dCellStarts[m_deviceIndex][lin_cell] = m_numParticles;
+					gdata->s_dCellEnds[m_deviceIndex][lin_cell] = m_numParticles + numPartsInCell;
+
+					// update outer edge segment, in case it was empty
+					if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] == EMPTY_SEGMENT)
+						gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] = m_numParticles;
+
+					// update numParticles
+					m_numParticles += numPartsInCell;
+
+				} else
+					// just set the cell as empty
+					gdata->s_dCellStarts[m_deviceIndex][lin_cell] = EMPTY_CELL;
+
+				// Update indices of cell range to be uploaded to device. We only care about RCV cells
+				if (!receivedOneCell) {
+					minLinearCellIdx = lin_cell;
+					receivedOneCell = true;
+				}
+				// since lin_cell is increasing, the max is always updated
+				maxLinearCellIdx = lin_cell;
+
+			} // direction is RCV
+
+			// Update indices of particle ranges (SND and RCV), which will be used for burst transfers
+			if (numPartsInCell > 0) {
+				if (!receivedOneNonEmptyCellInBurst) {
+					m_bursts[i].selfFirstParticle = gdata->s_dCellStarts[m_deviceIndex][lin_cell];
+					if (m_bursts[i].scope == NODE_SCOPE)
+						m_bursts[i].peerFirstParticle = gdata->s_dCellStarts[peerDeviceIndex][lin_cell];
+					receivedOneNonEmptyCellInBurst = true;
+				}
+				m_bursts[i].numParticles += numPartsInCell;
+				if (m_deviceIndex == 1 && gdata->iterations == 30 && false)
+					printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i,
+						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles,
+							numPartsInCell, lin_cell );
+			}
+
+		} // iterate on cells of the current burst
+	} // iterate on bursts
+
+	// update device cellStarts/Ends, if any cell needs update
+	if (receivedOneCell) {
+		// maxLinearCellIdx is inclusive, so remember to add 1
+		const uint numCells = maxLinearCellIdx - minLinearCellIdx + 1;
+		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + minLinearCellIdx),
+											(gdata->s_dCellStarts[m_deviceIndex] + minLinearCellIdx),
+											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
+		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + minLinearCellIdx),
+											(gdata->s_dCellEnds[m_deviceIndex] + minLinearCellIdx),
+											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
+	}
+
+	/* for (uint i = 0; i < m_bursts.size(); i++) {
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u, range %u-%u, peer %u, (tot %u parts)\n", m_deviceIndex,
+				i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
+				(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope,
+				m_bursts[i].selfFirstParticle, m_bursts[i].selfFirstParticle + m_bursts[i].numParticles,
+				m_bursts[i].peerFirstParticle, m_bursts[i].numParticles
+			);
+	} */
+}
+
+// Iterate on the list and send/receive bursts of particles across different nodes
+void GPUWorker::transferBursts()
+{
+	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
+	uint dbl_buf_idx;
+
+	// iterate on all bursts
+	for (uint i = 0; i < m_bursts.size(); i++) {
+
+		// transfer the data if burst is not empty
+		if (m_bursts[i].numParticles == 0) continue;
+
+		// abstract from self / other
+		const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
+		const uint recipient_gidx = (m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx);
+
+		// iterate over all defined buffers and see which were requested
+		// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+		// with the ordering set by the key, in our case the unsigned integer type flag_t,
+		// so we have guarantee that the map will always be traversed in the same order
+		// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+		BufferList::iterator bufset = m_dBuffers.begin();
+		const BufferList::iterator stop = m_dBuffers.end();
+		for ( ; bufset != stop ; ++bufset) {
+			flag_t bufkey = bufset->first;
+			if (!(gdata->commandFlags & bufkey))
+				continue; // skip unwanted buffers
+
+			AbstractBuffer *buf = bufset->second;
+
+			// handling of double-buffered arrays
+			// note that TAU is not considered here
+			if (buf->get_array_count() == 2) {
+				// for buffers with more than one array the caller should have specified which buffer
+				// is to be imported. complain
+				if (!dbl_buffer_specified) {
+					std::stringstream err_msg;
+					err_msg << "Import request for double-buffered " << buf->get_buffer_name()
+					<< " array without a specification of which buffer to use.";
+					throw runtime_error(err_msg.str());
+				}
+
+				if (gdata->commandFlags & DBLBUFFER_READ)
+					dbl_buf_idx = gdata->currentRead[bufkey];
+				else
+					dbl_buf_idx = gdata->currentWrite[bufkey];
+			} else {
+				dbl_buf_idx = 0;
+			}
+
+			const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
+
+			// retrieve peer's indices, if intra-node
+			const AbstractBuffer *peerbuf = NULL;
+			uchar peerCudaDevNum = 0;
+			if (m_bursts[i].scope == NODE_SCOPE) {
+				uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
+				peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
+				peerCudaDevNum = gdata->device[peerDevIdx];
+			}
+
+			// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
+			if (bufkey != BUFFER_BIG) {
+				void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
+				if (m_bursts[i].scope == NODE_SCOPE) {
+					// node scope: just read it
+					const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
+					peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+				} else {
+					// network scope: SND/RCV
+					if (m_bursts[i].direction == SND)
+						gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					else
+						gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+				}
+			} else {
+				// generic, so that it can work for other buffers like TAU, if they are ever
+				// introduced; just fix the conditional
+				for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+					void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
+					if (m_bursts[i].scope == NODE_SCOPE) {
+						// node scope: just read it
+						const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
+						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 					} else {
-						dbl_buf_idx = 0;
-					}
-
-					const unsigned int _size = burst_numparts[device_gidx][corrected_sending_dir] * buf->get_element_size();
-
-					// special treatment for TAU, since in that case we need to transfers all 3 arrays
-					if (bufkey != BUFFER_BIG) {
-						void *ptr = buf->get_offset_buffer(dbl_buf_idx, burst_self_index_begin[device_gidx][corrected_sending_dir]);
-						if (corrected_sending_dir == B_SEND)
+						// network scope: SND/RCV
+						if (m_bursts[i].direction == SND)
 							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
 						else
 							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-					} else {
-						// generic, so that it can work for other buffers like TAU, if they are ever
-						// introduced; just fix the conditional
-						for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-							void *ptr = buf->get_offset_buffer(ai, burst_self_index_begin[device_gidx][corrected_sending_dir]);
-							if (corrected_sending_dir == B_SEND)
-								gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-							else
-								gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-						}
 					}
-				} // for each buffer type
+				}
+			} // buf is BUFFER_BIG
 
-				// reset the flushed burst
-				burst_numparts[device_gidx][corrected_sending_dir] = 0; // probably useless here
-				burst_is_closed[device_gidx][corrected_sending_dir] = false; // for sure useless
-			} // for each non-empty, closed burst, in every direction
+		} // for each buffer type
 
+	} // iterate on bursts
+}
+
+
+// Import the external edge cells of other devices to the self device arrays. Can append the cells at the end of the current
+// list of particles (APPEND_EXTERNAL) or just update the already appended ones (UPDATE_EXTERNAL), according to the current
+// GlobalData::nextCommand. When appending, also update cellStarts (device and host), cellEnds (device and host) and segments
+// (host only). The arrays to be imported must be specified in the command flags. If double buffered arrays are included, it
+// is mandatory to specify also the buffer to be used (read or write). This information is ignored for non-buffered ones (e.g.
+// forces).
+// The data is transferred in bursts of consecutive cells when possible. Intra-node transfers are D2D if peer access is enabled,
+// staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
+void GPUWorker::importExternalCells()
+{
+	if (gdata->nextCommand == APPEND_EXTERNAL)
+		transferBurstsSizes();
+	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
+		transferBursts();
+
+	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
+	// transfers to be complete.
+	if (MULTI_GPU)
+		cudaDeviceSynchronize();
+
+	// here will  sync the MPI transfers when (if) we'll switch to non-blocking calls
+	// if (MULTI_NODE)...
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
@@ -954,6 +742,10 @@ size_t GPUWorker::allocateHostBuffers() {
 		m_hCompactDeviceMap = new uint[m_nGridCells];
 		memset(m_hCompactDeviceMap, 0, uintCellsSize);
 		allocated += uintCellsSize;
+
+		// allocate a 1Mb transferBuffer if peer copies are disabled
+		if (m_disableP2Ptranfers)
+			resizeTransferBuffer(1024 * 1024);
 	}
 
 	m_hostMemory += allocated;
@@ -1005,12 +797,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		// initialize anyway for single-GPU simulations
 		CUDA_SAFE_CALL(cudaMemset(m_dCompactDeviceMap, 0, uintCellsSize));
 		allocated += uintCellsSize;
-	}
 
-	CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
-	// ditto
-	CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
-	allocated += segmentsSize;
+		// alloc segment only if not single_device
+		CUDA_SAFE_CALL(cudaMalloc(&m_dSegmentStart, segmentsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dSegmentStart, 0, segmentsSize));
+		allocated += segmentsSize;
+	}
 
 	if (m_simparams->numODEbodies) {
 		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
@@ -1068,6 +860,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 void GPUWorker::deallocateHostBuffers() {
 	if (MULTI_DEVICE)
 		delete [] m_hCompactDeviceMap;
+
+	if (m_hTransferBuffer)
+		cudaFreeHost(m_hTransferBuffer);
+
 	// here: dem host buffers?
 }
 
@@ -1078,9 +874,10 @@ void GPUWorker::deallocateDeviceBuffers() {
 	CUDA_SAFE_CALL(cudaFree(m_dCellStart));
 	CUDA_SAFE_CALL(cudaFree(m_dCellEnd));
 
-	if (MULTI_DEVICE)
+	if (MULTI_DEVICE) {
 		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
-	CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
+	}
 
 	if (m_simparams->numODEbodies) {
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
@@ -1198,6 +995,30 @@ void GPUWorker::dumpBuffers() {
 void GPUWorker::setDeviceCellsAsEmpty()
 {
 	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, UINT_MAX, gdata->nGridCells  * sizeof(uint)));
+}
+
+// if m_hTransferBuffer is not big enough, reallocate it. Round up to 1Mb
+void GPUWorker::resizeTransferBuffer(size_t required_size)
+{
+	// is it big enough already?
+	if (required_size < m_hTransferBufferSize) return;
+
+	// will round up to...
+	size_t ROUND_TO = 1024*1024;
+
+	// store previous size, compute new
+	size_t prev_size = m_hTransferBufferSize;
+	m_hTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+
+	// dealloc first
+	if (m_hTransferBufferSize) {
+		CUDA_SAFE_CALL(cudaFreeHost(m_hTransferBuffer));
+		m_hostMemory -= prev_size;
+	}
+
+	// (re)allocate
+	CUDA_SAFE_CALL(cudaMallocHost(&m_hTransferBuffer, m_hTransferBufferSize));
+	m_hostMemory += m_hTransferBufferSize;
 }
 
 // download cellStart and cellEnd to the shared arrays
@@ -1465,13 +1286,21 @@ void GPUWorker::enablePeerAccess()
 		// is peer access possible?
 		int res;
 		cudaDeviceCanAccessPeer(&res, m_cudaDeviceNumber, peerCudaDevNum);
-		if (res != 1)
-			// if this happens, peer copies will be buffered on host by the CUDA runtime
+		// update value in table
+		gdata->s_hDeviceCanAccessPeer[m_deviceIndex][d] = (res == 1);
+		if (res == 0) {
+			// if this happens, peer copies will be buffered on host. We do it explicitly on a dedicated
+			// host buffer instead of letting the CUDA runtime do it automatically
+			m_disableP2Ptranfers = true;
 			printf("WARNING: device %u (CUDA device %u) cannot enable direct peer access for device %u (CUDA device %u)\n",
 				m_deviceIndex, m_cudaDeviceNumber, d, peerCudaDevNum);
-		else
+		} else
 			cudaDeviceEnablePeerAccess(peerCudaDevNum, 0);
 	}
+
+	if (m_disableP2Ptranfers)
+		printf("Device %u (CUDA device %u) could not enable complete peer access; will stage P2P transfers on host\n",
+			m_deviceIndex, m_cudaDeviceNumber);
 }
 
 // Actual thread calling GPU-methods
@@ -1514,6 +1343,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// create and upload the compact device map (2 bits per cell)
 	if (MULTI_DEVICE) {
 		instance->createCompactDeviceMap();
+		instance->computeCellBursts();
 		instance->uploadCompactDeviceMap();
 	}
 
@@ -1589,17 +1419,11 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case APPEND_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
-				if (MULTI_GPU)
-					instance->importPeerEdgeCells();
-				if (MULTI_NODE)
-					instance->importNetworkPeerEdgeCells();
+				instance->importExternalCells();
 				break;
 			case UPDATE_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
-				if (MULTI_GPU)
-					instance->importPeerEdgeCells();
-				if (MULTI_NODE)
-					instance->importNetworkPeerEdgeCells();
+				instance->importExternalCells();
 				break;
 			case MLS:
 				if (dbg_step_printf) printf(" T %d issuing MLS\n", deviceIndex);
@@ -1693,15 +1517,27 @@ void GPUWorker::kernel_calcHash()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_HASH>(),
-				m_dBuffers.getData<BUFFER_PARTINDEX>(),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-#if HASH_KEY_SIZE >= 64
-				m_dCompactDeviceMap,
-#endif
-				m_numParticles,
-				m_simparams->periodicbound);
+	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles
+	// might be lost (if a GPU computes a different hash and does not recognize the particles
+	// as "own"). However, the high bits should be set, or edge cells won't be compacted at
+	// the end and bursts will be sparse.
+	// This is required only in MULTI_DEVICE simulations but it holds also on single-device
+	// ones to keep numerical consistency.
+
+	if (gdata->iterations == 0)
+		fixHash(	m_dBuffers.getData<BUFFER_HASH>(),
+					m_dBuffers.getData<BUFFER_PARTINDEX>(),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dCompactDeviceMap,
+					m_numParticles);
+	else
+		calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+					m_dBuffers.getData<BUFFER_HASH>(),
+					m_dBuffers.getData<BUFFER_PARTINDEX>(),
+					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+					m_dCompactDeviceMap,
+					m_numParticles,
+					m_simparams->periodicbound);
 }
 
 void GPUWorker::kernel_sort()
@@ -1739,9 +1575,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
-#if HASH_KEY_SIZE >= 64
 							m_dSegmentStart,
-#endif
 							// output: sorted arrays
 							m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 							m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),

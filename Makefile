@@ -1,9 +1,7 @@
 # GPUSPH Makefile
 #
 # TODO:
-# - Add support for versioning with git
 # - Improve list-problems problem detection (move problems to separate dir?)
-# - Recompile also if target_arch changes (like dbg and compute)
 #
 # Notes:
 # - When adding a target, comment it with "# target: name - desc" and help
@@ -497,6 +495,12 @@ else ifeq ($(verbose), 2)
 	CUFLAGS += --ptxas-options=-v
 	CXXFLAGS += -Wall
 endif
+
+# Enable host profile with gprof. Pipeline to profile:
+# enable -pg, make, run, gprof ./GPUSPH gmon.out > results.txt
+# http://gcc.gnu.org/onlinedocs/gcc/Debugging-Options.html#index-pg-621
+# CXXFLAGS += -pg
+# LDFLAGS += -pg
 
 # Finally, add CXXFLAGS to CUFLAGS
 
