@@ -477,7 +477,7 @@ void GPUWorker::computeCellBursts()
 	} // iterate on cells
 
 	printf("D%u: data transfers compacted in %u bursts [%u node + %u network]\n",
-		m_deviceIndex, m_bursts.size(), node_bursts, network_bursts);
+		m_deviceIndex, (uint)m_bursts.size(), node_bursts, network_bursts);
 	/*
 	for (uint i = 0; i < m_bursts.size(); i++) {
 		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u\n", m_deviceIndex,
