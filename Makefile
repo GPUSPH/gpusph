@@ -1,9 +1,7 @@
 # GPUSPH Makefile
 #
 # TODO:
-# - Add support for versioning with git
 # - Improve list-problems problem detection (move problems to separate dir?)
-# - Recompile also if target_arch changes (like dbg and compute)
 #
 # Notes:
 # - When adding a target, comment it with "# target: name - desc" and help
