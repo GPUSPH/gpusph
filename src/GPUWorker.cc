@@ -1516,11 +1516,14 @@ void GPUWorker::kernel_calcHash()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles might be lost
-	// (if a GPU computes a different hash and does not recognize the particles as "own"). However, the
-	// high bits should be set, or edge cells won't be compacted at the end and bursts will be sparse
+	// calcHashDevice() should use CPU-computed hashes at iteration 0, or some particles
+	// might be lost (if a GPU computes a different hash and does not recognize the particles
+	// as "own"). However, the high bits should be set, or edge cells won't be compacted at
+	// the end and bursts will be sparse.
+	// This is required only in MULTI_DEVICE simulations but it holds also on single-device
+	// ones to keep numerical consistency.
 
-	if (MULTI_DEVICE && gdata->iterations == 0)
+	if (gdata->iterations == 0)
 		fixHash(	m_dBuffers.getData<BUFFER_HASH>(),
 					m_dBuffers.getData<BUFFER_PARTINDEX>(),
 					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
