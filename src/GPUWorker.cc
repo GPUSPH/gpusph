@@ -249,8 +249,8 @@ void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int
 		if (count > m_hTransferBufferSize)
 			resizeTransferBuffer(count);
 		// transfer Dsrc -> H -> Ddst
-		CUDA_SAFE_CALL( cudaMemcpy(m_hTransferBuffer, src, count, cudaMemcpyDeviceToHost) );
-		CUDA_SAFE_CALL( cudaMemcpy(dst, m_hTransferBuffer, count, cudaMemcpyHostToDevice) );
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncD2HCopiesStream) );
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream) );
 	} else
 		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
