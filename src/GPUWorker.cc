@@ -257,6 +257,7 @@ void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int
 
 // Uploads cellStart and cellEnd from the shared arrays to the device memory.
 // Parameters: fromCell is inclusive, toCell is exclusive
+// NOTE/TODO: using async copies although gdata->s_dCellStarts[][] is not pinned yet
 void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 {
 	uint numCells = toCell - fromCell;

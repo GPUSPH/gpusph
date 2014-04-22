@@ -783,6 +783,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += ucharCellSize;
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
+		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
 		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dCellEnds =  (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dSegmentsStart = (uint**)calloc(gdata->devices, sizeof(uint*));
