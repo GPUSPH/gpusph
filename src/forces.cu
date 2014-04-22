@@ -59,7 +59,7 @@ void*	reduce_buffer = NULL;
 #define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph) \
 		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
 			forces, rbforces, rbtorques, \
-			pos, particleHash, cellStart, neibsList, particleRangeEnd, \
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle, \
 			deltap, slength, influenceradius, \
 			cfl, cflTVisc, \
 			xsph, \
@@ -390,7 +390,8 @@ forces(
 	const	uint	*cellStart,
 	const	neibdata*neibsList,
 			uint	numParticles,
-			uint	particleRangeEnd,
+			uint	fromParticle,
+			uint	toParticle,
 			float	deltap,
 			float	slength,
 			float	dt,
@@ -433,9 +434,11 @@ forces(
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
 	}
 
+	const uint numParticlesInRange = toParticle - fromParticle;
+
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
+	uint numThreads = min(BLOCK_SIZE_FORCES, numParticlesInRange);
+	uint numBlocks = div_up(numParticlesInRange, numThreads);
 	#if (__COMPUTE__ == 20)
 	if (visctype == SPSVISC)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;

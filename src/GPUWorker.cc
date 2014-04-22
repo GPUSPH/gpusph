@@ -1657,6 +1657,9 @@ void GPUWorker::kernel_forces()
 		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
 	}
 
+	const uint fromParticle = 0;
+	const uint toParticle = numPartsToElaborate;
+
 	// first step
 	if (numPartsToElaborate > 0 )
 		returned_dt = forces(
@@ -1675,7 +1678,8 @@ void GPUWorker::kernel_forces()
 						m_dCellStart,
 						m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 						m_numParticles,
-						numPartsToElaborate,
+						fromParticle,
+						toParticle,
 						gdata->problem->m_deltap,
 						m_simparams->slength,
 						gdata->dt, // m_dt,
