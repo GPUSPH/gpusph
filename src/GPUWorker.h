@@ -213,6 +213,10 @@ private:
 	/*void uploadMbData();
 	void uploadGravity();*/
 
+	// aux methods for forces kernel striping
+	void bind_textures_forces();
+	void unbind_textures_forces();
+	float forces_dt_reduce();
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);

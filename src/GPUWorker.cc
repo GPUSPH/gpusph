@@ -1644,6 +1644,44 @@ void GPUWorker::kernel_buildNeibsList()
 	getneibsinfo( gdata->timingInfo[m_deviceIndex] );
 }
 
+// Bind the textures needed by forces kernel
+void GPUWorker::bind_textures_forces()
+{
+	forces_bind_textures(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_numParticles,
+		m_simparams->visctype,
+		m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
+		m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
+		m_simparams->boundarytype
+	);
+}
+
+// Unbind the textures needed by forces kernel
+void GPUWorker::unbind_textures_forces()
+{
+	forces_unbind_textures(m_simparams->visctype, m_simparams->boundarytype);
+}
+
+// Dt reduction after forces kernel
+float GPUWorker::forces_dt_reduce()
+{
+	forces_dtreduce(
+		m_simparams->slength,
+		m_simparams->dtadaptfactor,
+		m_simparams->visctype,
+		m_physparams->visccoeff,
+		m_dBuffers.getData<BUFFER_CFL>(),
+		m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+		m_dBuffers.getData<BUFFER_CFL_TEMP>(),
+		0);
+}
+
+
 void GPUWorker::kernel_forces()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
