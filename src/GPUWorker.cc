@@ -1660,7 +1660,6 @@ void GPUWorker::kernel_forces()
 	const uint fromParticle = 0;
 	const uint toParticle = numPartsToElaborate;
 
-	// first step
 	if (numPartsToElaborate > 0 )
 		returned_dt = forces(
 						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
