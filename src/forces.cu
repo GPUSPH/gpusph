@@ -373,6 +373,105 @@ const	particleinfo	*info,
 	CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 }
 
+void
+forces_bind_textures(	const	float4	*pos,
+						const	float4	*vel,
+						const	float4	*oldGGam,
+						const	float4	*boundelem,
+						const	particleinfo	*info,
+						uint	numParticles,
+				ViscosityType	visctype,
+						float	*keps_tke,
+						float	*keps_eps,
+				BoundaryType	boundarytype)
+{
+	// bind textures to read all particles, not only internal ones
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	#endif
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	if (boundarytype == SA_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGGam, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
+	}
+
+	if (visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, keps_tke, numParticles*sizeof(float)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
+	}
+}
+
+void
+forces_unbind_textures(	ViscosityType	visctype,
+						BoundaryType	boundarytype)
+{
+	if (visctype == SPSVISC) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(tau2Tex));
+	}
+
+	#if (__COMPUTE__ < 20)
+	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
+	#endif
+	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	if (boundarytype == SA_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	}
+
+	if (visctype == KEPSVISC) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+	}
+}
+
+float
+forces_dtreduce(	float	slength,
+				float	dtadaptfactor,
+		ViscosityType	visctype,
+				float	visccoeff,
+				float	*cfl,
+				float	*cflTVisc,
+				float	*tempCfl,
+				uint	numBlocks)
+{
+	// cfl holds one value per block in the forces kernel call,
+	// so it holds numBlocks elements
+	float maxcfl = cflmax(numBlocks, cfl, tempCfl);
+	float dt = dtadaptfactor*sqrtf(slength/maxcfl);
+
+	if (visctype != ARTVISC) {
+		/* Stability condition from viscosity h²/ν */
+		float dt_visc = slength*slength/visccoeff;
+		switch (visctype) {
+			case KINEMATICVISC:
+			case SPSVISC:
+			/* ν = visccoeff/4 for kinematic viscosity */
+				dt_visc *= 4;
+				break;
+
+			case DYNAMICVISC:
+			/* ν = visccoeff for dynamic viscosity */
+				break;
+			case KEPSVISC:
+				dt_visc = slength*slength/(visccoeff + cflmax(numBlocks, cflTVisc, tempCfl));
+				break;
+			NOT_IMPLEMENTED_CHECK(Viscosity, visctype);
+			}
+		dt_visc *= 0.125;
+		if (dt_visc < dt)
+			dt = dt_visc;
+	}
+
+	return dt;
+}
+
+
 float
 forces(
 	const	float4	*pos,
