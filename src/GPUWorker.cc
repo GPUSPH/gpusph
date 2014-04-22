@@ -585,16 +585,9 @@ void GPUWorker::transferBurstsSizes()
 	} // iterate on bursts
 
 	// update device cellStarts/Ends, if any cell needs update
-	if (receivedOneCell) {
-		// maxLinearCellIdx is inclusive, so remember to add 1
-		const uint numCells = maxLinearCellIdx - minLinearCellIdx + 1;
-		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + minLinearCellIdx),
-											(gdata->s_dCellStarts[m_deviceIndex] + minLinearCellIdx),
-											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
-		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + minLinearCellIdx),
-											(gdata->s_dCellEnds[m_deviceIndex] + minLinearCellIdx),
-											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
-	}
+	if (receivedOneCell)
+		// maxLinearCellIdx is inclusive while asyncCellIndicesUpload() takes exclusive max
+		asyncCellIndicesUpload(minLinearCellIdx, maxLinearCellIdx + 1);
 
 	/* for (uint i = 0; i < m_bursts.size(); i++) {
 		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u, range %u-%u, peer %u, (tot %u parts)\n", m_deviceIndex,
