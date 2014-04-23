@@ -1644,6 +1644,52 @@ void GPUWorker::kernel_buildNeibsList()
 	getneibsinfo( gdata->timingInfo[m_deviceIndex] );
 }
 
+// returns numBlocks as computed by forces()
+uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle)
+{
+	return forces(
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+			m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+			m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+			m_dRbForces,
+			m_dRbTorques,
+			m_dBuffers.getData<BUFFER_XSPH>(),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_HASH>(),
+			m_dCellStart,
+			m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+			m_numParticles,
+			fromParticle,
+			toParticle,
+			gdata->problem->m_deltap,
+			m_simparams->slength,
+			gdata->dt, // m_dt,
+			m_simparams->dtadapt,
+			m_simparams->dtadaptfactor,
+			m_simparams->xsph,
+			m_simparams->kerneltype,
+			m_simparams->influenceRadius,
+			m_simparams->epsilon,
+			m_simparams->movingBoundaries,
+			m_simparams->visctype,
+			m_physparams->visccoeff,
+			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
+			m_dBuffers.getData<BUFFER_DKDE>(),
+			m_dBuffers.getData<BUFFER_CFL>(),
+			m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+			m_dBuffers.getData<BUFFER_CFL_TEMP>(),
+			0, // cflOffset
+			m_simparams->sph_formulation,
+			m_simparams->boundarytype,
+			m_simparams->usedem);
+}
+
 // Bind the textures needed by forces kernel
 void GPUWorker::bind_textures_forces()
 {

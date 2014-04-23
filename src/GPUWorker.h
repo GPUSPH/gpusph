@@ -214,6 +214,7 @@ private:
 	void uploadGravity();*/
 
 	// aux methods for forces kernel striping
+	uint enqueueForcesOnRange(uint fromParticle, uint toParticle);
 	void bind_textures_forces();
 	void unbind_textures_forces();
 	float forces_dt_reduce(uint numBlocks);
