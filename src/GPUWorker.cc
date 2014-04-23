@@ -1668,7 +1668,7 @@ void GPUWorker::unbind_textures_forces()
 }
 
 // Dt reduction after forces kernel
-float GPUWorker::forces_dt_reduce()
+float GPUWorker::forces_dt_reduce(uint numBlocks)
 {
 	forces_dtreduce(
 		m_simparams->slength,
@@ -1678,7 +1678,7 @@ float GPUWorker::forces_dt_reduce()
 		m_dBuffers.getData<BUFFER_CFL>(),
 		m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 		m_dBuffers.getData<BUFFER_CFL_TEMP>(),
-		0);
+		numBlocks);
 }
 
 

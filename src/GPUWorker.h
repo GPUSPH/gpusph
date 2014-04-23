@@ -216,7 +216,7 @@ private:
 	// aux methods for forces kernel striping
 	void bind_textures_forces();
 	void unbind_textures_forces();
-	float forces_dt_reduce();
+	float forces_dt_reduce(uint numBlocks);
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
