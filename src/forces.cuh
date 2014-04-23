@@ -115,7 +115,7 @@ forces_dtreduce(	float	slength,
 				float	*tempCfl,
 				uint	numBlocks);
 
-float
+uint
 forces(
 	const	float4	*pos,
 	const	float2	* const vertPos[],

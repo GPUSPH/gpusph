@@ -468,11 +468,14 @@ forces_dtreduce(	float	slength,
 			dt = dt_visc;
 	}
 
+	// check if last kernel invocation generated an error
+	CUT_CHECK_ERROR("Forces kernel execution failed");
+
 	return dt;
 }
 
-
-float
+// Returns numBlock for delayed dt reduction in case of striping
+uint
 forces(
 	const	float4	*pos,
 	const	float2	* const vertPos[],
@@ -517,12 +520,7 @@ forces(
 {
 	int dummy_shared = 0;
 
-	// bind textures to read all particles, not only internal ones
-	forces_bind_textures(	pos, vel, oldGGam, boundelem, info,numParticles,
-							visctype, keps_tke, keps_eps, boundarytype);
-
 	const uint numParticlesInRange = toParticle - fromParticle;
-
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_FORCES, numParticlesInRange);
 	uint numBlocks = div_up(numParticlesInRange, numThreads);
@@ -537,13 +535,7 @@ forces(
 	else
 		BOUNDARY_SWITCH(false)
 
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Forces kernel execution failed");
-
-	forces_unbind_textures(visctype, boundarytype);
-
-	return forces_dtreduce(slength, dtadaptfactor, visctype, visccoeff,
-					cfl, cflTVisc, tempCfl, numBlocks);
+	return numBlocks;
 }
 
 
