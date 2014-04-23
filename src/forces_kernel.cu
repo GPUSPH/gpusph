@@ -384,9 +384,11 @@ laminarvisc_dynamic(const float	rho,
 /*********************************** Adptative time stepping ************************************************/
 // Function called at the end of the forces or powerlawVisc function doing
 // a per block maximum reduction
+// cflOffset is used in case the forces kernel was partitioned (striping)
 __device__ __forceinline__ void
 dtadaptBlockReduce(	float*	sm_max,
-					float*	cfl)
+					float*	cfl,
+					uint	cflOffset)
 {
 	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
 	{
@@ -399,7 +401,7 @@ dtadaptBlockReduce(	float*	sm_max,
 
 	// write result for this block to global mem
 	if (!threadIdx.x)
-		cfl[blockIdx.x] = sm_max[0];
+		cfl[cflOffset + blockIdx.x] = sm_max[0];
 }
 /************************************************************************************************************/
 

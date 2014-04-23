@@ -1299,7 +1299,7 @@ struct forces_shared_data<true, visctype> :
 	// auxiliary: reduce common dyndt shared data
 	template<typename FP>
 	__device__ __forceinline__ void reduce_sm_max(FP const& params)
-	{ dtadaptBlockReduce(this->sm_max, params.cfl); }
+	{ dtadaptBlockReduce(this->sm_max, params.cfl, params.cflOffset); }
 
 	// store shared data
 	template<typename FP, typename P, typename OP>
@@ -1336,7 +1336,7 @@ __device__ __forceinline__ void
 forces_shared_data<true, KEPSVISC>::reduce(FP const& params)
 {
 	reduce_sm_max(params);
-	dtadaptBlockReduce(this->sm_max_nut, params.cfltvisc);
+	dtadaptBlockReduce(this->sm_max_nut, params.cfltvisc, params.cflOffset);
 }
 
 
