@@ -1406,6 +1406,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing FORCES_SYNC\n", deviceIndex);
 				instance->kernel_forces();
 				break;
+			case FORCES_ENQUEUE:
+				if (dbg_step_printf) printf(" T %d issuing FORCES_ENQUEUE\n", deviceIndex);
+				instance->kernel_forces_async_enqueue();
+				break;
+			case FORCES_COMPLETE:
+				if (dbg_step_printf) printf(" T %d issuing FORCES_COMPLETE\n", deviceIndex);
+				instance->kernel_forces_async_complete();
+				break;
 			case EULER:
 				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
 				instance->kernel_euler();

@@ -77,6 +77,8 @@ enum CommandType {
 	REORDER,			// run reorderAndFindCellStart kernel
 	BUILDNEIBS,			// run buildNeibs kernel
 	FORCES_SYNC,		// run forces kernel in a blocking fashion (texture binds + kernel + unbinds + dt reduction)
+	FORCES_ENQUEUE,		// enqueues forces kernel in an asynchronous fashion and returns (texture binds + kernel)
+	FORCES_COMPLETE,	// waits for the forces kernel to complete (device sync + texture unbinds + dt reduction)
 	EULER,				// run euler kernel
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
