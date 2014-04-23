@@ -1402,8 +1402,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
 				instance->kernel_buildNeibsList();
 				break;
-			case FORCES:
-				if (dbg_step_printf) printf(" T %d issuing FORCES\n", deviceIndex);
+			case FORCES_SYNC:
+				if (dbg_step_printf) printf(" T %d issuing FORCES_SYNC\n", deviceIndex);
 				instance->kernel_forces();
 				break;
 			case EULER:

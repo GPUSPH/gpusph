@@ -449,7 +449,7 @@ bool GPUSPH::runSimulation() {
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_1);
+		doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
@@ -500,7 +500,7 @@ bool GPUSPH::runSimulation() {
 		}
 
 		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_2);
+		doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);

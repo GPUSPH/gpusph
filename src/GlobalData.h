@@ -76,7 +76,7 @@ enum CommandType {
 	CROP,				// crop out all the external particles
 	REORDER,			// run reorderAndFindCellStart kernel
 	BUILDNEIBS,			// run buildNeibs kernel
-	FORCES,				// run forces kernel
+	FORCES_SYNC,		// run forces kernel in a blocking fashion (texture binds + kernel + unbinds + dt reduction)
 	EULER,				// run euler kernel
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
