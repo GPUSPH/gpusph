@@ -652,7 +652,7 @@ bool GPUSPH::runSimulation() {
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
 				// by default, we want to run kernels on internal particles only
-				gdata->only_internal = true
+				gdata->only_internal = true;
 				doCommand(CALC_PRIVATE);
 				which_buffers |= BUFFER_PRIVATE;
 			}
