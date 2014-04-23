@@ -1740,6 +1740,7 @@ void GPUWorker::kernel_forces()
 						m_dBuffers.getData<BUFFER_CFL>(),
 						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
+						0, // cflOffset
 						m_simparams->sph_formulation,
 						m_simparams->boundarytype,
 						m_simparams->usedem);

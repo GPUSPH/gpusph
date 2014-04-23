@@ -153,6 +153,7 @@ forces(
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,
+			uint	cflOffset,
 	SPHFormulation	sph_formulation,
 	BoundaryType	boundarytype,
 			bool	usedem);

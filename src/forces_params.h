@@ -106,9 +106,10 @@ struct dyndt_forces_params
 {
 	float	*cfl;
 	float	*cfltvisc;
+	uint	cflOffset;
 
-	dyndt_forces_params(float *_cfl, float *_cfltvisc) :
-		cfl(_cfl), cfltvisc(_cfltvisc)
+	dyndt_forces_params(float *_cfl, float *_cfltvisc, uint _cflOffset) :
+		cfl(_cfl), cfltvisc(_cfltvisc), cflOffset(_cflOffset)
 	{}
 };
 
@@ -198,6 +199,7 @@ struct forces_params :
 		// dyndt
 				float	*_cfl,
 				float	*_cflTVisc,
+				uint	_cflOffset,
 
 		// XSPH
 				float4	*_xsph,
@@ -216,7 +218,7 @@ struct forces_params :
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius),
-		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc),
+		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc, _cflOffset),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
 			(_newGGam, _vertPos, _epsilon, _movingBoundaries),

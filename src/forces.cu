@@ -61,7 +61,7 @@ void*	reduce_buffer = NULL;
 			forces, rbforces, rbtorques, \
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle, \
 			deltap, slength, influenceradius, \
-			cfl, cflTVisc, \
+			cfl, cflTVisc, cflOffset, \
 			xsph, \
 			newGGam, vertPos, epsilon, movingBoundaries, \
 			keps_dkde, turbvisc)
@@ -510,6 +510,7 @@ forces(
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,
+			uint	cflOffset,
 	SPHFormulation	sph_formulation,
 	BoundaryType	boundarytype,
 			bool	usedem)
