@@ -213,6 +213,9 @@ private:
 	/*void uploadMbData();
 	void uploadGravity();*/
 
+	// asynchronous alternative to kernel_force
+	void kernel_forces_async_enqueue();
+
 	// aux methods for forces kernel striping
 	uint enqueueForcesOnRange(uint fromParticle, uint toParticle);
 	void bind_textures_forces();

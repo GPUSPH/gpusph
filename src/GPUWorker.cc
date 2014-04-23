@@ -1727,6 +1727,31 @@ float GPUWorker::forces_dt_reduce(uint numBlocks)
 		numBlocks);
 }
 
+void GPUWorker::kernel_forces_async_enqueue()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// if we have objects potentially shared across different devices, must reset their forces
+	// and torques to avoid spurious contributions
+	if (m_simparams->numODEbodies > 0 && MULTI_DEVICE) {
+		uint bodiesPartsSize = m_numBodiesParticles * sizeof(float4);
+		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
+	}
+
+	const uint fromParticle = 0;
+	const uint toParticle = numPartsToElaborate;
+
+	if (numPartsToElaborate > 0 ) {
+
+		// bind textures
+		bind_textures_forces();
+
+		// enqueue the kernel call
+		enqueueForcesOnRange(fromParticle, toParticle);
+	}
+}
+
 
 void GPUWorker::kernel_forces()
 {
