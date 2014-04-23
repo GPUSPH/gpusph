@@ -72,6 +72,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_hCompactDeviceMap = NULL;
 	m_dSegmentStart = NULL;
 
+	m_forcesKernelTotalNumBlocks = 0;
+
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
 	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
@@ -1748,7 +1750,7 @@ void GPUWorker::kernel_forces_async_enqueue()
 		bind_textures_forces();
 
 		// enqueue the kernel call
-		enqueueForcesOnRange(fromParticle, toParticle);
+		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle);
 	}
 }
 
