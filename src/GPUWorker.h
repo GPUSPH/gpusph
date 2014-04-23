@@ -218,6 +218,7 @@ private:
 
 	// asynchronous alternative to kernel_force
 	void kernel_forces_async_enqueue();
+	void kernel_forces_async_complete();
 
 	// aux methods for forces kernel striping
 	uint enqueueForcesOnRange(uint fromParticle, uint toParticle);

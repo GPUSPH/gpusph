@@ -1754,6 +1754,35 @@ void GPUWorker::kernel_forces_async_enqueue()
 	}
 }
 
+void GPUWorker::kernel_forces_async_complete()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
+	float returned_dt = FLT_MAX;
+
+	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+
+	if (numPartsToElaborate > 0 ) {
+		// wait for the completion of the kernel
+		cudaDeviceSynchronize();
+
+		// unbind the textures
+		unbind_textures_forces();
+
+		// reduce dt
+		returned_dt = forces_dt_reduce(m_forcesKernelTotalNumBlocks);
+	}
+
+	// gdata->dts is directly used instead of handling dt1 and dt2
+	//printf(" Step %d, bool %d, returned %g, current %g, ",
+	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
+	if (firstStep)
+		gdata->dts[m_deviceIndex] = returned_dt;
+	else
+		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+}
+
 
 void GPUWorker::kernel_forces()
 {
