@@ -315,7 +315,7 @@ struct GlobalData {
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
-		striping(true),
+		striping(false),
 		writerType(VTKWRITER),
 		writer(NULL),
 		nosave(false),

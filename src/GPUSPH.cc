@@ -242,6 +242,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			// here it is possible to save the converted device map
 			// gdata->saveDeviceMapToFile("");
 		}
+		printf("Striping is: %s\n", (gdata->striping ? "enabled" : "disabled") );
 	}
 
 	printf("Copying the particles to shared arrays...\n");

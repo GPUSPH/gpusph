@@ -102,6 +102,7 @@ void print_usage() {
 	cout << " --tend: Break at given time (VAL is cast to float)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
+	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
 	cout << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
 	cout << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
@@ -173,6 +174,9 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
 			gdata->nosave = true;
+		} else if (!strcmp(arg, "--striping")) {
+			_clOptions->striping = true;
+			gdata->striping = true;
 		} else if (!strcmp(arg, "--num_hosts")) {
 			/* read the next arg as a uint */
 			sscanf(*argv, "%u", &(_clOptions->num_hosts));
