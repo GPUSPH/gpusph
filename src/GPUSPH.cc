@@ -449,11 +449,19 @@ bool GPUSPH::runSimulation() {
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
-		doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
+		if (gdata->striping && MULTI_DEVICE)
+			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_1);
+		else
+			doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
+
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+		// if striping was active, now we want the kernels to complete
+		if (gdata->striping && MULTI_DEVICE)
+			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
@@ -500,11 +508,19 @@ bool GPUSPH::runSimulation() {
 		}
 
 		gdata->only_internal = true;
-		doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
+		if (gdata->striping && MULTI_DEVICE)
+			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
+		else
+			doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
+
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+		// if striping was active, now we want the kernels to complete
+		if (gdata->striping && MULTI_DEVICE)
+			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// reduce bodies
 		if (problem->get_simparams()->numODEbodies > 0) {
