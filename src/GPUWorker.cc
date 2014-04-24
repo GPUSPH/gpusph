@@ -722,11 +722,6 @@ void GPUWorker::transferBursts()
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells()
 {
-	// Waiting for the first stripe to complete is mandatory for correct edge-cells exchange
-	// (any transfer scope).
-	if (gdata->striping && MULTI_DEVICE)
-		cudaEventSynchronize(m_halfForcesEvent);
-
 	if (gdata->nextCommand == APPEND_EXTERNAL)
 		transferBurstsSizes();
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
@@ -1815,11 +1810,11 @@ void GPUWorker::kernel_forces_async_enqueue()
 		// enqueue the second kernel call (on the rest)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
 
-		// UPDATE_EXTERNAL or APPEND_EXTERNAL will wait for the first stripe to be complete; FORCES_COMPLETE will
-		// completely synchronize the device.
-		// We could synchronize here instead but this would bring some overhead for those devices which are faster
-		// in the computation of the first stripe; waiting for the event after doing all the bursts stuff makes more
-		// CPU/GPU overlap.
+		// We could think of synchronizing in UPDATE_EXTERNAL or APPEND_EXTERNAL instead of here, so that we do not
+		// cause any overhead (waiting here means waiting before next barrier, which means that devices which are
+		// faster in the computation of the first stripe have to wait the others before issuing the second). However,
+		// we need to ensure that the first stripe is finished in the *other* devices, before importing their cells.
+		cudaEventSynchronize(m_halfForcesEvent);
 	}
 }
 
