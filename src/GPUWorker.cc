@@ -1798,6 +1798,8 @@ void GPUWorker::kernel_forces()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
+	m_forcesKernelTotalNumBlocks = 0;
+
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
