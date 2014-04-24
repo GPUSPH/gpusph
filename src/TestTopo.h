@@ -56,6 +56,9 @@ class TestTopo: public Problem {
 		void copy_to_array(BufferList &);
 		void copy_planes(float4*, float*);
 
+		// override standard split
+		void fillDeviceMap();
+
 		void release_memory(void);
 };
 #endif	/* _TESTTOPO_H */

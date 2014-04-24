@@ -190,3 +190,10 @@ void TestTopo::copy_to_array(BufferList &buffers)
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
+
+void TestTopo::fillDeviceMap()
+{
+	// force split along Y axis: X is longer but part of the domain is only
+	// DEM, so it is not convenient to split evenly along X
+	fillDeviceMapByAxis(Y_AXIS);
+}
