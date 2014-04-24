@@ -1655,7 +1655,7 @@ void GPUWorker::kernel_buildNeibsList()
 }
 
 // returns numBlocks as computed by forces()
-uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle)
+uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
 {
 	return forces(
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
@@ -1694,7 +1694,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle)
 			m_dBuffers.getData<BUFFER_CFL>(),
 			m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 			m_dBuffers.getData<BUFFER_CFL_TEMP>(),
-			0, // cflOffset
+			cflOffset,
 			m_simparams->sph_formulation,
 			m_simparams->boundarytype,
 			m_simparams->usedem);
@@ -1779,7 +1779,7 @@ void GPUWorker::kernel_forces_async_complete()
 		unbind_textures_forces();
 
 		// reduce dt
-		returned_dt = forces_dt_reduce(m_forcesKernelTotalNumBlocks);
+		returned_dt = forces_dt_reduce();
 	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
@@ -1824,7 +1824,7 @@ void GPUWorker::kernel_forces()
 		unbind_textures_forces();
 
 		// reduce dt
-		returned_dt = forces_dt_reduce(numBlocks);
+		returned_dt = forces_dt_reduce();
 	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
