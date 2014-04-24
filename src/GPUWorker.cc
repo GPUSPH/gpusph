@@ -1749,7 +1749,10 @@ float GPUWorker::forces_dt_reduce()
 
 void GPUWorker::kernel_forces_async_enqueue()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	if (!gdata->only_internal)
+		printf("WARNING: forces kernel called with only_internal == true, ignoring flag!\n");
+
+	uint numPartsToElaborate = m_particleRangeEnd;
 
 	m_forcesKernelTotalNumBlocks = 0;
 
@@ -1779,17 +1782,9 @@ void GPUWorker::kernel_forces_async_enqueue()
 	// - Improve criterion C (one half might be not optimal and leave uncovered transfers)
 
 	// constraint A: internalEdgeParts
-	uint innerEdgeEnd = numPartsToElaborate;
-	if (!gdata->only_internal) {
-		// TODO: no
-		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] != EMPTY_SEGMENT)
-			innerEdgeEnd = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL];
-		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] != EMPTY_SEGMENT)
-			innerEdgeEnd = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
-	}
 	const uint internalEdgeParts =
 		(gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL] == EMPTY_SEGMENT ?
-		0 : innerEdgeEnd - gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL]);
+		0 : numPartsToElaborate - gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL]);
 
 	// constraint B: saturatingParticles
 	// 64K parts should saturate the newest hardware (y~2014), but it is safe to be "generous".
@@ -1860,7 +1855,10 @@ void GPUWorker::kernel_forces_async_complete()
 
 void GPUWorker::kernel_forces()
 {
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+	if (!gdata->only_internal)
+		printf("WARNING: forces kernel called with only_internal == true, ignoring flag!\n");
+
+	uint numPartsToElaborate = m_particleRangeEnd;
 
 	m_forcesKernelTotalNumBlocks = 0;
 
