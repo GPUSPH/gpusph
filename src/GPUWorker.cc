@@ -1726,7 +1726,7 @@ void GPUWorker::unbind_textures_forces()
 // Dt reduction after forces kernel
 float GPUWorker::forces_dt_reduce(uint numBlocks)
 {
-	forces_dtreduce(
+	return forces_dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
 		m_simparams->visctype,
