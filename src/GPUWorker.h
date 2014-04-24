@@ -221,7 +221,7 @@ private:
 	void kernel_forces_async_complete();
 
 	// aux methods for forces kernel striping
-	uint enqueueForcesOnRange(uint fromParticle, uint toParticle);
+	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
 	void bind_textures_forces();
 	void unbind_textures_forces();
 	float forces_dt_reduce();

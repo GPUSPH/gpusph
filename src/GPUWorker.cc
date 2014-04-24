@@ -1741,6 +1741,8 @@ void GPUWorker::kernel_forces_async_enqueue()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
+	m_forcesKernelTotalNumBlocks = 0;
+
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
 	if (m_simparams->numODEbodies > 0 && MULTI_DEVICE) {
@@ -1757,8 +1759,8 @@ void GPUWorker::kernel_forces_async_enqueue()
 		// bind textures
 		bind_textures_forces();
 
+		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
 		// enqueue the kernel call
-		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle);
 	}
 }
 
@@ -1818,7 +1820,7 @@ void GPUWorker::kernel_forces()
 		bind_textures_forces();
 
 		// enqueue the kernel call
-		uint numBlocks = enqueueForcesOnRange(fromParticle, toParticle);
+		uint numBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
 
 		// unbind the textures
 		unbind_textures_forces();
