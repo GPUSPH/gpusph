@@ -722,18 +722,23 @@ void GPUWorker::transferBursts()
 // staged on host otherwise. Network transfers use the NetworkManager (MPI-based).
 void GPUWorker::importExternalCells()
 {
+	// Waiting for the first stripe to complete is mandatory for correct edge-cells exchange
+	// (any transfer scope).
+	if (gdata->striping && MULTI_DEVICE)
+		cudaEventSynchronize(m_halfForcesEvent);
+
 	if (gdata->nextCommand == APPEND_EXTERNAL)
 		transferBurstsSizes();
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
 		transferBursts();
 
-	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
-	// transfers to be complete.
-	if (MULTI_GPU)
+	// cudaMemcpyPeerAsync() is asynchronous with the host. If striping is disabled, we want to synchronize
+	// for the completion of the transfers. Otherwise, FORCES_COMPLETE will synchronize everything
+	if (!gdata->striping && MULTI_GPU)
 		cudaDeviceSynchronize();
 
-	// here will  sync the MPI transfers when (if) we'll switch to non-blocking calls
-	// if (MULTI_NODE)...
+	// here will sync the MPI transfers when (if) we'll switch to non-blocking calls
+	// if (!gdata->striping && MULTI_NODE)...
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
@@ -898,19 +903,24 @@ void GPUWorker::deallocateDeviceBuffers() {
 	// here: dem device buffers?
 }
 
-void GPUWorker::createStreams()
+void GPUWorker::createEventsAndStreams()
 {
+	// init streams
 	cudaStreamCreate(&m_asyncD2HCopiesStream);
 	cudaStreamCreate(&m_asyncH2DCopiesStream);
 	cudaStreamCreate(&m_asyncPeerCopiesStream);
+	// init events
+	cudaEventCreate(&m_halfForcesEvent);
 }
 
-void GPUWorker::destroyStreams()
+void GPUWorker::destroyEventsAndStreams()
 {
 	// destroy streams
 	cudaStreamDestroy(m_asyncD2HCopiesStream);
 	cudaStreamDestroy(m_asyncH2DCopiesStream);
 	cudaStreamDestroy(m_asyncPeerCopiesStream);
+	// destroy events
+	cudaEventDestroy(m_halfForcesEvent);
 }
 
 void GPUWorker::printAllocatedMemory()
@@ -1357,7 +1367,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// TODO: here setDemTexture() will be called. It is device-wide, but reading the DEM file is process wide and will be in GPUSPH class
 
 	// init streams for async memcpys (only useful for multigpu?)
-	instance->createStreams();
+	instance->createEventsAndStreams();
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
@@ -1513,7 +1523,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
 	// destroy streams
-	instance->destroyStreams();
+	instance->destroyEventsAndStreams();
 
 	// deallocate buffers
 	instance->deallocateHostBuffers();
@@ -1801,11 +1811,20 @@ void GPUWorker::kernel_forces_async_enqueue()
 		// bind textures
 		bind_textures_forces();
 
-		// enqueue the kernel calls: first the particles in edging cells
+		// enqueue the first kernel call (on the particles in edging cells)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
+
+		// the following event will be used to wait for the first stripe to complete
+		cudaEventRecord(m_halfForcesEvent, 0);
+
+		// enqueue the second kernel call (on the rest)
 		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
 
-		cudaDeviceSynchronize();
+		// UPDATE_EXTERNAL or APPEND_EXTERNAL will wait for the first stripe to be complete; FORCES_COMPLETE will
+		// completely synchronize the device.
+		// We could synchronize here instead but this would bring some overhead for those devices which are faster
+		// in the computation of the first stripe; waiting for the event after doing all the bursts stuff makes more
+		// CPU/GPU overlap.
 	}
 }
 

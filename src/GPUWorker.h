@@ -143,6 +143,9 @@ private:
 	cudaStream_t m_asyncD2HCopiesStream;
 	cudaStream_t m_asyncPeerCopiesStream;
 
+	// event to synchronize striping
+	cudaEvent_t m_halfForcesEvent;
+
 	// cuts all external particles
 	void dropExternalParticles();
 
@@ -164,8 +167,8 @@ private:
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
 
-	void createStreams();
-	void destroyStreams();
+	void createEventsAndStreams();
+	void destroyEventsAndStreams();
 
 	void printAllocatedMemory();
 
