@@ -1751,16 +1751,61 @@ void GPUWorker::kernel_forces_async_enqueue()
 		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
 	}
 
-	const uint fromParticle = 0;
-	const uint toParticle = numPartsToElaborate;
+	// NOTE: the stripe containing the internal edge particles must be run first, so that the
+	// transfers can be performed in parallel with the second stripe. The size of the first
+	// stripe, S1, should be:
+	// A. Greater or equal to the number of internal edge particles (mandatory). If this value
+	//    is zero, we use the next constraints (we might still need to receive particles)
+	// B. Greater or equal to the number of particles which saturate the device (recommended)
+	// C. As small as possible, or the second stripe might not be long enough to cover the
+	//    transfers. For example, one half (recommended)
+	// D. Multiple of block size (optional, to possibly save one block). Actually, since
+	//    internal edge particles are compacted at the end, we should align its beginning
+	//    (i.e. the size of S2 should be a multiple of the block size)
+	// So we compute S1 = max( A, min(B,C) ) , and then we round it by excess as
+	// S1 = totParticles - round_by_defect(S2)
+	// TODO:
+	// - Estimate saturation according to the number of MPs
+	// - Improve criterion C (one half might be not optimal and leave uncovered transfers)
+
+	// constraint A: internalEdgeParts
+	uint innerEdgeEnd = numPartsToElaborate;
+	if (!gdata->only_internal) {
+		// TODO: no
+		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL] != EMPTY_SEGMENT)
+			innerEdgeEnd = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_CELL];
+		if (gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL] != EMPTY_SEGMENT)
+			innerEdgeEnd = gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_OUTER_EDGE_CELL];
+	}
+	const uint internalEdgeParts =
+		(gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL] == EMPTY_SEGMENT ?
+		0 : innerEdgeEnd - gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL]);
+
+	// constraint B: saturatingParticles
+	// 64K parts should saturate the newest hardware (y~2014), but it is safe to be "generous".
+	const uint saturatingParticles = 64 * 1024;
+
+	// constraint C
+	const uint halfParts = numPartsToElaborate / 2;
+
+	// stripe size
+	uint edgingStripeSize = max( internalEdgeParts, min( saturatingParticles, halfParts) );
+
+	// round
+	uint nonEdgingStripeSize = numPartsToElaborate - edgingStripeSize;
+	nonEdgingStripeSize = (nonEdgingStripeSize / BLOCK_SIZE_FORCES) * BLOCK_SIZE_FORCES;
+	edgingStripeSize = numPartsToElaborate - nonEdgingStripeSize;
 
 	if (numPartsToElaborate > 0 ) {
 
 		// bind textures
 		bind_textures_forces();
 
-		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
-		// enqueue the kernel call
+		// enqueue the kernel calls: first the particles in edging cells
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
+
+		cudaDeviceSynchronize();
 	}
 }
 
