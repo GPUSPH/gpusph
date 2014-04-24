@@ -1822,7 +1822,7 @@ void GPUWorker::kernel_forces()
 		bind_textures_forces();
 
 		// enqueue the kernel call
-		uint numBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
+		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
 
 		// unbind the textures
 		unbind_textures_forces();
