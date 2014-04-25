@@ -1026,6 +1026,8 @@ void GPUWorker::resizeTransferBuffer(size_t required_size)
 		m_hostMemory -= prev_size;
 	}
 
+	printf("Staging host buffer resized to %zu bytes\n", m_hTransferBufferSize);
+
 	// (re)allocate
 	CUDA_SAFE_CALL(cudaMallocHost(&m_hTransferBuffer, m_hTransferBufferSize));
 	m_hostMemory += m_hTransferBufferSize;
