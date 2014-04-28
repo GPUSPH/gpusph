@@ -483,11 +483,12 @@ void GPUWorker::computeCellBursts()
 		m_deviceIndex, (uint)m_bursts.size(), node_bursts, network_bursts);
 	/*
 	for (uint i = 0; i < m_bursts.size(); i++) {
-		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u\n", m_deviceIndex,
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %s\n", m_deviceIndex,
 			i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
-			(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope);
+			(m_bursts[i].direction == SND ? "SND" : "RCV"),
+			(m_bursts[i].scope == NODE_SCOPE ? "NODE" : "NETWORK") );
 	}
-	*/
+	// */
 #undef BURST_IS_EMPTY
 #undef CLOSE_BURST
 }
@@ -592,14 +593,17 @@ void GPUWorker::transferBurstsSizes()
 		// maxLinearCellIdx is inclusive while asyncCellIndicesUpload() takes exclusive max
 		asyncCellIndicesUpload(minLinearCellIdx, maxLinearCellIdx + 1);
 
-	/* for (uint i = 0; i < m_bursts.size(); i++) {
-		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u, range %u-%u, peer %u, (tot %u parts)\n", m_deviceIndex,
+	/*
+	for (uint i = 0; i < m_bursts.size(); i++) {
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %s, range %u-%u, peer start %u, (tot %u parts)\n", m_deviceIndex,
 				i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
-				(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope,
+				(m_bursts[i].direction == SND ? "SND" : "RCV"),
+				(m_bursts[i].scope == NETWORK_SCOPE ? "NETWORK" : "NODE"),
 				m_bursts[i].selfFirstParticle, m_bursts[i].selfFirstParticle + m_bursts[i].numParticles,
 				m_bursts[i].peerFirstParticle, m_bursts[i].numParticles
 			);
-	} */
+	}
+	// */
 }
 
 // Iterate on the list and send/receive bursts of particles across different nodes
@@ -621,6 +625,15 @@ void GPUWorker::transferBursts()
 
 			// transfer the data if burst is not empty
 			if (m_bursts[i].numParticles == 0) continue;
+
+			/*
+			printf("IT %u D %u burst %u #parts %u dir %s (%u -> %u) scope %s\n",
+				gdata->iterations, m_deviceIndex, i, m_bursts[i].numParticles,
+				(m_bursts[i].direction == SND ? "SND" : "RCV"),
+				(m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx),
+				(m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx),
+				(m_bursts[i].scope == NODE_SCOPE ? "NODE" : "NETWORK") );
+			// */
 
 			// abstract from self / other
 			const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
