@@ -94,7 +94,7 @@ void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
 	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cout << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
+	cout << "\t       [--dir directory] [--nosave] [--striping] [--num_hosts VAL [--byslot_scheduling]]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	cout << " --dem : Use given DEM (if problem supports it)\n";
