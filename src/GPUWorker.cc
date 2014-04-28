@@ -271,6 +271,15 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 }
 
+// wrapper for NetworkManage send/receive methods
+void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size)
+{
+	if (direction == SND)
+		gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
+	else
+		gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+}
+
 // Compute list of bursts. Currently computes both scopes, but only network scope is used
 void GPUWorker::computeCellBursts()
 {

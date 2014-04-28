@@ -162,6 +162,9 @@ private:
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
 
+	// wrapper for NetworkManage send/receive methods
+	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size);
+
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
