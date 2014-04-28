@@ -68,6 +68,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_hPeerTransferBuffer = NULL;
 	m_hPeerTransferBufferSize = 0;
 
+	// set to true to disable GPUDirect, i.e. passing device pointers to MPI calls
+	m_disableGPUDirect = gdata->nogpudirect;
+	m_hNetworkTransferBuffer = NULL;
+	m_hNetworkTransferBufferSize = 0;
+
 	m_dCompactDeviceMap = NULL;
 	m_hCompactDeviceMap = NULL;
 	m_dSegmentStart = NULL;
@@ -274,10 +279,29 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 // wrapper for NetworkManage send/receive methods
 void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size)
 {
-	if (direction == SND)
-		gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
-	else
-		gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+	// reallocate host buffer if necessary
+	if (m_disableGPUDirect && _size > m_hNetworkTransferBufferSize)
+		resizeNetworkTransferBuffer(_size);
+
+	if (direction == SND) {
+		if (m_disableGPUDirect) {
+			// device -> host buffer
+			CUDA_SAFE_CALL( cudaMemcpy(m_hNetworkTransferBuffer, _ptr, _size, cudaMemcpyDeviceToHost) );
+			// host buffer -> network
+			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer);
+		} else
+			// GPUDirect: device -> network
+			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
+	} else {
+		if (m_disableGPUDirect) {
+			// network -> host buffer
+			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
+			// host buffer -> device
+			CUDA_SAFE_CALL( cudaMemcpy(_ptr, m_hNetworkTransferBuffer, _size, cudaMemcpyHostToDevice) );
+		} else
+			// GPUDirect: network -> device
+			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+	}
 }
 
 // Compute list of bursts. Currently computes both scopes, but only network scope is used
@@ -762,6 +786,10 @@ size_t GPUWorker::allocateHostBuffers() {
 		// allocate a 1Mb transferBuffer if peer copies are disabled
 		if (m_disableP2Ptranfers)
 			resizePeerTransferBuffer(1024 * 1024);
+
+		// ditto for network transfers
+		if (m_disableGPUDirect)
+			resizeNetworkTransferBuffer(1024 * 1024);
 	}
 
 	m_hostMemory += allocated;
@@ -878,6 +906,9 @@ void GPUWorker::deallocateHostBuffers() {
 
 	if (m_hPeerTransferBuffer)
 		cudaFreeHost(m_hPeerTransferBuffer);
+
+	if (m_hNetworkTransferBuffer)
+		cudaFreeHost(m_hNetworkTransferBuffer);
 
 	// here: dem host buffers?
 }
@@ -1041,6 +1072,32 @@ void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 	// (re)allocate
 	CUDA_SAFE_CALL(cudaMallocHost(&m_hPeerTransferBuffer, m_hPeerTransferBufferSize));
 	m_hostMemory += m_hPeerTransferBufferSize;
+}
+
+// analog to resizeTransferBuffer
+void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
+{
+	// is it big enough already?
+	if (required_size < m_hNetworkTransferBufferSize) return;
+
+	// will round up to...
+	size_t ROUND_TO = 1024*1024;
+
+	// store previous size, compute new
+	size_t prev_size = m_hNetworkTransferBufferSize;
+	m_hNetworkTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+
+	// dealloc first
+	if (m_hNetworkTransferBufferSize) {
+		CUDA_SAFE_CALL(cudaFreeHost(m_hNetworkTransferBuffer));
+		m_hostMemory -= prev_size;
+	}
+
+	printf("Staging network host buffer resized to %zu bytes\n", m_hNetworkTransferBufferSize);
+
+	// (re)allocate
+	CUDA_SAFE_CALL(cudaMallocHost(&m_hNetworkTransferBuffer, m_hNetworkTransferBufferSize));
+	m_hostMemory += m_hNetworkTransferBufferSize;
 }
 
 // download cellStart and cellEnd to the shared arrays

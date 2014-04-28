@@ -94,6 +94,13 @@ private:
 	size_t m_hPeerTransferBufferSize;
 	void resizePeerTransferBuffer(size_t required_size);
 
+	// explicitly stage network transfers on host
+	bool m_disableGPUDirect;
+	// host buffers: pointer, size, resize method
+	void *m_hNetworkTransferBuffer;
+	size_t m_hNetworkTransferBufferSize;
+	void resizeNetworkTransferBuffer(size_t required_size);
+
 	// utility pointers - the actual structures are in Problem
 	PhysParams*	m_physparams;
 	SimParams*	m_simparams;

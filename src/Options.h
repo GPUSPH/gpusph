@@ -39,6 +39,7 @@ struct Options {
 	double	deltap; // deltap
 	float	tend; // simulation end
 	bool	nosave; // disable saving
+	bool	nogpudirect; // disable GPUDirect
 	bool	striping; // enable striping (i.e. compute/transfer overlap)
 	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
@@ -50,6 +51,7 @@ struct Options {
 		deltap(NAN),
 		tend(NAN),
 		nosave(false),
+		nogpudirect(false),
 		striping(false),
 		num_hosts(0),
 		byslot_scheduling(false)

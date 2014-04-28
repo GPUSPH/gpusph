@@ -272,6 +272,9 @@ struct GlobalData {
 	// disable saving (for timing, or only for the last)
 	bool nosave;
 
+	// disable GPUDirect
+	bool nogpudirect;
+
 	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
 	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
@@ -319,6 +322,7 @@ struct GlobalData {
 		writerType(VTKWRITER),
 		writer(NULL),
 		nosave(false),
+		nogpudirect(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL)
