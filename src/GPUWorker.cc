@@ -644,10 +644,6 @@ void GPUWorker::transferBursts()
 				(m_bursts[i].scope == NODE_SCOPE ? "NODE" : "NETWORK") );
 			// */
 
-			// abstract from self / other
-			const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
-			const uint recipient_gidx = (m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx);
-
 			// iterate over all defined buffers and see which were requested
 			// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
 			// with the ordering set by the key, in our case the unsigned integer type flag_t,
@@ -700,13 +696,9 @@ void GPUWorker::transferBursts()
 						// node scope: just read it
 						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
 						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-					} else {
-						// network scope: SND/RCV
-						if (m_bursts[i].direction == SND)
-							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-						else
-							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-					}
+					} else
+						// network scope: SND or RCV
+						networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size);
 				} else {
 					// generic, so that it can work for other buffers like TAU, if they are ever
 					// introduced; just fix the conditional
@@ -716,13 +708,9 @@ void GPUWorker::transferBursts()
 							// node scope: just read it
 							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
 							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-						} else {
-							// network scope: SND/RCV
-							if (m_bursts[i].direction == SND)
-								gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-							else
-								gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
-						}
+						} else
+							// network scope: SND or RCV
+							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size);
 					}
 				} // buf is BUFFER_BIG
 
