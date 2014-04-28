@@ -65,8 +65,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	// set to true to force host staging even if peer access is set successfully
 	m_disableP2Ptranfers = false;
-	m_hTransferBuffer = NULL;
-	m_hTransferBufferSize = 0;
+	m_hPeerTransferBuffer = NULL;
+	m_hPeerTransferBufferSize = 0;
 
 	m_dCompactDeviceMap = NULL;
 	m_hCompactDeviceMap = NULL;
@@ -248,11 +248,11 @@ void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int
 {
 	if (m_disableP2Ptranfers) {
 		// reallocate if necessary
-		if (count > m_hTransferBufferSize)
-			resizeTransferBuffer(count);
+		if (count > m_hPeerTransferBufferSize)
+			resizePeerTransferBuffer(count);
 		// transfer Dsrc -> H -> Ddst
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncPeerCopiesStream) );
-		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncPeerCopiesStream) );
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hPeerTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncPeerCopiesStream) );
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hPeerTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncPeerCopiesStream) );
 	} else
 		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
@@ -764,7 +764,7 @@ size_t GPUWorker::allocateHostBuffers() {
 
 		// allocate a 1Mb transferBuffer if peer copies are disabled
 		if (m_disableP2Ptranfers)
-			resizeTransferBuffer(1024 * 1024);
+			resizePeerTransferBuffer(1024 * 1024);
 	}
 
 	m_hostMemory += allocated;
@@ -879,8 +879,8 @@ void GPUWorker::deallocateHostBuffers() {
 	if (MULTI_DEVICE)
 		delete [] m_hCompactDeviceMap;
 
-	if (m_hTransferBuffer)
-		cudaFreeHost(m_hTransferBuffer);
+	if (m_hPeerTransferBuffer)
+		cudaFreeHost(m_hPeerTransferBuffer);
 
 	// here: dem host buffers?
 }
@@ -1020,30 +1020,30 @@ void GPUWorker::setDeviceCellsAsEmpty()
 	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, UINT_MAX, gdata->nGridCells  * sizeof(uint)));
 }
 
-// if m_hTransferBuffer is not big enough, reallocate it. Round up to 1Mb
-void GPUWorker::resizeTransferBuffer(size_t required_size)
+// if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
+void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
 	// is it big enough already?
-	if (required_size < m_hTransferBufferSize) return;
+	if (required_size < m_hPeerTransferBufferSize) return;
 
 	// will round up to...
 	size_t ROUND_TO = 1024*1024;
 
 	// store previous size, compute new
-	size_t prev_size = m_hTransferBufferSize;
-	m_hTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	size_t prev_size = m_hPeerTransferBufferSize;
+	m_hPeerTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
 
 	// dealloc first
-	if (m_hTransferBufferSize) {
-		CUDA_SAFE_CALL(cudaFreeHost(m_hTransferBuffer));
+	if (m_hPeerTransferBufferSize) {
+		CUDA_SAFE_CALL(cudaFreeHost(m_hPeerTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
 
-	printf("Staging host buffer resized to %zu bytes\n", m_hTransferBufferSize);
+	printf("Staging host buffer resized to %zu bytes\n", m_hPeerTransferBufferSize);
 
 	// (re)allocate
-	CUDA_SAFE_CALL(cudaMallocHost(&m_hTransferBuffer, m_hTransferBufferSize));
-	m_hostMemory += m_hTransferBufferSize;
+	CUDA_SAFE_CALL(cudaMallocHost(&m_hPeerTransferBuffer, m_hPeerTransferBufferSize));
+	m_hostMemory += m_hPeerTransferBufferSize;
 }
 
 // download cellStart and cellEnd to the shared arrays

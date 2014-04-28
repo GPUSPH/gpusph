@@ -89,10 +89,10 @@ private:
 	void enablePeerAccess();
 	// explicitly stage P2P transfers on host
 	bool m_disableP2Ptranfers;
-	// host buffer if peer access is disabled: pointer, size, resize method
-	void *m_hTransferBuffer;
-	size_t m_hTransferBufferSize;
-	void resizeTransferBuffer(size_t required_size);
+	// host buffers: pointer, size, resize method
+	void *m_hPeerTransferBuffer;
+	size_t m_hPeerTransferBufferSize;
+	void resizePeerTransferBuffer(size_t required_size);
 
 	// utility pointers - the actual structures are in Problem
 	PhysParams*	m_physparams;
