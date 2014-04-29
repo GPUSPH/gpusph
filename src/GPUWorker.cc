@@ -947,9 +947,9 @@ void GPUWorker::deallocateDeviceBuffers() {
 void GPUWorker::createEventsAndStreams()
 {
 	// init streams
-	cudaStreamCreate(&m_asyncD2HCopiesStream);
-	cudaStreamCreate(&m_asyncH2DCopiesStream);
-	cudaStreamCreate(&m_asyncPeerCopiesStream);
+	cudaStreamCreateWithFlags(&m_asyncD2HCopiesStream, cudaStreamNonBlocking);
+	cudaStreamCreateWithFlags(&m_asyncH2DCopiesStream, cudaStreamNonBlocking);
+	cudaStreamCreateWithFlags(&m_asyncPeerCopiesStream, cudaStreamNonBlocking);
 	// init events
 	cudaEventCreate(&m_halfForcesEvent);
 }
