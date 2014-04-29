@@ -68,8 +68,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_hPeerTransferBuffer = NULL;
 	m_hPeerTransferBufferSize = 0;
 
-	// set to true to disable GPUDirect, i.e. passing device pointers to MPI calls
-	m_disableGPUDirect = gdata->nogpudirect;
+	// used if GPUDirect is disabled
 	m_hNetworkTransferBuffer = NULL;
 	m_hNetworkTransferBufferSize = 0;
 
@@ -280,11 +279,11 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size)
 {
 	// reallocate host buffer if necessary
-	if (m_disableGPUDirect && _size > m_hNetworkTransferBufferSize)
+	if (gdata->clOptions->nogpudirect && _size > m_hNetworkTransferBufferSize)
 		resizeNetworkTransferBuffer(_size);
 
 	if (direction == SND) {
-		if (m_disableGPUDirect) {
+		if (gdata->clOptions->nogpudirect) {
 			// device -> host buffer
 			CUDA_SAFE_CALL( cudaMemcpy(m_hNetworkTransferBuffer, _ptr, _size, cudaMemcpyDeviceToHost) );
 			// host buffer -> network
@@ -293,7 +292,7 @@ void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, vo
 			// GPUDirect: device -> network
 			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
 	} else {
-		if (m_disableGPUDirect) {
+		if (gdata->clOptions->nogpudirect) {
 			// network -> host buffer
 			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
 			// host buffer -> device
@@ -763,7 +762,7 @@ void GPUWorker::importExternalCells()
 
 	// cudaMemcpyPeerAsync() is asynchronous with the host. If striping is disabled, we want to synchronize
 	// for the completion of the transfers. Otherwise, FORCES_COMPLETE will synchronize everything
-	if (!gdata->striping && MULTI_GPU)
+	if (!gdata->clOptions->striping && MULTI_GPU)
 		cudaDeviceSynchronize();
 
 	// here will sync the MPI transfers when (if) we'll switch to non-blocking calls
@@ -788,7 +787,7 @@ size_t GPUWorker::allocateHostBuffers() {
 			resizePeerTransferBuffer(1024 * 1024);
 
 		// ditto for network transfers
-		if (m_disableGPUDirect)
+		if (gdata->clOptions->nogpudirect)
 			resizeNetworkTransferBuffer(1024 * 1024);
 	}
 

@@ -103,7 +103,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	SimParams *_sp = gdata->problem->get_simparams();
 
 	// copy the options passed by command line to GlobalData
-	gdata->nosave = clOptions->nosave;
 	if (isfinite(clOptions->tend))
 		_sp-> tend = clOptions->tend;
 
@@ -242,7 +241,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			// here it is possible to save the converted device map
 			// gdata->saveDeviceMapToFile("");
 		}
-		printf("Striping is: %s\n", (gdata->striping ? "enabled" : "disabled") );
+		printf("Striping is: %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
 	}
 
 	printf("Copying the particles to shared arrays...\n");
@@ -450,7 +449,7 @@ bool GPUSPH::runSimulation() {
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
-		if (gdata->striping && MULTI_DEVICE)
+		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_1);
 		else
 			doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
@@ -461,7 +460,7 @@ bool GPUSPH::runSimulation() {
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// if striping was active, now we want the kernels to complete
-		if (gdata->striping && MULTI_DEVICE)
+		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -509,7 +508,7 @@ bool GPUSPH::runSimulation() {
 		}
 
 		gdata->only_internal = true;
-		if (gdata->striping && MULTI_DEVICE)
+		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
 		else
 			doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
@@ -520,7 +519,7 @@ bool GPUSPH::runSimulation() {
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
 
 		// if striping was active, now we want the kernels to complete
-		if (gdata->striping && MULTI_DEVICE)
+		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// reduce bodies
@@ -666,7 +665,7 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_PRIVATE;
 			}
 
-			if ( !gdata->nosave || final_save ) {
+			if ( !gdata->clOptions->nosave || final_save ) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
 				doCommand(DUMP, which_buffers);

@@ -175,13 +175,10 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
-			gdata->nosave = true;
 		} else if (!strcmp(arg, "--no-gpudirect")) {
 			_clOptions->nogpudirect = true;
-			gdata->nogpudirect = true;
 		} else if (!strcmp(arg, "--striping")) {
 			_clOptions->striping = true;
-			gdata->striping = true;
 		} else if (!strcmp(arg, "--num_hosts")) {
 			/* read the next arg as a uint */
 			sscanf(*argv, "%u", &(_clOptions->num_hosts));
@@ -195,11 +192,9 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 #if 0 // options will be enabled later
 		} else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
-			gdata->nobalance = true;
 		} else if (!strcmp(arg, "--lb-threshold")) {
 			// read the next arg as a float
 			sscanf(*argv, "%f", &(_clOptions->custom_lb_threshold));
-			gdata->custom_lb_threshold = _clOptions->custom_lb_threshold;
 			argv++;
 			argc--;
 #endif
