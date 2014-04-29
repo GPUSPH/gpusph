@@ -279,11 +279,11 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size)
 {
 	// reallocate host buffer if necessary
-	if (gdata->clOptions->nogpudirect && _size > m_hNetworkTransferBufferSize)
+	if (!gdata->clOptions->gpudirect && _size > m_hNetworkTransferBufferSize)
 		resizeNetworkTransferBuffer(_size);
 
 	if (direction == SND) {
-		if (gdata->clOptions->nogpudirect) {
+		if (!gdata->clOptions->gpudirect) {
 			// device -> host buffer
 			CUDA_SAFE_CALL( cudaMemcpy(m_hNetworkTransferBuffer, _ptr, _size, cudaMemcpyDeviceToHost) );
 			// host buffer -> network
@@ -292,7 +292,7 @@ void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, vo
 			// GPUDirect: device -> network
 			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
 	} else {
-		if (gdata->clOptions->nogpudirect) {
+		if (!gdata->clOptions->gpudirect) {
 			// network -> host buffer
 			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
 			// host buffer -> device
@@ -787,7 +787,7 @@ size_t GPUWorker::allocateHostBuffers() {
 			resizePeerTransferBuffer(1024 * 1024);
 
 		// ditto for network transfers
-		if (gdata->clOptions->nogpudirect)
+		if (!gdata->clOptions->gpudirect)
 			resizeNetworkTransferBuffer(1024 * 1024);
 	}
 

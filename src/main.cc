@@ -94,7 +94,7 @@ void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
 	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cout << "\t       [--dir directory] [--nosave] [--striping] [--no-gpudirect]\n";
+	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect]\n";
 	cout << "\t       [--num_hosts VAL [--byslot_scheduling]]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
@@ -103,7 +103,7 @@ void print_usage() {
 	cout << " --tend: Break at given time (VAL is cast to float)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
-	cout << " --no-gpudirect: Disable GPUDirect (for non-CUDA-aware MPI libraries)\n";
+	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
 	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
 	cout << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
 	cout << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
@@ -175,8 +175,8 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
-		} else if (!strcmp(arg, "--no-gpudirect")) {
-			_clOptions->nogpudirect = true;
+		} else if (!strcmp(arg, "--gpudirect")) {
+			_clOptions->gpudirect = true;
 		} else if (!strcmp(arg, "--striping")) {
 			_clOptions->striping = true;
 		} else if (!strcmp(arg, "--num_hosts")) {
