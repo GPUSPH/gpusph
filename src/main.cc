@@ -260,8 +260,7 @@ void sigint_handler(int signum) {
 }
 
 void sigusr1_handler(int signum) {
-	// TODO: actually issue a user save_request
-	//gdata_static_pointer->save_request = true;
+	gdata_static_pointer->save_request = true;
 }
 
 int main(int argc, char** argv) {

@@ -894,12 +894,13 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		delete[] rbnum;
 	}
 
-	// TODO: call setDemTexture(), which allocates and reads the DEM
-	//if (m_simparams->usedem) {
-	//	//printf("Using DEM\n");
-	//	//printf("cols = %d\trows =% d\n", m_problem->m_ncols, m_problem->m_nrows);
-	//	setDemTexture(m_problem->m_dem, m_problem->m_ncols, m_problem->m_nrows);
-	//}
+	if (m_simparams->usedem) {
+		int nrows = gdata->problem->get_dem_nrows();
+		int ncols = gdata->problem->get_dem_ncols();
+		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
+				m_deviceIndex, ncols, nrows);
+		setDemTexture(gdata->problem->get_dem(), ncols, nrows);
+	}
 
 	m_deviceMemory += allocated;
 	return allocated;

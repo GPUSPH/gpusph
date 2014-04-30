@@ -622,6 +622,10 @@ bool GPUSPH::runSimulation() {
 
 		bool finished = gdata->problem->finished(gdata->t);
 		bool need_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
+		if (gdata->save_request) {
+			need_write = true;
+			gdata->save_request = false;
+		}
 
 		if (need_write) {
 			// if we are about to quit, we want to save regardless --nosave option
@@ -638,6 +642,7 @@ bool GPUSPH::runSimulation() {
 
 			// compute and dump vorticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
+				gdata->only_internal = true;
 				doCommand(VORTICITY);
 				which_buffers |= BUFFER_VORTICITY;
 			}
@@ -650,6 +655,7 @@ bool GPUSPH::runSimulation() {
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
 			// not to call, since it has been called at least once for sure
 			if (gdata->problem->get_simparams()->surfaceparticle) {
+				gdata->only_internal = true;
 				doCommand(SURFACE_PARTICLES);
 				gdata->swapDeviceBuffers(BUFFER_INFO);
 				which_buffers |= BUFFER_NORMALS;
@@ -661,6 +667,8 @@ bool GPUSPH::runSimulation() {
 
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
+				// by default, we want to run kernels on internal particles only
+				gdata->only_internal = true;
 				doCommand(CALC_PRIVATE);
 				which_buffers |= BUFFER_PRIVATE;
 			}

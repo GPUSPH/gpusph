@@ -110,8 +110,7 @@ TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 
 	// Drawing and saving times
 	m_displayinterval = 0.001f;
-	m_writefreq = 0;
-	m_screenshotfreq = 10;
+	m_writefreq = 100;
 
 	// Name of problem used for directory creation
 	m_name = "TestTopo";
@@ -190,4 +189,11 @@ void TestTopo::copy_to_array(BufferList &buffers)
 	}
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
+}
+
+void TestTopo::fillDeviceMap()
+{
+	// force split along Y axis: X is longer but part of the domain is only
+	// DEM, so it is not convenient to split evenly along X
+	fillDeviceMapByAxis(Y_AXIS);
 }

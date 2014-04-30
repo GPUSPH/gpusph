@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2014 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,43 +23,28 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/*
- * File:   testtopo.h
- * Author: alexis
- *
- * Created on 20 mars 2009, 20:33
- */
-
-#ifndef _TESTTOPO_H
-#define	_TESTTOPO_H
+#ifndef _DYNBOUNDSEXAMPLE_H
+#define _DYNBOUNDSEXAMPLE_H
 
 #include "Problem.h"
-#include "Point.h"
-#include "TopoCube.h"
 
-class TestTopo: public Problem {
-	private:
-		TopoCube	*experiment_box;
-		PointVect	boundary_parts;
-		PointVect	piston_parts;
-		PointVect	parts;
-		double		H;				// still water level
+class DynBoundsExample: public Problem
+{
+	PointVect	parts;
+	PointVect	boundary_parts;
+	float	H; // still water level
+	float	W; // 2D cell side
+	float	w; // boundary thickness
+	float	alpha; // slope angle
 
-	public:
-		TestTopo(const GlobalData *);
+public:
+	DynBoundsExample(const GlobalData *);
+	virtual ~DynBoundsExample(void);
 
-		virtual ~TestTopo(void);
+	int fill_parts(void);
+	void copy_to_array(BufferList &);
 
-		int fill_parts(void);
-		uint fill_planes(void);
-
-		void copy_to_array(BufferList &);
-		void copy_planes(float4*, float*);
-
-		// override standard split
-		void fillDeviceMap();
-
-		void release_memory(void);
+	void release_memory(void);
 };
-#endif	/* _TESTTOPO_H */
 
+#endif
