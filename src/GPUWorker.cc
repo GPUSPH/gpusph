@@ -309,7 +309,7 @@ void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, vo
 	}
 }
 
-// Compute list of bursts. Currently computes both scopes, but only network scope is used
+// Compute list of bursts. Currently computes both scopes
 void GPUWorker::computeCellBursts()
 {
 	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device
