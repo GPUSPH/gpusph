@@ -276,7 +276,7 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 }
 
 // wrapper for NetworkManage send/receive methods
-void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size)
+void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
 {
 	// reallocate host buffer if necessary
 	if (!gdata->clOptions->gpudirect && _size > m_hNetworkTransferBufferSize)
@@ -290,22 +290,30 @@ void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, vo
 			// wait for the data transfer to complete
 			cudaStreamSynchronize(m_asyncD2HCopiesStream);
 			// host buffer -> network
-			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer);
-		} else
+			gdata->networkManager->sendBufferAsync(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer, bid);
+		} else {
 			// GPUDirect: device -> network
-			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
+			if (gdata->clOptions->asyncNetworkTransfers)
+				gdata->networkManager->sendBufferAsync(m_globalDeviceIdx, peer_gdix, _size, _ptr, bid);
+			else
+				gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
+		}
 	} else {
 		if (!gdata->clOptions->gpudirect) {
 			// network -> host buffer
-			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
+			gdata->networkManager->receiveBufferAsync(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer, bid);
 			// host buffer -> device, possibly async with forces kernel
 			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(_ptr, m_hNetworkTransferBuffer, _size,
 				cudaMemcpyHostToDevice, m_asyncH2DCopiesStream) );
 			// wait for the data transfer to complete (actually next iteration could requre no sync, but safer to do)
 			cudaStreamSynchronize(m_asyncH2DCopiesStream);
-		} else
+		} else {
 			// GPUDirect: network -> device
-			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+			if (gdata->clOptions->asyncNetworkTransfers)
+				gdata->networkManager->receiveBufferAsync(peer_gdix, m_globalDeviceIdx, _size, _ptr, bid);
+			else
+				gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+		}
 	}
 }
 
@@ -517,6 +525,10 @@ void GPUWorker::computeCellBursts()
 
 	} // iterate on cells
 
+	// We need min (#network_bursts * 4) messages (since we send multiple buffers for
+	// each burst). Multiplying by 8 is just safer
+	gdata->networkManager->setNumRequests(network_bursts * 8);
+
 	printf("D%u: data transfers compacted in %u bursts [%u node + %u network]\n",
 		m_deviceIndex, (uint)m_bursts.size(), node_bursts, network_bursts);
 	/*
@@ -650,6 +662,11 @@ void GPUWorker::transferBursts()
 	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
 	uint dbl_buf_idx;
 
+	// burst id counter, needed to correctly pair asynchronous network messages
+	uint bid[MAX_DEVICES_PER_CLUSTER];
+	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+		bid[n] = 0;
+
 	// Iterate on scope type, so that intra-node transfers are performed first.
 	// Decrement instead of incrementing to transfer MPI first.
 	for (uint current_scope_i = NODE_SCOPE; current_scope_i <= NETWORK_SCOPE; current_scope_i++) {
@@ -727,7 +744,7 @@ void GPUWorker::transferBursts()
 						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 					} else
 						// network scope: SND or RCV
-						networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size);
+						networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
 				} else {
 					// generic, so that it can work for other buffers like TAU, if they are ever
 					// introduced; just fix the conditional
@@ -739,7 +756,7 @@ void GPUWorker::transferBursts()
 							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
 						} else
 							// network scope: SND or RCV
-							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size);
+							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
 					}
 				} // buf is BUFFER_BIG
 
@@ -748,6 +765,9 @@ void GPUWorker::transferBursts()
 		} // iterate on bursts
 
 	} // iterate on scopes
+
+	// waits for network async transfers to complete
+	gdata->networkManager->waitAsyncTransfers();
 }
 
 

@@ -168,7 +168,7 @@ private:
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
 
 	// wrapper for NetworkManage send/receive methods
-	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size);
+	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0);
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();

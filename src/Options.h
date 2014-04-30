@@ -41,6 +41,7 @@ struct Options {
 	bool	nosave; // disable saving
 	bool	gpudirect; // enable GPUDirect
 	bool	striping; // enable striping (i.e. compute/transfer overlap)
+	bool	asyncNetworkTransfers; // enable asynchronous network transfers
 	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
 	Options(void) :
@@ -53,6 +54,7 @@ struct Options {
 		nosave(false),
 		gpudirect(false),
 		striping(false),
+		asyncNetworkTransfers(false),
 		num_hosts(0),
 		byslot_scheduling(false)
 	{};
