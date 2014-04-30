@@ -8,7 +8,10 @@
 #include "NetworkManager.h"
 // for GlobalData::RANK()
 #include <GlobalData.h>
+#include <vector>
 #include <mpi.h>
+
+static MPI_Request* m_requestsList;
 
 // Uncomment the following to define DBG_PRINTF and enable printing the details of every call (uint and buffer).
 // Useful to check the correspondence among messages without compiling in debug mode
@@ -23,11 +26,25 @@ NetworkManager::NetworkManager() {
 	world_size = 0; // 1 process = single node. 0 is reserved for "uninitialized"
 	process_rank = -1; // -1 until initialization is done
 	processor_name_len = 0;
+
+	// MPIRequests for asynchronous calls
+	m_numRequests = 0;
+	m_requestsCounter = 0;
+	m_requestsList = NULL;
 }
 
 NetworkManager::~NetworkManager() {
 	// TODO Auto-generated destructor stub
 	// TODO: finalize if not done yet
+	// MPIRequests for asynchronous calls
+	if (m_requestsList)
+		free(m_requestsList);
+}
+
+void NetworkManager::setNumRequests(uint _numRequests)
+{
+	m_numRequests = _numRequests;
+	m_requestsList = (MPI_Request*)realloc(m_requestsList, m_numRequests * sizeof(MPI_Request));
 }
 
 void NetworkManager::initNetwork() {
@@ -48,6 +65,7 @@ void NetworkManager::initNetwork() {
 
 	// get the name of the processor
 	MPI_Get_processor_name(processor_name, &processor_name_len);
+
 }
 
 void NetworkManager::finalizeNetwork() {
@@ -147,6 +165,76 @@ void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char
 	else
 	if (actual_count != count)
 		printf("WARNING: MPI_Get_count returned %d (bytes), expected %u\n", actual_count, count);
+}
+
+void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid)
+{
+	unsigned int tag = (bid << 16) | ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	int mpi_err = 0;
+
+	#ifdef DBG_PRINTF
+	printf("  ---- MPI BUFFER ASYNC src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
+	#endif
+
+	if (m_requestsCounter == (m_numRequests-1))
+		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring SEND!\n");
+	else
+		mpi_err = MPI_Isend(src_data, count, MPI_BYTE, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD,
+			&m_requestsList[m_requestsCounter++]);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_ISend returned error %d\n", mpi_err);
+}
+
+void NetworkManager::receiveBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data, uint bid)
+{
+	unsigned int tag = (bid << 16) | ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	int mpi_err = 0;
+
+	#ifdef DBG_PRINTF
+	printf("  ---- MPI BUFFER ASYNC src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
+	#endif
+
+	if (m_requestsCounter == (m_numRequests-1))
+		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring RECV!\n");
+	else
+		mpi_err = MPI_Irecv(dst_data, count, MPI_BYTE, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD,
+		&m_requestsList[m_requestsCounter++]);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_IRecv returned error %d\n", mpi_err);
+
+	/* mpi_err = MPI_Get_count(&status, MPI_BYTE, &actual_count);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
+	else
+		if (actual_count != count)
+			printf("WARNING: MPI_Get_count returned %d (bytes), expected %u\n", actual_count, count); */
+}
+
+void NetworkManager::waitAsyncTransfers()
+{
+	if (m_requestsCounter > 0)
+		MPI_Waitall(m_requestsCounter, m_requestsList, MPI_STATUSES_IGNORE);
+
+	// if one needs to check statuses one by one:
+	/*
+	for (uint i=0; i < m_requestsCounter; i++) {
+		MPI_Status status;
+		int actual_count;
+
+		MPI_Wait(&(m_requestsList[i]), &status);
+		// or:
+		// MPI_Wait(&(m_requestsList[i]), MPI_STATUS_IGNORE);
+
+		int mpi_err = MPI_Wait(&m_requestsList[i], &status);
+		MPI_Get_count(&status, MPI_BYTE, &actual_count);
+		// here we can read status.MPI_TAG and status.MPI_SOURCE for checking / debugging, but beware:
+		// status can be reset on the sender's side if successful
+	}
+	*/
+	m_requestsCounter = 0;
 }
 
 
