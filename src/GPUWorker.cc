@@ -290,7 +290,7 @@ void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, vo
 			// wait for the data transfer to complete
 			cudaStreamSynchronize(m_asyncD2HCopiesStream);
 			// host buffer -> network
-			gdata->networkManager->sendBufferAsync(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer, bid);
+			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer);
 		} else {
 			// GPUDirect: device -> network
 			if (gdata->clOptions->asyncNetworkTransfers)
@@ -301,7 +301,7 @@ void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, vo
 	} else {
 		if (!gdata->clOptions->gpudirect) {
 			// network -> host buffer
-			gdata->networkManager->receiveBufferAsync(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer, bid);
+			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
 			// host buffer -> device, possibly async with forces kernel
 			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(_ptr, m_hNetworkTransferBuffer, _size,
 				cudaMemcpyHostToDevice, m_asyncH2DCopiesStream) );
