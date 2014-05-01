@@ -694,6 +694,9 @@ bool GPUSPH::runSimulation() {
 			gdata->keep_going = false;
 	}
 
+	// elapsed time, excluding the initialization
+	printf("Elapsed time of simulation cycle: %.2gs\n", m_totalPerformanceCounter->getElapsedSeconds());
+
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
 	if (MULTI_NODE)
