@@ -241,7 +241,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			// here it is possible to save the converted device map
 			// gdata->saveDeviceMapToFile("");
 		}
-		printf("Striping is: %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
+		printf("Striping is:  %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
+		printf("GPUDirect is: %s\n", (gdata->clOptions->gpudirect ? "enabled" : "disabled") );
+		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
 	}
 
 	printf("Copying the particles to shared arrays...\n");
