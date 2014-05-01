@@ -163,12 +163,21 @@ class IPPSCounter
 			return diff.tv_sec + diff.tv_nsec/1.0e9;
 		}
 
-		// return the throughput computed as iterations times particles per second
-		double getIPPS() {
+		// returns the elapsed seconds since [re]start() was called
+		double getElapsedSeconds() {
 			if (!m_started) return 0;
 			timespec now;
 			clock_gettime(CLOCK_MONOTONIC, &now);
 			double timeInterval = diff_seconds(now, m_startTime);
+			if (timeInterval <= 0.0)
+				return 0.0;
+			else
+				return timeInterval;
+		}
+
+		// return the throughput computed as iterations times particles per second
+		double getIPPS() {
+			double timeInterval = getElapsedSeconds();
 			if (timeInterval <= 0.0)
 				return 0.0;
 			else
