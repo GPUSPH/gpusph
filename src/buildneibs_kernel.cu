@@ -766,13 +766,15 @@ buildNeibsListDevice(buildneibs_params<use_sa_boundary> params)
 				}
 			}
 		}
-
-		// Setting the end marker
-		if (neibs_num < d_maxneibsnum) {
-			params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
-		}
-
 	} while (0);
+
+	// Setting the end marker. Must be done here so that
+	// particles for which the neighbor list is not built actually
+	// have an empty neib list. Otherwise, particles which are
+	// marked inactive will keep their old neiblist.
+	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
+		params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
+	}
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors
