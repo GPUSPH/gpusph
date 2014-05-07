@@ -341,7 +341,7 @@ ifneq ($(dbg), $(LAST_DBG))
 	endif
 endif
 
-# option: compute - 11, 12 or 20: compute capability to compile for (default: 12)
+# option: compute - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
 # does dbg differ from last?
 ifdef compute
 	# user choice
@@ -353,16 +353,9 @@ ifdef compute
 			$(SED_COMMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
 	endif
 else
-	# no user choice, use last (if any) or default
+	# no user choice, use last (if any) or empty (will be autodetected when creating COMPUTE_SELECT_OPTFILE)
 	ifeq ($(strip $(LAST_COMPUTE)),)
-		COMPUTE=$(strip $(shell $(LIST_CUDA_CC) | cut -f2- | sort | head -1))
-		ifeq ($(COMPUTE),$(empty))
-$(warning unable to detect compute capability of installed devices, assuming 1.2)
-			COMPUTE=12
-		else
-$(info auto-detected compute capability $(COMPUTE))
-			COMPUTE:=$(subst .,$(empty),$(firstword $(COMPUTE)))
-		endif
+		COMPUTE=
 	else
 		COMPUTE=$(LAST_COMPUTE)
 	endif
@@ -520,7 +513,7 @@ CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
 
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device
-CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
+CPPFLAGS += -D__COMPUTE__=COMPUTE
 
 # The ODE library link is in single precision mode
 CPPFLAGS += -DdSINGLE
@@ -647,10 +640,10 @@ $(DBG_SELECT_OPTFILE): | $(OPTSDIR)
 		> $(DBG_SELECT_OPTFILE)
 	@if test "$(dbg)" = "1" ; then echo "#define _DEBUG_" >> $(DBG_SELECT_OPTFILE); \
 	else echo "#undef _DEBUG_" >> $(DBG_SELECT_OPTFILE); fi
-$(COMPUTE_SELECT_OPTFILE): | $(OPTSDIR)
+$(COMPUTE_SELECT_OPTFILE): $(LIST_CUDA_CC) | $(OPTSDIR)
 	@echo "/* Define the compute capability GPU code was compiled for. */" \
 		> $(COMPUTE_SELECT_OPTFILE)
-	@echo "#define COMPUTE $(COMPUTE)" >> $(COMPUTE_SELECT_OPTFILE)
+	@$(SCRIPTSDIR)/define-cuda-cc.sh $(COMPUTE) >> $(COMPUTE_SELECT_OPTFILE)
 $(FASTMATH_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if fastmath is enabled for GPU code. */" \
 		> $@
@@ -686,9 +679,6 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
 	$(call show_stage,SCRIPTS,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< -lcuda
-
-# Let Makefile depend on the presence of the progrma that lists compute capabilities of installed devices
-Makefile: | $(LIST_CUDA_CC)
 
 # create distdir
 $(DISTDIR):
