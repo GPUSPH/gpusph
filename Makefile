@@ -357,7 +357,7 @@ else
 	endif
 endif
 
-# option: fastmath - Enable or disable fastmath. Default: 1 (enabled)
+# option: fastmath - Enable or disable fastmath. Default: 0 (disabled)
 ifdef fastmath
 	# user chooses
 	FASTMATH=$(fastmath)
