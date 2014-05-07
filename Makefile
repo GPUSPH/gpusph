@@ -85,6 +85,10 @@ OPTSDIR = ./options
 TARGETNAME := GPUSPH$(TARGET_SXF)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
+# binary to list compute capabilities of installed devices
+LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
+
+
 # --------------- File lists
 
 # makedepend will generate dependencies in these file
@@ -351,7 +355,14 @@ ifdef compute
 else
 	# no user choice, use last (if any) or default
 	ifeq ($(strip $(LAST_COMPUTE)),)
-		COMPUTE=12
+		COMPUTE=$(strip $(shell $(LIST_CUDA_CC) | cut -f2- | sort | head -1))
+		ifeq ($(COMPUTE),$(empty))
+$(warning unable to detect compute capability of installed devices, assuming 1.2)
+			COMPUTE=12
+		else
+$(info auto-detected compute capability $(COMPUTE))
+			COMPUTE:=$(subst .,$(empty),$(firstword $(COMPUTE)))
+		endif
 	else
 		COMPUTE=$(LAST_COMPUTE)
 	endif
@@ -666,6 +677,14 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
+
+# compile program to list compute capabilities of installed devices
+$(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
+	$(call show_stage,SCRIPTS,$(@F))
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< -lcuda
+
+# Let Makefile depend on the presence of the progrma that lists compute capabilities of installed devices
+Makefile: | $(LIST_CUDA_CC)
 
 # create distdir
 $(DISTDIR):
