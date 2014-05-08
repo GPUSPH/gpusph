@@ -1935,17 +1935,18 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
 
-	if (NOT_FLUID(info)) {
-		newInfo[index] = info;
-		return;
-	}
-
 	#if( __COMPUTE__ >= 20)
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 	float4 normal = make_float4(0.0f);
+
+	if (NOT_FLUID(info) || INACTIVE(pos)) {
+		// NOTE: inactive particles will keep their last surface flag status
+		newInfo[index] = info;
+		return;
+	}
 
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );

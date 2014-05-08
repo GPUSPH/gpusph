@@ -659,6 +659,12 @@ bool GPUSPH::runSimulation() {
 			if (gdata->problem->get_simparams()->surfaceparticle) {
 				gdata->only_internal = true;
 				doCommand(SURFACE_PARTICLES);
+				// NOTE: in the specific case, we could just copy the previous value in the read buffer,
+				// instead of transferring the buffer, since we will not dump external particles.
+				// Importing them from the neib devices is theoretically more correct and it allows us
+				// to know the surface flag for the external particles (in case we will ever care).
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
 				gdata->swapDeviceBuffers(BUFFER_INFO);
 				which_buffers |= BUFFER_NORMALS;
 			}

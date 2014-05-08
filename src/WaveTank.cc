@@ -350,4 +350,14 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	std::cout << "Everything uploaded" <<"\n";
 }
 
+void WaveTank::fillDeviceMap()
+{
+	//fillDeviceMapByAxis(Y_AXIS);
+	//fillDeviceMapByEquation();
+	if (gdata->totDevices % 2 == 0)
+		fillDeviceMapByAxesSplits(gdata->totDevices / 2, 2, 1);
+	else
+		fillDeviceMapByAxis(Y_AXIS);
+}
+
 #undef MK_par
