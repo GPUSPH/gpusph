@@ -1141,6 +1141,8 @@ void GPUSPH::doWrite()
 	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
 	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
 
+	bool warned_nan_pos = false;
+
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
 		double4 dpos;
@@ -1149,6 +1151,15 @@ void GPUSPH::doWrite()
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 		dpos.w = pos.w;
+
+		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
+			fprintf(stderr, "WARNING: particle %u (%u) has NAN position! (%g, %g, %g) @ (%g, %g, %g) = (%g, %g, %g)\n",
+				i, info[i],
+				pos.x, pos.y, pos.z,
+				gridPos.x, gridPos.y, gridPos.z,
+				dpos.x, dpos.y, dpos.z);
+			warned_nan_pos = true;
+		}
 
 		// for surface particles add the z coodinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
