@@ -149,10 +149,16 @@ versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
 
+# Some paths depend on whether we are on CUDA 5 or higher.
+# CUDA_PRE_5 will be 0 if we are on CUDA 5 or higher, nonzero otherwise
+# (please only test against 0, I'm not sure it will be a specific nonzero value)
+# NOTE: the test is reversed because test returns 0 for true (shell-like)
+CUDA_PRE_5=$(shell test $(CUDA_MAJOR) -ge 5; echo $$?)
+
 # override: CUDA_SDK_PATH - location for the CUDA SDK samples
 # override:                 defaults to $(CUDA_INSTALL_PATH)/samples for CUDA 5 or higher,
 # override:                             /usr/local/cudasdk for older versions of CUDA.
-ifeq ($(CUDA_MAJOR), 5)
+ifeq ($(CUDA_PRE_5), 0)
 	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 else
 	CUDA_SDK_PATH ?= /usr/local/cudasdk
