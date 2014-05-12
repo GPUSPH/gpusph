@@ -184,51 +184,69 @@ ifeq ($(CXX),c++)
 	endif
 endif
 
-# override: MPICXX - the MPI compiler
-MPICXX ?= $(shell which mpicxx)
-ifeq ($(MPICXX),)
-$(error MPI compiler not found, necessary for multi-node.)
-endif
-
 # Force nvcc to use the same host compiler that we selected
 # Note that this requires the compiler to be supported by
 # nvcc.
 NVCC += -ccbin=$(CXX)
 
-# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
-# but we also need to link with MPICXX, so we would like to use:
-#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
-# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
-# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
-# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
-# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
-# options required by MPICXX at link time:
 
-## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
-# We use -show because it's supported by all implementations (otherwise we'd have to detect
-# if our compiler uses --showme:link or -link_info):
-MPISHOWFLAGS := $(shell $(MPICXX) -show)
-# But then we have to remove the compiler name from the proposed command line:
-MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+# override: MPICXX - the MPI compiler
+MPICXX ?= $(shell which mpicxx)
 
-# mpicxx might pass to the compiler options which nvcc might not understand
-# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
-# but that means that we cannot pass options which contains commas in them,
-# since commas are already used to separate the parameters in --compiler-options.
-# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
-# a comma), so for the time being we just filter out the flags that we _know_
-# will contain commas (i.e. -Wl,stuff,stuff,stuff).
-# To make things even more complicated, nvcc does not accept -Wl, so we need
-# to replace -Wl with --linker-options.
-# The other options will be gathered into the --compiler-options passed at nvcc
-# at link time.
-MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
-MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+ifeq ($(MPICXX),)
 
-LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+	# No MPI: give warning and set flag
+	TMP := $(warning MPI compiler not found, multi-node will NOT be supported)
 
-# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+	USE_MPI=0
 
+	# MPICXXOBJS will be compiled with the standard compiler
+	MPICXX=$(CXX)
+
+	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
+	LINKER ?= $(NVCC)
+
+else
+
+	USE_MPI=1
+
+	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
+	# but we also need to link with MPICXX, so we would like to use:
+	#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+	# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
+	# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
+	# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
+	# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
+	# options required by MPICXX at link time:
+
+	## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
+	# We use -show because it's supported by all implementations (otherwise we'd have to detect
+	# if our compiler uses --showme:link or -link_info):
+	MPISHOWFLAGS := $(shell $(MPICXX) -show)
+	# But then we have to remove the compiler name from the proposed command line:
+	MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+
+	# mpicxx might pass to the compiler options which nvcc might not understand
+	# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
+	# but that means that we cannot pass options which contains commas in them,
+	# since commas are already used to separate the parameters in --compiler-options.
+	# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
+	# a comma), so for the time being we just filter out the flags that we _know_
+	# will contain commas (i.e. -Wl,stuff,stuff,stuff).
+	# To make things even more complicated, nvcc does not accept -Wl, so we need
+	# to replace -Wl with --linker-options.
+	# The other options will be gathered into the --compiler-options passed at nvcc
+	# at link time.
+	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
+	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+
+	LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+
+	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+
+endif
+
+# END of MPICXX mess
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
@@ -459,6 +477,10 @@ CUFLAGS  ?=
 
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
+
+# Define USE_MPI according to the availability of MPICXX
+
+CPPFLAGS += -DUSE_MPI=$(USE_MPI)
 
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device

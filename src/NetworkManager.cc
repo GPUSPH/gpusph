@@ -8,7 +8,13 @@
 #include "NetworkManager.h"
 // for GlobalData::RANK()
 #include <GlobalData.h>
+
+#if USE_MPI
 #include <mpi.h>
+#else
+#define MPI_MAX_PROCESSOR_NAME 256
+#define NO_MPI_ERR throw runtime_error("MPI support not compiled in")
+#endif
 
 // Uncomment the following to define DBG_PRINTF and enable printing the details of every call (uint and buffer).
 // Useful to check the correspondence among messages without compiling in debug mode
@@ -33,6 +39,7 @@ NetworkManager::~NetworkManager() {
 void NetworkManager::initNetwork() {
 	// initialize the MPI environment
 	// MPI_Init(NULL, NULL);
+#if USE_MPI
 	int result;
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &result);
 	if (result < MPI_THREAD_MULTIPLE) {
@@ -48,11 +55,14 @@ void NetworkManager::initNetwork() {
 
 	// get the name of the processor
 	MPI_Get_processor_name(processor_name, &processor_name_len);
+#endif
 }
 
 void NetworkManager::finalizeNetwork() {
 	// finalize the MPI environment
+#if USE_MPI
 	MPI_Finalize();
+#endif
 }
 
 int NetworkManager::getWorldSize() {
@@ -75,6 +85,7 @@ void NetworkManager::printInfo()
 
 void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -85,10 +96,14 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -109,10 +124,14 @@ void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char d
 	else
 	if (actual_count != 1)
 		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -123,10 +142,14 @@ void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char ds
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -147,6 +170,9 @@ void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char
 	else
 	if (actual_count != count)
 		printf("WARNING: MPI_Get_count returned %d (bytes), expected %u\n", actual_count, count);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 
@@ -244,6 +270,7 @@ void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char
 
 void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype)
 {
+#if USE_MPI
 	float previous_value = *buffer;
 	MPI_Op _operator = (rtype == MIN_REDUCTION ? MPI_MIN : MPI_SUM);
 
@@ -251,20 +278,29 @@ void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferEle
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 // send one int, gather the int from all nodes (allgather)
 void NetworkManager::allGatherUints(unsigned int *datum, unsigned int *recv_buffer)
 {
+#if USE_MPI
 	int mpi_err = MPI_Allgather(datum, 1, MPI_INT, recv_buffer, 1, MPI_INT, MPI_COMM_WORLD);
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allgather returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 // network barrier
 void NetworkManager::networkBarrier()
 {
+#if USE_MPI
 	MPI_Barrier(MPI_COMM_WORLD);
+#endif
 }
 #ifdef DBG_PRINTF
 #undef DBG_PRINTF
