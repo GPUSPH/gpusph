@@ -417,6 +417,9 @@ LIBS ?=
 # override: LDFLAGS - flags passed to the linker
 LDFLAGS ?=
 
+# override: LDLIBS - libraries to link against
+LDLIBS ?=
+
 # Most of these settings are platform independent
 
 # INCPATH
@@ -457,7 +460,9 @@ else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
-LDFLAGS += $(LIBPATH) $(LIBS)
+LDFLAGS += $(LIBPATH)
+
+LDLIBS += $(LIBS)
 
 # -- Includes and library section end ---
 
@@ -583,7 +588,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo "Compiled with problem $(PROBLEM)"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage,LINK,$(TARGET)\\n)
-	$(CMDECHO)$(LINKER) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(CMDECHO)$(LINKER) -o $(TARGET) $(OBJS) $(LDFLAGS) $(LDLIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
