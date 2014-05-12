@@ -681,7 +681,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 # compile program to list compute capabilities of installed devices
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< -lcuda
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< $(LDFLAGS) -lcuda
 
 # create distdir
 $(DISTDIR):
