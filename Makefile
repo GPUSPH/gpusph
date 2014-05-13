@@ -664,17 +664,17 @@ $(OPTSDIR):
 # target: clean - Clean everything but last compile choices
 # clean: cpuobjs, gpuobjs, deps makefiles, target, target symlink, dbg target
 clean: cpuclean gpuclean
-	$(RM) $(CPUDEPS) $(GPUDEPS) $(TARGET) $(CURDIR)/$(TARGETNAME)
+	$(RM) $(TARGET) $(CURDIR)/$(TARGETNAME)
 	if [ -f $(TARGET)$(DBG_SFX) ] ; then \
 		$(RM) $(TARGET)$(DBG_SFX) $(CURDIR)/$(TARGETNAME)$(DBG_SFX) ; fi
 
 # target: cpuclean - Clean CPU stuff
 cpuclean:
-	$(RM) $(CCOBJS) $(MPICXXOBJS)
+	$(RM) $(CCOBJS) $(MPICXXOBJS) $(CPUDEPS)
 
 # target: gpuclean - Clean GPU stuff
 gpuclean:
-	$(RM) $(CUOBJS)
+	$(RM) $(CUOBJS) $(GPUDEPS)
 
 # target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
