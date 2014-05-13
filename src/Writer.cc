@@ -36,36 +36,55 @@
 #include "VTKWriter.h"
 #include "Writer.h"
 
+Writer *Writer::m_writer = NULL;
 
 void
-Writer::create(GlobalData *_gdata)
+Writer::Create(GlobalData *_gdata)
 {
 	const Problem *problem = _gdata->problem;
 	WriterType wt = problem->get_writertype();
 
-	_gdata->writerType = wt;
 	switch (wt) {
 	case TEXTWRITER:
-		_gdata->writer = new TextWriter(problem);
+		m_writer = new TextWriter(problem);
 		break;
 	case VTKWRITER:
-		_gdata->writer = new VTKWriter(problem);
+		m_writer = new VTKWriter(problem);
 		break;
 	case VTKLEGACYWRITER:
-		_gdata->writer = new VTKLegacyWriter(problem);
+		m_writer = new VTKLegacyWriter(problem);
 		break;
 	case CUSTOMTEXTWRITER:
-		_gdata->writer = new CustomTextWriter(problem);
+		m_writer = new CustomTextWriter(problem);
 		break;
 	case UDPWRITER:
-		_gdata->writer = new UDPWriter(problem);
+		m_writer = new UDPWriter(problem);
 		break;
 	default:
 		stringstream ss;
 		ss << "Unknown writer type " << wt;
 		throw runtime_error(ss.str());
 	}
-	_gdata->writer->setGlobalData(_gdata);
+	m_writer->setGlobalData(_gdata);
+}
+
+void
+Writer::Write(uint numParts, BufferList const& buffers,
+	uint node_offset, float t, const bool testpoints)
+{
+	m_writer->write(numParts, buffers, node_offset, t, testpoints);
+}
+
+void
+Writer::WriteWaveGage(float t, GageList const& gage)
+{
+	m_writer->write_WaveGage(t, gage);
+}
+
+void
+Writer::Destroy()
+{
+	delete m_writer;
 }
 
 /**

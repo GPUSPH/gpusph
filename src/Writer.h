@@ -59,6 +59,8 @@ enum WriterType
 
 class Writer
 {
+	static Writer *m_writer;
+
 public:
 	// maximum number of files
 	static const uint MAX_FILES = 99999;
@@ -67,24 +69,37 @@ public:
 
 	// create a specific writer based on the problem set in _gdata
 	static void
-	create(GlobalData *_gdata);
+	Create(GlobalData *_gdata);
 
-	virtual ~Writer();
+	// write points
+	static void
+	Write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
+	// write wave gages
+	static void
+	WriteWaveGage(float t, GageList const& gage);
 
-	virtual void write_energy(float t, float4 *energy);
-
-	//WaveGage
-	virtual void write_WaveGage(float t, GageList const& gage);
-
-	uint getLastFilenum();
+	// destroy
+	static void
+	Destroy();
 
 protected:
 
 	Writer(const Problem *problem);
+	virtual ~Writer();
+
 	void setGlobalData(GlobalData *_gdata);
 
+	virtual void
+	write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
+
+	virtual void
+	write_energy(float t, float4 *energy);
+
+	virtual void
+	write_WaveGage(float t, GageList const& gage);
+
+	uint getLastFilenum();
 
 	string			m_dirname;
 	uint			m_FileCounter;

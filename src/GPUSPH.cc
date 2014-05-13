@@ -322,10 +322,7 @@ bool GPUSPH::finalize() {
 	// host buffers
 	deallocateGlobalHostBuffers();
 
-	// ParticleSystem which, in turn, deletes the Writer
-	//delete psystem;
-
-	delete gdata->writer;
+	Writer::Destroy();
 
 	// ...anything else?
 
@@ -1062,7 +1059,7 @@ void GPUSPH::setViscosityCoefficient()
 // creates the Writer according to the requested WriterType
 void GPUSPH::createWriter()
 {
-	Writer::create(gdata);
+	Writer::Create(gdata);
 }
 
 void GPUSPH::doWrite()
@@ -1137,7 +1134,7 @@ void GPUSPH::doWrite()
 			gages[g].z /= gage_parts[g];
 		}
 		//Write WaveGage information on one text file
-		gdata->writer->write_WaveGage(gdata->t, gages);
+		Writer::WriteWaveGage(gdata->t, gages);
 	}
 
 	//Testpoints
@@ -1146,7 +1143,7 @@ void GPUSPH::doWrite()
 		doCommand(COMPUTE_TESTPOINTS);
 	}
 
-	gdata->writer->write(
+	Writer::Write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
 		node_offset,
@@ -1253,14 +1250,14 @@ void GPUSPH::initializeBoundaryConditions()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u, %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
 			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
 			m_totalPerformanceCounter->getMIPPS(),
-			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
+			gdata->lastGlobalPeakNeibsNum
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,

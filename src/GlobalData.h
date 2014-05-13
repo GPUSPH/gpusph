@@ -252,10 +252,6 @@ struct GlobalData {
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
 
-	// Writer variables
-	WriterType writerType;
-	Writer *writer;
-
 	// disable saving (for timing, or only for the last)
 	bool nosave;
 
@@ -303,8 +299,6 @@ struct GlobalData {
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
-		writerType(VTKWRITER),
-		writer(NULL),
 		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
