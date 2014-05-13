@@ -159,7 +159,7 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
         fprintf(stderr, "%s: %s\n", str, strerror(code)); \
 }
 
-UDPWriter::UDPWriter(Problem *problem) : Writer(problem) {
+UDPWriter::UDPWriter(const Problem *problem) : Writer(problem) {
     // if UDPWRITER_HOST or UDPWRITER_PORT environment variables are set,
     // use those values, otherwise defaults
     mPort = PTP_DEFAULT_SERVER_PORT;
