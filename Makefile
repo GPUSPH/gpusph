@@ -590,7 +590,7 @@ else
 endif
 
 .PHONY: all showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean docsclean
+.PHONY: clean cpuclean gpuclean cookiesclean docsclean
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
 # link objects in target
