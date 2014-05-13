@@ -1074,28 +1074,28 @@ void GPUSPH::createWriter()
 	//gdata->writerType = gdata->problem->get_writertype();
 	//switch(gdata->writerType) {
 	switch (gdata->problem->get_writertype()) {
-		case Problem::TEXTWRITER:
+		case TEXTWRITER:
 			gdata->writerType = TEXTWRITER;
 			gdata->writer = new TextWriter(gdata->problem);
 			break;
 
-		case Problem::VTKWRITER:
+		case VTKWRITER:
 			gdata->writerType = VTKWRITER;
 			gdata->writer = new VTKWriter(gdata->problem);
 			gdata->writer->setGlobalData(gdata); // VTK also supports writing the device index
 			break;
 
-		case Problem::VTKLEGACYWRITER:
+		case VTKLEGACYWRITER:
 			gdata->writerType = VTKLEGACYWRITER;
 			gdata->writer = new VTKLegacyWriter(gdata->problem);
 			break;
 
-		case Problem::CUSTOMTEXTWRITER:
+		case CUSTOMTEXTWRITER:
 			gdata->writerType = CUSTOMTEXTWRITER;
 			gdata->writer = new CustomTextWriter(gdata->problem);
 			break;
 
-		case Problem::UDPWRITER:
+		case UDPWRITER:
 			gdata->writerType = UDPWRITER;
 			gdata->writer = new UDPWriter(gdata->problem);
 			break;

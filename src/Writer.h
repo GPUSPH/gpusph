@@ -48,6 +48,15 @@ class Problem;
 
 using namespace std;
 
+enum WriterType
+{
+	TEXTWRITER,
+	VTKWRITER,
+	VTKLEGACYWRITER,
+	CUSTOMTEXTWRITER,
+	UDPWRITER
+};
+
 class Writer
 {
 public:

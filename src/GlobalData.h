@@ -101,15 +101,6 @@ enum CommandType {
 	QUIT				// quits the simulation cycle
 };
 
-enum WriterType
-{
-	TEXTWRITER,
-	VTKWRITER,
-	VTKLEGACYWRITER,
-	CUSTOMTEXTWRITER,
-	UDPWRITER
-};
-
 // 0 reserved as "no flags"
 #define NO_FLAGS	((flag_t)0)
 

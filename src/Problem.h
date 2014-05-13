@@ -37,6 +37,7 @@
 #include <iostream>
 
 #include "Options.h"
+#include "Writer.h"
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
@@ -66,15 +67,6 @@ class Problem {
 
 		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
 	public:
-		enum WriterType
-		{
-			TEXTWRITER,
-			VTKWRITER,
-			VTKLEGACYWRITER,
-			CUSTOMTEXTWRITER,
-			UDPWRITER
-		};
-
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
 		enum SplitAxis
 		{
