@@ -39,13 +39,6 @@
 // GPUWorker
 #include "GPUWorker.h"
 
-// Writer types
-#include "TextWriter.h"
-#include "VTKWriter.h"
-#include "VTKLegacyWriter.h"
-#include "CustomTextWriter.h"
-#include "UDPWriter.h"
-
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -110,8 +103,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
 	gdata->worldSize = make_float3(problem->get_worldsize());
-	// TODO: re-enable the followin after the WriterType rampage is over
-	// gdata->writerType = problem->get_writertype();
 
 	// get the grid size
 	gdata->gridSize = problem->get_gridsize();
@@ -1071,42 +1062,7 @@ void GPUSPH::setViscosityCoefficient()
 // creates the Writer according to the requested WriterType
 void GPUSPH::createWriter()
 {
-	//gdata->writerType = gdata->problem->get_writertype();
-	//switch(gdata->writerType) {
-	switch (gdata->problem->get_writertype()) {
-		case TEXTWRITER:
-			gdata->writerType = TEXTWRITER;
-			gdata->writer = new TextWriter(gdata->problem);
-			break;
-
-		case VTKWRITER:
-			gdata->writerType = VTKWRITER;
-			gdata->writer = new VTKWriter(gdata->problem);
-			gdata->writer->setGlobalData(gdata); // VTK also supports writing the device index
-			break;
-
-		case VTKLEGACYWRITER:
-			gdata->writerType = VTKLEGACYWRITER;
-			gdata->writer = new VTKLegacyWriter(gdata->problem);
-			break;
-
-		case CUSTOMTEXTWRITER:
-			gdata->writerType = CUSTOMTEXTWRITER;
-			gdata->writer = new CustomTextWriter(gdata->problem);
-			break;
-
-		case UDPWRITER:
-			gdata->writerType = UDPWRITER;
-			gdata->writer = new UDPWriter(gdata->problem);
-			break;
-
-		default:
-			//stringstream ss;
-			//ss << "Writer not supported";
-			//throw runtime_error(ss.str());
-			printf("Writer not supported\n");
-			break;
-	}
+	Writer::create(gdata);
 }
 
 void GPUSPH::doWrite()

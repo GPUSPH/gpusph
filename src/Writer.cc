@@ -27,7 +27,46 @@
 #include <stdexcept>
 
 #include "Writer.h"
-#include "Problem.h"
+#include "GlobalData.h"
+
+#include "CustomTextWriter.h"
+#include "TextWriter.h"
+#include "UDPWriter.h"
+#include "VTKLegacyWriter.h"
+#include "VTKWriter.h"
+#include "Writer.h"
+
+
+void
+Writer::create(GlobalData *_gdata)
+{
+	const Problem *problem = _gdata->problem;
+	WriterType wt = problem->get_writertype();
+
+	_gdata->writerType = wt;
+	switch (wt) {
+	case TEXTWRITER:
+		_gdata->writer = new TextWriter(problem);
+		break;
+	case VTKWRITER:
+		_gdata->writer = new VTKWriter(problem);
+		break;
+	case VTKLEGACYWRITER:
+		_gdata->writer = new VTKLegacyWriter(problem);
+		break;
+	case CUSTOMTEXTWRITER:
+		_gdata->writer = new CustomTextWriter(problem);
+		break;
+	case UDPWRITER:
+		_gdata->writer = new UDPWriter(problem);
+		break;
+	default:
+		stringstream ss;
+		ss << "Unknown writer type " << wt;
+		throw runtime_error(ss.str());
+	}
+	_gdata->writer->setGlobalData(_gdata);
+}
 
 /**
  *  Default Constructor; makes sure the file output format starts at PART_00000
