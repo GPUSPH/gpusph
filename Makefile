@@ -529,7 +529,11 @@ CPPFLAGS += -DdSINGLE
 CXXFLAGS += $(TARGET_ARCH)
 
 # nvcc-specific flags
-CUFLAGS += -arch=sm_$(COMPUTE)
+
+# compute capability specification, if defined
+ifneq ($(COMPUTE),)
+	CUFLAGS += -arch=sm_$(COMPUTE)
+endif
 
 # generate line info on CUDA 5 or higher
 ifeq ($(CUDA_PRE_5),0)
