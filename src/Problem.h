@@ -155,7 +155,7 @@ class Problem {
 			return m_gridsize;
 		};
 
-		WriterType get_writertype(void)
+		WriterType get_writertype(void) const
 		{
 			return m_writerType;
 		};
