@@ -504,7 +504,7 @@ CPPFLAGS += -DdSINGLE
 CXXFLAGS += $(TARGET_ARCH)
 
 # nvcc-specific flags
-CUFLAGS += -arch=sm_$(COMPUTE) -lineinfo
+CUFLAGS += -arch=sm_$(COMPUTE) --generate-line-info
 
 ifeq ($(FASTMATH),1)
 	CUFLAGS += --use_fast_math
