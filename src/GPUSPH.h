@@ -85,8 +85,9 @@ private:
 	// create the Writer
 	void createWriter();
 
-	// use the writer
-	void doWrite();
+	// use the writer (optionally let writer know if
+	// writing was forced
+	void doWrite(bool force);
 
 	// callbacks for moving boundaries and variable gravity
 	void doCallBacks();

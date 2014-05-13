@@ -253,10 +253,12 @@ Problem::add_writer(WriterType wt, int freq)
 	m_writers.push_back(make_pair(wt, freq));
 }
 
+// override in problems where you want to save
+// at specific times regardless of standard conditions
 bool
 Problem::need_write(float t)
 {
-	return Writer::NeedWrite(t);
+	return false;
 }
 
 bool

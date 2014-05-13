@@ -66,6 +66,12 @@ class Writer
 
 	static float m_timer_tick;
 
+	// should be force saving regardless of timer ticks
+	// and frequencies?
+	// TODO FIXME might not be the most thread-safe way
+	// to handle this
+	static bool m_forced;
+
 public:
 	// maximum number of files
 	static const uint MAX_FILES = 99999;
@@ -99,6 +105,10 @@ public:
 
 	static inline float
 	GetTimerTick() { return m_timer_tick; }
+
+	static inline void
+	SetForced(bool force)
+	{ m_forced = force; }
 
 	// destroy
 	static void

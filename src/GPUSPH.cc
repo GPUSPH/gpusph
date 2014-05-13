@@ -341,7 +341,7 @@ bool GPUSPH::runSimulation() {
 
 	// doing first write
 	printf("Performing first write...\n");
-	doWrite();
+	doWrite(true);
 
 	printf("Letting threads upload the subdomains...\n");
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
@@ -593,15 +593,18 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
+		bool need_write = Writer::NeedWrite(gdata->t);
+		bool force_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
 		if (gdata->save_request) {
-			need_write = true;
+			force_write = true;
 			gdata->save_request = false;
 		}
 
-		if (need_write) {
-			// if we are about to quit, we want to save regardless --nosave option
-			bool final_save = (finished || gdata->quit_request);
+		// if we are about to quit, we want to save regardless --nosave option
+		if (finished || gdata->quit_request)
+			force_write = true;
+
+		if (need_write || force_write) {
 
 			//if (final_save)
 			//	printf("Issuing final save...\n");
@@ -651,12 +654,12 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_PRIVATE;
 			}
 
-			if ( !gdata->nosave || final_save ) {
+			if ( force_write || !gdata->nosave) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
 				doCommand(DUMP, which_buffers);
 				// triggers Writer->write()
-				doWrite();
+				doWrite(force_write);
 			} else
 				// --nosave enabled, not final: just pretend we actually saved
 				Writer::MarkWritten(gdata->t, true);
@@ -1062,7 +1065,7 @@ void GPUSPH::createWriter()
 	Writer::Create(gdata);
 }
 
-void GPUSPH::doWrite()
+void GPUSPH::doWrite(bool force)
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
@@ -1129,6 +1132,8 @@ void GPUSPH::doWrite()
 		gpos[i] = dpos;
 	}
 
+	Writer::SetForced(force);
+
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
 			gages[g].z /= gage_parts[g];
@@ -1158,6 +1163,10 @@ void GPUSPH::doWrite()
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
+
+	// always reset force-saving
+	if (force)
+		Writer::SetForced(false);
 }
 
 void GPUSPH::buildNeibList()

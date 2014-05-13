@@ -38,6 +38,7 @@
 
 vector<Writer*> Writer::m_writers = vector<Writer*>();
 float Writer::m_timer_tick = 0;
+bool Writer::m_forced = false;
 
 void
 Writer::Create(GlobalData *_gdata)
@@ -98,7 +99,7 @@ Writer::MarkWritten(float t, bool force)
 	vector<Writer*>::iterator end(m_writers.end());
 	for (it ; it != end; ++it) {
 		Writer *writer = *it;
-		if (writer->need_write(t) || force)
+		if (writer->need_write(t) || force || m_forced)
 			writer->mark_written(t);
 	}
 }
@@ -111,7 +112,7 @@ Writer::Write(uint numParts, BufferList const& buffers,
 	vector<Writer*>::iterator end(m_writers.end());
 	for (it ; it != end; ++it) {
 		Writer *writer = *it;
-		if (writer->need_write(t))
+		if (writer->need_write(t) || m_forced)
 			writer->write(numParts, buffers, node_offset, t, testpoints);
 	}
 }
@@ -123,7 +124,7 @@ Writer::WriteWaveGage(float t, GageList const& gage)
 	vector<Writer*>::iterator end(m_writers.end());
 	for (it ; it != end; ++it) {
 		Writer *writer = *it;
-		if (writer->need_write(t))
+		if (writer->need_write(t) || m_forced)
 			writer->write_WaveGage(t, gage);
 	}
 }
