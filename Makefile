@@ -615,7 +615,7 @@ else
 endif
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean cookiesclean docsclean
+.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
 # link objects in target
@@ -710,8 +710,12 @@ cpuclean:
 	$(RM) $(CCOBJS) $(MPICXXOBJS) $(CPUDEPS)
 
 # target: gpuclean - Clean GPU stuff
-gpuclean:
+gpuclean: computeclean
 	$(RM) $(CUOBJS) $(GPUDEPS)
+
+# target: computeclean - Clean compute capability selection stuff
+computeclean:
+	$(RM) $(LIST_CUDA_CC) $(COMPUTE_SELECT_OPTFILE)
 
 # target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
