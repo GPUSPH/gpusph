@@ -204,7 +204,7 @@ Writer::set_write_freq(int f)
 }
 
 bool
-Writer::need_write(float t)
+Writer::need_write(float t) const
 {
 	if (m_writefreq == 0)
 		return false;

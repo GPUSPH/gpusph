@@ -256,19 +256,18 @@ Problem::add_writer(WriterType wt, int freq)
 // override in problems where you want to save
 // at specific times regardless of standard conditions
 bool
-Problem::need_write(float t)
+Problem::need_write(float t) const
 {
 	return false;
 }
 
 bool
-Problem::need_write_rbdata(float t)
+Problem::need_write_rbdata(float t) const
 {
 	if (m_rbdata_writeinterval == 0)
 		return false;
 
 	if (t - m_last_rbdata_write_time >= m_rbdata_writeinterval) {
-		m_last_rbdata_write_time = t;
 		return true;
 	}
 
@@ -289,11 +288,12 @@ Problem::write_rbdata(float t)
 			}
 		}
 	}
+	m_last_rbdata_write_time = t;
 }
 
 // is the simulation finished at the given time?
 bool
-Problem::finished(float t)
+Problem::finished(float t) const
 {
 	float tend(m_simparams.tend);
 	return tend && (t > tend);

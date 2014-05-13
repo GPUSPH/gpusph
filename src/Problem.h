@@ -224,16 +224,26 @@ class Problem {
 		void add_gage(double x, double y, double z=0)
 		{ add_gage(make_double3(x, y, z)); }
 
+		// set the timer tick
 		void set_timer_tick(float t);
+
+		// add a new writer
 		void add_writer(WriterType wt, int freq = 1);
+
+		// return the list of writers
 		WriterList const& get_writers() const
 		{ return m_writers; }
 
-		virtual bool need_write(float);
-		virtual bool need_write_rbdata(float);
+		// overridden in subclasses if they want explicit writes
+		// beyond those controlled by the writer(s) periodic time
+		virtual bool need_write(float) const;
+
+		// TODO these should be moved out of here into a specific writer
+		virtual bool need_write_rbdata(float) const;
 		void write_rbdata(float);
+
 		// is the simulation running at the given time?
-		bool finished(float);
+		bool finished(float) const;
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);

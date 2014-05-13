@@ -48,6 +48,9 @@ class Problem;
 
 using namespace std;
 
+// Writer types. Define new ones here and remember to include the corresponding
+// header in Writer.cc and the switch case in the implementation of Writer::Create
+
 enum WriterType
 {
 	TEXTWRITER,
@@ -60,13 +63,21 @@ enum WriterType
 // list of writer type, write freq pairs
 typedef vector<pair<WriterType, uint> > WriterList;
 
+/*! The Writer class acts both as base class for the actual writers,
+ * and a dispatcher. It holds a (static) list of writers
+ * (whose content is decided by the Problem) and passes all requests
+ * over to all the writers in the list.
+ */
 class Writer
 {
+	// list of actual writers
 	static vector<Writer*> m_writers;
 
+	// base writing timer tick. Each writer has a write frequency which is
+	// a multiple of this
 	static float m_timer_tick;
 
-	// should be force saving regardless of timer ticks
+	// should we be force saving regardless of timer ticks
 	// and frequencies?
 	// TODO FIXME might not be the most thread-safe way
 	// to handle this
@@ -78,16 +89,16 @@ public:
 	// number of characters needed to represent MAX_FILES
 	static const uint FNUM_WIDTH = 5;
 
-	// create a specific writer based on the problem set in _gdata
+	// fill in the list of writers from the WriterList provided by Problem,
+	// and set the global data pointer in all of them
 	static void
 	Create(GlobalData *_gdata);
 
-	// does any of the writer need to write?
-	static bool
-	NeedWrite(float t);
+	// does any of the writers need to write at the given time?
+	static bool NeedWrite(float t);
 
 	// mark writers as done if they needed to save
-	// at the given time // (optionally force)
+	// at the given time (optionally force)
 	static void
 	MarkWritten(float t, bool force=false);
 
@@ -99,18 +110,20 @@ public:
 	static void
 	WriteWaveGage(float t, GageList const& gage);
 
-	static inline void
-	SetTimerTick(float t)
+	// set the timer tick
+	static inline void SetTimerTick(float t)
 	{ m_timer_tick = t; }
 
-	static inline float
-	GetTimerTick() { return m_timer_tick; }
+	// get the timer tick value
+	static inline float GetTimerTick()
+	{ return m_timer_tick; }
 
+	// record that the upcoming write requests should be forced (regardless of write frequency)
 	static inline void
 	SetForced(bool force)
 	{ m_forced = force; }
 
-	// destroy
+	// delete writers and clear the list
 	static void
 	Destroy();
 
@@ -121,7 +134,7 @@ protected:
 
 	void set_write_freq(int f);
 
-	bool need_write(float t);
+	bool need_write(float t) const;
 
 	void setGlobalData(GlobalData *_gdata);
 

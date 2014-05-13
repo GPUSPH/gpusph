@@ -86,7 +86,7 @@ private:
 	void createWriter();
 
 	// use the writer (optionally let writer know if
-	// writing was forced
+	// writing was forced)
 	void doWrite(bool force);
 
 	// callbacks for moving boundaries and variable gravity
