@@ -32,12 +32,19 @@
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
 
-// Problem class
-#include "Problem.h"
 #include "particledefine.h"
 
-// used for dumping the device index
-#include "GlobalData.h"
+// BufferList
+#include "buffer.h"
+
+// GageList
+#include "simparams.h"
+
+// Forward declaration of GlobalData and Problem, instead of inclusion
+// of the respective headers, to avoid cross-include messes
+
+struct GlobalData;
+class Problem;
 
 using namespace std;
 

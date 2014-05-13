@@ -26,7 +26,7 @@
 #include <stdexcept>
 
 #include "TextWriter.h"
-#include "Problem.h"
+#include "GlobalData.h"
 
 using namespace std;
 

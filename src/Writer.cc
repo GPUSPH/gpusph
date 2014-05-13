@@ -23,9 +23,11 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Writer.h"
 #include <sstream>
 #include <stdexcept>
+
+#include "Writer.h"
+#include "Problem.h"
 
 /**
  *  Default Constructor; makes sure the file output format starts at PART_00000

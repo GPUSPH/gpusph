@@ -33,10 +33,11 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <netdb.h>
-#include "UDPWriter.h"
-#include "Problem.h"
-#include "ptp.h"
 #include <netinet/in.h>
+
+#include "UDPWriter.h"
+#include "GlobalData.h"
+#include "ptp.h"
 
 using namespace std;
 
