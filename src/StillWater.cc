@@ -73,7 +73,6 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(l, w ,h);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
-	m_writerType = VTKWRITER;
 	m_simparams.tend = 1.0;
 	if (m_simparams.boundarytype == SA_BOUNDARY) {
 		m_simparams.maxneibsnum = 256; // needed during gamma initialization phase
@@ -99,9 +98,8 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	m_displayinterval = 1.0e-4;
-	m_writefreq = 1000;
-	m_screenshotfreq = 0;
+	set_timer_tick(1.0e-4);
+	add_writer(VTKWRITER, 1000);
 
 	// Name of problem used for directory creation
 	m_name = "StillWater";

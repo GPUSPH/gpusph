@@ -44,8 +44,6 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(l, w ,h);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
-	m_writerType = VTKWRITER;
-
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
@@ -90,9 +88,8 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_gtend=3.0f;
 
 	// Drawing and saving times
-	m_displayinterval = 0.01f;
-	m_writefreq = 10;
-	m_screenshotfreq = 5;
+	set_timer_tick(0.01f);
+	add_writer(VTKWRITER, 10);
 
 	// Name of problem used for directory creation
 	m_name = "Seiche";

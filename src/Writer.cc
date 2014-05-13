@@ -36,62 +36,116 @@
 #include "VTKWriter.h"
 #include "Writer.h"
 
-Writer *Writer::m_writer = NULL;
+vector<Writer*> Writer::m_writers = vector<Writer*>();
+float Writer::m_timer_tick = 0;
 
 void
 Writer::Create(GlobalData *_gdata)
 {
 	const Problem *problem = _gdata->problem;
-	WriterType wt = problem->get_writertype();
+	WriterList const& wl = problem->get_writers();
+	WriterList::const_iterator it(wl.begin());
+	WriterList::const_iterator end(wl.end());
 
-	switch (wt) {
-	case TEXTWRITER:
-		m_writer = new TextWriter(problem);
-		break;
-	case VTKWRITER:
-		m_writer = new VTKWriter(problem);
-		break;
-	case VTKLEGACYWRITER:
-		m_writer = new VTKLegacyWriter(problem);
-		break;
-	case CUSTOMTEXTWRITER:
-		m_writer = new CustomTextWriter(problem);
-		break;
-	case UDPWRITER:
-		m_writer = new UDPWriter(problem);
-		break;
-	default:
-		stringstream ss;
-		ss << "Unknown writer type " << wt;
-		throw runtime_error(ss.str());
+	for (; it != end; ++it) {
+		Writer *writer = NULL;
+		WriterType wt = it->first;
+		int freq = it->second;
+		switch (wt) {
+		case TEXTWRITER:
+			writer = new TextWriter(problem);
+			break;
+		case VTKWRITER:
+			writer = new VTKWriter(problem);
+			break;
+		case VTKLEGACYWRITER:
+			writer = new VTKLegacyWriter(problem);
+			break;
+		case CUSTOMTEXTWRITER:
+			writer = new CustomTextWriter(problem);
+			break;
+		case UDPWRITER:
+			writer = new UDPWriter(problem);
+			break;
+		default:
+			stringstream ss;
+			ss << "Unknown writer type " << wt;
+			throw runtime_error(ss.str());
+		}
+		writer->setGlobalData(_gdata);
+		writer->set_write_freq(freq);
+		m_writers.push_back(writer);
 	}
-	m_writer->setGlobalData(_gdata);
+}
+
+bool
+Writer::NeedWrite(float t)
+{
+	bool need_write = false;
+	vector<Writer*>::iterator it(m_writers.begin());
+	vector<Writer*>::iterator end(m_writers.end());
+	for (it ; it != end; ++it) {
+		Writer *writer = *it;
+		need_write |= writer->need_write(t);
+	}
+	return need_write;
+}
+
+void
+Writer::MarkWritten(float t, bool force)
+{
+	vector<Writer*>::iterator it(m_writers.begin());
+	vector<Writer*>::iterator end(m_writers.end());
+	for (it ; it != end; ++it) {
+		Writer *writer = *it;
+		if (writer->need_write(t) || force)
+			writer->mark_written(t);
+	}
 }
 
 void
 Writer::Write(uint numParts, BufferList const& buffers,
 	uint node_offset, float t, const bool testpoints)
 {
-	m_writer->write(numParts, buffers, node_offset, t, testpoints);
+	vector<Writer*>::iterator it(m_writers.begin());
+	vector<Writer*>::iterator end(m_writers.end());
+	for (it ; it != end; ++it) {
+		Writer *writer = *it;
+		if (writer->need_write(t))
+			writer->write(numParts, buffers, node_offset, t, testpoints);
+	}
 }
 
 void
 Writer::WriteWaveGage(float t, GageList const& gage)
 {
-	m_writer->write_WaveGage(t, gage);
+	vector<Writer*>::iterator it(m_writers.begin());
+	vector<Writer*>::iterator end(m_writers.end());
+	for (it ; it != end; ++it) {
+		Writer *writer = *it;
+		if (writer->need_write(t))
+			writer->write_WaveGage(t, gage);
+	}
 }
 
 void
 Writer::Destroy()
 {
-	delete m_writer;
+	vector<Writer*>::iterator it(m_writers.begin());
+	vector<Writer*>::iterator end(m_writers.end());
+	for (it ; it != end; ++it) {
+		Writer *writer = *it;
+		delete writer;
+	}
+	m_writers.clear();
 }
 
 /**
  *  Default Constructor; makes sure the file output format starts at PART_00000
  */
 Writer::Writer(const Problem *problem)
-  : m_FileCounter(0), m_problem(problem)
+  : m_FileCounter(0), m_problem(problem),
+	m_writefreq(0), m_last_write_time(-1)
 {
 	m_dirname = problem->get_dirname() + "/data";
 	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
@@ -140,6 +194,24 @@ Writer::Writer(const Problem *problem)
 Writer::~Writer()
 {
 	// hi
+}
+
+void
+Writer::set_write_freq(int f)
+{
+	m_writefreq = f;
+}
+
+bool
+Writer::need_write(float t)
+{
+	if (m_writefreq == 0)
+		return false;
+
+	if (m_last_write_time < 0 || t - m_last_write_time >= m_timer_tick*m_writefreq)
+		return true;
+
+	return false;
 }
 
 void

@@ -57,9 +57,14 @@ enum WriterType
 	UDPWRITER
 };
 
+// list of writer type, write freq pairs
+typedef vector<pair<WriterType, uint> > WriterList;
+
 class Writer
 {
-	static Writer *m_writer;
+	static vector<Writer*> m_writers;
+
+	static float m_timer_tick;
 
 public:
 	// maximum number of files
@@ -71,6 +76,15 @@ public:
 	static void
 	Create(GlobalData *_gdata);
 
+	// does any of the writer need to write?
+	static bool
+	NeedWrite(float t);
+
+	// mark writers as done if they needed to save
+	// at the given time // (optionally force)
+	static void
+	MarkWritten(float t, bool force=false);
+
 	// write points
 	static void
 	Write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
@@ -78,6 +92,13 @@ public:
 	// write wave gages
 	static void
 	WriteWaveGage(float t, GageList const& gage);
+
+	static inline void
+	SetTimerTick(float t)
+	{ m_timer_tick = t; }
+
+	static inline float
+	GetTimerTick() { return m_timer_tick; }
 
 	// destroy
 	static void
@@ -88,10 +109,16 @@ protected:
 	Writer(const Problem *problem);
 	virtual ~Writer();
 
+	void set_write_freq(int f);
+
+	bool need_write(float t);
+
 	void setGlobalData(GlobalData *_gdata);
 
 	virtual void
 	write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
+
+	inline void mark_written(float t) { m_last_write_time = t; }
 
 	virtual void
 	write_energy(float t, float4 *energy);
@@ -100,6 +127,9 @@ protected:
 	write_WaveGage(float t, GageList const& gage);
 
 	uint getLastFilenum();
+
+	float			m_last_write_time;
+	int				m_writefreq;
 
 	string			m_dirname;
 	uint			m_FileCounter;

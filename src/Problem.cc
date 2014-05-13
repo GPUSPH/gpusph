@@ -48,9 +48,6 @@ Problem::Problem(const GlobalData *_gdata)
 {
 	gdata = _gdata;
 	m_options = gdata->clOptions;
-	m_last_display_time = 0.0;
-	m_last_write_time = -1.0;
-	m_last_screenshot_time = 0.0;
 	m_mbnumber = 0;
 	m_rbdatafile = NULL;
 	m_rbdata_writeinterval = 0;
@@ -202,17 +199,6 @@ Problem::pressure(float rho, int i) const
 	return m_physparams.bcoeff[i]*(pow(rho/m_physparams.rho0[i], m_physparams.gammacoeff[i]) - 1);
 }
 
-bool
-Problem::need_display(float t)
-{
-	if (t - m_last_display_time >= m_displayinterval) {
-		m_last_display_time = t;
-		return true;
-	}
-
-	return false;
-}
-
 void
 Problem::add_gage(double3 const& pt)
 {
@@ -255,20 +241,23 @@ Problem::create_problem_dir(void)
 	return m_problem_dir;
 }
 
+void
+Problem::set_timer_tick(float t)
+{
+	Writer::SetTimerTick(t);
+}
+
+void
+Problem::add_writer(WriterType wt, int freq)
+{
+	m_writers.push_back(make_pair(wt, freq));
+}
 
 bool
 Problem::need_write(float t)
 {
-	if (m_writefreq == 0)
-		return false;
-
-	if (t - m_last_write_time >= m_displayinterval*m_writefreq || (t == 0.0 && m_last_write_time != 0.0)) {
-		return true;
-	}
-
-	return false;
+	return Writer::NeedWrite(t);
 }
-
 
 bool
 Problem::need_write_rbdata(float t)
@@ -299,21 +288,6 @@ Problem::write_rbdata(float t)
 		}
 	}
 }
-
-bool
-Problem::need_screenshot(float t)
-{
-	if (m_screenshotfreq == 0)
-		return false;
-
-	if (t - m_last_screenshot_time >= m_displayinterval*m_screenshotfreq) {
-		m_last_screenshot_time = t;
-		return true;
-	}
-
-	return false;
-}
-
 
 // is the simulation finished at the given time?
 bool

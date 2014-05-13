@@ -659,7 +659,7 @@ bool GPUSPH::runSimulation() {
 				doWrite();
 			} else
 				// --nosave enabled, not final: just pretend we actually saved
-				gdata->problem->mark_written(gdata->t);
+				Writer::MarkWritten(gdata->t, true);
 
 			printStatus();
 			m_intervalPerformanceCounter->restart();
@@ -1148,7 +1148,7 @@ void GPUSPH::doWrite()
 		gdata->s_hBuffers,
 		node_offset,
 		gdata->t, gdata->problem->get_simparams()->testpoints);
-	gdata->problem->mark_written(gdata->t);
+	Writer::MarkWritten(gdata->t);
 
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,

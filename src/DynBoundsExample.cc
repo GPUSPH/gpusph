@@ -40,8 +40,6 @@
 
 DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 {
-	m_writerType = VTKWRITER;
-
 	W = 1; // 2D cell side
 	H = 2*W; // still water height
 
@@ -72,8 +70,8 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.r0 = m_deltap/2;
 	m_physparams.kinematicvisc = 120;
 
-	m_displayinterval = 1.0e-4;
-	m_writefreq = 100;
+	set_timer_tick(1.0e-4);
+	add_writer(VTKWRITER, 100);
 
 	m_name = "DynBoundsExample";
 }

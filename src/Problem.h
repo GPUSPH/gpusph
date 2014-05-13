@@ -56,11 +56,9 @@ using namespace std;
 
 class Problem {
 	private:
-		float		m_last_display_time;
-		float		m_last_write_time;
 		float		m_last_rbdata_write_time;
-		float		m_last_screenshot_time;
 		string		m_problem_dir;
+		WriterList	m_writers;
 
 		const float	*m_dem;
 		int			m_ncols, m_nrows;
@@ -86,11 +84,7 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
-		int			m_writefreq;
-		int			m_screenshotfreq;
-		WriterType	m_writerType;
 		FILE*		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }
@@ -153,11 +147,6 @@ class Problem {
 		uint3 const& get_gridsize(void) const
 		{
 			return m_gridsize;
-		};
-
-		WriterType get_writertype(void) const
-		{
-			return m_writerType;
 		};
 
 		float density(float, int) const;
@@ -235,12 +224,14 @@ class Problem {
 		void add_gage(double x, double y, double z=0)
 		{ add_gage(make_double3(x, y, z)); }
 
-		bool need_display(float);
+		void set_timer_tick(float t);
+		void add_writer(WriterType wt, int freq = 1);
+		WriterList const& get_writers() const
+		{ return m_writers; }
+
 		virtual bool need_write(float);
-		inline void mark_written(float t) { m_last_write_time = t; }
 		virtual bool need_write_rbdata(float);
 		void write_rbdata(float);
-		bool need_screenshot(float);
 		// is the simulation running at the given time?
 		bool finished(float);
 
