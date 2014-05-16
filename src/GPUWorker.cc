@@ -65,12 +65,18 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	// set to true to force host staging even if peer access is set successfully
 	m_disableP2Ptranfers = false;
-	m_hTransferBuffer = NULL;
-	m_hTransferBufferSize = 0;
+	m_hPeerTransferBuffer = NULL;
+	m_hPeerTransferBufferSize = 0;
+
+	// used if GPUDirect is disabled
+	m_hNetworkTransferBuffer = NULL;
+	m_hNetworkTransferBufferSize = 0;
 
 	m_dCompactDeviceMap = NULL;
 	m_hCompactDeviceMap = NULL;
 	m_dSegmentStart = NULL;
+
+	m_forcesKernelTotalNumBlocks = 0;
 
 	m_dBuffers << new CUDABuffer<BUFFER_POS>();
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
@@ -246,17 +252,18 @@ void GPUWorker::peerAsyncTransfer(void* dst, int dstDevice, const void* src, int
 {
 	if (m_disableP2Ptranfers) {
 		// reallocate if necessary
-		if (count > m_hTransferBufferSize)
-			resizeTransferBuffer(count);
+		if (count > m_hPeerTransferBufferSize)
+			resizePeerTransferBuffer(count);
 		// transfer Dsrc -> H -> Ddst
-		CUDA_SAFE_CALL( cudaMemcpy(m_hTransferBuffer, src, count, cudaMemcpyDeviceToHost) );
-		CUDA_SAFE_CALL( cudaMemcpy(dst, m_hTransferBuffer, count, cudaMemcpyHostToDevice) );
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hPeerTransferBuffer, src, count, cudaMemcpyDeviceToHost, m_asyncPeerCopiesStream) );
+		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(dst, m_hPeerTransferBuffer, count, cudaMemcpyHostToDevice, m_asyncPeerCopiesStream) );
 	} else
 		CUDA_SAFE_CALL_NOSYNC( cudaMemcpyPeerAsync(	dst, dstDevice, src, srcDevice, count, m_asyncPeerCopiesStream ) );
 }
 
 // Uploads cellStart and cellEnd from the shared arrays to the device memory.
 // Parameters: fromCell is inclusive, toCell is exclusive
+// NOTE/TODO: using async copies although gdata->s_dCellStarts[][] is not pinned yet
 void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 {
 	uint numCells = toCell - fromCell;
@@ -268,7 +275,49 @@ void GPUWorker::asyncCellIndicesUpload(uint fromCell, uint toCell)
 										sizeof(uint) * numCells, cudaMemcpyHostToDevice, m_asyncH2DCopiesStream));
 }
 
-// Compute list of bursts. Currently computes both scopes, but only network scope is used
+// wrapper for NetworkManage send/receive methods
+void GPUWorker::networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid)
+{
+	// reallocate host buffer if necessary
+	if (!gdata->clOptions->gpudirect && _size > m_hNetworkTransferBufferSize)
+		resizeNetworkTransferBuffer(_size);
+
+	if (direction == SND) {
+		if (!gdata->clOptions->gpudirect) {
+			// device -> host buffer, possibly async with forces kernel
+			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(m_hNetworkTransferBuffer, _ptr, _size,
+				cudaMemcpyDeviceToHost, m_asyncD2HCopiesStream) );
+			// wait for the data transfer to complete
+			cudaStreamSynchronize(m_asyncD2HCopiesStream);
+			// host buffer -> network
+			gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, m_hNetworkTransferBuffer);
+		} else {
+			// GPUDirect: device -> network
+			if (gdata->clOptions->asyncNetworkTransfers)
+				gdata->networkManager->sendBufferAsync(m_globalDeviceIdx, peer_gdix, _size, _ptr, bid);
+			else
+				gdata->networkManager->sendBuffer(m_globalDeviceIdx, peer_gdix, _size, _ptr);
+		}
+	} else {
+		if (!gdata->clOptions->gpudirect) {
+			// network -> host buffer
+			gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, m_hNetworkTransferBuffer);
+			// host buffer -> device, possibly async with forces kernel
+			CUDA_SAFE_CALL_NOSYNC( cudaMemcpyAsync(_ptr, m_hNetworkTransferBuffer, _size,
+				cudaMemcpyHostToDevice, m_asyncH2DCopiesStream) );
+			// wait for the data transfer to complete (actually next iteration could requre no sync, but safer to do)
+			cudaStreamSynchronize(m_asyncH2DCopiesStream);
+		} else {
+			// GPUDirect: network -> device
+			if (gdata->clOptions->asyncNetworkTransfers)
+				gdata->networkManager->receiveBufferAsync(peer_gdix, m_globalDeviceIdx, _size, _ptr, bid);
+			else
+				gdata->networkManager->receiveBuffer(peer_gdix, m_globalDeviceIdx, _size, _ptr);
+		}
+	}
+}
+
+// Compute list of bursts. Currently computes both scopes
 void GPUWorker::computeCellBursts()
 {
 	// Unlike importing from other devices in the same process, here we need one burst for each potential neighbor device
@@ -476,15 +525,20 @@ void GPUWorker::computeCellBursts()
 
 	} // iterate on cells
 
+	// We need min (#network_bursts * 4) messages (since we send multiple buffers for
+	// each burst). Multiplying by 8 is just safer
+	gdata->networkManager->setNumRequests(network_bursts * 8);
+
 	printf("D%u: data transfers compacted in %u bursts [%u node + %u network]\n",
 		m_deviceIndex, (uint)m_bursts.size(), node_bursts, network_bursts);
 	/*
 	for (uint i = 0; i < m_bursts.size(); i++) {
-		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u\n", m_deviceIndex,
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %s\n", m_deviceIndex,
 			i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
-			(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope);
+			(m_bursts[i].direction == SND ? "SND" : "RCV"),
+			(m_bursts[i].scope == NODE_SCOPE ? "NODE" : "NETWORK") );
 	}
-	*/
+	// */
 #undef BURST_IS_EMPTY
 #undef CLOSE_BURST
 }
@@ -585,25 +639,21 @@ void GPUWorker::transferBurstsSizes()
 	} // iterate on bursts
 
 	// update device cellStarts/Ends, if any cell needs update
-	if (receivedOneCell) {
-		// maxLinearCellIdx is inclusive, so remember to add 1
-		const uint numCells = maxLinearCellIdx - minLinearCellIdx + 1;
-		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellStart + minLinearCellIdx),
-											(gdata->s_dCellStarts[m_deviceIndex] + minLinearCellIdx),
-											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
-		CUDA_SAFE_CALL_NOSYNC(cudaMemcpy( (m_dCellEnd + minLinearCellIdx),
-											(gdata->s_dCellEnds[m_deviceIndex] + minLinearCellIdx),
-											sizeof(uint) * numCells, cudaMemcpyHostToDevice));
-	}
+	if (receivedOneCell)
+		// maxLinearCellIdx is inclusive while asyncCellIndicesUpload() takes exclusive max
+		asyncCellIndicesUpload(minLinearCellIdx, maxLinearCellIdx + 1);
 
-	/* for (uint i = 0; i < m_bursts.size(); i++) {
-		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %u, range %u-%u, peer %u, (tot %u parts)\n", m_deviceIndex,
+	/*
+	for (uint i = 0; i < m_bursts.size(); i++) {
+		printf(" D %u Burst %u: %u cells, peer %u, dir %s, scope %s, range %u-%u, peer start %u, (tot %u parts)\n", m_deviceIndex,
 				i, m_bursts[i].cells.size(), m_bursts[i].peer_gidx,
-				(m_bursts[i].direction == SND ? "SND" : "RCV"), m_bursts[i].scope,
+				(m_bursts[i].direction == SND ? "SND" : "RCV"),
+				(m_bursts[i].scope == NETWORK_SCOPE ? "NETWORK" : "NODE"),
 				m_bursts[i].selfFirstParticle, m_bursts[i].selfFirstParticle + m_bursts[i].numParticles,
 				m_bursts[i].peerFirstParticle, m_bursts[i].numParticles
 			);
-	} */
+	}
+	// */
 }
 
 // Iterate on the list and send/receive bursts of particles across different nodes
@@ -612,97 +662,112 @@ void GPUWorker::transferBursts()
 	bool dbl_buffer_specified = ( (gdata->commandFlags & DBLBUFFER_READ ) || (gdata->commandFlags & DBLBUFFER_WRITE) );
 	uint dbl_buf_idx;
 
-	// iterate on all bursts
-	for (uint i = 0; i < m_bursts.size(); i++) {
+	// burst id counter, needed to correctly pair asynchronous network messages
+	uint bid[MAX_DEVICES_PER_CLUSTER];
+	for (uint n = 0; n < MAX_DEVICES_PER_CLUSTER; n++)
+		bid[n] = 0;
 
-		// transfer the data if burst is not empty
-		if (m_bursts[i].numParticles == 0) continue;
+	// Iterate on scope type, so that intra-node transfers are performed first.
+	// Decrement instead of incrementing to transfer MPI first.
+	for (uint current_scope_i = NODE_SCOPE; current_scope_i <= NETWORK_SCOPE; current_scope_i++) {
+		TransferScope current_scope = (TransferScope)current_scope_i;
 
-		// abstract from self / other
-		const uint sender_gidx = (m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx);
-		const uint recipient_gidx = (m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx);
+		// iterate on all bursts
+		for (uint i = 0; i < m_bursts.size(); i++) {
 
-		// iterate over all defined buffers and see which were requested
-		// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
-		// with the ordering set by the key, in our case the unsigned integer type flag_t,
-		// so we have guarantee that the map will always be traversed in the same order
-		// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
-		BufferList::iterator bufset = m_dBuffers.begin();
-		const BufferList::iterator stop = m_dBuffers.end();
-		for ( ; bufset != stop ; ++bufset) {
-			flag_t bufkey = bufset->first;
-			if (!(gdata->commandFlags & bufkey))
-				continue; // skip unwanted buffers
+			// transfer bursts of one scope at a time
+			if (m_bursts[i].scope != current_scope) continue;
 
-			AbstractBuffer *buf = bufset->second;
+			// transfer the data if burst is not empty
+			if (m_bursts[i].numParticles == 0) continue;
 
-			// handling of double-buffered arrays
-			// note that TAU is not considered here
-			if (buf->get_array_count() == 2) {
-				// for buffers with more than one array the caller should have specified which buffer
-				// is to be imported. complain
-				if (!dbl_buffer_specified) {
-					std::stringstream err_msg;
-					err_msg << "Import request for double-buffered " << buf->get_buffer_name()
-					<< " array without a specification of which buffer to use.";
-					throw runtime_error(err_msg.str());
-				}
+			/*
+			printf("IT %u D %u burst %u #parts %u dir %s (%u -> %u) scope %s\n",
+				gdata->iterations, m_deviceIndex, i, m_bursts[i].numParticles,
+				(m_bursts[i].direction == SND ? "SND" : "RCV"),
+				(m_bursts[i].direction == SND ? m_globalDeviceIdx : m_bursts[i].peer_gidx),
+				(m_bursts[i].direction == SND ? m_bursts[i].peer_gidx : m_globalDeviceIdx),
+				(m_bursts[i].scope == NODE_SCOPE ? "NODE" : "NETWORK") );
+			// */
 
-				if (gdata->commandFlags & DBLBUFFER_READ)
-					dbl_buf_idx = gdata->currentRead[bufkey];
-				else
-					dbl_buf_idx = gdata->currentWrite[bufkey];
-			} else {
-				dbl_buf_idx = 0;
-			}
+			// iterate over all defined buffers and see which were requested
+			// NOTE: std::map, from which BufferList is derived, is an _ordered_ container,
+			// with the ordering set by the key, in our case the unsigned integer type flag_t,
+			// so we have guarantee that the map will always be traversed in the same order
+			// (unless stuff is inserted/deleted, which shouldn't happen at program runtime)
+			BufferList::iterator bufset = m_dBuffers.begin();
+			const BufferList::iterator stop = m_dBuffers.end();
+			for ( ; bufset != stop ; ++bufset) {
+				flag_t bufkey = bufset->first;
+				if (!(gdata->commandFlags & bufkey))
+					continue; // skip unwanted buffers
 
-			const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
+				AbstractBuffer *buf = bufset->second;
 
-			// retrieve peer's indices, if intra-node
-			const AbstractBuffer *peerbuf = NULL;
-			uchar peerCudaDevNum = 0;
-			if (m_bursts[i].scope == NODE_SCOPE) {
-				uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
-				peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
-				peerCudaDevNum = gdata->device[peerDevIdx];
-			}
+				// handling of double-buffered arrays
+				// note that TAU is not considered here
+				if (buf->get_array_count() == 2) {
+					// for buffers with more than one array the caller should have specified which buffer
+					// is to be imported. complain
+					if (!dbl_buffer_specified) {
+						std::stringstream err_msg;
+						err_msg << "Import request for double-buffered " << buf->get_buffer_name()
+						<< " array without a specification of which buffer to use.";
+						throw runtime_error(err_msg.str());
+					}
 
-			// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
-			if (bufkey != BUFFER_BIG) {
-				void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
-				if (m_bursts[i].scope == NODE_SCOPE) {
-					// node scope: just read it
-					const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
-					peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-				} else {
-					// network scope: SND/RCV
-					if (m_bursts[i].direction == SND)
-						gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					if (gdata->commandFlags & DBLBUFFER_READ)
+						dbl_buf_idx = gdata->currentRead[bufkey];
 					else
-						gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+						dbl_buf_idx = gdata->currentWrite[bufkey];
+				} else {
+					dbl_buf_idx = 0;
 				}
-			} else {
-				// generic, so that it can work for other buffers like TAU, if they are ever
-				// introduced; just fix the conditional
-				for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
-					void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
+
+				const unsigned int _size = m_bursts[i].numParticles * buf->get_element_size();
+
+				// retrieve peer's indices, if intra-node
+				const AbstractBuffer *peerbuf = NULL;
+				uchar peerCudaDevNum = 0;
+				if (m_bursts[i].scope == NODE_SCOPE) {
+					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
+					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
+					peerCudaDevNum = gdata->device[peerDevIdx];
+				}
+
+				// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
+				if (bufkey != BUFFER_BIG) {
+					void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
 					if (m_bursts[i].scope == NODE_SCOPE) {
 						// node scope: just read it
-						const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
+						const void *peerptr = peerbuf->get_offset_buffer(dbl_buf_idx, m_bursts[i].peerFirstParticle);
 						peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
-					} else {
-						// network scope: SND/RCV
-						if (m_bursts[i].direction == SND)
-							gdata->networkManager->sendBuffer(sender_gidx, recipient_gidx, _size, ptr);
-						else
-							gdata->networkManager->receiveBuffer(sender_gidx, recipient_gidx, _size, ptr);
+					} else
+						// network scope: SND or RCV
+						networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
+				} else {
+					// generic, so that it can work for other buffers like TAU, if they are ever
+					// introduced; just fix the conditional
+					for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
+						void *ptr = buf->get_offset_buffer(ai, m_bursts[i].selfFirstParticle);
+						if (m_bursts[i].scope == NODE_SCOPE) {
+							// node scope: just read it
+							const void *peerptr = peerbuf->get_offset_buffer(ai, m_bursts[i].peerFirstParticle);
+							peerAsyncTransfer(ptr, m_cudaDeviceNumber, peerptr, peerCudaDevNum, _size);
+						} else
+							// network scope: SND or RCV
+							networkTransfer(m_bursts[i].peer_gidx, m_bursts[i].direction, ptr, _size, bid[m_bursts[i].peer_gidx]++);
 					}
-				}
-			} // buf is BUFFER_BIG
+				} // buf is BUFFER_BIG
 
-		} // for each buffer type
+			} // for each buffer type
 
-	} // iterate on bursts
+		} // iterate on bursts
+
+	} // iterate on scopes
+
+	// waits for network async transfers to complete
+	gdata->networkManager->waitAsyncTransfers();
 }
 
 
@@ -721,13 +786,13 @@ void GPUWorker::importExternalCells()
 	if ( (gdata->nextCommand == APPEND_EXTERNAL) || (gdata->nextCommand == UPDATE_EXTERNAL) )
 		transferBursts();
 
-	// cudaMemcpyPeerAsync() is asynchronous with the host. We synchronize at the end to wait for the
-	// transfers to be complete.
-	if (MULTI_GPU)
+	// cudaMemcpyPeerAsync() is asynchronous with the host. If striping is disabled, we want to synchronize
+	// for the completion of the transfers. Otherwise, FORCES_COMPLETE will synchronize everything
+	if (!gdata->clOptions->striping && MULTI_GPU)
 		cudaDeviceSynchronize();
 
-	// here will  sync the MPI transfers when (if) we'll switch to non-blocking calls
-	// if (MULTI_NODE)...
+	// here will sync the MPI transfers when (if) we'll switch to non-blocking calls
+	// if (!gdata->striping && MULTI_NODE)...
 }
 
 // All the allocators assume that gdata is updated with the number of particles (done by problem->fillparts).
@@ -745,7 +810,11 @@ size_t GPUWorker::allocateHostBuffers() {
 
 		// allocate a 1Mb transferBuffer if peer copies are disabled
 		if (m_disableP2Ptranfers)
-			resizeTransferBuffer(1024 * 1024);
+			resizePeerTransferBuffer(1024 * 1024);
+
+		// ditto for network transfers
+		if (!gdata->clOptions->gpudirect)
+			resizeNetworkTransferBuffer(1024 * 1024);
 	}
 
 	m_hostMemory += allocated;
@@ -861,8 +930,11 @@ void GPUWorker::deallocateHostBuffers() {
 	if (MULTI_DEVICE)
 		delete [] m_hCompactDeviceMap;
 
-	if (m_hTransferBuffer)
-		cudaFreeHost(m_hTransferBuffer);
+	if (m_hPeerTransferBuffer)
+		cudaFreeHost(m_hPeerTransferBuffer);
+
+	if (m_hNetworkTransferBuffer)
+		cudaFreeHost(m_hNetworkTransferBuffer);
 
 	// here: dem host buffers?
 }
@@ -893,19 +965,24 @@ void GPUWorker::deallocateDeviceBuffers() {
 	// here: dem device buffers?
 }
 
-void GPUWorker::createStreams()
+void GPUWorker::createEventsAndStreams()
 {
-	cudaStreamCreate(&m_asyncD2HCopiesStream);
-	cudaStreamCreate(&m_asyncH2DCopiesStream);
-	cudaStreamCreate(&m_asyncPeerCopiesStream);
+	// init streams
+	cudaStreamCreateWithFlags(&m_asyncD2HCopiesStream, cudaStreamNonBlocking);
+	cudaStreamCreateWithFlags(&m_asyncH2DCopiesStream, cudaStreamNonBlocking);
+	cudaStreamCreateWithFlags(&m_asyncPeerCopiesStream, cudaStreamNonBlocking);
+	// init events
+	cudaEventCreate(&m_halfForcesEvent);
 }
 
-void GPUWorker::destroyStreams()
+void GPUWorker::destroyEventsAndStreams()
 {
 	// destroy streams
 	cudaStreamDestroy(m_asyncD2HCopiesStream);
 	cudaStreamDestroy(m_asyncH2DCopiesStream);
 	cudaStreamDestroy(m_asyncPeerCopiesStream);
+	// destroy events
+	cudaEventDestroy(m_halfForcesEvent);
 }
 
 void GPUWorker::printAllocatedMemory()
@@ -997,28 +1074,56 @@ void GPUWorker::setDeviceCellsAsEmpty()
 	CUDA_SAFE_CALL(cudaMemset(m_dCellStart, UINT_MAX, gdata->nGridCells  * sizeof(uint)));
 }
 
-// if m_hTransferBuffer is not big enough, reallocate it. Round up to 1Mb
-void GPUWorker::resizeTransferBuffer(size_t required_size)
+// if m_hPeerTransferBuffer is not big enough, reallocate it. Round up to 1Mb
+void GPUWorker::resizePeerTransferBuffer(size_t required_size)
 {
 	// is it big enough already?
-	if (required_size < m_hTransferBufferSize) return;
+	if (required_size < m_hPeerTransferBufferSize) return;
 
 	// will round up to...
 	size_t ROUND_TO = 1024*1024;
 
 	// store previous size, compute new
-	size_t prev_size = m_hTransferBufferSize;
-	m_hTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+	size_t prev_size = m_hPeerTransferBufferSize;
+	m_hPeerTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
 
 	// dealloc first
-	if (m_hTransferBufferSize) {
-		CUDA_SAFE_CALL(cudaFreeHost(m_hTransferBuffer));
+	if (m_hPeerTransferBufferSize) {
+		CUDA_SAFE_CALL(cudaFreeHost(m_hPeerTransferBuffer));
 		m_hostMemory -= prev_size;
 	}
 
+	printf("Staging host buffer resized to %zu bytes\n", m_hPeerTransferBufferSize);
+
 	// (re)allocate
-	CUDA_SAFE_CALL(cudaMallocHost(&m_hTransferBuffer, m_hTransferBufferSize));
-	m_hostMemory += m_hTransferBufferSize;
+	CUDA_SAFE_CALL(cudaMallocHost(&m_hPeerTransferBuffer, m_hPeerTransferBufferSize));
+	m_hostMemory += m_hPeerTransferBufferSize;
+}
+
+// analog to resizeTransferBuffer
+void GPUWorker::resizeNetworkTransferBuffer(size_t required_size)
+{
+	// is it big enough already?
+	if (required_size < m_hNetworkTransferBufferSize) return;
+
+	// will round up to...
+	size_t ROUND_TO = 1024*1024;
+
+	// store previous size, compute new
+	size_t prev_size = m_hNetworkTransferBufferSize;
+	m_hNetworkTransferBufferSize = ((required_size / ROUND_TO) + 1 ) * ROUND_TO;
+
+	// dealloc first
+	if (m_hNetworkTransferBufferSize) {
+		CUDA_SAFE_CALL(cudaFreeHost(m_hNetworkTransferBuffer));
+		m_hostMemory -= prev_size;
+	}
+
+	printf("Staging network host buffer resized to %zu bytes\n", m_hNetworkTransferBufferSize);
+
+	// (re)allocate
+	CUDA_SAFE_CALL(cudaMallocHost(&m_hNetworkTransferBuffer, m_hNetworkTransferBufferSize));
+	m_hostMemory += m_hNetworkTransferBufferSize;
 }
 
 // download cellStart and cellEnd to the shared arrays
@@ -1352,7 +1457,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// TODO: here setDemTexture() will be called. It is device-wide, but reading the DEM file is process wide and will be in GPUSPH class
 
 	// init streams for async memcpys (only useful for multigpu?)
-	instance->createStreams();
+	instance->createEventsAndStreams();
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
@@ -1397,9 +1502,17 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing BUILDNEIBS\n", deviceIndex);
 				instance->kernel_buildNeibsList();
 				break;
-			case FORCES:
-				if (dbg_step_printf) printf(" T %d issuing FORCES\n", deviceIndex);
+			case FORCES_SYNC:
+				if (dbg_step_printf) printf(" T %d issuing FORCES_SYNC\n", deviceIndex);
 				instance->kernel_forces();
+				break;
+			case FORCES_ENQUEUE:
+				if (dbg_step_printf) printf(" T %d issuing FORCES_ENQUEUE\n", deviceIndex);
+				instance->kernel_forces_async_enqueue();
+				break;
+			case FORCES_COMPLETE:
+				if (dbg_step_printf) printf(" T %d issuing FORCES_COMPLETE\n", deviceIndex);
+				instance->kernel_forces_async_complete();
 				break;
 			case EULER:
 				if (dbg_step_printf) printf(" T %d issuing EULER\n", deviceIndex);
@@ -1500,7 +1613,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
 	// destroy streams
-	instance->destroyStreams();
+	instance->destroyEventsAndStreams();
 
 	// deallocate buffers
 	instance->deallocateHostBuffers();
@@ -1641,9 +1754,203 @@ void GPUWorker::kernel_buildNeibsList()
 	getneibsinfo( gdata->timingInfo[m_deviceIndex] );
 }
 
-void GPUWorker::kernel_forces()
+// returns numBlocks as computed by forces()
+uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
+{
+	return forces(
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+			m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+			m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+			m_dRbForces,
+			m_dRbTorques,
+			m_dBuffers.getData<BUFFER_XSPH>(),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_HASH>(),
+			m_dCellStart,
+			m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+			m_numParticles,
+			fromParticle,
+			toParticle,
+			gdata->problem->m_deltap,
+			m_simparams->slength,
+			gdata->dt, // m_dt,
+			m_simparams->dtadapt,
+			m_simparams->dtadaptfactor,
+			m_simparams->xsph,
+			m_simparams->kerneltype,
+			m_simparams->influenceRadius,
+			m_simparams->epsilon,
+			m_simparams->movingBoundaries,
+			m_simparams->visctype,
+			m_physparams->visccoeff,
+			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
+			m_dBuffers.getData<BUFFER_DKDE>(),
+			m_dBuffers.getData<BUFFER_CFL>(),
+			m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+			m_dBuffers.getData<BUFFER_CFL_TEMP>(),
+			cflOffset,
+			m_simparams->sph_formulation,
+			m_simparams->boundarytype,
+			m_simparams->usedem);
+}
+
+// Bind the textures needed by forces kernel
+void GPUWorker::bind_textures_forces()
+{
+	forces_bind_textures(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
+		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_numParticles,
+		m_simparams->visctype,
+		m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
+		m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
+		m_simparams->boundarytype
+	);
+}
+
+// Unbind the textures needed by forces kernel
+void GPUWorker::unbind_textures_forces()
+{
+	forces_unbind_textures(m_simparams->visctype, m_simparams->boundarytype);
+}
+
+// Dt reduction after forces kernel
+float GPUWorker::forces_dt_reduce()
+{
+	return forces_dtreduce(
+		m_simparams->slength,
+		m_simparams->dtadaptfactor,
+		m_simparams->visctype,
+		m_physparams->visccoeff,
+		m_dBuffers.getData<BUFFER_CFL>(),
+		m_dBuffers.getData<BUFFER_CFL_KEPS>(),
+		m_dBuffers.getData<BUFFER_CFL_TEMP>(),
+		m_forcesKernelTotalNumBlocks);
+}
+
+void GPUWorker::kernel_forces_async_enqueue()
+{
+	if (!gdata->only_internal)
+		printf("WARNING: forces kernel called with only_internal == true, ignoring flag!\n");
+
+	uint numPartsToElaborate = m_particleRangeEnd;
+
+	m_forcesKernelTotalNumBlocks = 0;
+
+	// if we have objects potentially shared across different devices, must reset their forces
+	// and torques to avoid spurious contributions
+	if (m_simparams->numODEbodies > 0 && MULTI_DEVICE) {
+		uint bodiesPartsSize = m_numBodiesParticles * sizeof(float4);
+		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
+	}
+
+	// NOTE: the stripe containing the internal edge particles must be run first, so that the
+	// transfers can be performed in parallel with the second stripe. The size of the first
+	// stripe, S1, should be:
+	// A. Greater or equal to the number of internal edge particles (mandatory). If this value
+	//    is zero, we use the next constraints (we might still need to receive particles)
+	// B. Greater or equal to the number of particles which saturate the device (recommended)
+	// C. As small as possible, or the second stripe might not be long enough to cover the
+	//    transfers. For example, one half (recommended)
+	// D. Multiple of block size (optional, to possibly save one block). Actually, since
+	//    internal edge particles are compacted at the end, we should align its beginning
+	//    (i.e. the size of S2 should be a multiple of the block size)
+	// So we compute S1 = max( A, min(B,C) ) , and then we round it by excess as
+	// S1 = totParticles - round_by_defect(S2)
+	// TODO:
+	// - Estimate saturation according to the number of MPs
+	// - Improve criterion C (one half might be not optimal and leave uncovered transfers)
+
+	// constraint A: internalEdgeParts
+	const uint internalEdgeParts =
+		(gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL] == EMPTY_SEGMENT ?
+		0 : numPartsToElaborate - gdata->s_dSegmentsStart[m_deviceIndex][CELLTYPE_INNER_EDGE_CELL]);
+
+	// constraint B: saturatingParticles
+	// 64K parts should saturate the newest hardware (y~2014), but it is safe to be "generous".
+	const uint saturatingParticles = 64 * 1024;
+
+	// constraint C
+	const uint halfParts = numPartsToElaborate / 2;
+
+	// stripe size
+	uint edgingStripeSize = max( internalEdgeParts, min( saturatingParticles, halfParts) );
+
+	// round
+	uint nonEdgingStripeSize = numPartsToElaborate - edgingStripeSize;
+	nonEdgingStripeSize = (nonEdgingStripeSize / BLOCK_SIZE_FORCES) * BLOCK_SIZE_FORCES;
+	edgingStripeSize = numPartsToElaborate - nonEdgingStripeSize;
+
+	if (numPartsToElaborate > 0 ) {
+
+		// bind textures
+		bind_textures_forces();
+
+		// enqueue the first kernel call (on the particles in edging cells)
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(nonEdgingStripeSize, numPartsToElaborate, m_forcesKernelTotalNumBlocks);
+
+		// the following event will be used to wait for the first stripe to complete
+		cudaEventRecord(m_halfForcesEvent, 0);
+
+		// enqueue the second kernel call (on the rest)
+		m_forcesKernelTotalNumBlocks += enqueueForcesOnRange(0, nonEdgingStripeSize, m_forcesKernelTotalNumBlocks);
+
+		// We could think of synchronizing in UPDATE_EXTERNAL or APPEND_EXTERNAL instead of here, so that we do not
+		// cause any overhead (waiting here means waiting before next barrier, which means that devices which are
+		// faster in the computation of the first stripe have to wait the others before issuing the second). However,
+		// we need to ensure that the first stripe is finished in the *other* devices, before importing their cells.
+		cudaEventSynchronize(m_halfForcesEvent);
+	}
+}
+
+void GPUWorker::kernel_forces_async_complete()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
+	float returned_dt = FLT_MAX;
+
+	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+
+	if (numPartsToElaborate > 0 ) {
+		// wait for the completion of the kernel
+		cudaDeviceSynchronize();
+
+		// unbind the textures
+		unbind_textures_forces();
+
+		// reduce dt
+		returned_dt = forces_dt_reduce();
+	}
+
+	// gdata->dts is directly used instead of handling dt1 and dt2
+	//printf(" Step %d, bool %d, returned %g, current %g, ",
+	//	gdata->step, firstStep, returned_dt, gdata->dts[devnum]);
+	if (firstStep)
+		gdata->dts[m_deviceIndex] = returned_dt;
+	else
+		gdata->dts[m_deviceIndex] = min(gdata->dts[m_deviceIndex], returned_dt);
+}
+
+
+void GPUWorker::kernel_forces()
+{
+	if (!gdata->only_internal)
+		printf("WARNING: forces kernel called with only_internal == true, ignoring flag!\n");
+
+	uint numPartsToElaborate = m_particleRangeEnd;
+
+	m_forcesKernelTotalNumBlocks = 0;
 
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
@@ -1658,47 +1965,23 @@ void GPUWorker::kernel_forces()
 		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
 	}
 
-	// first step
-	if (numPartsToElaborate > 0 )
-		returned_dt = forces(
-						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
-						m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
-						m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
-						m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
-						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
-						m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-						m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
-						m_dRbForces,
-						m_dRbTorques,
-						m_dBuffers.getData<BUFFER_XSPH>(),
-						m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-						m_dBuffers.getData<BUFFER_HASH>(),
-						m_dCellStart,
-						m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-						m_numParticles,
-						numPartsToElaborate,
-						gdata->problem->m_deltap,
-						m_simparams->slength,
-						gdata->dt, // m_dt,
-						m_simparams->dtadapt,
-						m_simparams->dtadaptfactor,
-						m_simparams->xsph,
-						m_simparams->kerneltype,
-						m_simparams->influenceRadius,
-						m_simparams->epsilon,
-						m_simparams->movingBoundaries,
-						m_simparams->visctype,
-						m_physparams->visccoeff,
-						m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
-						m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
-						m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
-						m_dBuffers.getData<BUFFER_DKDE>(),
-						m_dBuffers.getData<BUFFER_CFL>(),
-						m_dBuffers.getData<BUFFER_CFL_KEPS>(),
-						m_dBuffers.getData<BUFFER_CFL_TEMP>(),
-						m_simparams->sph_formulation,
-						m_simparams->boundarytype,
-						m_simparams->usedem);
+	const uint fromParticle = 0;
+	const uint toParticle = numPartsToElaborate;
+
+	if (numPartsToElaborate > 0 ) {
+
+		// bind textures
+		bind_textures_forces();
+
+		// enqueue the kernel call
+		m_forcesKernelTotalNumBlocks = enqueueForcesOnRange(fromParticle, toParticle, 0);
+
+		// unbind the textures
+		unbind_textures_forces();
+
+		// reduce dt
+		returned_dt = forces_dt_reduce();
+	}
 
 	// gdata->dts is directly used instead of handling dt1 and dt2
 	//printf(" Step %d, bool %d, returned %g, current %g, ",

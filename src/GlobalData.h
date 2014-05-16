@@ -76,7 +76,9 @@ enum CommandType {
 	CROP,				// crop out all the external particles
 	REORDER,			// run reorderAndFindCellStart kernel
 	BUILDNEIBS,			// run buildNeibs kernel
-	FORCES,				// run forces kernel
+	FORCES_SYNC,		// run forces kernel in a blocking fashion (texture binds + kernel + unbinds + dt reduction)
+	FORCES_ENQUEUE,		// enqueues forces kernel in an asynchronous fashion and returns (texture binds + kernel)
+	FORCES_COMPLETE,	// waits for the forces kernel to complete (device sync + texture unbinds + dt reduction)
 	EULER,				// run euler kernel
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
@@ -265,9 +267,6 @@ struct GlobalData {
 	WriterType writerType;
 	Writer *writer;
 
-	// disable saving (for timing, or only for the last)
-	bool nosave;
-
 	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
 	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
@@ -314,7 +313,6 @@ struct GlobalData {
 		only_internal(false),
 		writerType(VTKWRITER),
 		writer(NULL),
-		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL)

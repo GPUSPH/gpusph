@@ -89,10 +89,15 @@ private:
 	void enablePeerAccess();
 	// explicitly stage P2P transfers on host
 	bool m_disableP2Ptranfers;
-	// host buffer if peer access is disabled: pointer, size, resize method
-	void *m_hTransferBuffer;
-	size_t m_hTransferBufferSize;
-	void resizeTransferBuffer(size_t required_size);
+	// host buffers: pointer, size, resize method
+	void *m_hPeerTransferBuffer;
+	size_t m_hPeerTransferBufferSize;
+	void resizePeerTransferBuffer(size_t required_size);
+
+	// host buffers: pointer, size, resize method used if gpudirect is disabled
+	void *m_hNetworkTransferBuffer;
+	size_t m_hNetworkTransferBufferSize;
+	void resizeNetworkTransferBuffer(size_t required_size);
 
 	// utility pointers - the actual structures are in Problem
 	PhysParams*	m_physparams;
@@ -135,10 +140,16 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
+	// number of blocks used in forces kernel runs (for delayed cfl reduction)
+	uint		m_forcesKernelTotalNumBlocks;
+
 	// stream for async memcpys
 	cudaStream_t m_asyncH2DCopiesStream;
 	cudaStream_t m_asyncD2HCopiesStream;
 	cudaStream_t m_asyncPeerCopiesStream;
+
+	// event to synchronize striping
+	cudaEvent_t m_halfForcesEvent;
 
 	// cuts all external particles
 	void dropExternalParticles();
@@ -156,13 +167,16 @@ private:
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
 
+	// wrapper for NetworkManage send/receive methods
+	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0);
+
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
 
-	void createStreams();
-	void destroyStreams();
+	void createEventsAndStreams();
+	void destroyEventsAndStreams();
 
 	void printAllocatedMemory();
 
@@ -213,6 +227,15 @@ private:
 	/*void uploadMbData();
 	void uploadGravity();*/
 
+	// asynchronous alternative to kernel_force
+	void kernel_forces_async_enqueue();
+	void kernel_forces_async_complete();
+
+	// aux methods for forces kernel striping
+	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
+	void bind_textures_forces();
+	void unbind_textures_forces();
+	float forces_dt_reduce();
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);

@@ -103,7 +103,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	SimParams *_sp = gdata->problem->get_simparams();
 
 	// copy the options passed by command line to GlobalData
-	gdata->nosave = clOptions->nosave;
 	if (isfinite(clOptions->tend))
 		_sp-> tend = clOptions->tend;
 
@@ -242,6 +241,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			// here it is possible to save the converted device map
 			// gdata->saveDeviceMapToFile("");
 		}
+		printf("Striping is:  %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
+		printf("GPUDirect is: %s\n", (gdata->clOptions->gpudirect ? "enabled" : "disabled") );
+		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
 	}
 
 	printf("Copying the particles to shared arrays...\n");
@@ -449,11 +451,19 @@ bool GPUSPH::runSimulation() {
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_1);
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_1);
+		else
+			doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
+
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+		// if striping was active, now we want the kernels to complete
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
@@ -500,11 +510,19 @@ bool GPUSPH::runSimulation() {
 		}
 
 		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_2);
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
+		else
+			doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
+
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+		// if striping was active, now we want the kernels to complete
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// reduce bodies
 		if (problem->get_simparams()->numODEbodies > 0) {
@@ -663,7 +681,7 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_PRIVATE;
 			}
 
-			if ( !gdata->nosave || final_save ) {
+			if ( !gdata->clOptions->nosave || final_save ) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
 				doCommand(DUMP, which_buffers);
@@ -681,6 +699,9 @@ bool GPUSPH::runSimulation() {
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
 	}
+
+	// elapsed time, excluding the initialization
+	printf("Elapsed time of simulation cycle: %.2gs\n", m_totalPerformanceCounter->getElapsedSeconds());
 
 	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
 	// the condition (gdata->mpi_rank == 0)
@@ -797,6 +818,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += ucharCellSize;
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
+		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
 		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dCellEnds =  (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dSegmentsStart = (uint**)calloc(gdata->devices, sizeof(uint*));

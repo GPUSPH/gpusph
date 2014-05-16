@@ -62,7 +62,10 @@ struct common_forces_params
 	const	hashKey *particleHash;
 	const	uint	*cellStart;
 	const	neibdata	*neibsList;
-	const	uint	numParticles;
+
+	// Particle range to work on. toParticle is _exclusive_
+	const	uint	fromParticle;
+	const	uint	toParticle;
 
 	// TODO these should probably go into constant memory
 	const	float	deltap;
@@ -78,7 +81,8 @@ struct common_forces_params
 		const	hashKey *_particleHash,
 		const	uint	*_cellStart,
 		const	neibdata	*_neibsList,
-		const	uint	_numParticles,
+		const	uint	_fromParticle,
+		const	uint	_toParticle,
 		const	float	_deltap,
 		const	float	_slength,
 		const	float	_influenceradius) :
@@ -89,7 +93,8 @@ struct common_forces_params
 		particleHash(_particleHash),
 		cellStart(_cellStart),
 		neibsList(_neibsList),
-		numParticles(_numParticles),
+		fromParticle(_fromParticle),
+		toParticle(_toParticle),
 		deltap(_deltap),
 		slength(_slength),
 		influenceradius(_influenceradius)
@@ -101,9 +106,10 @@ struct dyndt_forces_params
 {
 	float	*cfl;
 	float	*cfltvisc;
+	uint	cflOffset;
 
-	dyndt_forces_params(float *_cfl, float *_cfltvisc) :
-		cfl(_cfl), cfltvisc(_cfltvisc)
+	dyndt_forces_params(float *_cfl, float *_cfltvisc, uint _cflOffset) :
+		cfl(_cfl), cfltvisc(_cfltvisc), cflOffset(_cflOffset)
 	{}
 };
 
@@ -183,7 +189,8 @@ struct forces_params :
 		const	hashKey	*_particleHash,
 		const	uint	*_cellStart,
 		const	neibdata*_neibsList,
-				uint	_numParticles,
+				uint	_fromParticle,
+				uint	_toParticle,
 
 				float	_deltap,
 				float	_slength,
@@ -192,6 +199,7 @@ struct forces_params :
 		// dyndt
 				float	*_cfl,
 				float	*_cflTVisc,
+				uint	_cflOffset,
 
 		// XSPH
 				float4	*_xsph,
@@ -208,9 +216,9 @@ struct forces_params :
 		) :
 		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
-			_neibsList, _numParticles,
+			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius),
-		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc),
+		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc, _cflOffset),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
 			(_newGGam, _vertPos, _epsilon, _movingBoundaries),

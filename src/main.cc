@@ -94,7 +94,8 @@ void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
 	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
-	cout << "\t       [--dir directory] [--nosave] [--num_hosts VAL [--byslot_scheduling]]\n";
+	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
+	cout << "\t       [--num_hosts VAL [--byslot_scheduling]]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	cout << " --dem : Use given DEM (if problem supports it)\n";
@@ -102,6 +103,9 @@ void print_usage() {
 	cout << " --tend: Break at given time (VAL is cast to float)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
+	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
+	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
+	cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
 	cout << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
 	cout << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
@@ -172,7 +176,12 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			argc--;
 		} else if (!strcmp(arg, "--nosave")) {
 			_clOptions->nosave = true;
-			gdata->nosave = true;
+		} else if (!strcmp(arg, "--gpudirect")) {
+			_clOptions->gpudirect = true;
+		} else if (!strcmp(arg, "--striping")) {
+			_clOptions->striping = true;
+		} else if (!strcmp(arg, "--asyncmpi")) {
+			_clOptions->asyncNetworkTransfers = true;
 		} else if (!strcmp(arg, "--num_hosts")) {
 			/* read the next arg as a uint */
 			sscanf(*argv, "%u", &(_clOptions->num_hosts));
@@ -186,11 +195,9 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 #if 0 // options will be enabled later
 		} else if (!strcmp(arg, "--nobalance")) {
 			_clOptions->nobalance = true;
-			gdata->nobalance = true;
 		} else if (!strcmp(arg, "--lb-threshold")) {
 			// read the next arg as a float
 			sscanf(*argv, "%f", &(_clOptions->custom_lb_threshold));
-			gdata->custom_lb_threshold = _clOptions->custom_lb_threshold;
 			argv++;
 			argc--;
 #endif
@@ -329,6 +336,24 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 #endif
+
+	if (gdata.clOptions->asyncNetworkTransfers) {
+
+		if (!gdata.clOptions->gpudirect) {
+			// since H2D and D2H transfers have to wait for network transfers
+			fprintf(stderr, "FATAL: asynchronous network transfers require --gpudirect\n");
+			gdata.networkManager->finalizeNetwork();
+			return 1;
+		}
+
+		if (gdata.devices > 1) {
+			// since we were too lazy to implement a more complex mechanism
+			fprintf(stderr, "FATAL: asynchronous network transfers only supported with 1 process per device\n");
+			gdata.networkManager->finalizeNetwork();
+			return 1;
+		}
+
+	}
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(&gdata);

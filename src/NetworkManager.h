@@ -8,6 +8,8 @@
 #ifndef NETWORKMANAGER_H_
 #define NETWORKMANAGER_H_
 
+typedef unsigned int uint;
+
 enum ReductionType
 {
 	MIN_REDUCTION,
@@ -21,6 +23,9 @@ private:
 	// TODO: port to String if ever used
 	char *processor_name;
 	int processor_name_len;
+
+	uint m_numRequests;
+	uint m_requestsCounter;
 public:
 	NetworkManager();
 	~NetworkManager();
@@ -36,6 +41,10 @@ public:
 	void receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum);
 	void sendBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data);
 	void receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data);
+	void setNumRequests(uint _numRequests);
+	void sendBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid);
+	void receiveBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid);
+	void waitAsyncTransfers();
 #if 0
 	void sendUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned int *src_data);
 	void receiveUints(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned int *dst_data);
