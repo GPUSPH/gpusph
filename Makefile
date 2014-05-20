@@ -465,8 +465,11 @@ endif
 
 # pthread needed for the UDP writer
 LIBS += -lpthread
-# Realtime Extensions library (for clock_gettime)
-LIBS += -lrt
+
+# Realtime Extensions library (for clock_gettime) (not on Mac)
+ifneq ($(platform), Darwin)
+	LIBS += -lrt
+endif
 
 # search paths (for CUDA 5 and higher) are platform-specific
 ifeq ($(platform), Darwin)
