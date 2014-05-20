@@ -448,12 +448,21 @@ ifeq ($(WE_USE_CLANG),1)
 	LIBS += -lc++
 endif
 
+# Check if we can link to the HDF5 library, and disable HDF5 otherwise
+USE_HDF5=$(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
+
 # link to the CUDA runtime library
 LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
-# link to HDF5 for input reading
-LIBS += -lhdf5
+
+ifeq ($(USE_HDF5),1)
+	# link to HDF5 for input reading
+	LIBS += -lhdf5
+else
+	TMP := $(warning HDF5 library not found, HDF5 input will NOT be supported)
+endif
+
 # pthread needed for the UDP writer
 LIBS += -lpthread
 # Realtime Extensions library (for clock_gettime)
@@ -490,8 +499,10 @@ CUFLAGS  ?=
 CPPFLAGS += $(INCPATH)
 
 # Define USE_MPI according to the availability of MPICXX
-
 CPPFLAGS += -DUSE_MPI=$(USE_MPI)
+
+# Define USE_HDF5 according to the availability of the HDF5 library
+CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
 
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device
