@@ -968,9 +968,16 @@ void GPUWorker::deallocateDeviceBuffers() {
 void GPUWorker::createEventsAndStreams()
 {
 	// init streams
+#if CUDA_VERSION < 5000
+	cudaStreamCreate(&m_asyncD2HCopiesStream);
+	cudaStreamCreate(&m_asyncH2DCopiesStream);
+	cudaStreamCreate(&m_asyncPeerCopiesStream);
+#else
+	// init streams
 	cudaStreamCreateWithFlags(&m_asyncD2HCopiesStream, cudaStreamNonBlocking);
 	cudaStreamCreateWithFlags(&m_asyncH2DCopiesStream, cudaStreamNonBlocking);
 	cudaStreamCreateWithFlags(&m_asyncPeerCopiesStream, cudaStreamNonBlocking);
+#endif
 	// init events
 	cudaEventCreate(&m_halfForcesEvent);
 }
