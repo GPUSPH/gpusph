@@ -33,7 +33,7 @@ using namespace std;
 class VTKWriter : public Writer
 {
 public:
-	VTKWriter(const Problem *problem);
+	VTKWriter(const GlobalData *_gdata);
 	~VTKWriter();
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
