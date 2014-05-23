@@ -711,6 +711,7 @@ show:
 	@echo "Problem:         $(PROBLEM)"
 #	@echo "   last:         $(LAST_PROBLEM)"
 	@echo "Snapshot file:   $(SNAPSHOT_FILE)"
+	@echo "Target binary:   $(TARGET)"
 	@echo "Sources dir:     $(SRCDIR)"
 	@echo "Options dir:     $(OPTSDIR)"
 	@echo "Objects dir:     $(OBJDIR)"
