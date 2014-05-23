@@ -45,7 +45,12 @@ static const char dev_idx_str[] = "UInt8";
 VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
-	string time_filename = m_dirname + "/VTUinp.pvd";
+	string time_filename = m_dirname + "/VTUinp";
+	// in case of multi-process, each process writes a different file
+	if (gdata && gdata->mpi_nodes > 1)
+		time_filename += "_n" + gdata->rankString();
+	time_filename += ".pvd";
+
     m_timefile = NULL;
     m_timefile = fopen(time_filename.c_str(), "w");
 
