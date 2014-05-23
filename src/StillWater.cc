@@ -202,7 +202,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		float rho = density(H - pos[i].z, 0);
+		float rho = density(H - parts[i-j](2), 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
@@ -215,7 +215,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 			std::cout << "Vertex parts: " << vertex_parts.size() << "\n";
 		for (uint i = j; i < j + vertex_parts.size(); i++) {
-			float rho = density(H - pos[i].z, 0);
+			float rho = density(H - vertex_parts[i-j](2), 0);
 			vel[i] = make_float4(0, 0, 0, rho);
 			info[i] = make_particleinfo(VERTEXPART, 0, i);
 			calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);

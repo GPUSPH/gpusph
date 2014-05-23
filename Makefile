@@ -149,10 +149,16 @@ versions_tmp  := $(subst ., ,$(NVCC_VER))
 CUDA_MAJOR := $(firstword  $(versions_tmp))
 CUDA_MINOR := $(lastword  $(versions_tmp))
 
+# Some paths depend on whether we are on CUDA 5 or higher.
+# CUDA_PRE_5 will be 0 if we are on CUDA 5 or higher, nonzero otherwise
+# (please only test against 0, I'm not sure it will be a specific nonzero value)
+# NOTE: the test is reversed because test returns 0 for true (shell-like)
+CUDA_PRE_5=$(shell test $(CUDA_MAJOR) -ge 5; echo $$?)
+
 # override: CUDA_SDK_PATH - location for the CUDA SDK samples
 # override:                 defaults to $(CUDA_INSTALL_PATH)/samples for CUDA 5 or higher,
 # override:                             /usr/local/cudasdk for older versions of CUDA.
-ifeq ($(CUDA_MAJOR), 5)
+ifeq ($(CUDA_PRE_5), 0)
 	CUDA_SDK_PATH ?= $(CUDA_INSTALL_PATH)/samples
 else
 	CUDA_SDK_PATH ?= /usr/local/cudasdk
@@ -184,51 +190,69 @@ ifeq ($(CXX),c++)
 	endif
 endif
 
-# override: MPICXX - the MPI compiler
-MPICXX ?= $(shell which mpicxx)
-ifeq ($(MPICXX),)
-$(error MPI compiler not found, necessary for multi-node.)
-endif
-
 # Force nvcc to use the same host compiler that we selected
 # Note that this requires the compiler to be supported by
 # nvcc.
 NVCC += -ccbin=$(CXX)
 
-# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
-# but we also need to link with MPICXX, so we would like to use:
-#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
-# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
-# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
-# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
-# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
-# options required by MPICXX at link time:
 
-## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
-# We use -show because it's supported by all implementations (otherwise we'd have to detect
-# if our compiler uses --showme:link or -link_info):
-MPISHOWFLAGS := $(shell $(MPICXX) -show)
-# But then we have to remove the compiler name from the proposed command line:
-MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+# override: MPICXX - the MPI compiler
+MPICXX ?= $(shell which mpicxx)
 
-# mpicxx might pass to the compiler options which nvcc might not understand
-# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
-# but that means that we cannot pass options which contains commas in them,
-# since commas are already used to separate the parameters in --compiler-options.
-# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
-# a comma), so for the time being we just filter out the flags that we _know_
-# will contain commas (i.e. -Wl,stuff,stuff,stuff).
-# To make things even more complicated, nvcc does not accept -Wl, so we need
-# to replace -Wl with --linker-options.
-# The other options will be gathered into the --compiler-options passed at nvcc
-# at link time.
-MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
-MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+ifeq ($(MPICXX),)
 
-LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+	# No MPI: give warning and set flag
+	TMP := $(warning MPI compiler not found, multi-node will NOT be supported)
 
-# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+	USE_MPI=0
 
+	# MPICXXOBJS will be compiled with the standard compiler
+	MPICXX=$(CXX)
+
+	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
+	LINKER ?= $(NVCC)
+
+else
+
+	USE_MPI=1
+
+	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
+	# but we also need to link with MPICXX, so we would like to use:
+	#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+	# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
+	# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
+	# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
+	# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
+	# options required by MPICXX at link time:
+
+	## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
+	# We use -show because it's supported by all implementations (otherwise we'd have to detect
+	# if our compiler uses --showme:link or -link_info):
+	MPISHOWFLAGS := $(shell $(MPICXX) -show)
+	# But then we have to remove the compiler name from the proposed command line:
+	MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+
+	# mpicxx might pass to the compiler options which nvcc might not understand
+	# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
+	# but that means that we cannot pass options which contains commas in them,
+	# since commas are already used to separate the parameters in --compiler-options.
+	# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
+	# a comma), so for the time being we just filter out the flags that we _know_
+	# will contain commas (i.e. -Wl,stuff,stuff,stuff).
+	# To make things even more complicated, nvcc does not accept -Wl, so we need
+	# to replace -Wl with --linker-options.
+	# The other options will be gathered into the --compiler-options passed at nvcc
+	# at link time.
+	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
+	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+
+	LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+
+	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+
+endif
+
+# END of MPICXX mess
 
 # files to store last compile options: problem, dbg, compute, fastmath
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
@@ -333,7 +357,7 @@ else
 	endif
 endif
 
-# option: fastmath - Enable or disable fastmath. Default: 1 (enabled)
+# option: fastmath - Enable or disable fastmath. Default: 0 (disabled)
 ifdef fastmath
 	# user chooses
 	FASTMATH=$(fastmath)
@@ -399,6 +423,9 @@ LIBS ?=
 # override: LDFLAGS - flags passed to the linker
 LDFLAGS ?=
 
+# override: LDLIBS - libraries to link against
+LDLIBS ?=
+
 # Most of these settings are platform independent
 
 # INCPATH
@@ -439,7 +466,9 @@ else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
-LDFLAGS += $(LIBPATH) $(LIBS)
+LDFLAGS += $(LIBPATH)
+
+LDLIBS += $(LIBS)
 
 # -- Includes and library section end ---
 
@@ -460,6 +489,10 @@ CUFLAGS  ?=
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
 
+# Define USE_MPI according to the availability of MPICXX
+
+CPPFLAGS += -DUSE_MPI=$(USE_MPI)
+
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device
 CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
@@ -471,7 +504,12 @@ CPPFLAGS += -DdSINGLE
 CXXFLAGS += $(TARGET_ARCH)
 
 # nvcc-specific flags
-CUFLAGS += -arch=sm_$(COMPUTE) -lineinfo
+CUFLAGS += -arch=sm_$(COMPUTE)
+
+# generate line info on CUDA 5 or higher
+ifeq ($(CUDA_PRE_5),0)
+	CUFLAGS += --generate-line-info
+endif
 
 ifeq ($(FASTMATH),1)
 	CUFLAGS += --use_fast_math
@@ -552,7 +590,7 @@ else
 endif
 
 .PHONY: all showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean docsclean
+.PHONY: clean cpuclean gpuclean cookiesclean docsclean
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
 # link objects in target
@@ -561,7 +599,7 @@ all: $(OBJS) | $(DISTDIR)
 	@echo "Compiled with problem $(PROBLEM)"
 	@[ $(FASTMATH) -eq 1 ] && echo "Compiled with fastmath" || echo "Compiled without fastmath"
 	$(call show_stage,LINK,$(TARGET)\\n)
-	$(CMDECHO)$(LINKER) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS) && \
+	$(CMDECHO)$(LINKER) -o $(TARGET) $(OBJS) $(LDFLAGS) $(LDLIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
 
 # internal targets to (re)create the "selected option headers" if they're missing
@@ -626,17 +664,17 @@ $(OPTSDIR):
 # target: clean - Clean everything but last compile choices
 # clean: cpuobjs, gpuobjs, deps makefiles, target, target symlink, dbg target
 clean: cpuclean gpuclean
-	$(RM) $(CPUDEPS) $(GPUDEPS) $(TARGET) $(CURDIR)/$(TARGETNAME)
+	$(RM) $(TARGET) $(CURDIR)/$(TARGETNAME)
 	if [ -f $(TARGET)$(DBG_SFX) ] ; then \
 		$(RM) $(TARGET)$(DBG_SFX) $(CURDIR)/$(TARGETNAME)$(DBG_SFX) ; fi
 
 # target: cpuclean - Clean CPU stuff
 cpuclean:
-	$(RM) $(CCOBJS) $(MPICXXOBJS)
+	$(RM) $(CCOBJS) $(MPICXXOBJS) $(CPUDEPS)
 
 # target: gpuclean - Clean GPU stuff
 gpuclean:
-	$(RM) $(CUOBJS)
+	$(RM) $(CUOBJS) $(GPUDEPS)
 
 # target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)

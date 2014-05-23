@@ -244,8 +244,8 @@ Rect::Fill(PointVect& points, const double dx, const bool fill_edges, const bool
 	m_origin(3) = m_center(3);
 	int nparts = 0;
 
-	int nx = (int) (m_lx/dx);
-	int ny = (int) (m_ly/dx);
+	int nx = max((int) (m_lx/dx), 1);
+	int ny = max((int) (m_ly/dx), 1);
 	int startx = 0;
 	int starty = 0;
 	int endx = nx;
