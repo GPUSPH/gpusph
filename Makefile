@@ -589,7 +589,7 @@ else
 	CMDECHO := @
 endif
 
-.PHONY: all showobjs show snapshot expand deps docs test help
+.PHONY: all run showobjs show snapshot expand deps docs test help
 .PHONY: clean cpuclean gpuclean cookiesclean docsclean
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
@@ -601,6 +601,10 @@ all: $(OBJS) | $(DISTDIR)
 	$(call show_stage,LINK,$(TARGET)\\n)
 	$(CMDECHO)$(LINKER) -o $(TARGET) $(OBJS) $(LDFLAGS) $(LDLIBS) && \
 	ln -sf $(TARGET) $(CURDIR)/$(TARGETNAME) && echo "Success."
+
+# target: run - Make all && run
+run: all
+	$(TARGET)
 
 # internal targets to (re)create the "selected option headers" if they're missing
 $(PROBLEM_SELECT_OPTFILE): | $(OPTSDIR)
