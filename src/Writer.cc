@@ -30,15 +30,13 @@
 /**
  *  Default Constructor; makes sure the file output format starts at PART_00000
  */
-Writer::Writer(const Problem *problem)
-  : m_FileCounter(0), m_problem(problem)
+Writer::Writer(const GlobalData *_gdata)
+  : m_FileCounter(0), gdata(_gdata)
 {
-	m_dirname = problem->get_dirname() + "/data";
-	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+	m_problem = _gdata->problem;
 
-	// create directory for testpoints
-	if (problem->get_simparams()->csvtestpoints)
-		mkdir((m_dirname + "/testpoints").c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
+	m_dirname = m_problem->get_dirname() + "/data";
+	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
 	string energy_fn = m_dirname + "/energy.txt";
 	m_energyfile = fopen(energy_fn.c_str(), "w");
@@ -50,7 +48,7 @@ Writer::Writer(const Problem *problem)
 	if (m_energyfile) {
 		fputs("#\ttime", m_energyfile);
 		uint fluid = 0;
-		for (; fluid < problem->get_physparams()->numFluids; ++fluid)
+		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
 			fprintf(m_energyfile, "\tkinetic%u\tpotential%u\telastic%u",
 					fluid, fluid, fluid);
 		fputs("\n", m_energyfile);
@@ -68,13 +66,11 @@ Writer::Writer(const Problem *problem)
 	{
 		fputs("#\ttime", m_WaveGagefile);
 		uint gage = 0;
-		for (; gage < problem->get_simparams()->gage.size(); ++gage)
+		for (; gage < m_problem->get_simparams()->gage.size(); ++gage)
 			fprintf(m_WaveGagefile, "\tzgage%u",
 					gage);
 		fputs("\n", m_WaveGagefile);
 	}
-
-	gdata = NULL;
 }
 
 Writer::~Writer()
@@ -135,11 +131,6 @@ Writer::next_filenum()
 
 	m_FileCounter++;
 	return ret;
-}
-
-void Writer::setGlobalData(GlobalData *_gdata)
-{
-	gdata = _gdata;
 }
 
 uint Writer::getLastFilenum()

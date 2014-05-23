@@ -49,7 +49,7 @@ public:
 	// number of characters needed to represent MAX_FILES
 	static const uint FNUM_WIDTH = 5;
 
-	Writer(const Problem *problem);
+	Writer(const GlobalData *_gdata);
 	virtual ~Writer();
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
@@ -58,8 +58,6 @@ public:
 
 	//WaveGage
 	virtual void write_WaveGage(float t, GageList const& gage);
-
-	void setGlobalData(GlobalData *_gdata);
 
 	uint getLastFilenum();
 
@@ -73,7 +71,7 @@ protected:
 	const Problem	*m_problem;
 	string			next_filenum();
 	string			current_filenum();
-	GlobalData*		gdata;
+	const GlobalData*		gdata;
 };
 
 #endif	/* _WRITER_H */

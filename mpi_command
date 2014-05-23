@@ -51,7 +51,7 @@ export GPUDIRECT=$6
 export ASYNCMPI=$7
 export TEND=$8
 
-export NAME=${PREFIX}_gd${GPUDIRECT}_str${STRIPING}_isend${ASYNCMPI}_dp${DELTAP}_tend${TEND}_${NPROCS}procs_${NHOSTS}hosts_$(date +%d%b)
+export NAME=${PREFIX}_$(date +%d%b)_dp${DELTAP}_tend${TEND}_${NPROCS}procs_${NHOSTS}hosts_gd${GPUDIRECT}_str${STRIPING}_isend${ASYNCMPI}
 #export NAME=nostriping_${NPROCS}nodes
 #export LOGFILE=logs/logmpi_${NAME}.txt
 export LOGFILE=lm_${NAME}.txt
@@ -112,6 +112,7 @@ unset COMPUTE_PROFILE
 #mpirun -prepend-rank -hostfile hostfile_gpusph -np $NPROCS GPUSPH --device ${NODEDEVS} --deltap ${DELTAP} --tend $TEND --dir ./tests/mpi_${NAME} ${EXTRA}
 export COMMAND="GPUSPH --device ${NODEDEVS} --deltap ${DELTAP} --tend $TEND --dir ./tests/mpi_${NAME} ${EXTRA}"
 echo "./$COMMAND"
+echo Log: "$LOGFILE"
 mpirun -outfile-pattern $LOGFILE -prepend-rank -hostfile hostfile_gpusph -np $NPROCS $COMMAND
 
 echo "./$COMMAND" >> $LOGFILE

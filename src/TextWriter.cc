@@ -30,8 +30,8 @@
 
 using namespace std;
 
-TextWriter::TextWriter(const Problem *problem)
-  : Writer(problem)
+TextWriter::TextWriter(const GlobalData *_gdata)
+  : Writer(_gdata)
 {
 	string time_filename = m_dirname + "/time.txt";
     m_timefile = NULL;

@@ -210,7 +210,8 @@ void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned ch
 	#endif
 
 	if (m_requestsCounter == (m_numRequests-1))
-		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring SEND!\n");
+		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring SEND!\n",
+			m_numRequests);
 	else
 		mpi_err = MPI_Isend(src_data, count, MPI_BYTE, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD,
 			&m_requestsList[m_requestsCounter++]);
@@ -233,7 +234,8 @@ void NetworkManager::receiveBufferAsync(unsigned char src_globalDevIdx, unsigned
 	#endif
 
 	if (m_requestsCounter == (m_numRequests-1))
-		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring RECV!\n");
+		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring RECV!\n",
+			m_numRequests);
 	else
 		mpi_err = MPI_Irecv(dst_data, count, MPI_BYTE, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD,
 		&m_requestsList[m_requestsCounter++]);
