@@ -103,15 +103,6 @@ enum CommandType {
 	QUIT				// quits the simulation cycle
 };
 
-enum WriterType
-{
-	TEXTWRITER,
-	VTKWRITER,
-	VTKLEGACYWRITER,
-	CUSTOMTEXTWRITER,
-	UDPWRITER
-};
-
 // 0 reserved as "no flags"
 #define NO_FLAGS	((flag_t)0)
 
@@ -263,9 +254,8 @@ struct GlobalData {
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
 
-	// Writer variables
-	WriterType writerType;
-	Writer *writer;
+	// disable saving (for timing, or only for the last)
+	bool nosave;
 
 	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
@@ -311,8 +301,7 @@ struct GlobalData {
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
-		writerType(VTKWRITER),
-		writer(NULL),
+		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL)

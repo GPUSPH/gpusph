@@ -39,13 +39,6 @@
 // GPUWorker
 #include "GPUWorker.h"
 
-// Writer types
-#include "TextWriter.h"
-#include "VTKWriter.h"
-#include "VTKLegacyWriter.h"
-#include "CustomTextWriter.h"
-#include "UDPWriter.h"
-
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -109,8 +102,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
 	gdata->worldSize = make_float3(problem->get_worldsize());
-	// TODO: re-enable the followin after the WriterType rampage is over
-	// gdata->writerType = problem->get_writertype();
 
 	// get the grid size
 	gdata->gridSize = problem->get_gridsize();
@@ -333,10 +324,7 @@ bool GPUSPH::finalize() {
 	// host buffers
 	deallocateGlobalHostBuffers();
 
-	// ParticleSystem which, in turn, deletes the Writer
-	//delete psystem;
-
-	delete gdata->writer;
+	Writer::Destroy();
 
 	// ...anything else?
 
@@ -355,7 +343,7 @@ bool GPUSPH::runSimulation() {
 
 	// doing first write
 	printf("Performing first write...\n");
-	doWrite();
+	doWrite(true);
 
 	printf("Letting threads upload the subdomains...\n");
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
@@ -623,15 +611,18 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
+		bool need_write = Writer::NeedWrite(gdata->t);
+		bool force_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
 		if (gdata->save_request) {
-			need_write = true;
+			force_write = true;
 			gdata->save_request = false;
 		}
 
-		if (need_write) {
-			// if we are about to quit, we want to save regardless --nosave option
-			bool final_save = (finished || gdata->quit_request);
+		// if we are about to quit, we want to save regardless --nosave option
+		if (finished || gdata->quit_request)
+			force_write = true;
+
+		if (need_write || force_write) {
 
 			//if (final_save)
 			//	printf("Issuing final save...\n");
@@ -681,15 +672,15 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_PRIVATE;
 			}
 
-			if ( !gdata->clOptions->nosave || final_save ) {
+			if ( force_write || !gdata->nosave) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
 				doCommand(DUMP, which_buffers);
 				// triggers Writer->write()
-				doWrite();
+				doWrite(force_write);
 			} else
 				// --nosave enabled, not final: just pretend we actually saved
-				gdata->problem->mark_written(gdata->t);
+				Writer::MarkWritten(gdata->t, true);
 
 			printStatus();
 			m_intervalPerformanceCounter->restart();
@@ -1093,43 +1084,10 @@ void GPUSPH::setViscosityCoefficient()
 // creates the Writer according to the requested WriterType
 void GPUSPH::createWriter()
 {
-	//gdata->writerType = gdata->problem->get_writertype();
-	//switch(gdata->writerType) {
-	switch (gdata->problem->get_writertype()) {
-		case Problem::TEXTWRITER:
-			gdata->writerType = TEXTWRITER;
-			gdata->writer = new TextWriter(gdata);
-			break;
-
-		case Problem::VTKWRITER:
-			gdata->writerType = VTKWRITER;
-			gdata->writer = new VTKWriter(gdata);
-			break;
-
-		case Problem::VTKLEGACYWRITER:
-			gdata->writerType = VTKLEGACYWRITER;
-			gdata->writer = new VTKLegacyWriter(gdata);
-			break;
-
-		case Problem::CUSTOMTEXTWRITER:
-			gdata->writerType = CUSTOMTEXTWRITER;
-			gdata->writer = new CustomTextWriter(gdata);
-			break;
-
-		case Problem::UDPWRITER:
-			gdata->writerType = UDPWRITER;
-			gdata->writer = new UDPWriter(gdata);
-			break;
-		default:
-			//stringstream ss;
-			//ss << "Writer not supported";
-			//throw runtime_error(ss.str());
-			printf("Writer not supported\n");
-			break;
-	}
+	Writer::Create(gdata);
 }
 
-void GPUSPH::doWrite()
+void GPUSPH::doWrite(bool force)
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
@@ -1196,12 +1154,14 @@ void GPUSPH::doWrite()
 		gpos[i] = dpos;
 	}
 
+	Writer::SetForced(force);
+
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
 			gages[g].z /= gage_parts[g];
 		}
 		//Write WaveGage information on one text file
-		gdata->writer->write_WaveGage(gdata->t, gages);
+		Writer::WriteWaveGage(gdata->t, gages);
 	}
 
 	//Testpoints
@@ -1210,12 +1170,12 @@ void GPUSPH::doWrite()
 		doCommand(COMPUTE_TESTPOINTS);
 	}
 
-	gdata->writer->write(
+	Writer::Write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
 		node_offset,
 		gdata->t, gdata->problem->get_simparams()->testpoints);
-	gdata->problem->mark_written(gdata->t);
+	Writer::MarkWritten(gdata->t);
 
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
@@ -1225,6 +1185,10 @@ void GPUSPH::doWrite()
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
+
+	// always reset force-saving
+	if (force)
+		Writer::SetForced(false);
 }
 
 void GPUSPH::buildNeibList()
@@ -1317,14 +1281,14 @@ void GPUSPH::initializeBoundaryConditions()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u, %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
 			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
 			m_totalPerformanceCounter->getMIPPS(),
-			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
+			gdata->lastGlobalPeakNeibsNum
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,

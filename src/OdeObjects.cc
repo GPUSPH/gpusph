@@ -43,8 +43,6 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
-	m_writerType = VTKWRITER;
-
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.dt = 0.0001f;
@@ -95,9 +93,8 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
 
 	// Drawing and saving times
-	m_displayinterval = 0.01f;
-	m_writefreq = 10;
-	m_screenshotfreq = 0;
+	set_timer_tick( 0.01f);
+	add_writer(VTKWRITER, 10);
 
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";

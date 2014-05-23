@@ -57,8 +57,6 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
-	m_writerType = VTKWRITER;
-
 	// SPH parameters
 	set_deltap(0.02); //0.008
 	m_simparams.dt = 0.0003f;
@@ -105,9 +103,8 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	m_displayinterval = 0.01f;
-	m_writefreq = 5;
-	m_screenshotfreq = 0;
+	set_timer_tick(0.01f);
+	add_writer(VTKWRITER, 5);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";

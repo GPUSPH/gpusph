@@ -56,10 +56,8 @@ TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 	std::cout << "nsres=" << EB->get_nsres() << "\n";
 	std::cout << "ewres=" << EB->get_ewres() << "\n";
 
-	set_dem(EB->get_dem(), EB->get_ncols(), EB->get_nrows());
-
 	// Size and origin of the simulation domain
-	m_writerType = VTKWRITER;
+	set_dem(EB->get_dem(), EB->get_ncols(), EB->get_nrows());
 
 	// SPH parameters
 	set_deltap(0.05);
@@ -109,8 +107,8 @@ TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 #undef EB
 
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 100;
+	set_timer_tick(0.001f);
+	add_writer(VTKWRITER, 100);
 
 	// Name of problem used for directory creation
 	m_name = "TestTopo";

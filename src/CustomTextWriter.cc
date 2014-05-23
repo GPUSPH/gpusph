@@ -27,6 +27,7 @@
 #include <stdexcept>
 
 #include "CustomTextWriter.h"
+#include "GlobalData.h"
 
 using namespace std;
 

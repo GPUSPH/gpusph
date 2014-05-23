@@ -794,13 +794,13 @@ Makefile: | $(OPTFILES)
 # for hash keys, to prevent errors about undefined hash key size every time
 # `src/hashkey.h` is preprocessed
 $(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
-	@echo [DEPS] GPU
+	$(show_stage DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)$(CXX) -x c++ -D__CUDA_INTERNAL_COMPILATION__ \
 		$(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 
 $(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
-	@echo [DEPS] CPU
+	$(show_stage DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)$(CXX) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 

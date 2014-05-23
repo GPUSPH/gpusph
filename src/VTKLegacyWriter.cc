@@ -26,6 +26,7 @@
 #include <stdexcept>
 
 #include "VTKLegacyWriter.h"
+#include "GlobalData.h"
 
 using namespace std;
 

@@ -102,14 +102,6 @@ typedef struct TimingInfo {
 } TimingInfo;
 
 
-/*
-struct SavingInfo {
-	float   displayfreq;		// unit time
-	uint	screenshotfreq;		// unit displayfreq
-	uint	writedatafreq;		// unit displayfreq
-};
-*/
-
 class IPPSCounter
 {
 	private:
