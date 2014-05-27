@@ -436,9 +436,11 @@ LDLIBS ?=
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
 INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
 
-# access the CUDA include files from the C++ compiler too, but mark it as a system include path
-# Note: -isystem is supported by nvcc, g++ and clang++, so this should be fine
-INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
+# access the CUDA include files from the C++ compiler too, but mark their path as a system include path
+# so that they can be skipped when generating dependencies. This must only be done for the host compiler,
+# because otherwise some nvcc version will complain about kernels not being allowed in system files
+# while compiling some thrust functions
+CC_INCPATH += -isystem $(CUDA_INSTALL_PATH)/include
 
 # LIBPATH
 LIBPATH += -L/usr/local/lib
@@ -667,11 +669,11 @@ $(OBJS): $(DBG_SELECT_OPTFILE)
 # compile CPU objects
 $(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
 	$(call show_stage,CC,$(@F))
-	$(CMDECHO)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
 	$(call show_stage,MPI,$(@F))
-	$(CMDECHO)$(MPICXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+	$(CMDECHO)$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
 $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
@@ -829,12 +831,12 @@ $(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	$(show_stage DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)$(CXX) -x c++ -D__CUDA_INTERNAL_COMPILATION__ \
-		$(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
+		$(CC_INCPATH) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 
 $(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	$(show_stage DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)$(CXX) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
+	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
 
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
 # target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
