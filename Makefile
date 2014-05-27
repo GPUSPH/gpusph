@@ -528,6 +528,7 @@ CXXFLAGS += $(TARGET_ARCH)
 # compute capability specification, if defined
 ifneq ($(COMPUTE),)
 	CUFLAGS += -arch=sm_$(COMPUTE)
+	LDFLAGS += -arch=sm_$(COMPUTE)
 endif
 
 # generate line info on CUDA 5 or higher
