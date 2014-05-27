@@ -39,6 +39,8 @@
 #include "GlobalData.h"
 #include "ptp.h"
 
+//#define DEBUG
+
 using namespace std;
 
 void *UDPWriter::heartbeat_thread_main(void *user_data) {
@@ -239,6 +241,7 @@ UDPWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
         packet.world_origin[0] = mWorldOrigin.x;
         packet.world_origin[1] = mWorldOrigin.y;
         packet.world_origin[2] = mWorldOrigin.z;
+        packet.model_id = getpid();
     }
     if(mClientAddressLen == 0) {
         return;
