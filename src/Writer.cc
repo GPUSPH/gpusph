@@ -109,7 +109,7 @@ Writer::Write(uint numParts, BufferList const& buffers,
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
-	for (it ; it != end; ++it) {
+	for ( ; it != end; ++it) {
 		Writer *writer = *it;
 		if (writer->need_write(t) || m_forced)
 			writer->write(numParts, buffers, node_offset, t, testpoints);
@@ -121,7 +121,7 @@ Writer::WriteWaveGage(float t, GageList const& gage)
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
-	for (it ; it != end; ++it) {
+	for ( ; it != end; ++it) {
 		Writer *writer = *it;
 		if (writer->need_write(t) || m_forced)
 			writer->write_WaveGage(t, gage);
@@ -133,7 +133,7 @@ Writer::Destroy()
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
-	for (it ; it != end; ++it) {
+	for ( ; it != end; ++it) {
 		Writer *writer = *it;
 		delete writer;
 	}
