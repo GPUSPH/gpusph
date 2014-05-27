@@ -7,7 +7,7 @@
 CC="$1"
 
 if [ -z "$CC" ] ; then
-	lister=$(dirname $(readlink -f "$0"))/list-cuda-cc
+	lister=$(dirname "$0")/list-cuda-cc
 	read CC card <<-AVOID_SUBSHELL_PROBLEM
 		$(${lister} | cut -f2- | sort -n | head -1)
 	AVOID_SUBSHELL_PROBLEM
