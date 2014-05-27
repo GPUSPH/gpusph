@@ -84,7 +84,7 @@ Writer::NeedWrite(float t)
 	bool need_write = false;
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
-	for (it ; it != end; ++it) {
+	for ( ; it != end; ++it) {
 		Writer *writer = *it;
 		need_write |= writer->need_write(t);
 	}
@@ -96,7 +96,7 @@ Writer::MarkWritten(float t, bool force)
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
-	for (it ; it != end; ++it) {
+	for ( ; it != end; ++it) {
 		Writer *writer = *it;
 		if (writer->need_write(t) || force || m_forced)
 			writer->mark_written(t);
