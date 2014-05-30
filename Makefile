@@ -206,7 +206,7 @@ MPICXX ?= $(shell which mpicxx)
 ifeq ($(MPICXX),)
 
 	# No MPI: give warning and set flag
-	TMP := $(warning MPI compiler not found, multi-node will NOT be supported)
+	TMP := $(info MPI compiler not found, multi-node will NOT be supported)
 
 	USE_MPI=0
 
@@ -466,7 +466,7 @@ ifeq ($(USE_HDF5),1)
 	# link to HDF5 for input reading
 	LIBS += -lhdf5
 else
-	TMP := $(warning HDF5 library not found, HDF5 input will NOT be supported)
+	TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
 endif
 
 # pthread needed for the UDP writer
