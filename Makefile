@@ -681,10 +681,12 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
-# compile program to list compute capabilities of installed devices
+# compile program to list compute capabilities of installed devices.
+# Filter out -arch=sm_$(COMPUTE) from LDFLAGS becaus we already have it in CUFLAGS
+# and it being present twice causes complains from nvcc
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< $(LDFLAGS) -lcuda
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS)) -lcuda
 
 # create distdir
 $(DISTDIR):
