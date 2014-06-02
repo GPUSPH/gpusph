@@ -149,7 +149,7 @@ struct sa_boundary_particle_data
 
 	// does this particle want to (re)compute gamma? see logic below
 	// this is used by vertex particles only
-			bool	computeGamma;
+	bool	computeGamma;
 
 	// oldGGam would hold the previous value of gamma (in .w) and its gradient (in .xyz).
 	// When we want to (re)compute gamma, the old gradient is only used for the
@@ -336,7 +336,8 @@ struct sa_boundary_particle_output
 	float4	gGam;
 
 	__device__ __forceinline__
-	sa_boundary_particle_output() : gGam(make_float4(0, 0, 0, 1))
+	sa_boundary_particle_output() :
+		gGam(make_float4(0, 0, 0, 1))
 	{}
 };
 
@@ -441,6 +442,7 @@ struct sa_boundary_neib_data
 	// Define shorthands for their data type
 	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> pdata_t;
 	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
+	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
 
 	const	float4	belem;
 	const	float3&	normal_s;
@@ -457,7 +459,8 @@ struct sa_boundary_neib_data
 		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
 		gamAS(Gamma<kerneltype>(params.slength, _relPos,
 				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
-				belem, pdata.oldGGam, params.epsilon, pdata.computeGamma))
+				belem, pdata.oldGGam,
+				params.epsilon, pdata.computeGamma))
 	{}
 };
 
@@ -1174,6 +1177,7 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
+	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
 	pout.force /= pout.gGam.w;
 }
@@ -1537,12 +1541,12 @@ forcesDevice(
 		// External forces etc
 		if (FLUID(info)) {
 
+			// only does something if SA_BOUNDARY
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
+
 			// post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
-
-			// only does something if SA_BOUNDARY
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
 
 			// Adding gravity
 			as_float3(pout.force) += d_gravity;

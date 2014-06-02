@@ -1738,9 +1738,10 @@ void GPUWorker::kernel_buildNeibsList()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	// this is the square of delta p / 2
+	// this is the square the distance used for neighboursearching of boundaries
+	// it is delta p / 2 bigger than the standard radius
 	// it is used to add segments into the neighbour list even if they are outside the kernel support
-	const float sqdpo2 = powf(m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
+	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
 	buildNeibsList(	m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 					m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
@@ -1755,7 +1756,7 @@ void GPUWorker::kernel_buildNeibsList()
 					numPartsToElaborate,
 					m_nGridCells,
 					m_simparams->nlSqInfluenceRadius,
-					sqdpo2,
+					boundNlSqInflRad,
 					m_simparams->periodicbound);
 
 	// download the peak number of neighbors and the estimated number of interactions
@@ -1785,7 +1786,6 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			toParticle,
 			gdata->problem->m_deltap,
 			m_simparams->slength,
-			gdata->dt, // m_dt,
 			m_simparams->dtadapt,
 			m_simparams->dtadaptfactor,
 			m_simparams->xsph,

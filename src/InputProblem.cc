@@ -15,6 +15,7 @@ static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
  *	StillWater			Periodic stillwater (lacking file)
  *	Spheric2			Spheric2 dambreak with obstacle
  *	Box					Small dambreak in a box
+ *	BoxCorner			Small dambreak in a box with a corner
  *	SmallChannelFlow	Small channel flow for debugging
  *
  */
@@ -64,6 +65,8 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		m_simparams.tend = 5.0;
 		m_simparams.testpoints = true;
+		m_simparams.csvtestpoints = true;
+		m_simparams.surfaceparticle = true;
 		H = 0.55;
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
@@ -73,8 +76,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	//Box (Dambreak)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "Box") {
-		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/0.box_blend_16.h5sph";
+	else if (SPECIFIC_PROBLEM.substr(0,3) == "Box") {
+		if (SPECIFIC_PROBLEM == "BoxCorner")
+			inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/box-corner/0.box_corner.h5sph";
+		else
+			inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/0.box_blend_16.h5sph";
 
 		set_deltap(0.125f);
 
@@ -83,7 +89,9 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
-		m_simparams.testpoints = false;
+		m_simparams.testpoints = true;
+		m_simparams.csvtestpoints = true;
+		m_simparams.surfaceparticle = true;
 		H = 1.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
@@ -187,7 +195,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 1;
+	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 0.1;
@@ -226,22 +234,30 @@ int InputProblem::fill_parts()
 
 	// Setting probes for Spheric2 test case
 	//*******************************************************************
+	if (SPECIFIC_PROBLEM == "Box") {
+		add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
+		if (m_simparams.testpoints) {
+			test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
+		}
+	}
+	// Setting probes for Spheric2 test case
+	//*******************************************************************
 	if (SPECIFIC_PROBLEM == "Spheric2") {
 		// Wave gages
-		add_gage(m_origin + make_double3(2.724, 0.5, 0.0));
-		add_gage(m_origin + make_double3(2.228, 0.5, 0.0));
-		add_gage(m_origin + make_double3(1.732, 0.5, 0.0));
-		add_gage(m_origin + make_double3(0.582, 0.5, 0.0));
+		add_gage(m_origin + make_double3(2.724, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+		add_gage(m_origin + make_double3(2.228, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+		add_gage(m_origin + make_double3(1.732, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+		add_gage(m_origin + make_double3(0.582, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
 		// Pressure probes
 		if (m_simparams.testpoints) {
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.021));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.061));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.101));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.529, 0.141));
-			test_points.push_back(m_origin + make_double3(2.4165, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.4565, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.4965, 0.471, 0.161));
-			test_points.push_back(m_origin + make_double3(2.5365, 0.471, 0.161));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.021) + make_double3(0.01, 0.01, 0.01)); // the (0.01,0.01,0.01) vector accounts for the slightly shifted origin
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.061) + make_double3(0.01, 0.01, 0.01));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.101) + make_double3(0.01, 0.01, 0.01));
+			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.141) + make_double3(0.01, 0.01, 0.01));
+			test_points.push_back(m_origin + make_double3(2.4165, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+			test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+			test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+			test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 		}
 	}
 	//*******************************************************************
@@ -331,7 +347,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if (test_points.size()) {
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = j; i < j+test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			vel[i] = make_float4(0, 0, 0, 0.0);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
 			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
 		}

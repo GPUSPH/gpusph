@@ -134,7 +134,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			particleRangeEnd,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
-				const float			sqdpo2,
+				const float			boundNlSqInflRad,
 				const Periodicity	periodicbound);
 
 void

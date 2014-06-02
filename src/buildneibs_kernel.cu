@@ -556,7 +556,7 @@ bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo, con
 	// skip standard check when only checking segments, and include BOUNDARY neighbors which are
 	// a little further than sqinfluenceradius
 	return !segment && (rp2 < params.sqinfluenceradius ||
-		(rp2 < params.sqinfluenceradius + params.sqdpo2 && BOUNDARY(neibInfo)));
+		(rp2 < params.boundNlSqInflRad && BOUNDARY(neibInfo)));
 }
 
 /// process SA_BOUNDARY segments in neibsInCell

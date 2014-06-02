@@ -226,7 +226,5 @@ struct forces_params :
 	{}
 };
 
-
-
 #endif // _FORCES_PARAMS_H
 

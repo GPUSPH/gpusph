@@ -496,7 +496,6 @@ forces(
 			uint	toParticle,
 			float	deltap,
 			float	slength,
-			float	dt,
 			bool	dtadapt,
 			float	dtadaptfactor,
 			bool	xsphcorr,
