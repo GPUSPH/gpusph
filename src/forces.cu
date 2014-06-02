@@ -517,7 +517,6 @@ forces(
 	BoundaryType	boundarytype,
 			bool	usedem)
 {
-	float dt;
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;
