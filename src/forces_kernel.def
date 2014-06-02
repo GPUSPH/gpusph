@@ -453,7 +453,7 @@ struct sa_boundary_neib_data
 
 	__device__ __forceinline__
 	sa_boundary_neib_data(pdata_t const& pdata,  params_t const& params,
-		const uint index, float4 const& _relPos, pout_t &pout) :
+		const uint index, float4 const& _relPos) :
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
 		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
@@ -493,16 +493,15 @@ struct forces_neib_data :
 		_sa_boundary_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
-	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
 
 	ParticleType	ntype;
 
 	__device__ __forceinline__
 	forces_neib_data(pdata_t const& pdata, params_t const& params,
 		const uint _index, particleinfo const& _info,
-		float4 const& _relPos, const float _r, pout_t &_pout) :
+		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
-		_sa_boundary_neib_data(pdata, params, _index, _relPos, _pout),
+		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)(this->relVel.w, _info),
@@ -1486,7 +1485,7 @@ forcesDevice(
 
 			// load rest of neib data
 			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> const
-				ndata(pdata, params, neib_index, neib_info, relPos, r, pout);
+				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			/* Contributions from this neighbor */
 
