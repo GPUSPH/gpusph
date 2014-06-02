@@ -767,7 +767,8 @@ void GPUWorker::transferBursts()
 	} // iterate on scopes
 
 	// waits for network async transfers to complete
-	gdata->networkManager->waitAsyncTransfers();
+	if (MULTI_NODE)
+		gdata->networkManager->waitAsyncTransfers();
 }
 
 
