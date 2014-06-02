@@ -9,7 +9,7 @@ toconvert="$1"
 
 test -z "$toconvert" && abort "please specify a directory to convert"
 
-awkscript="$(readlink -f $0)".awk
+awkscript="$0".awk
 
 {
 cd "$toconvert"

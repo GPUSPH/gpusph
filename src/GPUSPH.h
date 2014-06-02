@@ -45,7 +45,11 @@ private:
 	Options* clOptions;
 	GlobalData* gdata;
 	Problem* problem;
-	IPPSCounter *m_performanceCounter;
+
+	// performance counters (in MIPPS)
+	IPPSCounter *m_totalPerformanceCounter;
+	IPPSCounter *m_intervalPerformanceCounter;
+	IPPSCounter *m_multiNodePerformanceCounter; // only used if MULTI_NODE
 
 	// aux arrays for rollCallParticles()
 	bool *m_rcBitmap;
@@ -81,8 +85,9 @@ private:
 	// create the Writer
 	void createWriter();
 
-	// use the writer
-	void doWrite();
+	// use the writer (optionally let writer know if
+	// writing was forced)
+	void doWrite(bool force);
 
 	// callbacks for moving boundaries and variable gravity
 	void doCallBacks();
@@ -98,6 +103,9 @@ private:
 
 	// print information about the status of the simulation
 	void printParticleDistribution();
+
+	// print peer accessibility for all devices
+	void printDeviceAccessibilityTable();
 
 	// do a roll call of particle IDs
 	void rollCallParticles();

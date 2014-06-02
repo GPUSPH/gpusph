@@ -1,0 +1,132 @@
+if [ "$1" == "" ]
+then
+	echo "USAGE: $ mpi_command DELTAP NPROCS NHOSTS DEV_STRING STRIPING GPUDIRECT ASYNCMPI TEND"
+	echo "Deltap can be 0"
+	echo "grep -A 1 ___ mpi_command for resolutions"
+	exit 1
+fi
+
+export PREFIX=dbNoObst
+
+export NPROCS=$2
+export NODEDEVS=$4
+
+export NHOSTS=$3
+#export NHOSTS=$NPROCS
+# uncomment to use one process per device, 2 processes per node
+#export NHOSTS=$(( $NHOSTS / 2 ))
+
+# ___ 107 M
+#export DELTAP=0.001
+# ___ 31.7 M
+#export DELTAP=0.0015
+# ___ 6.4 M
+#export DELTAP=0.0025596
+# ___ 4.0 M
+#export DELTAP=0.003
+# ___ 3.2 M
+export DELTAP=0.003225
+# ___ 1.6 M
+#export DELTAP=0.004
+# ___ 874 K
+#export DELTAP=0.005
+# ___ 392 K
+#export DELTAP=0.0065
+# ___ 213 K
+#export DELTAP=0.008
+# default: 13 K
+#export DELTAP=0.02
+# hit: divide deltap by 2^(1/3) to double the particles
+
+# set deltap if not user specified
+if [ "$1" != "0" ]
+then
+	export DELTAP=$1
+fi
+
+# multidevice
+export STRIPING=$5
+# multinode
+export GPUDIRECT=$6
+export ASYNCMPI=$7
+export TEND=$8
+
+export NAME=${PREFIX}_$(date +%d%b)_dp${DELTAP}_tend${TEND}_${NPROCS}procs_${NHOSTS}hosts_gd${GPUDIRECT}_str${STRIPING}_isend${ASYNCMPI}
+#export NAME=nostriping_${NPROCS}nodes
+#export LOGFILE=logs/logmpi_${NAME}.txt
+export LOGFILE=lm_${NAME}.txt
+
+echo $NAME
+echo "ENTER to go, CTRL+C to stop"
+read
+
+#export TEND=1.5
+#export TEND=0.1
+#export TEND=0.01
+#export TEND=0.001
+#export TEND=0.05
+
+
+export EXTRA=""
+
+export EXTRA="$EXTRA --num_hosts $NHOSTS"
+
+if [ "$STRIPING" -eq "1" ]
+then
+	export EXTRA="$EXTRA --striping"
+fi
+if [ "$GPUDIRECT" -eq "1" ]
+then
+	export EXTRA="$EXTRA --gpudirect"
+fi
+if [ "$ASYNCMPI" -eq "1" ]
+then
+	export EXTRA="$EXTRA --asyncmpi"
+fi
+
+rm $LOGFILE &> /dev/null
+#mpirun  -prepend-rank -hostfile hostfile_gpusph -np 4 GPUSPH --device 0 --deltap 0.005 --dir ./tests/mpi_delme
+
+echo Running on $NPROCS nodes, devices "$NODEDEVS"
+echo log: $LOGFILE
+
+export MV2_ENABLE_AFFINITY=0
+#export MV2_USE_GPUDIRECT=1
+
+# default 65535
+#export MV2_CUDA_BLOCK_SIZE=524279
+#export MV2_CUDA_BLOCK_SIZE=131071
+#export MV2_CUDA_BLOCK_SIZE=65535
+
+# both default 1
+#export MV2_CUDA_NONBLOCKING_STREAMS=1
+#export MV2_CUDA_IPC=1
+
+unset MV2_CUDA_BLOCK_SIZE
+unset COMPUTE_PROFILE
+
+#unset MV2_CUDA_IPC
+#unset MV2_CUDA_NONBLOCKING_STREAMS
+#unset MV2_CUDA_IPC
+
+#mpirun -prepend-rank -hostfile hostfile_gpusph -np $NPROCS GPUSPH --device ${NODEDEVS} --deltap ${DELTAP} --tend $TEND --dir ./tests/mpi_${NAME} ${EXTRA}
+export COMMAND="GPUSPH --device ${NODEDEVS} --deltap ${DELTAP} --tend $TEND --dir ./tests/mpi_${NAME} ${EXTRA}"
+echo "./$COMMAND"
+echo Log: "$LOGFILE"
+mpirun -outfile-pattern $LOGFILE -prepend-rank -hostfile hostfile_gpusph -np $NPROCS $COMMAND
+
+echo "./$COMMAND" >> $LOGFILE
+
+for i in $(seq 0 $NPROCS)
+do
+	egrep "^\[$i" $LOGFILE > $LOGFILE.$i.txt 2> /dev/null
+done
+
+#grep compiled $LOGFILE.0.txt
+grep compacted $LOGFILE
+grep "Simulation time" $LOGFILE.0.txt | tail -n 1
+grep "MIPPS" $LOGFILE.0.txt | tail -n 1
+grep "Global performance" $LOGFILE.0.txt
+
+#mpirun -prepend-rank -hostfile hostfile_gpusph -np 2 GPUSPH --device 0 --deltap 0.005 --tend 0.001 --dir ./tests/mpi_delme
+

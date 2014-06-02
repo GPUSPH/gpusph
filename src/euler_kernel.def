@@ -106,16 +106,23 @@ eulerDevice(
 			// add weighted mean_vel only in xsphcorr case
 			// the compiler is smart enough to optimize it out
 			// in the xsphcorr == false case
-			pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
-			pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
-			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
+			if (!FIXED_PART(pinfo)) {
+				pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
+				pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
+				pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
+			}
 
-			// Updating particle velocity
+			// Updating particle velocity and density
 			// For step 1:
 			//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
 			// For step 2:
 			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-			vel += dt*force;
+			// Fixed particles only evolve the density
+			if (FIXED_PART(pinfo)) {
+				vel.w += dt*force.w;
+			} else {
+				vel += dt*force;
+			}
 
 			// Updating k and e for k-e model
 			if (keps_dkde) {

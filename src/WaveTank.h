@@ -64,6 +64,8 @@ class WaveTank: public Problem {
 		MbCallBack& mb_callback(const float, const float, const int);
 
 		void release_memory(void);
+
+		void fillDeviceMap();
 };
 #endif	/* _WAVETANK_H */
 

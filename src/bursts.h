@@ -23,27 +23,35 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _VTKWRITER_H
-#define	_VTKWRITER_H
+#ifndef _BURSTS_H
+#define _BURSTS_H
 
-#include "Writer.h"
+#include <vector>
 
-using namespace std;
+typedef enum {SND, RCV} TransferDirection;
 
-class VTKWriter : public Writer
-{
-public:
-	VTKWriter(const GlobalData *_gdata);
-	~VTKWriter();
+typedef enum {NODE_SCOPE, NETWORK_SCOPE} TransferScope;
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
-	virtual void write_WaveGage(float t, GageList const& gage);
+typedef std::vector<uint> CellList;
 
-private:
-	// open a file whose name is built from the given base and sequence number
-	// returns FILE object and stores the filename (without the dirname) into
-	// `filename` if it's not NULL
-	FILE *open_data_file(const char* base, string const& num, string *filename);
-};
+typedef struct {
+	// list of cells (linear indices)
+	CellList cells;
 
-#endif	/* _VTKWRITER_H */
+	// global device index of sending/receiving peer
+	uchar peer_gidx;
+	// scope & direction (SND or RCV if NETWORK_SCOPE, only RCV for NODE_SCOPE)
+	TransferDirection direction;
+	TransferScope scope;
+
+	// caching burst edges in terms of particle indices, after every buildneibs
+	uint selfFirstParticle; // self p.index
+	uint peerFirstParticle; // only useful for intra-node
+	uint numParticles;
+} CellBurst;
+
+typedef std::vector<CellBurst> BurstList;
+
+#endif // _BURSTS_H
+
+

@@ -52,8 +52,6 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
 	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
-	m_writerType = VTKWRITER;
-
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.dt = 0.0001f;
@@ -96,9 +94,8 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	m_displayinterval = 0.002f;
-	m_writefreq = 100;
-	m_screenshotfreq =100;
+	set_timer_tick(0.002f);
+	add_writer(VTKWRITER, 100);
 
 	// Set up callback function
 	m_simparams.mbcallback = true;

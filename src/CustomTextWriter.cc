@@ -27,11 +27,12 @@
 #include <stdexcept>
 
 #include "CustomTextWriter.h"
+#include "GlobalData.h"
 
 using namespace std;
 
-CustomTextWriter::CustomTextWriter(const Problem *problem)
-  : Writer(problem)
+CustomTextWriter::CustomTextWriter(const GlobalData *_gdata)
+  : Writer(_gdata)
 {
 	string time_filename = m_dirname + "/time.txt";
     m_timefile = NULL;

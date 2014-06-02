@@ -42,7 +42,7 @@ UDP packet writer.
 class UDPWriter : public Writer
 {
 public:
-	UDPWriter(Problem *problem);
+	UDPWriter(const GlobalData *_gdata);
 	~UDPWriter();
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);

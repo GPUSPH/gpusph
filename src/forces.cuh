@@ -89,7 +89,33 @@ setforcesrbcg(const float3* cg, int numbodies);
 void
 setforcesrbstart(const uint* rbfirstindex, int numbodies);
 
+void
+forces_bind_textures(	const	float4	*pos,
+						const	float4	*vel,
+						const	float4	*oldGGam,
+						const	float4	*boundelem,
+						const	particleinfo	*info,
+						uint	numParticles,
+						ViscosityType	visctype,
+						float	*keps_tke,
+						float	*keps_eps,
+						BoundaryType	boundarytype);
+
+void
+forces_unbind_textures(	ViscosityType	visctype,
+						BoundaryType	boundarytype);
+
 float
+forces_dtreduce(	float	slength,
+				float	dtadaptfactor,
+		ViscosityType	visctype,
+				float	visccoeff,
+				float	*cfl,
+				float	*cflTVisc,
+				float	*tempCfl,
+				uint	numBlocks);
+
+uint
 forces(
 	const	float4	*pos,
 	const	float2	* const vertPos[],
@@ -106,7 +132,8 @@ forces(
 	const	uint	*cellStart,
 	const	neibdata*neibsList,
 			uint	numParticles,
-			uint	particleRangeEnd,
+			uint	fromParticle,
+			uint	toParticle,
 			float	deltap,
 			float	slength,
 			bool	dtadapt,
@@ -125,6 +152,7 @@ forces(
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,
+			uint	cflOffset,
 	SPHFormulation	sph_formulation,
 	BoundaryType	boundarytype,
 			bool	usedem);

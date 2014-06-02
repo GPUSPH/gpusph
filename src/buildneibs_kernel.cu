@@ -163,9 +163,7 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 			   hashKey*			particleHash,	///< particle's hashes (in, out)
 			   uint*			particleIndex,	///< particle's indexes (out)
 			   const particleinfo*	particelInfo,	///< particle's informations (in)
-#if HASH_KEY_SIZE >= 64
-			   uint			*compactDeviceMap,
-#endif
+			   uint				*compactDeviceMap,
 			   const uint		numParticles)	///< total number of particles
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -177,9 +175,8 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	float4 pos = posArray[index];
 	const particleinfo info = particelInfo[index];
 
-	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
-	if (FLUID(info) || (type(info) & MOVINGNOTFLUID)) {
-	//if (true) {
+	// we compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
+	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID))) {
 		// Getting the old grid hash
 		uint gridHash = cellHashFromParticleHash( particleHash[index] );
 
@@ -194,12 +191,11 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		bool toofar = false;
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
-#if HASH_KEY_SIZE >= 64
+
 		// mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
 		if (compactDeviceMap)
 			gridHash |= compactDeviceMap[gridHash];
-#endif
 
 		// Adjust position
 		as_float3(pos) -= gridOffset*d_cellSize;
@@ -215,6 +211,40 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
+
+// Similar to calcHash but specific for 1st iteration in MULTI_DEVICE simulations: does not change the cellHash,
+// but only sets the high bits according to the compact device map. also, initializes particleIndex
+__global__ void
+__launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+fixHashDevice(hashKey*			particleHash,	///< particle's hashes (in, out)
+			   uint*			particleIndex,	///< particle's indexes (out)
+			   const particleinfo*	particelInfo,	///< particle's informations (in)
+			   uint				*compactDeviceMap,
+			   const uint		numParticles)	///< total number of particles
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = particelInfo[index];
+
+	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries).
+	// Also, if particleHash is NULL we just want to set particleIndex (see comment in GPUWorker::kernel_calcHash())
+	if ((FLUID(info) || (type(info) & MOVINGNOTFLUID)) && particleHash) {
+
+		uint gridHash = cellHashFromParticleHash( particleHash[index] );
+
+		// mark the cell as inner/outer and/or edge by setting the high bits
+		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
+		if (compactDeviceMap)
+			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << 32);
+	}
+
+	// Preparing particle index array for the sort phase
+	particleIndex[index] = index;
+}
+
 #undef MOVINGNOTFLUID
 
 __global__
@@ -256,9 +286,7 @@ __global__
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells first particle (out)
 										uint*			cellEnd,		///< index of cells last particle (out)
-#if HASH_KEY_SIZE >= 64
 										uint*			segmentStart,
-#endif
 										float4*			sortedPos,		///< new sorted particle's positions (out)
 										float4*			sortedVel,		///< new sorted particle's velocities (out)
 										particleinfo*	sortedInfo,		///< new sorted particle's informations (out)
@@ -278,10 +306,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-#if HASH_KEY_SIZE >= 64
 	// initialize segmentStarts
-	if (index < 4) segmentStart[index] = EMPTY_SEGMENT;
-#endif
+	if (segmentStart && index < 4) segmentStart[index] = EMPTY_SEGMENT;
 
 	uint cellHash;
 	// Handle the case when number of particles is not multiple of block size
@@ -316,36 +342,24 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-#if HASH_KEY_SIZE >= 64
 			cellStart[cellHash & CELLTYPE_BITMASK] = index;
-#else
-			cellStart[cellHash] = index;
-#endif
 			// If it isn't the first particle, it must also be the end of the previous cell
 			if (index > 0)
-#if HASH_KEY_SIZE >= 64
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
-#else
-				cellEnd[sharedHash[threadIdx.x]] = index;
-#endif
 		}
 
 		if (index == numParticles - 1) {
 			// ditto
-#if HASH_KEY_SIZE >= 64
 			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
-#else
-			cellEnd[cellHash] = index + 1;
-#endif
 		}
 
-#if HASH_KEY_SIZE >= 64
-		// if hashKey is 64bits long, also find the segment start
-		uchar curr_type = cellHash >> 30;
-		uchar prev_type = sharedHash[threadIdx.x] >> 30;
-		if (index == 0 || curr_type != prev_type)
-			segmentStart[curr_type] = index;
-#endif
+		if (segmentStart) {
+			// if segment start is given, hash key size is 64 and we detect the segments
+			uchar curr_type = cellHash >> 30;
+			uchar prev_type = sharedHash[threadIdx.x] >> 30;
+			if (index == 0 || curr_type != prev_type)
+				segmentStart[curr_type] = index;
+		}
 
 		// Now use the sorted index to reorder particle's data
 		const uint sortedIndex = particleIndex[index];
@@ -752,13 +766,15 @@ buildNeibsListDevice(buildneibs_params<use_sa_boundary> params)
 				}
 			}
 		}
-
-		// Setting the end marker
-		if (neibs_num < d_maxneibsnum) {
-			params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
-		}
-
 	} while (0);
+
+	// Setting the end marker. Must be done here so that
+	// particles for which the neighbor list is not built actually
+	// have an empty neib list. Otherwise, particles which are
+	// marked inactive will keep their old neiblist.
+	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
+		params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
+	}
 
 	if (neibcount) {
 		// Shared memory reduction of per block maximum number of neighbors

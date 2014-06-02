@@ -33,6 +33,8 @@
 #include "common_types.h"
 #include "buffer_traits.h"
 
+using namespace std;
+
 /* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
  * of double-(or more)-buffered arrays.

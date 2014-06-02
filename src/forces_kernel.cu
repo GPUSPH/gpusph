@@ -384,9 +384,11 @@ laminarvisc_dynamic(const float	rho,
 /*********************************** Adptative time stepping ************************************************/
 // Function called at the end of the forces or powerlawVisc function doing
 // a per block maximum reduction
+// cflOffset is used in case the forces kernel was partitioned (striping)
 __device__ __forceinline__ void
 dtadaptBlockReduce(	float*	sm_max,
-					float*	cfl)
+					float*	cfl,
+					uint	cflOffset)
 {
 	for(unsigned int s = blockDim.x/2; s > 0; s >>= 1)
 	{
@@ -399,7 +401,7 @@ dtadaptBlockReduce(	float*	sm_max,
 
 	// write result for this block to global mem
 	if (!threadIdx.x)
-		cfl[blockIdx.x] = sm_max[0];
+		cfl[cflOffset + blockIdx.x] = sm_max[0];
 }
 /************************************************************************************************************/
 
@@ -1910,17 +1912,18 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// read particle data from sorted arrays
 	particleinfo info = tex1Dfetch(infoTex, index);
 
-	if (NOT_FLUID(info)) {
-		newInfo[index] = info;
-		return;
-	}
-
 	#if( __COMPUTE__ >= 20)
 	const float4 pos = posArray[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 	float4 normal = make_float4(0.0f);
+
+	if (NOT_FLUID(info) || INACTIVE(pos)) {
+		// NOTE: inactive particles will keep their last surface flag status
+		newInfo[index] = info;
+		return;
+	}
 
 	// Compute grid position of current particle
 	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );

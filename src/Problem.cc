@@ -48,9 +48,6 @@ Problem::Problem(const GlobalData *_gdata)
 {
 	gdata = _gdata;
 	m_options = gdata->clOptions;
-	m_last_display_time = 0.0;
-	m_last_write_time = -1.0;
-	m_last_screenshot_time = 0.0;
 	m_mbnumber = 0;
 	m_rbdatafile = NULL;
 	m_rbdata_writeinterval = 0;
@@ -202,17 +199,6 @@ Problem::pressure(float rho, int i) const
 	return m_physparams.bcoeff[i]*(pow(rho/m_physparams.rho0[i], m_physparams.gammacoeff[i]) - 1);
 }
 
-bool
-Problem::need_display(float t)
-{
-	if (t - m_last_display_time >= m_displayinterval) {
-		m_last_display_time = t;
-		return true;
-	}
-
-	return false;
-}
-
 void
 Problem::add_gage(double3 const& pt)
 {
@@ -255,29 +241,33 @@ Problem::create_problem_dir(void)
 	return m_problem_dir;
 }
 
-
-bool
-Problem::need_write(float t)
+void
+Problem::set_timer_tick(float t)
 {
-	if (m_writefreq == 0)
-		return false;
+	Writer::SetTimerTick(t);
+}
 
-	if (t - m_last_write_time >= m_displayinterval*m_writefreq || (t == 0.0 && m_last_write_time != 0.0)) {
-		return true;
-	}
+void
+Problem::add_writer(WriterType wt, int freq)
+{
+	m_writers.push_back(make_pair(wt, freq));
+}
 
+// override in problems where you want to save
+// at specific times regardless of standard conditions
+bool
+Problem::need_write(float t) const
+{
 	return false;
 }
 
-
 bool
-Problem::need_write_rbdata(float t)
+Problem::need_write_rbdata(float t) const
 {
 	if (m_rbdata_writeinterval == 0)
 		return false;
 
 	if (t - m_last_rbdata_write_time >= m_rbdata_writeinterval) {
-		m_last_rbdata_write_time = t;
 		return true;
 	}
 
@@ -298,26 +288,12 @@ Problem::write_rbdata(float t)
 			}
 		}
 	}
+	m_last_rbdata_write_time = t;
 }
-
-bool
-Problem::need_screenshot(float t)
-{
-	if (m_screenshotfreq == 0)
-		return false;
-
-	if (t - m_last_screenshot_time >= m_displayinterval*m_screenshotfreq) {
-		m_last_screenshot_time = t;
-		return true;
-	}
-
-	return false;
-}
-
 
 // is the simulation finished at the given time?
 bool
-Problem::finished(float t)
+Problem::finished(float t) const
 {
 	float tend(m_simparams.tend);
 	return tend && (t > tend);
@@ -405,10 +381,10 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 
 void Problem::fillDeviceMapByEquation()
 {
-	// 1st equation: (x+y+z / #devices)
-	uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
-	uint coeff = longest_grid_size /  (gdata->totDevices + 1);
-	// 2nd equation: spheres
+	// 1st equation: diagonal plane. (x+y+z)=coeff
+	//uint longest_grid_size = max ( max( gdata->gridSize.x, gdata->gridSize.y), gdata->gridSize.z );
+	uint coeff = (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z) / gdata->totDevices;
+	// 2nd equation: sphere. Sqrt(cx²+cy²+cz²)=radius
 	uint diagonal = (uint) sqrt(	gdata->gridSize.x * gdata->gridSize.x +
 									gdata->gridSize.y * gdata->gridSize.y +
 									gdata->gridSize.z * gdata->gridSize.z) / 2;
@@ -418,14 +394,14 @@ void Problem::fillDeviceMapByEquation()
 			for (uint cz = 0; cz < gdata->gridSize.z; cz++) {
 				uint dstDevice;
 				// 1st equation: rough oblique plane split --
-				dstDevice = (cx + cy + cz) / longest_grid_size;
+				dstDevice = (cx + cy + cz) / coeff;
 				// -- end of 1st eq.
 				// 2nd equation: spheres --
 				//uint distance_from_origin = (uint) sqrt( cx * cx + cy * cy + cz * cz);
 				// comparing directly the square would be more efficient but could require long uints
 				//dstDevice = distance_from_origin / radius_part;
 				// -- end of 2nd eq.
-				// handle the case when cells_per_device multiplies cells_per_longest_axis
+				// handle special cases at the edge
 				dstDevice = min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);

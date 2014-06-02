@@ -199,6 +199,100 @@ TopoCube *TopoCube::load_ascii_grid(const char* fname)
 	return ret;
 }
 
+/* Create a TopoCube from a VTK Structure Points datafile */
+TopoCube *TopoCube::load_vtk_file(const char* fname)
+{
+	string s;
+	stringstream err_msg;
+
+	double north(NAN), south(NAN), east(NAN), west(NAN);
+	double nsres(NAN), ewres(NAN), zbase(NAN);
+	int nrows(0), ncols(0), nz(0), nels(0);
+	double z(NAN), zmin(NAN), zmax(NAN);
+
+	ifstream fdem(fname);
+
+	if (!fdem.good()) {
+		err_msg	<< "failed to open DEM " << fname;
+		throw runtime_error(err_msg.str());
+	}
+
+	getline(fdem, s);
+	if (s.compare(0, 22, "# vtk DataFile Version") == string::npos) {
+		err_msg	<< fname << " is not a VTK data file";
+		throw runtime_error(err_msg.str());
+	}
+
+	getline(fdem, s);
+	cout << "Trying to load " << fname << ": \"" << s << "\"" << endl;
+
+	getline(fdem, s); // ASCII or BINARY
+	if (s != string("ASCII")) {
+		// TODO FIXME support binary
+		err_msg << fname << " has unsupported " << s <<  " data" << endl;
+		throw runtime_error(err_msg.str());
+	}
+
+	getline(fdem, s);
+	if (s != string("DATASET STRUCTURED_POINTS")) {
+		err_msg << fname << " is not a STRUCTURED_POINTS dataset" << endl;
+		throw runtime_error(err_msg.str());
+	}
+
+	while (fdem >> s) {
+		if (s == "DIMENSIONS") {
+			fdem >> ncols;
+			fdem >> nrows;
+			fdem >> nz;
+			if (nz > 1) {
+				err_msg << fname << " has " << nz << " > 1 layers. not supported";
+				throw runtime_error(err_msg.str());
+			}
+		} else if (s == "ORIGIN") {
+			fdem >> west;
+			fdem >> south;
+			fdem >> zbase;
+		} else if (s == "SPACING") {
+			fdem >> ewres;
+			fdem >> nsres;
+			fdem >> z; // skip
+		} else if (s == "POINT_DATA") {
+			fdem >> nels;
+			if (nels != nrows*ncols) {
+				err_msg << fname << " has " << nels << " point data but " << (nrows*ncols) << " elements";
+				throw runtime_error(err_msg.str());
+			}
+		} else if (s == "SCALARS") {
+			fdem >> s;
+			cout << "Reading " << s << " scalar field from " << fname << endl;
+			fdem.ignore(UINT_MAX, '\n'); // skip to EOL
+		} else if (s == "LOOKUP_TABLE") {
+			fdem.ignore(UINT_MAX, '\n'); // skip to EOL
+			break; // next, start reading the data
+		}
+	}
+
+	float *dem = new float[nels];
+
+	for (int el = 0; el < nels; ++el) {
+		fdem >> z;
+		zmax = fmax(z, zmax);
+		zmin = fmin(z, zmin);
+		dem[el] = z;
+	}
+	fdem.close();
+
+	TopoCube *ret = new TopoCube();
+
+	ret->SetCubeDem(dem, ewres*ncols, nsres*nrows, zmax - zmin,
+		ncols, nrows, -zmin);
+	ret->SetGeoLocation(south + nsres*nrows, south, west + ewres*ncols, west);
+
+	delete [] dem;
+
+	return ret;
+}
+
 
 /* Create a TopoCube from a (xyz) sorted ASCII elevation file.
  * The format of the file must be:

@@ -42,8 +42,6 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
-	m_writerType = VTKWRITER;
-
 	// Data for problem setup
 	slope_length = 8.5f;
 	h_length = 0.5f;
@@ -135,9 +133,8 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	mb_callback(0.0, 0.0, 0);
 
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 100;
-	m_screenshotfreq = 100;
+	set_timer_tick(0.001f);
+	add_writer(VTKWRITER, 100);
 
 	// Name of problem used for directory creation
 	m_name = "SolitaryWave";

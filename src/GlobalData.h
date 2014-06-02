@@ -76,7 +76,9 @@ enum CommandType {
 	CROP,				// crop out all the external particles
 	REORDER,			// run reorderAndFindCellStart kernel
 	BUILDNEIBS,			// run buildNeibs kernel
-	FORCES,				// run forces kernel
+	FORCES_SYNC,		// run forces kernel in a blocking fashion (texture binds + kernel + unbinds + dt reduction)
+	FORCES_ENQUEUE,		// enqueues forces kernel in an asynchronous fashion and returns (texture binds + kernel)
+	FORCES_COMPLETE,	// waits for the forces kernel to complete (device sync + texture unbinds + dt reduction)
 	EULER,				// run euler kernel
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
@@ -99,15 +101,6 @@ enum CommandType {
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	QUIT				// quits the simulation cycle
-};
-
-enum WriterType
-{
-	TEXTWRITER,
-	VTKWRITER,
-	VTKLEGACYWRITER,
-	CUSTOMTEXTWRITER,
-	UDPWRITER
 };
 
 // 0 reserved as "no flags"
@@ -240,6 +233,7 @@ struct GlobalData {
 	// simulation time control
 	bool keep_going;
 	bool quit_request;
+	bool save_request;
 	unsigned long iterations;
 	float t;
 	float dt;
@@ -260,10 +254,6 @@ struct GlobalData {
 	// (need support of the worker and/or the kernel)
 	bool only_internal;
 
-	// Writer variables
-	WriterType writerType;
-	Writer *writer;
-
 	// disable saving (for timing, or only for the last)
 	bool nosave;
 
@@ -275,6 +265,9 @@ struct GlobalData {
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
+
+	// peer accessibility table (indexed with device indices, not CUDA dev nums)
+	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
 	GlobalData(void):
 		devices(0),
@@ -298,6 +291,7 @@ struct GlobalData {
 		s_hPlanesDiv(NULL),
 		keep_going(true),
 		quit_request(false),
+		save_request(false),
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
@@ -307,8 +301,6 @@ struct GlobalData {
 		commandFlags(NO_FLAGS),
 		extraCommandArg(NAN),
 		only_internal(false),
-		writerType(VTKWRITER),
-		writer(NULL),
 		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
@@ -328,6 +320,10 @@ struct GlobalData {
 		// init last indices for segmented scans for objects
 		for (uint ob=0; ob < MAXBODIES; ob++)
 			s_hRbLastIndex[ob] = 0;
+
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
+				s_hDeviceCanAccessPeer[d][p] = false;
 
 	};
 

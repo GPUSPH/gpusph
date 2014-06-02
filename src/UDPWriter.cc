@@ -33,10 +33,13 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <netdb.h>
-#include "UDPWriter.h"
-#include "Problem.h"
-#include "ptp.h"
 #include <netinet/in.h>
+
+#include "UDPWriter.h"
+#include "GlobalData.h"
+#include "ptp.h"
+
+//#define DEBUG
 
 using namespace std;
 
@@ -158,7 +161,7 @@ void *UDPWriter::heartbeat_thread_main(void *user_data) {
         fprintf(stderr, "%s: %s\n", str, strerror(code)); \
 }
 
-UDPWriter::UDPWriter(Problem *problem) : Writer(problem) {
+UDPWriter::UDPWriter(const GlobalData *_gdata): Writer(_gdata) {
     // if UDPWRITER_HOST or UDPWRITER_PORT environment variables are set,
     // use those values, otherwise defaults
     mPort = PTP_DEFAULT_SERVER_PORT;
@@ -168,8 +171,8 @@ UDPWriter::UDPWriter(Problem *problem) : Writer(problem) {
     } else {
         mHost[0] = '\0';
     }
-    mWorldOrigin = problem->get_worldorigin();
-    mWorldSize =  problem->get_worldsize();
+    mWorldOrigin = gdata->problem->get_worldorigin();
+    mWorldSize =  gdata->problem->get_worldsize();
     if((p = getenv("UDPWRITER_PORT"))) {
         mPort = atoi(p);
     }
@@ -238,6 +241,7 @@ UDPWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
         packet.world_origin[0] = mWorldOrigin.x;
         packet.world_origin[1] = mWorldOrigin.y;
         packet.world_origin[2] = mWorldOrigin.z;
+        packet.model_id = getpid();
     }
     if(mClientAddressLen == 0) {
         return;

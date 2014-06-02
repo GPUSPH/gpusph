@@ -33,7 +33,7 @@ using namespace std;
 class CustomTextWriter : public Writer
 {
 public:
-	CustomTextWriter(const Problem *problem);
+	CustomTextWriter(const GlobalData *_gdata);
 	~CustomTextWriter();
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);

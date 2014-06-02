@@ -153,9 +153,11 @@ void
 Vector::normalize(void)
 {
 	double n = norm();
-	x[0] /= n;
-	x[1] /= n;
-	x[2] /= n;
+	if (n) {
+		x[0] /= n;
+		x[1] /= n;
+		x[2] /= n;
+	}
 }
 
 
