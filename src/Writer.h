@@ -32,38 +32,126 @@
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
 
-// Problem class
-#include "Problem.h"
 #include "particledefine.h"
 
-// used for dumping the device index
-#include "GlobalData.h"
+// BufferList
+#include "buffer.h"
+
+// GageList
+#include "simparams.h"
+
+// Forward declaration of GlobalData and Problem, instead of inclusion
+// of the respective headers, to avoid cross-include messes
+
+struct GlobalData;
+class Problem;
 
 using namespace std;
 
+// Writer types. Define new ones here and remember to include the corresponding
+// header in Writer.cc and the switch case in the implementation of Writer::Create
+
+enum WriterType
+{
+	TEXTWRITER,
+	VTKWRITER,
+	VTKLEGACYWRITER,
+	CUSTOMTEXTWRITER,
+	UDPWRITER
+};
+
+// list of writer type, write freq pairs
+typedef vector<pair<WriterType, uint> > WriterList;
+
+/*! The Writer class acts both as base class for the actual writers,
+ * and a dispatcher. It holds a (static) list of writers
+ * (whose content is decided by the Problem) and passes all requests
+ * over to all the writers in the list.
+ */
 class Writer
 {
+	// list of actual writers
+	static vector<Writer*> m_writers;
+
+	// base writing timer tick. Each writer has a write frequency which is
+	// a multiple of this
+	static float m_timer_tick;
+
+	// should we be force saving regardless of timer ticks
+	// and frequencies?
+	// TODO FIXME might not be the most thread-safe way
+	// to handle this
+	static bool m_forced;
+
 public:
 	// maximum number of files
 	static const uint MAX_FILES = 99999;
 	// number of characters needed to represent MAX_FILES
 	static const uint FNUM_WIDTH = 5;
 
-	Writer(const Problem *problem);
+	// fill in the list of writers from the WriterList provided by Problem,
+	// and set the global data pointer in all of them
+	static void
+	Create(GlobalData *_gdata);
+
+	// does any of the writers need to write at the given time?
+	static bool NeedWrite(float t);
+
+	// mark writers as done if they needed to save
+	// at the given time (optionally force)
+	static void
+	MarkWritten(float t, bool force=false);
+
+	// write points
+	static void
+	Write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
+
+	// write wave gages
+	static void
+	WriteWaveGage(float t, GageList const& gage);
+
+	// set the timer tick
+	static inline void SetTimerTick(float t)
+	{ m_timer_tick = t; }
+
+	// get the timer tick value
+	static inline float GetTimerTick()
+	{ return m_timer_tick; }
+
+	// record that the upcoming write requests should be forced (regardless of write frequency)
+	static inline void
+	SetForced(bool force)
+	{ m_forced = force; }
+
+	// delete writers and clear the list
+	static void
+	Destroy();
+
+protected:
+
+	Writer(const GlobalData *_gdata);
 	virtual ~Writer();
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
+	void set_write_freq(int f);
 
-	virtual void write_energy(float t, float4 *energy);
+	bool need_write(float t) const;
 
-	//WaveGage
-	virtual void write_WaveGage(float t, GageList const& gage);
+	virtual void
+	write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
 
-	void setGlobalData(GlobalData *_gdata);
+	inline void mark_written(float t) { m_last_write_time = t; }
+
+	virtual void
+	write_energy(float t, float4 *energy);
+
+	virtual void
+	write_WaveGage(float t, GageList const& gage);
 
 	uint getLastFilenum();
 
-protected:
+	float			m_last_write_time;
+	int				m_writefreq;
+
 	string			m_dirname;
 	uint			m_FileCounter;
 	FILE*			m_timefile;
@@ -73,7 +161,7 @@ protected:
 	const Problem	*m_problem;
 	string			next_filenum();
 	string			current_filenum();
-	GlobalData*		gdata;
+	const GlobalData*		gdata;
 };
 
 #endif	/* _WRITER_H */

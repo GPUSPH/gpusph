@@ -42,8 +42,6 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
-	m_writerType = VTKWRITER;
-
 	// Data for problem setup
 	slope_length = 8.5;
 	h_length = 0.5;
@@ -134,9 +132,8 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	mb_callback(0.0, 0.0, 0);
 
 	// Drawing and saving times
-	m_displayinterval = 0.01;
-	m_writefreq = 20;
-	m_screenshotfreq = 0;
+	set_timer_tick(0.01);
+	add_writer(VTKWRITER, 20);
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
@@ -348,6 +345,16 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Everything uploaded" <<"\n";
+}
+
+void WaveTank::fillDeviceMap()
+{
+	//fillDeviceMapByAxis(Y_AXIS);
+	//fillDeviceMapByEquation();
+	if (gdata->totDevices % 2 == 0)
+		fillDeviceMapByAxesSplits(gdata->totDevices / 2, 2, 1);
+	else
+		fillDeviceMapByAxis(Y_AXIS);
 }
 
 #undef MK_par

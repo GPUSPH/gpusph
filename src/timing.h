@@ -30,6 +30,17 @@
 
 #include <time.h>
 #include <exception>
+#include <cmath> // NAN
+
+// clock_gettime() is not implemented on OSX, so we declare it here and
+// implement it in timing.cc
+#ifdef __APPLE__
+// missing defines, we don't really care about the values
+#define CLOCK_REALTIME				0
+#define CLOCK_MONOTONIC				0
+#include <sys/time.h>
+int clock_gettime(int /*clk_id*/, struct timespec* t);
+#endif
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -85,49 +96,83 @@ typedef struct TimingInfo {
 } TimingInfo;
 
 
-/*
-struct SavingInfo {
-	float   displayfreq;		// unit time
-	uint	screenshotfreq;		// unit displayfreq
-	uint	writedatafreq;		// unit displayfreq
-};
-*/
-
 class IPPSCounter
 {
 	private:
-		time_t	m_startTime;
+		timespec	m_startTime;
 		bool m_started;
+		ulong m_iterPerParts;
 	public:
 		IPPSCounter():
-			m_startTime(0),
-			m_started(false)
-		{};
+			m_started(false),
+			m_iterPerParts(0)
+		{
+			m_startTime.tv_sec = m_startTime.tv_nsec = 0;
+		};
 
 		// start the counter
-		time_t start() {
-			time(&m_startTime);
+		timespec start() {
+			clock_gettime(CLOCK_MONOTONIC, &m_startTime);
 			m_started = true;
+			m_iterPerParts = 0;
 			return m_startTime;
 		}
 
 		// reset the counter
-		time_t restart() {
-			m_started = true;
+		timespec restart() {
 			return start();
 		}
 
-		// return the throughput computed as iterations times particles per second
-		double getIPPS(ulong iterTimesParts) const {
+		// increment the internal counter of iterationsXparticles
+		void incItersTimesParts(ulong increment) {
+			m_iterPerParts += increment;
+		}
+
+		// compute the difference between two timespecs and store it in ret
+		inline
+		void timespec_diff(timespec &end, timespec &start, timespec &ret)
+		{
+			ret.tv_sec = end.tv_sec - start.tv_sec;
+			if (end.tv_nsec < start.tv_nsec) {
+				ret.tv_sec -= 1;
+				ret.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
+			} else {
+				ret.tv_nsec = end.tv_nsec - start.tv_nsec;
+			}
+		}
+
+		// compute the difference between two timespecs (in seconds)
+		inline
+		double diff_seconds(timespec &end, timespec &start) {
+			timespec diff;
+			timespec_diff(end, start, diff);
+			return diff.tv_sec + diff.tv_nsec/1.0e9;
+		}
+
+		// returns the elapsed seconds since [re]start() was called
+		double getElapsedSeconds() {
 			if (!m_started) return 0;
-			time_t now;
-			time(&now);
-			return (double(iterTimesParts) / difftime(now, m_startTime));
+			timespec now;
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			double timeInterval = diff_seconds(now, m_startTime);
+			if (timeInterval <= 0.0)
+				return 0.0;
+			else
+				return timeInterval;
+		}
+
+		// return the throughput computed as iterations times particles per second
+		double getIPPS() {
+			double timeInterval = getElapsedSeconds();
+			if (timeInterval <= 0.0)
+				return 0.0;
+			else
+				return (double(m_iterPerParts) / timeInterval);
 		}
 
 		// almost all devices get at least 1MIPPS, so:
-		inline double getMIPPS(ulong iterTimesParts) const {
-			return getIPPS(iterTimesParts)/1000000.0;
+		inline double getMIPPS() {
+			return getIPPS()/1.0e6;
 		}
 };
 

@@ -39,13 +39,6 @@
 // GPUWorker
 #include "GPUWorker.h"
 
-// Writer types
-#include "TextWriter.h"
-#include "VTKWriter.h"
-#include "VTKLegacyWriter.h"
-#include "CustomTextWriter.h"
-#include "UDPWriter.h"
-
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
@@ -92,21 +85,23 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
-	m_performanceCounter = new IPPSCounter();
+	m_totalPerformanceCounter = new IPPSCounter();
+	m_intervalPerformanceCounter = new IPPSCounter();
+	// only init if MULTI_NODE
+	m_multiNodePerformanceCounter = NULL;
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter = new IPPSCounter();
 
 	// utility pointer
 	SimParams *_sp = gdata->problem->get_simparams();
 
 	// copy the options passed by command line to GlobalData
-	gdata->nosave = clOptions->nosave;
 	if (isfinite(clOptions->tend))
 		_sp-> tend = clOptions->tend;
 
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
 	gdata->worldSize = make_float3(problem->get_worldsize());
-	// TODO: re-enable the followin after the WriterType rampage is over
-	// gdata->writerType = problem->get_writertype();
 
 	// get the grid size
 	gdata->gridSize = problem->get_gridsize();
@@ -126,6 +121,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - World size:   %g x %g x %g\n", gdata->worldSize.x, gdata->worldSize.y, gdata->worldSize.z);
 	printf(" - Cell size:    %g x %g x %g\n", gdata->cellSize.x, gdata->cellSize.y, gdata->cellSize.z);
 	printf(" - Grid size:    %u x %u x %u (%s cells)\n", gdata->gridSize.x, gdata->gridSize.y, gdata->gridSize.z, gdata->addSeparators(gdata->nGridCells).c_str());
+#define STR(macro) #macro
+#define COORD_NAME(coord) STR(coord)
+	printf(" - Cell linearizazion: %s,%s,%s\n", COORD_NAME(COORD1), COORD_NAME(COORD2),
+		COORD_NAME(COORD3));
+#undef COORD_NAME
+#undef STR
 	printf(" - Dp:   %g\n", gdata->problem->m_deltap);
 	printf(" - R0:   %g\n", gdata->problem->get_physparams()->r0);
 
@@ -231,6 +232,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			// here it is possible to save the converted device map
 			// gdata->saveDeviceMapToFile("");
 		}
+		printf("Striping is:  %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
+		printf("GPUDirect is: %s\n", (gdata->clOptions->gpudirect ? "enabled" : "disabled") );
+		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
 	}
 
 	printf("Copying the particles to shared arrays...\n");
@@ -290,6 +294,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
+	// peer accessibility is checked and set in the initialization phase
+	if (MULTI_GPU)
+		printDeviceAccessibilityTable();
+
 	return (initialized = true);
 }
 
@@ -316,14 +324,14 @@ bool GPUSPH::finalize() {
 	// host buffers
 	deallocateGlobalHostBuffers();
 
-	// ParticleSystem which, in turn, deletes the Writer
-	//delete psystem;
-
-	delete gdata->writer;
+	Writer::Destroy();
 
 	// ...anything else?
 
-	delete m_performanceCounter;
+	delete m_totalPerformanceCounter;
+	delete m_intervalPerformanceCounter;
+	if (m_multiNodePerformanceCounter)
+		delete m_multiNodePerformanceCounter;
 
 	initialized = false;
 
@@ -335,7 +343,7 @@ bool GPUSPH::runSimulation() {
 
 	// doing first write
 	printf("Performing first write...\n");
-	doWrite();
+	doWrite(true);
 
 	printf("Letting threads upload the subdomains...\n");
 	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
@@ -365,7 +373,10 @@ bool GPUSPH::runSimulation() {
 	printf("Entering the main simulation cycle\n");
 
 	//  IPPS counter does not take the initial uploads into consideration
-	m_performanceCounter->start();
+	m_totalPerformanceCounter->start();
+	m_intervalPerformanceCounter->start();
+	if (MULTI_NODE)
+		m_multiNodePerformanceCounter->start();
 
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
@@ -428,11 +439,19 @@ bool GPUSPH::runSimulation() {
 
 		// compute forces only on internal particles
 		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_1);
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_1);
+		else
+			doCommand(FORCES_SYNC, INTEGRATOR_STEP_1);
+
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+		// if striping was active, now we want the kernels to complete
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
@@ -479,11 +498,19 @@ bool GPUSPH::runSimulation() {
 		}
 
 		gdata->only_internal = true;
-		doCommand(FORCES, INTEGRATOR_STEP_2);
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_ENQUEUE, INTEGRATOR_STEP_2);
+		else
+			doCommand(FORCES_SYNC, INTEGRATOR_STEP_2);
+
 		// update forces of external particles
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+
+		// if striping was active, now we want the kernels to complete
+		if (gdata->clOptions->striping && MULTI_DEVICE)
+			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// reduce bodies
 		if (problem->get_simparams()->numODEbodies > 0) {
@@ -548,6 +575,10 @@ bool GPUSPH::runSimulation() {
 
 		// increase counters
 		gdata->iterations++;
+		m_totalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		m_intervalPerformanceCounter->incItersTimesParts( gdata->processParticles[ gdata->mpi_rank ] );
+		if (MULTI_NODE)
+			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 		// to check, later, that the simulation is actually progressing
 		float previous_t = gdata->t;
 		gdata->t += gdata->dt;
@@ -580,14 +611,21 @@ bool GPUSPH::runSimulation() {
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
+		bool need_write = Writer::NeedWrite(gdata->t);
+		bool force_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
+		if (gdata->save_request) {
+			force_write = true;
+			gdata->save_request = false;
+		}
 
-		if (need_write) {
-			// if we are about to quit, we want to save regardless --nosave option
-			bool final_save = (finished || gdata->quit_request);
+		// if we are about to quit, we want to save regardless --nosave option
+		if (finished || gdata->quit_request)
+			force_write = true;
 
-			if (final_save)
-				printf("Issuing final save...\n");
+		if (need_write || force_write) {
+
+			//if (final_save)
+			//	printf("Issuing final save...\n");
 
 			// set the buffers to be dumped
 			flag_t which_buffers = BUFFER_POS | BUFFER_VEL | BUFFER_INFO | BUFFER_HASH;
@@ -597,6 +635,7 @@ bool GPUSPH::runSimulation() {
 
 			// compute and dump vorticity if set
 			if (gdata->problem->get_simparams()->vorticity) {
+				gdata->only_internal = true;
 				doCommand(VORTICITY);
 				which_buffers |= BUFFER_VORTICITY;
 			}
@@ -609,7 +648,14 @@ bool GPUSPH::runSimulation() {
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
 			// not to call, since it has been called at least once for sure
 			if (gdata->problem->get_simparams()->surfaceparticle) {
+				gdata->only_internal = true;
 				doCommand(SURFACE_PARTICLES);
+				// NOTE: in the specific case, we could just copy the previous value in the read buffer,
+				// instead of transferring the buffer, since we will not dump external particles.
+				// Importing them from the neib devices is theoretically more correct and it allows us
+				// to know the surface flag for the external particles (in case we will ever care).
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
 				gdata->swapDeviceBuffers(BUFFER_INFO);
 				which_buffers |= BUFFER_NORMALS;
 			}
@@ -620,27 +666,38 @@ bool GPUSPH::runSimulation() {
 
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
+				// by default, we want to run kernels on internal particles only
+				gdata->only_internal = true;
 				doCommand(CALC_PRIVATE);
 				which_buffers |= BUFFER_PRIVATE;
 			}
 
-			if ( !gdata->nosave || final_save ) {
+			if ( force_write || !gdata->nosave) {
 				// TODO: the performanceCounter could be "paused" here
 				// dump what we want to save
 				doCommand(DUMP, which_buffers);
 				// triggers Writer->write()
-				doWrite();
+				doWrite(force_write);
 			} else
 				// --nosave enabled, not final: just pretend we actually saved
-				gdata->problem->mark_written(gdata->t);
+				Writer::MarkWritten(gdata->t, true);
 
 			printStatus();
+			m_intervalPerformanceCounter->restart();
 		}
 
 		if (finished || gdata->quit_request)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
 	}
+
+	// elapsed time, excluding the initialization
+	printf("Elapsed time of simulation cycle: %.2gs\n", m_totalPerformanceCounter->getElapsedSeconds());
+
+	// In multinode simulations we also print the global performance. To make only rank 0 print it, add
+	// the condition (gdata->mpi_rank == 0)
+	if (MULTI_NODE)
+		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
@@ -752,6 +809,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += ucharCellSize;
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
+		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
 		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dCellEnds =  (uint**)calloc(gdata->devices, sizeof(uint*));
 		gdata->s_dSegmentsStart = (uint**)calloc(gdata->devices, sizeof(uint*));
@@ -1026,45 +1084,10 @@ void GPUSPH::setViscosityCoefficient()
 // creates the Writer according to the requested WriterType
 void GPUSPH::createWriter()
 {
-	//gdata->writerType = gdata->problem->get_writertype();
-	//switch(gdata->writerType) {
-	switch (gdata->problem->get_writertype()) {
-		case Problem::TEXTWRITER:
-			gdata->writerType = TEXTWRITER;
-			gdata->writer = new TextWriter(gdata->problem);
-			break;
-
-		case Problem::VTKWRITER:
-			gdata->writerType = VTKWRITER;
-			gdata->writer = new VTKWriter(gdata->problem);
-			gdata->writer->setGlobalData(gdata); // VTK also supports writing the device index
-			break;
-
-		case Problem::VTKLEGACYWRITER:
-			gdata->writerType = VTKLEGACYWRITER;
-			gdata->writer = new VTKLegacyWriter(gdata->problem);
-			break;
-
-		case Problem::CUSTOMTEXTWRITER:
-			gdata->writerType = CUSTOMTEXTWRITER;
-			gdata->writer = new CustomTextWriter(gdata->problem);
-			break;
-
-		case Problem::UDPWRITER:
-			gdata->writerType = UDPWRITER;
-			gdata->writer = new UDPWriter(gdata->problem);
-			break;
-
-		default:
-			//stringstream ss;
-			//ss << "Writer not supported";
-			//throw runtime_error(ss.str());
-			printf("Writer not supported\n");
-			break;
-	}
+	Writer::Create(gdata);
 }
 
-void GPUSPH::doWrite()
+void GPUSPH::doWrite(bool force)
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
 
@@ -1096,6 +1119,8 @@ void GPUSPH::doWrite()
 	const particleinfo *info = gdata->s_hBuffers.getData<BUFFER_INFO>();
 	double4 *gpos = gdata->s_hBuffers.getData<BUFFER_POS_GLOBAL>();
 
+	bool warned_nan_pos = false;
+
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
 		double4 dpos;
@@ -1104,6 +1129,15 @@ void GPUSPH::doWrite()
 		dpos.y = ((double) gdata->cellSize.y)*(gridPos.y + 0.5) + (double) pos.y + wo.y;
 		dpos.z = ((double) gdata->cellSize.z)*(gridPos.z + 0.5) + (double) pos.z + wo.z;
 		dpos.w = pos.w;
+
+		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
+			fprintf(stderr, "WARNING: particle %u (%u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",
+				i, id(info[i]),
+				pos.x, pos.y, pos.z,
+				gridPos.x, gridPos.y, gridPos.z,
+				dpos.x, dpos.y, dpos.z);
+			warned_nan_pos = true;
+		}
 
 		// for surface particles add the z coodinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
@@ -1120,12 +1154,14 @@ void GPUSPH::doWrite()
 		gpos[i] = dpos;
 	}
 
+	Writer::SetForced(force);
+
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
 			gages[g].z /= gage_parts[g];
 		}
 		//Write WaveGage information on one text file
-		gdata->writer->write_WaveGage(gdata->t, gages);
+		Writer::WriteWaveGage(gdata->t, gages);
 	}
 
 	//Testpoints
@@ -1134,12 +1170,12 @@ void GPUSPH::doWrite()
 		doCommand(COMPUTE_TESTPOINTS);
 	}
 
-	gdata->writer->write(
+	Writer::Write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
 		node_offset,
 		gdata->t, gdata->problem->get_simparams()->testpoints);
-	gdata->problem->mark_written(gdata->t);
+	Writer::MarkWritten(gdata->t);
 
 	// TODO: enable energy computation and dump
 	/*calc_energy(m_hEnergy,
@@ -1149,6 +1185,10 @@ void GPUSPH::doWrite()
 		m_numParticles,
 		m_physparams->numFluids);
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
+
+	// always reset force-saving
+	if (force)
+		Writer::SetForced(false);
 }
 
 void GPUSPH::buildNeibList()
@@ -1241,13 +1281,14 @@ void GPUSPH::initializeBoundaryConditions()
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g MIPPS), maxneibs %u, %u files saved so far\n",
+	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
 			gdata->t, gdata->addSeparators(gdata->iterations).c_str(), gdata->dt,
-			gdata->addSeparators(gdata->totParticles).c_str(), m_performanceCounter->getMIPPS(gdata->iterations * gdata->totParticles),
-			gdata->lastGlobalPeakNeibsNum, gdata->writer->getLastFilenum()
+			gdata->addSeparators(gdata->totParticles).c_str(), m_intervalPerformanceCounter->getMIPPS(),
+			m_totalPerformanceCounter->getMIPPS(),
+			gdata->lastGlobalPeakNeibsNum
 			//ti.t, ti.iterations, ti.dt, ti.numParticles, (double) ti.meanNumInteractions,
 			//ti.meanTimeInteract, ((double)ti.meanNumInteractions)/ti.meanTimeInteract, ti.maxNeibs,
 			//ti.meanTimeNeibsList,
@@ -1274,6 +1315,50 @@ void GPUSPH::printParticleDistribution()
 	}
 	printf("   TOT:   %u particles\n", gdata->processParticles[ gdata->mpi_rank ]);
 }
+
+// print peer accessibility for all devices
+void GPUSPH::printDeviceAccessibilityTable()
+{
+	printf("Peer accessibility table:\n");
+	// init line
+	printf("-");
+	for (uint d = 0; d <= gdata->devices; d++) printf("--------");
+	printf("\n");
+
+	// header
+	printf("| READ >|");
+	for (uint d = 0; d < gdata->devices; d++)
+		printf(" %u (%u) |", d, gdata->device[d]);
+	printf("\n");
+
+	// header line
+	printf("-");
+	for (uint d = 0; d <= gdata->devices; d++) printf("--------");
+	printf("\n");
+
+	// rows
+	for (uint d = 0; d < gdata->devices; d++) {
+		printf("|");
+		printf(" %u (%u) |", d, gdata->device[d]);
+		for (uint p = 0; p < gdata->devices; p++) {
+			if (p == d)
+				printf("   -   |");
+			else
+			if (gdata->s_hDeviceCanAccessPeer[d][p])
+				printf("   Y   |");
+			else
+				printf("   n   |");
+		}
+		printf("\n");
+	}
+
+	// closing line
+	printf("-");
+	for (uint d = 0; d <= gdata->devices; d++) printf("--------");
+	printf("\n");
+}
+
+
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
 // NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)

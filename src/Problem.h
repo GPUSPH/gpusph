@@ -37,6 +37,7 @@
 #include <iostream>
 
 #include "Options.h"
+#include "Writer.h"
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
@@ -55,26 +56,15 @@ using namespace std;
 
 class Problem {
 	private:
-		float		m_last_display_time;
-		float		m_last_write_time;
 		float		m_last_rbdata_write_time;
-		float		m_last_screenshot_time;
 		string		m_problem_dir;
+		WriterList	m_writers;
 
 		const float	*m_dem;
 		int			m_ncols, m_nrows;
 
 		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
 	public:
-		enum WriterType
-		{
-			TEXTWRITER,
-			VTKWRITER,
-			VTKLEGACYWRITER,
-			CUSTOMTEXTWRITER,
-			UDPWRITER
-		};
-
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
 		enum SplitAxis
 		{
@@ -94,11 +84,7 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		float		m_displayinterval;
 		float		m_rbdata_writeinterval;
-		int			m_writefreq;
-		int			m_screenshotfreq;
-		WriterType	m_writerType;
 		FILE*		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }
@@ -161,11 +147,6 @@ class Problem {
 		uint3 const& get_gridsize(void) const
 		{
 			return m_gridsize;
-		};
-
-		WriterType get_writertype(void)
-		{
-			return m_writerType;
 		};
 
 		float density(float, int) const;
@@ -243,14 +224,26 @@ class Problem {
 		void add_gage(double x, double y, double z=0)
 		{ add_gage(make_double3(x, y, z)); }
 
-		bool need_display(float);
-		virtual bool need_write(float);
-		inline void mark_written(float t) { m_last_write_time = t; }
-		virtual bool need_write_rbdata(float);
+		// set the timer tick
+		void set_timer_tick(float t);
+
+		// add a new writer
+		void add_writer(WriterType wt, int freq = 1);
+
+		// return the list of writers
+		WriterList const& get_writers() const
+		{ return m_writers; }
+
+		// overridden in subclasses if they want explicit writes
+		// beyond those controlled by the writer(s) periodic time
+		virtual bool need_write(float) const;
+
+		// TODO these should be moved out of here into a specific writer
+		virtual bool need_write_rbdata(float) const;
 		void write_rbdata(float);
-		bool need_screenshot(float);
+
 		// is the simulation running at the given time?
-		bool finished(float);
+		bool finished(float) const;
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);

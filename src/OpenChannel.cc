@@ -32,8 +32,6 @@
 
 OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 {
-	m_writerType = VTKWRITER;
-
 	// SPH parameters
 	set_deltap(0.05f);
 	m_simparams.dt = 0.00004f;
@@ -79,9 +77,8 @@ OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.savenormals = false;
 
 	// Drawing and saving times
-	m_displayinterval = 0.001f;
-	m_writefreq = 100;
-	m_screenshotfreq = 10;
+	set_timer_tick(0.001f);
+	add_writer(VTKWRITER, 100);
 
 	// Name of problem used for directory creation
 	m_name = "OpenChannel";

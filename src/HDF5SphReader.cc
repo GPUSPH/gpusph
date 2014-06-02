@@ -6,7 +6,13 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#if USE_HDF5
 #include <hdf5.h>
+#else
+#include <stdexcept>
+#define NO_HDF5_ERR throw std::runtime_error("HDF5 support not compiled in")
+#endif
 
 #include <stdexcept>
 
@@ -21,13 +27,14 @@
 int
 HDF5SphReader::getNParts(const char *filename)
 {
+#if USE_HDF5
 	hid_t		loc_id, dataset_id, file_space_id;
 	hsize_t		*dims;
 	int		ndim;
 	int		npart;
 
 	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
-	dataset_id = H5Dopen(loc_id, DATASETNAME, H5P_DEFAULT);
+	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
 	file_space_id = H5Dget_space(dataset_id);
 
 	ndim = H5Sget_simple_extent_ndims(file_space_id);
@@ -40,17 +47,21 @@ HDF5SphReader::getNParts(const char *filename)
 	H5Fclose(loc_id);
 
 	return npart;
+#else
+	return 0;
+#endif
 }
 
 void
 HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 {
+#if USE_HDF5
 	hid_t		mem_type_id, loc_id, dataset_id, file_space_id, mem_space_id;
 	hsize_t		count[RANK], offset[RANK];
 	herr_t		status;
 
 	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
-	dataset_id = H5Dopen(loc_id, DATASETNAME, H5P_DEFAULT);
+	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
 
 	// Create the memory data type
 	mem_type_id = H5Tcreate (H5T_COMPOUND, sizeof(ReadParticles));
@@ -94,5 +105,8 @@ HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 	H5Sclose(mem_space_id);
 	H5Fclose(loc_id);
 	H5Tclose(mem_type_id);
+#else
+	NO_HDF5_ERR;
+#endif
 }
 

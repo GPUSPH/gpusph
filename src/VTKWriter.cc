@@ -23,9 +23,6 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// UINT_MAX
-#include <cstddef>
-
 #include <sstream>
 #include <stdexcept>
 
@@ -42,10 +39,15 @@ using namespace std;
 typedef unsigned char dev_idx_t;
 static const char dev_idx_str[] = "UInt8";
 
-VTKWriter::VTKWriter(const Problem *problem)
-  : Writer(problem)
+VTKWriter::VTKWriter(const GlobalData *_gdata)
+  : Writer(_gdata)
 {
-	string time_filename = m_dirname + "/VTUinp.pvd";
+	string time_filename = m_dirname + "/VTUinp";
+	// in case of multi-process, each process writes a different file
+	if (gdata && gdata->mpi_nodes > 1)
+		time_filename += "_n" + gdata->rankString();
+	time_filename += ".pvd";
+
     m_timefile = NULL;
     m_timefile = fopen(time_filename.c_str(), "w");
 
@@ -120,33 +122,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
-	// We write cell indices in Cell data, so the first thing to do is to count the number of
-	// (active) cells (where active = has particles in it). This is equal to the number of
-	// distinct cell indices we can find traversing the particleHash buffer. While we traverse it,
-	// we actually collect the cell indices (so we can just dump them at the end) and
-	// mark the offset at which each cell ends, which will be the 'offsets' DataArray
-	// for the cells.
-	// Both vectors are estimated to be numParts/4 elements long
-	std::vector<uint> cellIndex; cellIndex.reserve(numParts/4);
-	std::vector<uint> cellEnd; cellEnd.reserve(numParts/4);
-	uint last_hash = UINT_MAX;
-	for (uint i = node_offset; i < node_offset + numParts; ++i) {
-		uint hash = cellHashFromParticleHash( particleHash[i] );
-		if (hash != last_hash) {
-			// new cell
-			cellIndex.push_back(hash);
-			last_hash = hash;
-			// if we had a previous one, mark its end. Note that
-			// offset are counted in the array of saved particles,
-			// hence i - node_offset, not i
-			if (cellIndex.size() > 1) {
-				cellEnd.push_back(i - node_offset);
-			}
-		}
-	}
-	cellEnd.push_back(numParts); // 'close' last cell
-	const uint numCells = cellEnd.size();
-
 	// CSV file for tespoints
 	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
 	FILE *testpoints_file = NULL;
@@ -172,7 +147,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	fprintf(fid,"<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= '%s'>\n",
 		endianness[*(char*)&endian_int & 1]);
 	fprintf(fid," <UnstructuredGrid>\n");
-	fprintf(fid,"  <Piece NumberOfPoints='%u' NumberOfCells='%u'>\n", numParts, numCells);
+	fprintf(fid,"  <Piece NumberOfPoints='%d' NumberOfCells='%d'>\n", numParts, numParts);
 
 	fprintf(fid,"   <PointData Scalars='Pressure' Vectors='Velocity'>\n");
 
@@ -234,6 +209,10 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		offset += sizeof(dev_idx_t)*numParts+sizeof(int);
 	}
 
+	// cell index
+	scalar_array(fid, "UInt32", "CellIndex", offset);
+	offset += sizeof(uint)*numParts+sizeof(int);
+
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
@@ -274,17 +253,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	fprintf(fid,"   </Points>\n");
 
 	// Cells data
-	fprintf(fid,"   <CellData Scalars='CellIndex'>\n");
-	scalar_array(fid, "UInt32", "CellIndex", offset);
-	offset += sizeof(uint)*numCells+sizeof(int);
-	fprintf(fid,"   </CellData>\n");
 	fprintf(fid,"   <Cells>\n");
-	scalar_array(fid, "UInt32", "connectivity", offset);
+	scalar_array(fid, "Int32", "connectivity", offset);
 	offset += sizeof(uint)*numParts+sizeof(int);
-	scalar_array(fid, "UInt32", "offsets", offset);
-	offset += sizeof(uint)*numCells+sizeof(int);
+	scalar_array(fid, "Int32", "offsets", offset);
+	offset += sizeof(uint)*numParts+sizeof(int);
 	scalar_array(fid, "UInt8", "types", offset);
-	offset += sizeof(uchar)*numCells+sizeof(int);
+	offset += sizeof(uchar)*numParts+sizeof(int);
 	fprintf(fid,"   </Cells>\n");
 	fprintf(fid,"  </Piece>\n");
 
@@ -442,6 +417,14 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// it is slightly outside the domain.
 	}
 
+	// linearized cell index (NOTE: particles might be slightly off the belonging cell)
+	numbytes = sizeof(uint)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
+		uint value = cellHashFromParticleHash( particleHash[i] );
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
 	numbytes=sizeof(float)*3*numParts;
 
 	// velocity
@@ -508,39 +491,34 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		}
 	}
 
-	// position
 	numbytes=sizeof(double)*3*numParts;
+
+	// position
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		double *value = (double*)(pos + i);
 		fwrite(value, sizeof(*value), 3, fid);
 	}
 
-	// Cells data
-
-	// cell index
-	numbytes=sizeof(uint)*numCells;
-	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	fwrite(&cellIndex[0], numbytes, 1, fid);
-
+	numbytes=sizeof(int)*numParts;
 	// connectivity
-	numbytes=sizeof(uint)*numParts;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=0; i < numParts; i++) {
 		uint value = i;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
-
 	// offsets
-	numbytes=sizeof(uint)*numCells;
-	fwrite(&numbytes, sizeof(numbytes), 1, fid);
-	fwrite(&cellEnd[0], numbytes, 1, fid);
-
-	// types (currently all cells type=2, vertex cloud)
-	numbytes=sizeof(uchar)*numCells;
 	fwrite(&numbytes, sizeof(numbytes), 1, fid);
 	for (uint i=0; i < numParts; i++) {
-		uchar value = 2;
+		uint value = i+1;
+		fwrite(&value, sizeof(value), 1, fid);
+	}
+
+	// types (currently all cells type=1, single vertex, the particle)
+	numbytes=sizeof(uchar)*numParts;
+	fwrite(&numbytes, sizeof(numbytes), 1, fid);
+	for (uint i=0; i < numParts; i++) {
+		uchar value = 1;
 		fwrite(&value, sizeof(value), 1, fid);
 	}
 

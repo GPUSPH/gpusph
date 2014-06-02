@@ -59,9 +59,9 @@ void*	reduce_buffer = NULL;
 #define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph) \
 		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
 			forces, rbforces, rbtorques, \
-			pos, particleHash, cellStart, neibsList, particleRangeEnd, \
+			pos, particleHash, cellStart, neibsList, fromParticle, toParticle, \
 			deltap, slength, influenceradius, \
-			cfl, cflTVisc, \
+			cfl, cflTVisc, cflOffset, \
 			xsph, \
 			newGGam, vertPos, epsilon, movingBoundaries, \
 			keps_dkde, turbvisc)
@@ -373,49 +373,18 @@ const	particleinfo	*info,
 	CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 }
 
-float
-forces(
-	const	float4	*pos,
-	const	float2	* const vertPos[],
-	const	float4	*vel,
-			float4	*forces,
-	const	float4	*oldGGam,
-			float4	*newGGam,
-	const	float4	*boundelem,
-			float4	*rbforces,
-			float4	*rbtorques,
-			float4	*xsph,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	deltap,
-			float	slength,
-			float	dt,
-			bool	dtadapt,
-			float	dtadaptfactor,
-			bool	xsphcorr,
-	KernelType		kerneltype,
-			float	influenceradius,
-	const	float	epsilon,
-	const	bool	movingBoundaries,
-	ViscosityType	visctype,
-			float	visccoeff,
-			float	*turbvisc,
-			float	*keps_tke,
-			float	*keps_eps,
-			float2	*keps_dkde,
-			float	*cfl,
-			float	*cflTVisc,
-			float	*tempCfl,
-	SPHFormulation	sph_formulation,
-	BoundaryType	boundarytype,
-			bool	usedem)
+void
+forces_bind_textures(	const	float4	*pos,
+						const	float4	*vel,
+						const	float4	*oldGGam,
+						const	float4	*boundelem,
+						const	particleinfo	*info,
+						uint	numParticles,
+				ViscosityType	visctype,
+						float	*keps_tke,
+						float	*keps_eps,
+				BoundaryType	boundarytype)
 {
-	int dummy_shared = 0;
-
 	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
@@ -432,24 +401,12 @@ forces(
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, keps_tke, numParticles*sizeof(float)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
 	}
+}
 
-	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
-	#if (__COMPUTE__ == 20)
-	if (visctype == SPSVISC)
-		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
-	else
-		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
-	#endif
-	if (usedem)
-		BOUNDARY_SWITCH(true)
-	else
-		BOUNDARY_SWITCH(false)
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Forces kernel execution failed");
-
+void
+forces_unbind_textures(	ViscosityType	visctype,
+						BoundaryType	boundarytype)
+{
 	if (visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau1Tex));
@@ -471,38 +428,114 @@ forces(
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	}
+}
 
-	if (dtadapt) {
-		// cfl holds one value per block in the forces kernel call,
-		// so it holds numBlocks elements
-		float maxcfl = cflmax(numBlocks, cfl, tempCfl);
-		dt = dtadaptfactor*sqrtf(slength/maxcfl);
+float
+forces_dtreduce(	float	slength,
+				float	dtadaptfactor,
+		ViscosityType	visctype,
+				float	visccoeff,
+				float	*cfl,
+				float	*cflTVisc,
+				float	*tempCfl,
+				uint	numBlocks)
+{
+	// cfl holds one value per block in the forces kernel call,
+	// so it holds numBlocks elements
+	float maxcfl = cflmax(numBlocks, cfl, tempCfl);
+	float dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
-		if (visctype != ARTVISC) {
-			/* Stability condition from viscosity h²/ν */
-			float dt_visc = slength*slength/visccoeff;
-			switch (visctype) {
-				case KINEMATICVISC:
-				case SPSVISC:
-				/* ν = visccoeff/4 for kinematic viscosity */
-					dt_visc *= 4;
-					break;
+	if (visctype != ARTVISC) {
+		/* Stability condition from viscosity h²/ν */
+		float dt_visc = slength*slength/visccoeff;
+		switch (visctype) {
+			case KINEMATICVISC:
+			case SPSVISC:
+			/* ν = visccoeff/4 for kinematic viscosity */
+				dt_visc *= 4;
+				break;
 
-				case DYNAMICVISC:
-				/* ν = visccoeff for dynamic viscosity */
-					break;
-				case KEPSVISC:
-					dt_visc = slength*slength/(visccoeff + cflmax(numBlocks, cflTVisc, tempCfl));
-					break;
-				NOT_IMPLEMENTED_CHECK(Viscosity, visctype);
-				}
-			dt_visc *= 0.125;
-			if (dt_visc < dt)
-				dt = dt_visc;
-		}
-
+			case DYNAMICVISC:
+			/* ν = visccoeff for dynamic viscosity */
+				break;
+			case KEPSVISC:
+				dt_visc = slength*slength/(visccoeff + cflmax(numBlocks, cflTVisc, tempCfl));
+				break;
+			NOT_IMPLEMENTED_CHECK(Viscosity, visctype);
+			}
+		dt_visc *= 0.125;
+		if (dt_visc < dt)
+			dt = dt_visc;
 	}
+
+	// check if last kernel invocation generated an error
+	CUT_CHECK_ERROR("Forces kernel execution failed");
+
 	return dt;
+}
+
+// Returns numBlock for delayed dt reduction in case of striping
+uint
+forces(
+	const	float4	*pos,
+	const	float2	* const vertPos[],
+	const	float4	*vel,
+			float4	*forces,
+	const	float4	*oldGGam,
+			float4	*newGGam,
+	const	float4	*boundelem,
+			float4	*rbforces,
+			float4	*rbtorques,
+			float4	*xsph,
+	const	particleinfo	*info,
+	const	hashKey	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	fromParticle,
+			uint	toParticle,
+			float	deltap,
+			float	slength,
+			float	dt,
+			bool	dtadapt,
+			float	dtadaptfactor,
+			bool	xsphcorr,
+	KernelType		kerneltype,
+			float	influenceradius,
+	const	float	epsilon,
+	const	bool	movingBoundaries,
+	ViscosityType	visctype,
+			float	visccoeff,
+			float	*turbvisc,
+			float	*keps_tke,
+			float	*keps_eps,
+			float2	*keps_dkde,
+			float	*cfl,
+			float	*cflTVisc,
+			float	*tempCfl,
+			uint	cflOffset,
+	SPHFormulation	sph_formulation,
+	BoundaryType	boundarytype,
+			bool	usedem)
+{
+	int dummy_shared = 0;
+
+	const uint numParticlesInRange = toParticle - fromParticle;
+	// thread per particle
+	uint numThreads = min(BLOCK_SIZE_FORCES, numParticlesInRange);
+	uint numBlocks = div_up(numParticlesInRange, numThreads);
+	#if (__COMPUTE__ == 20)
+	if (visctype == SPSVISC)
+		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
+	else
+		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
+	#endif
+	if (usedem)
+		BOUNDARY_SWITCH(true)
+	else
+		BOUNDARY_SWITCH(false)
+
+	return numBlocks;
 }
 
 

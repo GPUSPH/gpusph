@@ -198,8 +198,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
 
-	m_writerType = VTKWRITER;
-
 	// Physical parameters
 	//m_physparams.gravity = make_float3(0.8, 0.0, 0.0); //body forse for plane Poiseuille flow
 	float g = length(m_physparams.gravity);
@@ -213,9 +211,8 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	m_displayinterval = 1.0e-4;
-	m_writefreq = 1000;
-	m_screenshotfreq = 0;
+	set_timer_tick(1.0e-4);
+	add_writer(VTKWRITER, 1000);
 
 	// Name of problem used for directory creation
 	m_name = "InputProblem";

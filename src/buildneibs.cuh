@@ -77,11 +77,16 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
-#if HASH_KEY_SIZE >= 64
 		 uint*		compactDeviceMap,
-#endif
 		 const uint		numParticles,
 		 const Periodicity	periodicbound);
+
+void
+fixHash(hashKey*	particleHash,
+		uint*		particleIndex,
+		const particleinfo* particleInfo,
+		uint*		compactDeviceMap,
+		const uint		numParticles);
 
 void
 inverseParticleIndex (	uint*	particleIndex,
@@ -90,9 +95,7 @@ inverseParticleIndex (	uint*	particleIndex,
 
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
-#if HASH_KEY_SIZE >= 64
-									uint*			segmentStart,
-#endif
+									uint*				segmentStart,
 									float4*				newPos,				// output: sorted positions
 									float4*				newVel,				// output: sorted velocities
 									particleinfo*		newInfo,			// output: sorted info

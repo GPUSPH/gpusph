@@ -26,6 +26,7 @@
 #include <stdexcept>
 
 #include "VTKLegacyWriter.h"
+#include "GlobalData.h"
 
 using namespace std;
 
@@ -34,8 +35,8 @@ static inline void print_lookup(FILE *fid)
 	fprintf(fid, "LOOKUP_TABLE default\n");
 }
 
-VTKLegacyWriter::VTKLegacyWriter(const Problem *problem)
-  : Writer(problem)
+VTKLegacyWriter::VTKLegacyWriter(const GlobalData *_gdata)
+  : Writer(_gdata)
 {
 	string time_filename = m_dirname + "/VTUinp.pvd";
     m_timefile = NULL;

@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2014 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,27 +23,28 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _VTKWRITER_H
-#define	_VTKWRITER_H
+#ifndef _DYNBOUNDSEXAMPLE_H
+#define _DYNBOUNDSEXAMPLE_H
 
-#include "Writer.h"
+#include "Problem.h"
 
-using namespace std;
-
-class VTKWriter : public Writer
+class DynBoundsExample: public Problem
 {
+	PointVect	parts;
+	PointVect	boundary_parts;
+	float	H; // still water level
+	float	W; // 2D cell side
+	float	w; // boundary thickness
+	float	alpha; // slope angle
+
 public:
-	VTKWriter(const GlobalData *_gdata);
-	~VTKWriter();
+	DynBoundsExample(const GlobalData *);
+	virtual ~DynBoundsExample(void);
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
-	virtual void write_WaveGage(float t, GageList const& gage);
+	int fill_parts(void);
+	void copy_to_array(BufferList &);
 
-private:
-	// open a file whose name is built from the given base and sequence number
-	// returns FILE object and stores the filename (without the dirname) into
-	// `filename` if it's not NULL
-	FILE *open_data_file(const char* base, string const& num, string *filename);
+	void release_memory(void);
 };
 
-#endif	/* _VTKWRITER_H */
+#endif

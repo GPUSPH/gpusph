@@ -43,6 +43,9 @@
 // buffers and buffer lists
 #include "buffer.h"
 
+// Bursts handling
+#include "bursts.h"
+
 // In GPUWoker we implement as "private" all functions which are meant to be called only by the simulationThread().
 // Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
@@ -84,6 +87,17 @@ private:
 
 	// enable direct p2p memory transfers
 	void enablePeerAccess();
+	// explicitly stage P2P transfers on host
+	bool m_disableP2Ptranfers;
+	// host buffers: pointer, size, resize method
+	void *m_hPeerTransferBuffer;
+	size_t m_hPeerTransferBufferSize;
+	void resizePeerTransferBuffer(size_t required_size);
+
+	// host buffers: pointer, size, resize method used if gpudirect is disabled
+	void *m_hNetworkTransferBuffer;
+	size_t m_hNetworkTransferBufferSize;
+	void resizeNetworkTransferBuffer(size_t required_size);
 
 	// utility pointers - the actual structures are in Problem
 	PhysParams*	m_physparams;
@@ -120,32 +134,49 @@ private:
 	uint*		m_hCompactDeviceMap;
 	uint*		m_dCompactDeviceMap;
 
+	// bursts of cells to be transferred
+	BurstList	m_bursts;
+
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
+
+	// number of blocks used in forces kernel runs (for delayed cfl reduction)
+	uint		m_forcesKernelTotalNumBlocks;
 
 	// stream for async memcpys
 	cudaStream_t m_asyncH2DCopiesStream;
 	cudaStream_t m_asyncD2HCopiesStream;
 	cudaStream_t m_asyncPeerCopiesStream;
 
+	// event to synchronize striping
+	cudaEvent_t m_halfForcesEvent;
+
 	// cuts all external particles
 	void dropExternalParticles();
 
+	// compute list of bursts
+	void computeCellBursts();
+	// iterate on the list and send/receive/read cell sizes
+	void transferBurstsSizes();
+	// iterate on the list and send/receive/read bursts of particles
+	void transferBursts();
+
 	// append or update the external cells of other devices in the device memory
-	void importPeerEdgeCells();
-	// MPI versions of the previous method
-	void importNetworkPeerEdgeCells();
+	void importExternalCells();
 	// aux methods for importPeerEdgeCells();
 	void peerAsyncTransfer(void* dst, int  dstDevice, const void* src, int  srcDevice, size_t count);
 	void asyncCellIndicesUpload(uint fromCell, uint toCell);
+
+	// wrapper for NetworkManage send/receive methods
+	void networkTransfer(uchar peer_gdix, TransferDirection direction, void* _ptr, size_t _size, uint bid = 0);
 
 	size_t allocateHostBuffers();
 	size_t allocateDeviceBuffers();
 	void deallocateHostBuffers();
 	void deallocateDeviceBuffers();
 
-	void createStreams();
-	void destroyStreams();
+	void createEventsAndStreams();
+	void destroyEventsAndStreams();
 
 	void printAllocatedMemory();
 
@@ -196,6 +227,15 @@ private:
 	/*void uploadMbData();
 	void uploadGravity();*/
 
+	// asynchronous alternative to kernel_force
+	void kernel_forces_async_enqueue();
+	void kernel_forces_async_complete();
+
+	// aux methods for forces kernel striping
+	uint enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset);
+	void bind_textures_forces();
+	void unbind_textures_forces();
+	float forces_dt_reduce();
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);

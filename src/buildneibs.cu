@@ -85,9 +85,7 @@ calcHash(float4*	pos,
 		 hashKey*	particleHash,
 		 uint*		particleIndex,
 		 const particleinfo* particleInfo,
-#if HASH_KEY_SIZE >= 64
 		 uint*		compactDeviceMap,
-#endif
 		 const uint		numParticles,
 		 const Periodicity	periodicbound)
 {
@@ -97,74 +95,42 @@ calcHash(float4*	pos,
 	switch (periodicbound) {
 		case PERIODIC_NONE:
 			cuneibs::calcHashDevice<PERIODIC_NONE><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_X:
 			cuneibs::calcHashDevice<PERIODIC_X><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_Y:
 			cuneibs::calcHashDevice<PERIODIC_Y><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_XY:
 			cuneibs::calcHashDevice<PERIODIC_XY><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_Z:
 			cuneibs::calcHashDevice<PERIODIC_Z><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_XZ:
 			cuneibs::calcHashDevice<PERIODIC_XZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_YZ:
 			cuneibs::calcHashDevice<PERIODIC_YZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		case PERIODIC_XYZ:
 			cuneibs::calcHashDevice<PERIODIC_XYZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-					   particleInfo,
-#if HASH_KEY_SIZE >= 64
-					   compactDeviceMap,
-#endif
-					   numParticles);
+						particleInfo, compactDeviceMap, numParticles);
 			break;
 
 		default:
@@ -174,6 +140,24 @@ calcHash(float4*	pos,
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
+
+void
+fixHash(hashKey*	particleHash,
+		 uint*		particleIndex,
+		 const particleinfo* particleInfo,
+		 uint*		compactDeviceMap,
+		 const uint		numParticles)
+{
+	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
+	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(particleHash, particleIndex,
+				particleInfo, compactDeviceMap, numParticles);
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("FixHash kernel execution failed");
+}
+
 
 void
 inverseParticleIndex (	uint*	particleIndex,
@@ -191,9 +175,7 @@ inverseParticleIndex (	uint*	particleIndex,
 
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
-#if HASH_KEY_SIZE >= 64
-									uint*			segmentStart,
-#endif
+									uint*				segmentStart,
 									float4*				newPos,				// output: sorted positions
 									float4*				newVel,				// output: sorted velocities
 									particleinfo*		newInfo,			// output: sorted info
@@ -245,10 +227,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
-	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd,
-#if HASH_KEY_SIZE >= 64
-													segmentStart,
-#endif
+	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
 												particleHash, particleIndex, numParticles, inversedParticleIndex);
 

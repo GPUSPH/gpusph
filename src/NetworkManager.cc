@@ -8,7 +8,17 @@
 #include "NetworkManager.h"
 // for GlobalData::RANK()
 #include <GlobalData.h>
+
+#if USE_MPI
 #include <mpi.h>
+#else
+#define MPI_MAX_PROCESSOR_NAME 256
+#define NO_MPI_ERR throw runtime_error("MPI support not compiled in")
+#endif
+
+#if USE_MPI
+static MPI_Request* m_requestsList;
+#endif
 
 // Uncomment the following to define DBG_PRINTF and enable printing the details of every call (uint and buffer).
 // Useful to check the correspondence among messages without compiling in debug mode
@@ -23,16 +33,37 @@ NetworkManager::NetworkManager() {
 	world_size = 0; // 1 process = single node. 0 is reserved for "uninitialized"
 	process_rank = -1; // -1 until initialization is done
 	processor_name_len = 0;
+
+	// MPIRequests for asynchronous calls
+	m_numRequests = 0;
+	m_requestsCounter = 0;
+#if USE_MPI
+	m_requestsList = NULL;
+#endif
 }
 
 NetworkManager::~NetworkManager() {
+#if USE_MPI
 	// TODO Auto-generated destructor stub
 	// TODO: finalize if not done yet
+	// MPIRequests for asynchronous calls
+	if (m_requestsList)
+		free(m_requestsList);
+#endif
+}
+
+void NetworkManager::setNumRequests(uint _numRequests)
+{
+	m_numRequests = _numRequests;
+#if USE_MPI
+	m_requestsList = (MPI_Request*)realloc(m_requestsList, m_numRequests * sizeof(MPI_Request));
+#endif
 }
 
 void NetworkManager::initNetwork() {
 	// initialize the MPI environment
 	// MPI_Init(NULL, NULL);
+#if USE_MPI
 	int result;
 	MPI_Init_thread(NULL, NULL, MPI_THREAD_MULTIPLE, &result);
 	if (result < MPI_THREAD_MULTIPLE) {
@@ -48,11 +79,14 @@ void NetworkManager::initNetwork() {
 
 	// get the name of the processor
 	MPI_Get_processor_name(processor_name, &processor_name_len);
+#endif
 }
 
 void NetworkManager::finalizeNetwork() {
 	// finalize the MPI environment
+#if USE_MPI
 	MPI_Finalize();
+#endif
 }
 
 int NetworkManager::getWorldSize() {
@@ -75,6 +109,7 @@ void NetworkManager::printInfo()
 
 void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -85,10 +120,14 @@ void NetworkManager::sendUint(unsigned char src_globalDevIdx, unsigned char dst_
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int *datum)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -109,10 +148,14 @@ void NetworkManager::receiveUint(unsigned char src_globalDevIdx, unsigned char d
 	else
 	if (actual_count != 1)
 		printf("WARNING: MPI_Get_count returned %d (expected 1)\n", actual_count);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -123,10 +166,14 @@ void NetworkManager::sendBuffer(unsigned char src_globalDevIdx, unsigned char ds
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Send returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data)
 {
+#if USE_MPI
 	unsigned int tag = ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
 
 #ifdef DBG_PRINTF
@@ -147,6 +194,93 @@ void NetworkManager::receiveBuffer(unsigned char src_globalDevIdx, unsigned char
 	else
 	if (actual_count != count)
 		printf("WARNING: MPI_Get_count returned %d (bytes), expected %u\n", actual_count, count);
+#else
+	NO_MPI_ERR;
+#endif
+}
+
+void NetworkManager::sendBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *src_data, uint bid)
+{
+#if USE_MPI
+	unsigned int tag = (bid << 16) | ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	int mpi_err = 0;
+
+	#ifdef DBG_PRINTF
+	printf("  ---- MPI BUFFER ASYNC src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
+	#endif
+
+	if (m_requestsCounter == (m_numRequests-1))
+		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring SEND!\n",
+			m_numRequests);
+	else
+		mpi_err = MPI_Isend(src_data, count, MPI_BYTE, GlobalData::RANK(dst_globalDevIdx), tag, MPI_COMM_WORLD,
+			&m_requestsList[m_requestsCounter++]);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_ISend returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
+}
+
+void NetworkManager::receiveBufferAsync(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, void *dst_data, uint bid)
+{
+#if USE_MPI
+	unsigned int tag = (bid << 16) | ((unsigned int)src_globalDevIdx << 8) | dst_globalDevIdx;
+	int mpi_err = 0;
+
+	#ifdef DBG_PRINTF
+	printf("  ---- MPI BUFFER ASYNC src %u dst %u cnt %u tag %u\n", src_globalDevIdx, dst_globalDevIdx, count, tag);
+	#endif
+
+	if (m_requestsCounter == (m_numRequests-1))
+		printf("WARNING: NetworkManager: %u was set as max number of requests, ignoring RECV!\n",
+			m_numRequests);
+	else
+		mpi_err = MPI_Irecv(dst_data, count, MPI_BYTE, GlobalData::RANK(src_globalDevIdx), tag, MPI_COMM_WORLD,
+		&m_requestsList[m_requestsCounter++]);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_IRecv returned error %d\n", mpi_err);
+
+	/* mpi_err = MPI_Get_count(&status, MPI_BYTE, &actual_count);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Get_count returned error %d\n", mpi_err);
+	else
+		if (actual_count != count)
+			printf("WARNING: MPI_Get_count returned %d (bytes), expected %u\n", actual_count, count); */
+#else
+	NO_MPI_ERR;
+#endif
+}
+
+void NetworkManager::waitAsyncTransfers()
+{
+#if USE_MPI
+	if (m_requestsCounter > 0)
+		MPI_Waitall(m_requestsCounter, m_requestsList, MPI_STATUSES_IGNORE);
+
+	// if one needs to check statuses one by one:
+	/*
+	for (uint i=0; i < m_requestsCounter; i++) {
+		MPI_Status status;
+		int actual_count;
+
+		MPI_Wait(&(m_requestsList[i]), &status);
+		// or:
+		// MPI_Wait(&(m_requestsList[i]), MPI_STATUS_IGNORE);
+
+		int mpi_err = MPI_Wait(&m_requestsList[i], &status);
+		MPI_Get_count(&status, MPI_BYTE, &actual_count);
+		// here we can read status.MPI_TAG and status.MPI_SOURCE for checking / debugging, but beware:
+		// status can be reset on the sender's side if successful
+	}
+	*/
+	m_requestsCounter = 0;
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 
@@ -244,6 +378,7 @@ void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char
 
 void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype)
 {
+#if USE_MPI
 	float previous_value = *buffer;
 	MPI_Op _operator = (rtype == MIN_REDUCTION ? MPI_MIN : MPI_SUM);
 
@@ -251,20 +386,29 @@ void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferEle
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 // send one int, gather the int from all nodes (allgather)
 void NetworkManager::allGatherUints(unsigned int *datum, unsigned int *recv_buffer)
 {
+#if USE_MPI
 	int mpi_err = MPI_Allgather(datum, 1, MPI_INT, recv_buffer, 1, MPI_INT, MPI_COMM_WORLD);
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allgather returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
 }
 
 // network barrier
 void NetworkManager::networkBarrier()
 {
+#if USE_MPI
 	MPI_Barrier(MPI_COMM_WORLD);
+#endif
 }
 #ifdef DBG_PRINTF
 #undef DBG_PRINTF

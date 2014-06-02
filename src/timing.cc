@@ -23,27 +23,19 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _VTKWRITER_H
-#define	_VTKWRITER_H
+/* Pseudo-implementation of clock_gettime() on Mac OS X */
 
-#include "Writer.h"
+#include "timing.h"
 
-using namespace std;
+#ifdef __APPLE__
 
-class VTKWriter : public Writer
-{
-public:
-	VTKWriter(const GlobalData *_gdata);
-	~VTKWriter();
-
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
-	virtual void write_WaveGage(float t, GageList const& gage);
-
-private:
-	// open a file whose name is built from the given base and sequence number
-	// returns FILE object and stores the filename (without the dirname) into
-	// `filename` if it's not NULL
-	FILE *open_data_file(const char* base, string const& num, string *filename);
-};
-
-#endif	/* _VTKWRITER_H */
+// NOTE: assuming this behaves similarly to CLOCK_MONOTONIC. This should be tested on a multi-GPU mac.
+int clock_gettime(int /*clk_id*/, struct timespec* t) {
+	struct timeval now;
+	int rv = gettimeofday(&now, NULL);
+	if (rv) return rv;
+	t->tv_sec  = now.tv_sec;
+	t->tv_nsec = now.tv_usec * 1000;
+	return 0;
+}
+#endif

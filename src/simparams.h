@@ -66,9 +66,6 @@ typedef struct SimParams {
 	uint			mlsfreq;			// frequency (in iterations) of MLS density filter
 	float			ferrari;			// coefficient for Ferrari correction
 	ViscosityType	visctype;			// viscosity type (1 artificial, 2 laminar)
-	uint			displayfreq;		// display update frequence (in seconds)
-	uint			savedatafreq;		// simulation data saving frequence (in displayfreq)
-	uint			saveimagefreq;		// screen capture frequence (in displayfreq)
 	bool			mbcallback;			// true if moving boundary velocity varies
 	bool			gcallback;			// true if using a variable gravity in problem
 	Periodicity		periodicbound;		// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)

@@ -33,6 +33,7 @@
 #ifndef PTP_H_
 #define PTP_H_
 
+#define PTP_VERSION 0
 #define PTP_UDP_PACKET_MAX 1472
 #define PTP_HEARTBEAT_TTL_S 1
 #define PTP_DEFAULT_CLIENT_PORT 50000
@@ -50,6 +51,8 @@ typedef struct __attribute__ ((packed)) {
 #define PTP_PARTICLES_PER_PACKET ((PTP_UDP_PACKET_MAX - PTP_PACKET_HEADER_SIZE) / sizeof(ptp_particle_data_t))
 
 typedef struct __attribute__ ((packed)) {
+    unsigned char   version;
+    pid_t           model_id;
     unsigned int total_particle_count;
     unsigned int particle_count;
     float t;

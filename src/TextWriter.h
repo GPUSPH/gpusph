@@ -32,7 +32,7 @@ using namespace std;
 class TextWriter : public Writer
 {
 public:
-	TextWriter(const Problem *problem);
+	TextWriter(const GlobalData *_gdata);
 	~TextWriter();
 
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
