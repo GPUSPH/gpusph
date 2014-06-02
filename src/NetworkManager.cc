@@ -79,6 +79,9 @@ void NetworkManager::initNetwork() {
 
 	// get the name of the processor
 	MPI_Get_processor_name(processor_name, &processor_name_len);
+#else
+	world_size = 1;
+	process_rank = 0;
 #endif
 }
 
