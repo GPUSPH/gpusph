@@ -15,6 +15,7 @@ static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
  *	StillWater			Periodic stillwater (lacking file)
  *	Spheric2			Spheric2 dambreak with obstacle
  *	Box					Small dambreak in a box
+ *	BoxCorner			Small dambreak in a box with a corner
  *	SmallChannelFlow	Small channel flow for debugging
  *
  */
@@ -75,8 +76,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	//Box (Dambreak)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "Box") {
-		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/0.box_blend_16.h5sph";
+	else if (SPECIFIC_PROBLEM.substr(0,3) == "Box") {
+		if (SPECIFIC_PROBLEM == "BoxCorner")
+			inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/box-corner/0.box_corner.h5sph";
+		else
+			inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/0.box_blend_16.h5sph";
 
 		set_deltap(0.125f);
 

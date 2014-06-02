@@ -335,15 +335,9 @@ struct sa_boundary_particle_output
 {
 	float4	gGam;
 
-	// the following is a hack to determine the discontinuous contributions from the
-	// gamma formulation so that they are only added once per wall
-	int		nPlanes;
-	float4	kPlane[MAXPLANES];
-
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
-		gGam(make_float4(0, 0, 0, 1)),
-		nPlanes(0)
+		gGam(make_float4(0, 0, 0, 1))
 	{}
 };
 
@@ -465,7 +459,7 @@ struct sa_boundary_neib_data
 		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
 		gamAS(Gamma<kerneltype>(params.slength, _relPos,
 				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
-				belem, pdata.oldGGam, pout.nPlanes, pout.kPlane,
+				belem, pdata.oldGGam,
 				params.epsilon, pdata.computeGamma))
 	{}
 };
@@ -1186,19 +1180,6 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
-	// Sometimes the above formula can run into small numerical issues. To avoid this we check with the estimate
-	// given by the old governing equation. If the values diverge too much, then we take the estimate as in general
-	// this hickup only shows up during one time step.
-	const float gamEstimate = pdata.oldGGam.w + 0.5f*params.dt*dot3(pdata.vel, pdata.oldGGam+pout.gGam);
-	if (fabs(pout.gGam.w - gamEstimate) > 10.0f*fmax(fabs(pdata.oldGGam.w-gamEstimate),params.epsilon) &&
-		sqlength3(pdata.oldGGam-pout.gGam)/(9.0f/16.0f/params.slength/params.slength) > params.epsilon*1e-2f &&
-		pout.gGam.w < 1.0f-params.epsilon &&
-		pdata.oldGGam.w > params.epsilon)
-	{
-//		printf("gam %e \t%e \t%e \t%e \t%e \t%e \t%e \t%d\n", gGam.x, gGam.y, gGam.z, gGam.w, 0.5f*dt*dot(lagrangianVel, as_float3(oldGam+gGam)), gGam.w - gamEstimate, sqlength3(oldGam-gGam)/(9.0f/16.0f/slength/slength), id(info));
-		pout.gGam = 0.5f*(pdata.oldGGam + pout.gGam);
-		pout.gGam.w = gamEstimate;
-	}
 	pout.force /= pout.gGam.w;
 }
 
