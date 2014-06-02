@@ -60,7 +60,7 @@ void*	reduce_buffer = NULL;
 		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
 			forces, rbforces, rbtorques, \
 			pos, particleHash, cellStart, neibsList, particleRangeEnd, \
-			dt, deltap, slength, influenceradius, \
+			deltap, slength, influenceradius, \
 			cfl, cflTVisc, \
 			xsph, \
 			newGGam, vertPos, epsilon, movingBoundaries, \
@@ -393,7 +393,6 @@ forces(
 			uint	particleRangeEnd,
 			float	deltap,
 			float	slength,
-			float	dt,
 			bool	dtadapt,
 			float	dtadaptfactor,
 			bool	xsphcorr,
@@ -414,6 +413,7 @@ forces(
 	BoundaryType	boundarytype,
 			bool	usedem)
 {
+	float dt;
 	int dummy_shared = 0;
 
 	// bind textures to read all particles, not only internal ones

@@ -1824,7 +1824,6 @@ void GPUWorker::kernel_forces()
 		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
 	}
 
-	// first step
 	if (numPartsToElaborate > 0 )
 		returned_dt = forces(
 						m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
@@ -1845,7 +1844,6 @@ void GPUWorker::kernel_forces()
 						numPartsToElaborate,
 						gdata->problem->m_deltap,
 						m_simparams->slength,
-						gdata->dt, // m_dt,
 						m_simparams->dtadapt,
 						m_simparams->dtadaptfactor,
 						m_simparams->xsph,
