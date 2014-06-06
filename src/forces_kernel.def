@@ -444,23 +444,20 @@ struct sa_boundary_neib_data
 	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params_t;
 	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
 
+	const uint index;
+
 	const	float4	belem;
 	const	float3&	normal_s;
 	// distance of particle to boundary element along the normal
 	const	float	r_as; // r_as as used by ptype == PT_FLUID, r_es as used by ptype == PT_VERTEX
 
-	const	float2	gamAS; // gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
-
 	__device__ __forceinline__
 	sa_boundary_neib_data(pdata_t const& pdata,  params_t const& params,
-		const uint index, float4 const& _relPos) :
+		const uint _index, float4 const& _relPos) :
+		index(_index),
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
-		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap)),
-		gamAS(Gamma<kerneltype>(params.slength, _relPos,
-				params.vertPos0[index], params.vertPos1[index], params.vertPos2[index],
-				belem, pdata.oldGGam,
-				params.epsilon, pdata.computeGamma))
+		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap))
 	{}
 };
 
@@ -517,8 +514,11 @@ struct common_neib_output
 	// density derivative
 	float	DrDt;
 
+	float2	gamAS; // gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
+
+
 	__device__ __forceinline__
-	common_neib_output() : DvDt(0), DrDt(0)
+	common_neib_output() : DvDt(0), DrDt(0), gamAS(make_float2(0))
 	{}
 };
 
@@ -624,7 +624,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 /// only in the case of SA_BOUNDARY
 template<BoundaryType>
 struct compute_gamma {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
+	template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -632,17 +632,21 @@ struct compute_gamma {
 };
 
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<KernelType kerneltype, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
-		pout.gGam.x += ndata.gamAS.x*ndata.belem.x;
-		pout.gGam.y += ndata.gamAS.x*ndata.belem.y;
-		pout.gGam.z += ndata.gamAS.x*ndata.belem.z;
-		pout.gGam.w -= ndata.gamAS.y;
+		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
+				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
+				ndata.belem, pdata.oldGGam,
+				params.epsilon, pdata.computeGamma);
+		pout.gGam.x += nout.gamAS.x*ndata.belem.x;
+		pout.gGam.y += nout.gamAS.x*ndata.belem.y;
+		pout.gGam.z += nout.gamAS.x*ndata.belem.z;
+		pout.gGam.w -= nout.gamAS.y;
 	}
 }
 
@@ -679,7 +683,7 @@ __device__ __forceinline__ void
 compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	if (ndata.ntype == PT_BOUNDARY) {
-		nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*ndata.gamAS.x;
+		nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
 	} else if (d_ferrari) {
 		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(pdata.info)]/pdata.sqC0;
 		const float3 ferraricor = (ndata.r > 1e-4*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) : make_float3(0.0);
@@ -903,7 +907,7 @@ __device__ __forceinline__ void
 compute_boundary_term<SA_BOUNDARY>::viscous_part<DYNAMICVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout, float3 const& vel_tau)
 {
-	nout.bound_term_visc = ndata.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/ndata.r_as*vel_tau;
+	nout.bound_term_visc = nout.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/ndata.r_as*vel_tau;
 }
 
 template<>
@@ -927,7 +931,7 @@ compute_boundary_term<SA_BOUNDARY>::viscous_part<KEPSVISC>::with
 	y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
 
 	const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-	nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*ndata.gamAS.x*u_t/denom_term;
+	nout.bound_term_visc = 2*pdata.vel.w*abs_u_t*nout.gamAS.x*u_t/denom_term;
 }
 
 template<>
@@ -938,7 +942,7 @@ compute_boundary_term<SA_BOUNDARY>::with(FP const& params, P const& pdata, N con
 	if (ndata.ntype != PT_BOUNDARY)
 		return;
 
-	nout.bound_term_pres = nout.DvDt*ndata.relVel.w*ndata.gamAS.x*ndata.normal_s;
+	nout.bound_term_pres = nout.DvDt*ndata.relVel.w*nout.gamAS.x*ndata.normal_s;
 
 	// velocity of fluid particle along the wall
 	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
@@ -968,7 +972,7 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	if (ndata.ntype == PT_BOUNDARY) {
 		pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
 			pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
-			ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * ndata.gamAS.x;
+			ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * nout.gamAS.x;
 	} else {
 		pout.diff_term_k += ndata.relPos.w*(
 			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
@@ -990,7 +994,7 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 	const float3 dvmul =
 		ndata.ntype == PT_BOUNDARY ?
-		ndata.gamAS.x*ndata.normal_s*ndata.relVel.w : // rhoGGam
+		nout.gamAS.x*ndata.normal_s*ndata.relVel.w : // rhoGGam
 		-as_float3(ndata.relPos)*ndata.f ; // rab*F
 
 	pout.dvx += ndata.relVel.x*dvmul;
@@ -1066,9 +1070,9 @@ compute_vertex_keps<SA_BOUNDARY, KEPSVISC>::with
 
 		const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
 
-		pout.force.x -= 2*abs_u_t*ndata.gamAS.x*u_t.x/denom_term;
-		pout.force.y -= 2*abs_u_t*ndata.gamAS.x*u_t.y/denom_term;
-		pout.force.z -= 2*abs_u_t*ndata.gamAS.x*u_t.z/denom_term;
+		pout.force.x -= 2*abs_u_t*nout.gamAS.x*u_t.x/denom_term;
+		pout.force.y -= 2*abs_u_t*nout.gamAS.x*u_t.y/denom_term;
+		pout.force.z -= 2*abs_u_t*nout.gamAS.x*u_t.z/denom_term;
 	} else {
 		const float visc = laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f, (d_visccoeff+pdata.turbVisc)*pdata.vel.w,
 			(d_visccoeff+ndata.turbVisc)*ndata.relVel.w);
@@ -1488,12 +1492,13 @@ forcesDevice(
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			/* Contributions from this neighbor */
-
 			forces_neib_output<boundarytype> nout;
 
 			/* Now compute the interactions based on pdata.info and ndata.info */
 
-			compute_gamma<boundarytype>::with(params, pdata, ndata, pout, nout);
+			// Compute gamma_as and |grad gamma_as| and add it to the respective values
+			// of the focal particle
+			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 			if (FLUID(pdata.info)) {
 
