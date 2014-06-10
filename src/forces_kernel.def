@@ -653,6 +653,20 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 /// A functor that computes the time derivative of rho
 template<BoundaryType>
 struct compute_density_derivative {
+	// common volumic Ferrari diffusion term
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	common_ferrari(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		// gravity correction for free-surface flows
+		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(pdata.info)]/pdata.sqC0;
+		// actual diffusion term
+		const float3 ferraricor = (ndata.r > 1e-4*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) : make_float3(0.0);
+		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
+		nout.DrDt += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	}
+
 	// auxiliary function, which is used as fallback also in the SA_BOUNDARY case
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
@@ -670,6 +684,10 @@ struct compute_density_derivative {
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
 		common_with(params, pdata, ndata, pout, nout);
+		if (d_ferrari) {
+			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
+			common_ferrari(params, pdata, ndata, pout, nout);
+		}
 		/* The second formulation takes into consideration the density ratio */
 		if (sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
@@ -683,13 +701,15 @@ __device__ __forceinline__ void
 compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	if (ndata.ntype == PT_BOUNDARY) {
+		// boundary term of div(v)
 		nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
-	} else if (d_ferrari) {
-		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(pdata.info)]/pdata.sqC0;
-		const float3 ferraricor = (ndata.r > 1e-4*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) : make_float3(0.0);
-		nout.DrDt = ndata.relPos.w*dot(as_float3(ndata.relVel) + d_ferrari*ferraricor, as_float3(ndata.relPos))*ndata.f;
 	} else {
+		// volumic term of div(v)
 		common_with(params, pdata, ndata, pout, nout);
+		if (d_ferrari) {
+			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
+			common_ferrari(params, pdata, ndata, pout, nout);
+		}
 	}
 
 	/* The second formulation takes into consideration the density ratio */
