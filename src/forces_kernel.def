@@ -739,9 +739,15 @@ __device__ __forceinline__ void
 compute_pressure_contrib<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	common_with<sph_formulation>(params, pdata, ndata, pout, nout);
-	// TODO FIXME this is only valid with SPH_F1
-	// is KEPSVISC compatible with SPH_F2? if so, find the formula in this case
-	nout.DvDt -= 2*ndata.keps_k/ndata.relVel.w/3.f;
+	// add the 1/\rho \grad (2/3 \rho k) contribution
+	switch (sph_formulation) {
+	case SPH_F1:
+		nout.DvDt -= 2.0f*ndata.keps_k/ndata.relVel.w/3.f;
+		break;
+	case SPH_F2:
+		nout.DvDt -= 2.0f*ndata.keps_k/pdata.vel.w/3.f;
+		break;
+	}
 }
 
 /// A functor that computes the mean velocity (XSPH)
