@@ -9,6 +9,8 @@
 // for GlobalData::RANK()
 #include <GlobalData.h>
 
+#include "mpi_select.opt"
+
 #if USE_MPI
 #include <mpi.h>
 #else

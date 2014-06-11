@@ -201,74 +201,18 @@ endif
 NVCC += -ccbin=$(CXX)
 
 
-# override: MPICXX - the MPI compiler
-MPICXX ?= $(shell which mpicxx)
-
-ifeq ($(MPICXX),)
-
-	# No MPI: give warning and set flag
-	TMP := $(info MPI compiler not found, multi-node will NOT be supported)
-
-	USE_MPI=0
-
-	# MPICXXOBJS will be compiled with the standard compiler
-	MPICXX=$(CXX)
-
-	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
-	LINKER ?= $(NVCC)
-
-else
-
-	USE_MPI=1
-
-	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
-	# but we also need to link with MPICXX, so we would like to use:
-	#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
-	# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
-	# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
-	# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
-	# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
-	# options required by MPICXX at link time:
-
-	## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
-	# We use -show because it's supported by all implementations (otherwise we'd have to detect
-	# if our compiler uses --showme:link or -link_info):
-	MPISHOWFLAGS := $(shell $(MPICXX) -show)
-	# But then we have to remove the compiler name from the proposed command line:
-	MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
-
-	# mpicxx might pass to the compiler options which nvcc might not understand
-	# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
-	# but that means that we cannot pass options which contains commas in them,
-	# since commas are already used to separate the parameters in --compiler-options.
-	# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
-	# a comma), so for the time being we just filter out the flags that we _know_
-	# will contain commas (i.e. -Wl,stuff,stuff,stuff).
-	# To make things even more complicated, nvcc does not accept -Wl, so we need
-	# to replace -Wl with --linker-options.
-	# The other options will be gathered into the --compiler-options passed at nvcc
-	# at link time.
-	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
-	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
-
-	LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
-
-	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
-
-endif
-
-# END of MPICXX mess
-
-# files to store last compile options: problem, dbg, compute, fastmath
+# files to store last compile options: problem, dbg, compute, fastmath, MPI usage
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
 HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
+MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
+
 # this is not really an option, but it follows the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
 
-OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE) $(MPI_SELECT_OPTFILE)
 
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -357,6 +301,81 @@ ifdef hash_key_size
 else
 	HASH_KEY_SIZE ?= 64
 endif
+
+
+# option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
+ifdef mpi
+	# does it differ from last?
+	ifneq ($(USE_MPI),$(mpi))
+		TMP := $(shell test -e $(MPI_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(USE_MPI)/$(mpi)/' $(MPI_SELECT_OPTFILE) )
+		# user choice
+		USE_MPI=$(mpi)
+	endif
+endif
+
+# override: MPICXX - the MPI compiler
+MPICXX ?= $(shell which mpicxx)
+
+ifeq ($(MPICXX),)
+	ifeq ($(USE_MPI),1)
+		TMP := $(error MPI use for requested, but no MPI compiler was found, aborting)
+	else
+		ifeq ($(USE_MPI),)
+			TMP := $(info MPI compiler not found, multi-node will NOT be supported)
+			USE_MPI = 0
+		endif
+	endif
+endif
+
+ifeq ($(USE_MPI),0)
+
+	# MPICXXOBJS will be compiled with the standard compiler
+	MPICXX=$(CXX)
+
+	# We have to link with NVCC because otherwise thrust has issues on Mac OSX.
+	LINKER ?= $(NVCC)
+
+else
+
+	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
+	# but we also need to link with MPICXX, so we would like to use:
+	#LINKER ?= $(filter-out -ccbin=%,$(NVCC)) -ccbin=$(MPICXX)
+	# which fails on recent Mac OSX because then NVCC thinks we're compiling with the GNU
+	# compiler, and thus passes the -dumpspecs option to it, which fails because Mac OSX
+	# is actually using clang in the end. ‘Gotta love them heuristics’, as Kevin puts it.
+	# The solution is to _still_ use NVCC with -ccbin=$(CXX) as linker, but add the
+	# options required by MPICXX at link time:
+
+	## TODO FIXME this is a horrible hack, there should be a better way to handle this nvcc+mpicxx mess
+	# We use -show because it's supported by all implementations (otherwise we'd have to detect
+	# if our compiler uses --showme:link or -link_info):
+	MPISHOWFLAGS := $(shell $(MPICXX) -show)
+	# But then we have to remove the compiler name from the proposed command line:
+	MPISHOWFLAGS := $(filter-out $(firstword $(MPISHOWFLAGS)),$(MPISHOWFLAGS))
+
+	# mpicxx might pass to the compiler options which nvcc might not understand
+	# (e.g. -pthread), so we need to pass mpicxx options through --compiler-options,
+	# but that means that we cannot pass options which contains commas in them,
+	# since commas are already used to separate the parameters in --compiler-options.
+	# We can't do sophisticated patter-matching (e.g. filtering on strings _containing_
+	# a comma), so for the time being we just filter out the flags that we _know_
+	# will contain commas (i.e. -Wl,stuff,stuff,stuff).
+	# To make things even more complicated, nvcc does not accept -Wl, so we need
+	# to replace -Wl with --linker-options.
+	# The other options will be gathered into the --compiler-options passed at nvcc
+	# at link time.
+	MPILDFLAGS = $(subst -Wl$(comma),--linker-options$(space),$(filter -Wl%,$(MPISHOWFLAGS))) $(filter -L%,$(MPISHOWFLAGS)) $(filter -l%,$(MPISHOWFLAGS))
+	MPICXXFLAGS = $(filter-out -L%,$(filter-out -l%,$(filter-out -Wl%,$(MPISHOWFLAGS))))
+
+	LINKER ?= $(NVCC) --compiler-options $(subst $(space),$(comma),$(strip $(MPICXXFLAGS))) $(MPILDFLAGS)
+
+	# (the solution is not perfect as it still generates some warnings, but at least it rolls)
+
+endif
+
+# END of MPICXX mess
+
 
 # --- Includes and library section start ---
 
@@ -467,9 +486,6 @@ CUFLAGS  ?=
 
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
-
-# Define USE_MPI according to the availability of MPICXX
-CPPFLAGS += -DUSE_MPI=$(USE_MPI)
 
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
@@ -619,6 +635,10 @@ $(HASH_KEY_SIZE_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines the size in bits of the hashKey used to sort the particles on the device. */" \
 		> $@
 	@echo "#define HASH_KEY_SIZE $(HASH_KEY_SIZE)" >> $@
+$(MPI_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
+		> $@
+	@echo "#define USE_MPI $(USE_MPI)" >> $@
 
 $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 	@echo "/* git version of GPUSPH. */" \
@@ -779,6 +799,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of HASH_KEY_SIZE from OPTFILES
 	$(CMDECHO)grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of USE_MPI from OPTFILES
+	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
