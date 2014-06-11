@@ -274,9 +274,6 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFIL
 vpath %.opt $(OPTSDIR)
 
 # check compile options used last time:
-# - was fastmath enabled? (1 or 0, empty if file doesn't exist)
-LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
 # - what is the size in bits of the hashKey? (currently 32 or 64, empty if file doesn't exist)
 LAST_HASH_KEY_SIZE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
 	grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f3 -d " ")
@@ -340,19 +337,15 @@ endif
 
 # option: fastmath - Enable or disable fastmath. Default: 0 (disabled)
 ifdef fastmath
-	# user chooses
-	FASTMATH=$(fastmath)
 	# does it differ from last?
-	ifneq ($(LAST_FASTMATH),$(FASTMATH))
+	ifneq ($(FASTMATH),$(fastmath))
 		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/FASTMATH $(FASTMATH)/FASTMATH $(fastmath)/' $(FASTMATH_SELECT_OPTFILE) )
+		# user choice
+		FASTMATH=$(fastmath)
 	endif
 else
-	ifeq ($(LAST_FASTMATH),)
-		FASTMATH=0
-	else
-		FASTMATH=$(LAST_FASTMATH)
-	endif
+	FASTMATH ?= 0
 endif
 
 # option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
@@ -792,6 +785,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)echo "DBG=$$(grep '\#define _DEBUG_' $(DBG_SELECT_OPTFILE) | wc -l)" >> $@
 	$(CMDECHO)# recover value of COMPUTE from OPTFILES
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of FASTMATH from OPTFILES
+	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
