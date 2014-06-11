@@ -277,9 +277,6 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFIL
 vpath %.opt $(OPTSDIR)
 
 # check compile options used last time:
-# - which problem? (name of problem, empty if file doesn't exist)
-LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-	grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f3 -d " ")
 # - was dbg enabled? (1 or 0, empty if file doesn't exist)
 # "strip" added for Mac compatibility: on MacOS wc outputs a tab...
 LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
@@ -303,25 +300,20 @@ endif
 
 # option: problem - Name of the problem. Default: $(PROBLEM) in makefile
 ifdef problem
-	# user chooses
-	PROBLEM=$(problem)
 	# if choice differs from last...
-	ifneq ($(LAST_PROBLEM),$(PROBLEM))
+	ifneq ($(PROBLEM),$(problem))
 		# check that the problem is in the problem list
-		ifneq ($(filter $(PROBLEM),$(PROBLEM_LIST)),$(PROBLEM))
-			TMP:=$(error No such problem ‘$(PROBLEM)’. Known problems: $(PROBLEM_LIST))
+		ifneq ($(filter $(problem),$(PROBLEM_LIST)),$(problem))
+			TMP:=$(error No such problem ‘$(problem)’. Known problems: $(PROBLEM_LIST))
 		endif
 		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/$(PROBLEM)/$(problem)/' $(PROBLEM_SELECT_OPTFILE) )
+		# user choice
+		PROBLEM=$(problem)
 	endif
 else
-	# no user choice, use last
-	ifeq ($(strip $(LAST_PROBLEM)),)
-		PROBLEM=DamBreak3D
-	else
-		PROBLEM=$(LAST_PROBLEM)
-	endif
+	PROBLEM ?= DamBreak3D
 endif
 
 # see above for dbg option description
@@ -802,8 +794,10 @@ deps: $(GPUDEPS) $(CPUDEPS)
 # making Makefile.conf depend on them.
 Makefile.conf: Makefile $(OPTFILES)
 	$(show_stage CONF,$@)
+	$(CMDECHO)# recover value of PROBLEM from OPTFILES
+	$(CMDECHO)grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' > $@
 	$(CMDECHO)# recover value of COMPUTE from OPTFILES
-	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' > $@
+	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
