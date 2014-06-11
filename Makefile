@@ -33,7 +33,7 @@ empty:=
 space:=$(empty) $(empty)
 
 # GPUSPH version
-GPUSPH_VERSION=$(shell git describe --tags --dirty 2> /dev/null)
+GPUSPH_VERSION=$(shell git describe --tags --dirty=+custom 2> /dev/null | sed -e 's/-\([0-9]\+\)/+\1/' -e 's/-g/-/' 2> /dev/null)
 
 ifeq ($(GPUSPH_VERSION), $(empty))
 $(warning Unable to determine GPUSPH version)
@@ -592,13 +592,9 @@ DOXYCONF = ./Doxygen_settings
 
 # otherwise
 # find if the working directory is dirty --this gives the number of changed files
-snap_date := $(shell git log -1 --format='%cd %h' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
-is_dirty:=
-ifneq ($(shell git status --porcelain 2> /dev/null | wc -l),0)
-	is_dirty:=+custom
-endif
+snap_date := $(shell git log -1 --format='%cd' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
 # snapshot tarball filename
-SNAPSHOT_FILE = ./GPUSPH-$(snap_date)$(is_dirty).tgz
+SNAPSHOT_FILE = ./GPUSPH-$(GPUSPH_VERSION)-$(snap_date).tgz
 
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 ifeq ($(plain), 1)
