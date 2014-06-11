@@ -26,6 +26,40 @@
 #ifndef _FORCES_KERNEL_AUX
 #define _FORCES_KERNEL_AUX
 
+/// This file defines the heavy-duty forcesDevice kernel (at the end).
+/// The kernel itself is now quite streamlined, and it only contains sequences
+/// of calls to templatized functors that do the actual job according to their
+/// specialization (based on SPH formulation, boundary type, viscosity type, etc).
+/// The functors themselves operate on sets of data structures which are also
+/// templatized based on the same parameters, and that include only the
+/// variables actually needed for each specialization.
+
+/// Some hints:
+/// * const-ify everything that can be made const
+/// * if the initialization of a would-be const member is complex, define an
+///   auxiliary function for it
+/// * functors use the 'with' operator. Both the functors and their operators
+///   may be templatized, as a way to circumvent the limits on partial template
+///   specializations imposed by C++
+/// * the kernel params, particle data, neighbor data etc are also complex templatized
+///   structures; you can work around this when having to declare the arguments to
+///   the functor operators by using generic typenames FP, P, N, OP, ON
+///   (for Forces Params, Particle, Neighbor, Output for Particle, Output from Neighbor)
+
+/// The file is thus structured:
+/// * a set of auxiliary functions, which are used later on to initialize
+///   const members of structures in one go; these are needed
+/// * particle data structures and output variables
+/// * neighbor data structures and output variables
+/// * functors for the computation of forces contributions
+/// * functors for post-processing and saving
+/// * global (shared) variables and their functors
+/// * the actual forcesDevice kernel
+
+/*
+ * Auxiliary functions, needed to initialize const members in one go
+ */
+
 /// Precompute pressure contribution to the momemntum equation.
 /// Two versions are available, one in the KEPS viscosity case,
 /// and a generic one
