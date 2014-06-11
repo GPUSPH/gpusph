@@ -556,8 +556,7 @@ CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
 # Doxygen configuration
 DOXYCONF = ./Doxygen_settings
 
-# otherwise
-# find if the working directory is dirty --this gives the number of changed files
+# Snapshot date: date of last commit (if possible), or current date
 snap_date := $(shell git log -1 --format='%cd' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
 # snapshot tarball filename
 SNAPSHOT_FILE = ./GPUSPH-$(GPUSPH_VERSION)-$(snap_date).tgz
