@@ -114,16 +114,6 @@ precalc_pressure<SPH_F2>(const float rho, particleinfo const& info, const float 
 	return P(rho, PART_FLUID_NUM(info)) + 2.0f*keps_k/rho/3.0f;
 }
 
-/* Compute the square of the at-rest speed of sound */
-__device__ __forceinline__
-float
-get_sqC0(particleinfo const& info)
-{
-	float c0 = d_sscoeff[PART_FLUID_NUM(info)];
-	return c0*c0;
-}
-
-
 /*
  * Particle data
  */
@@ -188,13 +178,6 @@ struct sspeed_particle_data
 // data used for SA_BOUNDARY
 struct sa_boundary_particle_data
 {
-	// square of at-rest sound speed. Would need modifications for multifluid
-	// This is used by fluid particles only
-	// TODO this should be computed once on the host and loaded into constant memory
-	// TODO this is actually needed by the Ferrari correction, not SA_BOUNDARY, but since
-	// we currently support the Ferrari correction only in the SA_BOUNDARY case, we put this here
-	const	float	sqC0;
-
 	// does this particle want to (re)compute gamma? see logic below
 	// this is used by vertex particles only
 	bool	computeGamma;
@@ -216,7 +199,6 @@ struct sa_boundary_particle_data
 	__device__ __forceinline__
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
-		sqC0(get_sqC0(info)),
 		computeGamma(FLUID(info) || (VERTEX(info) && params.movingBoundaries)),
 		// the actual oldGGam loading: this will also set computeGamma true if
 		// it was false but .w was < epsilon
@@ -702,17 +684,25 @@ template<BoundaryType>
 struct compute_density_derivative {
 
 	// common volumic Ferrari diffusion term
-	// TODO FIXME the Ferrari correction should be handled based on its own template
-	// parameter (use_ferrari or whatever), since it requires specific
-	// parameters that are NOT normally computed (such as sqC0) and we don't
-	// want it to gobble up registers when not used. Therefore, _currrently_ it
-	// does nothing, except in the SA_BOUNDARY case. When its use has been
-	// properly templatized it should be handled
+	// TODO the Ferrari correction should be handled based on its own template
+	// parameter (use_ferrari or whatever).
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	ferrari_correction(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
+	{
+		// gravity correction for free-surface flows
+		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(pdata.info)]/d_sqC0[PART_FLUID_NUM(pdata.info)];
+		// actual diffusion term
+		// TODO should use pdata.sspeed, ndata.sspeed, which should therefore be defined when use_ferrari is enabled
+		const float3 ferraricor = (ndata.r > 1e-4*params.slength) ?
+			max(soundSpeed(pdata.vel.w, PART_FLUID_NUM(pdata.info)),
+				soundSpeed(ndata.relVel.w, PART_FLUID_NUM(ndata.info)))*
+			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
+			make_float3(0.0);
+		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
+		nout.DrDt += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+	}
 
 	// auxiliary function, which is used as fallback also in the SA_BOUNDARY case
 	template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -731,12 +721,11 @@ struct compute_density_derivative {
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
 		common_with(params, pdata, ndata, pout, nout);
-#if 0 // TODO FIXME this should not be run-time selection. see also above
+		// TODO this should not be done at runtime, but as a template option
 		if (d_ferrari) {
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
-#endif
 		/* The second formulation takes into consideration the density ratio */
 		if (sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
@@ -744,22 +733,6 @@ struct compute_density_derivative {
 };
 
 /// Specialization in the SA_BOUNDARY case
-
-// TODO FIXME this should be templatized on a use_ferrari template param, not on SA_BOUNDARY.
-// In the mean time, since we support the Ferrari correction only at run-time, and only in the SA_BOUNDARY case,
-// we define it as part of the SA_BOUNDARY specialization
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_density_derivative<SA_BOUNDARY>::ferrari_correction(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// gravity correction for free-surface flows
-	const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(pdata.info)]/pdata.sqC0;
-	// actual diffusion term
-	const float3 ferraricor = (ndata.r > 1e-4*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) : make_float3(0.0);
-	// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-	nout.DrDt += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
-}
 
 template<>
 template<SPHFormulation sph_formulation, typename FP, typename P, typename N, typename OP, typename ON>
