@@ -66,14 +66,11 @@ endif
 MFILE_NAME = $(firstword $(MAKEFILE_LIST))
 MAKEFILE = $(CURDIR)/$(MFILE_NAME)
 
-# option: dbg - 0 no debugging, 1 enable debugging
-# (there are several switches below)
 DBG_SFX=_dbg
-ifeq ($(dbg), 1)
-	TARGET_SXF=$(DBG_SFX)
+ifeq ($(DBG), 1)
+	TARGET_SFX=$(DBG_SFX)
 else
-	dbg=0
-	TARGET_SXF=
+	TARGET_SFX=
 endif
 
 # directories: binary, objects, sources, expanded sources
@@ -86,7 +83,7 @@ DOCSDIR = ./docs
 OPTSDIR = ./options
 
 # target binary
-TARGETNAME := GPUSPH$(TARGET_SXF)
+TARGETNAME := GPUSPH$(TARGET_SFX)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
 # binary to list compute capabilities of installed devices
@@ -277,10 +274,6 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFIL
 vpath %.opt $(OPTSDIR)
 
 # check compile options used last time:
-# - was dbg enabled? (1 or 0, empty if file doesn't exist)
-# "strip" added for Mac compatibility: on MacOS wc outputs a tab...
-LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
-	grep "\#define _DEBUG_" $(DBG_SELECT_OPTFILE) | wc -l))
 # - was fastmath enabled? (1 or 0, empty if file doesn't exist)
 LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
 	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
@@ -316,11 +309,10 @@ else
 	PROBLEM ?= DamBreak3D
 endif
 
-# see above for dbg option description
+# option: dbg - 0 no debugging, 1 enable debugging
 # does dbg differ from last?
-ifneq ($(dbg), $(LAST_DBG))
-	# if last choice is empty, file probably doesn't exist and will be regenerated
-	ifneq ($(strip $(LAST_DBG)),)
+ifdef dbg
+	ifneq ($(DBG), $(dbg))
 		ifeq ($(dbg),1)
 			_SRC=undef
 			_REP=define
@@ -328,9 +320,9 @@ ifneq ($(dbg), $(LAST_DBG))
 			_SRC=define
 			_REP=undef
 		endif
-		# empty string in sed for Mac compatibility
 		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
 			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
+		DBG=$(dbg)
 	endif
 endif
 
@@ -796,6 +788,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(show_stage CONF,$@)
 	$(CMDECHO)# recover value of PROBLEM from OPTFILES
 	$(CMDECHO)grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' > $@
+	$(CMDECHO)# recover value of _DEBUG_ from OPTFILES
+	$(CMDECHO)echo "DBG=$$(grep '\#define _DEBUG_' $(DBG_SELECT_OPTFILE) | wc -l)" >> $@
 	$(CMDECHO)# recover value of COMPUTE from OPTFILES
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
