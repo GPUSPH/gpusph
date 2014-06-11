@@ -273,11 +273,6 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFIL
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
 
-# check compile options used last time:
-# - what is the size in bits of the hashKey? (currently 32 or 64, empty if file doesn't exist)
-LAST_HASH_KEY_SIZE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
-	grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f3 -d " ")
-
 # update GPUSPH_VERSION_OPTFILE if git version changed
 LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
 	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
@@ -352,19 +347,15 @@ endif
 # option:                 be 64 to enable multi-device simulations. For single-device simulations,
 # option:                 can be set to 32 to reduce memory usage. Default: 64
 ifdef hash_key_size
-	# user chooses
-	HASH_KEY_SIZE=$(hash_key_size)
 	# does it differ from last?
-	ifneq ($(LAST_HASH_KEY_SIZE),$(HASH_KEY_SIZE))
+	ifneq ($(HASH_KEY_SIZE),$(hash_key_size))
 		TMP:=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/HASH_KEY_SIZE $(LAST_HASH_KEY_SIZE)/HASH_KEY_SIZE $(HASH_KEY_SIZE)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
+			$(SED_COMMAND) 's/HASH_KEY_SIZE $(HASH_KEY_SIZE)/HASH_KEY_SIZE $(hash_key_size)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
 	endif
+	# user choice
+	HASH_KEY_SIZE=$(hash_key_size)
 else
-	ifeq ($(LAST_HASH_KEY_SIZE),)
-		HASH_KEY_SIZE=64
-	else
-		HASH_KEY_SIZE=$(LAST_HASH_KEY_SIZE)
-	endif
+	HASH_KEY_SIZE ?= 64
 endif
 
 # --- Includes and library section start ---
@@ -787,6 +778,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of FASTMATH from OPTFILES
 	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of HASH_KEY_SIZE from OPTFILES
+	$(CMDECHO)grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
