@@ -782,7 +782,7 @@ show:
 snapshot: $(SNAPSHOT_FILE)
 	$(CMDECHO)echo "Created $(SNAPSHOT_FILE)"
 
-$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.def $(SCRIPTSDIR)/
 	$(CMDECHO)tar czf $@ $^
 
 
