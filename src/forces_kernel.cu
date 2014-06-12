@@ -974,9 +974,9 @@ Gamma(	const	float	slength,
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
 	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
 		// Gaussian quadrature of 14th order
-		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+//		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
-//		float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		gradGamma_as += intVal.x;
 		gamma_as += intVal.y*dot3(boundElement,q_aSigma);
 	}
