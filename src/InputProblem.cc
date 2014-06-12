@@ -111,11 +111,13 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		//m_physparams.kinematicvisc = 1.0e-2f;
 		//m_simparams.visctype = DYNAMICVISC;
 		//m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+		//m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
 		// turbulent (as in agnes' paper)
 		m_physparams.kinematicvisc = 1.5625e-3f;
 		m_simparams.visctype = KEPSVISC;
 		m_physparams.gravity = make_float3(1.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 
 		m_simparams.tend = 100.0;
 		m_simparams.periodicbound = PERIODIC_XY;
@@ -125,7 +127,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
@@ -207,7 +208,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(l, w ,h);
 
 	// Physical parameters
-	//m_physparams.gravity = make_float3(0.8, 0.0, 0.0); //body forse for plane Poiseuille flow
 	float g = length(m_physparams.gravity);
 
 	m_physparams.dcoeff = 5.0f*g*H;
