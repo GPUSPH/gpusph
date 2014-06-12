@@ -16,7 +16,12 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
-# Include, if present a local Makefile.
+
+# Cached configuration. All settings that should be persistent across compilation
+# (until changed) should be stored here.
+sinclude Makefile.conf
+
+# Include, if present, a local Makefile.
 # This can be used by the user to set additional include paths
 # (INCPATH = ....)
 # library search paths
@@ -26,10 +31,6 @@
 # and general flags
 # CPPFLAGS, CXXFLAGS, CUFLAGS, LDFLAGS,
 sinclude Makefile.local
-
-# Cached configuration. All settings that should be persistent across compilation
-# (until changed) should be stored here.
-sinclude Makefile.conf
 
 # need for some substitutions
 comma:=,
