@@ -326,6 +326,10 @@ ifeq ($(MPICXX),)
 			USE_MPI = 0
 		endif
 	endif
+else
+	ifeq ($(USE_MPI),)
+		USE_MPI = 1
+	endif
 endif
 
 ifeq ($(USE_MPI),0)
