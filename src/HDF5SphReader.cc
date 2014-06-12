@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "hdf5_select.opt"
+
 #if USE_HDF5
 #include <hdf5.h>
 #else

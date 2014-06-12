@@ -208,11 +208,19 @@ COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
 FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
 HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
+HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
 
 # this is not really an option, but it follows the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
 
-OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE) $(MPI_SELECT_OPTFILE)
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) \
+		 $(DBG_SELECT_OPTFILE) \
+		 $(COMPUTE_SELECT_OPTFILE) \
+		 $(FASTMATH_SELECT_OPTFILE) \
+		 $(HASH_KEY_SIZE_SELECT_OPTFILE) \
+		 $(MPI_SELECT_OPTFILE) \
+		 $(HDF5_SELECT_OPTFILE) \
+		 $(GPUSPH_VERSION_OPTFILE)
 
 # Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -380,6 +388,19 @@ endif
 
 # END of MPICXX mess
 
+# option: hdf5 - 0 do not use HDF5, 1 use HDF5. Default: autodetect
+ifdef hdf5
+	# does it differ from last?
+	ifneq ($(USE_HDF5),$(hdf5))
+		TMP := $(shell test -e $(HDF5_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(USE_HDF5)/$(hdf5)/' $(HDF5_SELECT_OPTFILE) )
+		# user choice
+		USE_HDF5=$(hdf5)
+	endif
+else
+	# check if we can link to the HDF5 library, and disable HDF5 otherwise
+	USE_HDF5 ?= $(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
+endif
 
 # --- Includes and library section start ---
 
@@ -437,9 +458,6 @@ LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 ifeq ($(WE_USE_CLANG),1)
 	LIBS += -lc++
 endif
-
-# Check if we can link to the HDF5 library, and disable HDF5 otherwise
-USE_HDF5=$(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
 
 # link to the CUDA runtime library
 LIBS += -lcudart
@@ -643,6 +661,10 @@ $(MPI_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
 		> $@
 	@echo "#define USE_MPI $(USE_MPI)" >> $@
+$(HDF5_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if we are using HDF5 or not. */" \
+		> $@
+	@echo "#define USE_HDF5 $(USE_HDF5)" >> $@
 
 $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 	@echo "/* git version of GPUSPH. */" \
@@ -805,6 +827,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_MPI from OPTFILES
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES
+	$(CMDECHO)grep "\#define USE_HDF5" $(HDF5_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
