@@ -736,7 +736,7 @@ void GPUWorker::transferBursts()
 				}
 
 				// special treatment for big buffers (like TAU), since in that case we need to transfers all 3 arrays
-				if (bufkey != BUFFER_BIG) {
+				if (!(bufkey & BUFFER_BIG)) {
 					void *ptr = buf->get_offset_buffer(dbl_buf_idx, m_bursts[i].selfFirstParticle);
 					if (m_bursts[i].scope == NODE_SCOPE) {
 						// node scope: just read it
