@@ -38,6 +38,9 @@
 #include "kahan.h"
 #include "tensor.cu"
 
+// single-precision M_PI
+#define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
+
 // an auxiliary function that fetches the tau tensor
 // for particle i from the textures where it's stored
 __device__
@@ -753,10 +756,18 @@ wendlandOnSegment(const float q)
 		float tmp = (1.0f-q/2.0f);
 		float tmp4 = tmp*tmp;
 		tmp4 *= tmp4;
-		// wendland kernel
-		kernel = 21.0f/16.0f/M_PI*tmp4*(1.0f+2.0f*q);
-		// integrated wendland kernel
-		intKernel = 1.0f/32.0f/M_PI/(q*q*q)*tmp4*tmp*(8.0f+20.0f*q+30.0f*q*q+21.0f*q*q*q);
+
+// Wendland coefficient: 21/(16 π)
+#define WENDLAND_K_COEFF 0.417781725616225256393319878852850200340456570068698177962626f
+// Integrated Wendland coefficient: 1/(32 π)
+#define WENDLAND_I_COEFF 0.009947183943243458485555235210782147627153727858778528046729f
+
+		// Wendland kernel
+		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
+
+		// integrated Wendland kernel
+		const float uq = 1/q;
+		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8*uq + 20)*uq + 30)*uq) + 21);
 	}
 
 	return make_float2(kernel, intKernel);
@@ -930,16 +941,18 @@ Gamma(	const	float	slength,
 		}
 		// additional value of grad gamma
 		const float openingAngle = acos(dot3((v1-v0),(v2-v0))/sqrt(sqlength3(v1-v0)*sqlength3(v2-v0)));
-		gradGamma_as = 3.0f/4.0f*openingAngle/2.0f/M_PI;
+		gradGamma_as = openingAngle*0.1193662073189215018266628225293857715258447343053423f; // 3/(8π)
+
 		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
 		float l1 = length3(v1-v0);
 		float l2 = length3(v2-v0);
 		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
 		float d = dot3(oldGGam,cross3((v1-v0),(v2-v0)))/l1/l2;
+
 		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
 		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
-		gamma_vs = SolidAngle/4.0f/M_PI;
+		gamma_vs = SolidAngle*0.079577471545947667884441881686257181017229822870228224373833f; // 1/(4π)
 	}
 	// check if particle is on an edge
 	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
@@ -947,13 +960,16 @@ Gamma(	const	float	slength,
 				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
 			 ) && q_aSigma.w < epsilon) {
 		// grad gamma for a half-plane
-		gradGamma_as = 3.0f/4.0f/2.0f;
+		gradGamma_as = 0.375f; // 3.0f/4.0f/2.0f;
+
 		// compute the angle between a segment and -gradgamma
 		const float theta0 = acos(dot3(boundElement,oldGGam)); // angle of the norms between 0 and pi
 		const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
 		const float4 normDir = cross3(boundElement, oldGGam); // this is the sin between the two norms
-		const float theta = M_PI + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
-		gamma_vs = theta/2.0f/M_PI; // this is actually two times gamma_as
+		const float theta = M_PIf + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+
+		// this is actually two times gamma_as:
+		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
 	}
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
 	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
@@ -997,7 +1013,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 		uint neib_cell_base_index = 0;
 		float3 pos_corr;
 
-		priv[index] = 0.0;
+		priv[index] = 0;
 
 		// Loop over all the neighbors
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1018,7 +1034,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 			#endif
 			float r = length(as_float3(relPos));
 			if (r < inflRadius)
-				priv[index] += 1.0;
+				priv[index] += 1;
 		}
 
 	}
@@ -1880,7 +1896,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	}
 
 	// Renormalization by the Shepard filter
-	if(alpha>1e-5) {
+	if(alpha>1e-5f) {
 		vel = temp/alpha;
 	}
 	else {

@@ -695,11 +695,11 @@ struct compute_density_derivative {
 		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[PART_FLUID_NUM(pdata.info)]/d_sqC0[PART_FLUID_NUM(pdata.info)];
 		// actual diffusion term
 		// TODO should use pdata.sspeed, ndata.sspeed, which should therefore be defined when use_ferrari is enabled
-		const float3 ferraricor = (ndata.r > 1e-4*params.slength) ?
+		const float3 ferraricor = (ndata.r > 1e-4f*params.slength) ?
 			max(soundSpeed(pdata.vel.w, PART_FLUID_NUM(pdata.info)),
 				soundSpeed(ndata.relVel.w, PART_FLUID_NUM(ndata.info)))*
 			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
-			make_float3(0.0);
+			make_float3(0.0f);
 		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
 		nout.DrDt += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
 	}
