@@ -624,6 +624,11 @@ SPSstressMatrixDevice(	const float4* posArray,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
+
+	// skip inactive particles
+	if (INACTIVE(pos))
+		return;
+
 	const float4 vel = tex1Dfetch(velTex, index);
 
 	// SPS stress matrix elements
