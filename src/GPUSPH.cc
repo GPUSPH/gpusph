@@ -249,11 +249,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
+		printf("keps\n");
 		problem->init_keps(
 			gdata->s_hBuffers.getData<BUFFER_TKE>(),
 			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
 			gdata->totParticles,
-			gdata->s_hBuffers.getData<BUFFER_INFO>());
+			gdata->s_hBuffers.getData<BUFFER_INFO>(),
+			gdata->s_hBuffers.getData<BUFFER_POS>(),
+			gdata->s_hBuffers.getData<BUFFER_HASH>());
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");

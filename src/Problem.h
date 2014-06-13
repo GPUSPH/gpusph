@@ -275,7 +275,7 @@ class Problem {
 		int	get_ODE_bodies_numparts(void) const;
 		int	get_ODE_body_numparts(const int) const;
 
-		void init_keps(float*, float*, uint, particleinfo*);
+		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
