@@ -19,6 +19,7 @@ class InputProblem: public Problem {
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
+		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 
 		void release_memory(void) {};
 };

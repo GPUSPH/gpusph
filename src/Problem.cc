@@ -874,7 +874,7 @@ Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, floa
 }
 
 void
-Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info)
+Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
 {
 	const float Lm = fmax(2*m_deltap, 1e-5f);
 	const float k0 = pow(0.002f*m_physparams.sscoeff[0], 2);

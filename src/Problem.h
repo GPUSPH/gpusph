@@ -308,7 +308,7 @@ class Problem {
 		void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
 			const float *linvel, const float *angvel);
 
-		void init_keps(float*, float*, uint, particleinfo*);
+		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
