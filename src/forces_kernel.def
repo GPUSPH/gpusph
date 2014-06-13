@@ -176,6 +176,7 @@ struct sspeed_particle_data
 };
 
 // data used for SA_BOUNDARY
+template<ViscosityType visctype>
 struct sa_boundary_particle_data
 {
 	// does this particle want to (re)compute gamma? see logic below
@@ -199,7 +200,7 @@ struct sa_boundary_particle_data
 	__device__ __forceinline__
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
-		computeGamma(FLUID(info) || (VERTEX(info) && params.movingBoundaries)),
+		computeGamma(FLUID(info) || (VERTEX(info) && (params.movingBoundaries || visctype==KEPSVISC))),
 		// the actual oldGGam loading: this will also set computeGamma true if
 		// it was false but .w was < epsilon
 		oldGGam(fetchNormalizedOldGamma(index, params.epsilon, computeGamma))
@@ -306,7 +307,7 @@ struct forces_particle_data :
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
 	COND_STRUCT(boundarytype == SA_BOUNDARY,
-		sa_boundary_particle_data),
+		sa_boundary_particle_data<visctype>),
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
 	COND_STRUCT(visctype == KEPSVISC,
 		keps_particle_data),
@@ -334,7 +335,7 @@ struct forces_particle_data :
 		rb_particle_data(_info),
 		vel_particle_data(_index),
 		COND_STRUCT(boundarytype == SA_BOUNDARY,
-			sa_boundary_particle_data)(_index, _info, params),
+			sa_boundary_particle_data<visctype>)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
