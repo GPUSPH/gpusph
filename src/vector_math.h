@@ -892,6 +892,13 @@ static __inline__ __host__ __device__ float4 normalize(const float4 &v)
 	return v * invLen;
 }
 
+// normalize for float4 but act as if they are float3s
+static __inline__ __host__ __device__ float4 normalize3(const float4 &v)
+{
+	float invLen = rsqrtf(sqlength3(v));
+	return make_float4(v.x*invLen, v.y*invLen, v.z*invLen, v.w);
+}
+
 // floor
 static __inline__ __host__ __device__ float4 floor(const float4 &v)
 {
