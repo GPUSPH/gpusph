@@ -11,11 +11,12 @@ static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
  *
  *	Keyword			Description
  ***********************************************
- *	StillWater			Periodic stillwater (lacking file)
- *	Spheric2			Spheric2 dambreak with obstacle
- *	Box					Small dambreak in a box
- *	BoxCorner			Small dambreak in a box with a corner
- *	SmallChannelFlow	Small channel flow for debugging
+ *	StillWater				Periodic stillwater (lacking file)
+ *	Spheric2				Spheric2 dambreak with obstacle
+ *	Box						Small dambreak in a box
+ *	BoxCorner				Small dambreak in a box with a corner
+ *	SmallChannelFlow		Small channel flow for debugging
+ *	SmallChannelFlowKEPS	Small channel flow for debugging using k-epsilon
  *
  */
 
@@ -99,18 +100,35 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	}
 	//*************************************************************************************
 
-	//SmallChannelFlow (a small channel flow for debugging viscosity and k-epsilon)
+	//SmallChannelFlow (a small channel flow for debugging viscosity)
 	//*************************************************************************************
 	else if (SPECIFIC_PROBLEM == "SmallChannelFlow") {
 		h5File.setFilename("meshes/0.small_channel.h5sph");
 
 		set_deltap(0.0625f);
 
-		// laminar
-		//m_physparams.kinematicvisc = 1.0e-2f;
-		//m_simparams.visctype = DYNAMICVISC;
-		//m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
-		//m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
+		m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+
+		m_simparams.tend = 100.0;
+		m_simparams.periodicbound = PERIODIC_XY;
+		m_simparams.testpoints = false;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
+		H = 1.0;
+		l = 1.0; w = 1.0; h = 1.02;
+		m_origin = make_double3(-0.5, -0.5, -0.51);
+		m_simparams.calcPrivate = true;
+	}
+
+	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
+	//*************************************************************************************
+	else if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
+
+		set_deltap(0.05f);
 
 		// turbulent (as in agnes' paper)
 		m_physparams.kinematicvisc = 1.5625e-3f;
@@ -123,10 +141,10 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
-		H = 1.0;
-		l = 1.0; w = 1.0; h = 1.02;
-		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_simparams.calcPrivate = true;
+		H = 2.0;
+		l = 0.8; w = 0.8; h = 2.02;
+		m_origin = make_double3(-0.4, -0.4, -1.01);
+		m_simparams.calcPrivate = false;
 	}
 	//*************************************************************************************
 	// Fishpass
