@@ -4,14 +4,17 @@
 #include <string>
 
 #include "Problem.h"
+#include "HDF5SphReader.h"
 
 class InputProblem: public Problem {
 	private:
-		string		inputfile;
-		int			numparticles;
-		PointVect	test_points;
-		double		w, l, h;
-		double		H;				// water level (used to set D constant)
+		string			inputfile;
+		int				numparticles;
+		PointVect		test_points;
+		double			w, l, h;
+		double			H;				// water level (used to set D constant)
+		HDF5SphReader	h5File;
+
 
 	public:
 		InputProblem(const GlobalData *);
