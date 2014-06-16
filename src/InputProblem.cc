@@ -167,29 +167,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 //	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
 //	//*************************************************************************************
 
-//	// Poiseuille flow
-//	//*************************************************************************************
-//	inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.02.h5sph";
-//
-//	set_deltap(0.02f);
-//
-//	m_simparams.testpoints = false;
-//	H = 1.0;
-//	l = 0.26; w = 0.26; h = 1.0;
-//
-//	m_physparams.kinematicvisc = 0.1f;
-//	m_physparams.gravity = make_float3(0.8, 0.0, 0.0);		// laminar
-//
-//	//m_physparams.kinematicvisc = 0.00078125f;
-//	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
-//
-//	//periodic boundaries
-//	m_simparams.periodicbound = true;
-//	m_physparams.dispvect = make_float3(l, w, 0.0f);
-//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-//	m_physparams.maxlimit = make_float3(l, w, 0.0f);
-//	//*************************************************************************************
-
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
