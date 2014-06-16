@@ -376,17 +376,3 @@ InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, fl
 		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*m_deltap);
 	}
 }
-
-void
-InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
-{
-	const float k0 = 1.0f/sqrtf(0.09f);
-
-	for (uint i = 0; i < numpart; i++) {
-		const unsigned int cellHash = cellHashFromParticleHash(hash[i]);
-		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
-		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
-		k[i] = k0;
-		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*m_deltap);
-	}
-}
