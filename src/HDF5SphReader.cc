@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <fstream>
 
 #include "hdf5_select.opt"
 
@@ -26,16 +27,23 @@
 // Dataset dimensions
 #define RANK 1
 
+HDF5SphReader::HDF5SphReader(void) {
+	filename = "";
+	npart = UINT_MAX;
+	buf = NULL;
+}
+
 int
-HDF5SphReader::getNParts(const char *filename)
+HDF5SphReader::getNParts()
 {
 #if USE_HDF5
+	if (npart != UINT_MAX)
+		return npart;
 	hid_t		loc_id, dataset_id, file_space_id;
 	hsize_t		*dims;
 	int		ndim;
-	int		npart;
 
-	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
+	loc_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, H5P_DEFAULT);
 	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
 	file_space_id = H5Dget_space(dataset_id);
 
@@ -55,14 +63,21 @@ HDF5SphReader::getNParts(const char *filename)
 }
 
 void
-HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
+HDF5SphReader::read()
 {
 #if USE_HDF5
+	std::cout << std::endl << "Reading particle data from the input:" << std::endl << filename << std::endl;
+	if(buf == NULL)
+		buf = new ReadParticles[npart];
+	else{
+		delete [] buf;
+		buf = new ReadParticles[npart];
+	}
 	hid_t		mem_type_id, loc_id, dataset_id, file_space_id, mem_space_id;
 	hsize_t		count[RANK], offset[RANK];
 	herr_t		status;
 
-	loc_id = H5Fopen(filename,H5F_ACC_RDONLY, H5P_DEFAULT);
+	loc_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, H5P_DEFAULT);
 	dataset_id = H5Dopen2(loc_id, DATASETNAME, H5P_DEFAULT);
 
 	// Create the memory data type
@@ -85,7 +100,7 @@ HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 	H5Tinsert(mem_type_id, "VertexParticle3", HOFFSET(ReadParticles, VertexParticle3), H5T_NATIVE_INT);
 
 	//create a memory file_space_id independently
-	count[0] = num;
+	count[0] = npart;
 	offset[0] = 0;
 	mem_space_id = H5Screate_simple (RANK, count, NULL);
 
@@ -112,3 +127,23 @@ HDF5SphReader::readParticles(ReadParticles *buf, const char *filename, int num)
 #endif
 }
 
+void
+HDF5SphReader::empty()
+{
+	if(buf != NULL){
+		delete [] buf;
+		buf = NULL;
+	}
+}
+
+void
+HDF5SphReader::setFilename(std::string fn)
+{
+	// copy filename
+	filename = fn;
+	// check whether file exists
+	std::ifstream f(filename.c_str());
+	if(!f.good())
+		fprintf(stderr, "WARNING: Could not open H5SPH file: %s", filename.c_str());
+	f.close();
+}

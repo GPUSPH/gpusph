@@ -1,11 +1,16 @@
 /*
   This file has been extracted from "Sphynx" code.
-  Originally developed by Arno Mayrhofer (?), Christophe Kassiotis (?), Martin Ferrand (?).
+  Originally developed by Arno Mayrhofer (2013), Christophe Kassiotis (2013), Martin Ferrand (2013).
   It contains a class for reading *.h5sph files - input files in hdf5 format.
 */
+#include <string>
+#include <iostream>
 
 class HDF5SphReader {
-public:
+private:
+	std::string	filename;
+	uint	npart;
+
 	struct ReadParticles {
 		double Coords_0;
 		double Coords_1;
@@ -25,7 +30,21 @@ public:
 		int VertexParticle3;
 	};
 
-	static int getNParts(const char *filename);
+public:
+	// constructor
+	HDF5SphReader(void);
 
-	static void readParticles(ReadParticles *buf, const char *filename, int num);
+	// returns the number of particles in the h5sph file
+	int getNParts(void);
+
+	// allocates the buffer and reads the data from the h5sph file
+	void read(void);
+
+	// frees the buffer
+	void empty(void);
+
+	// sets the filename
+	void setFilename(std::string);
+
+	ReadParticles *buf;
 };

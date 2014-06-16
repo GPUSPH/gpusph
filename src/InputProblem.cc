@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include "InputProblem.h"
-#include "HDF5SphReader.h"
 #include "GlobalData.h"
 
 static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
@@ -29,7 +28,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//StillWater periodic (symmetric)
 	//*************************************************************************************
 	if (SPECIFIC_PROBLEM == "StillWater") {
-		inputfile = "/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph";
+		h5File.setFilename("/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph");
 
 		set_deltap(0.1f);
 
@@ -52,7 +51,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//Spheric2 (DamBreak)
 	//*************************************************************************************
 	else if (SPECIFIC_PROBLEM == "Spheric2") {
-		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/140311-spheric2/0.spheric2.h5sph";
+		h5File.setFilename("meshes/0.spheric2.h5sph");
 
 		set_deltap(0.01833f);
 
@@ -75,9 +74,9 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//*************************************************************************************
 	else if (SPECIFIC_PROBLEM.substr(0,3) == "Box") {
 		if (SPECIFIC_PROBLEM == "BoxCorner")
-			inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/box-corner/0.box_corner.h5sph";
+			h5File.setFilename("meshes/0.box_corner.h5sph");
 		else
-			inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/111116-box/0.box_blend_16.h5sph";
+			h5File.setFilename("meshes/0.box_blend_16.h5sph");
 
 		set_deltap(0.125f);
 
@@ -100,7 +99,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//SmallChannelFlow (a small channel flow for debugging viscosity and k-epsilon)
 	//*************************************************************************************
 	else if (SPECIFIC_PROBLEM == "SmallChannelFlow") {
-		inputfile = "/home/arnom/work/post-doc-2013/crixus/crixus-build/geometries/140109-small-channel/0.small_channel.h5sph";
+		h5File.setFilename("meshes/0.small_channel.h5sph");
 
 		set_deltap(0.0625f);
 
@@ -131,7 +130,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//*************************************************************************************
 	// Poitier geometry
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/wrong.fishpass_covered_0.0075_sl10.h5sph";
+//	h5File.setFilename("/home/vorobyev/Crixus/geometries/fishpass3D/wrong.fishpass_covered_0.0075_sl10.h5sph");
 
 //	set_deltap(0.0075f);
 
@@ -144,7 +143,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	// BAW geometry
 //	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//	inputfile = "/home/vorobyev/Crixus/geometries/fishpass3D/0.BAW.fishpass.0.01.h5sph";
+//	h5File.setFilename("/home/vorobyev/Crixus/geometries/fishpass3D/0.BAW.fishpass.0.01.h5sph");
 
 //	set_deltap(0.01f);
 
@@ -219,9 +218,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 int InputProblem::fill_parts()
 {
-	std::cout << std::endl << "Reading particle data from the input:" << std::endl << inputfile << std::endl;
-	const char *ch_inputfile = inputfile.c_str();
-
 	// Setting probes for Spheric2 test case
 	//*******************************************************************
 	if (SPECIFIC_PROBLEM == "Box") {
@@ -252,7 +248,7 @@ int InputProblem::fill_parts()
 	}
 	//*******************************************************************
 
-	int npart = HDF5SphReader::getNParts(ch_inputfile) + test_points.size();
+	int npart = h5File.getNParts() + test_points.size();
 
 	return npart;
 }
@@ -266,18 +262,14 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
 
-	const char *ch_inputfile = inputfile.c_str();
-	uint npart = HDF5SphReader::getNParts(ch_inputfile);
-
-	HDF5SphReader::ReadParticles *buf = new HDF5SphReader::ReadParticles[npart];
-	HDF5SphReader::readParticles(buf, ch_inputfile, npart);
+	h5File.read();
 
 	uint n_parts = 0;
 	uint n_vparts = 0;
 	uint n_bparts = 0;
 
-	for (uint i = 0; i<npart; i++) {
-		switch(buf[i].ParticleType) {
+	for (uint i = 0; i<h5File.getNParts(); i++) {
+		switch(h5File.buf[i].ParticleType) {
 			case 1:
 				n_parts++;
 				break;
@@ -292,11 +284,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
-		//float rho = density(H - buf[i].Coords_2, 0);
+		//float rho = density(H - h5File.buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+		vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
-		calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), info[i], pos[i], hash[i]);
+		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
 	uint j = n_parts;
 	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
@@ -304,10 +297,11 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(H - buf[i].Coords_2, 0);
-			vel[i] = make_float4(0, 0, 0, rho);
+			float rho = density(H - h5File.buf[i].Coords_2, 0);
+			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			vel[i] = make_float4(lvel, 0, 0, rho);
 			info[i] = make_particleinfo(VERTEXPART, 0, i);
-			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, rho*buf[i].Volume), info[i], pos[i], hash[i]);
+			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
@@ -316,16 +310,17 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 			info[i] = make_particleinfo(BOUNDPART, 0, i);
-			calc_localpos_and_hash(Point(buf[i].Coords_0, buf[i].Coords_1, buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
-			vertices[i].x = buf[i].VertexParticle1;
-			vertices[i].y = buf[i].VertexParticle2;
-			vertices[i].z = buf[i].VertexParticle3;
-			boundelm[i].x = buf[i].Normal_0;
-			boundelm[i].y = buf[i].Normal_1;
-			boundelm[i].z = buf[i].Normal_2;
-			boundelm[i].w = buf[i].Surface;
+			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
+			vertices[i].x = h5File.buf[i].VertexParticle1;
+			vertices[i].y = h5File.buf[i].VertexParticle2;
+			vertices[i].z = h5File.buf[i].VertexParticle3;
+			boundelm[i].x = h5File.buf[i].Normal_0;
+			boundelm[i].y = h5File.buf[i].Normal_1;
+			boundelm[i].z = h5File.buf[i].Normal_2;
+			boundelm[i].w = h5File.buf[i].Surface;
 		}
 		j += n_bparts;
 		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
@@ -347,7 +342,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 
 	std::flush(std::cout);
 
-	delete [] buf;
+	h5File.empty();
 }
 
 void
