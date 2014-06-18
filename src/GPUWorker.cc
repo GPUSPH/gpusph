@@ -202,10 +202,20 @@ void GPUWorker::computeAndSetAllocableParticles()
 	size_t totMemory, memPerCells, freeMemory, safetyMargin;
 	cudaMemGetInfo(&freeMemory, &totMemory);
 	// TODO configurable
+	#define TWOTO32 (float) (1<<20)
+	printf("Device idx %u: free memory %u MiB, total memory %u MiB\n", m_cudaDeviceNumber,
+			(uint)(((float)freeMemory)/TWOTO32), (uint)(((float)totMemory)/TWOTO32));
 	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
 	// compute how much memory is required for the cells array
 	memPerCells = (size_t)gdata->nGridCells * computeMemoryPerCell();
 
+	if (freeMemory < 16 + safetyMargin){
+		fprintf(stderr, "FATAL: not enough free device memory for safety margin (%u MiB) \n", (uint)((float) (16 + safetyMargin)/TWOTO32));
+		exit(1);
+	}
+	#undef TWOTO32
+	// TODO what are segments ?
+	// Why subtract 16B of mem when we are taking MiB od safety margin ?
 	freeMemory -= 16; // segments
 	freeMemory -= safetyMargin;
 
