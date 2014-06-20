@@ -31,15 +31,15 @@
 
 /// Compute the particle mass according to object volume (computed using Volume()) and density
 /*! The mass of object particles is computed dividing the object volume
- *  by the number of particles nedded for filling and multiplying the
+ *  by the number of particles needed for filling and multiplying the
  *	result by the density.
  *
- *	The resulting mass is interally stored and returned for convenience.
+ *	The resulting mass is internally stored and returned for convenience.
  *	\param dx : particle spacing
  *	\param rho : density
  *	\return mass of particle
  *
- *  Beware, particle mass sould be set before any filling operation
+ *  Beware, particle mass should be set before any filling operation
  */
 double
 Object::SetPartMass(const double dx, const double rho)
@@ -53,11 +53,11 @@ Object::SetPartMass(const double dx, const double rho)
 
 
 /// Set the mass of object particles
-/*! Directly set the mas of object particles without any computation.
+/*! Directly set the mass of object particles without any computation.
  *
  *	\param mass : particle mass
  *
- *  Beware, particle mass sould be set before any filling operation
+ *  Beware, particle mass should be set before any filling operation
  */
 void
 Object::SetPartMass(double mass)
@@ -67,9 +67,9 @@ Object::SetPartMass(double mass)
 
 
 /// Compute the object mass according to object volume and density
-/*! The mass of object is computed by multiplyig its volume (computed using Volume()) by its density.
+/*! The mass of object is computed by multiplying its volume (computed using Volume()) by its density.
  *
- *	The resulting mass is interally stored and returned for convenience.
+ *	The resulting mass is internally stored and returned for convenience.
  *	\param dx : particle spacing
  *	\param rho : density
  *	\return mass of object
@@ -111,7 +111,7 @@ Object::SetInertia(const double* inertia)
 
 
 /// Retrieve the object inertial data
-/*! Respectivly fill the parameters passed by reference with:
+/*! Respectively fill the parameters passed by reference with:
  *		- the object center of gravity
  *		- the object mass
  *		- the object principal moments of inertia
@@ -147,7 +147,7 @@ Object::GetParts(void)
 }
 
 /// Fill the object with particles
-/*! Fill the object by callin Fill(points, dx, true).
+/*! Fill the object by calling Fill(points, dx, true).
  *
  *	\param points : particle vector
  *	\param dx : particle spacing
