@@ -36,7 +36,7 @@ public:
 	CustomTextWriter(const GlobalData *_gdata);
 	~CustomTextWriter();
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
 };
 
 #endif

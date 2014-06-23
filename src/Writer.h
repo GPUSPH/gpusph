@@ -75,7 +75,7 @@ class Writer
 
 	// base writing timer tick. Each writer has a write frequency which is
 	// a multiple of this
-	static float m_timer_tick;
+	static double m_timer_tick;
 
 	// should we be force saving regardless of timer ticks
 	// and frequencies?
@@ -95,23 +95,23 @@ public:
 	Create(GlobalData *_gdata);
 
 	// does any of the writers need to write at the given time?
-	static bool NeedWrite(float t);
+	static bool NeedWrite(double t);
 
 	// mark writers as done if they needed to save
 	// at the given time (optionally force)
 	static void
-	MarkWritten(float t, bool force=false);
+	MarkWritten(double t, bool force=false);
 
 	// write points
 	static void
-	Write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
+	Write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
 
 	// write wave gages
 	static void
-	WriteWaveGage(float t, GageList const& gage);
+	WriteWaveGage(double t, GageList const& gage);
 
 	// set the timer tick
-	static inline void SetTimerTick(float t)
+	static inline void SetTimerTick(double t)
 	{ m_timer_tick = t; }
 
 	// get the timer tick value
@@ -134,22 +134,22 @@ protected:
 
 	void set_write_freq(int f);
 
-	bool need_write(float t) const;
+	bool need_write(double t) const;
 
 	virtual void
-	write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;
+	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
 
-	inline void mark_written(float t) { m_last_write_time = t; }
-
-	virtual void
-	write_energy(float t, float4 *energy);
+	inline void mark_written(double t) { m_last_write_time = t; }
 
 	virtual void
-	write_WaveGage(float t, GageList const& gage);
+	write_energy(double t, float4 *energy);
+
+	virtual void
+	write_WaveGage(double t, GageList const& gage);
 
 	uint getLastFilenum();
 
-	float			m_last_write_time;
+	double			m_last_write_time;
 	int				m_writefreq;
 
 	string			m_dirname;

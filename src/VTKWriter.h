@@ -36,8 +36,8 @@ public:
 	VTKWriter(const GlobalData *_gdata);
 	~VTKWriter();
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
-	virtual void write_WaveGage(float t, GageList const& gage);
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
+	virtual void write_WaveGage(double t, GageList const& gage);
 
 private:
 	// open a file whose name is built from the given base and sequence number

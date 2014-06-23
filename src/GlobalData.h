@@ -235,7 +235,13 @@ struct GlobalData {
 	bool quit_request;
 	bool save_request;
 	unsigned long iterations;
-	float t;
+
+	// on the host, the total simulation time is a double. on the device, it
+	// will be downconverted to a float. this ensures that we can run very long
+	// simulations even when the timestep is too small for the device to track
+	// time changes
+	// TODO check how moving boundaries cope with this
+	double t;
 	float dt;
 
 	// One TimingInfo per worker, currently used for statistics about neibs and interactions
