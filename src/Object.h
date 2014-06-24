@@ -63,6 +63,7 @@ class Object {
 		Object(void) {
 			m_ODEBody = 0;
 			m_ODEGeom = 0;
+			m_mass = 0.0;
 			dRSetIdentity (m_ODERot);
 			m_center = Point(0,0,0);
 		};
@@ -120,6 +121,11 @@ class Object {
 		/// Create an ODE geometry in the specified ODE space
 		virtual void ODEGeomCreate(dSpaceID, const double)
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
+		/// Return the ODE body ID associated with the Object
+		dBodyID ODEGetBody(void)
+		{ 	if (!m_ODEBody)
+				throw std::runtime_error("ODEGetBody called but object is not associated with an ODE body !");
+			return m_ODEBody; }
 		//@}
 
 
