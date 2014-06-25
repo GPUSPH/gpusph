@@ -1546,6 +1546,9 @@ forcesDevice(
 				nout.DvDt *= ndata.relPos.w;
 			}*/
 
+			// sum all contributions from the neighbours in the force array
+			as_float3(pout.force) += nout.DvDt;
+
 		} // end of loop over neighbors
 
 		// External forces etc
