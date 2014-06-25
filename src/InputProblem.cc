@@ -128,6 +128,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	else if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
 		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
 
+		m_simparams.sfactor=2.0f;
 		set_deltap(0.05f);
 
 		// turbulent (as in agnes' paper)
@@ -291,8 +292,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
-		const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-		vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+		if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+		}
+		else
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
@@ -303,8 +308,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
-			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-			vel[i] = make_float4(lvel, 0, 0, rho);
+			if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+				vel[i] = make_float4(lvel, 0, 0, rho);
+			}
+			else
+				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i] = make_particleinfo(VERTEXPART, 0, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
@@ -315,8 +324,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
-			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+			if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
+				vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+			}
+			else
+				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i] = make_particleinfo(BOUNDPART, 0, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
