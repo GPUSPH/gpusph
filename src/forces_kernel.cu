@@ -724,24 +724,16 @@ SPSstressMatrixDevice(	const float4* posArray,
 /*					   Gamma calculations						    */
 /************************************************************************************************************/
 
-// load old gamma value. if a new gamma value is to be computed (computeGamma == true),
-// then normalize and change the sign of the gradient of the old one because we
-// only need it for computation of solid angles.
+// Load old gamma value.
 // If computeGamma was false, it means the caller wants us to check gam.w against epsilon
 // to see if the new gamma is to be computed
 __device__ __forceinline__
 float4
-fetchNormalizedOldGamma(const uint index, const float epsilon, bool &computeGamma)
+fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
 {
 	float4 gam = tex1Dfetch(gamTex, index);
 	if (!computeGamma)
 		computeGamma = (gam.w < epsilon);
-	if (computeGamma) {
-		float gradnorm = -length3(gam);
-		gam.x /= gradnorm;
-		gam.y /= gradnorm;
-		gam.z /= gradnorm;
-	}
 	return gam;
 }
 
@@ -862,15 +854,18 @@ gaussQuadratureO14(	const	float3	vPos0,
 // returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate
 template<KernelType kerneltype>
 __device__ __forceinline__ float2
-Gamma(	const	float	slength,
-				float4	relPos,
-		const	float2	vPos0,
-		const	float2	vPos1,
-		const	float2	vPos2,
-		const	float4	boundElement,
-		const	float4	oldGGam,
-		const	float	epsilon,
-		const	bool	computeGamma)
+Gamma(	const	float		&slength,
+				float4		relPos,
+		const	float2		&vPos0,
+		const	float2		&vPos1,
+		const	float2		&vPos2,
+		const	float4		&boundElement,
+				float4		oldGGam,
+		const	float		&epsilon,
+		const	float		&deltap,
+		const	bool		&computeGamma,
+		const	uint		&nIndex,
+				float		&minlRas)
 {
 	// normalize the distance r_{as} with h
 	relPos.x /= slength;
@@ -906,6 +901,10 @@ Gamma(	const	float	slength,
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
 	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
+	// check if we are close to a wall
+	if (q_aSigma.w < epsilon) {
+		minlRas = min(minlRas, q_aSigma.w);
+	}
 	// calculate if the projection of a (with respect to n) is inside the segment
 	const float4 ba = v1 - v0; // vector from v0 to v1
 	const float4 ca = v2 - v0; // vector from v0 to v2
@@ -925,7 +924,7 @@ Gamma(	const	float	slength,
 	// check if the particle is on a vertex
 	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
 			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
-			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon/10.0f) {
 		// set touching vertex to v0
 		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 			const float4 tmp = v1;
@@ -945,6 +944,7 @@ Gamma(	const	float	slength,
 
 		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
+		oldGGam /= -length3(oldGGam);
 		float l1 = length3(v1-v0);
 		float l2 = length3(v2-v0);
 		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
@@ -958,7 +958,8 @@ Gamma(	const	float	slength,
 	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
 				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
 				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
-			 ) && q_aSigma.w < epsilon) {
+			 ) && q_aSigma.w < epsilon/10.0f) {
+		oldGGam /= -length3(oldGGam);
 		// grad gamma for a half-plane
 		gradGamma_as = 0.375f; // 3.0f/4.0f/2.0f;
 
@@ -972,7 +973,7 @@ Gamma(	const	float	slength,
 		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
 	}
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
-	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
+	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon/10.0f) {
 		// Gaussian quadrature of 14th order
 //		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
