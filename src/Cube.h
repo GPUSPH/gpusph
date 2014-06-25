@@ -73,6 +73,9 @@ class Cube: public Object {
 
 		void InnerFill(PointVect&, const double);
 
+		void FillIn(PointVect&, const double, const int, const bool);
+		void FillIn(PointVect&, const double, const int);
+
 		bool IsInside(const Point&, const double) const;
 };
 

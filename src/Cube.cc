@@ -31,7 +31,9 @@
 #include "Cube.h"
 #include "Rect.h"
 
-Cube::Cube(void)
+using namespace std;
+
+Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
 {
 	m_origin = Point(0, 0, 0);
 	m_vx = Vector(0, 0, 0);
@@ -178,6 +180,10 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 	}
 
 	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
+
+
+	m_center.print();
+	cout << "lx = " << m_lx << "ly = " << m_ly << "lz = " << m_lz << "\n";
 }
 
 
@@ -402,6 +408,86 @@ Cube::InnerFill(PointVect& points, const double dx)
 		for (int j = starty; j < endy; j++)
 			for (int k = startz; k < endz; k++) {
 				Point p = m_origin + (i + 0.5)*m_vx/nx + (j + 0.5)*m_vy/ny + (k + 0.5)*m_vz/nz;
+				points.push_back(p);
+			}
+	return;
+}
+
+
+void
+Cube::FillIn(PointVect& points, const double dx, const int layers)
+{
+	FillIn(points, dx, layers, true);
+}
+
+
+void
+Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fill_top)
+{
+	m_origin(3) = m_center(3);
+	const int nx = (int) (m_lx/dx);
+	const int ny = (int) (m_ly/dx);
+	const int nz = (int) (m_lz/dx);
+
+	vector<int> ix, iy, iz;
+	ix.reserve(2*layers);
+	iy.reserve(2*layers);
+	iz.reserve(2*layers);
+
+	for (int i = 0; i < layers; i++) {
+		ix.push_back(i);
+		iy.push_back(i);
+		iz.push_back(i);
+	}
+	for(int i = nx - layers + 1; i <= nx; i++)
+		ix.push_back(i);
+	for(int i = ny - layers + 1; i <= ny; i++)
+		iy.push_back(i);
+	for(int i = nz - layers + 1; i <= nz; i++)
+		iz.push_back(i);
+
+	// Bottom face
+	for (int i = layers; i <= nx - layers; i++)
+		for (int j = layers; j <= ny - layers; j++)
+			for (int k = 0; k < layers; k++) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+
+	// Top face
+	if (fill_top) {
+		for (int i = layers; i <= nx - layers; i++)
+			for (int j = layers; j <= ny - layers; j++)
+				for (int k = nz - layers + 1; k <= nz; k++) {
+					Point p = m_origin + ((double) i)/((double) nx)*m_vx +  ((double) j)/((double) ny)*m_vy
+							+  ((double) k)/((double) nz)*m_vz;
+					points.push_back(p);
+				}
+	}
+	// Lateral faces
+	for (int i = 0; i <= nx ; i++)
+		for (int j = 0; j < layers; j++)
+			for (int k = 0; k <= nz; k++) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+	for (int i = 0; i <= nx ; i++)
+		for (int j = ny - layers + 1; j <= ny; j++)
+			for (int k = 0; k <= nz; k++) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+
+	for (int i = 0; i < layers ; i++)
+		for (int j = layers; j <= ny - layers; j++)
+			for (int k = 0; k <= nz; k++) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
+				points.push_back(p);
+			}
+	for (int i = nx - layers + 1; i <= nx ; i++)
+		for (int j = layers; j <= ny - layers; j++)
+			for (int k = 0; k <= nz; k++) {
+				Point p = m_origin + i/((double) nx)*m_vx + j/((double) ny)*m_vy + k/((double) nz)*m_vz;
 				points.push_back(p);
 			}
 	return;
