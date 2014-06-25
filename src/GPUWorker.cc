@@ -2147,17 +2147,16 @@ void GPUWorker::kernel_sps()
 
 void GPUWorker::kernel_reduceRBForces()
 {
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (m_numParticles == 0) {
-
-		// make sure this device does not add any obsolete contribute to forces acting on objects
+	// make sure this device does not add any obsolete contribute to forces acting on objects
+	if (MULTI_DEVICE) {
 		for (uint ob = 0; ob < m_simparams->numODEbodies; ob++) {
 			gdata->s_hRbTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
 			gdata->s_hRbTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
 		}
-
-		return;
 	}
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (m_numParticles == 0) return;
 
 	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
 					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
