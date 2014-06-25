@@ -32,3 +32,4 @@ seewaves/
 *.csv
 profiling/
 scripts/list-cuda-cc
+meshes/
