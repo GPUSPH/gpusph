@@ -122,7 +122,7 @@ typedef struct SimParams {
 		numODEbodies(0),
 		maxneibsnum(0),
 		calcPrivate(false),
-		epsilon(5e-5),
+		epsilon(5e-1),
 		movingBoundaries(false)
 	{};
 
