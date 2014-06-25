@@ -249,7 +249,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
-		printf("keps\n");
 		problem->init_keps(
 			gdata->s_hBuffers.getData<BUFFER_TKE>(),
 			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
