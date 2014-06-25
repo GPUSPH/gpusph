@@ -1468,9 +1468,14 @@ forcesDevice(
 
 			// Objects only interact with fluid particles, since object-object
 			// and object-boundary forces are computed with ODE
+			// TODO FIXME prevent OBJECT parts from having other OBJECT parts in their
+			// neib list
 			if (OBJECT(info))
 				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
 
+			// TODO FIXME implement properly DYN_BOUNDARY type and int that case
+			// prevent BOUNDARY  parts from having other BOUNDARY or OBJECT parts
+			// in their neib list
 			// with SA_BOUNDARY, fluid and vertex particles interact with any
 			// BOUNDARY particles in the neiblist, regardless of distance
 			// TODO FIXME they should interact with BOUNDARY particles such
@@ -1496,9 +1501,11 @@ forcesDevice(
 			// of the focal particle
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
-			if (FLUID(pdata.info)) {
+			// TODO FIXME remove the dirty fixes for dynamic boundaries and objects
+			if (FLUID(pdata.info) || OBJECT(pdata.info)) {
 
-				if (FLUID(ndata.info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
+				if (FLUID(ndata.info) || (FLUID(pdata.info) && OBJECT(ndata.info))
+						|| (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
 
 					// computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
@@ -1516,21 +1523,30 @@ forcesDevice(
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
-				} else {
-					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					if (OBJECT(pdata.info) && OBJECT(ndata.info))
+						printf("Something's wrong ...\n");
+
+					/*if (OBJECT(pdata.info) && FLUID(ndata.info))
+						printf("Interaction OBJECT <- FLUID ...\n");
+					if (FLUID(pdata.info) && OBJECT(ndata.info))
+						printf("Interaction FLUID <- OBJECT ...\n");*/
 				}
+				/*else {
+					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+				}*/
 
 			}
 			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && VERTEX(info)) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (OBJECT(info)) {
+			/*else if (OBJECT(info)) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
 				nout.DvDt *= ndata.relPos.w;
-			}
+			}*/
 
+			if (OBJECT(pdata.info))
 			// sum all contributions from the neighbours in the force array
 			as_float3(pout.force) += nout.DvDt;
 
@@ -1584,10 +1600,11 @@ forcesDevice(
 
 		// Writing out the results
 		if (OBJECT(info)) {
-			params.rbforces[pdata.rbindex] = pout.force;
+			//printf("F(%e, %e, %e) \n", pout.force.x, pout.force.y, pout.force.z);
+			params.rbforces[pdata.rbindex] = pout.force*pdata.pos.w;
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
-								- d_rbcg[object(info)], as_float3(pout.force)));
+								- d_rbcg[object(info)], as_float3(pout.force)*pdata.pos.w));
 		} else {
 			write_forces::with(params, pdata, pout);
 			write_gamma<boundarytype>::with(params, pdata, pout);
