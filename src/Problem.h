@@ -107,6 +107,8 @@ class Problem {
 		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
+		float3		m_bodies_linearvel[MAXBODIES];		// Linear velocity of rigid bodies
+		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 
 		Problem(const GlobalData *_gdata);
@@ -267,11 +269,14 @@ class Problem {
 		void allocate_ODE_bodies(const uint);
 		void add_ODE_body(Object* object);
 		Object* get_ODE_body(const uint);
-		void get_ODE_bodies_data(float3 * &, float * &);
+		void get_ODE_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		float3* get_ODE_bodies_cg(void);
 		float* get_ODE_bodies_steprot(void);
+		float3* get_ODE_bodies_linearvel(void);
+		float3* get_ODE_bodies_angularvel(void);
 		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
-									const double, float3 * &, float3 * &, float * &);
+									const double, float3 * &, float3 * &, float * &,
+									float3 * &, float3 * &);
 		int	get_ODE_bodies_numparts(void) const;
 		int	get_ODE_body_numparts(const int) const;
 

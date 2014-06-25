@@ -183,6 +183,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initialize CGs (or, the problem could directly write on gdata)
 	initializeObjectsCGs();
+	initializeObjectsVelocities();
 
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
@@ -467,6 +468,8 @@ bool GPUSPH::runSimulation() {
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
 
+		doCommand(REDUCE_BODIES_FORCES);
+
 		// variable gravity
 		if (problem->get_simparams()->gcallback) {
 			// ask the Problem to update gravity, one per process
@@ -538,10 +541,13 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
 			}
 
-			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
+					gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);
+			// Upload objects linear and angular velocities
+			doCommand(UPLOAD_OBJECTS_VELOCITIES);
 		} // if there are objects
 
 		// swap read and writes again because the write contains the variables at time n
@@ -1475,5 +1481,14 @@ void GPUSPH::initializeObjectsCGs()
 		for (int i=0; i < m_simparams->numbodies; i++) {
 			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
 		} */
+	}
+}
+
+// initialize the centers of gravity of objects
+void GPUSPH::initializeObjectsVelocities()
+{
+	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+		gdata->s_hRbLinearVelocities = gdata->problem->get_ODE_bodies_linearvel();
+		gdata->s_hRbAngularVelocities = gdata->problem->get_ODE_bodies_angularvel();
 	}
 }

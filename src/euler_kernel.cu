@@ -42,6 +42,8 @@ __constant__ float4	d_mbdata[MAXMOVINGBOUND];
 
 __constant__ float3	d_rbcg[MAXBODIES];
 __constant__ float3	d_rbtrans[MAXBODIES];
+__constant__ float3	d_rblinearvel[MAXBODIES];
+__constant__ float3	d_rbangularvel[MAXBODIES];
 __constant__ float	d_rbsteprot[9*MAXBODIES];
 
 #include "cellgrid.h"

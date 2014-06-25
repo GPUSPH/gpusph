@@ -98,6 +98,7 @@ enum CommandType {
 	UPLOAD_PLANES,		// upload planes
 	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
+	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	QUIT				// quits the simulation cycle
@@ -265,6 +266,8 @@ struct GlobalData {
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
+	float3* s_hRbLinearVelocities;
+	float3*	s_hRbAngularVelocities;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -304,7 +307,9 @@ struct GlobalData {
 		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
-		s_hRbRotationMatrices(NULL)
+		s_hRbRotationMatrices(NULL),
+		s_hRbLinearVelocities(NULL),
+		s_hRbAngularVelocities(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
