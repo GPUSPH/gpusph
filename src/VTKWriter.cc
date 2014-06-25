@@ -373,6 +373,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		fwrite(&numbytes, sizeof(numbytes), 1, fid);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = object(info[i]);
+			if (!FLUID(info[i]))
+				value ++;
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 

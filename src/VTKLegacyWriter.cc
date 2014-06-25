@@ -173,7 +173,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 		fprintf(fid, "SCALARS Object int\n");
 		print_lookup(fid);
 		for (uint i=0; i < numParts; ++i) {
-			fprintf(fid, "%d\n", type(info[i]));
+			fprintf(fid, "%d\n", object(info[i]));
 		}
 		fprintf(fid, "\n\n");
 
