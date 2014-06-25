@@ -217,15 +217,22 @@ struct sps_particle_data
 // KEPSVISC particle data
 struct keps_particle_data
 {
+	// turbulent kinetic energy
 	const	float	keps_k;
+	// turbulent dissipation
 	const	float	keps_e;
+	// turbulent viscosity
 	const	float	turbVisc;
+	// turbulent viscosity for viscous term
+	// this is 0 for vertex particles
+	const	float	turbViscForViscTerm;
 
 	__device__ __forceinline__
 	keps_particle_data(const uint index, particleinfo const& info) :
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e( tex1Dfetch(keps_eTex, index)),
-		turbVisc(FLUID(info) ? 0.09f*keps_k*keps_k/keps_e : 0)
+		turbVisc(0.09f*keps_k*keps_k/fmax(keps_e, 1e-6f)),
+		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
 	{}
 };
 
@@ -494,7 +501,7 @@ struct sa_boundary_neib_data
 		index(_index),
 		belem(tex1Dfetch(boundTex, index)),
 		normal_s(as_float3(belem)),
-		r_as(fmax(dot(as_float3(_relPos), normal_s), params.deltap))
+		r_as(fmax(fabs(dot(as_float3(_relPos), normal_s)), params.deltap))
 	{}
 };
 
@@ -917,24 +924,31 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	// velocity of fluid particle along the wall
-	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
-
 	// a component of fluid paricle velocity tangential to the wall
+	// TODO movingboundary: instead of pdata.vel use relative lagrangian velocity
 	const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
-	const float abs_u_t = length(u_t);
-	float y_plus = params.deltap;
+	const float abs_u_t = fmax(length(u_t), 1e-6f);
 
 	// we solve iteratively the wall law equation to obtain y+ value
-	float u_star = exp(-2.132f)*d_visccoeff/ndata.r_as;
-	for (int i=0; i<10; i++) {
-		y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
-		u_star = (0.41f*abs_u_t + u_star)/(log(y_plus) + 2.132f + 1);
+	float u_star = 0.0f;
+	// the constant is equal to 0.09^0.25
+	const float uk = 0.547722558f*sqrt(pdata.keps_k);
+	float y_plus = ndata.r_as/d_visccoeff*uk;
+	if(y_plus*0.41f < 1.0f) // viscous sublayer
+		u_star = abs_u_t/y_plus;
+	else{ // log law
+		// constant is equal to exp(-5.2*0.41)
+		float utau = 0.118599857f*d_visccoeff/ndata.r_as;
+		for (int i=0; i<10; i++) {
+			// constant is equal to 1/0.41
+			y_plus = max(ndata.r_as*utau/d_visccoeff, 2.43902439);
+			// constant is equal to 5.2*0.41+1
+			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
+		}
+		u_star = abs_u_t / (log(y_plus)/0.41f + 5.2f);
 	}
-	y_plus = max(ndata.r_as*u_star/d_visccoeff, 11.f);
 
-	const float denom_term = pow(log(y_plus)/0.41f + 5.2f, 2);
-	nout.DvDt -= 2.0f*abs_u_t*nout.gamAS.x*u_t/denom_term;
+	nout.DvDt -= 2.0f*nout.gamAS.x*u_star*u_star*u_t/abs_u_t;
 }
 
 // auxiliary functor computing volumic contribution to the viscous term
@@ -994,7 +1008,8 @@ __device__ __forceinline__ void
 visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-		(d_visccoeff+pdata.turbVisc)*pdata.vel.w, (d_visccoeff+ndata.turbVisc)*ndata.relVel.w));
+		(d_visccoeff+pdata.turbViscForViscTerm)*pdata.vel.w,
+		(d_visccoeff+ndata.turbViscForViscTerm)*ndata.relVel.w));
 	nout.DvDt += visc*as_float3(ndata.relVel);
 }
 
@@ -1039,6 +1054,9 @@ compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 	else
 		// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
 		visc_volumic_part<visctype>::with(params, pdata, ndata, pout, nout);
+	// in case of a vertex particles we only consider orthogonal to the wall normal (i.e. grad gamma)
+	if (pdata.ptype == PT_VERTEX)
+		nout.DvDt -= dot(nout.DvDt, as_float3(pdata.oldGGam))*as_float3(pdata.oldGGam)/sqlength3(pdata.oldGGam);
 }
 
 /// Functor to compute the KEPS diffusion and velocity gradient terms
@@ -1061,9 +1079,8 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 {
 	// diffusion terms, to be divided later by rho_a and gamma_a
 	if (ndata.ntype == PT_BOUNDARY) {
-		pout.diff_term_e += pow(0.09f, 0.75f)/0.41f * (
-			pdata.dedt_precalc*pow(pdata.keps_k,1.5f)/(ndata.r_as*ndata.r_as) +
-			ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)*pow(ndata.keps_k,1.5f)/(params.deltap*params.deltap)) * nout.gamAS.x;
+		// the constant factor is 4.0f*0.09/1.3 where 0.09 = C_\mu and 1.3 = \sigma_\epsilon
+		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.gamAS.x;
 	} else {
 		pout.diff_term_k += ndata.relPos.w*(
 			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
@@ -1086,7 +1103,7 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	const float3 dvmul =
 		ndata.ntype == PT_BOUNDARY ?
 		nout.gamAS.x*ndata.normal_s*ndata.relVel.w : // rhoGGam
-		-as_float3(ndata.relPos)*ndata.f ; // rab*F
+		-ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ; // mb*rab*F
 
 	pout.dvx += ndata.relVel.x*dvmul;
 	pout.dvy += ndata.relVel.y*dvmul;
@@ -1146,10 +1163,15 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
 viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 {
-	// velocity gradients
-	pout.dvx /= pdata.vel.w * pout.gGam.w;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-	pout.dvy /= pdata.vel.w * pout.gGam.w;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-	pout.dvz /= pdata.vel.w * pout.gGam.w;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+	// final division for diff and dv{x,y,z} terms
+	const float rhoGam = pdata.vel.w*pout.gGam.w;
+	// finalize diffusion terms
+	pout.diff_term_k /= rhoGam;
+	pout.diff_term_e /= rhoGam;
+	// finalize velocity gradients
+	pout.dvx /= rhoGam;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+	pout.dvy /= rhoGam;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+	pout.dvz /= rhoGam;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
 	// Calculate norm of the mean strain rate tensor
 	float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
 		pout.dvy.y*pout.dvy.y +
@@ -1160,12 +1182,15 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vx/∂z + ∂vz/∂x)^2
 	temp = pout.dvy.z + pout.dvz.y;
 	SijSij_bytwo += temp*temp;		// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
+	// Strain rate
 	const float S = sqrtf(SijSij_bytwo);
-	const float Pturb = pdata.turbVisc*S*S;					// production of turbulent kinetic energy (TKE)
+	// production of turbulent kinetic energy (TKE)
+	const float Pturb = fmin(pdata.turbVisc*S*S, 0.3f*pdata.keps_k*S);
+	//const float Pturb = fmin(0.3f, 0.09f*pdata.keps_k/pdata.keps_e*S)*pdata.keps_k*S;
 
-	const float dkdt = Pturb - pdata.keps_e + pout.diff_term_k/pdata.vel.w/pout.gGam.w;								// dk/dt
-	const float dedt = pdata.keps_e/pdata.keps_k*(1.44f*Pturb - 1.92f*pdata.keps_e) +
-		pout.diff_term_e/pdata.vel.w/pout.gGam.w;	// de/dt
+	// Variation terms for Dk/Dt and De/Dt for the partially implicit time integration in euler
+	const float dkdt = Pturb + pout.diff_term_k;
+	const float dedt = pdata.keps_e*1.44f*Pturb/fmax(pdata.keps_k,1e-6f) + pout.diff_term_e;
 
 	params.keps_dkde[pdata.index].x = dkdt;
 	params.keps_dkde[pdata.index].y = dedt;
@@ -1212,8 +1237,7 @@ struct write_gamma
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
+	with(FP const& params, P const& pdata, OP const& pout) { /* do nothing */ }
 };
 
 template<>

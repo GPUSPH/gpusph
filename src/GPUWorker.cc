@@ -2198,6 +2198,7 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 	dynamicBoundConditions(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),

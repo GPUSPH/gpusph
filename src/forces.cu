@@ -1079,6 +1079,7 @@ updateBoundValues(	float4*		oldVel,
 void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
+			float4*			oldGGam,
 			float*			oldTKE,
 			float*			oldEps,
 			float4*			newGam,
@@ -1104,6 +1105,7 @@ dynamicBoundConditions(	const float4*		oldPos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGGam, numParticles*sizeof(float4)));
 
 	if(initStep)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
@@ -1126,6 +1128,7 @@ dynamicBoundConditions(	const float4*		oldPos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(gamTex));
 
 	if(initStep)
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));

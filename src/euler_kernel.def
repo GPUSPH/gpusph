@@ -127,8 +127,10 @@ eulerDevice(
 			// Updating k and e for k-e model
 			if (keps_dkde) {
 				const float2 dkde = keps_dkde[index];
-				keps_k += dt*dkde.x;
-				keps_e += dt*dkde.y;
+				const float oldK = fmax(keps_k,1e-6f);
+				// implicit formulations of k and e
+				keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
+				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*1.92f);
 			}
 		}
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model

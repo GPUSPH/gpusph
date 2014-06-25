@@ -1121,9 +1121,10 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	const float vel = length(make_float3(oldVel[index]));
 
 	// note that all sums below run only over fluid particles (including the Shepard filter)
-	float sumrho = 0; // summation for computing the density
-	float sumtke = 0; // summation for computing TKE
-	float alpha = 0;  // the shepard filter
+	float sumrho = 0.0f; // summation for computing the density
+	float sumtke = 0.0f; // summation for computing tke (k-epsilon model)
+	float sumeps = 0.0f; // summation for computing epsilon (k-epsilon model)
+	float alpha  = 0.0f;  // the shepard filter
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -1136,6 +1137,8 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 
 	// Square of sound speed. Would need modification for multifluid
 	const float sqC0 = d_sqC0[PART_FLUID_NUM(info)];
+
+	const float4 normal = normalize3(tex1Dfetch(gamTex, index));
 
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -1166,12 +1169,18 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 		const float neib_vel = length(make_float3(oldVel[neib_index]));
 		const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
+		const float neib_eps = oldEps ? oldEps[neib_index] : NAN;
 
 		if (r < influenceradius && FLUID(neib_info)) {
-			const float w = W<kerneltype>(r, slength)*relPos.w;
-			sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w;
-			sumtke += w/neib_rho*neib_k;
-			alpha += w/neib_rho;
+			// kernel value times volume
+			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;
+			// normal distance based on grad Gamma which approximates the normal of the domain
+			const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
+			sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w*neib_rho;
+			sumtke += w*neib_k;
+			// the constant is coming from 4*powf(0.09,0.75)/0.41
+			sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
+			alpha += w;
 		}
 		// in the initial step we need to compute an approximate grad gamma direction for the computation of gamma
 		else if (initStep && r < influenceradius && BOUNDARY(neib_info)) {
@@ -1185,7 +1194,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 		if (oldTKE)
 			oldTKE[index] = sumtke/alpha;
 		if (oldEps)
-			oldEps[index] = powf(0.09f, 0.75f)*powf(oldTKE[index], 1.5f)/0.41f/deltap;
+			oldEps[index] = sumeps/alpha;
 	}
 	else {
 		oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];

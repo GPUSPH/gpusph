@@ -320,6 +320,7 @@ updateBoundValues(	float4*		oldVel,
 void
 dynamicBoundConditions(	const float4*		oldPos,
 			float4*			oldVel,
+			float4*			oldGGam,
 			float*			oldTKE,
 			float*			oldEps,
 			float4*			newGam,
