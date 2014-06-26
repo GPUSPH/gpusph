@@ -902,7 +902,7 @@ Gamma(	const	float		&slength,
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
 	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
 	// check if we are close to a wall
-	if (q_aSigma.w < epsilon) {
+	if (q_aSigma.w < slength/3.0f) {
 		minlRas = min(minlRas, q_aSigma.w);
 	}
 	// calculate if the projection of a (with respect to n) is inside the segment
@@ -924,7 +924,7 @@ Gamma(	const	float		&slength,
 	// check if the particle is on a vertex
 	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
 			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
-			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon/10.0f) {
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
 		// set touching vertex to v0
 		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 			const float4 tmp = v1;
@@ -958,7 +958,7 @@ Gamma(	const	float		&slength,
 	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
 				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
 				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
-			 ) && q_aSigma.w < epsilon/10.0f) {
+			 ) && q_aSigma.w < epsilon) {
 		oldGGam /= -length3(oldGGam);
 		// grad gamma for a half-plane
 		gradGamma_as = 0.375f; // 3.0f/4.0f/2.0f;
@@ -973,7 +973,7 @@ Gamma(	const	float		&slength,
 		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
 	}
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
-	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon/10.0f) {
+	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
 		// Gaussian quadrature of 14th order
 //		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
