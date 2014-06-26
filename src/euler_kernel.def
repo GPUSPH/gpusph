@@ -177,7 +177,6 @@ eulerDevice(
 				// V(P) = V(Cg) + PCg^omega
 				as_float3(vel) = d_rblinearvel[i] + cross(d_rbangularvel[i], relPos);
 			}
-
 		}
 	}
 
