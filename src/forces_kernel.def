@@ -1604,6 +1604,7 @@ forcesDevice(
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(pout.force)*pdata.pos.w));
+			write_forces::with(params, pdata, pout);
 		} else {
 			write_forces::with(params, pdata, pout);
 			write_gamma<boundarytype>::with(params, pdata, pout);
