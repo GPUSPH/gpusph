@@ -38,6 +38,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
+	m_simparams.ferrari = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
    // m_simparams.boundarytype= DYN_BOUNDARY;
@@ -76,7 +77,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity(x, y, z)
 
 	// Drawing and saving times
-	set_timer_tick(0.005f);
+	set_timer_tick(0.1f);
 	add_writer(VTKWRITER, 1);
 
 	// Name of problem used for directory creation
@@ -101,7 +102,7 @@ int BuoyancyTest::fill_parts()
 {
 	double r0 = m_physparams.r0;
 	const double dp = m_deltap;
-	const int layers = 3;
+	const int layers = 4;
 
 	Cube fluid;
 
@@ -130,8 +131,8 @@ int BuoyancyTest::fill_parts()
 	cube = Cube(Point(lx/2.0 - olx/2.0, ly/2.0 - oly/2.0, H/2.0 - olz/2.0), Vector(olx, 0, 0),
 			Vector(0, oly, 0), Vector(0, 0, olz));
 
-	cube.SetMass(m_deltap, m_physparams.rho0[0]*0.5);
-	cube.SetPartMass(m_deltap, m_physparams.rho0[0]*0.5);
+	cube.SetMass(m_deltap, m_physparams.rho0[0]);
+	cube.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	cube.FillIn(cube.GetParts(), m_deltap, layers);
 	cube.Unfill(parts, m_deltap*0.85);
 
@@ -141,7 +142,7 @@ int BuoyancyTest::fill_parts()
 	dBodySetLinearVel(cube.ODEGetBody(), 0.0, 0.0, 0.0);
 	dBodySetAngularVel(cube.ODEGetBody(), 0.0, 0.0, 0.0);
 
-	return parts.size() + boundary_parts.size() + get_ODE_bodies_numparts();;
+	return parts.size() + boundary_parts.size() + get_ODE_bodies_numparts();
 }
 
 
@@ -192,6 +193,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
+			rho = m_physparams.rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			info[ij] = make_particleinfo(OBJECTPART, k, i );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
