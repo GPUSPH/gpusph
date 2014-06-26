@@ -468,8 +468,6 @@ bool GPUSPH::runSimulation() {
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
 
-		doCommand(REDUCE_BODIES_FORCES);
-
 		// variable gravity
 		if (problem->get_simparams()->gcallback) {
 			// ask the Problem to update gravity, one per process
@@ -541,6 +539,8 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
 			}
 
+			Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, totForce, totTorque);
+
 			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
 					gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
@@ -595,7 +595,7 @@ bool GPUSPH::runSimulation() {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if runnign multinode, should also find the network minimum
+			// if runnin multinode, should also find the network minimum
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
