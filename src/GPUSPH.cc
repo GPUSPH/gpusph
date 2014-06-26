@@ -42,6 +42,9 @@
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
+// HotWriter
+#include "HotWriter.h"
+
 /* Include all other opt file for show_version */
 #include "gpusph_version.opt"
 #include "fastmath_select.opt"
@@ -243,7 +246,28 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO FIXME copying data from the problem doubles the host memory requirements
 	// find some smart way to have the host fill the shared buffer directly.
 
-	problem->copy_to_array(gdata->s_hBuffers);
+    /* KAG - hot start
+    Strategy is, if user has set the environment variable GPUSPH_HOTSTART_FILE
+    to the full path of an existing HotFile filename (see HotWriter.h), we
+    load that state as our initial simulation state.  If file doesn't exist
+    or variable is not set, we initialize simulation normally.
+    */
+    char *hotstart_filename = getenv("GPUSPH_HOTSTART_FILE");
+    struct stat statbuf;
+    if(hotstart_filename && !stat(hotstart_filename, &statbuf)) {
+        cerr << "HOT START: " << hotstart_filename << endl;
+        HotFile *hf = new HotFile(hotstart_filename, gdata);
+        if(hf->load() == false) {
+            cerr << "Error restoring hot start file" << endl;
+        } else {
+            cerr << "Successfully restored hot start file" << endl;
+            gdata->t = hf->get_t();
+            cerr << "Initializing t to " << hf->get_t() << endl;
+            cout << *hf << endl;
+        }
+    } else {
+        problem->copy_to_array(gdata->s_hBuffers);
+    }
 
 	printf("---\n");
 

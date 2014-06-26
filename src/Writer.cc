@@ -35,6 +35,7 @@
 #include "VTKLegacyWriter.h"
 #include "VTKWriter.h"
 #include "Writer.h"
+#include "HotWriter.h"
 
 vector<Writer*> Writer::m_writers = vector<Writer*>();
 float Writer::m_timer_tick = 0;
@@ -67,6 +68,9 @@ Writer::Create(GlobalData *_gdata)
 			break;
 		case UDPWRITER:
 			writer = new UDPWriter(_gdata);
+			break;
+		case HOTWRITER:
+			writer = new HotWriter(_gdata);
 			break;
 		default:
 			stringstream ss;
