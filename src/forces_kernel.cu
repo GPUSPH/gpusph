@@ -924,7 +924,7 @@ Gamma(	const	float		&slength,
 	// check if the particle is on a vertex
 	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
 			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
-			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon/10.0f) {
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
 		// set touching vertex to v0
 		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
 			const float4 tmp = v1;
@@ -973,7 +973,7 @@ Gamma(	const	float		&slength,
 		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
 	}
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
-	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon/10.0f) {
+	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
 		// Gaussian quadrature of 14th order
 //		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
