@@ -902,7 +902,7 @@ Gamma(	const	float		&slength,
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
 	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
 	// check if we are close to a wall
-	if (q_aSigma.w < slength/3.0f) {
+	if (q_aSigma.w < 0.5f) {
 		minlRas = min(minlRas, q_aSigma.w);
 	}
 	// calculate if the projection of a (with respect to n) is inside the segment

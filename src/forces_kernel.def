@@ -679,10 +679,12 @@ template<KernelType kerneltype, typename FP, typename P, typename N, typename OP
 __device__ __forceinline__ void
 compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	if (pdata.ptype != PT_OBJECT && ndata.ntype != PT_BOUNDARY) {
-		const float wVol = ndata.relPos.w/ndata.relVel.w*W<kerneltype>(ndata.r, params.slength);
+	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
-		pout.gamavg += (neib_gam.w + 0.5*dot3(neib_gam+pdata.oldGGam, ndata.relPos))*wVol;
+		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
+		const float ndist = fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
+		const float wVol = ndata.r < params.slength ? 1.0f/max(ndist,1e-3f) : 0.0f;//W<kerneltype>(ndata.r, params.slength);
+		pout.gamavg += (neib_gam.w + dotRGG)*wVol;
 		pout.alpha += wVol;
 	}
 	// we do not compute gamma for OBJECT particles,
@@ -1217,12 +1219,14 @@ __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
 	// check whether we are close to a wall
-	if(pout.minlRas < params.epsilon && !VERTEX(pdata.info)){
+	if(pout.minlRas < 0.5f && !VERTEX(pdata.info)){
 		// linear smoothing between eps/2 and eps
-		const float sx = 2.0f*fmax(pout.minlRas/params.epsilon - 0.5f,0.0f);
+		const float sx = fmax(pout.minlRas*4.0f - 1.0f,0.0f);
 		// smootherstep function
 		const float smooth = (6.0f*sx*sx*sx*sx*sx-15.0f*sx*sx*sx*sx+10.0f*sx*sx*sx);
-		pout.gGam.w = smooth*pout.gGam.w + (1.0f-smooth)*pout.gamavg/pout.alpha;
+		// interpolated value of gamma
+		const float intGam = pout.gamavg > 1e-5f ? pout.gamavg/pout.alpha : pout.gGam.w;
+		pout.gGam.w = smooth*pout.gGam.w + (1.0f-smooth)*intGam;
 	}
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
