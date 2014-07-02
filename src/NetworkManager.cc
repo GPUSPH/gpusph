@@ -9,6 +9,8 @@
 // for GlobalData::RANK()
 #include <GlobalData.h>
 
+#include "mpi_select.opt"
+
 #if USE_MPI
 #include <mpi.h>
 #else
@@ -79,6 +81,9 @@ void NetworkManager::initNetwork() {
 
 	// get the name of the processor
 	MPI_Get_processor_name(processor_name, &processor_name_len);
+#else
+	world_size = 1;
+	process_rank = 0;
 #endif
 }
 
@@ -379,10 +384,9 @@ void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char
 void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype)
 {
 #if USE_MPI
-	float previous_value = *buffer;
 	MPI_Op _operator = (rtype == MIN_REDUCTION ? MPI_MIN : MPI_SUM);
 
-	int mpi_err = MPI_Allreduce(&previous_value, buffer, bufferElements, MPI_FLOAT, _operator, MPI_COMM_WORLD);
+	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, buffer, bufferElements, MPI_FLOAT, _operator, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);

@@ -582,7 +582,7 @@ bool GPUSPH::runSimulation() {
 		if (MULTI_NODE)
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 		// to check, later, that the simulation is actually progressing
-		float previous_t = gdata->t;
+		double previous_t = gdata->t;
 		gdata->t += gdata->dt;
 		// buildneibs_freq?
 

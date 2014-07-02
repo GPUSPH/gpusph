@@ -33,8 +33,8 @@
 
 typedef struct MbCallBack {
 	short			type;
-	float			tstart;
-	float			tend;
+	double			tstart;
+	double			tend;
 	float3			origin;
 	float3			vel;
 	float3			disp;
@@ -57,7 +57,7 @@ typedef struct SimParams {
 	double			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
 	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;					// initial timestep
-	float			tend;				// simulation end time (0 means run forever)
+	double			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
 	bool			dtadapt;			// true if adaptive timestep
 	float			dtadaptfactor;		// safety factor in the adaptive time step formula

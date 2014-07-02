@@ -37,7 +37,7 @@
 #include "Writer.h"
 
 vector<Writer*> Writer::m_writers = vector<Writer*>();
-float Writer::m_timer_tick = 0;
+double Writer::m_timer_tick = 0;
 bool Writer::m_forced = false;
 
 void
@@ -79,7 +79,7 @@ Writer::Create(GlobalData *_gdata)
 }
 
 bool
-Writer::NeedWrite(float t)
+Writer::NeedWrite(double t)
 {
 	bool need_write = false;
 	vector<Writer*>::iterator it(m_writers.begin());
@@ -92,7 +92,7 @@ Writer::NeedWrite(float t)
 }
 
 void
-Writer::MarkWritten(float t, bool force)
+Writer::MarkWritten(double t, bool force)
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
@@ -105,7 +105,7 @@ Writer::MarkWritten(float t, bool force)
 
 void
 Writer::Write(uint numParts, BufferList const& buffers,
-	uint node_offset, float t, const bool testpoints)
+	uint node_offset, double t, const bool testpoints)
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
@@ -117,7 +117,7 @@ Writer::Write(uint numParts, BufferList const& buffers,
 }
 
 void
-Writer::WriteWaveGage(float t, GageList const& gage)
+Writer::WriteWaveGage(double t, GageList const& gage)
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
@@ -204,7 +204,7 @@ Writer::set_write_freq(int f)
 }
 
 bool
-Writer::need_write(float t) const
+Writer::need_write(double t) const
 {
 	if (m_writefreq == 0)
 		return false;
@@ -216,7 +216,7 @@ Writer::need_write(float t) const
 }
 
 void
-Writer::write_energy(float t, float4 *energy)
+Writer::write_energy(double t, float4 *energy)
 {
 	if (m_energyfile) {
 		fprintf(m_energyfile, "%g", t);
@@ -231,7 +231,7 @@ Writer::write_energy(float t, float4 *energy)
 
 //WaveGage
 void
-Writer::write_WaveGage(float t, GageList const& gage)
+Writer::write_WaveGage(double t, GageList const& gage)
 {
 	if (m_WaveGagefile) {
 		fprintf(m_WaveGagefile, "%g", t);

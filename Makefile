@@ -16,7 +16,12 @@
 # - CUDA C++ files have extension .cu
 # - CUDA C++ headers have extension .cuh
 
-# Include, if present a local Makefile.
+
+# Cached configuration. All settings that should be persistent across compilation
+# (until changed) should be stored here.
+sinclude Makefile.conf
+
+# Include, if present, a local Makefile.
 # This can be used by the user to set additional include paths
 # (INCPATH = ....)
 # library search paths
@@ -33,7 +38,7 @@ empty:=
 space:=$(empty) $(empty)
 
 # GPUSPH version
-GPUSPH_VERSION=$(shell git describe --tags --dirty 2> /dev/null)
+GPUSPH_VERSION=$(shell git describe --tags --dirty=+custom 2> /dev/null | sed -e 's/-\([0-9]\+\)/+\1/' -e 's/-g/-/' 2> /dev/null)
 
 ifeq ($(GPUSPH_VERSION), $(empty))
 $(warning Unable to determine GPUSPH version)
@@ -62,14 +67,11 @@ endif
 MFILE_NAME = $(firstword $(MAKEFILE_LIST))
 MAKEFILE = $(CURDIR)/$(MFILE_NAME)
 
-# option: dbg - 0 no debugging, 1 enable debugging
-# (there are several switches below)
 DBG_SFX=_dbg
-ifeq ($(dbg), 1)
-	TARGET_SXF=$(DBG_SFX)
+ifeq ($(DBG), 1)
+	TARGET_SFX=$(DBG_SFX)
 else
-	dbg=0
-	TARGET_SXF=
+	TARGET_SFX=
 endif
 
 # directories: binary, objects, sources, expanded sources
@@ -82,7 +84,7 @@ DOCSDIR = ./docs
 OPTSDIR = ./options
 
 # target binary
-TARGETNAME := GPUSPH$(TARGET_SXF)
+TARGETNAME := GPUSPH$(TARGET_SFX)
 TARGET := $(DISTDIR)/$(TARGETNAME)
 
 # binary to list compute capabilities of installed devices
@@ -200,15 +202,146 @@ endif
 NVCC += -ccbin=$(CXX)
 
 
+# files to store last compile options: problem, dbg, compute, fastmath, MPI usage
+PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
+DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
+COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
+FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
+HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
+MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
+HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
+
+# this is not really an option, but it follows the same mechanism
+GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
+
+OPTFILES=$(PROBLEM_SELECT_OPTFILE) \
+		 $(DBG_SELECT_OPTFILE) \
+		 $(COMPUTE_SELECT_OPTFILE) \
+		 $(FASTMATH_SELECT_OPTFILE) \
+		 $(HASH_KEY_SIZE_SELECT_OPTFILE) \
+		 $(MPI_SELECT_OPTFILE) \
+		 $(HDF5_SELECT_OPTFILE) \
+		 $(GPUSPH_VERSION_OPTFILE)
+
+# Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
+vpath %.opt $(OPTSDIR)
+
+# update GPUSPH_VERSION_OPTFILE if git version changed
+LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
+
+ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
+	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
+		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
+endif
+
+
+# option: problem - Name of the problem. Default: $(PROBLEM) in makefile
+ifdef problem
+	# if choice differs from last...
+	ifneq ($(PROBLEM),$(problem))
+		# check that the problem is in the problem list
+		ifneq ($(filter $(problem),$(PROBLEM_LIST)),$(problem))
+			TMP:=$(error No such problem ‘$(problem)’. Known problems: $(PROBLEM_LIST))
+		endif
+		# empty string in sed for Mac compatibility
+		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(PROBLEM)/$(problem)/' $(PROBLEM_SELECT_OPTFILE) )
+		# user choice
+		PROBLEM=$(problem)
+	endif
+else
+	PROBLEM ?= DamBreak3D
+endif
+
+# option: dbg - 0 no debugging, 1 enable debugging
+# does dbg differ from last?
+ifdef dbg
+	ifneq ($(DBG), $(dbg))
+		ifeq ($(dbg),1)
+			_SRC=undef
+			_REP=define
+		else
+			_SRC=define
+			_REP=undef
+		endif
+		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
+		DBG=$(dbg)
+	endif
+endif
+
+# option: compute - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
+# does dbg differ from last?
+ifdef compute
+	# does it differ from last?
+	ifneq ($(COMPUTE),$(compute))
+		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(COMPUTE)/$(compute)/' $(COMPUTE_SELECT_OPTFILE) )
+		# user choice
+		COMPUTE=$(compute)
+	endif
+endif
+
+# option: fastmath - Enable or disable fastmath. Default: 0 (disabled)
+ifdef fastmath
+	# does it differ from last?
+	ifneq ($(FASTMATH),$(fastmath))
+		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/FASTMATH $(FASTMATH)/FASTMATH $(fastmath)/' $(FASTMATH_SELECT_OPTFILE) )
+		# user choice
+		FASTMATH=$(fastmath)
+	endif
+else
+	FASTMATH ?= 0
+endif
+
+# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
+# option:                 be 64 to enable multi-device simulations. For single-device simulations,
+# option:                 can be set to 32 to reduce memory usage. Default: 64
+ifdef hash_key_size
+	# does it differ from last?
+	ifneq ($(HASH_KEY_SIZE),$(hash_key_size))
+		TMP:=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/HASH_KEY_SIZE $(HASH_KEY_SIZE)/HASH_KEY_SIZE $(hash_key_size)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
+	endif
+	# user choice
+	HASH_KEY_SIZE=$(hash_key_size)
+else
+	HASH_KEY_SIZE ?= 64
+endif
+
+
+# option: mpi - 0 do not use MPI (no multi-node support), 1 use MPI (enable multi-node support). Default: autodetect
+ifdef mpi
+	# does it differ from last?
+	ifneq ($(USE_MPI),$(mpi))
+		TMP := $(shell test -e $(MPI_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(USE_MPI)/$(mpi)/' $(MPI_SELECT_OPTFILE) )
+		# user choice
+		USE_MPI=$(mpi)
+	endif
+endif
+
 # override: MPICXX - the MPI compiler
 MPICXX ?= $(shell which mpicxx)
 
 ifeq ($(MPICXX),)
+	ifeq ($(USE_MPI),1)
+		TMP := $(error MPI use for requested, but no MPI compiler was found, aborting)
+	else
+		ifeq ($(USE_MPI),)
+			TMP := $(info MPI compiler not found, multi-node will NOT be supported)
+			USE_MPI = 0
+		endif
+	endif
+else
+	ifeq ($(USE_MPI),)
+		USE_MPI = 1
+	endif
+endif
 
-	# No MPI: give warning and set flag
-	TMP := $(info MPI compiler not found, multi-node will NOT be supported)
-
-	USE_MPI=0
+ifeq ($(USE_MPI),0)
 
 	# MPICXXOBJS will be compiled with the standard compiler
 	MPICXX=$(CXX)
@@ -217,8 +350,6 @@ ifeq ($(MPICXX),)
 	LINKER ?= $(NVCC)
 
 else
-
-	USE_MPI=1
 
 	# We have to link with NVCC because otherwise thrust has issues on Mac OSX,
 	# but we also need to link with MPICXX, so we would like to use:
@@ -258,143 +389,18 @@ endif
 
 # END of MPICXX mess
 
-# files to store last compile options: problem, dbg, compute, fastmath
-PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
-DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
-COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
-FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
-HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
-# this is not really an option, but it follows the same mechanism
-GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
-
-OPTFILES=$(PROBLEM_SELECT_OPTFILE) $(DBG_SELECT_OPTFILE) $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(GPUSPH_VERSION_OPTFILE)
-
-# Let make know that .opt dependencies are to be looked for in $(OPTSDIR)
-vpath %.opt $(OPTSDIR)
-
-# check compile options used last time:
-# - which problem? (name of problem, empty if file doesn't exist)
-LAST_PROBLEM=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-	grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f3 -d " ")
-# - was dbg enabled? (1 or 0, empty if file doesn't exist)
-# "strip" added for Mac compatibility: on MacOS wc outputs a tab...
-LAST_DBG=$(strip $(shell test -e $(DBG_SELECT_OPTFILE) && \
-	grep "\#define _DEBUG_" $(DBG_SELECT_OPTFILE) | wc -l))
-# - for which compute capability? (11, 12 or 20, empty if file doesn't exist)
-LAST_COMPUTE=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
-	grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f3 -d " ")
-# - was fastmath enabled? (1 or 0, empty if file doesn't exist)
-LAST_FASTMATH=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-	grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f3 -d " ")
-# - what is the size in bits of the hashKey? (currently 32 or 64, empty if file doesn't exist)
-LAST_HASH_KEY_SIZE=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
-	grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f3 -d " ")
-
-# update GPUSPH_VERSION_OPTFILE if git version changed
-LAST_GPUSPH_VERSION=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
-	grep "\#define GPUSPH_VERSION" $(GPUSPH_VERSION_OPTFILE) | cut -f2 -d\")
-
-ifneq ($(LAST_GPUSPH_VERSION),$(GPUSPH_VERSION))
-	TMP:=$(shell test -e $(GPUSPH_VERSION_OPTFILE) && \
-		$(SED_COMMAND) 's/$(LAST_GPUSPH_VERSION)/$(GPUSPH_VERSION)/' $(GPUSPH_VERSION_OPTFILE) )
-endif
-
-
-# option: problem - Name of the problem. Default: $(PROBLEM) in makefile
-ifdef problem
-	# user chooses
-	PROBLEM=$(problem)
-	# if choice differs from last...
-	ifneq ($(LAST_PROBLEM),$(PROBLEM))
-		# check that the problem is in the problem list
-		ifneq ($(filter $(PROBLEM),$(PROBLEM_LIST)),$(PROBLEM))
-			TMP:=$(error No such problem ‘$(PROBLEM)’. Known problems: $(PROBLEM_LIST))
-		endif
-		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(PROBLEM_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(LAST_PROBLEM)/$(PROBLEM)/' $(PROBLEM_SELECT_OPTFILE) )
-	endif
-else
-	# no user choice, use last
-	ifeq ($(strip $(LAST_PROBLEM)),)
-		PROBLEM=DamBreak3D
-	else
-		PROBLEM=$(LAST_PROBLEM)
-	endif
-endif
-
-# see above for dbg option description
-# does dbg differ from last?
-ifneq ($(dbg), $(LAST_DBG))
-	# if last choice is empty, file probably doesn't exist and will be regenerated
-	ifneq ($(strip $(LAST_DBG)),)
-		ifeq ($(dbg),1)
-			_SRC=undef
-			_REP=define
-		else
-			_SRC=define
-			_REP=undef
-		endif
-		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(DBG_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(_SRC)/$(_REP)/' $(DBG_SELECT_OPTFILE) )
-	endif
-endif
-
-# option: compute - 11, 12, 13, 20, 21, 30, 35, etc: compute capability to compile for (default: autodetect)
-# does dbg differ from last?
-ifdef compute
-	# user choice
-	COMPUTE=$(compute)
+# option: hdf5 - 0 do not use HDF5, 1 use HDF5. Default: autodetect
+ifdef hdf5
 	# does it differ from last?
-	ifneq ($(LAST_COMPUTE),$(COMPUTE))
-		# empty string in sed for Mac compatibility
-		TMP:=$(shell test -e $(COMPUTE_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/$(LAST_COMPUTE)/$(COMPUTE)/' $(COMPUTE_SELECT_OPTFILE) )
+	ifneq ($(USE_HDF5),$(hdf5))
+		TMP := $(shell test -e $(HDF5_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(USE_HDF5)/$(hdf5)/' $(HDF5_SELECT_OPTFILE) )
+		# user choice
+		USE_HDF5=$(hdf5)
 	endif
 else
-	# no user choice, use last (if any) or empty (will be autodetected when creating COMPUTE_SELECT_OPTFILE)
-	ifeq ($(strip $(LAST_COMPUTE)),)
-		COMPUTE=
-	else
-		COMPUTE=$(LAST_COMPUTE)
-	endif
-endif
-
-# option: fastmath - Enable or disable fastmath. Default: 0 (disabled)
-ifdef fastmath
-	# user chooses
-	FASTMATH=$(fastmath)
-	# does it differ from last?
-	ifneq ($(LAST_FASTMATH),$(FASTMATH))
-		TMP:=$(shell test -e $(FASTMATH_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/FASTMATH $(LAST_FASTMATH)/FASTMATH $(FASTMATH)/' $(FASTMATH_SELECT_OPTFILE) )
-	endif
-else
-	ifeq ($(LAST_FASTMATH),)
-		FASTMATH=0
-	else
-		FASTMATH=$(LAST_FASTMATH)
-	endif
-endif
-
-# option: hash_key_size - Size in bits of the hash used to sort particles, currently 32 or 64. Must
-# option:                 be 64 to enable multi-device simulations. For single-device simulations,
-# option:                 can be set to 32 to reduce memory usage. Default: 64
-ifdef hash_key_size
-	# user chooses
-	HASH_KEY_SIZE=$(hash_key_size)
-	# does it differ from last?
-	ifneq ($(LAST_HASH_KEY_SIZE),$(HASH_KEY_SIZE))
-		TMP:=$(shell test -e $(HASH_KEY_SIZE_SELECT_OPTFILE) && \
-			$(SED_COMMAND) 's/HASH_KEY_SIZE $(LAST_HASH_KEY_SIZE)/HASH_KEY_SIZE $(HASH_KEY_SIZE)/' $(HASH_KEY_SIZE_SELECT_OPTFILE) )
-	endif
-else
-	ifeq ($(LAST_HASH_KEY_SIZE),)
-		HASH_KEY_SIZE=64
-	else
-		HASH_KEY_SIZE=$(LAST_HASH_KEY_SIZE)
-	endif
+	# check if we can link to the HDF5 library, and disable HDF5 otherwise
+	USE_HDF5 ?= $(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
 endif
 
 # --- Includes and library section start ---
@@ -454,9 +460,6 @@ ifeq ($(WE_USE_CLANG),1)
 	LIBS += -lc++
 endif
 
-# Check if we can link to the HDF5 library, and disable HDF5 otherwise
-USE_HDF5=$(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
-
 # link to the CUDA runtime library
 LIBS += -lcudart
 # link to ODE for the objects
@@ -507,15 +510,17 @@ CUFLAGS  ?=
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
 
-# Define USE_MPI according to the availability of MPICXX
-CPPFLAGS += -DUSE_MPI=$(USE_MPI)
-
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
 
 # We set __COMPUTE__ on the host to match that automatically defined
-# by the compiler on the device
-CPPFLAGS += -D__COMPUTE__=COMPUTE
+# by the compiler on the device. Since this might be done before COMPUTE
+# is actually defined, substitute 0 in that case
+ifeq ($(COMPUTE),)
+	CPPFLAGS += -D__COMPUTE__=0
+else
+	CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
+endif
 
 # The ODE library link is in single precision mode
 CPPFLAGS += -DdSINGLE
@@ -590,15 +595,10 @@ CUFLAGS += --compiler-options $(subst $(space),$(comma),$(strip $(CXXFLAGS)))
 # Doxygen configuration
 DOXYCONF = ./Doxygen_settings
 
-# otherwise
-# find if the working directory is dirty --this gives the number of changed files
-snap_date := $(shell git log -1 --format='%cd %h' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
-is_dirty:=
-ifneq ($(shell git status --porcelain 2> /dev/null | wc -l),0)
-	is_dirty:=+custom
-endif
+# Snapshot date: date of last commit (if possible), or current date
+snap_date := $(shell git log -1 --format='%cd' --date=iso 2> /dev/null | cut -f1,4 -d' ' | tr ' ' '-' || date +%Y-%m-%d)
 # snapshot tarball filename
-SNAPSHOT_FILE = ./GPUSPH-$(snap_date)$(is_dirty).tgz
+SNAPSHOT_FILE = ./GPUSPH-$(GPUSPH_VERSION)-$(snap_date).tgz
 
 # option: plain - 0 fancy line-recycling stage announce, 1 plain multi-line stage announce
 ifeq ($(plain), 1)
@@ -617,7 +617,7 @@ else
 endif
 
 .PHONY: all run showobjs show snapshot expand deps docs test help
-.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean
+.PHONY: clean cpuclean gpuclean cookiesclean computeclean docsclean confclean
 
 # target: all - Make subdirs, compile objects, link and produce $(TARGET)
 # link objects in target
@@ -658,6 +658,14 @@ $(HASH_KEY_SIZE_SELECT_OPTFILE): | $(OPTSDIR)
 	@echo "/* Determines the size in bits of the hashKey used to sort the particles on the device. */" \
 		> $@
 	@echo "#define HASH_KEY_SIZE $(HASH_KEY_SIZE)" >> $@
+$(MPI_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if we are using MPI (for multi-node) or not. */" \
+		> $@
+	@echo "#define USE_MPI $(USE_MPI)" >> $@
+$(HDF5_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if we are using HDF5 or not. */" \
+		> $@
+	@echo "#define USE_HDF5 $(USE_HDF5)" >> $@
 
 $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 	@echo "/* git version of GPUSPH. */" \
@@ -686,7 +694,7 @@ $(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SE
 # and it being present twice causes complains from nvcc
 $(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
 	$(call show_stage,SCRIPTS,$(@F))
-	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS)) -lcuda
+	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(filter-out --ptxas-options=%,$(filter-out --generate-line-info,$(CUFLAGS))) -o $@ $< $(filter-out -arch=sm_%,$(LDFLAGS))
 
 # create distdir
 $(DISTDIR):
@@ -758,7 +766,7 @@ show:
 	@echo "Docs dir:        $(DOCSDIR)"
 	@echo "Doxygen conf:    $(DOXYCONF)"
 	@echo "Verbose:         $(verbose)"
-	@echo "Debug:           $(dbg)"
+	@echo "Debug:           $(DBG)"
 	@echo "CXX:             $(CXX)"
 	@echo "MPICXX:          $(MPICXX)"
 	@echo "nvcc:            $(NVCC)"
@@ -767,6 +775,8 @@ show:
 	@echo "Compute cap.:    $(COMPUTE)"
 	@echo "Fastmath:        $(FASTMATH)"
 	@echo "Hashkey size:    $(HASH_KEY_SIZE)"
+	@echo "USE_MPI:         $(USE_MPI)"
+	@echo "USE_HDF5:        $(USE_HDF5)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
@@ -782,7 +792,7 @@ show:
 snapshot: $(SNAPSHOT_FILE)
 	$(CMDECHO)echo "Created $(SNAPSHOT_FILE)"
 
-$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.inc $(SRCDIR)/*.def $(SCRIPTSDIR)/
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.def $(SCRIPTSDIR)/
 	$(CMDECHO)tar czf $@ $^
 
 
@@ -805,15 +815,31 @@ deps: $(GPUDEPS) $(CPUDEPS)
 	@true
 
 # We want all of the OPTFILES to be built before anything else, which we achieve by
-# making the Makefile depend on them.
-# Moreover, we want COMPUTE to actually be defined before starting the actual compilation,
-# which means that we want to build COMPUTE_SELECT_OPTFILE and then (re)parse it
-# to set COMPUTE, so that the CUFLAGS are correctly set. The only way to enforce this
-# is by making sure that the Makefile is re-read after building the OPTFILES.
-# So, Makefile must depend on the OPTFILES _and_ the Makefile itself must be updated
-# after they are built, so it must be more recent, so we must touch it.
-Makefile: $(OPTFILES)
-	$(CMDECHO)touch Makefile
+# making Makefile.conf depend on them.
+Makefile.conf: Makefile $(OPTFILES)
+	$(show_stage CONF,$@)
+	$(CMDECHO)# Create Makefile.conf with standard disclaimer
+	$(CMDECHO)echo '# This is an autogenerated configuration file. Please DO NOT edit it manually' > $@
+	$(CMDECHO)echo '# Run make with the appropriate option to change a configured value' >> $@
+	$(CMDECHO)echo '# Use `make help-options` to see a list of available options' >> $@
+	$(CMDECHO)echo '# Use `make confclean` to reset your configuration' >> $@
+	$(CMDECHO)# recover value of PROBLEM from OPTFILES
+	$(CMDECHO)grep "\#define PROBLEM" $(PROBLEM_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of _DEBUG_ from OPTFILES
+	$(CMDECHO)echo "DBG=$$(grep '\#define _DEBUG_' $(DBG_SELECT_OPTFILE) | wc -l)" >> $@
+	$(CMDECHO)# recover value of COMPUTE from OPTFILES
+	$(CMDECHO)grep "\#define COMPUTE" $(COMPUTE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of FASTMATH from OPTFILES
+	$(CMDECHO)grep "\#define FASTMATH" $(FASTMATH_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of HASH_KEY_SIZE from OPTFILES
+	$(CMDECHO)grep "\#define HASH_KEY_SIZE" $(HASH_KEY_SIZE_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of USE_MPI from OPTFILES
+	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES
+	$(CMDECHO)grep "\#define USE_HDF5" $(HDF5_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+
+confclean: cookiesclean
+	$(RM) -f Makefile.conf
 
 # Dependecies are generated by the C++ compiler, since nvcc does not understand the
 # more sophisticated -MM and -MT dependency generation options.

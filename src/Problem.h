@@ -236,14 +236,14 @@ class Problem {
 
 		// overridden in subclasses if they want explicit writes
 		// beyond those controlled by the writer(s) periodic time
-		virtual bool need_write(float) const;
+		virtual bool need_write(double) const;
 
 		// TODO these should be moved out of here into a specific writer
-		virtual bool need_write_rbdata(float) const;
-		void write_rbdata(float);
+		virtual bool need_write_rbdata(double) const;
+		void write_rbdata(double);
 
 		// is the simulation running at the given time?
-		bool finished(float) const;
+		bool finished(double) const;
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
