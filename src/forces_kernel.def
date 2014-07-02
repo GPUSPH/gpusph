@@ -1540,7 +1540,7 @@ forcesDevice(
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
 			}
-			/*else if (OBJECT(info)) {
+			/*else if (OBJECT(pdata.info)) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
 				nout.DvDt *= ndata.relPos.w;
@@ -1552,7 +1552,7 @@ forcesDevice(
 		} // end of loop over neighbors
 
 		// External forces etc
-		if (FLUID(info)) {
+		if (FLUID(pdata.info)) {
 
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
@@ -1592,14 +1592,20 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		else if (VERTEX(info)) {
+		else if (VERTEX(pdata.info)) {
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
 		}
 
 		// Writing out the results
-		if (OBJECT(info)) {
-			//printf("F(%e, %e, %e) \n", pout.force.x, pout.force.y, pout.force.z);
+		if (OBJECT(pdata.info)) {
+			// The forces computed in the neighbors loop are forces by unit of mass so when
+			// computing the forces (an torques) on an object the force acting on each object
+			// particle are multiplied by the particle mass.
+			// TODO
+			// 1. use relative coordinates for cg and distance computation
+			// 2. the write of forces and torques is by nature not coalesced so why using float4
+			// 3. params and the kernel should be templatized also on floating bodies presence
 			params.rbforces[pdata.rbindex] = pout.force*pdata.pos.w;
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
@@ -1610,7 +1616,7 @@ forcesDevice(
 			write_gamma<boundarytype>::with(params, pdata, pout);
 		}
 
-		if (FLUID(info)) {
+		if (FLUID(pdata.info)) {
 			write_xsph<usexsph>::with(params, pdata, pout);
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
