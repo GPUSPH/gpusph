@@ -131,7 +131,7 @@ int BuoyancyTest::fill_parts()
 	cube = Cube(Point(lx/2.0 - olx/2.0, ly/2.0 - oly/2.0, H/2.0 - olz/2.0), Vector(olx, 0, 0),
 			Vector(0, oly, 0), Vector(0, 0, olz));
 
-	cube.SetMass(m_deltap, m_physparams.rho0[0]);
+	cube.SetMass(m_deltap, m_physparams.rho0[0]*0.5);
 	cube.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	cube.FillIn(cube.GetParts(), m_deltap, layers);
 	cube.Unfill(parts, m_deltap*0.85);
