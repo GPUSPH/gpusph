@@ -86,6 +86,7 @@ typedef struct SimParams {
 	bool			calcPrivate;		// add the private array for debugging / additional calculation
 	float			epsilon;			// if |r_a - r_b| < epsilon two positions are considered identical
 	bool			movingBoundaries;	// defines if moving boundaries are present
+	bool			inoutBoundaries;	// defines if in- or outflow boundaries are present
 
 	SimParams(void) :
 		sfactor(1.3),
@@ -123,7 +124,8 @@ typedef struct SimParams {
 		maxneibsnum(0),
 		calcPrivate(false),
 		epsilon(5e-5),
-		movingBoundaries(false)
+		movingBoundaries(false),
+		inoutBoundaries(false)
 	{};
 
 	inline double
