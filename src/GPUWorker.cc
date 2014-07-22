@@ -120,6 +120,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
 
+	if (m_simparams->inoutBoundaries)
+		m_dBuffers << new CUDABuffer<BUFFER_EULERVEL>();
+
 	if (m_simparams->calcPrivate)
 		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
 }

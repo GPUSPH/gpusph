@@ -120,6 +120,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	const float *tke = buffers.getData<BUFFER_TKE>();
 	const float *eps = buffers.getData<BUFFER_EPSILON>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
+	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 
 	// CSV file for tespoints
@@ -216,6 +217,16 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	// velocity
 	vector_array(fid, "Float32", "Velocity", 3, offset);
 	offset += sizeof(float)*3*numParts+sizeof(int);
+
+	if (eulervel) {
+		// Eulerian velocity
+		vector_array(fid, "Float32", "Eulerian velocity", 3, offset);
+		offset += sizeof(float)*3*numParts+sizeof(int);
+
+		// Eulerian pressure
+		scalar_array(fid, "Float32", "Eulerian pressure", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
 
 	// gradient gamma
 	if (gradGamma) {
@@ -441,6 +452,21 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		//if (FLUID(info[i]) || TESTPOINTS(info[i]))
 			value = (float*)(vel + i);
 		fwrite(value, sizeof(*value), 3, fid);
+	}
+
+	if (eulervel) {
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float *value = zeroes;
+			value = (float*)(eulervel + i);
+			fwrite(value, sizeof(*value), 3, fid);
+		}
+
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = eulervel[i].w;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
 	}
 
 	// gradient gamma

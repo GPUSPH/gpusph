@@ -666,6 +666,10 @@ bool GPUSPH::runSimulation() {
 			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
 				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
 
+			// get Eulerian velocity
+			if (gdata->problem->get_simparams()->inoutBoundaries)
+				which_buffers |= BUFFER_EULERVEL;
+
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
 				// by default, we want to run kernels on internal particles only
@@ -755,6 +759,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
 	}
+
+	if (problem->m_simparams.inoutBoundaries)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_EULERVEL>();
 
 	if (problem->m_simparams.calcPrivate)
 		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
