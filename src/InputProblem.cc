@@ -324,7 +324,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			}
 			else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(VERTEXPART, 0, i);
+			info[i] = make_particleinfo(VERTEXPART, buf[i].KENT, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
 		j += n_vparts;
@@ -340,7 +340,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			}
 			else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(BOUNDPART, 0, i);
+			info[i] = make_particleinfo(BOUNDPART, buf[i].KENT, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
 			vertices[i].y = h5File.buf[i].VertexParticle2;
