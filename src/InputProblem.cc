@@ -5,7 +5,7 @@
 #include "InputProblem.h"
 #include "GlobalData.h"
 
-static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
+static const std::string SPECIFIC_PROBLEM("SmallChannelFlowIO");
 
 /* Implemented problems:
  *
@@ -17,6 +17,7 @@ static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
  *	BoxCorner				Small dambreak in a box with a corner
  *	SmallChannelFlow		Small channel flow for debugging
  *	SmallChannelFlowKEPS	Small channel flow for debugging using k-epsilon
+ *	SmallChannelFlowIO		Small channel flow for debugging i/o
  *
  */
 
@@ -147,6 +148,29 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 0.8; w = 0.8; h = 2.02;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
 		m_simparams.calcPrivate = false;
+	}
+
+	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
+	//*************************************************************************************
+	else if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
+		h5File.setFilename("meshes/0.small_channel_io_walls.h5sph");
+
+		set_deltap(0.2f);
+
+		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
+		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+
+		m_simparams.tend = 100.0;
+		m_simparams.testpoints = false;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
+		H = 2.0;
+		l = 2.1; w = 2.1; h = 2.1;
+		m_origin = make_double3(-1.05, -1.05, -1.05);
+		m_simparams.calcPrivate = false;
+		m_simparams.inoutBoundaries = true;
 	}
 	//*************************************************************************************
 	// Fishpass
@@ -324,7 +348,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			}
 			else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(VERTEXPART, buf[i].KENT, i);
+			info[i] = make_particleinfo(VERTEXPART, h5File.buf[i].KENT, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
 		j += n_vparts;
@@ -340,7 +364,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			}
 			else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(BOUNDPART, buf[i].KENT, i);
+			info[i] = make_particleinfo(BOUNDPART, h5File.buf[i].KENT, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
 			vertices[i].y = h5File.buf[i].VertexParticle2;
