@@ -61,7 +61,8 @@ class Rect: public Object {
 		void Fill(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const int, std::vector<uint> [][4]);
 		int Fill(PointVect&, const double, const bool, const bool);
 		int Fill(PointVect&, const double, const bool fill = true);
-
+		void FillIn(PointVect& points, const double dx, const int layers)
+		{ throw std::runtime_error("FillIn not implemented for this object!"); }
 		bool IsInside(const Point&, const double) const;
 };
 #endif	/* _RECT_H */

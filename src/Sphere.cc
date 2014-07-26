@@ -101,6 +101,23 @@ Sphere::FillBorder(PointVect& points, const double dx)
 }
 
 
+void
+Sphere::FillIn(PointVect& points, const double dx, const int layers)
+{
+	for (int l = 0; l < layers; l++) {
+		const double r = m_r - l*dx;
+		double angle = dx/r;
+		const int nc = (int) ceil(M_PI/angle);
+		const double dtheta = M_PI/nc;
+
+		for (int i = - nc; i <= nc; ++i) {
+			FillDiskBorder(points, m_ep, m_center, r*sin(i*dtheta), r*cos(i*dtheta), dx, 2.0*M_PI*rand()/RAND_MAX);
+		}
+	}
+	return;
+}
+
+
 int
 Sphere::Fill(PointVect& points, const double dx, const bool fill)
 {

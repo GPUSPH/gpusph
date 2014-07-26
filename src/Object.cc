@@ -287,3 +287,4 @@ void Object::Unfill(PointVect& points, const double dx) const
 
 	points = new_points;
 }
+

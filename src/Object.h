@@ -57,8 +57,8 @@ class Object {
 		PointVect			m_parts;				///< Particles belonging to the object
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
-		dGeomID				m_ODEGeom;		///< ODE geometry ID assicuated with the object
-		dMass				m_ODEMass;		///< ODE iniertial parameters of the object
+		dGeomID				m_ODEGeom;		///< ODE geometry ID assiciated with the object
+		dMass				m_ODEMass;		///< ODE inertial parameters of the object
 
 		Object(void) {
 			m_ODEBody = 0;
@@ -94,7 +94,7 @@ class Object {
 		/// \name Inertia related functions
 		//@{
 		/// Compute the matrix of inertia
-		/*! This function compute the matrix of inertia of the obkect in the inertial
+		/*! This function compute the matrix of inertia of the object in the inertial
 		 *  frame (i.e. the 3 diagonal components) and store it in the m_inertia array.
 		 *	For the same reasons as volume, the inertia depends on particle spacing.
 		 *	\param dx : particle spacing
@@ -106,7 +106,7 @@ class Object {
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
 
-		/// Returns the particle vector associatet with the object
+		/// Returns the particle vector associated with the object
 		PointVect& GetParts(void);
 
 		/// \name ODE related functions
@@ -163,11 +163,21 @@ class Object {
 		 */
 		virtual int Fill(PointVect& points, const double dx, const bool fill) = 0;
 		virtual void Fill(PointVect& , const double);
+		/// Fill object with a specified number of particles layer
+		/*!	Fill multiple layers of particles starting from the object surface
+		 *
+		 *	\param points : particle vector to add particles to
+		 *	\param dx : particle spacing
+		 *  \param layers : number of layers
+		 *
+		 *  This function is pure virtual and then as to be defined at child level
+		 */
+		virtual void FillIn(PointVect& points, const double dx, const int layers) = 0;
 		void Unfill(PointVect&, const double) const;
 		//@}
 
 		/// Detect if a particle is inside an object
-		/*!	Detect if a perticle is located inside the object or at a distance inferior
+		/*!	Detect if a particle is located inside the object or at a distance inferior
 		 *  to a threshold value.
 		 *	\param dx : threshold value
 		 *	\return true if particle is inside the object or closer than dx

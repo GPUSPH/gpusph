@@ -89,6 +89,17 @@ Torus::FillBorder(PointVect& points, const double dx)
   	 }
 }
 
+void
+Torus::FillIn(PointVect& points, const double dx, const int layers)
+{
+	Torus inner = Torus(m_center, m_R, m_r - ((double)layers + 0.5)*dx, m_ep);
+	PointVect inpoints;
+
+	Fill(inpoints, dx, true);
+	inner.Unfill(inpoints, 0);
+	points.insert(points.end(), inpoints.begin(), inpoints.end());
+}
+
 
 int
 Torus::Fill(PointVect& points, const double dx, const bool fill)

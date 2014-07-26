@@ -124,6 +124,9 @@ class TopoCube: public Object {
 			return Fill(points, m_H, dx, false, fill);
 		}
 
+		void FillIn(PointVect& points, const double dx, const int layers)
+		{ throw std::runtime_error("FillIn not implemented for this object!"); }
+
 		bool IsInside(const Point&, const double) const;
 };
 
