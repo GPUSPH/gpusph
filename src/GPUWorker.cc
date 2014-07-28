@@ -107,6 +107,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
 		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
+		m_dBuffers << new CUDABuffer<BUFFER_VERTIDINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
