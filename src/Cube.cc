@@ -33,6 +33,9 @@
 
 using namespace std;
 
+/// Empty constructor
+/*! Return a cube with all class variables set to 0.
+ */
 Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
 {
 	m_origin = Point(0, 0, 0);
@@ -42,63 +45,111 @@ Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
 }
 
 
+/// Constructor from edges length and orientation (Euler paramaters)
+/*! Construct a cube of given dimension with an orientation given by
+ *  Euler parameters.
+ *  Without any rotation the lx, ly, lz parameters coincide with the
+ *  dimension of the cube along the X, Y and Z axis.
+ *
+ *	\param origin : cube origin (bottom left corner)
+ *	\param lx : length of edge 1
+ *	\param ly : length of edge 2
+ *	\param lz : length of edge 3
+ *	\param ep : Euler parameters defining the orientation
+ *
+ *  Beware, particle mass should be set before any filling operation
+ */
 Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const EulerParameters &ep)
 {
 	m_origin = origin;
 
 	m_ep = ep;
+	// Before doing any rotation with Euler parameter the rotation matrix associated with
+	// m_ep is computed.
 	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
 	m_lz = lz;
 
+	// Computing the edge vectors according to orientation
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
 	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
 
+	// Computing the center of gravity of the cube
 	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
-	m_origin.print();
-	m_center.print();
 }
 
 
+/// Constructor from edges length and orientation (ODE quaternion)
+/*! Construct a cube of given dimension with an orientation given by
+ *  a quaternion in ODE format.
+ *  Without any rotation the lx, ly, lz parameters coincide with the
+ *  dimension of the cube along the X, Y and Z axis.
+ *
+ *	\param origin : cube origin (bottom left corner)
+ *	\param lx : length of edge 1
+ *	\param ly : length of edge 2
+ *	\param lz : length of edge 3
+ *	\param quat : quaternion defining the orientation
+ *
+ *  Beware, particle mass should be set before any filling operation
+ */
 Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
 {
 	m_origin = origin;
 
+	// Computing the rotation matrix associated with the quaternion
 	dQtoR(quat, m_ODERot);
-
 	m_lx = lx;
 	m_ly = ly;
 	m_lz = lz;
 
+	// Computing the edge vectors according to orientation
 	m_vx = m_lx*Vector(1, 0, 0).Rot(m_ODERot);
 	m_vy = m_ly*Vector(0, 1, 0).Rot(m_ODERot);
 	m_vz = m_lz*Vector(0, 0, 1).Rot(m_ODERot);
 
+	// Computing the center of gravity of the cube
 	m_center = m_origin + 0.5*Vector(m_lx, m_ly, m_lz).Rot(m_ODERot);
-	m_origin.print();
-	m_center.print();
 }
 
 
+/// Constructor from edge vectors
+/*! Construct a cube according to 3 vectors defining the edges.
+ *  Those three vectors should be orthogonal in pairs.
+ *
+ *	\param origin : cube origin (bottom left corner)
+ *	\param vx : vector representing edge 1
+ *	\param vy : vector representing edge 2
+ *	\param vz : vector representing edge 3
+ *
+ *  Beware, particle mass should be set before any filling operation
+ */
 Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
 {
+	// Check if the three vectors are orthogonals in pairs
 	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm()
 		|| abs(vy*vz) > 1e-8*vy.norm()*vz.norm()) {
-		std::cout << "Trying to construct a cube with non perpendicular vectors\n";
+		throw std::runtime_error("Trying to construct a cube with non perpendicular vectors\n");
 		exit(1);
 	}
 
 	m_origin = origin;
 	m_vx = vx;
-	m_lx = m_vx.norm();
 	m_vy = vy;
-	m_ly = m_vy.norm();
 	m_vz = vz;
+
+	// Computing edge length
+	m_lx = m_vx.norm();
+	m_ly = m_vy.norm();
 	m_lz = m_vz.norm();
+
+	// Computing the center of gravity of the cube
 	m_center = m_origin + 0.5*(m_vx + m_vy + m_vz);
 
+	// Compute the rotation matrix from the orientation of the
+	// global reference system
 	Vector axis;
 	double mat[9];
 	mat[0] = m_vx(0)/m_lx;
@@ -154,7 +205,7 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 				if (mat[4] >= mat[8])
 				{
 					// r11 is maximum diagonal term
-					axis(1) = 0.5*sqrt(1.0 + + mat[4] - mat[0] - mat[8]);
+					axis(1) = 0.5*sqrt(1.0 + mat[4] - mat[0] - mat[8]);
 					halfInverse  = 0.5/axis(1);
 					axis(0) = halfInverse*mat[1];
 					axis(2) = halfInverse*mat[5];
@@ -181,12 +232,19 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 
 	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
 
-
-	m_center.print();
-	cout << "lx = " << m_lx << "ly = " << m_ly << "lz = " << m_lz << "\n";
+	//TODO : we should also compute Euler parameters in that case
 }
 
 
+/// Compute the volume of the cube
+/*! The volume of the cube depends of the particle spacing used
+ *  for the filling operation. With particles having their center
+ *  of gravity on the surface of the cube the effective volume
+ *  occupied by the object is \f$ V = (l_x + dx)*(l_y + dx)*(l_z + dx) \f$
+ *
+ *	\param dx : particle spacing
+ *	\return : volume of the cube
+ */
 double
 Cube::Volume(const double dx) const
 {
@@ -198,6 +256,18 @@ Cube::Volume(const double dx) const
 }
 
 
+/// Compute the principal moment of inertia
+/*! Exactly like the volume the inertia tensor depends on
+ * 	particle spacing used for filling. This method computes
+ * 	the principal moments of inertia (aka the inertia tensor
+ * 	in the the principal axes reference frame) :
+ *  \f$ I_x = \frac{m}{12}\left({(l_y + dx)}^2 + {(l_z + dx)}^2\right) \f$
+ *  \f$ I_y = \frac{m}{12}\left({(l_x + dx)}^2 + {(l_z + dx)}^2\right) \f$
+ *  \f$ I_z = \frac{m}{12}\left({(l_x + dx)}^2 + {(l_y + dx)}^2\right) \f$
+ *  Obviously the mass of the body should be set before calling this method.
+ *
+ *	\param dx : particle spacing
+ */
 void
 Cube::SetInertia(const double dx)
 {
@@ -209,8 +279,13 @@ Cube::SetInertia(const double dx)
 	m_inertia[2] = m_mass/12.0*(lx*lx + ly*ly);
 }
 
+
+/// Fill the surface of the cube with particles
+/* TODO: comment
+ */
 void
-Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
+Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints,
+		std::vector<uint4>& vindexes, const double dx, const bool fill_top_face)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
@@ -259,37 +334,23 @@ Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std:
 	}
 }
 
-void
-Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
-{
-	m_ODEBody = dBodyCreate(ODEWorld);
-	dMassSetZero(&m_ODEMass);
-	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dBodySetRotation(m_ODEBody, m_ODERot);
-	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
-}
 
-
-void
-Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
-	m_ODEGeom = dCreateBox(ODESpace, m_lx, m_ly, m_lz);
-	if (m_ODEBody)
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else {
-		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dGeomSetRotation(m_ODEGeom, m_ODERot);
-	}
-}
-
-
+/// Fill a given face of the cube with particles
+/* Fill a given face of the cube with particles with a given
+ * particle spacing. For the selected face the edges are filled
+ * according to the edges_to_fill array of booleans.
+ *
+ * 	\param points : vector where the particles will be added
+ * 	\param dx : particle spacing
+ * 	\param face_num : number of face to fill
+ * 	\param edges_to_fill : edges to be filled
+ */
 void
 Cube::FillBorder(PointVect& points, const double dx, const int face_num, const bool *edges_to_fill)
 {
 	Point   rorigin;
 	Vector  rvx, rvy;
+
 	m_origin(3) = m_center(3);
 
 	switch(face_num){
@@ -330,6 +391,14 @@ Cube::FillBorder(PointVect& points, const double dx, const int face_num, const b
 }
 
 
+/// Fill the surface of the cube with particles
+/* Fill the surface of the cube with particles except
+ * eventually the top face.
+ *
+ * 	\param points : vector where the particles will be added
+ * 	\param dx : particle spacing
+ * 	\param fill_top_face : 1 the top face is filled, 0 is not
+ */
 void
 Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
 {
@@ -351,6 +420,17 @@ Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
 }
 
 
+/// Fill the cube with particles
+/* Fill the whole cube with particles with a given
+ * particle spacing.
+ *
+ * 	\param points : vector where the particles will be added
+ * 	\param dx : particle spacing
+ * 	\param fill_faces : if true fill the cube includeing faces
+ * 	\param fill : if true add the particles to points otherwise just
+ * 				count the number of particles
+ * 	\return : number of particles used in the fill
+ */
 int
 Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool fill)
 {
@@ -389,6 +469,13 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 }
 
 
+/// Fill the inner part of the cube with particles
+/* Fill the cube, excluding the faces, with particles.
+ *
+ * 	\param points : vector where the particles will be added
+ * 	\param dx : particle spacing
+ */
+// TODO: replace the code with a call to Fill
 void
 Cube::InnerFill(PointVect& points, const double dx)
 {
@@ -414,6 +501,14 @@ Cube::InnerFill(PointVect& points, const double dx)
 }
 
 
+/// Fill the cube with layers of particles staring from surface
+/* Fill the cube with layers of particles from the surface to
+ * the inside of the cube.
+ *
+ * 	\param points : vector where the particles will be added
+ * 	\param dx : particle spacing
+ * 	\param layers : number of internal layers to add
+ */
 void
 Cube::FillIn(PointVect& points, const double dx, const int layers)
 {
@@ -421,6 +516,15 @@ Cube::FillIn(PointVect& points, const double dx, const int layers)
 }
 
 
+/// Fill the cube with layers of particles staring from surface
+/* Fill the cube with layers of particles from the surface to
+ * the inside of the cube and eventually excluding the top face.
+ *
+ * 	\param points : vector where the particles will be added
+ * 	\param dx : particle spacing
+ * 	\param layers : number of internal layers to add
+ * 	\param fill_top : if true fill also the top face
+ */
 void
 Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fill_top)
 {
@@ -494,6 +598,14 @@ Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fi
 }
 
 
+/// Check if a point is inside the cube
+/* For a given point return true if the point is inside
+ * the cube within a tolerance of dx.
+ *
+ * 	\param p : point to test
+ * 	\param dx : tolerance
+ * 	\return : true if p is inside the cube within dx
+ */
 bool
 Cube::IsInside(const Point& p, const double dx) const
 {
@@ -507,4 +619,55 @@ Cube::IsInside(const Point& p, const double dx) const
 		inside = true;
 
 	return inside;
+}
+
+
+/// Create an ODE body associated to the cube
+/* Create a cube ODE body inside a specified ODE world. If
+ * a space (used for handling collision detection) has been defined
+ * this method calls ODEGeomCreate to associate a geometry to the cube.
+ *
+ * 	\param ODEWorld : ODE world ID
+ * 	\param dx : particle spacing
+ * 	\param ODESpace : ODE space ID
+ */
+void
+Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+{
+	// Create an ODE body
+	m_ODEBody = dBodyCreate(ODEWorld);
+	// Compute mass and inertia of the cube and associate it to the ODE body
+	dMassSetZero(&m_ODEMass);
+	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	// Move an rotate the body to match current cube location and orientation
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dBodySetRotation(m_ODEBody, m_ODERot);
+	// If an ODE space has been defined create a geometry associated with the body
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
+}
+
+
+/// Create an ODE geometry associated to the cube
+/* Create an ODE geometry in the specified space associated
+ * with the cube. If an ODE body is associated with cube, the
+ * ODE geometry is associated to the ODE body.
+ *
+ * 	\param ODESpace : ODE space ID
+ * 	\param dx : particle spacing
+ * 	\param ODESpace : ODE space ID
+ */
+void
+Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
+	// Create a cube geometry
+	m_ODEGeom = dCreateBox(ODESpace, m_lx + dx, m_ly + dx, m_lz + dx);
+	// If an ODE body has been defined, associate the geometry with the ODE body
+	if (m_ODEBody)
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+	// Otherwise move and rotate the geometry to match current cube position and orientration
+	else {
+		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
+		dGeomSetRotation(m_ODEGeom, m_ODERot);
+	}
 }
