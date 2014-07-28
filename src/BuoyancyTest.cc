@@ -11,6 +11,7 @@
 
 #include "GlobalData.h"
 #include "Cube.h"
+#include "Sphere.h"
 #include "Point.h"
 #include "Vector.h"
 
@@ -104,12 +105,10 @@ int BuoyancyTest::fill_parts()
 	const double dp = m_deltap;
 	const int layers = 4;
 
-	Cube fluid;
-
-	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
+	Cube experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
 						Vector(0, ly, 0), Vector(0, 0, lz));
 
-	fluid = Cube(Point(dp*layers, dp*layers, dp*layers), Vector(lx - 2.0*dp*layers, 0, 0),
+	Cube fluid = Cube(Point(dp*layers, dp*layers, dp*layers), Vector(lx - 2.0*dp*layers, 0, 0),
 				Vector(0, ly - 2.0*dp*layers, 0), Vector(0, 0, H));
 	planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0.0);
 	planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0.0);
@@ -125,23 +124,49 @@ int BuoyancyTest::fill_parts()
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 
-	olx = 10.0*m_deltap;
-	oly = 10.0*m_deltap;
-	olz = 10.0*m_deltap;
-	cube = Cube(Point(lx/2.0 - olx/2.0, ly/2.0 - oly/2.0, H/2.0 - olz/2.0), Vector(olx, 0, 0),
-			Vector(0, oly, 0), Vector(0, 0, olz));
+	const int object_type = 2;
+	Object *floating;
+	switch (object_type) {
+		case 0: {
+			double olx = 10.0*m_deltap;
+			double oly = 10.0*m_deltap;
+			double olz = 10.0*m_deltap;
+			cube  = Cube(Point(lx/2.0 - olx/2.0, ly/2.0 - oly/2.0, H/2.0 - olz/2.0), Vector(olx, 0, 0),
+					Vector(0, oly, 0), Vector(0, 0, olz));
+			floating = &cube;
+			}
+			break;
 
-	cube.SetMass(m_deltap, m_physparams.rho0[0]*0.5);
-	cube.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	cube.FillIn(cube.GetParts(), m_deltap, layers);
-	cube.Unfill(parts, m_deltap*0.85);
+		case 1: {
+			double r = 6.0*m_deltap;
+			sphere = Sphere(Point(lx/2.0, ly/2.0, H/2.0 - r/4.0), r);
+			floating = &sphere;
+			}
+			break;
 
-	cube.ODEBodyCreate(m_ODEWorld, m_deltap);
-	cube.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(&cube);
-	dBodySetLinearVel(cube.ODEGetBody(), 0.0, 0.0, 0.0);
-	dBodySetAngularVel(cube.ODEGetBody(), 0.0, 0.0, 0.0);
+		case 2: {
+			double R = lx*0.2;
+			double r = 4.0*m_deltap;
+			torus = Torus(Point(lx/2.0, ly/2.0, H/2.0), Vector(0, 0, 1), R, r);
+			floating = &torus;
+			}
+			break;
+	}
 
+	floating->SetMass(m_deltap, m_physparams.rho0[0]*0.5);
+	floating->SetPartMass(m_deltap, m_physparams.rho0[0]);
+	floating->FillIn(floating->GetParts(), m_deltap, layers);
+	floating->Unfill(parts, m_deltap*0.85);
+
+	floating->ODEBodyCreate(m_ODEWorld, m_deltap);
+	if (object_type != 2)
+		floating->ODEGeomCreate(m_ODESpace, m_deltap);
+	add_ODE_body(floating);
+	dBodySetLinearVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
+	dBodySetAngularVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
+	PointVect & rbparts = get_ODE_body(0)->GetParts();
+	std::cout << "Rigid body " << 1 << ": " << rbparts.size() << " particles \n";
+	std::cout << "totl rb parts:" << get_ODE_bodies_numparts() << "\n";
 	return parts.size() + boundary_parts.size() + get_ODE_bodies_numparts();
 }
 

@@ -11,16 +11,19 @@
 #include "Problem.h"
 #include "Point.h"
 #include "Cube.h"
+#include "Sphere.h"
+#include "Torus.h"
 #include "ode/ode.h"
 
 class BuoyancyTest: public Problem {
 	private:
-		Cube		experiment_box, cube;
 		PointVect	parts;
 		PointVect	boundary_parts;
+		Cube		cube;
+		Sphere		sphere;
+		Torus 		torus;
 		float		H;  // still water level
 		double		lx, ly, lz;		// dimension of experiment box
-		double		olx, oly, olz;	// dimension of the floating cube
 		dGeomID		planes[5];
 		dJointID	joint;
 
