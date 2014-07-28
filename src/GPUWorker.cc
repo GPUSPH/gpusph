@@ -2161,6 +2161,7 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
 				numPartsToElaborate,
