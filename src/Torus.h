@@ -34,6 +34,8 @@ class Torus: public Object {
 		void FillIn(PointVect& points, const double dx, const int layers);
 
 		bool IsInside(const Point &, const double) const;
+
+		void ODEBodyCreate(dWorldID, const double, dSpaceID);
 };
 
 #endif	/* TORUS_H */
