@@ -482,13 +482,13 @@ struct common_niC_vars
 /// variables found in use_sa_boundary specialization of neibsInCell
 struct sa_boundary_niC_vars
 {
-	const	vertexinfo	vertices;
+	vertexinfo	vertices;
 	const	float4		boundElement;
 	const	uint		j;
 	const	float4		coord2;
 
 	__device__ __forceinline__
-	sa_boundary_niC_vars(const uint index) :
+	sa_boundary_niC_vars(const uint index, buildneibs_params<true> const& bparams) :
 		vertices(tex1Dfetch(vertTex, index)),
 		boundElement(tex1Dfetch(boundTex, index)),
 		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
@@ -507,7 +507,11 @@ struct sa_boundary_niC_vars
 			// j == 2
 			make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f)
 			)
-		{}
+		{
+			vertices.x = bparams.vertIDToIndex[vertices.x];
+			vertices.y = bparams.vertIDToIndex[vertices.y];
+			vertices.z = bparams.vertIDToIndex[vertices.z];
+		}
 };
 
 /// all neibsInCell variables
@@ -517,9 +521,9 @@ struct niC_vars :
 	COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)
 {
 	__device__ __forceinline__
-	niC_vars(int3 const& gridPos, const uint index) :
+	niC_vars(int3 const& gridPos, const uint index, buildneibs_params<use_sa_boundary> const& bparams) :
 		common_niC_vars(gridPos),
-		COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)(index)
+		COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)(index, bparams)
 	{}
 };
 
@@ -622,7 +626,7 @@ neibsInCell(
 	if (!calcNeibCell<periodicbound>(gridPos, gridOffset))
 		return;
 
-	niC_vars<use_sa_boundary> var(gridPos, index);
+	niC_vars<use_sa_boundary> var(gridPos, index, params);
 
 	// Return if the cell is empty
 	if (var.bucketStart == 0xffffffff)

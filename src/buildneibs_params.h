@@ -62,13 +62,16 @@ struct sa_boundary_buildneibs_params
 			float2	*vertPos1;				///< relative position of vertex to segment, second vertex
 			float2	*vertPos2;				///< relative position of vertex to segment, third vertex
 	const	float	boundNlSqInflRad;		///< neighbour search radius for boundary segments
+	const	uint	*vertIDToIndex;			///< vertex ID to particleIndex lookup table
 
 	sa_boundary_buildneibs_params(
 				float2	*_vertPos[],
+		const	uint	*_vertIDToIndex,
 		const	float	_boundNlSqInflRad) :
 		vertPos0(_vertPos[0]),
 		vertPos1(_vertPos[1]),
 		vertPos2(_vertPos[2]),
+		vertIDToIndex(_vertIDToIndex),
 		boundNlSqInflRad(_boundNlSqInflRad)
 	{}
 };
@@ -96,11 +99,12 @@ struct buildneibs_params :
 
 		// SA_BOUNDARY
 				float2	*_vertPos[],
+		const	uint	*_vertIDToIndex,
 		const	float	_boundNlSqInflRad) :
 		common_buildneibs_params(_neibsList, _pos, _particleHash,
 			_numParticles, _sqinfluenceradius),
 		COND_STRUCT(use_sa_boundary, sa_boundary_buildneibs_params)(
-			_vertPos, _boundNlSqInflRad)
+			_vertPos, _vertIDToIndex, _boundNlSqInflRad)
 	{}
 };
 

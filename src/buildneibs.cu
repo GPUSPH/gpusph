@@ -247,6 +247,7 @@ buildNeibsList(	neibdata*			neibsList,
 				vertexinfo*			vertices,
 				const float4		*boundelem,
 				float2*				vertPos[],
+				const uint*			vertIDToIndex,
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
@@ -302,7 +303,7 @@ buildNeibsList(	neibdata*			neibsList,
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, boundNlSqInflRad);
+			vertPos, vertIDToIndex, boundNlSqInflRad);
 
 		BUILDNEIBS_SWITCH(true);
 
@@ -310,7 +311,7 @@ buildNeibsList(	neibdata*			neibsList,
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	} else {
 		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, boundNlSqInflRad);
+			vertPos, vertIDToIndex, boundNlSqInflRad);
 
 		BUILDNEIBS_SWITCH(false);
 	}

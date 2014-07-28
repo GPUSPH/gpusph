@@ -1732,6 +1732,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 					m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 					m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+					m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
