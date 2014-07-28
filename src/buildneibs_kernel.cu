@@ -247,20 +247,6 @@ fixHashDevice(hashKey*			particleHash,	///< particle's hashes (in, out)
 
 #undef MOVINGNOTFLUID
 
-__global__
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-void inverseParticleIndexDevice (   uint*   particleIndex,
-                    uint*   inversedParticleIndex,
-                    uint    numParticles)
-{
-    const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-    if (index < numParticles) {
-        int oldindex = particleIndex[index];
-        inversedParticleIndex[oldindex] = index;
-    }
-}
-
 /// Reorders particles data after the sort and updates cells informations
 /*! This kernel should be called after the sort. It
  * 		- computes the index of the first and last particle of
@@ -298,8 +284,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float*			sortedTurbVisc,		// output: eddy viscosity
 										const hashKey*	particleHash,	///< previously sorted particle's hashes (in)
 										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
-										const uint		numParticles,	///< total number of particles
-										const uint*		inversedParticleIndex)
+										const uint		numParticles	///< total number of particles
+										)
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -382,9 +368,9 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (sortedVertices) {
 			const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
 			sortedVertices[index] = make_vertexinfo(
-				inversedParticleIndex[vertices.x],
-				inversedParticleIndex[vertices.y],
-				inversedParticleIndex[vertices.z], 0);
+				vertices.x,
+				vertices.y,
+				vertices.z, 0);
 		}
 
 		if (sortedTKE) {

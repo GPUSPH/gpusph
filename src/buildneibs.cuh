@@ -88,11 +88,6 @@ fixHash(hashKey*	particleHash,
 		uint*		compactDeviceMap,
 		const uint		numParticles);
 
-void
-inverseParticleIndex (	uint*	particleIndex,
-			uint*	inversedParticleIndex,
-			uint	numParticles);
-
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
 									uint*				segmentStart,
@@ -117,8 +112,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
 									const uint			numParticles,
-									const uint			numGridCells,
-									uint*				inversedParticleIndex);
+									const uint			numGridCells);
 
 void
 buildNeibsList(	neibdata*			neibsList,

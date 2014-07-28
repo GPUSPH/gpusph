@@ -106,7 +106,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTIDINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
@@ -1495,10 +1494,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
-			case INVINDEX:
-				if (dbg_step_printf) printf(" T %d issuing INVINDEX\n", deviceIndex);
-				instance->kernel_inverseParticleIndex();
-				break;
 			case CROP:
 				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
@@ -1674,18 +1669,6 @@ void GPUWorker::kernel_sort()
 			numPartsToElaborate);
 }
 
-void GPUWorker::kernel_inverseParticleIndex()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	inverseParticleIndex (	m_dBuffers.getData<BUFFER_PARTINDEX>(),
-							m_dBuffers.getData<BUFFER_INVINDEX>(),
-							numPartsToElaborate);
-}
-
 void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
 	// reset also if the device is empty (or we will download uninitialized values)
@@ -1726,8 +1709,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
 
 							m_numParticles,
-							m_nGridCells,
-							m_dBuffers.getData<BUFFER_INVINDEX>());
+							m_nGridCells);
 }
 
 void GPUWorker::kernel_buildNeibsList()

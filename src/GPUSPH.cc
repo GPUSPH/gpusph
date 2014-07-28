@@ -1198,8 +1198,6 @@ void GPUSPH::buildNeibList()
 
 	doCommand(CALCHASH);
 	doCommand(SORT);
-	if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
-		doCommand(INVINDEX);
 	doCommand(REORDER);
 
 	// swap pos, vel and info double buffers

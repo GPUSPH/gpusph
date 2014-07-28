@@ -159,20 +159,6 @@ fixHash(hashKey*	particleHash,
 }
 
 
-void
-inverseParticleIndex (	uint*	particleIndex,
-			uint*	inversedParticleIndex,
-			uint	numParticles)
-{
-	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-
-	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");
-}
-
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
 									uint*				segmentStart,
@@ -197,8 +183,8 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
 									const uint			numParticles,
-									const uint			numGridCells,
-									uint*				inversedParticleIndex)
+									const uint			numGridCells
+									)
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
@@ -229,7 +215,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-												particleHash, particleIndex, numParticles, inversedParticleIndex);
+												particleHash, particleIndex, numParticles);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
