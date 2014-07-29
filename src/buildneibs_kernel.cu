@@ -384,7 +384,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 			sortedVertices[index] = make_vertexinfo(
 				inversedParticleIndex[vertices.x],
 				inversedParticleIndex[vertices.y],
-				inversedParticleIndex[vertices.z], 0);
+				inversedParticleIndex[vertices.z],
+				inversedParticleIndex[vertices.w]);
 		}
 
 		if (sortedTKE) {
