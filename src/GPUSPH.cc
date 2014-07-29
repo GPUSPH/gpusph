@@ -1222,6 +1222,12 @@ void GPUSPH::buildNeibList()
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
 	}
 
+	// update vertID->particleIndex lookup table for vertex connectivity, on *all* particles
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+		gdata->only_internal = false;
+		doCommand(SA_UPDATE_VERTIDINDEX);
+	}
+
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
 	doCommand(BUILDNEIBS);
