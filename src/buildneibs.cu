@@ -239,6 +239,16 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
 }
 
+void
+updateVertIDToIndex(particleinfo*	particleInfo,
+					uint*			vertIDToIndex,
+					const uint		numParticles)
+{
+	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
+	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
+}
 
 void
 buildNeibsList(	neibdata*			neibsList,

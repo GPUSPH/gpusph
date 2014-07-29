@@ -388,6 +388,28 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 	}
 }
 
+/// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
+/*! This kernel should be called after the reorder.
+ *
+ *	\param[in] particleInfo : particleInfo
+ *	\param[out] vertIDToIndex : ID-to-particleIndex lookup table, overwritten
+ *	\param[in] numParticles : total number of particles
+ */
+__global__
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+void updateVertIDToIndexDevice(	particleinfo*	particleInfo,	///< particle's informations
+								uint*			vertIDToIndex,	///< vertIDToIndex array (out)
+								const uint		numParticles)	///< total number of particles
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	// Handle the case when number of particles is not multiple of block size
+	if (index >= numParticles)
+		return;
+
+	// assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
+	vertIDToIndex[ id(particleInfo[index]) ] = index;
+}
+
 /// Compute the grid position for a neighbor cell
 /*! This function computes the grid position for a neighbor cell,
  * according to periodicity.

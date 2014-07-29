@@ -115,6 +115,11 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const uint			numGridCells);
 
 void
+updateVertIDToIndex(particleinfo*	particleInfo,	// input: particle's information
+					uint*			vertIDToIndex,	// output: vertIDToIndex array
+					const uint		numParticles);	// input: total number of particles
+
+void
 buildNeibsList(	neibdata*			neibsList,
 				const float4*		pos,
 				const particleinfo*	info,
