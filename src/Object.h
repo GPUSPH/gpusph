@@ -34,10 +34,10 @@
 
 //! Object container class
 /*!
- *	The Object class is a container class for geomtrical objects.
+ *	The Object class is a container class for geometrical objects.
  *	It contains several utility function for drawing, filling, unfilling
- *  and setting or accesing object data along with pure virtual function
- *  that need to be implemented by his childs.
+ *  and setting or accessing object data along with pure virtual function
+ *  that need to be implemented by his children.
  *
  *
  *  For simplicity and efficiency reasons we use, often as possible, the
@@ -45,19 +45,17 @@
  *  and use Euler parameters to specify its relative situation respect
  *  to the global frame.
 */
-
-
 class Object {
 	protected:
-		EulerParameters		m_ep;					///< Euler parameters associated with the object
-		dMatrix3 			m_ODERot;				///< ODE rotation matrix associated to the object
-		Point				m_center;				///< Coordinates of center of gravity
-		double				m_inertia[3];			///< Inertia matrix in the principal axes of inertia frame
-		double				m_mass;					///< Mass of the object
-		PointVect			m_parts;				///< Particles belonging to the object
+		EulerParameters		m_ep;			///< Euler parameters associated with the object
+		dMatrix3 			m_ODERot;		///< ODE rotation matrix associated to the object
+		Point				m_center;		///< Coordinates of center of gravity in the global reference frame
+		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
+		double				m_mass;			///< Mass of the object
+		PointVect			m_parts;		///< Particles belonging to the object
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
-		dGeomID				m_ODEGeom;		///< ODE geometry ID assiciated with the object
+		dGeomID				m_ODEGeom;		///< ODE geometry ID associated with the object
 		dMass				m_ODEMass;		///< ODE inertial parameters of the object
 
 		Object(void) {
@@ -74,21 +72,9 @@ class Object {
 		//@{
 		virtual double SetPartMass(const double, const double);
 		virtual void SetPartMass(const double);
-		/// Return the volume of an object
-		/*! Given a particle spacing, this function should return
-		 *	the volume of the object.
-		 *	In the SPH framework it's normal that the volume of objects
-		 *	depends on particle spacing: for example if we fill a cube of side
-		 *	l with particles spaced by dx, the volume occupied by the particles
-		 *	is \f$(l + dx)^3 \f$.
-		 *	\param dx : particle spacing
-		 *	\return volume of the object
-		 *
-		 *	This function is pure virtual and then has to be defined at child level
-		 */
-		virtual double Volume(const double dx) const = 0;
 		virtual double SetMass(const double, const double);
 		virtual void SetMass(const double);
+		virtual double Volume(const double dx) const = 0;
 		//@}
 
 		/// \name Inertia related functions
@@ -106,7 +92,6 @@ class Object {
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
 
-		/// Returns the particle vector associated with the object
 		PointVect& GetParts(void);
 
 		/// \name ODE related functions
@@ -116,12 +101,19 @@ class Object {
 		 */
 		//@{
 		/// Create an ODE body in the specified ODE world and space
+		/*! \throws std::runtime_error if the method is not implemented
+		 */
 		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0)
 		{ throw std::runtime_error("ODEBodyCreate called but not defined!"); }
 		/// Create an ODE geometry in the specified ODE space
+		/*! \throws std::runtime_error if the method is not implemented
+		 */
 		virtual void ODEGeomCreate(dSpaceID, const double)
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		/// Return the ODE body ID associated with the Object
+		/*! \return the body ID associated with the object
+		 * 	\throws std::runtime_error if the object has no associated ODE body
+		 */
 		dBodyID ODEGetBody(void)
 		{ 	if (!m_ODEBody)
 				throw std::runtime_error("ODEGetBody called but object is not associated with an ODE body !");
@@ -153,7 +145,6 @@ class Object {
 		 *
 		 *  If the fill parameter is set to false the function just count the number of
 		 *  particles needed otherwise the particles are added to the particle vector.
-		 *
 		 *	\param points : particle vector to add particles to
 		 *	\param dx : particle spacing
 		 *  \param fill : fill flag (true particles are generated and added to parts, false no particle is generated)
