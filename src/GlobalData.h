@@ -90,6 +90,7 @@ enum CommandType {
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
 	SA_UPDATE_BOUND_VALUES, // update bounary values
+	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)
 	SPS,				// SPS stress matrix computation kernel
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback

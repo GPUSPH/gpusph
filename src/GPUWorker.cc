@@ -1566,6 +1566,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
 				instance->kernel_updateValuesAtBoundaryElements();
 				break;
+			case SA_UPDATE_VERTIDINDEX:
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
+				instance->kernel_updateVertIdIndexBuffer();
+				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
@@ -2167,6 +2171,19 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				m_numParticles,
 				numPartsToElaborate,
 				initStep);
+}
+
+void GPUWorker::kernel_updateVertIdIndexBuffer()
+{
+	// it is possible to run on internal particles only, although current design makes it meaningful only on all particles
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	updateVertIDToIndex(m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+						m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
+						numPartsToElaborate);
 }
 
 void GPUWorker::kernel_dynamicBoundaryConditions()
