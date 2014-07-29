@@ -1232,6 +1232,9 @@ void GPUSPH::buildNeibList()
 	gdata->only_internal = true;
 	doCommand(BUILDNEIBS);
 
+	if (MULTI_DEVICE && problem->get_simparams()->boundarytype == SA_BOUNDARY)
+		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
+
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	const uint maxPossibleNeibs = gdata->problem->get_simparams()->maxneibsnum;
 	gdata->lastGlobalPeakNeibsNum = 0;
