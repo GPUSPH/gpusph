@@ -1564,13 +1564,13 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case SA_CALC_BOUND_CONDITIONS:
-				if (dbg_step_printf) printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
-				instance->kernel_dynamicBoundaryConditions();
+			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
+				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
+				instance->kernel_saSegmentBoundaryConditions();
 				break;
-			case SA_UPDATE_BOUND_VALUES:
-				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
-				instance->kernel_updateValuesAtBoundaryElements();
+			case SA_CALC_VERTEX_BOUNDARY_CONDITIONS:
+				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
+				instance->kernel_saVertexBoundaryConditions();
 				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
@@ -2166,29 +2166,38 @@ void GPUWorker::kernel_reduceRBForces()
 					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
 }
 
-void GPUWorker::kernel_updateValuesAtBoundaryElements()
+void GPUWorker::kernel_saSegmentBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	// vel, tke, eps are read from current*Read, except
-	// on the second step, whe they are read from current*Write
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
-	updateBoundValues(
+	saSegmentBoundaryConditions(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius,
 				initStep);
 }
 
-void GPUWorker::kernel_dynamicBoundaryConditions()
+void GPUWorker::kernel_saVertexBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
@@ -2198,21 +2207,24 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 	// pos, vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
 
-	dynamicBoundConditions(
+	saVertexBoundaryConditions(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
 				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
+				firstStep ? gdata->dt / 2.0f : gdata->dt,
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->kerneltype,

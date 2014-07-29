@@ -481,10 +481,12 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
-			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
+			// compute boundary conditions on segments and detect outgoing particles at open boundaries
+			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
-			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
+			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
+			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
 		}
@@ -565,10 +567,12 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
-			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
+			// compute boundary conditions on segments and detect outgoing particles at open boundaries
+			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
-			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
+			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
+			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
 		}
@@ -1273,13 +1277,13 @@ void GPUSPH::initializeBoundaryConditions()
 	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
 
 	gdata->only_internal = true;
-	// compute values for vertices plus initial estimate for gradgamma direction
-	doCommand(SA_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
+	// compute boundary conditions for segments
+	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
-	// compute values for segments
-	doCommand(SA_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
+	// compute boundary conditions for vertices and get an initial estimate for the grad(gamma) direction
+	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
 

@@ -217,8 +217,8 @@ private:
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
-	void kernel_dynamicBoundaryConditions();
-	void kernel_updateValuesAtBoundaryElements();
+	void kernel_saSegmentBoundaryConditions();
+	void kernel_saVertexBoundaryConditions();
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();

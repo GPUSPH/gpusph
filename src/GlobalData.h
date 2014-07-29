@@ -89,8 +89,8 @@ enum CommandType {
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
-	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
-	SA_UPDATE_BOUND_VALUES, // update bounary values
+	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,	// compute segment boundary conditions and identify fluid particles that leave open boundaries
+	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,		// compute vertex boundary conditions including mass update and create new fluid particles at open boundaries; at the init step this routine also computes a preliminary grad gamma direction vector
 	SPS,				// SPS stress matrix computation kernel
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
@@ -120,6 +120,13 @@ enum CommandType {
 // these grow from the top
 #define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
 #define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
+
+// flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
+// is associated to an open boundary
+#define VERTEX1 ((flag_t)1)
+#define VERTEX2 (VERTEX1 << 1)
+#define VERTEX3 (VERTEX2 << 1)
+#define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
 
 // now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
 // these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available

@@ -303,41 +303,54 @@ calcPrivate(const	float4*			pos,
 					uint			numParticles,
 					uint			particleRangeEnd);
 
-// Recomputes values at the boundary elements (currently only density) as an average
-// over three vertices of this element
+// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 void
-updateBoundValues(	float4*		oldVel,
-			float*		oldTKE,
-			float*		oldEps,
-			vertexinfo*	vertices,
-			particleinfo*	info,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			bool		initStep);
-
-// Recomputes values at the vertex particles, following procedure similar to Shepard filter.
-// Only fluid particles are taken into summation
-// oldVel array is used to read density of fluid particles and to write density of vertex particles.
-// There is no need to use two velocity arrays (read and write) and swap them after.
-void
-dynamicBoundConditions(	const float4*		oldPos,
+saSegmentBoundaryConditions(
+	const	float4*			oldPos,
 			float4*			oldVel,
-			float4*			oldGGam,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			oldEulerVel,
+			vertexinfo*		vertices,
+	const	float2	* const vertPos[],
+	const	float4*			boundelement,
+	const	particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	int				kerneltype,
+	const	float			influenceradius,
+	const	float			initStep);
+
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+void
+saVertexBoundaryConditions(
+			float4*			oldPos,
+			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
 			float4*			newGam,
-			const float4*	boundelement,
-			const particleinfo*	info,
-			const hashKey*		particleHash,
-			const uint*		cellStart,
-			const neibdata*	neibsList,
-			const uint		numParticles,
-			const uint		particleRangeEnd,
-			const float		deltap,
-			const float		slength,
-			const int		kerneltype,
-			const float		influenceradius,
-			const bool		initStep);
+			float4*			oldEulerVel,
+	const	float4*			boundelement,
+	const	vertexinfo*		vertices,
+	const	particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			dt,
+	const	float			deltap,
+	const	float			slength,
+	const	int				kerneltype,
+	const	float			influenceradius,
+	const	bool			initStep);
 
 }
 
