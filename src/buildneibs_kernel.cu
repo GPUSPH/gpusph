@@ -508,6 +508,7 @@ struct sa_boundary_niC_vars
 			make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f)
 			)
 		{
+			// here local copy of part IDs of vertices are replaced by the correspondent part indices
 			vertices.x = bparams.vertIDToIndex[vertices.x];
 			vertices.y = bparams.vertIDToIndex[vertices.y];
 			vertices.z = bparams.vertIDToIndex[vertices.z];
