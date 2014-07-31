@@ -1085,7 +1085,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 								const	float		deltap,
 								const	float		slength,
 								const	float		influenceradius,
-								const	bool		initStep)
+								const	bool		initStep,
+								const	bool		inoutBoundaries)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1106,11 +1107,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						oldEulerVel[vertices[index].z] )/3.0f;
 		}
 
-		#if( __COMPUTE__ >= 20)
 		const float4 pos = oldPos[index];
-		#else
-		const float4 pos = tex1Dfetch(posTex, index);
-		#endif
 
 		const float vel = length(make_float3(oldVel[index]));
 
@@ -1145,11 +1142,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 			// Compute relative position vector and distance
 			// Now relPos is a float4 and neib mass is stored in relPos.w
-			#if( __COMPUTE__ >= 20)
 			const float4 relPos = pos_corr - oldPos[neib_index];
-			#else
-			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-			#endif
 
 			// skip inactive particles
 			if (INACTIVE(relPos))
@@ -1270,7 +1263,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 	}
 	// for fluid particles this kernel checks whether they have crossed the boundary at open boundaries
-	else if (FLUID(info)) {
+	else if (inoutBoundaries && FLUID(info)) {
 
 		#if( __COMPUTE__ >= 20)
 		const float4 pos = oldPos[index];
@@ -1517,21 +1510,13 @@ saVertexBoundaryConditions(
 			}
 			// in the initial step we need to compute an approximate grad gamma direction for the computation of gamma
 			if (initStep) {
-				#if( __COMPUTE__ >= 20)
 				const float4 relPos = pos_corr - oldPos[neib_index];
-				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-				#endif
 				if (length3(relPos) < influenceradius)
 					avgNorm += as_float3(boundElement);
 			}
 		}
 		else if (FLUID(neib_info)){
-			#if( __COMPUTE__ >= 20)
 			const float4 relPos = pos_corr - oldPos[neib_index];
-			#else
-			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-			#endif
 			// check if this fluid particles is marked for deletion (i.e. vertices != 0)
 			const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
 			if (vertices.x != 0 && ACTIVE(relPos)) {
@@ -1576,45 +1561,46 @@ saVertexBoundaryConditions(
 		// we temporarily write all the eulerVel data into the normal vel array. This is okay as long
 		// as we don't have moving boundaries or k-eps / io mixing
 		oldVel[index] = oldEulerVel[index];
-	}
-	// finalize mass computation
-	// reference mass:
-	const float refMass = deltap*deltap*deltap*d_rho0[PART_FLUID_NUM(info)];
-	if (pos.w > 0.5f*refMass && step == 2) {
-		pos.w -= refMass;
-		// Create new particle
-		// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),
-		// so we need a GPU-safe way to do this. The current code is little-endian
-		// only, so it's bound to break on other archs. I'm seriously starting to think
-		// that we can drop the stupid particleinfo ushort4 typedef and we should just
-		// define particleinfo as a ushort ushort uint struct, with proper alignment.
-		// FIXME endianness
-		uint clone_id = id(info) + d_particles_id_range;
-		particleinfo clone_info = info;
-		clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
-		clone_info.y = 0; // reset object to 0
-		clone_info.z = (clone_id & 0xffff); // set the id of the object
-		clone_info.w = ((clone_id >> 16) & 0xffff);
-		
-		// TODO optimize by having only one thread calling atomicAdd,
-		// adding enough for all threads in the block
-		int clone_idx = atomicAdd(newNumParticles, 1);
-		
-		// Problem has already checked that there is enough memory for new particles
-		float4 clone_pos = pos; // new position is position of vertex particle
-		clone_pos.w = refMass; // new fluid particle has reference mass
-		int3 clone_gridPos = gridPos; // as the position is the same so is the grid position
-		// assign new values to array
-		oldPos[clone_idx] = clone_pos;
-		oldVel[clone_idx] = oldVel[index];
-		pinfo[clone_idx] = clone_info;
-		particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
-		forces[clone_idx] = make_float4(0.0f);
 
+		// finalize mass computation
+		// reference mass:
+		const float refMass = deltap*deltap*deltap*d_rho0[PART_FLUID_NUM(info)];
+		if (pos.w > 0.5f*refMass && step == 2) {
+			pos.w -= refMass;
+			// Create new particle
+			// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),
+			// so we need a GPU-safe way to do this. The current code is little-endian
+			// only, so it's bound to break on other archs. I'm seriously starting to think
+			// that we can drop the stupid particleinfo ushort4 typedef and we should just
+			// define particleinfo as a ushort ushort uint struct, with proper alignment.
+			// FIXME endianness
+			uint clone_id = id(info) + d_particles_id_range;
+			particleinfo clone_info = info;
+			clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
+			clone_info.y = 0; // reset object to 0
+			clone_info.z = (clone_id & 0xffff); // set the id of the object
+			clone_info.w = ((clone_id >> 16) & 0xffff);
+			
+			// TODO optimize by having only one thread calling atomicAdd,
+			// adding enough for all threads in the block
+			int clone_idx = atomicAdd(newNumParticles, 1);
+			
+			// Problem has already checked that there is enough memory for new particles
+			float4 clone_pos = pos; // new position is position of vertex particle
+			clone_pos.w = refMass; // new fluid particle has reference mass
+			int3 clone_gridPos = gridPos; // as the position is the same so is the grid position
+			// assign new values to array
+			oldPos[clone_idx] = clone_pos;
+			oldVel[clone_idx] = oldVel[index];
+			pinfo[clone_idx] = clone_info;
+			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
+			forces[clone_idx] = make_float4(0.0f);
+
+		}
+		// time stepping
+		pos.w += dt*sumMdot;
+		oldPos[index].w = pos.w;
 	}
-	// time stepping
-	pos.w += dt*sumMdot;
-	oldPos[index].w = pos.w;
 
 	// finalize computation of average norm for gamma calculation in the initial step
 	if (initStep) {

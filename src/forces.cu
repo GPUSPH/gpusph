@@ -157,7 +157,7 @@ void*	reduce_buffer = NULL;
 #define SA_SEG_BOUND_CHECK(kernel) \
 	case kernel: \
 		cuforces::saSegmentBoundaryConditions<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, oldEulerVel, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep); \
+				 (oldPos, oldVel, oldTKE, oldEps, oldEulerVel, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, inoutBoundaries); \
 	break
 
 #define SA_VERT_BOUND_CHECK(kernel) \
@@ -1066,7 +1066,8 @@ saSegmentBoundaryConditions(
 	const	float			slength,
 	const	int				kerneltype,
 	const	float			influenceradius,
-	const	float			initStep)
+	const	bool			initStep,
+	const	bool			inoutBoundaries)
 {
 	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -1077,11 +1078,9 @@ saSegmentBoundaryConditions(
 	dummy_shared = 2560;
 	#endif
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
-	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
 	// execute the kernel
 	switch (kerneltype) {
 		SA_SEG_BOUND_CHECK(CUBICSPLINE);
@@ -1089,11 +1088,8 @@ saSegmentBoundaryConditions(
 		SA_SEG_BOUND_CHECK(WENDLAND);
 	}
 
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
-	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("saSegmentBoundaryConditions kernel execution failed");
@@ -1131,7 +1127,6 @@ saVertexBoundaryConditions(
 	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
@@ -1149,7 +1144,6 @@ saVertexBoundaryConditions(
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("saVertexBoundaryConditions kernel execution failed");
 
-	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
 

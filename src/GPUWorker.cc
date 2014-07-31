@@ -2265,7 +2265,8 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
-				initStep);
+				initStep,
+				m_simparams->inoutBoundaries);
 }
 
 void GPUWorker::kernel_saVertexBoundaryConditions()

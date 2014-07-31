@@ -324,7 +324,8 @@ saSegmentBoundaryConditions(
 	const	float			slength,
 	const	int				kerneltype,
 	const	float			influenceradius,
-	const	float			initStep);
+	const	bool			initStep,
+	const	bool			inoutBoundaries);
 
 // There is no need to use two velocity arrays (read and write) and swap them after.
 // Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.

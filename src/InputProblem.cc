@@ -5,7 +5,7 @@
 #include "InputProblem.h"
 #include "GlobalData.h"
 
-static const std::string SPECIFIC_PROBLEM("SmallChannelFlowIO");
+static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
 
 /* Implemented problems:
  *
