@@ -147,6 +147,9 @@ __constant__ float	d_objectboundarydf;
 // Neibdata cell number to offset
 __constant__ char3	d_cell_to_offset[27];
 
+// initial number of active particles, used for id generation
+__constant__ uint	d_particles_id_range;
+
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
 /************************************************************************************************************/
@@ -1066,7 +1069,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
-saSegmentBoundaryConditions(	const	float4*		oldPos,
+saSegmentBoundaryConditions(			float4*		oldPos,
 										float4*		oldVel,
 										float*		oldTKE,
 										float*		oldEps,
@@ -1272,7 +1275,7 @@ saSegmentBoundaryConditions(	const	float4*		oldPos,
 		#if( __COMPUTE__ >= 20)
 		const float4 pos = oldPos[index];
 		#else
-		const float4 pos = tex1Dfetch(posTex, index);
+		float4 pos = tex1Dfetch(posTex, index);
 		#endif
 
 		// don't check inactive particles and those that have already found their segment
@@ -1412,7 +1415,13 @@ saSegmentBoundaryConditions(	const	float4*		oldPos,
 						vertexWeights.z = 1.0f;
 					}
 					// normalize to make sure that all the weight is split up
-					oldVel[index] = normalize3(vertexWeights);
+					vertexWeights = normalize3(vertexWeights);
+					// transfer mass to .w index as it is overwritten with the disable below
+					vertexWeights.w = pos.w;
+					oldVel[index] = vertexWeights;
+					// delete fluid particle
+					disable_particle(pos);
+					oldPos[index] = pos;
 
 					// one segment is enough so jump out of the neighbour loop
 					break;
@@ -1427,21 +1436,25 @@ template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 saVertexBoundaryConditions(
-						float4*		oldPos,
-						float4*		oldVel,
-						float*		oldTKE,
-						float*		oldEps,
-						float4*		gradGamma,
-						float4*		oldEulerVel,
-				const	hashKey*	particleHash,
-				const	uint*		cellStart,
-				const	neibdata*	neibsList,
-				const	uint		numParticles,
-				const	float		dt,
-				const	float		deltap,
-				const	float		slength,
-				const	float		influenceradius,
-				const	bool		initStep)
+						float4*			oldPos,
+						float4*			oldVel,
+						float*			oldTKE,
+						float*			oldEps,
+						float4*			gradGamma,
+						float4*			oldEulerVel,
+						float4*			forces,
+						particleinfo*	pinfo,
+						hashKey*		particleHash,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+				const	uint			numParticles,
+						uint*			newNumParticles,
+				const	float			dt,
+				const	int				step,
+				const	float			deltap,
+				const	float			slength,
+				const	float			influenceradius,
+				const	bool			initStep)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1450,7 +1463,7 @@ saVertexBoundaryConditions(
 
 	// read particle data from sorted arrays
 	// kernel is only run for vertex particles
-	const particleinfo info = tex1Dfetch(infoTex, index);
+	const particleinfo info = pinfo[index];
 	if (!VERTEX(info))
 		return;
 
@@ -1484,7 +1497,7 @@ saVertexBoundaryConditions(
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
 
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = pinfo[neib_index];
 
 		if (BOUNDARY(neib_info)) {
 			const float4 boundElement = tex1Dfetch(boundTex, neib_index);
@@ -1504,28 +1517,38 @@ saVertexBoundaryConditions(
 			}
 			// in the initial step we need to compute an approximate grad gamma direction for the computation of gamma
 			if (initStep) {
+				#if( __COMPUTE__ >= 20)
 				const float4 relPos = pos_corr - oldPos[neib_index];
+				#else
+				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+				#endif
 				if (length3(relPos) < influenceradius)
 					avgNorm += as_float3(boundElement);
 			}
 		}
 		else if (FLUID(neib_info)){
+			#if( __COMPUTE__ >= 20)
+			const float4 relPos = pos_corr - oldPos[neib_index];
+			#else
+			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
+			#endif
 			// check if this fluid particles is marked for deletion (i.e. vertices != 0)
 			const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
-			if (vertices.x != 0) {
+			if (vertices.x != 0 && ACTIVE(relPos)) {
 				// betaAV is the weight in barycentric coordinates
 				float betaAV = 0.0f;
 				// check if one of the vertices is equal to the present one
+				const float4 neib_vel = oldVel[neib_index];
 				if (vertices.x == index)
-					betaAV = oldVel[neib_index].x;
+					betaAV = neib_vel.x;
 				else if (vertices.y == index)
-					betaAV = oldVel[neib_index].y;
+					betaAV = neib_vel.y;
 				else if (vertices.z == index)
-					betaAV = oldVel[neib_index].z;
+					betaAV = neib_vel.z;
 				if(betaAV > 0.0f){
 					// add mass from fluid particle to vertex particle
-					const float4 relPos = pos_corr - oldPos[neib_index];
-					pos.w += betaAV*relPos.w;
+					// note that the mass was transfered from pos to vel
+					pos.w += betaAV*neib_vel.w;
 				}
 			}
 		}
@@ -1557,9 +1580,37 @@ saVertexBoundaryConditions(
 	// finalize mass computation
 	// reference mass:
 	const float refMass = deltap*deltap*deltap*d_rho0[PART_FLUID_NUM(info)];
-	if (pos.w > 0.5f*refMass) {
-		// TODO create particle
+	if (pos.w > 0.5f*refMass && step == 2) {
 		pos.w -= refMass;
+		// Create new particle
+		// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),
+		// so we need a GPU-safe way to do this. The current code is little-endian
+		// only, so it's bound to break on other archs. I'm seriously starting to think
+		// that we can drop the stupid particleinfo ushort4 typedef and we should just
+		// define particleinfo as a ushort ushort uint struct, with proper alignment.
+		// FIXME endianness
+		uint clone_id = id(info) + d_particles_id_range;
+		particleinfo clone_info = info;
+		clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
+		clone_info.y = 0; // reset object to 0
+		clone_info.z = (clone_id & 0xffff); // set the id of the object
+		clone_info.w = ((clone_id >> 16) & 0xffff);
+		
+		// TODO optimize by having only one thread calling atomicAdd,
+		// adding enough for all threads in the block
+		int clone_idx = atomicAdd(newNumParticles, 1);
+		
+		// Problem has already checked that there is enough memory for new particles
+		float4 clone_pos = pos; // new position is position of vertex particle
+		clone_pos.w = refMass; // new fluid particle has reference mass
+		int3 clone_gridPos = gridPos; // as the position is the same so is the grid position
+		// assign new values to array
+		oldPos[clone_idx] = clone_pos;
+		oldVel[clone_idx] = oldVel[index];
+		pinfo[clone_idx] = clone_info;
+		particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
+		forces[clone_idx] = make_float4(0.0f);
+
 	}
 	// time stepping
 	pos.w += dt*sumMdot;
@@ -1617,6 +1668,9 @@ shepardDevice(	const float4*	posArray,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	if (INACTIVE(pos))
+		return;
+
 	float4 vel = tex1Dfetch(velTex, index);
 
 	if (NOT_FLUID(info) && !VERTEX(info)) {
@@ -1662,7 +1716,7 @@ shepardDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/)) {
+		if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/) && ACTIVE(relPos)) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
@@ -1729,6 +1783,9 @@ MlsDevice(	const float4*	posArray,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	if (INACTIVE(pos))
+		return;
+
 	float4 vel = tex1Dfetch(velTex, index);
 
 	if (NOT_FLUID(info)) {
@@ -1772,6 +1829,9 @@ MlsDevice(	const float4*	posArray,
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
+
+		if (INACTIVE(relPos))
+			continue;
 
 		// skip inactive particles
 		if (INACTIVE(relPos))

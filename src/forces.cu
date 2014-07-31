@@ -68,23 +68,13 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
-		if (!dtadapt && !xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
-		else if (!dtadapt && xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
-		else if (dtadapt && !xsphcorr) \
+		if (dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
-		else if (dtadapt && xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); \
 		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -97,7 +87,6 @@ void*	reduce_buffer = NULL;
 #define FORMULATION_SWITCH(boundarytype, visc, dem) \
 	switch (sph_formulation) { \
 		FORMULATION_CHECK(SPH_F1, boundarytype, visc, dem); \
-		FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
@@ -107,10 +96,7 @@ void*	reduce_buffer = NULL;
 		break
 
 #define VISC_CHECK_STANDARD(boundarytype, dem) \
-		VISC_CHECK(boundarytype, ARTVISC, dem); \
 		VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
-		VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
-		VISC_CHECK(boundarytype, SPSVISC, dem); \
 		VISC_CHECK(boundarytype, KEPSVISC, dem);
 
 #define VISC_SWITCH(boundarytype, dem) \
@@ -126,8 +112,6 @@ void*	reduce_buffer = NULL;
 
 #define BOUNDARY_SWITCH(dem) \
 	switch (boundarytype) { \
-		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
-		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
 		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
@@ -179,7 +163,7 @@ void*	reduce_buffer = NULL;
 #define SA_VERT_BOUND_CHECK(kernel) \
 	case kernel: \
 		cuforces::saVertexBoundaryConditions<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, newGam, oldEulerVel, particleHash, cellStart, neibsList, particleRangeEnd, dt, deltap, slength, influenceradius, initStep); \
+				 (oldPos, oldVel, oldTKE, oldEps, newGam, oldEulerVel, forces, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
 	break
 
 extern "C"
@@ -1064,7 +1048,7 @@ calcPrivate(const	float4*			pos,
 
 void
 saSegmentBoundaryConditions(
-	const	float4*			oldPos,
+			float4*			oldPos,
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
@@ -1123,19 +1107,23 @@ saVertexBoundaryConditions(
 			float*			oldEps,
 			float4*			newGam,
 			float4*			oldEulerVel,
+			float4*			forces,
 	const	float4*			boundelement,
 	const	vertexinfo*		vertices,
-	const	particleinfo*	info,
-	const	hashKey*		particleHash,
+			particleinfo*	info,
+			hashKey*		particleHash,
 	const	uint*			cellStart,
 	const	neibdata*		neibsList,
 	const	uint			numParticles,
+			uint*			newNumParticles,
 	const	uint			particleRangeEnd,
 	const	float			dt,
+	const	int				step,
 	const	float			deltap,
 	const	float			slength,
 	const	int				kerneltype,
 	const	float			influenceradius,
+	const	uint&			numActiveParticles,
 	const	bool			initStep)
 {
 	int dummy_shared = 0;
@@ -1164,6 +1152,8 @@ saVertexBoundaryConditions(
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_particles_id_range, &numActiveParticles, sizeof(uint)));
 
 }
 

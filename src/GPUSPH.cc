@@ -178,6 +178,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
+	// the number of allocated particles will be bigger, to be sure it can contain particles being created
+	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
+	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
+
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
@@ -185,9 +189,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	initializeObjectsCGs();
 
 	// allocate aux arrays for rollCallParticles()
-	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
-	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
-	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->totParticles );
+	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
+	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
+	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->allocatedParticles );
 
 	if (!m_rcBitmap) {
 		fprintf(stderr,"FATAL: failed to allocate roll call bitmap\n");
@@ -210,8 +214,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	size_t totCPUbytes = allocateGlobalHostBuffers();
 
 	// pretty print
-	printf("  allocated %s on host for %s particles\n",
+	printf("  allocated %s on host for %s particles (%s active)\n",
 		gdata->memString(totCPUbytes).c_str(),
+		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
 
 	// copy planes from the problem to the shared array
@@ -463,8 +468,6 @@ bool GPUSPH::runSimulation() {
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		gdata->swapDeviceBuffers(BUFFER_POS);
-
 		//			//reduce bodies
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
@@ -481,17 +484,22 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
+			gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
 			// compute boundary conditions on segments and detect outgoing particles at open boundaries
 			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | DBLBUFFER_WRITE);
+
+			gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | DBLBUFFER_WRITE);
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL);
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
@@ -561,23 +569,30 @@ bool GPUSPH::runSimulation() {
 
 		//			//reduce bodies
 
-		gdata->swapDeviceBuffers(BUFFER_POS);
-
 		// semi-analytical boundary update
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 			gdata->only_internal = true;
 
+			gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
 			// compute boundary conditions on segments and detect outgoing particles at open boundaries
 			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | DBLBUFFER_WRITE);
+
+			gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | DBLBUFFER_WRITE);
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+		// update inlet/outlet changes only after step 2
+		if (problem->get_simparams()->inoutBoundaries)
+			doCommand(DOWNLOAD_NEWNUMPARTS);
+
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL);
 
 		// increase counters
 		gdata->iterations++;
@@ -771,7 +786,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
 
 	// number of elements to allocate
-	const size_t numparts = gdata->totParticles;
+	const size_t numparts = gdata->allocatedParticles;
 
 	const uint numcells = gdata->nGridCells;
 	const size_t ucharCellSize = sizeof(uchar) * numcells;
@@ -1215,6 +1230,9 @@ void GPUSPH::buildNeibList()
 		doCommand(INVINDEX);
 	doCommand(REORDER);
 
+	if (problem->get_simparams()->inoutBoundaries)
+		doCommand(DOWNLOAD_NEWNUMPARTS);
+
 	// swap pos, vel and info double buffers
 	gdata->swapDeviceBuffers(BUFFERS_ALL_DBL);
 
@@ -1235,7 +1253,11 @@ void GPUSPH::buildNeibList()
 		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
 		// until next calchash; however, they are filtered out when using the particle hashes.
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
-	}
+		// update the newNumParticles device counter
+		if (problem->get_simparams()->inoutBoundaries)
+			doCommand(UPLOAD_NEWNUMPARTS);
+	} else
+		updateArrayIndices();
 
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
@@ -1450,13 +1472,21 @@ void GPUSPH::updateArrayIndices() {
 	for (uint d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
-	// process 0 checks if total number of particles varied in the simulation
-	if (gdata->mpi_rank == 0) {
+	/* Checking the total number of particles can be done by rank 0 process only if there are no inlets/outlets,
+	 * since its aim is just error checking. However, in presence of inlets every process should have the
+	 * updated number of active particles, at least for coherent status printing; thus, every process counts
+	 * the particles and only rank 0 checks for correctness. */
+	if (gdata->mpi_rank == 0 || gdata->problem->get_simparams()->inoutBoundaries) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
 
-		if (newSimulationTotal != gdata->totParticles) {
+		// number of particle may increase or decrease if there are respectively inlets or outlets
+		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_simparams()->inoutBoundaries) ||
+			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_simparams()->inoutBoundaries) ) {
+			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
+			gdata->totParticles = newSimulationTotal;
+		} else if (newSimulationTotal != gdata->totParticles && gdata->mpi_rank == 0) {
 			printf("WARNING: at iteration %lu the number of particles changed from %u to %u for no known reason!\n",
 				gdata->iterations, gdata->totParticles, newSimulationTotal);
 
@@ -1470,6 +1500,14 @@ void GPUSPH::updateArrayIndices() {
 			// Note: updading *after* the roll call likely shows the missing particle(s) and the duplicate(s). Doing before it only shows the missing one(s)
 			gdata->totParticles = newSimulationTotal;
 		}
+	}
+
+	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
+	// FIXME: like in other methods, we should avoid quitting only one process
+	if (processCount > gdata->allocatedParticles) {
+		printf( "FATAL: Number of total particles at iteration %lu (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
+				gdata->iterations, processCount, gdata->allocatedParticles);
+		gdata->quit_request = true;
 	}
 }
 

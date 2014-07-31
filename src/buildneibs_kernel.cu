@@ -203,10 +203,16 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		if (toofar)
 			disable_particle(pos);
 
+		// mark with special hash if inactive
+		if (INACTIVE(pos))
+			gridHash = CELL_HASH_MAX;
+
 		// Store grid hash, particle index and position relative to cell
 		particleHash[index] = makeParticleHash(gridHash, info);
 		posArray[index] = pos;
 	}
+
+
 
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
@@ -299,6 +305,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										const hashKey*	particleHash,	///< previously sorted particle's hashes (in)
 										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
 										const uint		numParticles,	///< total number of particles
+										uint*			newNumParticles,	// output: number of active particles
 										const uint*		inversedParticleIndex)
 {
 	// Shared hash array of dimension blockSize + 1
@@ -341,16 +348,27 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		// everytime we use a cell hash to access an element of CellStart or CellEnd
 
 		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
+
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-			cellStart[cellHash & CELLTYPE_BITMASK] = index;
+			if (cellHash != CELL_HASH_MAX)
+				// if it isn't an inactive particle, it is also the start of the cell
+				cellStart[cellHash & CELLTYPE_BITMASK] = index;
+			else
+				*newNumParticles = index;
+
 			// If it isn't the first particle, it must also be the end of the previous cell
 			if (index > 0)
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
 		}
 
+		// if we are an inactive particle, we're done (short hash: compare with 32 bits max)
+		if (cellHash == CELL_HASH_MAX)
+			return;
+
 		if (index == numParticles - 1) {
 			// ditto
 			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
+			*newNumParticles = numParticles;
 		}
 
 		if (segmentStart) {

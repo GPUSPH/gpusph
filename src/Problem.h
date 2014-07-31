@@ -246,6 +246,8 @@ class Problem {
 		bool finished(float) const;
 
 		virtual int fill_parts(void) = 0;
+		// maximum number of particles that may be generated
+		virtual uint max_parts(uint numParts);
 		virtual uint fill_planes(void);
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);

@@ -197,6 +197,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
 									const uint			numParticles,
+									uint*				newNumParticles,	// output: number of active particles found
 									const uint			numGridCells,
 									uint*				inversedParticleIndex)
 {
@@ -229,7 +230,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-												particleHash, particleIndex, numParticles, inversedParticleIndex);
+		particleHash, particleIndex, numParticles, newNumParticles, inversedParticleIndex);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");

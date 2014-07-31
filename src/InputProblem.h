@@ -9,7 +9,6 @@
 class InputProblem: public Problem {
 	private:
 		string			inputfile;
-		int				numparticles;
 		PointVect		test_points;
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)
@@ -23,6 +22,7 @@ class InputProblem: public Problem {
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
 		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+		uint max_parts(uint);
 
 		void release_memory(void) {};
 };

@@ -117,6 +117,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
 									const uint			numParticles,
+									uint*				newNumParticles,	// output: number of active particles found
 									const uint			numGridCells,
 									uint*				inversedParticleIndex);
 

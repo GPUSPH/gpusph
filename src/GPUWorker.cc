@@ -138,6 +138,12 @@ uint GPUWorker::getNumParticles()
 	return m_numParticles;
 }
 
+// Return the number of allocated particles
+uint GPUWorker::getNumAllocatedParticles()
+{
+	return m_numAllocatedParticles;
+}
+
 uint GPUWorker::getNumInternalParticles() {
 	return m_numInternalParticles;
 }
@@ -221,12 +227,12 @@ void GPUWorker::computeAndSetAllocableParticles()
 
 	uint numAllocableParticles = (freeMemory / computeMemoryPerParticle());
 
-	if (numAllocableParticles < gdata->totParticles)
+	if (numAllocableParticles < gdata->allocatedParticles)
 		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
-			m_deviceIndex, numAllocableParticles, gdata->totParticles);
+			m_deviceIndex, numAllocableParticles, gdata->allocatedParticles);
 
 	// allocate at most the number of particles required for the whole simulation
-	m_numAllocatedParticles = min( numAllocableParticles, gdata->totParticles );
+	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
 		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
@@ -876,6 +882,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		allocated += segmentsSize;
 	}
 
+	// newNumParticles for inlets
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
+	allocated += sizeof(uint);
+
 	if (m_simparams->numODEbodies) {
 		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
@@ -953,6 +963,8 @@ void GPUWorker::deallocateDeviceBuffers() {
 		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 	}
+
+	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
 	if (m_simparams->numODEbodies) {
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
@@ -1198,6 +1210,52 @@ void GPUWorker::resetSegments()
 	for (uint s = 0; s < 4; s++)
 		gdata->s_dSegmentsStart[m_deviceIndex][s] = EMPTY_SEGMENT;
 	uploadSegments();
+}
+
+// download the updated number of particles (update by reorder and euler)
+void GPUWorker::downloadNewNumParticles()
+{
+	// is the device empty? (unlikely but possible before LB kicks in)
+	// if so, neither reorder nor euler did actually perform anything
+	if (m_numParticles == 0) return;
+
+	uint activeParticles;
+	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
+
+	if (activeParticles > m_numAllocatedParticles) {
+		fprintf(stderr, "ERROR: Number of particles grew too much: %u > %u\n", activeParticles, m_numAllocatedParticles);
+		gdata->quit_request = true;
+	}
+
+	if (activeParticles != m_numParticles) {
+		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
+		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
+		m_numParticles = activeParticles;
+		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
+		// it should not be updated here. Single-device simulations, instead, have it updated here.
+		if (SINGLE_DEVICE)
+			m_particleRangeEnd = m_numInternalParticles = activeParticles;
+		// As a consequence, single-device simulations will run the forces kernel on newly cloned particles as well, while
+		// multi-device simulations will not. We want to make this harmless. There are at least two possibilies:
+		// 1. Reset the neighbor list buffer before building it. Doing so, the clones will always have an empty list and
+		//    the forces kernel will only add gravity. Note that the clones are usually inside the vel field until next
+		//    buildneibs, so the output of forces should be irrelevant; the problem, however, is that the forces kernel
+		//    might find trash there and crash. This is currently implemented.
+		// 2. This method is called in two phases: after the reorder and after euler. If we can distinguish between the two
+		//    phases, then we can update the m_particleRangeEnd/m_numInternalParticles only after the reorder and
+		//    m_numParticles in both. One way to do this is to use a command flag or to reuse gdata->only_internal. This
+		//    would avoid calling forces and euler on the clones and might be undesired, since we will not apply the vel
+		//    field until next bneibs.
+		// Note: we would love to reset only the neibslists of the clones, but lists are interlaced and this would mean
+		// multiple memory stores. TODO: check if this is more convenient than resetting the whole list
+	}
+}
+
+// upload the value m_numParticles to "newNumParticles" on device
+void GPUWorker::uploadNewNumParticles()
+{
+	// uploading even if empty (usually not, right after append)
+	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
 // upload mbData for moving boundaries (possibily called many times)
@@ -1540,6 +1598,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
 				break;
+			case DOWNLOAD_NEWNUMPARTS:
+				//printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
+				instance->downloadNewNumParticles();
+				break;
+			case UPLOAD_NEWNUMPARTS:
+				//printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
+				instance->uploadNewNumParticles();
+				break;
 			case APPEND_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
 				instance->importExternalCells();
@@ -1727,6 +1793,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
 
 							m_numParticles,
+							m_dNewNumParticles,
 							m_nGridCells,
 							m_dBuffers.getData<BUFFER_INVINDEX>());
 }
@@ -1739,6 +1806,10 @@ void GPUWorker::kernel_buildNeibsList()
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
+
+	// reset the neighbor list
+	CUDA_SAFE_CALL(cudaMemset(m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		0xff, numPartsToElaborate * sizeof(neibdata) * m_simparams->maxneibsnum));
 
 	// this is the square the distance used for neighboursearching of boundaries
 	// it is delta p / 2 bigger than the standard radius
@@ -2176,12 +2247,12 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
 	saSegmentBoundaryConditions(
-				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
-				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
 				m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -2210,12 +2281,13 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
 
 	saVertexBoundaryConditions(
-				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
-				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
+				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+				m_dBuffers.getData<BUFFER_FORCES>(),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -2223,12 +2295,15 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_dCellStart,
 				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
+				(firstStep ? NULL : m_dNewNumParticles),	// no m_dNewNumParticles at first step
 				numPartsToElaborate,
 				firstStep ? gdata->dt / 2.0f : gdata->dt,
+				firstStep ? 1 : 2,
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
+				gdata->totParticles,
 				initStep);
 }
 

@@ -83,6 +83,8 @@ enum CommandType {
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
 	UPDATE_SEGMENTS,	// dump segments to shared host array, then update the number of internal parts
+	DOWNLOAD_NEWNUMPARTS,	// dump the updated number of particles (in case of inlets/outlets)
+	UPLOAD_NEWNUMPARTS,		// update the "newNumParts" on device with the host value
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	MLS,				// MLS correction
@@ -178,17 +180,22 @@ struct GlobalData {
 	NetworkManager* networkManager;
 
 	// NOTE: the following holds
-	// s_hPartsPerDevice[x] <= processParticles[d] <= totParticles <= processParticles
+	// s_hPartsPerDevice[x] <= processParticles[d] <= totParticles <= allocatedParticles
 	// - s_hPartsPerDevice[x] is the number of particles currently being handled by the GPU
 	//   (only useful in multigpu to keep track of the number of particles to dump; varies according to the fluid displacemente in the domain)
 	// - processParticles[d] is the sum of all the internal particles of all the GPUs in the process of rank d
 	//   (only useful in multinode to keep track of the number of particles and offset to dump them on host; varies according to the fluid displacement in the domain)
 	// - totParticles is the sum of all the internal particles of all the network
+	//   (equal to the sum of all the processParticles, can vary if there are inlets/outlets)
+	// - allocatedParticles is the number of allocations
+	//   (can be higher when there are inlets)
 
 	// global number of particles - whole simulation
 	uint totParticles;
 	// number of particles of each process
 	uint processParticles[MAX_NODES_PER_CLUSTER];
+	// number of allocated particles *in the process*
+	uint allocatedParticles;
 	// global number of planes (same as local ones)
 	//uint numPlanes;
 	// grid size, for particle hash computation
@@ -286,6 +293,7 @@ struct GlobalData {
 		threadSynchronizer(NULL),
 		networkManager(NULL),
 		totParticles(0),
+		allocatedParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),

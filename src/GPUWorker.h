@@ -140,6 +140,9 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
+	// "new" number of particles for open boundaries
+	uint*		m_dNewNumParticles;
+
 	// number of blocks used in forces kernel runs (for delayed cfl reduction)
 	uint		m_forcesKernelTotalNumBlocks;
 
@@ -188,6 +191,8 @@ private:
 	void uploadSegments();
 	void updateSegments();
 	void resetSegments();
+	void uploadNewNumParticles();
+	void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
 	void uploadMBData();
@@ -243,6 +248,7 @@ public:
 
 	// getters of the number of particles
 	uint getNumParticles();
+	uint getNumAllocatedParticles();
 	uint getNumInternalParticles();
 	uint getMaxParticles();
 

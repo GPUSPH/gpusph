@@ -25,8 +25,6 @@ static const std::string SPECIFIC_PROBLEM("SmallChannelFlowIO");
 
 InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
-	numparticles = 0;
-
 	//StillWater periodic (symmetric)
 	//*************************************************************************************
 	if (SPECIFIC_PROBLEM == "StillWater") {
@@ -409,4 +407,15 @@ InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, fl
 		k[i] = k0;
 		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*m_deltap);
 	}
+}
+
+uint
+InputProblem::max_parts(uint numpart)
+{
+	// gives an estimate for the maximum number of particles
+	if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
+		return (uint)((float)numpart*1.2f);
+	}
+	else
+		return numpart;
 }

@@ -306,7 +306,7 @@ calcPrivate(const	float4*			pos,
 // Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 void
 saSegmentBoundaryConditions(
-	const	float4*			oldPos,
+			float4*			oldPos,
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
@@ -337,19 +337,23 @@ saVertexBoundaryConditions(
 			float*			oldEps,
 			float4*			newGam,
 			float4*			oldEulerVel,
+			float4*			forces,
 	const	float4*			boundelement,
 	const	vertexinfo*		vertices,
-	const	particleinfo*	info,
-	const	hashKey*		particleHash,
+			particleinfo*	info,
+			hashKey*		particleHash,
 	const	uint*			cellStart,
 	const	neibdata*		neibsList,
 	const	uint			numParticles,
+			uint*			newNumParticles,
 	const	uint			particleRangeEnd,
 	const	float			dt,
+	const	int				step,
 	const	float			deltap,
 	const	float			slength,
 	const	int				kerneltype,
 	const	float			influenceradius,
+	const	uint&			numActiveParticles,
 	const	bool			initStep);
 
 }
