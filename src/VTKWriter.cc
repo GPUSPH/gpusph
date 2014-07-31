@@ -193,12 +193,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (info) {
 		scalar_array(fid, "Int16", "Part type", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
-//		scalar_array(fid, "Int16", "Part flag", offset);
-//		offset += sizeof(ushort)*numParts+sizeof(int);
-//		scalar_array(fid, "Int16", "Fluid number", offset);
-//		offset += sizeof(ushort)*numParts+sizeof(int);
-//		scalar_array(fid, "Int16", "Part object", offset);
-//		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "Int16", "Part flag", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "Int16", "Fluid number", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
+		scalar_array(fid, "Int16", "Part object", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
 		scalar_array(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
@@ -355,26 +355,28 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			fwrite(&value, sizeof(value), 1, fid);
 		}
 
-//		// flag
-//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (uint i=node_offset; i < node_offset + numParts; i++) {
-//			ushort value = PART_FLAG(info[i]);
-//			fwrite(&value, sizeof(value), 1, fid);
-//		}
+		// flag
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			ushort value = PART_FLAG(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
 
-//		// fluid number
-//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (uint i=node_offset; i < node_offset + numParts; i++) {
-//			ushort value = PART_FLUID_NUM(info[i]);
-//			fwrite(&value, sizeof(value), 1, fid);
-//		}
+		// fluid number
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			ushort value = PART_FLUID_NUM(info[i]);
+			fwrite(&value, sizeof(value), 1, fid);
+		}
 
-//		// object
-//		fwrite(&numbytes, sizeof(numbytes), 1, fid);
-//		for (uint i=node_offset; i < node_offset + numParts; i++) {
-//			ushort value = object(info[i]);
-//			fwrite(&value, sizeof(value), 1, fid);
-//		}
+		// object
+		fwrite(&numbytes, sizeof(numbytes), 1, fid);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			ushort value = object(info[i]);
+			if (!FLUID(info[i]))
+				value ++;
+			fwrite(&value, sizeof(value), 1, fid);
+		}
 
 		numbytes=sizeof(uint)*numParts;
 
