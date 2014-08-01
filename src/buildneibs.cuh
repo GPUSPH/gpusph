@@ -105,6 +105,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float*				newTKE,				// output: k for k-e model
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
+									float4*				newEulerVel,		// output: sorted euler vel
 									const hashKey*		particleHash,		// input: sorted grid hashes
 									const uint*			particleIndex,		// input: sorted particle indices
 									const float4*		oldPos,				// input: unsorted positions
@@ -116,6 +117,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldTKE,				// input: k for k-e model
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
+									const float4*		oldEulerVel,		// input: euler vel
 									const uint			numParticles,
 									uint*				newNumParticles,	// output: number of active particles found
 									const uint			numGridCells,

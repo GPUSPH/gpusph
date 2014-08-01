@@ -185,6 +185,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									float*				newTKE,				// output: k for k-e model
 									float*				newEps,				// output: e for k-e model
 									float*				newTurbVisc,		// output: eddy viscosity
+									float4*				newEulerVel,		// output: eulerian velocity
 									const hashKey*		particleHash,		// input: sorted grid hashes
 									const uint*			particleIndex,		// input: sorted particle indices
 									const float4*		oldPos,				// input: unsorted positions
@@ -196,6 +197,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldTKE,				// input: k for k-e model
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
+									const float4*		oldEulerVel,		// input: eulerian velocity
 									const uint			numParticles,
 									uint*				newNumParticles,	// output: number of active particles found
 									const uint			numGridCells,
@@ -226,11 +228,13 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
+	if (oldEulerVel)
+		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, oldEulerVel, numParticles*sizeof(float4)));
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-		particleHash, particleIndex, numParticles, newNumParticles, inversedParticleIndex);
+		newEulerVel, particleHash, particleIndex, numParticles, newNumParticles, inversedParticleIndex);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
@@ -252,6 +256,9 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
+
+	if (oldEulerVel)
+		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 }
 
 

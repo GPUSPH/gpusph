@@ -302,6 +302,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float*			sortedTKE,			// output: k for k-e model
 										float*			sortedEps,			// output: e for k-e model
 										float*			sortedTurbVisc,		// output: eddy viscosity
+										float4*			sortedEulerVel,		// output: sorted euler vel
 										const hashKey*	particleHash,	///< previously sorted particle's hashes (in)
 										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
 										const uint		numParticles,	///< total number of particles
@@ -416,6 +417,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 		if (sortedTurbVisc) {
 			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
+		}
+
+		if (sortedEulerVel) {
+			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
 		}
 
 	}
