@@ -329,6 +329,18 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 		}
+		else if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
+			const float y2 = h5File.buf[i].Coords_1*h5File.buf[i].Coords_1;
+			const float z2 = h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
+			const float y4 = y2*y2;
+			const float z4 = z2*z2;
+			const float y6 = y2*y4;
+			const float z6 = z2*z4;
+			const float y8 = y4*y4;
+			const float z8 = z4*z4;
+			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
+			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+		}
 		else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		eulerVel[i] = vel[i];
