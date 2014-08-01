@@ -1510,11 +1510,11 @@ saVertexBoundaryConditions(
 				sumtke += oldTKE ? oldTKE[neib_index] : NAN;
 				sumeps += oldEps ? oldEps[neib_index] : NAN;
 				numseg += 1.0f;
-			}
-			// in the initial step we need to compute an approximate grad gamma direction for the computation of gamma
-			if (initStep) {
-				const float4 relPos = pos_corr - oldPos[neib_index];
-				if (length3(relPos) < influenceradius)
+				// in the initial step we need to compute an approximate grad gamma direction
+				// for the computation of gamma, in general we need a sort of normal as well
+				// for open boundaries to decide whether or not particles are created at a
+				// vertex or not
+				if (object(info)!=0 || initStep)
 					avgNorm += as_float3(boundElement);
 			}
 		}
@@ -1568,7 +1568,7 @@ saVertexBoundaryConditions(
 		// finalize mass computation
 		// reference mass:
 		const float refMass = deltap*deltap*deltap*d_rho0[PART_FLUID_NUM(info)];
-		if (pos.w > 0.5f*refMass && step == 2) {
+		if (step == 2 && pos.w > 0.5f*refMass && dot(as_float3(oldEulerVel[index]),normalize(avgNorm)) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)]) {
 			pos.w -= refMass;
 			// Create new particle
 			// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),
