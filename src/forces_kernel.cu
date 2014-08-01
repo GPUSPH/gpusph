@@ -1249,7 +1249,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				} else { // Expansion wave
 					flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
 				}
-				eulerVel = eulerVel - unInt*normal;
+				eulerVel = sumvel - unInt*normal;
 				eulerVel += normal*flux;
 				eulerVel.w = rhoExt;
 			}
