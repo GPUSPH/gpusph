@@ -564,7 +564,7 @@ struct niC_vars :
 /// check if a particle at distance relPos is close enough to be considered for neibslist inclusion
 template<bool use_sa_boundary>
 __device__ __forceinline__
-bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo, const bool segment,
+bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo,
 	buildneibs_params<use_sa_boundary> params)
 {
 	return sqlength(relPos) < params.sqinfluenceradius; // default check: against the influence radius
@@ -573,13 +573,12 @@ bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo, const boo
 /// SA_BOUNDARY specialization
 template<>
 __device__ __forceinline__
-bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo, const bool segment,
+bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo,
 	buildneibs_params<true> params)
 {
 	const float rp2(sqlength(relPos));
-	// skip standard check when only checking segments, and include BOUNDARY neighbors which are
-	// a little further than sqinfluenceradius
-	return !segment && (rp2 < params.sqinfluenceradius ||
+	// include BOUNDARY neighbors which are a little further than sqinfluenceradius
+	return (rp2 < params.sqinfluenceradius ||
 		(rp2 < params.boundNlSqInflRad && BOUNDARY(neibInfo)));
 }
 
@@ -653,7 +652,7 @@ neibsInCell(
 			const uint		index,		///< current particle index
 			float3			pos,		///< current particle position
 			uint&			neibs_num,	///< number of neighbors for the current particle
-			const bool		segment)	///< if a segment is searching we are only looking for the three vertices
+			const bool		segment)	///< if a segment is searching we are also looking for the three vertices
 {
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
@@ -686,11 +685,6 @@ neibsInCell(
 		if (TESTPOINTS(neibInfo))
 			continue;
 
-		// for SA_BOUNDARY, BOUNDARY particles only look at VERTEX neighbors,
-		// to update vertexPos (BOUNDARY particles don't need an actual neibs list
-		if (use_sa_boundary && segment && !VERTEX(neibInfo))
-			continue;
-
 		// Compute relative position between particle and potential neighbor
 		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
 		#if (__COMPUTE__ >= 20)
@@ -707,7 +701,7 @@ neibsInCell(
 
 		// Check if the squared distance is smaller than the squared influence radius
 		// used for neighbor list construction
-		bool close_enough = isCloseEnough(relPos, neibInfo, segment, params);
+		bool close_enough = isCloseEnough(relPos, neibInfo, params);
 
 		if (close_enough) {
 			if (neibs_num < d_maxneibsnum) {
@@ -716,7 +710,8 @@ neibsInCell(
 				encode_cell = false;
 			}
 			neibs_num++;
-		} else if (segment) {
+		}
+		if (segment) {
 			process_niC_segment(index, neib_index, relPos, params, var);
 		}
 
