@@ -1223,7 +1223,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				if (unExt > unInt) { // Shock wave (Rankine-Hugoniot)
 					eulerVel.w = RHO(P(rhoInt, a) + rhoInt*unInt*(unInt - unExt), a);
 					// with the new rho check if this is actually a shock wave
-					const float c = d_sscoeff[a]*powf(rhoExt/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
+					const float c = d_sscoeff[a]*powf(eulerVel.w/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
 					const float lambda = unExt + c;
 					const float cInt = d_sscoeff[a]*powf(rhoInt/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
 					const float lambdaInt = unInt + cInt;
@@ -1241,7 +1241,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*unInt) + unInt;
 					// Check whether it is really a shock wave
 					const float c = d_sscoeff[a]*powf(rhoExt/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
-					const float lambda = unExt + c;
+					const float lambda = flux + c;
 					const float cInt = d_sscoeff[a]*powf(rhoInt/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
 					const float lambdaInt = unInt + cInt;
 					if (lambda < lambdaInt) // It is in reality an expansion wave
