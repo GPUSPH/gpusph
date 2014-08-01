@@ -1504,7 +1504,7 @@ saVertexBoundaryConditions(
 				sumrho += oldVel[neib_index].w;
 				if (object(neib_info) != 0){
 					sumMdot += oldVel[neib_index].w/3.0f*boundElement.w*
-								dot3(oldEulerVel[neib_index]-oldVel[neib_index],boundElement);
+								dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 					sumEulerVel += oldEulerVel[neib_index];
 				}
 				sumtke += oldTKE ? oldTKE[neib_index] : NAN;
