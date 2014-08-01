@@ -1296,21 +1296,23 @@ void GPUSPH::doCallBacks()
 void GPUSPH::initializeBoundaryConditions()
 {
 	// initially data is in read so swap to write
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES);
 
 	gdata->only_internal = true;
 	// compute boundary conditions for segments
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | DBLBUFFER_WRITE);
+
+	gdata->swapDeviceBuffers(BUFFER_VERTICES);
 
 	// compute boundary conditions for vertices and get an initial estimate for the grad(gamma) direction
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
 	// swap changed buffers back so that read contains the new data
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA);
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
 }
 
 void GPUSPH::printStatus()

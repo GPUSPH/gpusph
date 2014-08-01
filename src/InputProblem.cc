@@ -299,6 +299,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
+	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
 	h5File.read();
 
@@ -330,6 +331,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 		}
 		else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		eulerVel[i] = vel[i];
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
@@ -346,6 +348,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			}
 			else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			eulerVel[i] = vel[i];
 			info[i] = make_particleinfo(VERTEXPART, h5File.buf[i].KENT, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
@@ -362,6 +365,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			}
 			else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			eulerVel[i] = vel[i];
 			info[i] = make_particleinfo(BOUNDPART, h5File.buf[i].KENT, i);
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;

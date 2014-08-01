@@ -1102,9 +1102,20 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		// if we are on an in/outflow boundary get the imposed velocity / pressure and average
 		float4 eulerVel = make_float4(0.0f);
 		if (object(info)!=0) {
-			eulerVel = (oldEulerVel[vertices[index].x] +
-						oldEulerVel[vertices[index].y] +
-						oldEulerVel[vertices[index].z] )/3.0f;
+			float sharedVertices = 0.0f;
+			if(object(tex1Dfetch(infoTex, vertices[index].x))!=0){
+				eulerVel += oldEulerVel[vertices[index].x];
+				sharedVertices += 1.0f;
+			}
+			if(object(tex1Dfetch(infoTex, vertices[index].y))!=0){
+				eulerVel += oldEulerVel[vertices[index].y];
+				sharedVertices += 1.0f;
+			}
+			if(object(tex1Dfetch(infoTex, vertices[index].z))!=0){
+				eulerVel += oldEulerVel[vertices[index].z];
+				sharedVertices += 1.0f;
+			}
+			eulerVel /= sharedVertices;
 		}
 
 		const float4 pos = oldPos[index];
@@ -1265,11 +1276,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	// for fluid particles this kernel checks whether they have crossed the boundary at open boundaries
 	else if (inoutBoundaries && FLUID(info)) {
 
-		#if( __COMPUTE__ >= 20)
-		const float4 pos = oldPos[index];
-		#else
-		float4 pos = tex1Dfetch(posTex, index);
-		#endif
+		float4 pos = oldPos[index];
 
 		// don't check inactive particles and those that have already found their segment
 		if (INACTIVE(pos) || vertices[index].x != 0)
@@ -1299,11 +1306,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
-				#if( __COMPUTE__ >= 20)
 				const float4 relPos = pos_corr - oldPos[neib_index];
-				#else
-				const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
-				#endif
 
 				const float3 normal = as_float3(tex1Dfetch(boundTex, neib_index));
 
