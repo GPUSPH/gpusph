@@ -1160,8 +1160,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				continue;
 
 			const float r = length(as_float3(relPos));
-
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
 			if (r < influenceradius && FLUID(neib_info)) {
 				const float neib_rho = oldVel[neib_index].w;
 				const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
