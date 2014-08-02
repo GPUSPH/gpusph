@@ -1545,7 +1545,6 @@ saVertexBoundaryConditions(
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	oldVel[index].w = sumrho/numseg;
-	sumMdot /= numseg;
 	if (oldTKE)
 		oldTKE[index] = sumtke/numseg;
 	if (oldEps)
