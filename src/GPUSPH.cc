@@ -393,7 +393,8 @@ bool GPUSPH::runSimulation() {
 		// call Integrator -> setNextStep
 
 		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
 			buildNeibList();
 		}
 
@@ -609,8 +610,17 @@ bool GPUSPH::runSimulation() {
 		}
 
 		// update inlet/outlet changes only after step 2
-		if (problem->get_simparams()->inoutBoundaries)
+		// and check if a forced buildneibs is required (i.e. if particles were created)
+		if (problem->get_simparams()->inoutBoundaries){
 			doCommand(DOWNLOAD_NEWNUMPARTS);
+
+			gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
+			for (uint d = 1; d < gdata->devices; d++)
+				gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
+			// if runnign multinode, should also find the network minimum
+			if (MULTI_NODE)
+				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
+		}
 
 		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL);
 

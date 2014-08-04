@@ -228,6 +228,10 @@ struct GlobalData {
 	// last dt for each PS
 	float dts[MAX_DEVICES_PER_NODE];
 
+	// indicates whether particles were created at open boundaries
+	bool	particlesCreatedOnNode[MAX_DEVICES_PER_NODE];
+	bool	particlesCreated;
+
 	// indices for double-buffered device arrays (0 or 1)
 
 	BufferIndexMap		currentRead;
@@ -311,6 +315,7 @@ struct GlobalData {
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
+		particlesCreated(false),
 		lastGlobalPeakNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
@@ -325,6 +330,10 @@ struct GlobalData {
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			dts[d] = 0.0F;
+
+		// init particlesCreatedOnNode
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			particlesCreatedOnNode[d] = false;
 
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)

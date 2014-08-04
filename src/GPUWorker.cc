@@ -1227,6 +1227,8 @@ void GPUWorker::downloadNewNumParticles()
 		gdata->quit_request = true;
 	}
 
+	gdata->particlesCreatedOnNode[m_deviceIndex] = false;
+
 	if (activeParticles != m_numParticles) {
 		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
@@ -1248,6 +1250,10 @@ void GPUWorker::downloadNewNumParticles()
 		//    field until next bneibs.
 		// Note: we would love to reset only the neibslists of the clones, but lists are interlaced and this would mean
 		// multiple memory stores. TODO: check if this is more convenient than resetting the whole list
+		//
+		// The particlesCreatedOnNode array indicates whether or not the particle count on a device changed an causes in
+		// turn a forced buildneibs
+		gdata->particlesCreatedOnNode[m_deviceIndex] = true;
 	}
 }
 

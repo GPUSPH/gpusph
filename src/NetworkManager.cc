@@ -376,12 +376,32 @@ void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char
 }
 #endif
 
-void NetworkManager::networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype)
+void NetworkManager::networkFloatReduction(float *buffer, const unsigned int bufferElements, ReductionType rtype)
 {
 #if USE_MPI
 	MPI_Op _operator = (rtype == MIN_REDUCTION ? MPI_MIN : MPI_SUM);
 
 	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, buffer, bufferElements, MPI_FLOAT, _operator, MPI_COMM_WORLD);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
+}
+
+void NetworkManager::networkBoolReduction(bool *buffer, const unsigned int bufferElements)
+{
+#if USE_MPI
+	// we need an integer buffer since MPI doesn't have a bool type
+	int ibuffer[bufferElements];
+	for (uint i=0; i<bufferElements; i++)
+		ibuffer[i] = buffer[i] ? 1 : 0;
+
+	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD);
+
+	for (uint i=0; i<bufferElements; i++)
+		buffer[i] = ibuffer[i] > 0;
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
