@@ -497,6 +497,16 @@ bool GPUSPH::runSimulation() {
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | DBLBUFFER_WRITE);
+
+			if (problem->get_simparams()->inoutBoundaries) {
+				gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
+				doCommand(DELETE_OUTGOING_PARTS);
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES);
+
+				gdata->swapDeviceBuffers(BUFFER_VERTICES);
+			}
 		}
 
 		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL);
@@ -586,6 +596,16 @@ bool GPUSPH::runSimulation() {
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | DBLBUFFER_WRITE);
+
+			if (problem->get_simparams()->inoutBoundaries) {
+				gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
+				doCommand(DELETE_OUTGOING_PARTS);
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES);
+
+				gdata->swapDeviceBuffers(BUFFER_VERTICES);
+			}
 		}
 
 		// update inlet/outlet changes only after step 2

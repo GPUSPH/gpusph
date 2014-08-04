@@ -1415,9 +1415,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// transfer mass to .w index as it is overwritten with the disable below
 					vertexWeights.w = pos.w;
 					oldVel[index] = vertexWeights;
-					// delete fluid particle
-					disable_particle(pos);
-					oldPos[index] = pos;
 
 					// one segment is enough so jump out of the neighbour loop
 					break;
@@ -2507,6 +2504,33 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 		normals[index] = normal;
 		}
 
+}
+
+__global__ void
+deleteOutgoingPartsDevice(			float4*		oldPos,
+									vertexinfo*	oldVertices,
+							const	uint		numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if(index < numParticles) {
+		const particleinfo info = tex1Dfetch(infoTex, index);
+		if (FLUID(info)) {
+			float4 pos = oldPos[index];
+			if (ACTIVE(pos)) {
+				vertexinfo vertices = oldVertices[index];
+				if (vertices.x != 0) {
+					disable_particle(pos);
+					vertices.x = 0;
+					vertices.y = 0;
+					vertices.z = 0;
+					vertices.w = 0;
+					oldPos[index] = pos;
+					oldVertices[index] = vertices;
+				}
+			}
+		}
+	}
 }
 /************************************************************************************************************/
 

@@ -229,6 +229,7 @@ private:
 	void kernel_updatePositions();
 	void kernel_calcPrivate();
 	void kernel_testpoints();
+	void kernel_deleteOutgoingParts();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

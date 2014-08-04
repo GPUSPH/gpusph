@@ -357,6 +357,14 @@ saVertexBoundaryConditions(
 	const	uint&			numActiveParticles,
 	const	bool			initStep);
 
+// disables particles that went through boundaries when open boundaries are used
+void
+deleteOutgoingParts(		float4*			pos,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd);
+
 }
 
 #endif

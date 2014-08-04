@@ -1004,6 +1004,30 @@ void calc_energy(
 }
 
 void
+deleteOutgoingParts(		float4*			pos,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd)
+{
+	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	//execute kernel
+	cuforces::deleteOutgoingPartsDevice<<<numBlocks, numThreads>>>
+		(	pos,
+			vertices,
+			numParticles);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("UpdatePositions kernel execution failed");
+}
+
+void
 calcPrivate(const	float4*			pos,
 			const	float4*			vel,
 			const	particleinfo*	info,
