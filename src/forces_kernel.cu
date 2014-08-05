@@ -1313,9 +1313,16 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 				const float3 normal = as_float3(tex1Dfetch(boundTex, neib_index));
 
+				// relative velocity to the lagrangian velocity of the segment
+				// if we have moving boundaries there would be a "-lagVel[neib_index]" at the end
+				const float3 relVel = as_float3(vel);
+
 				// quick check if we are behind a segment and if the segment is reasonably close by
 				// (max distance vertex to segment is deltap/2)
-				if (dot(normal, as_float3(relPos)) <= 0.0f && sqlength3(relPos) < deltap) {
+				// TODO FIXME: particles are still deleted right after creation....
+				if (dot(normal, as_float3(relPos)) <= 0.0f &&
+					sqlength3(relPos) < deltap &&
+					dot(relVel, normal) < 0.0f) {
 					// now check whether the normal projection is inside the triangle
 					// first get the position of the vertices local coordinate system for relative positions to vertices
 					uint j = 0;
