@@ -404,7 +404,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 				inversedParticleIndex[vertices.x],
 				inversedParticleIndex[vertices.y],
 				inversedParticleIndex[vertices.z],
-				inversedParticleIndex[vertices.w]);
+				vertices.w);
 		}
 
 		if (sortedTKE) {
