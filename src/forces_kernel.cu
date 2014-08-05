@@ -1102,18 +1102,19 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		// if we are on an in/outflow boundary get the imposed velocity / pressure and average
 		float4 eulerVel = make_float4(0.0f);
+		const vertexinfo verts = vertices[index];
 		if (object(info)!=0) {
 			float sharedVertices = 0.0f;
-			if(object(tex1Dfetch(infoTex, vertices[index].x))!=0){
-				eulerVel += oldEulerVel[vertices[index].x];
+			if(object(tex1Dfetch(infoTex, verts.x))!=0){
+				eulerVel += oldEulerVel[verts.x];
 				sharedVertices += 1.0f;
 			}
-			if(object(tex1Dfetch(infoTex, vertices[index].y))!=0){
-				eulerVel += oldEulerVel[vertices[index].y];
+			if(object(tex1Dfetch(infoTex, verts.y))!=0){
+				eulerVel += oldEulerVel[verts.y];
 				sharedVertices += 1.0f;
 			}
-			if(object(tex1Dfetch(infoTex, vertices[index].z))!=0){
-				eulerVel += oldEulerVel[vertices[index].z];
+			if(object(tex1Dfetch(infoTex, verts.z))!=0){
+				eulerVel += oldEulerVel[verts.z];
 				sharedVertices += 1.0f;
 			}
 			eulerVel /= sharedVertices;
@@ -1188,9 +1189,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// for the k-epsilon model we also need to determine the velocity of the wall.
 			// This is an average of the velocities of the vertices
 			if (oldTKE){
-				oldVel[index] = (	oldVel[vertices[index].x] +
-									oldVel[vertices[index].y] +
-									oldVel[vertices[index].z] )/3.0f;
+				oldVel[index] = (	oldVel[verts.x] +
+									oldVel[verts.y] +
+									oldVel[verts.z] )/3.0f;
 				oldTKE[index] = sumtke/alpha;
 			}
 			if (oldEps)
@@ -1373,7 +1374,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// the fluid particle found a segment so let's save it
 					// note normally vertices is empty for fluid particles so this will indicate
 					// from now on that it has to be destroyed
-					vertices[index] = vertices[neib_index];
+					const vertexinfo verts = vertices[neib_index];
+					vertices[index] = verts;
 
 					// furthermore we need to save the weights beta_{a,v} to avoid using
 					// neighbours of neighbours. As the particle will be deleted anyways we
@@ -1383,39 +1385,39 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					float4 vertexWeights = make_float4(0.0f);
 					// Check if all vertices are associated to an open boundary
 					// in this case we can use the barycentric coordinates
-					if (vertices[neib_index].w == ALLVERTICES) {
+					if (verts.w == ALLVERTICES) {
 						vertexWeights.x = 1.0f - (u+v);
 						vertexWeights.y = u;
 						vertexWeights.z = v;
 					}
 					// If there are two vertices then use the remaining two and split accordingly
-					else if (vertices[neib_index].w & (VERTEX1 | VERTEX2)) {
+					else if (verts.w & (VERTEX1 | VERTEX2)) {
 						vertexWeights.x = 1.0f - (u+v);
 						vertexWeights.y = u;
 						vertexWeights.z = 0.0f;
 					}
-					else if (vertices[neib_index].w & (VERTEX2 | VERTEX3)) {
+					else if (verts.w & (VERTEX2 | VERTEX3)) {
 						vertexWeights.x = 1.0f - (u+v);
 						vertexWeights.y = 0.0f;
 						vertexWeights.z = v;
 					}
-					else if (vertices[neib_index].w & (VERTEX3 | VERTEX1)) {
+					else if (verts.w & (VERTEX3 | VERTEX1)) {
 						vertexWeights.x = 0.0f;
 						vertexWeights.y = u;
 						vertexWeights.z = v;
 					}
 					// if only one vertex is associated to the open boundary use only that one
-					else if (vertices[neib_index].w & VERTEX1) {
+					else if (verts.w & VERTEX1) {
 						vertexWeights.x = 1.0f;
 						vertexWeights.y = 0.0f;
 						vertexWeights.z = 0.0f;
 					}
-					else if (vertices[neib_index].w & VERTEX2) {
+					else if (verts.w & VERTEX2) {
 						vertexWeights.x = 0.0f;
 						vertexWeights.y = 1.0f;
 						vertexWeights.z = 0.0f;
 					}
-					else if (vertices[neib_index].w & VERTEX3) {
+					else if (verts.w & VERTEX3) {
 						vertexWeights.x = 0.0f;
 						vertexWeights.y = 0.0f;
 						vertexWeights.z = 1.0f;
