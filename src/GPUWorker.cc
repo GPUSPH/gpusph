@@ -2264,6 +2264,7 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
 				m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),

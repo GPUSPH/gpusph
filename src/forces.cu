@@ -157,13 +157,13 @@ void*	reduce_buffer = NULL;
 #define SA_SEG_BOUND_CHECK(kernel) \
 	case kernel: \
 		cuforces::saSegmentBoundaryConditions<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, oldEulerVel, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, inoutBoundaries); \
+				 (oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, inoutBoundaries); \
 	break
 
 #define SA_VERT_BOUND_CHECK(kernel) \
 	case kernel: \
 		cuforces::saVertexBoundaryConditions<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, newGam, oldEulerVel, forces, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
+				 (oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
 	break
 
 extern "C"
@@ -1077,6 +1077,7 @@ saSegmentBoundaryConditions(
 			float*			oldTKE,
 			float*			oldEps,
 			float4*			oldEulerVel,
+			float4*			oldGGam,
 			vertexinfo*		vertices,
 	const	float2	* const vertPos[],
 	const	float4*			boundelement,
@@ -1125,7 +1126,7 @@ saVertexBoundaryConditions(
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
-			float4*			newGam,
+			float4*			oldGGam,
 			float4*			oldEulerVel,
 			float4*			forces,
 	const	float4*			boundelement,

@@ -1074,6 +1074,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 										float*		oldTKE,
 										float*		oldEps,
 										float4*		oldEulerVel,
+										float4*		oldGGam,
 										vertexinfo*	vertices,
 								const	float2*		vertPos0,
 								const	float2*		vertPos1,
@@ -1290,6 +1291,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		uint neib_cell_base_index = 0;
 		float3 pos_corr;
 
+		const float4 vel = oldVel[index];
+
 		// Loop over all the neighbors
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
@@ -1414,7 +1417,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					vertexWeights = normalize3(vertexWeights);
 					// transfer mass to .w index as it is overwritten with the disable below
 					vertexWeights.w = pos.w;
-					oldVel[index] = vertexWeights;
+					oldGGam[index] = vertexWeights;
 
 					// one segment is enough so jump out of the neighbour loop
 					break;
@@ -1433,7 +1436,7 @@ saVertexBoundaryConditions(
 						float4*			oldVel,
 						float*			oldTKE,
 						float*			oldEps,
-						float4*			gradGamma,
+						float4*			oldGGam,
 						float4*			oldEulerVel,
 						float4*			forces,
 						particleinfo*	pinfo,
@@ -1522,18 +1525,18 @@ saVertexBoundaryConditions(
 			if (vertices.x != 0 && ACTIVE(relPos)) {
 				// betaAV is the weight in barycentric coordinates
 				float betaAV = 0.0f;
+				const float4 vertexWeights = oldGGam[neib_index];
 				// check if one of the vertices is equal to the present one
-				const float4 neib_vel = oldVel[neib_index];
 				if (vertices.x == index)
-					betaAV = neib_vel.x;
+					betaAV = vertexWeights.x;
 				else if (vertices.y == index)
-					betaAV = neib_vel.y;
+					betaAV = vertexWeights.y;
 				else if (vertices.z == index)
-					betaAV = neib_vel.z;
+					betaAV = vertexWeights.z;
 				if(betaAV > 0.0f){
 					// add mass from fluid particle to vertex particle
-					// note that the mass was transfered from pos to vel
-					pos.w += betaAV*neib_vel.w;
+					// note that the mass was transfered from pos to gam
+					pos.w += betaAV*vertexWeights.w;
 				}
 			}
 		}
@@ -1588,13 +1591,14 @@ saVertexBoundaryConditions(
 			float4 clone_pos = pos; // new position is position of vertex particle
 			clone_pos.w = refMass; // new fluid particle has reference mass
 			int3 clone_gridPos = gridPos; // as the position is the same so is the grid position
+
 			// assign new values to array
 			oldPos[clone_idx] = clone_pos;
 			oldVel[clone_idx] = oldVel[index];
 			pinfo[clone_idx] = clone_info;
 			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
 			forces[clone_idx] = make_float4(0.0f);
-
+			oldGGam[clone_idx] = oldGGam[index];
 		}
 		// time stepping
 		pos.w += dt*sumMdot;
@@ -1604,10 +1608,10 @@ saVertexBoundaryConditions(
 	// finalize computation of average norm for gamma calculation in the initial step
 	if (initStep) {
 		avgNorm /= length(avgNorm);
-		gradGamma[index].x = avgNorm.x;
-		gradGamma[index].y = avgNorm.y;
-		gradGamma[index].z = avgNorm.z;
-		gradGamma[index].w = 0.0f;
+		oldGGam[index].x = avgNorm.x;
+		oldGGam[index].y = avgNorm.y;
+		oldGGam[index].z = avgNorm.z;
+		oldGGam[index].w = 0.0f;
 	}
 }
 
