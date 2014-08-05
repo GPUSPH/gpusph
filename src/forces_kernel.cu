@@ -1347,9 +1347,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						coord2 = make_float4(normal.y, -normal.x, 0.0f, 0.0f);
 					}
 					// relative positions of vertices with respect to the segment, normalized by h
-					const float4 v0 = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
-					const float4 v1 = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2)/slength;
-					const float4 v2 = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2)/slength;
+					const float4 v0 = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2); // e.g. v0 = r_{v0} - r_s
+					const float4 v1 = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2);
+					const float4 v2 = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2);
 					const float4 relPosV0 = relPos - v0;
 					const float4 relPosV10 = v1 - v0;
 					const float4 relPosV20 = v2 - v0;
