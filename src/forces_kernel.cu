@@ -1229,9 +1229,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					const float cInt = d_sscoeff[a]*powf(rhoInt/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
 					const float lambdaInt = unInt + cInt;
 					if (lambda < lambdaInt) // It is in reality an expansion wave
-						eulerVel.w = RHOR(R(rhoInt, a) + (unInt - unExt), a);
+						eulerVel.w = RHOR(R(rhoInt, a) + (unExt - unInt), a);
 				} else { // expansion wave
-					eulerVel.w = RHOR(R(rhoInt, a) + (unInt - unExt), a);
+					eulerVel.w = RHOR(R(rhoInt, a) + (unExt - unInt), a);
 				}
 			}
 			// impose pressure
