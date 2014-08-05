@@ -969,7 +969,7 @@ Gamma(	const	float		&slength,
 
 		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
 		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
-		oldGGam /= -length3(oldGGam);
+		oldGGam /= -fmax(length3(oldGGam),slength*1e-3f);
 		float l1 = length3(v1-v0);
 		float l2 = length3(v2-v0);
 		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
