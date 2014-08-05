@@ -1589,7 +1589,7 @@ saVertexBoundaryConditions(
 			clone_info.y = 0; // reset object to 0
 			clone_info.z = (clone_id & 0xffff); // set the id of the object
 			clone_info.w = ((clone_id >> 16) & 0xffff);
-			
+
 			// TODO optimize by having only one thread calling atomicAdd,
 			// adding enough for all threads in the block
 			int clone_idx = atomicAdd(newNumParticles, 1);
