@@ -1320,7 +1320,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 				// quick check if we are behind a segment and if the segment is reasonably close by
 				// (max distance vertex to segment is deltap/2)
-				// TODO FIXME: particles are still deleted right after creation....
 				if (dot(normal, as_float3(relPos)) <= 0.0f &&
 					sqlength3(relPos) < deltap &&
 					dot(relVel, normal) < 0.0f) {
