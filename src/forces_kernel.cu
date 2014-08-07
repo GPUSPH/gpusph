@@ -1511,7 +1511,13 @@ saVertexBoundaryConditions(
 				// boundary conditions on rho, k, eps
 				sumrho += oldVel[neib_index].w;
 				if (object(neib_info) != 0){
-					sumMdot += oldVel[neib_index].w/3.0f*boundElement.w*
+					// number of vertices associated to a segment that are of the same object type
+					float numOutVerts = 2.0f;
+					if (vertices.w == ALLVERTICES) // all vertices are of the same object type
+						numOutVerts = 3.0f;
+					else if (vertices.w & ~VERTEX1 == 0 || vertices.w & ~VERTEX2 == 0 || vertices.w & ~VERTEX3 == 0) // only one vertex
+						numOutVerts = 1.0f;
+					sumMdot += oldVel[neib_index].w/numOutVerts*boundElement.w*
 								dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 					sumEulerVel += oldEulerVel[neib_index];
 				}
