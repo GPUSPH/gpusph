@@ -1,33 +1,36 @@
+/*	Copyright 2011-2014 Alexis Herault, Giuseppe Bilotta,
+	Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+	Istituto Nazionale di Geofisica e Vulcanologia
+	Sezione di Catania, Catania, Italy
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Universita di Catania, Catania, Italy
 
-    Università di Catania, Catania, Italy
+	Johns Hopkins University, Baltimore, MD
 
-    Johns Hopkins University, Baltimore, MD
+	This file is part of GPUSPH.
 
-    This file is part of GPUSPH.
+	GPUSPH is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    GPUSPH is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	GPUSPH is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
-    GPUSPH is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "EulerParameters.h"
 #include <cmath>
 
-
+/// Empty constructor
+/*!	Set the Euler parameters to
+ * identity (1, 0, 0, 0)
+ */
 EulerParameters::EulerParameters(void)
 {
 	m_ep[0] = 1;
@@ -36,9 +39,10 @@ EulerParameters::EulerParameters(void)
 }
 
 
+/// Constructor form data array
 /*! Constructor from array of values
-	\param val : array containing the values of Euler parameters
-*/
+ *	\param[in] ep : array containing the values of Euler parameters
+ */
 EulerParameters::EulerParameters(const double * ep)
 {
 	for (int i=0; i < 4; i++)
@@ -46,6 +50,9 @@ EulerParameters::EulerParameters(const double * ep)
 }
 
 
+/*!
+ * \overload EulerParameters::EulerParameters(const float * ep)
+ */
 EulerParameters::EulerParameters(const float * ep)
 {
 	for (int i=0; i < 4; i++)
@@ -53,9 +60,10 @@ EulerParameters::EulerParameters(const float * ep)
 }
 
 
-/*!	Copy constructor
-	\param source : source data
-*/
+/// Copy constructor
+/*!
+ *	\param[in] source : source data
+ */
 EulerParameters::EulerParameters(const EulerParameters &source)
 {
 	m_ep[0] = source.m_ep[0];
@@ -68,11 +76,24 @@ EulerParameters::EulerParameters(const EulerParameters &source)
 }
 
 
-/*! Constructor from Euler angles (theta, phi, psi) in zxz convention
-	\param theta : theta
-	\param phi : phi
-	\param psi : psi
-*/
+/// Constructor from ODE quaternion
+/*!
+ *	\param[in] quat : ODE quaternion
+ */
+EulerParameters::EulerParameters(const dQuaternion &quat)
+{
+	for (int i = 0; i < 3; i++)
+		m_ep[i] = quat[i];
+}
+
+/// Constructor from Euler angles
+/*! Construct Euler parameters form a set of Euler angles \f$(\psi, \theta, \phi)\f$
+ *  in zxz extrinsic convention.
+ *  \htmlonly <img src="EulerZXZ.png" width="400px"></img> \endhtmlonly
+ *	\param[in] z0Angle : \f$ \psi \f$
+ *	\param[in] xAngle : \f$ \theta \f$
+ *	\param[in] z1Angle : \f$ \phi \f$
+ */
 EulerParameters::EulerParameters(const double z0Angle, const double xAngle, const double z1Angle)
 {
 	double cx2 = cos(xAngle/2.0);
@@ -85,10 +106,12 @@ EulerParameters::EulerParameters(const double z0Angle, const double xAngle, cons
 }
 
 
-/*! Constructor from vector and rotation angle
-	\param dir : direction of the vector
-	\param angle : angle of rotation around dir
-*/
+/// Constructor from vector and rotation angle
+/*! Construct Euler parameters from a vector and a rotation angle
+ * 	around this vector
+ *	\param[in] dir : direction of the vector
+ *	\param[in] angle : angle of rotation around dir
+ */
 EulerParameters::EulerParameters(const Vector & dir, const double angle)
 {
 	double angle_over2 = angle/2.0;
@@ -109,10 +132,11 @@ EulerParameters::EulerParameters(const Vector & dir, const double angle)
 }
 
 
-//! Assignment operator
-/*! \param source : value
-	\return this = value
-*/
+/// Assignment operator
+/*! Overload of the assignment operator = for Euler parameters
+ * 	\param[in] source : value
+ *	\return this = value
+ */
 EulerParameters&
 EulerParameters::operator= (const EulerParameters& source)
 {
@@ -128,10 +152,10 @@ EulerParameters::operator= (const EulerParameters& source)
 }
 
 
-/// Normalization function
-/*! Divide the Euler parameter by the norm of the associated quaternion:
-		\f$\sqrt{q^2_0 + q^2_1 + q^2_2 + q^2_3}\f$
-*/
+/// Normalize Euler parameters
+/*! Divide Euler parameters by the norm of the associated quaternion:
+ *		\f$\sqrt{q^2_0 + q^2_1 + q^2_2 + q^2_3}\f$
+ */
 void
 EulerParameters::Normalize(void)
 {
@@ -145,13 +169,15 @@ EulerParameters::Normalize(void)
 
 
 /// Euler angles computation
-/*! Compute Euler angles (theta, phi, psi) in zxz convention from Euler parameters
-	\param theta : theta
-	\param phi : phi
-	\param psi : psi
-*/
+/*! Compute Euler angles \f$(\psi, \theta, \phi)\f$ in zxz
+ *  intrinsic convention from Euler parameters.
+ *  \htmlonly <img src="EulerZXZ.png" width="400px"></img> \endhtmlonly
+ *	\param[out] psi : \f$ \psi \f$
+ *	\param[out] theta : \f$ \theta \f$
+ *	\param[out] phi : \f$ \phi \f$
+ */
 void
-EulerParameters::ExtractEulerZXZ(double &theta, double &phi, double &psi) const
+EulerParameters::ExtractEulerZXZ(double &psi, double &theta, double &phi) const
 {
 	phi = acos(2.0*(m_ep[0]*m_ep[0] + m_ep[3]*m_ep[3]) - 1.0);
 	theta = atan2(m_ep[1]*m_ep[3] + m_ep[0]*m_ep[2], m_ep[0]*m_ep[1] - m_ep[2]*m_ep[3]);
@@ -159,33 +185,47 @@ EulerParameters::ExtractEulerZXZ(double &theta, double &phi, double &psi) const
 }
 
 
+/// Return associated ODE quaternion
+/*!
+ *	\param[in/out] quat : ODE quaternion
+ */
+void
+EulerParameters::ToODEQuaternion(dQuaternion & quat)
+{
+	for (int i = 0; i < 4; i++)
+		quat[i] = m_ep[i];
+}
+
 /// Rotation matrix computation
-/*! The rotation matrix is computed according to:
+/*! Compute the rotation matrix associated with the Euler parameters
+ * 	according to:
  *
- *	\f$ R(q)=\begin{pmatrix}
- *  q^2_0 + q^2_1 - q^2_2 - q^2_3 \& 2q_1q_0 - 2q_0q_3 \& 2q_0q_2 + 2q_1q_3 \\
- *	2q_1q_0 - 2q_0q_3 \& q^2_0 - q^2_1 + q^2_2 - q^2_3 \& 2q_2q_3 - 2q_0q_1 \\
- *	2q_1q_3 - 2q_0q_2 \& 2q_2q_3 - 2q_0q_1 \& q^2_0 - q^2_1 - q^2_2 + q^2_3
- *	\end{pmatrix}\f$
+ *	\f$ R(q) = \begin{pmatrix}
+ *  q^2_0 + q^2_1 - q^2_2 - q^2_3 & 2q_1q_0 - 2q_0q_3 & 2q_0q_2 + 2q_1q_3 \\
+ *	2q_1q_0 - 2q_0q_3 & q^2_0 - q^2_1 + q^2_2 - q^2_3 & 2q_2q_3 - 2q_0q_1 \\
+ *	2q_1q_3 - 2q_0q_2 & 2q_2q_3 - 2q_0q_1 & q^2_0 - q^2_1 - q^2_2 + q^2_3
+ *	\end{pmatrix}
+ *	\f$
  *
  *	and store it in m_rot array.
  *
  *	This function should be called before using Rot() or TransposeRot()
-*/
+ */
 void
 EulerParameters::ComputeRot(void)
 {
 	/* For a normalized quaternion (q0, q1, q2, q3) the associated rotation
 	 matrix R is :
-		[0] q0^2+q1^-q2^2-q3^2		[1] 2q1q2-2q0q3			[2] 2q0q2+2q1q3
-		[3] 2q0q3+2q1q2			[4] q0^2-q1^2+q2^2-q3^2		[5] 2q2q3-2q0q1
-		[6] 2q1q3-2q0q2				[7] 2q0q1+2q2q3		[8] q0^2-q1^2-q2^2+q3^2
+		[0] q0^2+q1^-q2^2-q3^2		[1] 2q1q2-2q0q3				[2] 2q0q2+2q1q3
+		[3] 2q0q3+2q1q2				[4] q0^2-q1^2+q2^2-q3^2		[5] 2q2q3-2q0q1
+		[6] 2q1q3-2q0q2				[7] 2q0q1+2q2q3				[8] q0^2-q1^2-q2^2+q3^2
 
 	 According to q0^2+q1^2+q2^2+q3^2=1 we can rewrite the diagonal terms:
 		r11 = 1 - 2(q2^2 + q3^2)
 		r22 = 1 - 2(q1^2 + q3^2)
 		r33 = 1 - 2(q1^2 + q2^2)
- */
+	 */
+
 	float temp = 2.0*m_ep[2]*m_ep[2];	// 2.0*q2^2
 	m_rot[0] = 1.0 - temp;				// r0 = 1 - 2q2^2
 	m_rot[8] = 1.0 - temp;				// r8 = 1 - 2q2^2
@@ -217,14 +257,17 @@ EulerParameters::ComputeRot(void)
 }
 
 
-/// Define the *= operator for Euler parameters
-/*!	\param val : EulerParameters
+/// Definition of *= operator for Euler parameters
+/*!	Overload of the *= operator for Euler parameters. This operation
+ * 	correspond to the composition of the rotations defined by the two
+ * 	Euler parameters.
+ * 	\param[in] val : EulerParameters
  *	\return this = this * val
  *
  *	For the mathematical definition see operator*()
  *
  *	Beware this operation is not commutative.
-*/
+ */
 EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 {
 	double temp[4];
@@ -242,23 +285,23 @@ EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 
 
 /*!	Define the * operation for EulerParmeters.
+ * 	Overload of the * operator for Euler parameters. This operation corresponds to a rotation composition.
+ *
  *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ and \f$ q'=(q'_0, q'_1, q'_2, q'_3)\f$ two set of Euler parameters
  *	we have :
+ *  \f{eqnarray*}{ q*q' = & (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
+ *	& q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
  *
- *  \f{ q*q' =\& (q_0q'_0 - q_1q'_1 - q_2q'_2 - q_3q'_3, q_1q'_0 + q_0q'_1 - q_3q'_2 + q_2q'_3, \\
- *	\&q_2q'_0 + q_3q'_1 + q_0q'_2 - q_1q'_3, q_3q'_0 - q_2q'_1 + q_1q'_2 + q_0q'_3) \f}
- *
- *	This operation corresponds to a rotation composition.
- *	\param ep1 : Euler parameters
- *	\param ep2 : Euler parameters
+ *	\param[in] ep1 : Euler parameters
+ *	\param[in] ep2 : Euler parameters
  *	\return ep1*ep2
  *
  *	Beware this operation is not commutative
-*/
+ */
 EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2)
 {
 	double temp[4];
-	// Quaternion[a0, a1, a2, a3] ** Quaternion[b0, b1, b2, b3] =
+	// Quaternion[a0, a1, a2, a3] * Quaternion[b0, b1, b2, b3] =
 	// a0 b0 - a1 b1 - a2 b2 - a3 b3
 	temp[0] = ep1.m_ep[0]*ep2.m_ep[0] - ep1.m_ep[1]*ep2.m_ep[1] - ep1.m_ep[2]*ep2.m_ep[2] - ep1.m_ep[3]*ep2.m_ep[3];
 	// a1 b0 + a0 b1 - a3 b2 + a2 b3
@@ -276,6 +319,9 @@ EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2
 }
 
 
+/*!
+ * \overload EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep2)
+ */
 EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep2)
 {
 	double temp[4];
@@ -292,14 +338,15 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 }
 
 
-/*!	Compute rotation matrix between the current object and another Euler paramters.
+/// Relative rotation between two Euler parameters
+/*!	Compute rotation matrix between the current object and another Euler parameters.
  *  The result \f$R(q).R(previous)^t\f$ is stored in the array pointed by res
- *	\param previous : previous EulerParameters
- *	\param res : pointer to rotation matrix
+ *	\param[in] previous : previous EulerParameters
+ *	\param[out] res : pointer to rotation matrix
  *
  *  Beware: this method use the rotation matrix associated with each Euler parameters.
  *  Those matrix should be computed before calling the method.
-*/
+ */
 void EulerParameters::StepRotation(const EulerParameters & previous, float *res) const
 {
 	/*
@@ -321,9 +368,14 @@ void EulerParameters::StepRotation(const EulerParameters & previous, float *res)
 }
 
 
+/// Apply the inverse of the rotation defined by the Euler parameters
 /*!	Apply the inverse of rotation defined by the Euler parameters to input data.
- *	\param data : input data
- *	\return : \f$R(q)^t*data\f$
+ * 	This inverse rotation is computed by multiplying the input data by the the
+ * 	transpose of the rotation matrix defined by the Euler parameters.
+ *	\param[in] data : input data
+ *	\return \f$R(q)^t*data\f$
+ *
+ *	The ComputeRot method should be called before calling this method.
  */
 float3 EulerParameters::TransposeRot(const float3 &data) const
 {
@@ -336,6 +388,9 @@ float3 EulerParameters::TransposeRot(const float3 &data) const
 }
 
 
+/*!
+ * \overload Vector EulerParameters::TransposeRot(const Vector &data) const
+ */
 Vector EulerParameters::TransposeRot(const Vector &data) const
 {
 	Vector res;
@@ -347,6 +402,9 @@ Vector EulerParameters::TransposeRot(const Vector &data) const
 }
 
 
+/*!
+ * \overload Point EulerParameters::TransposeRot(const Point &data) const
+ */
 Point EulerParameters::TransposeRot(const Point &data) const
 {
 	Point res;
@@ -358,10 +416,15 @@ Point EulerParameters::TransposeRot(const Point &data) const
 }
 
 
+/// Apply the rotation defined by the Euler parameters
 /*!	Apply the rotation defined by the Euler parameters to input data.
- *	\param data : input data
- *	\return : \f$R(q)*data\f$
-*/
+ * 	This rotation is computed by multiplying the input data by the the
+ * 	the rotation matrix defined by the Euler parameter.
+ *	\param[in] data : input data
+ *	\return \f$R(q)*data\f$
+ *
+ *	The ComputeRot method should be called before calling this method.
+ */
 float3 EulerParameters::Rot(const float3 &data) const
 {
 	float3 res;
@@ -373,6 +436,9 @@ float3 EulerParameters::Rot(const float3 &data) const
 }
 
 
+/*!
+ * \overload Vector EulerParameters::Rot(const Vector &data) const
+ */
 Vector EulerParameters::Rot(const Vector &data) const
 {
 	Vector res;
@@ -384,6 +450,9 @@ Vector EulerParameters::Rot(const Vector &data) const
 }
 
 
+/*!
+ * \overload Point EulerParameters::Rot(const Point &data) const
+ */
 Point EulerParameters::Rot(const Point &data) const
 {
 	Point res;
@@ -392,6 +461,28 @@ Point EulerParameters::Rot(const Point &data) const
 	res(2) = m_rot[6]*data(0) + m_rot[7]*data(1) + m_rot[8]*data(2);
 
 	return res;
+}
+
+
+/// Return a reference to parameter i
+/*!	\param[in] i : parameter number
+ *	\return reference to parameter i
+*/
+double &
+EulerParameters::operator()(int i)
+{
+	return m_ep[i];
+}
+
+
+/// Return the value of parameter i
+/*!	\param[in] i : parameter number
+ *	\return value of parameter i
+*/
+double
+EulerParameters::operator()(int i) const
+{
+	return m_ep[i];
 }
 
 
