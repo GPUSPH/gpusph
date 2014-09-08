@@ -63,7 +63,7 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 	m_origin = origin;
 
 	m_ep = ep;
-	// Before doing any rotation with Euler parameter the rotation matrix associated with
+	// Before doing any rotation with Euler parameters the rotation matrix associated with
 	// m_ep is computed.
 	m_ep.ComputeRot();
 	m_lx = lx;
@@ -95,25 +95,11 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
  */
 Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const dQuaternion quat)
 {
-	m_origin = origin;
-
-	// Computing the rotation matrix associated with the quaternion
-	dQtoR(quat, m_ODERot);
-	m_lx = lx;
-	m_ly = ly;
-	m_lz = lz;
-
-	// Computing the edge vectors according to orientation
-	m_vx = m_lx*Vector(1, 0, 0).Rot(m_ODERot);
-	m_vy = m_ly*Vector(0, 1, 0).Rot(m_ODERot);
-	m_vz = m_lz*Vector(0, 0, 1).Rot(m_ODERot);
-
-	// Computing the center of gravity of the cube
-	m_center = m_origin + 0.5*Vector(m_lx, m_ly, m_lz).Rot(m_ODERot);
+	Cube(origin, lx, ly, lz, EulerParameters(quat));
 }
 
 
-/// Constructor from edge vectors
+/// DEPRECATED Constructor from edge vectors
 /*! Construct a cube according to 3 vectors defining the edges along
  *  X', Y' and Z' axis.
  *  Those three vectors should be orthogonal in pairs. This method is
@@ -124,12 +110,14 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
  *	\param vz : vector representing the edge along Z'
  *
  *  Beware, particle mass should be set before any filling operation
+ *
+ *  This method is deprecated, use the constructor with EulerParameters instead
  */
 Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector& vz)
 {
 	// Check if the three vectors are orthogonals in pairs
-	if (abs(vx*vy) > 1e-8*vx.norm()*vy.norm() || abs(vx*vz) > 1e-8*vx.norm()*vz.norm()
-		|| abs(vy*vz) > 1e-8*vy.norm()*vz.norm()) {
+	if (abs(vx*vy) > 1e-6*vx.norm()*vy.norm() || abs(vx*vz) > 1e-6*vx.norm()*vz.norm()
+		|| abs(vy*vz) > 1e-6*vy.norm()*vz.norm()) {
 		throw std::runtime_error("Trying to construct a cube with non perpendicular vectors\n");
 		exit(1);
 	}
@@ -231,7 +219,8 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 
 	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
 
-	//TODO : we should also compute Euler parameters in that case
+	m_ep = EulerParameters(axis, angle);
+	m_ep.ComputeRot();
 }
 
 
@@ -587,7 +576,7 @@ Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fi
 bool
 Cube::IsInside(const Point& p, const double dx) const
 {
-	Point lp = (p - m_origin).TransposeRot(m_ODERot);
+	Point lp = m_ep.TransposeRot(p - m_origin);
 	const double lx = m_lx + dx;
 	const double ly = m_ly + dx;
 	const double lz = m_lz + dx;

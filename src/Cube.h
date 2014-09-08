@@ -61,12 +61,12 @@
 class Cube: public Object {
 	private:
 		Point	m_origin;	///< origin of the cube (bottom left corner in the body frame) expressed in the global reference frame
-		Vector	m_vx;	///< vector representing the edge along x'
-		Vector 	m_vy;	///< vector representing the edge along y'
-		Vector 	m_vz;	///< vector representing the edge along z'
-		double	m_lx;	///< length along x' axis
-		double 	m_ly;	///< length along y' axis
-		double 	m_lz;	///< length along z' axis
+		Vector	m_vx;		///< vector representing the edge along x'
+		Vector 	m_vy;		///< vector representing the edge along y'
+		Vector 	m_vz;		///< vector representing the edge along z'
+		double	m_lx;		///< length along x' axis
+		double 	m_ly;		///< length along y' axis
+		double 	m_lz;		///< length along z' axis
 
 	public:
 		/// \name Constructors and destructor
