@@ -135,7 +135,6 @@ bool
 Torus::IsInside(const Point& p, const double dx) const
 {
 	Point lp = m_ep.TransposeRot(p - m_center);
-	//Point lp = p - m_center;
 
 	const double r = m_r + dx;
 	double temp = m_R - sqrt(lp(0)*lp(0) + lp(1)*lp(1));
