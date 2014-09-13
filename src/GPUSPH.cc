@@ -624,10 +624,12 @@ bool GPUSPH::runSimulation() {
 			gdata->save_request = false;
 		}
 
-		// if we are about to quit, we want to save regardless --nosave option
+		// If we are about to quit, we want to save regardless --nosave option
 		if (finished || gdata->quit_request)
 			force_write = true;
 
+		// Launch specific post processing kernels (vorticity, free surface detection , ...)
+		// before writing to disk
 		if (need_write || force_write) {
 
 			//if (final_save)
@@ -1099,7 +1101,7 @@ void GPUSPH::doWrite(bool force)
 
 	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
 	// NOTE: it's a standard average, not an SPH smoothing, so the neighborhood is arbitrarily fixed
-	// at gage (x,y) Â± 2 smoothing lengths
+	// at gage (x,y) ± 2 smoothing lengths
 	// TODO should it be an SPH smoothing instead?
 
 	GageList &gages = problem->get_simparams()->gage;
@@ -1145,7 +1147,7 @@ void GPUSPH::doWrite(bool force)
 			warned_nan_pos = true;
 		}
 
-		// for surface particles add the z coodinate to the appropriate wavegages
+		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
 				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
@@ -1171,6 +1173,7 @@ void GPUSPH::doWrite(bool force)
 	}
 
 	//Testpoints
+	// TODO: move into runSim ?
 	if (gdata->problem->get_simparams()->testpoints) {
 		// Write testpoints, on buffer read
 		doCommand(COMPUTE_TESTPOINTS);
