@@ -1616,6 +1616,7 @@ saVertexBoundaryConditions(
 		}
 		// time stepping
 		pos.w += dt*sumMdot;
+		pos.w = fmax(-refMass, fmin(refMass, pos.w));
 		oldPos[index].w = pos.w;
 	}
 
