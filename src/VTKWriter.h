@@ -43,7 +43,7 @@ private:
 	// open a file whose name is built from the given base and sequence number
 	// returns FILE object and stores the filename (without the dirname) into
 	// `filename` if it's not NULL
-	FILE *open_data_file(const char* base, string const& num, string *filename);
+	void open_data_file(ofstream &out, const char* base, string const& num, string *filename);
 };
 
 #endif	/* _VTKWRITER_H */
