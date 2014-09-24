@@ -39,11 +39,6 @@ public:
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
 	virtual void write_WaveGage(float t, GageList const& gage);
 
-private:
-	// open a file whose name is built from the given base and sequence number
-	// returns FILE object and stores the filename (without the dirname) into
-	// `filename` if it's not NULL
-	void open_data_file(ofstream &out, const char* base, string const& num, string *filename);
 };
 
 #endif	/* _VTKWRITER_H */

@@ -43,6 +43,7 @@ static const char dev_idx_str[] = "UInt8";
 VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
+	m_fname_sfx = ".vtu";
 	string time_filename = m_dirname + "/VTUinp";
 	// in case of multi-process, each process writes a different file
 	if (gdata && gdata->mpi_nodes > 1)
@@ -156,7 +157,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 	string filename;
 
 	ofstream fid;
-	open_data_file(fid, "PART", next_filenum(), &filename);
+	filename = open_data_file(fid, "PART", next_filenum());
 
 	// Header
 	//====================================================================================
@@ -566,7 +567,7 @@ VTKWriter::write_WaveGage(float t, GageList const& gage)
 	Writer::write_WaveGage(t, gage);
 
 	ofstream fp;
-	open_data_file(fp, "WaveGage", current_filenum(), NULL);
+	open_data_file(fp, "WaveGage", current_filenum());
 	size_t num = gage.size();
 
 	// Header
@@ -613,29 +614,4 @@ VTKWriter::write_WaveGage(float t, GageList const& gage)
 	fp << "</VTKFile>" <<endl;
 
 	fp.close();
-}
-
-void
-VTKWriter::open_data_file(ofstream &out, const char* base, string const& num, string *fname)
-{
-	string filename(base), full_filename;
-
-	if (gdata && gdata->mpi_nodes > 1)
-		filename += "n" + gdata->rankString();
-
-	filename += "_" + num + ".vtu";
-	full_filename = m_dirname + "/" + filename;
-
-	if (fname)
-		*fname = filename;
-
-	out.open(full_filename.c_str());
-
-	if (!out) {
-		stringstream ss;
-		ss << "Cannot open data file " << full_filename;
-		throw runtime_error("Cannot open data file " + full_filename);
-	}
-
-	out.exceptions(ofstream::failbit | ofstream::badbit);
 }

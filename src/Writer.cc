@@ -274,3 +274,28 @@ uint Writer::getLastFilenum()
 {
 	return m_FileCounter;
 }
+
+string
+Writer::open_data_file(ofstream &out, const char* base, string const& num, string const& sfx)
+{
+	string filename(base), full_filename;
+
+	if (gdata && gdata->mpi_nodes > 1)
+		filename += "n" + gdata->rankString();
+
+	filename += "_" + num + sfx;
+	full_filename = m_dirname + "/" + filename;
+
+	out.open(full_filename.c_str());
+
+	if (!out) {
+		stringstream ss;
+		ss << "Cannot open data file " << full_filename;
+		throw runtime_error("Cannot open data file " + full_filename);
+	}
+
+	out.exceptions(ofstream::failbit | ofstream::badbit);
+
+	return filename;
+}
+

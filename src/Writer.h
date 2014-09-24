@@ -149,6 +149,22 @@ protected:
 
 	uint getLastFilenum();
 
+	// default suffix (extension) for data files)
+	string			m_fname_sfx;
+
+	/* open a data file on stream `out` assembling the file name from the provided
+	 * base, the current node (in case of multi-node simulaions), the provided sequence
+	 * number and the provided suffix
+	 *
+	 * Returns the file name (without the directory part)
+	 */
+	string
+	open_data_file(ofstream &out, const char* base, string const& num, string const& sfx);
+
+	inline string
+	open_data_file(ofstream &out, const char* base, string const& num)
+	{ return open_data_file(out, base, num, m_fname_sfx); }
+
 	float			m_last_write_time;
 	int				m_writefreq;
 
