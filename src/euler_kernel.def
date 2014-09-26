@@ -153,6 +153,10 @@ eulerDevice(
 				const float z8 = z4*z4;
 				eulerVel.x = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
 				eulerVel.x = fmax(eulerVel.x, 0.0f);
+				// imposed velocity for case IOWithoutWalls
+				eulerVel.x = 1.0f;
+				// imposed velocity for case SmallChannelFlowIOPer
+				eulerVel.x = 1.0f-absPos.z*absPos.z;
 				eulerVel.y = 0.0f;
 				eulerVel.z = 0.0f;
 			}

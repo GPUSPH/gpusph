@@ -5,7 +5,7 @@
 #include "InputProblem.h"
 #include "GlobalData.h"
 
-static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
+static const std::string SPECIFIC_PROBLEM("SmallChannelFlowIOPer");
 
 /* Implemented problems:
  *
@@ -18,6 +18,8 @@ static const std::string SPECIFIC_PROBLEM("SmallChannelFlow");
  *	SmallChannelFlow		Small channel flow for debugging
  *	SmallChannelFlowKEPS	Small channel flow for debugging using k-epsilon
  *	SmallChannelFlowIO		Small channel flow for debugging i/o
+ *	SmallChannelFlowIOPer	Small channel flow for debugging i/o with periodicty (<=> 2d poiseuille)
+ *	IOWithoutWalls			I/O Debugging with periodicity and no walls
  *
  */
 
@@ -170,6 +172,55 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
 	}
+
+	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
+	//*************************************************************************************
+	else if (SPECIFIC_PROBLEM == "SmallChannelFlowIOPer") {
+		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
+
+		m_simparams.sfactor=1.3f;
+		set_deltap(0.05f);
+
+		m_physparams.kinematicvisc = 1.0e-1f;
+		m_simparams.visctype = DYNAMICVISC;
+		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+
+		m_simparams.tend = 10.0;
+		m_simparams.testpoints = false;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
+		m_simparams.periodicbound = PERIODIC_Y;
+		H = 2.0;
+		l = 1.1; w = 1.0; h = 2.1;
+		m_origin = make_double3(-0.55, -0.5, -1.05);
+		m_simparams.calcPrivate = false;
+		m_simparams.inoutBoundaries = true;
+	}
+	//IOWithoutWalls (i/o between two plates without walls)
+	//*************************************************************************************
+	else if (SPECIFIC_PROBLEM == "IOWithoutWalls") {
+		h5File.setFilename("meshes/0.io_without_walls.h5sph");
+
+		set_deltap(0.2f);
+
+		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
+		m_physparams.gravity = make_float3(-0.1, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
+
+		m_simparams.tend = 100.0;
+		m_simparams.periodicbound = PERIODIC_YZ;
+		m_simparams.testpoints = false;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
+		H = 2.0;
+		l = 2.2; w = 2.0; h = 2.0;
+		m_origin = make_double3(-1.1, -1.0, -1.0);
+		m_simparams.calcPrivate = false;
+		m_simparams.inoutBoundaries = true;
+	}
+
 	//*************************************************************************************
 	// Fishpass
 	//*************************************************************************************
@@ -214,7 +265,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 10;
+	m_simparams.buildneibsfreq = 1;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 0.1;
@@ -237,7 +288,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-2);
+	set_timer_tick(1.0e-6);
 	add_writer(VTKWRITER, 1);
 
 	// Name of problem used for directory creation
@@ -329,6 +380,10 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 		}
+		else if (SPECIFIC_PROBLEM == "SmallChannelFlowIOPer") {
+			const float lvel = 1.0f-h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
+			vel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
+		}
 		else if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
 			const float y2 = h5File.buf[i].Coords_1*h5File.buf[i].Coords_1;
 			const float z2 = h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
@@ -340,6 +395,9 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float z8 = z4*z4;
 			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+		}
+		else if (SPECIFIC_PROBLEM == "IOWithoutWalls") {
+			vel[i] = make_float4(1.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
 		}
 		else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
@@ -429,7 +487,9 @@ uint
 InputProblem::max_parts(uint numpart)
 {
 	// gives an estimate for the maximum number of particles
-	if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
+	if (SPECIFIC_PROBLEM == "SmallChannelFlowIO" ||
+		SPECIFIC_PROBLEM == "IOWithoutWalls"     ||
+		SPECIFIC_PROBLEM == "SmallChannelFlowIOPer") {
 		return (uint)((float)numpart*1.2f);
 	}
 	else
