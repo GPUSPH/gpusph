@@ -163,7 +163,7 @@ void*	reduce_buffer = NULL;
 #define SA_VERT_BOUND_CHECK(kernel) \
 	case kernel: \
 		cuforces::saVertexBoundaryConditions<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
+				 (oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, vertices, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
 	break
 
 extern "C"
@@ -1130,7 +1130,7 @@ saVertexBoundaryConditions(
 			float4*			oldEulerVel,
 			float4*			forces,
 	const	float4*			boundelement,
-	const	vertexinfo*		vertices,
+			vertexinfo*		vertices,
 			particleinfo*	info,
 			hashKey*		particleHash,
 	const	uint*			cellStart,
@@ -1153,7 +1153,6 @@ saVertexBoundaryConditions(
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
 	#if (__COMPUTE__ == 20)
@@ -1170,7 +1169,6 @@ saVertexBoundaryConditions(
 	CUT_CHECK_ERROR("saVertexBoundaryConditions kernel execution failed");
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_particles_id_range, &numActiveParticles, sizeof(uint)));
 

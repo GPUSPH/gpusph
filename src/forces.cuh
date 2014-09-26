@@ -341,7 +341,7 @@ saVertexBoundaryConditions(
 			float4*			oldEulerVel,
 			float4*			forces,
 	const	float4*			boundelement,
-	const	vertexinfo*		vertices,
+			vertexinfo*		vertices,
 			particleinfo*	info,
 			hashKey*		particleHash,
 	const	uint*			cellStart,

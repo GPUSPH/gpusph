@@ -491,25 +491,19 @@ bool GPUSPH::runSimulation() {
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
-			gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
 			if (problem->get_simparams()->inoutBoundaries) {
-				gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
 				doCommand(DELETE_OUTGOING_PARTS);
 				if (MULTI_DEVICE)
 					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES);
-
-				gdata->swapDeviceBuffers(BUFFER_VERTICES);
 			}
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
@@ -589,21 +583,15 @@ bool GPUSPH::runSimulation() {
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
-			gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
 			if (problem->get_simparams()->inoutBoundaries) {
-				gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
 				doCommand(DELETE_OUTGOING_PARTS);
 				if (MULTI_DEVICE)
 					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES);
-
-				gdata->swapDeviceBuffers(BUFFER_VERTICES);
 			}
 		}
 
@@ -620,7 +608,7 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 
 		// increase counters
 		gdata->iterations++;
@@ -1332,15 +1320,13 @@ void GPUSPH::initializeBoundaryConditions()
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | DBLBUFFER_WRITE);
 
-	gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
 	// compute boundary conditions for vertices and get an initial estimate for the grad(gamma) direction
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
 
 	// swap changed buffers back so that read contains the new data
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA);
+	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 }
 
 void GPUSPH::printStatus()

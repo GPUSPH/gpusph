@@ -1447,6 +1447,7 @@ saVertexBoundaryConditions(
 						float4*			oldGGam,
 						float4*			oldEulerVel,
 						float4*			forces,
+						vertexinfo*		vertices,
 						particleinfo*	pinfo,
 						hashKey*		particleHash,
 				const	uint*			cellStart,
@@ -1506,17 +1507,20 @@ saVertexBoundaryConditions(
 		if (BOUNDARY(neib_info)) {
 			const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 			// check if vertex is associated with this segment
-			const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
-			if (vertices.x == index || vertices.y == index || vertices.z == index) {
+			const vertexinfo verts = vertices[neib_index];
+			if (verts.x == index || verts.y == index || verts.z == index) {
 				// boundary conditions on rho, k, eps
 				sumrho += oldVel[neib_index].w;
 				if (object(neib_info) != 0){
 					// number of vertices associated to a segment that are of the same object type
 					float numOutVerts = 2.0f;
-					if (vertices.w == ALLVERTICES) // all vertices are of the same object type
+					if (verts.w == ALLVERTICES) // all vertices are of the same object type
 						numOutVerts = 3.0f;
-					else if (vertices.w & ~VERTEX1 == 0 || vertices.w & ~VERTEX2 == 0 || vertices.w & ~VERTEX3 == 0) // only one vertex
+					else if (verts.w & ~VERTEX1 == 0 || verts.w & ~VERTEX2 == 0 || verts.w & ~VERTEX3 == 0) // only one vertex
 						numOutVerts = 1.0f;
+					// TODO we can have a switch here to decide on whether we want to impose a velocity
+					// or a flux. If as now we multiply the whole thing with the density of the segment
+					// then the flux will vary.
 					sumMdot += oldVel[neib_index].w/numOutVerts*boundElement.w*
 								dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 					sumEulerVel += oldEulerVel[neib_index];
@@ -1535,17 +1539,17 @@ saVertexBoundaryConditions(
 		else if (FLUID(neib_info)){
 			const float4 relPos = pos_corr - oldPos[neib_index];
 			// check if this fluid particles is marked for deletion (i.e. vertices != 0)
-			const vertexinfo vertices = tex1Dfetch(vertTex, neib_index);
-			if (vertices.x != 0 && ACTIVE(relPos)) {
+			const vertexinfo verts = vertices[neib_index];
+			if (verts.x != 0 && ACTIVE(relPos)) {
 				// betaAV is the weight in barycentric coordinates
 				float betaAV = 0.0f;
 				const float4 vertexWeights = oldGGam[neib_index];
 				// check if one of the vertices is equal to the present one
-				if (vertices.x == index)
+				if (verts.x == index)
 					betaAV = vertexWeights.x;
-				else if (vertices.y == index)
+				else if (verts.y == index)
 					betaAV = vertexWeights.y;
-				else if (vertices.z == index)
+				else if (verts.z == index)
 					betaAV = vertexWeights.z;
 				if(betaAV > 0.0f){
 					// add mass from fluid particle to vertex particle
@@ -1613,6 +1617,7 @@ saVertexBoundaryConditions(
 			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
 			forces[clone_idx] = make_float4(0.0f);
 			oldGGam[clone_idx] = oldGGam[index];
+			vertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
 		}
 		// time stepping
 		pos.w += dt*sumMdot;
