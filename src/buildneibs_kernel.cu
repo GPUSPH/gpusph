@@ -399,12 +399,16 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		}
 
 		if (sortedVertices) {
-			const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-			sortedVertices[index] = make_vertexinfo(
-				inversedParticleIndex[vertices.x],
-				inversedParticleIndex[vertices.y],
-				inversedParticleIndex[vertices.z],
-				vertices.w);
+			if (BOUNDARY(info)) {
+				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+				sortedVertices[index] = make_vertexinfo(
+					inversedParticleIndex[vertices.x],
+					inversedParticleIndex[vertices.y],
+					inversedParticleIndex[vertices.z],
+					vertices.w);
+			}
+			else
+				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
 		}
 
 		if (sortedTKE) {
