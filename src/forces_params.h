@@ -56,6 +56,7 @@
 struct common_forces_params
 {
 			float4	*forces;
+			float2	*contupd;
 			float4	*rbforces;
 			float4	*rbtorques;
 	const	float4	*posArray;
@@ -75,6 +76,7 @@ struct common_forces_params
 	// Constructor / initializer
 	common_forces_params(
 				float4	*_forces,
+				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_posArray,
@@ -87,6 +89,7 @@ struct common_forces_params
 		const	float	_slength,
 		const	float	_influenceradius) :
 		forces(_forces),
+		contupd(_contupd),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
 		posArray(_posArray),
@@ -183,6 +186,7 @@ struct forces_params :
 	forces_params(
 		// common
 				float4	*_forces,
+				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_pos,
@@ -214,7 +218,7 @@ struct forces_params :
 				float3	*_keps_dkde,
 				float	*_turbvisc
 		) :
-		common_forces_params(_forces, _rbforces, _rbtorques,
+		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius),

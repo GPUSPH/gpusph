@@ -357,9 +357,12 @@ struct forces_particle_data :
 struct common_particle_output
 {
 	float4	force;
+	float2	contupd;
 
 	__device__ __forceinline__
-	common_particle_output() : force(make_float4(0.0f))
+	common_particle_output() :
+		force(make_float4(0.0f)),
+		contupd(make_float2(0.0f))
 	{}
 };
 
@@ -564,9 +567,15 @@ struct common_neib_output
 	float3	DvDt;
 	// density derivative
 	float	DrDt;
+	float	contDiff;
+	float	DgamDt;
 
 	__device__ __forceinline__
-	common_neib_output() : DvDt(make_float3(0.0f)), DrDt(0)
+	common_neib_output() :
+		DvDt(make_float3(0.0f)),
+		DrDt(0.0f),
+		contDiff(0.0f),
+		DgamDt(0.0f)
 	{}
 };
 
@@ -726,7 +735,7 @@ struct compute_density_derivative {
 			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
 			make_float3(0.0f);
 		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-		nout.DrDt += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+		nout.contDiff += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
 	}
 
 	// auxiliary function, which is used as fallback also in the SA_BOUNDARY case
@@ -766,7 +775,9 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 {
 	if (ndata.ntype == PT_BOUNDARY) {
 		// boundary term of div(v)
-		nout.DrDt -= ndata.relVel.w*dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
+		// AM-TODO assume no movement of i/o wall
+		nout.DgamDt = dot3(pdata.vel, ndata.belem)*nout.gamAS.x;
+		nout.DrDt = -ndata.relVel.w*dot3(ndata.relVel-pdata.vel, ndata.belem)*nout.gamAS.x;
 	} else {
 		// volumic term of div(v)
 		common_with(params, pdata, ndata, pout, nout);
@@ -774,11 +785,13 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
+		/* The second formulation takes into consideration the density ratio */
+		if (sph_formulation == SPH_F2) {
+			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+			nout.contDiff *= pdata.vel.w/ndata.relVel.w;
+		}
 	}
 
-	/* The second formulation takes into consideration the density ratio */
-	if (sph_formulation == SPH_F2)
-		nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 }
 
 /// Functor to compute the pressure contribution to the particle acceleration.
@@ -1316,7 +1329,10 @@ struct write_forces
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, OP const& pout)
-	{ params.forces[pdata.index] = pout.force; }
+	{
+		params.forces[pdata.index] = pout.force;
+		params.contupd[pdata.index] = pout.contupd;
+	}
 };
 
 /*
@@ -1574,6 +1590,8 @@ forcesDevice(
 					// computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
+					pout.contupd.x += nout.contDiff;
+					pout.contupd.y += nout.DgamDt;
 
 					// compute pressure part of acceleration
 					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);

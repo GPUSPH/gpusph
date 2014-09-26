@@ -454,7 +454,7 @@ bool GPUSPH::runSimulation() {
 
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_CONTUPD | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -521,7 +521,7 @@ bool GPUSPH::runSimulation() {
 
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_CONTUPD | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
 
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)

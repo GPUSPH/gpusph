@@ -82,6 +82,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
 	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
 	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
+	m_dBuffers << new CUDABuffer<BUFFER_CONTUPD>();
 
 	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
 	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
@@ -1856,6 +1857,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 			m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
+			m_dBuffers.getData<BUFFER_CONTUPD>(),					// f(n
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
@@ -2106,6 +2108,7 @@ void GPUWorker::kernel_euler()
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			// f(n+1/2)
 			m_dBuffers.getData<BUFFER_FORCES>(),
+			m_dBuffers.getData<BUFFER_CONTUPD>(),
 			// dkde(n)
 			m_dBuffers.getData<BUFFER_DKDE>(),
 			m_dBuffers.getData<BUFFER_XSPH>(),
@@ -2303,6 +2306,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 				m_dBuffers.getData<BUFFER_FORCES>(),
+				m_dBuffers.getData<BUFFER_CONTUPD>(),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),

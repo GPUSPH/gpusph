@@ -58,7 +58,7 @@ void*	reduce_buffer = NULL;
  */
 #define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph) \
 		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
-			forces, rbforces, rbtorques, \
+			forces, contupd, rbforces, rbtorques, \
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle, \
 			deltap, slength, influenceradius, \
 			cfl, cflTVisc, cflOffset, \
@@ -480,6 +480,7 @@ forces(
 	const	float2	* const vertPos[],
 	const	float4	*vel,
 			float4	*forces,
+			float2	*contupd,
 	const	float4	*oldGGam,
 			float4	*newGGam,
 	const	float4	*boundelem,
@@ -1129,6 +1130,7 @@ saVertexBoundaryConditions(
 			float4*			oldGGam,
 			float4*			oldEulerVel,
 			float4*			forces,
+			float2*			contupd,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
 			particleinfo*	info,

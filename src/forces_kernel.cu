@@ -1447,6 +1447,7 @@ saVertexBoundaryConditions(
 						float4*			oldGGam,
 						float4*			oldEulerVel,
 						float4*			forces,
+						float2*			contupd,
 						vertexinfo*		vertices,
 						particleinfo*	pinfo,
 						hashKey*		particleHash,
@@ -1616,6 +1617,7 @@ saVertexBoundaryConditions(
 			pinfo[clone_idx] = clone_info;
 			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
 			forces[clone_idx] = make_float4(0.0f);
+			contupd[clone_idx] = make_float2(0.0f);
 			oldGGam[clone_idx] = oldGGam[index];
 			vertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
 		}

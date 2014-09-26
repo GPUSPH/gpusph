@@ -83,10 +83,12 @@ void
 euler(	const float4*		oldPos,
 		const hashKey*		particleHash,
 		const float4*		oldVel,
+		const float4*		gGam,
 		const float*		oldTKE,
 		const float*		oldEps,
 		const particleinfo* info,
 		const float4*		forces,
+		const float2*		contupd,
 		float3*				keps_dkde,
 		const float4*		xsph,
 		float4*				newPos,
@@ -109,18 +111,18 @@ euler(	const float4*		oldPos,
 	// execute the kernel
 	if (step == 1) {
 		if (xsphcorr)
-			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
+			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, gGam, oldTKE, oldEps,
+								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
 		else
-			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
+			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, gGam, oldTKE, oldEps,
+								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
-			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
+			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, gGam, oldTKE, oldEps,
+								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
 		else
-			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldTKE, oldEps,
-								info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
+			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, gGam, oldTKE, oldEps,
+								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newTKE, newEps, newEulerVel, particleRangeEnd, dt, dt2, t);
 	} // if (step == 2)
 
 	// check if kernel invocation generated an error
