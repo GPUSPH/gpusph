@@ -48,7 +48,7 @@
 class Object {
 	protected:
 		EulerParameters		m_ep;			///< Euler parameters associated with the object
-		dMatrix3 			m_ODERot;		///< ODE rotation matrix associated to the object
+		dMatrix3			m_ODERot;		///< ODE rotation matrix associated to the object
 		Point				m_center;		///< Coordinates of center of gravity in the global reference frame
 		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;			///< Mass of the object
@@ -112,10 +112,10 @@ class Object {
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		/// Return the ODE body ID associated with the Object
 		/*! \return the body ID associated with the object
-		 * 	\throws std::runtime_error if the object has no associated ODE body
+		 *	\throws std::runtime_error if the object has no associated ODE body
 		 */
 		dBodyID ODEGetBody(void)
-		{ 	if (!m_ODEBody)
+		{	if (!m_ODEBody)
 				throw std::runtime_error("ODEGetBody called but object is not associated with an ODE body !");
 			return m_ODEBody; }
 		//@}
@@ -134,7 +134,7 @@ class Object {
 		 *	the particles to the given particle vector
 		 *  the number of particles added.
 		 *	\param points : particle vector to add particles to
-		 *  \param dx : particle spacing
+		 *	\param dx : particle spacing
 		 *
 		 *  This function is pure virtual and then as to be defined at child level
 		 */
@@ -147,7 +147,7 @@ class Object {
 		 *  particles needed otherwise the particles are added to the particle vector.
 		 *	\param points : particle vector to add particles to
 		 *	\param dx : particle spacing
-		 *  \param fill : fill flag (true particles are generated and added to parts, false no particle is generated)
+		 *	\param fill : fill flag (true particles are generated and added to parts, false no particle is generated)
 		 *	\return number of particles needed to fill the object
 		 *
 		 *  This function is pure virtual and then as to be defined at child level
@@ -159,7 +159,7 @@ class Object {
 		 *
 		 *	\param points : particle vector to add particles to
 		 *	\param dx : particle spacing
-		 *  \param layers : number of layers
+		 *	\param layers : number of layers
 		 *
 		 *  This function is pure virtual and then as to be defined at child level
 		 */

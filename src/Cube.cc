@@ -245,9 +245,9 @@ Cube::Volume(const double dx) const
 
 /// Compute the principal moment of inertia
 /*! Exactly like the volume the inertia tensor depends on
- * 	particle spacing used for filling. This method computes
- * 	the principal moments of inertia (aka the inertia tensor
- * 	in the the principal axes reference frame) :
+ *	particle spacing used for filling. This method computes
+ *	the principal moments of inertia (aka the inertia tensor
+ *	in the the principal axes reference frame) :
  *
  *  \f$ I_x = \frac{m}{12}\left({(l_y + dx)}^2 + {(l_z + dx)}^2\right) \f$
  *
@@ -329,10 +329,10 @@ Cube::FillBorder(PointVect& bpoints, PointVect& belems, PointVect& vpoints,
 /* Fill a given face of the cube with particles with a given
  * particle spacing. For the selected face the edges are filled
  * according to the edges_to_fill array of booleans.
- * 	\param points : vector where the particles will be added
- * 	\param dx : particle spacing
- * 	\param face_num : number of face to fill
- * 	\param edges_to_fill : edges to be filled
+ *	\param points : vector where the particles will be added
+ *	\param dx : particle spacing
+ *	\param face_num : number of face to fill
+ *	\param edges_to_fill : edges to be filled
  */
 void
 Cube::FillBorder(PointVect& points, const double dx, const int face_num, const bool *edges_to_fill)
@@ -383,9 +383,9 @@ Cube::FillBorder(PointVect& points, const double dx, const int face_num, const b
 /// Fill the surface of the cube with particles
 /* Fill the surface of the cube with particles except
  * eventually the top face.
- * 	\param points : vector where the particles will be added
- * 	\param dx : particle spacing
- * 	\param fill_top_face : 1 the top face is filled, 0 is not
+ *	\param points : vector where the particles will be added
+ *	\param dx : particle spacing
+ *	\param fill_top_face : 1 the top face is filled, 0 is not
  */
 void
 Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
@@ -413,12 +413,12 @@ Cube::FillBorder(PointVect& points, const double dx, const bool fill_top_face)
  * particle spacing. If fill_faces is false only the inne
  * part off the cube (i.e the cube excluding the faces) is
  * filled with particles.
- * 	\param points : vector where the particles will be added
- * 	\param dx : particle spacing
- * 	\param fill_faces : if true fill the cube including faces
- * 	\param fill : if true add the particles to points otherwise just
- * 				count the number of particles
- * 	\return the number of particles used in the fill
+ *	\param points : vector where the particles will be added
+ *	\param dx : particle spacing
+ *	\param fill_faces : if true fill the cube including faces
+ *	\param fill : if true add the particles to points otherwise just
+ *				count the number of particles
+ *	\return the number of particles used in the fill
  */
 int
 Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool fill)
@@ -461,8 +461,8 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 /// Fill the inner part of the cube with particles
 /* Fill the  inner part of the cube (i.e the cube excluding
  * the faces) with particles.
- * 	\param points : vector where the particles will be added
- * 	\param dx : particle spacing
+ *	\param points : vector where the particles will be added
+ *	\param dx : particle spacing
  */
 void
 Cube::InnerFill(PointVect& points, const double dx)
@@ -474,9 +474,9 @@ Cube::InnerFill(PointVect& points, const double dx)
 /// Fill the cube with layers of particles staring from surface
 /* Fill the cube with layers of particles from the surface to
  * the inside of the cube.
- * 	\param points : vector where the particles will be added
- * 	\param dx : particle spacing
- * 	\param layers : number of internal layers to add
+ *	\param points : vector where the particles will be added
+ *	\param dx : particle spacing
+ *	\param layers : number of internal layers to add
  */
 void
 Cube::FillIn(PointVect& points, const double dx, const int layers)
@@ -488,10 +488,10 @@ Cube::FillIn(PointVect& points, const double dx, const int layers)
 /// Fill the cube with layers of particles staring from surface
 /* Fill the cube with layers of particles from the surface to
  * the inside of the cube and eventually excluding the top face.
- * 	\param points : vector where the particles will be added
- * 	\param dx : particle spacing
- * 	\param layers : number of internal layers to add
- * 	\param fill_top : if true fill also the top face
+ *	\param points : vector where the particles will be added
+ *	\param dx : particle spacing
+ *	\param layers : number of internal layers to add
+ *	\param fill_top : if true fill also the top face
  */
 void
 Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fill_top)
@@ -569,9 +569,9 @@ Cube::FillIn(PointVect& points, const double dx, const int layers, const bool fi
 /// Check if a point is inside the cube
 /* For a given point return true if the point is inside
  * the cube within a threshold of dx.
- * 	\param p : point to test
- * 	\param dx : threshold
- * 	\return true if p is inside the cube within dx
+ *	\param p : point to test
+ *	\param dx : threshold
+ *	\return true if p is inside the cube within dx
  */
 bool
 Cube::IsInside(const Point& p, const double dx) const
@@ -593,9 +593,9 @@ Cube::IsInside(const Point& p, const double dx) const
 /* Create a cube ODE body inside a specified ODE world. If
  * a space (used for handling collision detection) has been defined
  * this method calls ODEGeomCreate to associate a geometry to the cube.
- * 	\param ODEWorld : ODE world ID
- * 	\param dx : particle spacing
- * 	\param ODESpace : ODE space ID
+ *	\param ODEWorld : ODE world ID
+ *	\param dx : particle spacing
+ *	\param ODESpace : ODE space ID
  */
 void
 Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
@@ -619,9 +619,9 @@ Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 /* Create an ODE geometry in the specified space associated
  * with the cube. If an ODE body is associated with cube, the
  * ODE geometry is associated to the ODE body.
- * 	\param ODESpace : ODE space ID
- * 	\param dx : particle spacing
- * 	\param ODESpace : ODE space ID
+ *	\param ODESpace : ODE space ID
+ *	\param dx : particle spacing
+ *	\param ODESpace : ODE space ID
  */
 void
 Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
