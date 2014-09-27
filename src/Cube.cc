@@ -458,16 +458,37 @@ Cube::Fill(PointVect& points, const double dx, const bool fill_faces, const bool
 }
 
 
-/// Fill the inner part of the cube with particles
+/// Fill the inner part of the cube, starting at dx/2 from the boundary
 /* Fill the  inner part of the cube (i.e the cube excluding
- * the faces) with particles.
+ * the faces) with particles. In contrast to Fill() without faces,
+ * the filling starts at dx/2 from the boundary.
  *	\param points : vector where the particles will be added
  *	\param dx : particle spacing
+ *	TODO FIXME different filling methods should be implemented
+ *	in a more general way for all objects.
  */
 void
 Cube::InnerFill(PointVect& points, const double dx)
 {
-	Fill(points, dx, false);
+	m_origin(3) = m_center(3);
+	const int nx = (int) (m_lx/dx);
+	const int ny = (int) (m_ly/dx);
+	const int nz = (int) (m_lz/dx);
+
+	int startx = 0;
+	int starty = 0;
+	int startz = 0;
+	int endx = nx;
+	int endy = ny;
+	int endz = nz;
+
+	for (int i = startx; i < endx; i++)
+		for (int j = starty; j < endy; j++)
+			for (int k = startz; k < endz; k++) {
+				Point p = m_origin + (i + 0.5)*m_vx/nx + (j + 0.5)*m_vy/ny + (k + 0.5)*m_vz/nz;
+				points.push_back(p);
+			}
+	return;
 }
 
 
