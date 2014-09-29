@@ -34,23 +34,15 @@ TextWriter::TextWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
 	m_fname_sfx = ".txt";
-	string time_filename = m_dirname + "/time.txt";
-    m_timefile = NULL;
-    m_timefile = fopen(time_filename.c_str(), "w");
 
-	if (m_timefile == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << time_filename;
-		throw runtime_error(ss.str());
-		}
+	string time_fname = open_data_file(m_timefile, "time", "", ".txt");
 }
 
 
 TextWriter::~TextWriter()
 {
-    if (m_timefile != NULL) {
-        fclose(m_timefile);
-		m_timefile = NULL;
+    if (m_timefile) {
+		m_timefile.close();
     }
 }
 
@@ -64,7 +56,7 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, fl
 
 	ofstream fid;
 	const string filenum = next_filenum();
-	string filename = open_data_file(fid, "PART_", filenum);
+	string filename = open_data_file(fid, "PART", filenum);
 
 	// Writing datas
 	for (uint i=0; i < numParts; i++) {
@@ -111,7 +103,7 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, fl
 
 	// Testpoints
 	if (testpoints){
-		filename = open_data_file(fid, "PARTTESTPOINTS_", filenum);
+		filename = open_data_file(fid, "PARTTESTPOINTS", filenum);
 
 		// Writing datas
 		for (uint i=0; i < numParts; i++) {
@@ -131,9 +123,9 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, fl
 		fid.close();
 	}
 
-	// Writing time to VTUinp.pvd file
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"%d\t%f\n", m_FileCounter, t);
+	// Map file number to time
+	if (m_timefile) {
+		m_timefile << m_FileCounter << "\t" << t << endl;
 	}
 
 }

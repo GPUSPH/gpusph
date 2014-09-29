@@ -44,36 +44,24 @@ VTKWriter::VTKWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
 	m_fname_sfx = ".vtu";
-	string time_filename = m_dirname + "/VTUinp";
-	// in case of multi-process, each process writes a different file
-	if (gdata && gdata->mpi_nodes > 1)
-		time_filename += "_n" + gdata->rankString();
-	time_filename += ".pvd";
 
-    m_timefile = NULL;
-    m_timefile = fopen(time_filename.c_str(), "w");
-
-	/*if (m_timefile == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << time_filename;
-		throw runtime_error(ss.str());
-		}*/
+	string time_fname = open_data_file(m_timefile, "VTUinp", "", ".pvd");
 
 	// Writing header of VTUinp.pvd file
 	if (m_timefile) {
-		fprintf(m_timefile,"<?xml version='1.0'?>\n");
-		fprintf(m_timefile," <VTKFile type='Collection' version='0.1'>\n");
-		fprintf(m_timefile,"  <Collection>\n");
+		m_timefile << "<?xml version='1.0'?>\n";
+		m_timefile << "<VTKFile type='Collection' version='0.1'>\n";
+		m_timefile << " <Collection>\n";
 	}
 }
 
 
 VTKWriter::~VTKWriter()
 {
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"   </Collection>\n");
-		fprintf(m_timefile,"  </VTKFile>\n");
-		fclose(m_timefile);
+	if (m_timefile) {
+		m_timefile << " </Collection>\n";
+		m_timefile << "</VTKFile>\n";
+		m_timefile.close();
 	}
 }
 
@@ -550,9 +538,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 
 	// Writing time to VTUinp.pvd file
 	if (m_timefile) {
-		fprintf(m_timefile,"<DataSet timestep='%f' group='' part='%d' file='%s'/>\n",
-			t, 0, filename.c_str());
-		fflush(m_timefile);
+		// TODO should node info for multinode be stored in group or part?
+		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
+			<< "file='" << filename << "'/>" << endl;
 	}
 
 	// close testpoints file

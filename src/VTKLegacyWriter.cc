@@ -39,29 +39,24 @@ VTKLegacyWriter::VTKLegacyWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
 	m_fname_sfx = ".vtk";
-	string time_filename = m_dirname + "/VTUinp.pvd";
-    m_timefile = NULL;
-    m_timefile = fopen(time_filename.c_str(), "w");
 
-	if (m_timefile == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << time_filename;
-		throw runtime_error(ss.str());
-		}
+	string time_fname = open_data_file(m_timefile, "VTUinp", "", ".pvd");
 
 	// Writing header of VTUinp.pvd file
-	fprintf(m_timefile,"<?xml version=\"1.0\"?>\r\n");
-	fprintf(m_timefile," <VTKFile type=\"Collection\" version=\"0.1\">\r\n");
-	fprintf(m_timefile,"  <Collection>\r\n");
+	if (m_timefile) {
+		m_timefile << "<?xml version='1.0'?>\n";
+		m_timefile << "<VTKFile type='Collection' version='0.1'>\n";
+		m_timefile << " <Collection>\n";
+	}
 }
 
 
 VTKLegacyWriter::~VTKLegacyWriter()
 {
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"   </Collection>\r\n");
-		fprintf(m_timefile,"  </VTKFile>\r\n");
-		fclose(m_timefile);
+	if (m_timefile) {
+		m_timefile << " </Collection>\n";
+		m_timefile << "</VTKFile>\n";
+		m_timefile.close();
 	}
 }
 
@@ -74,7 +69,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 
 	ofstream fid;
-	string filename = open_data_file(fid, "PART_", next_filenum());
+	string filename = open_data_file(fid, "PART", next_filenum());
 
 	// Header
 	fid << "# vtk DataFile Version 2.0\n" << m_dirname << endl;
@@ -180,10 +175,9 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	fid.close();
 
 	// Writing time to VTUinp.pvd file
-	// Writing time to VTUinp.pvd file
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"<DataSet timestep=\"%f\" group=\"\" part=\"%d\" file=\"%s\"/>\r\n",
-			t, 0, filename.c_str());
-		fflush(m_timefile);
+	if (m_timefile) {
+		// TODO should node info for multinode be stored in group or part?
+		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
+			<< "file='" << filename << "'/>" << endl;
 	}
 }

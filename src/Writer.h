@@ -170,10 +170,10 @@ protected:
 
 	string			m_dirname;
 	uint			m_FileCounter;
-	FILE*			m_timefile;
-	FILE*			m_energyfile;
-	//WaveGage
-	FILE*			m_WaveGagefile;
+	ofstream		m_timefile;
+	ofstream		m_energyfile;
+	ofstream		m_WaveGagefile;
+
 	const Problem	*m_problem;
 	string			next_filenum();
 	string			current_filenum();
