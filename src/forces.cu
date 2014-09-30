@@ -163,7 +163,7 @@ void*	reduce_buffer = NULL;
 #define SA_VERT_BOUND_CHECK(kernel) \
 	case kernel: \
 		cuforces::saVertexBoundaryConditions<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, vertices, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
+				 (oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
 	break
 
 extern "C"
