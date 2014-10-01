@@ -1103,17 +1103,17 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		// if we are on an in/outflow boundary get the imposed velocity / pressure and average
 		float4 eulerVel = make_float4(0.0f);
 		const vertexinfo verts = vertices[index];
-		if (object(info)!=0) {
+		if (IO_BOUNDARY(info)) {
 			float sharedVertices = 0.0f;
-			if(object(tex1Dfetch(infoTex, verts.x))!=0){
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, verts.x))){
 				eulerVel += oldEulerVel[verts.x];
 				sharedVertices += 1.0f;
 			}
-			if(object(tex1Dfetch(infoTex, verts.y))!=0){
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, verts.y))){
 				eulerVel += oldEulerVel[verts.y];
 				sharedVertices += 1.0f;
 			}
-			if(object(tex1Dfetch(infoTex, verts.z))!=0){
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, verts.z))){
 				eulerVel += oldEulerVel[verts.z];
 				sharedVertices += 1.0f;
 			}
@@ -1176,7 +1176,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// normal distance based on grad Gamma which approximates the normal of the domain
 				const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
 				sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w*neib_rho;
-				if (object(info)!=0)
+				if (IO_BOUNDARY(info))
 					sumvel += w*as_float3(oldVel[neib_index]);
 				sumtke += w*neib_k;
 				// the constant is coming from 4*powf(0.09,0.75)/0.41
@@ -1196,7 +1196,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			}
 			if (oldEps)
 				oldEps[index] = sumeps/alpha;
-			if (object(info)!=0)
+			if (IO_BOUNDARY(info))
 				sumvel /= alpha;
 			oldVel[index].w = fmax(sumrho/alpha,d_rho0[PART_FLUID_NUM(info)]);
 		}
@@ -1206,12 +1206,12 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				oldTKE[index] = 0.0;
 			if (oldEps)
 				oldEps[index] = 0.0;
-			if (object(info)!=0)
+			if (IO_BOUNDARY(info))
 				sumvel = make_float3(0.0f);
 		}
 
 		// Compute the Riemann Invariants for I/O conditions
-		if (object(info)!=0) {
+		if (IO_BOUNDARY(info)) {
 			// TODO make this more variable and adaptive to the test case
 			const float unInt = dot(sumvel, as_float3(normal));
 			const float unExt = dot3(eulerVel, normal);
@@ -1219,9 +1219,16 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const float rhoExt = eulerVel.w;
 			const int a = PART_FLUID_NUM(info);
 
-			// impose velocity
-			if (object(info)==1) {
+			// if we have an outflow the tangential velocity components are computed from the
+			// interpolated velocity. The normal velocity remains as set from Euler or will be
+			// replaced afterwards if pressure is imposed.
+			if (!INFLOW(info)) {
+				eulerVel = make_float4(sumvel) + (unExt - unInt)*normal;
+				eulerVel.w = rhoExt;
+			}
 
+			// impose velocity
+			if (VEL_IO(info)) {
 				if (unExt > unInt) { // Shock wave (Rankine-Hugoniot)
 					eulerVel.w = RHO(P(rhoInt, a) + rhoInt*unInt*(unInt - unExt), a);
 					// with the new rho check if this is actually a shock wave
@@ -1236,7 +1243,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				}
 			}
 			// impose pressure
-			else if (object(info)==2) {
+			else {
 				float flux = 0.0f;
 				if (rhoExt > rhoInt) { // Shock wave
 					if (unInt > d_sscoeff[a]*1e-5f)
@@ -1251,7 +1258,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				} else { // Expansion wave
 					flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
 				}
-				eulerVel = sumvel - unInt*normal;
+				// remove normal component of velocity
+				eulerVel = eulerVel - dot3(eulerVel, normal)*normal;
+				// add calculated normal velocity
 				eulerVel += normal*flux;
 				eulerVel.w = rhoExt;
 			}
@@ -1266,11 +1275,11 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		if (initStep) {
 			uint vertCount = 0;
 			// if i-th vertex is part of an open boundary set i-th bit of vertCount to 1
-			if(object(tex1Dfetch(infoTex, vertices[index].x)) != 0)
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertices[index].x)))
 				vertCount |= VERTEX1;
-			if(object(tex1Dfetch(infoTex, vertices[index].y)) != 0)
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertices[index].y)))
 				vertCount |= VERTEX2;
-			if(object(tex1Dfetch(infoTex, vertices[index].z)) != 0)
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertices[index].z)))
 				vertCount |= VERTEX3;
 			vertices[index].w = vertCount;
 		}
@@ -1305,8 +1314,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 			// for open boundary segments check whether this fluid particle has crossed the boundary
-			// FIXME: object != 0 might also refer to a moving object in the future
-			if (BOUNDARY(neib_info) && object(neib_info) != 0) {
+			if (BOUNDARY(neib_info) && IO_BOUNDARY(neib_info)) {
 
 				// Compute relative position vector and distance
 				// Now relPos is a float4 and neib mass is stored in relPos.w
@@ -1512,7 +1520,7 @@ saVertexBoundaryConditions(
 			if (verts.x == index || verts.y == index || verts.z == index) {
 				// boundary conditions on rho, k, eps
 				sumrho += oldVel[neib_index].w;
-				if (object(neib_info) != 0){
+				if (IO_BOUNDARY(neib_info)){
 					// number of vertices associated to a segment that are of the same object type
 					float numOutVerts = 2.0f;
 					if (verts.w == ALLVERTICES) // all vertices are of the same object type
@@ -1533,7 +1541,7 @@ saVertexBoundaryConditions(
 				// for the computation of gamma, in general we need a sort of normal as well
 				// for open boundaries to decide whether or not particles are created at a
 				// vertex or not
-				if (object(info)!=0 || initStep)
+				if (IO_BOUNDARY(info) || initStep)
 					avgNorm += as_float3(boundElement);
 			}
 		}
@@ -1569,12 +1577,12 @@ saVertexBoundaryConditions(
 	if (oldEps)
 		oldEps[index] = sumeps/numseg;
 	// open boundaries
-	if (object(info) != 0) {
+	if (IO_BOUNDARY(info)) {
 		// imposing velocities => density needs to be averaged from segments
-		if (object(info) == 1)
+		if (VEL_IO(info))
 			oldEulerVel[index].w = sumEulerVel.w/numseg;
 		// imposing pressure => velocity needs to be averaged from segments
-		else if (object(info) == 2) {
+		else {
 			oldEulerVel[index].x = sumEulerVel.x/numseg;
 			oldEulerVel[index].y = sumEulerVel.y/numseg;
 			oldEulerVel[index].z = sumEulerVel.z/numseg;

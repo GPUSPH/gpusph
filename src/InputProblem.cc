@@ -5,31 +5,13 @@
 #include "InputProblem.h"
 #include "GlobalData.h"
 
-static const std::string SPECIFIC_PROBLEM("SmallChannelFlowIOPer");
-
-/* Implemented problems:
- *
- *	Keyword			Description
- ***********************************************
- *	StillWater				Periodic stillwater (lacking file)
- *	Spheric2				Spheric2 dambreak with obstacle
- *	Box						Small dambreak in a box
- *	BoxCorner				Small dambreak in a box with a corner
- *	SmallChannelFlow		Small channel flow for debugging
- *	SmallChannelFlowKEPS	Small channel flow for debugging using k-epsilon
- *	SmallChannelFlowIO		Small channel flow for debugging i/o
- *	SmallChannelFlowIOPer	Small channel flow for debugging i/o with periodicty (<=> 2d poiseuille)
- *	IOWithoutWalls			I/O Debugging with periodicity and no walls
- *
- */
-
 #define USE_PLANES 0
 
 InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
 	//StillWater periodic (symmetric)
 	//*************************************************************************************
-	if (SPECIFIC_PROBLEM == "StillWater") {
+#if SPECIFIC_PROBLEM == StillWater
 		h5File.setFilename("/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph");
 
 		set_deltap(0.1f);
@@ -50,12 +32,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_physparams.maxlimit = make_float3(l, l, 0.0f);
 		m_origin = make_double3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
-	}
 	//*************************************************************************************
 
 	//Spheric2 (DamBreak)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "Spheric2") {
+#elif SPECIFIC_PROBLEM == Spheric2
 		h5File.setFilename("meshes/0.spheric2.h5sph");
 
 		set_deltap(0.01833f);
@@ -72,16 +53,16 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
 		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
-	}
 	//*************************************************************************************
 
 	//Box (Dambreak)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM.substr(0,3) == "Box") {
-		if (SPECIFIC_PROBLEM == "BoxCorner")
+#elif SPECIFIC_PROBLEM == BoxCorner || SPECIFIC_PROBLEM == Box
+#if SPECIFIC_PROBLEM == BoxCorner
 			h5File.setFilename("meshes/0.box_corner.h5sph");
-		else
+#else
 			h5File.setFilename("meshes/0.box_blend_16.h5sph");
+#endif
 
 		set_deltap(0.125f);
 
@@ -98,12 +79,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-1.1, -1.1, -1.1);
 		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
 		m_simparams.calcPrivate = true;
-	}
 	//*************************************************************************************
 
 	//SmallChannelFlow (a small channel flow for debugging viscosity)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "SmallChannelFlow") {
+#elif SPECIFIC_PROBLEM == SmallChannelFlow
 		h5File.setFilename("meshes/0.small_channel.h5sph");
 
 		set_deltap(0.0625f);
@@ -122,11 +102,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 1.0; w = 1.0; h = 1.02;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
 		m_simparams.calcPrivate = true;
-	}
+	//*************************************************************************************
 
 	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+#elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
 
 		m_simparams.sfactor=2.0f;
@@ -148,11 +128,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 0.8; w = 0.8; h = 2.02;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
 		m_simparams.calcPrivate = false;
-	}
+	//*************************************************************************************
 
 	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 		h5File.setFilename("meshes/0.small_channel_io_walls.h5sph");
 
 		set_deltap(0.2f);
@@ -171,11 +151,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-1.05, -1.05, -1.05);
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
-	}
+	//*************************************************************************************
 
 	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "SmallChannelFlowIOPer") {
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
 		m_simparams.sfactor=1.3f;
@@ -196,10 +176,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-0.55, -0.5, -1.05);
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
-	}
+	//*************************************************************************************
+
 	//IOWithoutWalls (i/o between two plates without walls)
 	//*************************************************************************************
-	else if (SPECIFIC_PROBLEM == "IOWithoutWalls") {
+#elif SPECIFIC_PROBLEM == IOWithoutWalls
 		h5File.setFilename("meshes/0.io_without_walls.h5sph");
 
 		set_deltap(0.2f);
@@ -219,46 +200,9 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-1.1, -1.0, -1.0);
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
-	}
-
 	//*************************************************************************************
-	// Fishpass
-	//*************************************************************************************
-	// Poitier geometry
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//	h5File.setFilename("/home/vorobyev/Crixus/geometries/fishpass3D/wrong.fishpass_covered_0.0075_sl10.h5sph");
 
-//	set_deltap(0.0075f);
-
-//	m_simparams.testpoints = false;
-//	H = 0.2;
-//	l = 0.75; w = 0.675; h = 0.4;
-
-//	float slope = 0.1;
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	// BAW geometry
-//	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//	h5File.setFilename("/home/vorobyev/Crixus/geometries/fishpass3D/0.BAW.fishpass.0.01.h5sph");
-
-//	set_deltap(0.01f);
-
-//	m_simparams.testpoints = false;
-//	H = 0.25;
-//	l = 1.019; w = 0.785; h = 0.4;
-
-//	float slope = 0.027;
-//	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-//	m_physparams.kinematicvisc = 1.0e-6f;
-//	m_physparams.gravity = make_float3(9.81f*sin(atan(slope)), 0.0, -9.81f*cos(atan(slope)));
-
-//	//periodic boundaries
-//	m_simparams.periodicbound = true;
-//	m_physparams.dispvect = make_float3(l, 0.0f, 0.0f);
-//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-//	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
-//	//*************************************************************************************
+#endif
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
@@ -300,31 +244,30 @@ int InputProblem::fill_parts()
 {
 	// Setting probe for Box test case
 	//*******************************************************************
-	if (SPECIFIC_PROBLEM == "Box") {
-		add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
-		if (m_simparams.testpoints) {
-			test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
-		}
+#if SPECIFIC_PROBLEM == Box
+	add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
+	if (m_simparams.testpoints) {
+		test_points.push_back(m_origin + make_double3(1.0, 2.0, 0.0) + make_double3(0.1, 0.1, 0.1));
 	}
+	//*******************************************************************
 	// Setting probes for Spheric2 test case
 	//*******************************************************************
-	if (SPECIFIC_PROBLEM == "Spheric2") {
-		// Wave gages
-		add_gage(m_origin + make_double3(2.724, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-		add_gage(m_origin + make_double3(2.228, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-		add_gage(m_origin + make_double3(1.732, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-		add_gage(m_origin + make_double3(0.582, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
-		// Pressure probes
-		if (m_simparams.testpoints) {
-			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.021) + make_double3(0.01, 0.01, 0.01)); // the (0.01,0.01,0.01) vector accounts for the slightly shifted origin
-			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.061) + make_double3(0.01, 0.01, 0.01));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.101) + make_double3(0.01, 0.01, 0.01));
-			test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.141) + make_double3(0.01, 0.01, 0.01));
-			test_points.push_back(m_origin + make_double3(2.4165, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-			test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-			test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-			test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
-		}
+#elif SPECIFIC_PROBLEM == Spheric2
+	// Wave gages
+	add_gage(m_origin + make_double3(2.724, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+	add_gage(m_origin + make_double3(2.228, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+	add_gage(m_origin + make_double3(1.732, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+	add_gage(m_origin + make_double3(0.582, 0.5, 0.0) + make_double3(0.01, 0.01, 0.01));
+	// Pressure probes
+	if (m_simparams.testpoints) {
+		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.021) + make_double3(0.01, 0.01, 0.01)); // the (0.01,0.01,0.01) vector accounts for the slightly shifted origin
+		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.061) + make_double3(0.01, 0.01, 0.01));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.101) + make_double3(0.01, 0.01, 0.01));
+		test_points.push_back(m_origin + make_double3(2.3955, 0.5, 0.141) + make_double3(0.01, 0.01, 0.01));
+		test_points.push_back(m_origin + make_double3(2.4165, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+		test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+		test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+		test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 	}
 	// Setting probes for KEPS test case
 	//*******************************************************************
@@ -336,10 +279,9 @@ int InputProblem::fill_parts()
 		}
 	}
 	//*******************************************************************
+#endif
 
-	int npart = h5File.getNParts() + test_points.size();
-
-	return npart;
+	return h5File.getNParts() + test_points.size();
 }
 
 void InputProblem::copy_to_array(BufferList &buffers)
@@ -376,15 +318,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
-		if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
-		}
-		else if (SPECIFIC_PROBLEM == "SmallChannelFlowIOPer") {
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			const float lvel = 1.0f-h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
 			vel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
-		}
-		else if (SPECIFIC_PROBLEM == "SmallChannelFlowIO") {
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 			const float y2 = h5File.buf[i].Coords_1*h5File.buf[i].Coords_1;
 			const float z2 = h5File.buf[i].Coords_2*h5File.buf[i].Coords_2;
 			const float y4 = y2*y2;
@@ -395,12 +335,11 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float z8 = z4*z4;
 			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
-		}
-		else if (SPECIFIC_PROBLEM == "IOWithoutWalls") {
+#elif SPECIFIC_PROBLEM == IOWithoutWalls
 			vel[i] = make_float4(1.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
-		}
-		else
+#else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+#endif
 		eulerVel[i] = vel[i];
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
@@ -412,14 +351,33 @@ void InputProblem::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
-			if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(lvel, 0, 0, rho);
-			}
-			else
+#else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+#endif
 			eulerVel[i] = vel[i];
-			info[i] = make_particleinfo(VERTEXPART, h5File.buf[i].KENT, i);
+			int openBoundType = h5File.buf[i].KENT;
+			info[i] = make_particleinfo(VERTEXPART, openBoundType, i);
+			// Define the type of open boundaries
+#if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
+    SPECIFIC_PROBLEM == IOWithoutWalls || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+				if (openBoundType == 1) {
+					// this vertex is part of an open boundary
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					// open boundary imposes velocity
+					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					// open boundary is an inflow
+					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
+				} else if (openBoundType == 2) {
+					// this vertex is part of an open boundary
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+					// open boundary is an outflow => INFLOW_PARTICLE_FLAG not set
+				}
+#endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
 		j += n_vparts;
@@ -429,14 +387,33 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
-			if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
-			}
-			else
+#else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+#endif
 			eulerVel[i] = vel[i];
-			info[i] = make_particleinfo(BOUNDPART, h5File.buf[i].KENT, i);
+			int openBoundType = h5File.buf[i].KENT;
+			info[i] = make_particleinfo(BOUNDPART, openBoundType, i);
+			// Define the type of open boundaries
+#if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
+    SPECIFIC_PROBLEM == IOWithoutWalls || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+				if (openBoundType == 1) {
+					// this vertex is part of an open boundary
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					// open boundary imposes velocity
+					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					// open boundary is an inflow
+					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
+				} else if (openBoundType == 2) {
+					// this vertex is part of an open boundary
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+					// open boundary is an outflow => INFLOW_PARTICLE_FLAG not set
+				}
+#endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
 			vertices[i].y = h5File.buf[i].VertexParticle2;
@@ -479,7 +456,7 @@ InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, fl
 		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
 		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
 		k[i] = k0;
-		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*m_deltap);
+		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*(float)m_deltap);
 	}
 }
 
@@ -487,11 +464,11 @@ uint
 InputProblem::max_parts(uint numpart)
 {
 	// gives an estimate for the maximum number of particles
-	if (SPECIFIC_PROBLEM == "SmallChannelFlowIO" ||
-		SPECIFIC_PROBLEM == "IOWithoutWalls"     ||
-		SPECIFIC_PROBLEM == "SmallChannelFlowIOPer") {
+#if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
+    SPECIFIC_PROBLEM == IOWithoutWalls || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 		return (uint)((float)numpart*1.2f);
-	}
-	else
+#else
 		return numpart;
+#endif
 }

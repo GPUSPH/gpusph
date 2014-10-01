@@ -482,6 +482,14 @@ bool GPUSPH::runSimulation() {
 
 		// semi-analytical boundary update
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+
+			if (problem->get_simparams()->inoutBoundaries) {
+				gdata->only_internal = false;
+				gdata->swapDeviceBuffers(BUFFER_POS);
+				doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
+				gdata->swapDeviceBuffers(BUFFER_POS);
+			}
+
 			gdata->only_internal = true;
 
 			gdata->swapDeviceBuffers(BUFFER_VERTICES);
@@ -574,6 +582,14 @@ bool GPUSPH::runSimulation() {
 
 		// semi-analytical boundary update
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+
+			if (problem->get_simparams()->inoutBoundaries) {
+				gdata->only_internal = false;
+				gdata->swapDeviceBuffers(BUFFER_POS);
+				doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
+				gdata->swapDeviceBuffers(BUFFER_POS);
+			}
+
 			gdata->only_internal = true;
 
 			gdata->swapDeviceBuffers(BUFFER_VERTICES);

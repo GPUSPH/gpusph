@@ -803,3 +803,16 @@ Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4*
 		e[i] = e0;
 	}
 }
+
+void
+Problem::imposeOpenBoundaryConditionHost(
+			float4*			newEulerVel,
+	const	particleinfo*	info,
+	const	float4*			oldPos,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	hashKey*		particleHash)
+{
+	// not implemented
+	return;
+}

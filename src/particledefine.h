@@ -229,6 +229,9 @@ enum ParticleType {
 
 #define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
 #define FIXED_PARTICLE_FLAG		(PART_FLAG_START<<1)
+#define IO_PARTICLE_FLAG		(PART_FLAG_START<<2)
+#define VEL_IO_PARTICLE_FLAG	(PART_FLAG_START<<3)
+#define INFLOW_PARTICLE_FLAG	(PART_FLAG_START<<4)
 
 
 /* A bitmask to select only the fluid number */
@@ -274,6 +277,15 @@ disable_particle(float4 &pos) {
 #define SURFACE(f)		(type(f) & SURFACE_PARTICLE_FLAG)
 // Fixed particle (e.g. Dalrymple's dynamic bounary particles)
 #define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
+// If this flag is set the object is and open boundary
+#define IO_BOUNDARY(f)	(type(f) & IO_PARTICLE_FLAG)
+// If this flag is set the normal velocity is imposed at an open boundary
+// if it is not set the pressure is imposed instead
+#define VEL_IO(f)		(type(f) & VEL_IO_PARTICLE_FLAG)
+// If this flag is set an open boundary is treated as an inflow and thus the tangential
+// velocities are imposed. If it is not set the open boundary is an outflow and the tangential
+// velocities are computed from the interior of the fluid (i.e. extrapolated).
+#define INFLOW(f)		(type(f) & INFLOW_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data

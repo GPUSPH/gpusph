@@ -6,6 +6,23 @@
 #include "Problem.h"
 #include "HDF5SphReader.h"
 
+// Implemented problems:
+//
+//		Keyword					Id	// Description
+//*******************************************************************************************************
+#define	StillWater				1	// Periodic stillwater (lacking file)
+#define	Spheric2				2	// Spheric2 dambreak with obstacle
+#define	Box						3	// Small dambreak in a box
+#define	BoxCorner				4	// Small dambreak in a box with a corner
+#define	SmallChannelFlow		5	// Small channel flow for debugging
+#define	SmallChannelFlowKEPS	6	// Small channel flow for debugging using k-epsilon
+#define	SmallChannelFlowIO		7	// Small channel flow for debugging i/o
+#define	SmallChannelFlowIOPer	8	// Small channel flow for debugging i/o with periodicty (<=> 2d poiseuille)
+#define	IOWithoutWalls			9	// I/O Debugging with periodicity and no walls
+//*******************************************************************************************************
+// Chosse one of the problems above
+#define SPECIFIC_PROBLEM SmallChannelFlowIOPer
+
 class InputProblem: public Problem {
 	private:
 		string			inputfile;
@@ -24,7 +41,17 @@ class InputProblem: public Problem {
 		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 		uint max_parts(uint);
 
+		void
+		imposeOpenBoundaryConditionHost(
+					float4*			newEulerVel,
+			const	particleinfo*	info,
+			const	float4*			oldPos,
+			const	uint			numParticles,
+			const	uint			particleRangeEnd,
+			const	hashKey*		particleHash);
+
 		void release_memory(void) {};
+
 };
 
 #endif	/* _INPUTPROBLEM_H */

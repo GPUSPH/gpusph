@@ -103,6 +103,7 @@ enum CommandType {
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
+	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
 	QUIT				// quits the simulation cycle
 };
 

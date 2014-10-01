@@ -32,6 +32,7 @@
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
+#include "Problem.h"
 
 #include "cudabuffer.h"
 
@@ -1681,6 +1682,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
 				instance->kernel_calcPrivate();
 				break;
+			case IMPOSE_OPEN_BOUNDARY_CONDITION:
+				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
+				instance->kernel_imposeOpenBoundaryCondition();
+				break;
 			case COMPUTE_TESTPOINTS:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_TESTPOINTS\n", deviceIndex);
 				instance->kernel_testpoints();
@@ -2117,7 +2122,6 @@ void GPUWorker::kernel_euler()
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
-			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 			m_numParticles,
 			numPartsToElaborate,
 			gdata->dt, // m_dt,
@@ -2125,6 +2129,23 @@ void GPUWorker::kernel_euler()
 			firstStep ? 1 : 2,
 			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 			m_simparams->xsph);
+}
+
+void GPUWorker::kernel_imposeOpenBoundaryCondition()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	gdata->problem->imposeOpenBoundaryConditionHost(
+			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_numParticles,
+			numPartsToElaborate,
+			m_dBuffers.getData<BUFFER_HASH>());
+
 }
 
 void GPUWorker::kernel_mls()
@@ -2393,6 +2414,8 @@ void GPUWorker::uploadConstants()
 	seteulerconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
+	if (m_simparams->inoutBoundaries)
+		setioboundconstants(gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()

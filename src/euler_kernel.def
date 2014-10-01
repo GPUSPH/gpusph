@@ -67,7 +67,6 @@ eulerDevice(
 	float4*	newVel,
 	float*	newTKE,
 	float*	newEps,
-	float4*	newEulerVel,
 	const uint	numParticles,
 	const float	full_dt,
 	const float	half_dt, /* full_dt/2 */
@@ -86,7 +85,6 @@ eulerDevice(
 	// copying pos and vel in the new arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
-	float4 eulerVel = make_float4(0.0f); // imposed velocity/pressure
 	// TODO templatize better
 	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
 	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
@@ -153,31 +151,7 @@ eulerDevice(
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		else if (VERTEX(pinfo)) {
 			vel += dt*force;
-			// open boundaries
-			// the following is an example and should be generalized in the future
-			if (object(pinfo) == 1) {
-				const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
-				// third order approximation to the flow in a rectangular duct
-				const float y2 = absPos.y*absPos.y;
-				const float z2 = absPos.z*absPos.z;
-				const float y4 = y2*y2;
-				const float z4 = z2*z2;
-				const float y6 = y2*y4;
-				const float z6 = z2*z4;
-				const float y8 = y4*y4;
-				const float z8 = z4*z4;
-				eulerVel.x = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
-				eulerVel.x = fmax(eulerVel.x, 0.0f);
-				// imposed velocity for case IOWithoutWalls
-				eulerVel.x = 1.0f;
-				// imposed velocity for case SmallChannelFlowIOPer
-				eulerVel.x = 1.0f-absPos.z*absPos.z;
-				eulerVel.y = 0.0f;
-				eulerVel.z = 0.0f;
-			}
-			else if (object(pinfo) == 2) {
-				eulerVel.w = 1000.0f;
-			}
+			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
 		}
 		// Moving boundaries
 		// Updating positions for piston particles.
@@ -223,8 +197,6 @@ eulerDevice(
 		newTKE[index] = keps_k;
 	if (newEps)
 		newEps[index] = keps_e;
-	if (newEulerVel)
-		newEulerVel[index] = eulerVel;
 }
 
 /* vi:set ft=cuda: */
