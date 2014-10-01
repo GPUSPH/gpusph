@@ -261,13 +261,13 @@ disable_particle(float4 &pos) {
 
 /* Tests for particle types */
 // Testpoints
-#define TESTPOINTS(f)	(type(f) == TESTPOINTSPART)
+#define TESTPOINTS(f)	((type(f) & PART_TYPE_MASK) == TESTPOINTSPART)
 // Particle belonging to an object
-#define OBJECT(f)		(type(f) == OBJECTPART)
+#define OBJECT(f)		((type(f) & PART_TYPE_MASK) == OBJECTPART)
 // Boundary particle
-#define BOUNDARY(f)		(type(f) == BOUNDPART)
+#define BOUNDARY(f)		((type(f) & PART_TYPE_MASK) == BOUNDPART)
 // Vertex particle
-#define VERTEX(f)		(type(f) == VERTEXPART)
+#define VERTEX(f)		((type(f) & PART_TYPE_MASK) == VERTEXPART)
 
 /* Tests for particle flags */
 // Free surface detection
