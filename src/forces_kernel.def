@@ -931,28 +931,29 @@ visc_boundary_part<KEPSVISC>::with
 	// a component of fluid paricle velocity tangential to the wall
 	// TODO movingboundary: instead of pdata.vel use relative lagrangian velocity
 	const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
-	const float abs_u_t = fmax(length(u_t), 1e-6f);
+	const float abs_u_t = length(u_t);
 
 	// we solve iteratively the wall law equation to obtain y+ value
 	float u_star = 0.0f;
 	// the constant is equal to 0.09^0.25
 	const float uk = 0.547722558f*sqrt(pdata.keps_k);
 	float y_plus = ndata.r_as/d_visccoeff*uk;
-	if(y_plus*0.41f < 1.0f) // viscous sublayer
+	// constant is equal to 1/0.41
+	if(y_plus < 2.43902439f) // viscous sublayer
 		u_star = abs_u_t/y_plus;
 	else{ // log law
 		// constant is equal to exp(-5.2*0.41)
 		float utau = 0.118599857f*d_visccoeff/ndata.r_as;
 		for (int i=0; i<10; i++) {
 			// constant is equal to 1/0.41
-			y_plus = max(ndata.r_as*utau/d_visccoeff, 2.43902439);
+			y_plus = fmax(ndata.r_as*utau/d_visccoeff, 2.43902439f);
 			// constant is equal to 5.2*0.41+1
 			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
 		}
 		u_star = abs_u_t / (log(y_plus)/0.41f + 5.2f);
 	}
 
-	nout.DvDt -= 2.0f*nout.gamAS.x*u_star*u_star*u_t/abs_u_t;
+	nout.DvDt -= 2.0f*nout.gamAS.x*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
 }
 
 // auxiliary functor computing volumic contribution to the viscous term
