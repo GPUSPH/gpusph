@@ -160,7 +160,7 @@ void*	reduce_buffer = NULL;
 #define TEST_CHECK(kernel) \
 	case kernel: \
 		cuforces::calcTestpointsVelocityDevice<kernel><<< numBlocks, numThreads >>> \
-				(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
+				(pos, newVel, newTke, newEpsilon, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 	break
 
 // Free surface detection
@@ -682,17 +682,19 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-testpoints( const float4*		pos,
-			float4*		newVel,
+testpoints( const float4*	pos,
+			float4*			newVel,
+			float*			newTke,
+			float*			newEpsilon,
 			particleinfo	*info,
 			hashKey*		particleHash,
-			uint*		cellStart,
-			neibdata*	neibsList,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			float		slength,
-			int			kerneltype,
-			float		influenceradius)
+			uint*			cellStart,
+			neibdata*		neibsList,
+			uint			numParticles,
+			uint			particleRangeEnd,
+			float			slength,
+			int				kerneltype,
+			float			influenceradius)
 {
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_CALCTEST, particleRangeEnd);
@@ -702,6 +704,8 @@ testpoints( const float4*		pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, newTke, numParticles*sizeof(float)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, newEpsilon, numParticles*sizeof(float)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
@@ -718,6 +722,8 @@ testpoints( const float4*		pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+	CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 

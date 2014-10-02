@@ -216,17 +216,19 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-testpoints(	const float4*		pos,
-			float4*		newVel,
+testpoints(	const float4*	pos,
+			float4*			newVel,
+			float*			newTke,
+			float*			newEpsilon,
 			particleinfo*	info,
 			hashKey*		particleHash,
-			uint*		cellStart,
-			neibdata*	neibsList,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			float		slength,
-			int			kerneltype,
-			float		influenceradius);
+			uint*			cellStart,
+			neibdata*		neibsList,
+			uint			numParticles,
+			uint			particleRangeEnd,
+			float			slength,
+			int				kerneltype,
+			float			influenceradius);
 
 // Free surface detection
 void

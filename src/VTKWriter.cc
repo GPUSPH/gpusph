@@ -134,7 +134,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		}
 		// write CSV header
 		if (testpoints_file)
-			fprintf(testpoints_file,"T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ\n");
+			fprintf(testpoints_file,"T,ID,Pressure,Object,CellIndex,PosX,PosY,PosZ,VelX,VelY,VelZ,Tke,Eps\n");
 	}
 
 	string filename;
@@ -346,11 +346,18 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			ushort value = PART_TYPE(info[i]);
 			if (gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
-				fprintf(testpoints_file,"%g,%u,%g,%u,%u,%g,%g,%g,%g,%g,%g\n",
+				float tkeVal = 0.0f;
+				float epsVal = 0.0f;
+				if(tke)
+					tkeVal = tke[i];
+				if(eps)
+					epsVal = eps[i];
+				fprintf(testpoints_file,"%g,%u,%g,%u,%u,%g,%g,%g,%g,%g,%g,%g,%g\n",
 					t, id(info[i]),
 					vel[i].w, object(info[i]), cellHashFromParticleHash( particleHash[i] ),
 					pos[i].x, pos[i].y, pos[i].z,
-					vel[i].x, vel[i].y, vel[i].z);
+					vel[i].x, vel[i].y, vel[i].z,
+					tkeVal, epsVal);
 			}
 			fwrite(&value, sizeof(value), 1, fid);
 		}

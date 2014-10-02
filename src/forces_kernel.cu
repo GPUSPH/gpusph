@@ -1829,7 +1829,9 @@ template<KernelType kerneltype>
 __global__ void
 calcTestpointsVelocityDevice(	const float4*	oldPos,
 								float4*			newVel,
-								const hashKey*		particleHash,
+								float*			newTke,
+								float*			newEpsilon,
+								const hashKey*	particleHash,
 								const uint*		cellStart,
 								const neibdata*	neibsList,
 								const uint		numParticles,
@@ -1851,10 +1853,12 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
-	float4 vel = tex1Dfetch(velTex, index);
 
 	// this is the velocity (x,y,z) and pressure (w)
-	float4 temp = make_float4(0.0f);
+	float4 velavg = make_float4(0.0f);
+	// this is for k/epsilon
+	float tkeavg = 0.0f;
+	float epsavg = 0.0f;
 	// this is the shepard filter sum(w_b w_{ab})
 	float alpha = 0.0f;
 
@@ -1889,17 +1893,26 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 		const float r = length(as_float3(relPos));
 
-		const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && FLUID(neib_info)) {
+		if (r < influenceradius && (FLUID(neib_info) || VERTEX(neib_info))) {
+			const float4 neib_vel = tex1Dfetch(velTex, neib_index);
 			const float w = W<kerneltype>(r, slength)*relPos.w/neib_vel.w;	// Wij*mj
 			//Velocity
-			temp.x += w*neib_vel.x;
-			temp.y += w*neib_vel.y;
-			temp.z += w*neib_vel.z;
+			velavg.x += w*neib_vel.x;
+			velavg.y += w*neib_vel.y;
+			velavg.z += w*neib_vel.z;
 			//Pressure
-			temp.w += w*P(neib_vel.w, object(neib_info));
+			velavg.w += w*P(neib_vel.w, object(neib_info));
+			// Turbulent kinetic energy
+			if(newTke){
+				const float neib_tke = tex1Dfetch(keps_kTex, neib_index);
+				tkeavg += w*neib_tke;
+			}
+			if(newEpsilon){
+				const float neib_eps = tex1Dfetch(keps_eTex, neib_index);
+				epsavg += w*neib_eps;
+			}
 			//Shepard filter
 			alpha += w;
 		}
@@ -1907,13 +1920,25 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 	// Renormalization by the Shepard filter
 	if(alpha>1e-5f) {
-		vel = temp/alpha;
+		velavg /= alpha;
+		if(newTke)
+			tkeavg /= alpha;
+		if(newEpsilon)
+			epsavg /= alpha;
 	}
 	else {
-		vel = make_float4(0.0f);
+		velavg = make_float4(0.0f);
+		if(newTke)
+			tkeavg = 0.0f;
+		if(newEpsilon)
+			epsavg = 0.0f;
 	}
 
-	newVel[index] = vel;
+	newVel[index] = velavg;
+	if(newTke)
+		newTke[index] = tkeavg;
+	if(newEpsilon)
+		newEpsilon[index] = epsavg;
 }
 
 

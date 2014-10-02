@@ -2245,6 +2245,8 @@ void GPUWorker::kernel_testpoints()
 
 	testpoints(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
