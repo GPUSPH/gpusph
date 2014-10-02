@@ -2338,7 +2338,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				(firstStep ? NULL : m_dNewNumParticles),	// no m_dNewNumParticles at first step
 				numPartsToElaborate,
 				firstStep ? gdata->dt / 2.0f : gdata->dt,
-				firstStep ? 1 : 2,
+				initStep ? 0 : (firstStep ? 1 : 2),
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->kerneltype,
