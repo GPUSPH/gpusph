@@ -2140,6 +2140,8 @@ void GPUWorker::kernel_imposeOpenBoundaryCondition()
 
 	gdata->problem->imposeOpenBoundaryConditionHost(
 			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 			m_numParticles,

@@ -18,10 +18,11 @@
 #define	SmallChannelFlowKEPS	6	// Small channel flow for debugging using k-epsilon
 #define	SmallChannelFlowIO		7	// Small channel flow for debugging i/o
 #define	SmallChannelFlowIOPer	8	// Small channel flow for debugging i/o with periodicty (<=> 2d poiseuille)
-#define	IOWithoutWalls			9	// I/O Debugging with periodicity and no walls
+#define	SmallChannelFlowIOKeps	9	// Small channel flow for debugging i/o with periodicty and keps
+#define	IOWithoutWalls			10	// I/O Debugging with periodicity and no walls
 //*******************************************************************************************************
 // Chosse one of the problems above
-#define SPECIFIC_PROBLEM SmallChannelFlowIOPer
+#define SPECIFIC_PROBLEM SmallChannelFlowIOKeps
 
 class InputProblem: public Problem {
 	private:
@@ -44,6 +45,8 @@ class InputProblem: public Problem {
 		void
 		imposeOpenBoundaryConditionHost(
 					float4*			newEulerVel,
+					float*			newTke,
+					float*			newEpsilon,
 			const	particleinfo*	info,
 			const	float4*			oldPos,
 			const	uint			numParticles,

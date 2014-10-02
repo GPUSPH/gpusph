@@ -807,6 +807,8 @@ Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4*
 void
 Problem::imposeOpenBoundaryConditionHost(
 			float4*			newEulerVel,
+			float*			newTke,
+			float*			newEpsilon,
 	const	particleinfo*	info,
 	const	float4*			oldPos,
 	const	uint			numParticles,

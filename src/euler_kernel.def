@@ -149,9 +149,8 @@ eulerDevice(
 			}
 		}
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
-		else if (VERTEX(pinfo)) {
+		else if (VERTEX(pinfo) && !IO_BOUNDARY(pinfo)) {
 			vel += dt*force;
-			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
 		}
 		// Moving boundaries
 		// Updating positions for piston particles.

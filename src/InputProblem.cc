@@ -178,6 +178,31 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
 
+	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
+	//*************************************************************************************
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
+
+		m_simparams.sfactor=1.3f;
+		set_deltap(0.05f);
+
+		m_physparams.kinematicvisc = 1.0e-1f;
+		m_simparams.visctype = KEPSVISC;
+		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
+
+		m_simparams.tend = 10.0;
+		m_simparams.testpoints = false;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
+		m_simparams.periodicbound = PERIODIC_Y;
+		H = 2.0;
+		l = 1.1; w = 1.0; h = 2.1;
+		m_origin = make_double3(-0.55, -0.5, -1.05);
+		m_simparams.calcPrivate = false;
+		m_simparams.inoutBoundaries = true;
+	//*************************************************************************************
+
 	//IOWithoutWalls (i/o between two plates without walls)
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
@@ -272,7 +297,7 @@ int InputProblem::fill_parts()
 	//*******************************************************************
 	// Setting probes for KEPS test case
 	//*******************************************************************
-#elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
+#elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS || SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 	if (m_simparams.testpoints) {
 		// create test points at (0,0,.) with dp spacing from bottom to top
 		for(uint i=0; i<=40; i++)
@@ -318,7 +343,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	for (uint i = 0; i < n_parts; i++) {
 		//float rho = density(H - h5File.buf[i].Coords_2, 0);
 		float rho = m_physparams.rho0[0];
-#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS
+#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
@@ -352,7 +378,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
-#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS
+#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
+	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(lvel, 0, 0, rho);
 #else
@@ -365,7 +392,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
@@ -389,7 +417,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
-#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS
+#if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
+	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 #else
@@ -402,7 +431,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
@@ -469,7 +499,8 @@ InputProblem::max_parts(uint numpart)
 	// gives an estimate for the maximum number of particles
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 		return (uint)((float)numpart*1.2f);
 #else
 		return numpart;

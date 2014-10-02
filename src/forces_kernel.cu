@@ -1102,22 +1102,38 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		// if we are on an in/outflow boundary get the imposed velocity / pressure and average
 		float4 eulerVel = make_float4(0.0f);
+		float tke = 0.0f;
+		float eps = 0.0f;
 		const vertexinfo verts = vertices[index];
 		if (IO_BOUNDARY(info)) {
 			float sharedVertices = 0.0f;
 			if(IO_BOUNDARY(tex1Dfetch(infoTex, verts.x))){
 				eulerVel += oldEulerVel[verts.x];
+				if (oldTKE)
+					tke += oldTKE[verts.x];
+				if (oldEps)
+					eps += oldEps[verts.x];
 				sharedVertices += 1.0f;
 			}
 			if(IO_BOUNDARY(tex1Dfetch(infoTex, verts.y))){
 				eulerVel += oldEulerVel[verts.y];
+				if (oldTKE)
+					tke += oldTKE[verts.y];
+				if (oldEps)
+					eps += oldEps[verts.y];
 				sharedVertices += 1.0f;
 			}
 			if(IO_BOUNDARY(tex1Dfetch(infoTex, verts.z))){
 				eulerVel += oldEulerVel[verts.z];
+				if (oldTKE)
+					tke += oldTKE[verts.z];
+				if (oldEps)
+					eps += oldEps[verts.z];
 				sharedVertices += 1.0f;
 			}
 			eulerVel /= sharedVertices;
+			tke /= sharedVertices;
+			eps /= sharedVertices;
 		}
 
 		const float4 pos = oldPos[index];
@@ -1179,8 +1195,11 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				if (IO_BOUNDARY(info))
 					sumvel += w*as_float3(oldVel[neib_index]);
 				sumtke += w*neib_k;
-				// the constant is coming from 4*powf(0.09,0.75)/0.41
-				sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
+				if (IO_BOUNDARY(info))
+					sumeps += w*neib_eps;
+				else
+					// the constant is coming from 4*powf(0.09,0.75)/0.41
+					sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
 				alpha += w;
 			}
 		}
@@ -1188,14 +1207,16 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		if (alpha > 1e-5f) {
 			// for the k-epsilon model we also need to determine the velocity of the wall.
 			// This is an average of the velocities of the vertices
-			if (oldTKE){
-				oldVel[index] = (	oldVel[verts.x] +
-									oldVel[verts.y] +
-									oldVel[verts.z] )/3.0f;
-				oldTKE[index] = sumtke/alpha;
+			if (!IO_BOUNDARY(info) || !INFLOW(info)) {
+				if (oldTKE){
+					oldVel[index] = (	oldVel[verts.x] +
+										oldVel[verts.y] +
+										oldVel[verts.z] )/3.0f;
+					oldTKE[index] = sumtke/alpha;
+				}
+				if (oldEps)
+					oldEps[index] = sumeps/alpha;
 			}
-			if (oldEps)
-				oldEps[index] = sumeps/alpha;
 			if (IO_BOUNDARY(info))
 				sumvel /= alpha;
 			oldVel[index].w = fmax(sumrho/alpha,d_rho0[PART_FLUID_NUM(info)]);
@@ -1212,7 +1233,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		// Compute the Riemann Invariants for I/O conditions
 		if (IO_BOUNDARY(info)) {
-			// TODO make this more variable and adaptive to the test case
 			const float unInt = dot(sumvel, as_float3(normal));
 			const float unExt = dot3(eulerVel, normal);
 			const float rhoInt = oldVel[index].w;
@@ -1263,11 +1283,26 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// add calculated normal velocity
 				eulerVel += normal*flux;
 				eulerVel.w = rhoExt;
+				// if we don't have a velocity inflow then the velocity used to compute k was set to one so now
+				// that we have the real velocity we can compute the real k
+				const float u = length3(eulerVel);
+				const float u2 = u*u;
+				tke = tke*u2;
+				eps = eps*u2*u;
 			}
 			oldEulerVel[index] = eulerVel;
 			// we temporarily write all the eulerVel data into the normal vel array. This is okay as long
 			// as we don't have moving boundaries or k-eps / io mixing
 			oldVel[index] = eulerVel;
+
+			// imposition of k and epsilon at inflows (was already set to dk/dn = deps/dn = 0 for non INFLOW)
+			if (INFLOW(info)) {
+				if (oldTKE)
+					oldTKE[index] = tke;
+				if (oldEps)
+					oldEps[index] = eps;
+			}
+
 		}
 
 		// set the vertices.w coordinate which identifies how many associated vertex particles
@@ -1628,6 +1663,10 @@ saVertexBoundaryConditions(
 			contupd[clone_idx] = make_float2(0.0f);
 			oldGGam[clone_idx] = oldGGam[index];
 			vertices[clone_idx] = make_vertexinfo(0, 0, 0, 0);
+			if (oldTKE)
+				oldTKE[clone_idx] = oldTKE[index];
+			if (oldEps)
+				oldEps[clone_idx] = oldEps[index];
 		}
 		// time stepping
 		pos.w += dt*sumMdot;

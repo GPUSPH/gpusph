@@ -16,12 +16,17 @@ namespace cuIO
 #include "cellgrid.h"
 
 __device__
-float4
+void
 InputProblem_imposeOpenBoundaryCondition(
 	const	particleinfo	info,
-	const	float3			absPos)
+	const	float3			absPos,
+			float4&			eulerVel,
+			float&			tke,
+			float&			eps)
 {
-	float4 eulerVel = make_float4(0.0f);
+	eulerVel = make_float4(0.0f);
+	tke = 0.0f;
+	eps = 0.0f;
 
 	if (VEL_IO(info)) {
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO
@@ -40,6 +45,9 @@ InputProblem_imposeOpenBoundaryCondition(
 			eulerVel.x = 1.0f;
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 			eulerVel.x = 1.0f-absPos.z*absPos.z;
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+			// the 0.025 is deltap*0.5 = 0.05*0.5
+			eulerVel.x = log(fmax(1.0f-fabs(absPos.z), 0.025f)/0.0015625f)/0.41f+5.2f;
 #else
 			eulerVel.x = 0.0f;
 #endif
@@ -52,14 +60,30 @@ InputProblem_imposeOpenBoundaryCondition(
 	if (INFLOW(info)) {
 		eulerVel.y = 0.0f;
 		eulerVel.z = 0.0f;
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+		// k and eps based on Versteeg & Malalasekera (2001)
+		// turbulent intensity (between 1% and 6%)
+		const float Ti = 0.01f;
+		// in case of a pressure inlet eulerVel.x = 0 so we set u to 1 to multiply it later once
+		// we know the correct velocity
+		const float u = eulerVel.x > 1e-6f ? eulerVel.x : 1.0f;
+		tke = 3.0f/2.0f*(u*Ti)*(u*Ti);
+		tke = 3.33333f;
+		// length scale of the flow
+		const float L = 1.0f;
+		// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
+		// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
+		eps = 2.874944542f*tke*u*Ti/L;
+		eps = 1.0f/0.41f/fmax(1.0f-fabs(absPos.z),0.025f);
+#endif
 	}
-
-	return eulerVel;
 }
 
 __global__ void
 InputProblem_imposeOpenBoundaryConditionDevice(
 			float4*		newEulerVel,
+			float*		newTke,
+			float*		newEpsilon,
 	const	float4*		oldPos,
 	const	uint		numParticles,
 	const	hashKey*	particleHash)
@@ -70,6 +94,8 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 		return;
 
 	float4 eulerVel = make_float4(0.0f); // imposed velocity/pressure
+	float tke = 0.0f;
+	float eps = 0.0f;
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		if (VERTEX(info) && IO_BOUNDARY(info)) {
@@ -78,9 +104,14 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
 			// this now calls the virtual function that is problem specific
-			eulerVel = InputProblem_imposeOpenBoundaryCondition(info, absPos);
+			InputProblem_imposeOpenBoundaryCondition(info, absPos, eulerVel, tke, eps);
+			// copy values to arrays
+			newEulerVel[index] = eulerVel;
+			if(newTke)
+				newTke[index] = tke;
+			if(newEpsilon)
+				newEpsilon[index] = eps;
 		}
-		newEulerVel[index] = eulerVel;
 	}
 }
 
@@ -105,6 +136,8 @@ setioboundconstants(
 void
 InputProblem::imposeOpenBoundaryConditionHost(
 			float4*			newEulerVel,
+			float*			newTke,
+			float*			newEpsilon,
 	const	particleinfo*	info,
 	const	float4*			oldPos,
 	const	uint			numParticles,
@@ -123,7 +156,7 @@ InputProblem::imposeOpenBoundaryConditionHost(
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	cuIO::InputProblem_imposeOpenBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
-		(newEulerVel, oldPos, numParticles, particleHash);
+		(newEulerVel, newTke, newEpsilon, oldPos, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 

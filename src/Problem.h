@@ -295,6 +295,8 @@ class Problem {
 
 		virtual void imposeOpenBoundaryConditionHost(
 					float4*			newEulerVel,
+					float*			newTke,
+					float*			newEpsilon,
 			const	particleinfo*	info,
 			const	float4*			oldPos,
 			const	uint			numParticles,

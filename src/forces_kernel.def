@@ -1069,7 +1069,8 @@ compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 {
 	if (ndata.ntype == PT_BOUNDARY)
 		// boundary term of the viscous part based on a boundary segment
-		visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
+		if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
+			visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
 	else
 		// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
 		visc_volumic_part<visctype>::with(params, pdata, ndata, pout, nout);
