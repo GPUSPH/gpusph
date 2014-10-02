@@ -110,6 +110,9 @@ public:
 	static void
 	WriteWaveGage(float t, GageList const& gage);
 
+	static void
+	WriteObjectForces(float t, uint numobjects, float3* forces, float3* momentums);
+
 	// set the timer tick
 	static inline void SetTimerTick(float t)
 	{ m_timer_tick = t; }
@@ -147,6 +150,9 @@ protected:
 	virtual void
 	write_WaveGage(float t, GageList const& gage);
 
+	virtual void
+	write_objectforces(float t, uint numobjects, float3* forces, float3* momentums);
+
 	uint getLastFilenum();
 
 	// default suffix (extension) for data files)
@@ -172,6 +178,7 @@ protected:
 	uint			m_FileCounter;
 	ofstream		m_timefile;
 	ofstream		m_energyfile;
+	ofstream		m_objectforcesfile;
 	ofstream		m_WaveGagefile;
 
 	const Problem	*m_problem;

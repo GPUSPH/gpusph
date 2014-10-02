@@ -54,6 +54,12 @@ void
 seteulerrbsteprot(const float* rot, int numbodies);
 
 void
+seteulerrblinearvel(const float3* linearvel, int numbodies);
+
+void
+seteulerrbangularvel(const float3* angularvel, int numbodies);
+
+void
 euler(	const float4*		oldPos,
 		const hashKey*		particleHash,
 		const float4*		oldVel,

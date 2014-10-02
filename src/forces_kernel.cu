@@ -82,6 +82,8 @@ __constant__ float	d_bcoeff[MAX_FLUID_TYPES];
 __constant__ float	d_gammacoeff[MAX_FLUID_TYPES];
 __constant__ float	d_sscoeff[MAX_FLUID_TYPES];
 __constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];
+// square of sound speed for at-rest density
+__constant__ float	d_sqC0[MAX_FLUID_TYPES];
 
 __constant__ float3	d_gravity;						// gravity (vector)
 
@@ -1121,8 +1123,7 @@ dynamicBoundConditionsDevice(	const float4*	oldPos,
 	float3 avgNorm = make_float3(0.0f);
 
 	// Square of sound speed. Would need modification for multifluid
-	float sqC0 = d_sscoeff[PART_FLUID_NUM(info)];
-	sqC0 *= sqC0;
+	const float sqC0 = d_sqC0[PART_FLUID_NUM(info)];
 
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {

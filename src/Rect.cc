@@ -31,6 +31,7 @@
 #include "Rect.h"
 
 
+/// Default onstructor
 Rect::Rect(void)
 {
 	m_origin = Point(0, 0, 0);
@@ -39,6 +40,13 @@ Rect::Rect(void)
 }
 
 
+/// Constructor
+/*!	The parallelipiped is built from a starting point and
+ 	two vectors
+	\param origin : starting point of the parallelipided
+	\param vx : first vector
+	\param vy : first vector
+*/
 Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
 	if (abs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {

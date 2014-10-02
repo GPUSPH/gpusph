@@ -183,6 +183,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initialize CGs (or, the problem could directly write on gdata)
 	initializeObjectsCGs();
+	initializeObjectsVelocities();
 
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
@@ -538,10 +539,15 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
 			}
 
-			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+			Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, totForce, totTorque);
+
+			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
+					gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);
+			// Upload objects linear and angular velocities
+			doCommand(UPLOAD_OBJECTS_VELOCITIES);
 		} // if there are objects
 
 		// swap read and writes again because the write contains the variables at time n
@@ -589,7 +595,7 @@ bool GPUSPH::runSimulation() {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if runnign multinode, should also find the network minimum
+			// if runnin multinode, should also find the network minimum
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
@@ -618,10 +624,12 @@ bool GPUSPH::runSimulation() {
 			gdata->save_request = false;
 		}
 
-		// if we are about to quit, we want to save regardless --nosave option
+		// If we are about to quit, we want to save regardless --nosave option
 		if (finished || gdata->quit_request)
 			force_write = true;
 
+		// Launch specific post processing kernels (vorticity, free surface detection , ...)
+		// before writing to disk
 		if (need_write || force_write) {
 
 			//if (final_save)
@@ -1093,7 +1101,7 @@ void GPUSPH::doWrite(bool force)
 
 	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
 	// NOTE: it's a standard average, not an SPH smoothing, so the neighborhood is arbitrarily fixed
-	// at gage (x,y) Â± 2 smoothing lengths
+	// at gage (x,y) ± 2 smoothing lengths
 	// TODO should it be an SPH smoothing instead?
 
 	GageList &gages = problem->get_simparams()->gage;
@@ -1139,7 +1147,7 @@ void GPUSPH::doWrite(bool force)
 			warned_nan_pos = true;
 		}
 
-		// for surface particles add the z coodinate to the appropriate wavegages
+		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
 				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
@@ -1165,6 +1173,7 @@ void GPUSPH::doWrite(bool force)
 	}
 
 	//Testpoints
+	// TODO: move into runSim ?
 	if (gdata->problem->get_simparams()->testpoints) {
 		// Write testpoints, on buffer read
 		doCommand(COMPUTE_TESTPOINTS);
@@ -1475,5 +1484,14 @@ void GPUSPH::initializeObjectsCGs()
 		for (int i=0; i < m_simparams->numbodies; i++) {
 			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
 		} */
+	}
+}
+
+// initialize the centers of gravity of objects
+void GPUSPH::initializeObjectsVelocities()
+{
+	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+		gdata->s_hRbLinearVelocities = gdata->problem->get_ODE_bodies_linearvel();
+		gdata->s_hRbAngularVelocities = gdata->problem->get_ODE_bodies_angularvel();
 	}
 }

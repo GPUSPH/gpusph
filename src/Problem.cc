@@ -556,10 +556,12 @@ Problem::get_ODE_body_numparts(const int i) const
 
 
 void
-Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
+Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot, float3 * & linearvel, float3 * & angularvel)
 {
-	cg = m_bodies_cg;
-	steprot = m_bodies_steprot;
+	cg = get_ODE_bodies_cg();
+	steprot = get_ODE_bodies_steprot();
+	linearvel = get_ODE_bodies_linearvel();
+	angularvel = get_ODE_bodies_angularvel();
 }
 
 
@@ -574,6 +576,28 @@ Problem::get_ODE_bodies_cg(void)
 }
 
 
+float3*
+Problem::get_ODE_bodies_linearvel(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_linearvel[i] = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
+	}
+
+	return m_bodies_linearvel;
+}
+
+
+float3*
+Problem::get_ODE_bodies_angularvel(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_angularvel[i] = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
+	}
+
+	return m_bodies_linearvel;
+}
+
+
 float*
 Problem::get_ODE_bodies_steprot(void)
 {
@@ -583,7 +607,8 @@ Problem::get_ODE_bodies_steprot(void)
 
 void
 Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
-		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot,
+		float3 * & linearvel, float3 * & angularvel)
 {
 	dReal prev_quat[MAXBODIES][4];
 	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
@@ -605,6 +630,13 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
 		m_bodies_cg[i] = new_cg;
+
+		float3 new_lvel = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_linearvel[i] = new_lvel;
+
+		float3 new_avel = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_angularvel[i] = new_avel;
+
 		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 		dQuaternion step_quat;
 		dMatrix3 R;
@@ -624,6 +656,8 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 	trans = m_bodies_trans;
+	linearvel = m_bodies_linearvel;
+	angularvel = m_bodies_angularvel;
 }
 
 // Number of planes

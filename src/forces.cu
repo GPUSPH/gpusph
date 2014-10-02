@@ -68,23 +68,23 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
-		if (!dtadapt && !xsphcorr) \
+		/*if (!dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
-		else if (dtadapt && !xsphcorr) \
+		else */if (dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
-		else if (dtadapt && xsphcorr) \
+		/*else if (dtadapt && xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); */\
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); \
+		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); */\
 		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -207,6 +207,15 @@ setforcesconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sspowercoeff, &physparams->sspowercoeff, MAX_FLUID_TYPES*sizeof(float)));
+
+	// compute (and upload) square of sound speeds, needed for Ferrari
+	float sqC0[MAX_FLUID_TYPES];
+	for (uint i = 0; i < MAX_FLUID_TYPES; ++i) {
+		sqC0[i]  = physparams->sscoeff[i];
+		sqC0[i] *= sqC0[i];
+	}
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sqC0, sqC0, MAX_FLUID_TYPES*sizeof(float)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gravity, &physparams->gravity, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dcoeff, &physparams->dcoeff, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_p1coeff, &physparams->p1coeff, sizeof(float)));

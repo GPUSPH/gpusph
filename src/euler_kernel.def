@@ -160,16 +160,23 @@ eulerDevice(
 			as_float3(pos) += as_float3(d_mbdata[i])*dt;
 		}
 		// TODO: change object particles velocity
-		else if (type(pinfo) == OBJECTPART && step == 2) {
-			const int i = object(pinfo);
-			// Applying center of gravity translation
-			pos.x += d_rbtrans[i].x;
-			pos.y += d_rbtrans[i].y;
-			pos.z += d_rbtrans[i].z;
+		else if (type(pinfo) == OBJECTPART) {
+			vel.w += dt*force.w;
+			if (step == 2) {
+				const int i = object(pinfo);
+				// Applying center of gravity translation
+				pos.x += d_rbtrans[i].x;
+				pos.y += d_rbtrans[i].y;
+				pos.z += d_rbtrans[i].z;
 
-			// Applying rotation around center of gravity
-			const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
-			applyrot(&d_rbsteprot[9*i], relPos, pos);
+				// Applying rotation around center of gravity
+				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
+				applyrot(&d_rbsteprot[9*i], relPos, pos);
+
+				// Computing particles velocity
+				// V(P) = V(Cg) + PCg^omega
+				as_float3(vel) = d_rblinearvel[i] + cross(d_rbangularvel[i], relPos);
+			}
 		}
 	}
 

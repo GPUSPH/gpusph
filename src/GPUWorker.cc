@@ -202,10 +202,20 @@ void GPUWorker::computeAndSetAllocableParticles()
 	size_t totMemory, memPerCells, freeMemory, safetyMargin;
 	cudaMemGetInfo(&freeMemory, &totMemory);
 	// TODO configurable
+	#define TWOTO32 (float) (1<<20)
+	printf("Device idx %u: free memory %u MiB, total memory %u MiB\n", m_cudaDeviceNumber,
+			(uint)(((float)freeMemory)/TWOTO32), (uint)(((float)totMemory)/TWOTO32));
 	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
 	// compute how much memory is required for the cells array
 	memPerCells = (size_t)gdata->nGridCells * computeMemoryPerCell();
 
+	if (freeMemory < 16 + safetyMargin){
+		fprintf(stderr, "FATAL: not enough free device memory for safety margin (%u MiB) \n", (uint)((float) (16 + safetyMargin)/TWOTO32));
+		exit(1);
+	}
+	#undef TWOTO32
+	// TODO what are segments ?
+	// Why subtract 16B of mem when we are taking MiB od safety margin ?
 	freeMemory -= 16; // segments
 	freeMemory -= safetyMargin;
 
@@ -1447,6 +1457,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	// upload centers of gravity of the bodies
 	instance->uploadBodiesCentersOfGravity();
+	// Upload linear and angular velocities of objects
+	instance->uploadBodiesVelocities();
 
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
@@ -1597,6 +1609,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case UPLOAD_OBJECTS_MATRICES:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
+				break;
+			case UPLOAD_OBJECTS_VELOCITIES:
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_VELOCITIES\n", deviceIndex);
+				instance->uploadBodiesVelocities();
 				break;
 			case CALC_PRIVATE:
 				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
@@ -2160,6 +2176,12 @@ void GPUWorker::kernel_reduceRBForces()
 
 	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
 					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
+
+	// TODO Debug (remove)
+	/*printf("objects %d, F(%e, %e, %e) M(%e, %e, %e) \n", (int) m_simparams->numODEbodies, gdata->s_hRbTotalForce[m_deviceIndex][0].x,
+			gdata->s_hRbTotalForce[m_deviceIndex][0].y, gdata->s_hRbTotalForce[m_deviceIndex][0].z,
+			gdata->s_hRbTotalTorque[m_deviceIndex][0].x, gdata->s_hRbTotalTorque[m_deviceIndex][0].y,
+			gdata->s_hRbTotalTorque[m_deviceIndex][0].z);*/
 }
 
 void GPUWorker::kernel_updateValuesAtBoundaryElements()
@@ -2279,3 +2301,8 @@ void GPUWorker::uploadBodiesTransRotMatrices()
 	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numODEbodies);
 }
 
+void GPUWorker::uploadBodiesVelocities()
+{
+	seteulerrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numODEbodies);
+	seteulerrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numODEbodies);
+}

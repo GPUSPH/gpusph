@@ -128,6 +128,18 @@ Writer::WriteWaveGage(float t, GageList const& gage)
 	}
 }
 
+
+void
+Writer::WriteObjectForces(float t, uint numobjects, float3* forces, float3* momentums)
+{
+	vector<Writer*>::iterator it(m_writers.begin());
+	vector<Writer*>::iterator end(m_writers.end());
+	for ( ; it != end; ++it) {
+		Writer *writer = *it;
+		writer->write_objectforces(t, numobjects, forces, momentums);
+	}
+}
+
 void
 Writer::Destroy()
 {
@@ -177,6 +189,9 @@ Writer::Writer(const GlobalData *_gdata) :
 			m_energyfile << "\tzgage" << gage;
 		m_WaveGagefile << endl;
 	}
+
+	// Forces on objects
+	string objectforces_fn = open_data_file(m_objectforcesfile, "objectforces", "", ".txt");
 }
 
 Writer::~Writer()
@@ -226,6 +241,28 @@ Writer::write_WaveGage(float t, GageList const& gage)
 			m_WaveGagefile << "\t" << gage[i].z;
 		}
 		m_WaveGagefile << endl;
+	}
+}
+
+
+// Object forces
+void
+Writer::write_objectforces(float t, uint numobjects, float3* forces, float3* momentums)
+{
+	if (m_objectforcesfile) {
+		m_objectforcesfile << t;
+		for (int i=0; i < numobjects; i++) {
+			m_objectforcesfile << "\t" << i;
+			m_objectforcesfile
+				<< "\t" << forces[i].x
+				<< "\t" << forces[i].y
+				<< "\t" << forces[i].z;
+			m_objectforcesfile
+				<< "\t" << momentums[i].x
+				<< "\t" << momentums[i].y
+				<< "\t" << momentums[i].z;
+		}
+		m_objectforcesfile << endl;
 	}
 }
 
