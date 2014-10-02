@@ -388,15 +388,11 @@ bool GPUSPH::runSimulation() {
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
 
+	buildNeibList();
+
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
-
-		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
-			buildNeibList();
-		}
 
 		uint shepardfreq = problem->get_simparams()->shepardfreq;
 		if (shepardfreq > 0 && gdata->iterations > 0 && (gdata->iterations % shepardfreq == 0)) {
@@ -674,6 +670,12 @@ bool GPUSPH::runSimulation() {
 		// if we are about to quit, we want to save regardless --nosave option
 		if (finished || gdata->quit_request)
 			force_write = true;
+
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
+			buildNeibList();
+		}
 
 		if (need_write || force_write) {
 
