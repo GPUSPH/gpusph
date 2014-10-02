@@ -1170,6 +1170,8 @@ saVertexBoundaryConditions(
 	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_particles_id_range, &numActiveParticles, sizeof(uint)));
+
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -1187,8 +1189,6 @@ saVertexBoundaryConditions(
 	CUT_CHECK_ERROR("saVertexBoundaryConditions kernel execution failed");
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_particles_id_range, &numActiveParticles, sizeof(uint)));
 
 }
 
