@@ -155,9 +155,9 @@ struct sa_boundary_forces_params
 /// Additional parameters passed only to kernels with KEPSVISC
 struct kepsvisc_forces_params
 {
-	float2	*keps_dkde;
+	float3	*keps_dkde;
 	float	*turbvisc;
-	kepsvisc_forces_params(float2 *_keps_dkde, float *_turbvisc) :
+	kepsvisc_forces_params(float3 *_keps_dkde, float *_turbvisc) :
 		keps_dkde(_keps_dkde),
 		turbvisc(_turbvisc)
 	{}
@@ -211,7 +211,7 @@ struct forces_params :
 		const	bool	_movingBoundaries,
 
 		// KEPSVISC
-				float2	*_keps_dkde,
+				float3	*_keps_dkde,
 				float	*_turbvisc
 		) :
 		common_forces_params(_forces, _rbforces, _rbtorques,

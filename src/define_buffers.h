@@ -99,7 +99,7 @@ SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
 #define BUFFER_TURBVISC		(BUFFER_EPSILON << 1)
 SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 2, "Eddy Viscosity");
 #define BUFFER_DKDE			(BUFFER_TURBVISC << 1)
-SET_BUFFER_TRAITS(BUFFER_DKDE, float2, 1, "[k]-[e] derivatives");
+SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 
 #define BUFFER_CFL			(BUFFER_DKDE << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL, float, 1, "CFL array");

@@ -148,7 +148,7 @@ forces(
 			float	*turbvisc,
 			float	*keps_tke,
 			float	*keps_eps,
-			float2	*keps_dkde,
+			float3	*keps_dkde,
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,

@@ -394,12 +394,14 @@ struct keps_particle_output
 
 	float	diff_term_k;
 	float	diff_term_e;
+	float	ce2yap;
 
 	__device__ __forceinline__
 	keps_particle_output()
 	{
 		dvx = dvy = dvz = make_float3(0.0f);
 		diff_term_k = diff_term_e = 0;
+		ce2yap = 1.92;
 	}
 };
 
@@ -1056,9 +1058,6 @@ compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 	else
 		// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
 		visc_volumic_part<visctype>::with(params, pdata, ndata, pout, nout);
-	// in case of a vertex particles we only consider orthogonal to the wall normal (i.e. grad gamma)
-	if (pdata.ptype == PT_VERTEX)
-		nout.DvDt -= dot(nout.DvDt, as_float3(pdata.oldGGam))*as_float3(pdata.oldGGam)/sqlength3(pdata.oldGGam);
 }
 
 /// Functor to compute the KEPS diffusion and velocity gradient terms
@@ -1079,17 +1078,36 @@ __device__ __forceinline__ void
 compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	// diffusion terms, to be divided later by rho_a and gamma_a
+	float3 dvmul = make_float3(0.0f);
+
+	// diffusion terms for k and epsilon, to be divided later by rho_a and gamma_a
 	if (ndata.ntype == PT_BOUNDARY) {
+
+		// yap correction
+		// constant is 0.09^0.75/0.41
+		const float lyap = 0.400772603f*powf(pdata.keps_k,1.5f)/(pdata.keps_e*ndata.r_as);
+		if (lyap > 1.0f)
+			pout.ce2yap = fmin(pout.ce2yap, fmax(1.92f - 0.83f*(lyap-1.0f)*lyap*lyap, 0.0f));
+
+		// boundary contribution to epsilon diffusion term
 		// the constant factor is 4.0f*0.09/1.3 where 0.09 = C_\mu and 1.3 = \sigma_\epsilon
 		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.gamAS.x;
-	} else {
+
+		// multiplication for velocity gradient terms (gradGam_as*rho_s)
+		dvmul = nout.gamAS.x*ndata.normal_s*ndata.relVel.w;
+
+	} else if (ndata.ntype == PT_VERTEX || ndata.ntype == PT_FLUID) {
+
+		// volume contribution for k and epsilon diffusion terms
 		pout.diff_term_k += ndata.relPos.w*(
 			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
 			)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
 		pout.diff_term_e += ndata.relPos.w*(
 			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)
 			)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
+
+		// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
+		dvmul = -ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ;
 	}
 
 	// velocity gradient
@@ -1098,14 +1116,9 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	//	dvy = ∑ρs vyas ∇ɣas
 	//	dvz = ∑ρs vzas ∇ɣas
 	// From fluid/vertex:
-	//	dvx = -∑mb vxab (ra - rb)/r ∂Wab/∂r
-	//	dvy = -∑mb vyab (ra - rb)/r ∂Wab/∂r
-	//	dvz = -∑mb vzab (ra - rb)/r ∂Wab/∂r
-
-	const float3 dvmul =
-		ndata.ntype == PT_BOUNDARY ?
-		nout.gamAS.x*ndata.normal_s*ndata.relVel.w : // rhoGGam
-		-ndata.relPos.w*as_float3(ndata.relPos)*ndata.f ; // mb*rab*F
+	//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
+	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
+	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
 	pout.dvx += ndata.relVel.x*dvmul;
 	pout.dvy += ndata.relVel.y*dvmul;
@@ -1187,7 +1200,7 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 	// Strain rate
 	const float S = sqrtf(SijSij_bytwo);
 	// production of turbulent kinetic energy (TKE)
-	const float Pturb = fmin(pdata.turbVisc*S*S, 0.3f*pdata.keps_k*S);
+	const float Pturb = fmin(pdata.turbVisc*SijSij_bytwo, 0.3f*pdata.keps_k*S);
 	//const float Pturb = fmin(0.3f, 0.09f*pdata.keps_k/pdata.keps_e*S)*pdata.keps_k*S;
 
 	// Variation terms for Dk/Dt and De/Dt for the partially implicit time integration in euler
@@ -1196,6 +1209,7 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 
 	params.keps_dkde[pdata.index].x = dkdt;
 	params.keps_dkde[pdata.index].y = dedt;
+	params.keps_dkde[pdata.index].z = pout.ce2yap;
 
 	return d_visccoeff*pdata.vel.w;
 }
@@ -1231,6 +1245,12 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
 	pout.force /= pout.gGam.w;
+	// make sure that the velocity of vertices is orthogonal to its normal vector for keps
+	if (VERTEX(pdata.info)){
+		const float tmp = pout.force.w;
+		pout.force -= dot3(pout.force, pout.gGam)*pout.gGam/sqlength3(pout.gGam);
+		pout.force.w = tmp;
+	}
 }
 
 /// A functor that writes out gamma,
