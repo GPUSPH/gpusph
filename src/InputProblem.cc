@@ -340,7 +340,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 #endif
-		eulerVel[i] = vel[i];
+		if (eulerVel)
+			eulerVel[i] = vel[i];
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
@@ -357,7 +358,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 #endif
-			eulerVel[i] = vel[i];
+			if (eulerVel)
+				eulerVel[i] = vel[i];
 			int openBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(VERTEXPART, openBoundType, i);
 			// Define the type of open boundaries
@@ -393,7 +395,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 #endif
-			eulerVel[i] = vel[i];
+			if (eulerVel)
+				eulerVel[i] = vel[i];
 			int openBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, openBoundType, i);
 			// Define the type of open boundaries
