@@ -58,11 +58,8 @@ VTKWriter::VTKWriter(const GlobalData *_gdata)
 
 VTKWriter::~VTKWriter()
 {
-	if (m_timefile) {
-		m_timefile << " </Collection>\n";
-		m_timefile << "</VTKFile>\n";
-		m_timefile.close();
-	}
+	mark_timefile();
+	m_timefile.close();
 }
 
 /* Endianness check: (char*)&endian_int reads the first byte of the int,
@@ -541,6 +538,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		// TODO should node info for multinode be stored in group or part?
 		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
 			<< "file='" << filename << "'/>" << endl;
+		mark_timefile();
 	}
 
 	// close testpoints file
@@ -602,4 +600,17 @@ VTKWriter::write_WaveGage(float t, GageList const& gage)
 	fp << "</VTKFile>" <<endl;
 
 	fp.close();
+}
+
+void
+VTKWriter::mark_timefile()
+{
+	if (!m_timefile)
+		return;
+	// Mark the current position, close the XML, go back
+	// to the marked position
+	ofstream::pos_type mark = m_timefile.tellp();
+	m_timefile << " </Collection>\n";
+	m_timefile << "</VTKFile>" << endl;
+	m_timefile.seekp(mark);
 }

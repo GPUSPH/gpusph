@@ -53,11 +53,8 @@ VTKLegacyWriter::VTKLegacyWriter(const GlobalData *_gdata)
 
 VTKLegacyWriter::~VTKLegacyWriter()
 {
-	if (m_timefile) {
-		m_timefile << " </Collection>\n";
-		m_timefile << "</VTKFile>\n";
-		m_timefile.close();
-	}
+	mark_timefile();
+	m_timefile.close();
 }
 
 void
@@ -179,5 +176,19 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 		// TODO should node info for multinode be stored in group or part?
 		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
 			<< "file='" << filename << "'/>" << endl;
+		mark_timefile();
 	}
+}
+
+void
+VTKLegacyWriter::mark_timefile()
+{
+	if (!m_timefile)
+		return;
+	// Mark the current position, close the XML, go back
+	// to the marked position
+	ofstream::pos_type mark = m_timefile.tellp();
+	m_timefile << " </Collection>\n";
+	m_timefile << "</VTKFile>" << endl;
+	m_timefile.seekp(mark);
 }

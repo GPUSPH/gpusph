@@ -39,6 +39,10 @@ public:
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
 	virtual void write_WaveGage(float t, GageList const& gage);
 
+	// this method is used to close the XML in the timefile,
+	// so that the timefile is always valid, and then seek back to the pre-close
+	// position so that the next entry is properly inserted
+	void mark_timefile();
 };
 
 #endif	/* _VTKWRITER_H */
