@@ -111,7 +111,7 @@ public:
 	WriteWaveGage(float t, GageList const& gage);
 
 	static void
-	WriteObjectForces(float t, uint numobjects, float3* forces, float3* momentums);
+	WriteObjectForces(float t, uint numobjects, const float3* forces, const float3* momentums);
 
 	// set the timer tick
 	static inline void SetTimerTick(float t)
@@ -151,7 +151,7 @@ protected:
 	write_WaveGage(float t, GageList const& gage);
 
 	virtual void
-	write_objectforces(float t, uint numobjects, float3* forces, float3* momentums);
+	write_objectforces(float t, uint numobjects, const float3* forces, const float3* momentums);
 
 	uint getLastFilenum();
 

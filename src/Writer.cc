@@ -130,7 +130,7 @@ Writer::WriteWaveGage(float t, GageList const& gage)
 
 
 void
-Writer::WriteObjectForces(float t, uint numobjects, float3* forces, float3* momentums)
+Writer::WriteObjectForces(float t, uint numobjects, const float3* forces, const float3* momentums)
 {
 	vector<Writer*>::iterator it(m_writers.begin());
 	vector<Writer*>::iterator end(m_writers.end());
@@ -247,7 +247,7 @@ Writer::write_WaveGage(float t, GageList const& gage)
 
 // Object forces
 void
-Writer::write_objectforces(float t, uint numobjects, float3* forces, float3* momentums)
+Writer::write_objectforces(float t, uint numobjects, const float3* forces, const float3* momentums)
 {
 	if (m_objectforcesfile) {
 		m_objectforcesfile << t;
