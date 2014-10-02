@@ -269,14 +269,14 @@ int InputProblem::fill_parts()
 		test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 		test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 	}
+	//*******************************************************************
 	// Setting probes for KEPS test case
 	//*******************************************************************
-	if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
-		if (m_simparams.testpoints) {
-			// create test points at (0,0,.) with dp spacing from bottom to top
-			for(uint i=0; i<=40; i++)
-				test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
-		}
+#elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
+	if (m_simparams.testpoints) {
+		// create test points at (0,0,.) with dp spacing from bottom to top
+		for(uint i=0; i<=40; i++)
+			test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
 	}
 	//*******************************************************************
 #endif
