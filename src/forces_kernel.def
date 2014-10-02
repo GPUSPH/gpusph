@@ -151,27 +151,19 @@ struct rb_particle_data
 	{}
 };
 
-// velocity. used for:
+// velocity and density used for:
 // * fluid particles
 // * vertex particles if KEPSVISC
+// also includes local speed of sound
 struct vel_particle_data
 {
 	const	float4	vel;
-
-	__device__ __forceinline__
-	vel_particle_data(const uint index) : vel(tex1Dfetch(velTex, index))
-	{}
-};
-
-// speed of sound
-// used only for dyndt, ARTVISC or SA_BOUNDARY
-struct sspeed_particle_data
-{
 	const	float	sspeed;
 
 	__device__ __forceinline__
-	sspeed_particle_data(const float rho, particleinfo const& info) :
-		sspeed(soundSpeed(rho, PART_FLUID_NUM(info)))
+	vel_particle_data(const uint _index, particleinfo const& _info) :
+		vel(tex1Dfetch(velTex, _index)),
+		sspeed(soundSpeed(vel.w, PART_FLUID_NUM(_info)))
 	{}
 };
 
@@ -316,8 +308,6 @@ struct forces_particle_data :
 	// everything else is just for PT_FLUID
 	COND_STRUCT(visctype == SPSVISC,
 		sps_particle_data),
-	COND_STRUCT(dyndt || (visctype == ARTVISC) || (boundarytype == SA_BOUNDARY),
-		sspeed_particle_data),
 	// to see why this is so messy, see definition of p_precalc_particle_data
 	p_precalc_particle_data<sph_formulation,
 		typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
@@ -335,15 +325,13 @@ struct forces_particle_data :
 		params_t const& params) :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
-		vel_particle_data(_index),
+		vel_particle_data(_index, _info),
 		COND_STRUCT(boundarytype == SA_BOUNDARY,
 			sa_boundary_particle_data<visctype>)(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
 			sps_particle_data)(_index),
-		COND_STRUCT(dyndt || (visctype == ARTVISC) || (boundarytype == SA_BOUNDARY),
-			sspeed_particle_data)(vel.w, _info),
 		p_precalc_particle_data<sph_formulation,
 			typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(vel.w, _info, *this),
 		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, *this),
@@ -467,7 +455,10 @@ struct common_neib_data
 	// relVel holds the relative velocity in .xyz and the neib density in .w
 	const	float4	relVel;
 	const	float	vel_dot_pos;
+	// norm of the gradient of the kernel
 	const	float	f;
+	// local speed of sound
+	const	float sspeed;
 
 	__device__ __forceinline__
 	common_neib_data(pdata_t const& pdata, params_t const& params,
@@ -476,7 +467,8 @@ struct common_neib_data
 		info(_info), relPos(_relPos), r(_r),
 		relVel(as_float3(pdata.vel) - tex1Dfetch(velTex, _index)),
 		vel_dot_pos(dot3(relVel, relPos)),
-		f(F<kerneltype>(r, params.slength))
+		f(F<kerneltype>(r, params.slength)),
+		sspeed(soundSpeed(relVel.w, PART_FLUID_NUM(_info)))
 	{}
 };
 
@@ -528,8 +520,7 @@ struct forces_neib_data :
 	// precalculated pressure
 	p_precalc_particle_data<sph_formulation,
 		typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
-	COND_STRUCT(visctype == SPSVISC, sps_particle_data),
-	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)
+	COND_STRUCT(visctype == SPSVISC, sps_particle_data)
 {
 	// shortcut typedefs
 	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> _common_neib_data;
@@ -555,7 +546,6 @@ struct forces_neib_data :
 		p_precalc_particle_data<sph_formulation,
 			typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(this->relVel.w, _info, *this),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
-		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == ARTVISC, sspeed_particle_data)(this->relVel.w, _info),
 		ntype(static_cast<ParticleType>PART_TYPE(_info))
 	{}
 };
