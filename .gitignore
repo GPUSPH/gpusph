@@ -33,3 +33,4 @@ seewaves/
 profiling/
 scripts/list-cuda-cc
 meshes/
+*.vim
