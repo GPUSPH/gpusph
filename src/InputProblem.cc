@@ -139,7 +139,8 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		m_simparams.tend = 100.0;
 		m_simparams.periodicbound = PERIODIC_XY;
-		m_simparams.testpoints = false;
+		m_simparams.testpoints = true;
+		m_simparams.csvtestpoints = true;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
 		H = 2.0;
@@ -224,7 +225,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 int InputProblem::fill_parts()
 {
-	// Setting probes for Spheric2 test case
+	// Setting probe for Box test case
 	//*******************************************************************
 	if (SPECIFIC_PROBLEM == "Box") {
 		add_gage(m_origin + make_double3(1.0, 1.8, 0.0) + make_double3(0.1, 0.1, 0.1));
@@ -250,6 +251,15 @@ int InputProblem::fill_parts()
 			test_points.push_back(m_origin + make_double3(2.4565, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 			test_points.push_back(m_origin + make_double3(2.4965, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 			test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
+		}
+	}
+	// Setting probes for KEPS test case
+	//*******************************************************************
+	if (SPECIFIC_PROBLEM == "SmallChannelFlowKEPS") {
+		if (m_simparams.testpoints) {
+			// create test points at (0,0,.) with dp spacing from bottom to top
+			for(uint i=0; i<=40; i++)
+				test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
 		}
 	}
 	//*******************************************************************
