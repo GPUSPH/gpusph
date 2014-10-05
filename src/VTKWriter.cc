@@ -390,7 +390,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		if (write_fluid_num) {
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				ushort value = PART_FLUID_NUM(info[i]);
+				uchar value = PART_FLUID_NUM(info[i]);
 				write_var(fid, value);
 			}
 		}
@@ -399,7 +399,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 		if (write_part_obj) {
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				ushort value = object(info[i]);
+				uchar value = object(info[i]);
 				write_var(fid, value);
 			}
 		}
