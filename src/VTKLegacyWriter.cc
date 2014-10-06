@@ -30,38 +30,31 @@
 
 using namespace std;
 
-static inline void print_lookup(FILE *fid)
+static inline void print_lookup(ofstream &fid)
 {
-	fprintf(fid, "LOOKUP_TABLE default\n");
+	fid << "LOOKUP_TABLE default" << endl;
 }
 
 VTKLegacyWriter::VTKLegacyWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
-	string time_filename = m_dirname + "/VTUinp.pvd";
-    m_timefile = NULL;
-    m_timefile = fopen(time_filename.c_str(), "w");
+	m_fname_sfx = ".vtk";
 
-	if (m_timefile == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << time_filename;
-		throw runtime_error(ss.str());
-		}
+	string time_fname = open_data_file(m_timefile, "VTUinp", "", ".pvd");
 
 	// Writing header of VTUinp.pvd file
-	fprintf(m_timefile,"<?xml version=\"1.0\"?>\r\n");
-	fprintf(m_timefile," <VTKFile type=\"Collection\" version=\"0.1\">\r\n");
-	fprintf(m_timefile,"  <Collection>\r\n");
+	if (m_timefile) {
+		m_timefile << "<?xml version='1.0'?>\n";
+		m_timefile << "<VTKFile type='Collection' version='0.1'>\n";
+		m_timefile << " <Collection>\n";
+	}
 }
 
 
 VTKLegacyWriter::~VTKLegacyWriter()
 {
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"   </Collection>\r\n");
-		fprintf(m_timefile,"  </VTKFile>\r\n");
-		fclose(m_timefile);
-	}
+	mark_timefile();
+	m_timefile.close();
 }
 
 void
@@ -72,126 +65,130 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 
-	string filename, full_filename;
-
-	filename = "PART_" + next_filenum() + ".vtk";
-	full_filename = m_dirname + "/" + filename;
-
-	FILE *fid = fopen(full_filename.c_str(), "w");
-
-	if (fid == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " <<full_filename;
-		throw runtime_error(ss.str());
-		}
+	ofstream fid;
+	string filename = open_data_file(fid, "PART", next_filenum());
 
 	// Header
-	fprintf(fid, "# vtk DataFile Version 2.0\n%s\n", m_dirname.c_str());
-	fprintf(fid, "ASCII\nDATASET UNSTRUCTURED_GRID\n");
+	fid << "# vtk DataFile Version 2.0\n" << m_dirname << endl;
+	fid << "ASCII\nDATASET UNSTRUCTURED_GRID" << endl;
 
-	fprintf(fid, "POINTS %u double\n", numParts);
+	fid << "POINTS " << numParts << "double" << endl;
+
 	// Start with particle positions
 	for (uint i=0; i < numParts; ++i)
-		fprintf(fid, "%f %f %f\n", pos[i].x, pos[i].y, pos[i].z);
-	fprintf(fid, "\n");
+		fid << pos[i].x << " " << pos[i].y << " " << pos[i].z << endl;
+	fid << endl;
 
 	// Cells = particles
-	fprintf(fid, "CELLS %u %u\n", numParts, 2*numParts);
+	fid << "CELLS " << numParts << " " << (2*numParts) << endl;
 	for (uint i=0; i < numParts; ++i)
-		fprintf(fid, "1 %u\n", i);
-	fprintf(fid, "\n");
+		fid << "1  " << i << endl;
+	fid << endl;
 
-	fprintf(fid, "CELL_TYPES %u\n", numParts);
+	fid << "CELL_TYPES " << numParts << endl;
 	for (uint i=0; i < numParts; ++i)
-		fprintf(fid, "1\n");
-	fprintf(fid, "\n");
+		fid << "1\n";
+	fid << endl;
 
 	// Now, the data
-	fprintf(fid, "POINT_DATA %u\n", numParts);
+	fid << "POINT_DATA " << numParts << endl;
 
 	// Velocity
-	fprintf(fid, "VECTORS Velocity float\n");
-	for (uint i=0; i < numParts; ++i) {
-		if (pos[i].w > 0.0)
-			fprintf(fid, "%f %f %f\n", vel[i].x, vel[i].y, vel[i].z);
-		else
-			fprintf(fid, "%f %f %f\n", 0.0, 0.0, 0.0);
-	}
-	fprintf(fid, "\n\n");
+	fid << "VECTORS Velocity float" << endl;
+	for (uint i=0; i < numParts; ++i)
+		fid << vel[i].x << " " << vel[i].y << " " << vel[i].z << endl;
+	fid << endl;
 
 	// Pressure
-	fprintf(fid, "SCALARS Pressure float\n");
+	fid << "SCALARS Pressure float" << endl;
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
-		if (FLUID(info[i]) )
-			fprintf(fid, "%f\n", m_problem->pressure(vel[i].w, object(info[i])));
+		float value = 0.0;
+		if (TESTPOINTS(info[i]))
+			value = vel[i].w;
 		else
-			fprintf(fid, "0.0\n");
+			value = m_problem->pressure(vel[i].w, object(info[i]));
+
+		fid << value << endl;
 	}
-	fprintf(fid, "\n\n");
+	fid << endl;
 
 	// Density
-	fprintf(fid, "SCALARS Density float\n");
+	fid << "SCALARS Density float" << endl;
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
-		if (FLUID(info[i]) > 0.0)
-			fprintf(fid, "%f\n", vel[i].w);
+		float value = 0.0;
+		if (TESTPOINTS(info[i]))
+			// TODO FIXME: Testpoints compute pressure only
+			// In the future we would like to have a density here
+			// but this needs to be done correctly for multifluids
+			value = NAN;
 		else
-			fprintf(fid, "0.0\n");
+			value = vel[i].w;
+		fid << value << endl;
 	}
-	fprintf(fid, "\n\n");
+	fid << endl;
 
 	// Mass
-	fprintf(fid, "SCALARS Mass float\n");
+	fid << "SCALARS Mass float" << endl;
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i)
-		fprintf(fid, "%f\n", (float) pos[i].w);
-	fprintf(fid, "\n\n");
+		fid << pos[i].w << endl;
+	fid << endl;
 
 	// Vorticity
 	if (vort) {
-		fprintf(fid, "VECTORS Vorticity float\n");
+		fid << "VECTORS Vorticity float" << endl;
 		for (uint i=0; i < numParts; ++i) {
-			if (pos[i].w > 0.0)
-				fprintf(fid, "%f %f %f\n", vort[i].x, vort[i].y, vort[i].z);
+			if (FLUID(info[i]))
+				fid << vort[i].x << " " << vort[i].y << " " << vort[i].z << endl;
 			else
-				fprintf(fid, "%f %f %f\n", 0.0, 0.0, 0.0);
+				fid << "0.0 0.0 0.0" << endl;
 		}
-		fprintf(fid, "\n\n");
+		fid << endl;
 	}
-
 
 	// Info
 	if (info) {
-		fprintf(fid, "SCALARS Type int\n");
+		fid << "SCALARS Type int" << endl;
 		print_lookup(fid);
-		for (uint i=0; i < numParts; ++i) {
-			fprintf(fid, "%d\n", type(info[i]));
-		}
-		fprintf(fid, "\n\n");
+		for (uint i=0; i < numParts; ++i)
+			fid << type(info[i]) << endl;
+		fid << endl;
 
-		fprintf(fid, "SCALARS Object int\n");
+		fid << "SCALARS Object int" << endl;
 		print_lookup(fid);
-		for (uint i=0; i < numParts; ++i) {
-			fprintf(fid, "%d\n", object(info[i]));
-		}
-		fprintf(fid, "\n\n");
+		for (uint i=0; i < numParts; ++i)
+			fid << object(info[i]) << endl;
+		fid << endl;
 
-		fprintf(fid, "SCALARS ParticleId int\n");
+		fid << "SCALARS ParticleId int" << endl;
 		print_lookup(fid);
-		for (uint i=0; i < numParts; ++i) {
-			fprintf(fid, "%u\n", id(info[i]));
-		}
-		fprintf(fid, "\n\n");
+		for (uint i=0; i < numParts; ++i)
+			fid << id(info[i]) << endl;
+		fid << endl;
 	}
 
-	fclose(fid);
+	fid.close();
 
 	// Writing time to VTUinp.pvd file
-	// Writing time to VTUinp.pvd file
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"<DataSet timestep=\"%f\" group=\"\" part=\"%d\" file=\"%s\"/>\r\n",
-			t, 0, filename.c_str());
-		fflush(m_timefile);
+	if (m_timefile) {
+		// TODO should node info for multinode be stored in group or part?
+		m_timefile << "<DataSet timestep='" << t << "' group='' part='0' "
+			<< "file='" << filename << "'/>" << endl;
+		mark_timefile();
 	}
+}
+
+void
+VTKLegacyWriter::mark_timefile()
+{
+	if (!m_timefile)
+		return;
+	// Mark the current position, close the XML, go back
+	// to the marked position
+	ofstream::pos_type mark = m_timefile.tellp();
+	m_timefile << " </Collection>\n";
+	m_timefile << "</VTKFile>" << endl;
+	m_timefile.seekp(mark);
 }

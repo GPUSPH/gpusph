@@ -39,11 +39,10 @@ public:
 	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
 	virtual void write_WaveGage(double t, GageList const& gage);
 
-private:
-	// open a file whose name is built from the given base and sequence number
-	// returns FILE object and stores the filename (without the dirname) into
-	// `filename` if it's not NULL
-	FILE *open_data_file(const char* base, string const& num, string *filename);
+	// this method is used to close the XML in the timefile,
+	// so that the timefile is always valid, and then seek back to the pre-close
+	// position so that the next entry is properly inserted
+	void mark_timefile();
 };
 
 #endif	/* _VTKWRITER_H */
