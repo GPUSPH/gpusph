@@ -87,6 +87,7 @@ typedef struct SimParams {
 	float			epsilon;			// if |r_a - r_b| < epsilon two positions are considered identical
 	bool			movingBoundaries;	// defines if moving boundaries are present
 	bool			inoutBoundaries;	// defines if in- or outflow boundaries are present
+	uint			numObjects;			// number of ODE objects + open boundaries
 
 	SimParams(void) :
 		sfactor(1.3),
@@ -125,7 +126,8 @@ typedef struct SimParams {
 		calcPrivate(false),
 		epsilon(5e-5),
 		movingBoundaries(false),
-		inoutBoundaries(false)
+		inoutBoundaries(false),
+		numObjects(0)
 	{};
 
 	inline double

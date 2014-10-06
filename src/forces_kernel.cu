@@ -69,27 +69,10 @@ namespace cuforces {
 __constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particles
 __constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
 
-__constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
-__constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
-__constant__ float	d_wcoeff_wendland;				// coeff = 21/(16 Pi h^3)
-
-__constant__ float	d_fcoeff_cubicspline;			// coeff = 3/(4Pi h^4)
-__constant__ float	d_fcoeff_quadratic;				// coeff = 15/(32Pi h^4)
-__constant__ float	d_fcoeff_wendland;				// coeff = 105/(128Pi h^5)
-
 __constant__ int	d_numfluids;					// number of different fluids
 
-__constant__ float	d_rho0[MAX_FLUID_TYPES];		// rest density of fluids
-
-// Speed of sound constants
-__constant__ float	d_bcoeff[MAX_FLUID_TYPES];
-__constant__ float	d_gammacoeff[MAX_FLUID_TYPES];
-__constant__ float	d_sscoeff[MAX_FLUID_TYPES];
-__constant__ float	d_sspowercoeff[MAX_FLUID_TYPES];
 // square of sound speed for at-rest density
 __constant__ float	d_sqC0[MAX_FLUID_TYPES];
-
-__constant__ float3	d_gravity;						// gravity (vector)
 
 __constant__ float	d_ferrari;						// coefficient for Ferrari correction
 
@@ -143,6 +126,8 @@ __constant__ float	d_objectboundarydf;
 
 // Grid data
 #include "cellgrid.h"
+// Core SPH functions
+#include "sph_core_utils.cuh"
 
 // Neibdata cell number to offset
 __constant__ char3	d_cell_to_offset[27];
@@ -153,146 +138,6 @@ __constant__ uint	d_particles_id_range;
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
 /************************************************************************************************************/
-
-/********************************************* SPH kernels **************************************************/
-// Return kernel value at distance r, for a given smoothing length
-template<KernelType kerneltype>
-__device__ __forceinline__ float
-W(const float r, const float slength);
-
-
-// Cubic Spline kernel
-template<>
-__device__ __forceinline__ float
-W<CUBICSPLINE>(const float r, const float slength)
-{
-	float val = 0.0f;
-	const float R = r/slength;
-
-	if (R < 1)
-		val = 1.0f - 1.5f*R*R + 0.75f*R*R*R;			// val = 1 - 3/2 R^2 + 3/4 R^3
-	else
-		val = 0.25f*(2.0f - R)*(2.0f - R)*(2.0f - R);	// val = 1/4 (2 - R)^3
-
-	val *= d_wcoeff_cubicspline;						// coeff = 1/(Pi h^3)
-
-	return val;
-}
-
-
-// Qudratic kernel
-template<>
-__device__ __forceinline__ float
-W<QUADRATIC>(const float r, const float slength)
-{
-	float val = 0.0f;
-	const float R = r/slength;
-
-	val = 0.25f*R*R - R + 1.0f;		// val = 1/4 R^2 -  R + 1
-	val *= d_wcoeff_quadratic;		// coeff = 15/(16 Pi h^3)
-
-	return val;
-}
-
-
-// Wendland kernel
-template<>
-__device__ __forceinline__ float
-W<WENDLAND>(float r, float slength)
-{
-	const float R = r/slength;
-
-	float val = 1.0f - 0.5f*R;
-	val *= val;
-	val *= val;						// val = (1 - R/2)^4
-	val *= 1.0f + 2.0f*R;			// val = (2R + 1)(1 - R/2)^4*
-	val *= d_wcoeff_wendland;		// coeff = 21/(16 Pi h^3)
-	return val;
-}
-
-
-// Return 1/r dW/dr at distance r, for a given smoothing length
-template<KernelType kerneltype>
-__device__ __forceinline__ float
-F(const float r, const float slength);
-
-
-template<>
-__device__ __forceinline__ float
-F<CUBICSPLINE>(const float r, const float slength)
-{
-	float val = 0.0f;
-	const float R = r/slength;
-
-	if (R < 1.0f)
-		val = (-4.0f + 3.0f*R)/slength;		// val = (-4 + 3R)/h
-	else
-		val = -(-2.0f + R)*(-2.0f + R)/r;	// val = -(-2 + R)^2/r
-	val *= d_fcoeff_cubicspline;			// coeff = 3/(4Pi h^4)
-
-	return val;
-}
-
-
-template<>
-__device__ __forceinline__ float
-F<QUADRATIC>(const float r, const float slength)
-{
-	const float R = r/slength;
-
-	float val = (-2.0f + R)/r;		// val = (-2 + R)/r
-	val *= d_fcoeff_quadratic;		// coeff = 15/(32Pi h^4)
-
-	return val;
-}
-
-
-template<>
-__device__ __forceinline__ float
-F<WENDLAND>(const float r, const float slength)
-{
-	const float qm2 = r/slength - 2.0f;	// val = (-2 + R)^3
-	float val = qm2*qm2*qm2*d_fcoeff_wendland;
-	return val;
-}
-/************************************************************************************************************/
-
-
-/********************** Equation of state, speed of sound, repulsive force **********************************/
-// Equation of state: pressure from density, where i is the fluid kind, not particle_id
-__device__ __forceinline__ float
-P(const float rho, const uint i)
-{
-	return d_bcoeff[i]*(__powf(rho/d_rho0[i], d_gammacoeff[i]) - 1.0f);
-}
-
-// Inverse equation of state: density from pressure, where i is the fluid kind, not particle_id
-__device__ __forceinline__ float
-RHO(const float p, const uint i)
-{
-	return __powf(p/d_bcoeff[i] + 1.0f, 1.0f/d_gammacoeff[i])*d_rho0[i];
-}
-
-// Riemann celerity
-__device__ float
-R(const float rho, const int i)
-{
-	return 2.0f/(d_gammacoeff[i]-1.0f)*d_sscoeff[i]*__powf(rho/d_rho0[i], 0.5f*d_gammacoeff[i]-0.5f);
-}
-
-// Density from Riemann celerity
-__device__ __forceinline__ float
-RHOR(const float r, const int i)
-{
-	return d_rho0[i]*__powf((d_gammacoeff[i]-1.)*r/(2.*d_sscoeff[i]), 2./(d_gammacoeff[i]-1.));
-}
-
-// Sound speed computed from density
-__device__ __forceinline__ float
-soundSpeed(const float rho, const uint i)
-{
-	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
-}
 
 // Lennard-Jones boundary repulsion force
 __device__ __forceinline__ float
@@ -1613,23 +1458,34 @@ saVertexBoundaryConditions(
 		oldEps[index] = sumeps/numseg;
 	// open boundaries
 	if (IO_BOUNDARY(info)) {
+		float4 eulerVel = oldEulerVel[index];
 		// imposing velocities => density needs to be averaged from segments
 		if (VEL_IO(info))
-			oldEulerVel[index].w = sumEulerVel.w/numseg;
+			eulerVel.w = sumEulerVel.w/numseg;
 		// imposing pressure => velocity needs to be averaged from segments
 		else {
-			oldEulerVel[index].x = sumEulerVel.x/numseg;
-			oldEulerVel[index].y = sumEulerVel.y/numseg;
-			oldEulerVel[index].z = sumEulerVel.z/numseg;
+			eulerVel.x = sumEulerVel.x/numseg;
+			eulerVel.y = sumEulerVel.y/numseg;
+			eulerVel.z = sumEulerVel.z/numseg;
 		}
+		oldEulerVel[index] = eulerVel;
 		// we temporarily write all the eulerVel data into the normal vel array. This is okay as long
 		// as we don't have moving boundaries or k-eps / io mixing
-		oldVel[index] = oldEulerVel[index];
+		oldVel[index] = eulerVel;
 
 		// finalize mass computation
 		// reference mass:
-		const float refMass = deltap*deltap*deltap*d_rho0[PART_FLUID_NUM(info)];
-		if (step == 2 && pos.w > 0.5f*refMass && dot(as_float3(oldEulerVel[index]),normalize(avgNorm)) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)]) {
+		const float rho0 = d_rho0[PART_FLUID_NUM(info)];
+		const float refMass = deltap*deltap*deltap*rho0;
+			// only create new particles in the second part of the time step
+		if (step == 2 &&
+			// create new particle if the mass of the vertex is large enough
+			pos.w > 0.5f*refMass &&
+			// check that the flow vector points into the domain
+			dot(as_float3(eulerVel),normalize(avgNorm)) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
+			// pressure inlets need p > 0 to create particles
+			(VEL_IO(info) || fabs(eulerVel.w-rho0) > rho0*1e-5f) )
+		{
 			pos.w -= refMass;
 			// Create new particle
 			// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),

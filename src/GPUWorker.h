@@ -140,6 +140,9 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
+	// water depth at open boundaries
+	uint*		m_dIOwaterdepth;
+
 	// "new" number of particles for open boundaries
 	uint*		m_dNewNumParticles;
 

@@ -144,6 +144,8 @@ forces(
 			float	influenceradius,
 	const	float	epsilon,
 	const	bool	movingBoundaries,
+	const	bool	inoutBoundaries,
+			uint	*IOwaterdepth,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,

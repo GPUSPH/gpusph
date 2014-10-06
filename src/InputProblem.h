@@ -20,9 +20,10 @@
 #define	SmallChannelFlowIOPer	8	// Small channel flow for debugging i/o with periodicty (<=> 2d poiseuille)
 #define	SmallChannelFlowIOKeps	9	// Small channel flow for debugging i/o with periodicty and keps
 #define	IOWithoutWalls			10	// I/O Debugging with periodicity and no walls
+#define LaPalisseSmallTest		11	// Small testcase for La Palisse (pressure in/out with free-surface)
 //*******************************************************************************************************
 // Chosse one of the problems above
-#define SPECIFIC_PROBLEM SmallChannelFlowIOKeps
+#define SPECIFIC_PROBLEM LaPalisseSmallTest
 
 class InputProblem: public Problem {
 	private:
@@ -49,7 +50,9 @@ class InputProblem: public Problem {
 					float*			newEpsilon,
 			const	particleinfo*	info,
 			const	float4*			oldPos,
+					uint*			IOwaterdepth,
 			const	uint			numParticles,
+			const	uint			numObjects,
 			const	uint			particleRangeEnd,
 			const	hashKey*		particleHash);
 

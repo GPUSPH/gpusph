@@ -14,12 +14,15 @@
 namespace cuIO
 {
 #include "cellgrid.h"
+// Core SPH functions
+#include "sph_core_utils.cuh"
 
 __device__
 void
 InputProblem_imposeOpenBoundaryCondition(
 	const	particleinfo	info,
 	const	float3			absPos,
+			float			waterdepth,
 			float4&			eulerVel,
 			float&			tke,
 			float&			eps)
@@ -53,7 +56,15 @@ InputProblem_imposeOpenBoundaryCondition(
 #endif
 	}
 	else {
+#if SPECIFIC_PROBLEM == LaPalisseSmallTest
+		if (INFLOW(info))
+			waterdepth = 0.21; // set inflow waterdepth to 0.21 (with respect to world_origin)
+		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+		const float pressure = 9.81e3f*localdepth;
+		eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
+#else
 		eulerVel.w = 1000.0f;
+#endif
 	}
 
 	// impose tangential velocity
@@ -85,6 +96,7 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 			float*		newTke,
 			float*		newEpsilon,
 	const	float4*		oldPos,
+	const	uint*		IOwaterdepth,
 	const	uint		numParticles,
 	const	hashKey*	particleHash)
 {
@@ -103,8 +115,15 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
+			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
+			float waterdepth = 0.0f;
+			if (!VEL_IO(info) && !INFLOW(info)) {
+				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
+				waterdepth += d_worldOrigin.z; // now absolute z position
+			}
 			// this now calls the virtual function that is problem specific
-			InputProblem_imposeOpenBoundaryCondition(info, absPos, eulerVel, tke, eps);
+			InputProblem_imposeOpenBoundaryCondition(info, absPos, waterdepth, eulerVel, tke, eps);
 			// copy values to arrays
 			newEulerVel[index] = eulerVel;
 			if(newTke)
@@ -122,13 +141,19 @@ extern "C"
 
 void
 setioboundconstants(
-	float3	const&	worldOrigin,
-	uint3	const&	gridSize,
-	float3	const&	cellSize)
+	const	PhysParams	*physparams,
+	float3	const&		worldOrigin,
+	uint3	const&		gridSize,
+	float3	const&		cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_worldOrigin, &worldOrigin, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_cellSize, &cellSize, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_gridSize, &gridSize, sizeof(uint3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
+
 }
 
 }
@@ -140,7 +165,9 @@ InputProblem::imposeOpenBoundaryConditionHost(
 			float*			newEpsilon,
 	const	particleinfo*	info,
 	const	float4*			oldPos,
+			uint			*IOwaterdepth,
 	const	uint			numParticles,
+	const	uint			numObjects,
 	const	uint			particleRangeEnd,
 	const	hashKey*		particleHash)
 {
@@ -156,9 +183,15 @@ InputProblem::imposeOpenBoundaryConditionHost(
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	cuIO::InputProblem_imposeOpenBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
-		(newEulerVel, newTke, newEpsilon, oldPos, numParticles, particleHash);
+		(newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
+
+	// reset waterdepth calculation
+	uint h_IOwaterdepth[numObjects];
+	for (uint i=0; i<numObjects; i++)
+		h_IOwaterdepth[i] = 0;
+	CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("imposeOpenBoundaryCondition kernel execution failed");

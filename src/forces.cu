@@ -63,7 +63,7 @@ void*	reduce_buffer = NULL;
 			deltap, slength, influenceradius, \
 			cfl, cflTVisc, cflOffset, \
 			xsph, \
-			newGGam, vertPos, epsilon, movingBoundaries, \
+			newGGam, vertPos, epsilon, movingBoundaries, inoutBoundaries, IOwaterdepth, \
 			keps_dkde, turbvisc)
 
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
@@ -519,6 +519,8 @@ forces(
 			float	influenceradius,
 	const	float	epsilon,
 	const	bool	movingBoundaries,
+	const	bool	inoutBoundaries,
+			uint	*IOwaterdepth,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,

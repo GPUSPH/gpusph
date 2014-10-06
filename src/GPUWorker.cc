@@ -884,6 +884,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		allocated += segmentsSize;
 	}
 
+	// water depth at open boundaries
+	if (m_simparams->inoutBoundaries) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numObjects*sizeof(uint)));
+		allocated += m_simparams->numObjects*sizeof(uint);
+	}
+
 	// newNumParticles for inlets
 	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
 	allocated += sizeof(uint);
@@ -967,6 +973,9 @@ void GPUWorker::deallocateDeviceBuffers() {
 	}
 
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
+
+	if (m_simparams->inoutBoundaries)
+		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
 	if (m_simparams->numODEbodies) {
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
@@ -1885,6 +1894,8 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_simparams->influenceRadius,
 			m_simparams->epsilon,
 			m_simparams->movingBoundaries,
+			m_simparams->inoutBoundaries,
+			m_dIOwaterdepth, // TODO FIXME Eugenio: in multi-GPU this needs to be maxed across devices
 			m_simparams->visctype,
 			m_physparams->visccoeff,
 			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
@@ -2144,7 +2155,9 @@ void GPUWorker::kernel_imposeOpenBoundaryCondition()
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_dIOwaterdepth,
 			m_numParticles,
+			m_simparams->numObjects,
 			numPartsToElaborate,
 			m_dBuffers.getData<BUFFER_HASH>());
 
@@ -2417,7 +2430,7 @@ void GPUWorker::uploadConstants()
 	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	if (m_simparams->inoutBoundaries)
-		setioboundconstants(gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+		setioboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()

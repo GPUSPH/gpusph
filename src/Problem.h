@@ -59,9 +59,10 @@ extern "C"
 
 void
 setioboundconstants(
-	float3	const&	worldOrigin,
-	uint3	const&	gridSize,
-	float3	const&	cellSize);
+	const	PhysParams	*physparams,
+	float3	const&		worldOrigin,
+	uint3	const&		gridSize,
+	float3	const&		cellSize);
 
 }
 
@@ -299,7 +300,9 @@ class Problem {
 					float*			newEpsilon,
 			const	particleinfo*	info,
 			const	float4*			oldPos,
+					uint*			IOwaterdepth,
 			const	uint			numParticles,
+			const	uint			numObjects,
 			const	uint			particleRangeEnd,
 			const	hashKey*		particleHash);
 

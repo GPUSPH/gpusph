@@ -811,7 +811,9 @@ Problem::imposeOpenBoundaryConditionHost(
 			float*			newEpsilon,
 	const	particleinfo*	info,
 	const	float4*			oldPos,
+			uint*			IOwaterdepth,
 	const	uint			numParticles,
+	const	uint			numObjects,
 	const	uint			particleRangeEnd,
 	const	hashKey*		particleHash)
 {

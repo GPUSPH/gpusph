@@ -604,7 +604,8 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt, bool usexsph>
+	bool dyndt,
+	bool usexsph>
 struct skip_neiblist
 {
 	// typedefs to shorten argument types
@@ -612,8 +613,9 @@ struct skip_neiblist
 	typedef forces_particle_output<boundarytype, visctype, usexsph> pout_t;
 
 	/// check if the given particle must skip the neiblist traversal
+	template<typename FP, typename P>
 	__device__ __forceinline__
-	bool check(pdata_t const& pdata)
+	bool check(FP const& params, P const& pdata)
 	{
 		return false; // default, don't skip
 	}
@@ -628,19 +630,21 @@ struct skip_neiblist
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	ViscosityType visctype,
-	bool dyndt, bool usexsph>
+	bool dyndt,
+	bool usexsph>
 struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, usexsph>
 {
 	// typedefs to shorten argument types
 	typedef forces_particle_data<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, usexsph> pdata_t;
 	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
 
+	template<typename FP, typename P>
 	__device__ __forceinline__
-	bool check(pdata_t const& pdata)
+	bool check(FP const& params, P const& pdata)
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
-		// or when using KEPSVISC
-		return visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+		// when using KEPSVISC, or when outflow boundaries are present
+		return !(params.inoutBoundaries && !INFLOW(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
@@ -1269,6 +1273,34 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	}
 }
 
+/// A functor that computes the mean velocity (XSPH)
+template<BoundaryType>
+struct compute_water_depth_at_outflow
+{
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_water_depth_at_outflow<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	// note all computations here are done assuming that the gravity vector points in z direction only
+	// if the fluid particle is higher than the vertex particle then don't continue (saves a few atomics)
+	if (!FLUID(ndata.info) || ndata.relPos.z < 0.0f)
+		return;
+	// z position of fluid particle with respect to world_origin
+	float nZpos = pdata.pos.z - ndata.relPos.z + pdata.gridPos.z*d_cellSize.z + 0.5f*d_cellSize.z;
+	// position between 0 and UINT_MAX:
+	nZpos *= ((float) UINT_MAX)/(d_gridSize.z*d_cellSize.z);
+	atomicMax(&params.IOwaterdepth[object(pdata.info)-1], (uint)nZpos);
+}
+
+
 /// A functor that writes out gamma,
 /// but only for SA_BOUNDARY
 template<BoundaryType>
@@ -1521,7 +1553,7 @@ forcesDevice(
 		skip_neiblist<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph> skip;
 		idx_t i = 0;
 
-		if (skip.check(pdata)) {
+		if (skip.check(params, pdata)) {
 			skip.prepare(pdata, pout);
 			i = d_neiblist_end; // skip neighbors loop
 		}
@@ -1612,9 +1644,13 @@ forcesDevice(
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && VERTEX(info)) {
+			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && VERTEX(info) && !IO_BOUNDARY(info)) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
+			}
+			else if (boundarytype == SA_BOUNDARY && VERTEX(info) && IO_BOUNDARY(info) && !INFLOW(info)) {
+				// Compute the maximum depth at outflows
+				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
 			else if (OBJECT(info)) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
