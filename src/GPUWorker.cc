@@ -400,11 +400,16 @@ void GPUWorker::computeCellBursts()
 					// skip self (also implicit with dev id check, later)
 					if (dx == 0 && dy == 0 && dz == 0) continue;
 
-					// ensure we are inside the grid
-					// TODO: fix for periodicity. ImportPeer* as well?
-					if (coords_curr_cell.x + dx < 0 || coords_curr_cell.x + dx >= gdata->gridSize.x) continue;
-					if (coords_curr_cell.y + dy < 0 || coords_curr_cell.y + dy >= gdata->gridSize.y) continue;
-					if (coords_curr_cell.z + dz < 0 || coords_curr_cell.z + dz >= gdata->gridSize.z) continue;
+					// neighbor cell coords
+					int ncx = coords_curr_cell.x + dx;
+					int ncy = coords_curr_cell.y + dy;
+					int ncz = coords_curr_cell.z + dz;
+
+					// warp cell coordinates if any periodicity is enabled
+					periodicityWarp(ncx, ncy, ncz);
+
+					// ensure we are inside the domain
+					if ( !isCellInsideProblemDomain(ncx, ncy, ncz) ) continue;
 
 					// NOTE: we could skip empty cells if all the nodes in the network knew the content of all the cells.
 					// Instead, each process only knows the empty cells of its workers, so empty cells still break bursts
@@ -412,7 +417,7 @@ void GPUWorker::computeCellBursts()
 					// cells (possibly in bursts).
 
 					// now compute the linearized hash of the neib cell and other properties
-					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
+					const uint lin_neib_cell = gdata->calcGridHashHost(ncx, ncy, ncz);
 					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
 					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
 
