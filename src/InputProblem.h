@@ -58,6 +58,8 @@ class InputProblem: public Problem {
 
 		void release_memory(void) {};
 
+		void fillDeviceMap();
+
 };
 
 #endif	/* _INPUTPROBLEM_H */

@@ -548,3 +548,8 @@ InputProblem::max_parts(uint numpart)
 		return numpart;
 #endif
 }
+
+void InputProblem::fillDeviceMap()
+{
+	fillDeviceMapByAxis(X_AXIS);
+}
