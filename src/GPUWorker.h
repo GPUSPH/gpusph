@@ -246,6 +246,9 @@ private:
 	void bind_textures_forces();
 	void unbind_textures_forces();
 	float forces_dt_reduce();
+
+	// aux method to warp signed cell coordinates when periodicity is enabled
+	void periodicityWarp(int &cx, int &cy, int &cz);
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);

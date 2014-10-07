@@ -1939,6 +1939,45 @@ float GPUWorker::forces_dt_reduce()
 		m_forcesKernelTotalNumBlocks);
 }
 
+// Aux method to warp signed cell coordinates if periodicity is enabled.
+// Cell coordinates are passed by reference; they are left unchanged if periodicity
+// is not enabled.
+void GPUWorker::periodicityWarp(int &cx, int &cy, int &cz)
+{
+	// NOTE: checking if c* is negative MUST be done before checking if it's greater than
+	// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize!
+
+	// checking X periodicity
+	if (m_simparams->periodicbound & PERIODIC_X) {
+		if (cx < 0) {
+			cx = gdata->gridSize.x - 1;
+		} else
+		if (cx >= gdata->gridSize.x) {
+			cx = 0;
+		}
+	}
+
+	// checking Y periodicity
+	if (m_simparams->periodicbound & PERIODIC_Y) {
+		if (cy < 0) {
+			cy = gdata->gridSize.y - 1;
+		} else
+		if (cy >= gdata->gridSize.y) {
+			cy = 0;
+		}
+	}
+
+	// checking Z periodicity
+	if (m_simparams->periodicbound & PERIODIC_Z) {
+		if (cz < 0) {
+			cz = gdata->gridSize.z - 1;
+		} else
+		if (cz >= gdata->gridSize.z) {
+			cz = 0;
+		}
+	}
+}
+
 void GPUWorker::kernel_forces_async_enqueue()
 {
 	if (!gdata->only_internal)
