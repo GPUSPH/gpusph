@@ -144,6 +144,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 		BUFFER_INFO | \
 		BUFFER_VERTICES | \
 		BUFFER_VERTPOS | \
+		BUFFER_BOUNDELEMENTS | \
 		DBLBUFFER_READ)
 
 // all double buffers TODO some template metaprogramming would help here
