@@ -35,3 +35,8 @@ profiling/
 scripts/list-cuda-cc
 meshes/
 *.vim
+scripts/
+inifile/
+*.vtk
+sa/
+
