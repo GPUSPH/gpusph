@@ -701,9 +701,69 @@ static __inline__ __host__ __device__ double4 make_double4(double a)
 	return make_double4(a, a, a, a);
 }
 
+// sum
 static __inline__ __host__ __device__ double4 operator+(const double4 &a, const double4 &b)
 {
 	return make_double4(a.x + b.x, a.y + b.y, a.z + b.z,  a.w + b.w);
+}
+
+// subtract
+static __inline__ __host__ __device__ double4 operator-(const double4 &a, const double4 &b)
+{
+	return make_double4(a.x - b.x, a.y - b.y, a.z - b.z,  a.w - b.w);
+}
+
+// multiply
+static __inline__ __host__ __device__ double4 operator*(const double4 &a, const double4 &b)
+{
+	return make_double4(a.x * b.x, a.y * b.y, a.z * b.z,  a.w * b.w);
+}
+
+static __inline__ __host__ __device__ double4 operator*(const double4 &a, const double &s)
+{
+	return make_double4(a.x * s, a.y * s, a.z * s, a.w * s);
+}
+
+static __inline__ __host__ __device__ double4 operator*(const double &s, const double4 &a)
+{
+	return make_double4(a.x * s, a.y * s, a.z * s, a.w * s);
+}
+
+// divide
+static __inline__ __host__ __device__ double4 operator/(const double4 &a, const double &s)
+{
+	float inv = 1.0f / s;
+	return a * inv;
+}
+
+// dot product
+static __inline__ __host__ __device__ double dot(const double4 &a, const double4 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+// dot product for double4 but act as if they were double3s
+static __inline__ __host__ __device__ double dot3(const double4 &a, const double4 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+// show a double4 as a double3
+static __inline__ __host__ __device__ double3& as_double3(const double4 &v)
+{
+	return *(double3*)&v;
+}
+
+// squared length
+static __inline__ __host__ __device__ double sqlength(const double4 &v)
+{
+	return dot(v, v);
+}
+
+// length
+static __inline__ __host__ __device__ double length(const double4 &v)
+{
+	return sqrtf(sqlength(v));
 }
 
 // float4 functions

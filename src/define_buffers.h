@@ -72,7 +72,10 @@ SET_BUFFER_TRAITS(BUFFER_NEIBSLIST, neibdata, 1, "Neighbor List");
 #define BUFFER_FORCES		(BUFFER_NEIBSLIST << 1)
 SET_BUFFER_TRAITS(BUFFER_FORCES, float4, 1, "Force");
 
-#define BUFFER_XSPH			(BUFFER_FORCES << 1)
+#define BUFFER_CONTUPD		(BUFFER_FORCES << 1)
+SET_BUFFER_TRAITS(BUFFER_CONTUPD, float2, 1, "Diffusion and Dgam/Dt for cont. eq.");
+
+#define BUFFER_XSPH			(BUFFER_CONTUPD << 1)
 SET_BUFFER_TRAITS(BUFFER_XSPH, float4, 1, "XSPH");
 
 #define BUFFER_TAU			(BUFFER_XSPH << 1)
@@ -99,9 +102,12 @@ SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
 #define BUFFER_TURBVISC		(BUFFER_EPSILON << 1)
 SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 2, "Eddy Viscosity");
 #define BUFFER_DKDE			(BUFFER_TURBVISC << 1)
-SET_BUFFER_TRAITS(BUFFER_DKDE, float2, 1, "[k]-[e] derivatives");
+SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 
-#define BUFFER_CFL			(BUFFER_DKDE << 1)
+#define BUFFER_EULERVEL			(BUFFER_DKDE << 1)
+SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 2, "Eulerian velocity");
+
+#define BUFFER_CFL			(BUFFER_EULERVEL << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL, float, 1, "CFL array");
 #define BUFFER_CFL_TEMP		(BUFFER_CFL << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_TEMP, float, 1, "CFL aux array");
@@ -137,7 +143,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 #define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
 	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
 	BUFFER_TKE | BUFFER_EPSILON | \
-	BUFFER_TURBVISC)
+	BUFFER_TURBVISC | BUFFER_EULERVEL)
 
 // all buffers which need to transfer more than one array
 #define BUFFER_BIG		(BUFFER_TAU | BUFFER_VERTPOS)

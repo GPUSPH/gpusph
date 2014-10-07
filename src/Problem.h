@@ -47,10 +47,24 @@
 
 #include "ode/ode.h"
 
+#define BLOCK_SIZE_IOBOUND	256
+
 typedef std::vector<vertexinfo> VertexVect;
 
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
+
+extern "C"
+{
+
+void
+setioboundconstants(
+	const	PhysParams	*physparams,
+	float3	const&		worldOrigin,
+	uint3	const&		gridSize,
+	float3	const&		cellSize);
+
+}
 
 using namespace std;
 
@@ -64,6 +78,7 @@ class Problem {
 		int			m_ncols, m_nrows;
 
 		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
+
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
 		enum SplitAxis
@@ -246,6 +261,8 @@ class Problem {
 		bool finished(double) const;
 
 		virtual int fill_parts(void) = 0;
+		// maximum number of particles that may be generated
+		virtual uint max_parts(uint numParts);
 		virtual uint fill_planes(void);
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);
@@ -276,6 +293,18 @@ class Problem {
 		int	get_ODE_body_numparts(const int) const;
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+
+		virtual void imposeOpenBoundaryConditionHost(
+					float4*			newEulerVel,
+					float*			newTke,
+					float*			newEpsilon,
+			const	particleinfo*	info,
+			const	float4*			oldPos,
+					uint*			IOwaterdepth,
+			const	uint			numParticles,
+			const	uint			numObjects,
+			const	uint			particleRangeEnd,
+			const	hashKey*		particleHash);
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();

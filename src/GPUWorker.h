@@ -140,6 +140,12 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
+	// water depth at open boundaries
+	uint*		m_dIOwaterdepth;
+
+	// "new" number of particles for open boundaries
+	uint*		m_dNewNumParticles;
+
 	// number of blocks used in forces kernel runs (for delayed cfl reduction)
 	uint		m_forcesKernelTotalNumBlocks;
 
@@ -188,6 +194,8 @@ private:
 	void uploadSegments();
 	void updateSegments();
 	void resetSegments();
+	void uploadNewNumParticles();
+	void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
 	void uploadMBData();
@@ -216,14 +224,16 @@ private:
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
-	void kernel_dynamicBoundaryConditions();
-	void kernel_updateValuesAtBoundaryElements();
 	void kernel_updateVertIdIndexBuffer();
+	void kernel_saSegmentBoundaryConditions();
+	void kernel_saVertexBoundaryConditions();
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();
 	void kernel_calcPrivate();
 	void kernel_testpoints();
+	void kernel_deleteOutgoingParts();
+	void kernel_imposeOpenBoundaryCondition();
 	/*void uploadMbData();
 	void uploadGravity();*/
 
@@ -243,6 +253,7 @@ public:
 
 	// getters of the number of particles
 	uint getNumParticles();
+	uint getNumAllocatedParticles();
 	uint getNumInternalParticles();
 	uint getMaxParticles();
 

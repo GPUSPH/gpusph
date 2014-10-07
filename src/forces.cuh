@@ -121,6 +121,7 @@ forces(
 	const	float2	* const vertPos[],
 	const	float4	*vel,
 			float4	*forces,
+			float2	*contupd,
 	const	float4	*oldGGam,
 			float4	*newGGam,
 	const	float4	*boundelem,
@@ -143,12 +144,14 @@ forces(
 			float	influenceradius,
 	const	float	epsilon,
 	const	bool	movingBoundaries,
+	const	bool	inoutBoundaries,
+			uint	*IOwaterdepth,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
 			float	*keps_tke,
 			float	*keps_eps,
-			float2	*keps_dkde,
+			float3	*keps_dkde,
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,
@@ -216,17 +219,19 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-testpoints(	const float4*		pos,
-			float4*		newVel,
+testpoints(	const float4*	pos,
+			float4*			newVel,
+			float*			newTke,
+			float*			newEpsilon,
 			particleinfo*	info,
 			hashKey*		particleHash,
-			uint*		cellStart,
-			neibdata*	neibsList,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			float		slength,
-			int			kerneltype,
-			float		influenceradius);
+			uint*			cellStart,
+			neibdata*		neibsList,
+			uint			numParticles,
+			uint			particleRangeEnd,
+			float			slength,
+			int				kerneltype,
+			float			influenceradius);
 
 // Free surface detection
 void
@@ -301,42 +306,71 @@ calcPrivate(const	float4*			pos,
 					uint			numParticles,
 					uint			particleRangeEnd);
 
-// Recomputes values at the boundary elements (currently only density) as an average
-// over three vertices of this element
+// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 void
-updateBoundValues(	float4*		oldVel,
-			float*		oldTKE,
-			float*		oldEps,
-			vertexinfo*	vertices,
-			uint*		vertIDToIndex,
-			particleinfo*	info,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			bool		initStep);
-
-// Recomputes values at the vertex particles, following procedure similar to Shepard filter.
-// Only fluid particles are taken into summation
-// oldVel array is used to read density of fluid particles and to write density of vertex particles.
-// There is no need to use two velocity arrays (read and write) and swap them after.
-void
-dynamicBoundConditions(	const float4*		oldPos,
+saSegmentBoundaryConditions(
+			float4*			oldPos,
 			float4*			oldVel,
-			float4*			oldGGam,
 			float*			oldTKE,
 			float*			oldEps,
-			float4*			newGam,
-			const float4*	boundelement,
-			const particleinfo*	info,
-			const hashKey*		particleHash,
-			const uint*		cellStart,
-			const neibdata*	neibsList,
-			const uint		numParticles,
-			const uint		particleRangeEnd,
-			const float		deltap,
-			const float		slength,
-			const int		kerneltype,
-			const float		influenceradius,
-			const bool		initStep);
+			float4*			oldEulerVel,
+			float4*			oldGGam,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	float2	* const vertPos[],
+	const	float4*			boundelement,
+	const	particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	int				kerneltype,
+	const	float			influenceradius,
+	const	bool			initStep,
+	const	bool			inoutBoundaries);
+
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+void
+saVertexBoundaryConditions(
+			float4*			oldPos,
+			float4*			oldVel,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			oldGGam,
+			float4*			oldEulerVel,
+			float4*			forces,
+			float2*			contupd,
+	const	float4*			boundelement,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+			particleinfo*	info,
+			hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+			uint*			newNumParticles,
+	const	uint			particleRangeEnd,
+	const	float			dt,
+	const	int				step,
+	const	float			deltap,
+	const	float			slength,
+	const	int				kerneltype,
+	const	float			influenceradius,
+	const	uint&			numActiveParticles,
+	const	bool			initStep);
+
+// disables particles that went through boundaries when open boundaries are used
+void
+deleteOutgoingParts(		float4*			pos,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd);
 
 }
 

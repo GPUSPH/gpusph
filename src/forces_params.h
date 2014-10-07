@@ -56,6 +56,7 @@
 struct common_forces_params
 {
 			float4	*forces;
+			float2	*contupd;
 			float4	*rbforces;
 			float4	*rbtorques;
 	const	float4	*posArray;
@@ -75,6 +76,7 @@ struct common_forces_params
 	// Constructor / initializer
 	common_forces_params(
 				float4	*_forces,
+				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_posArray,
@@ -87,6 +89,7 @@ struct common_forces_params
 		const	float	_slength,
 		const	float	_influenceradius) :
 		forces(_forces),
+		contupd(_contupd),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
 		posArray(_posArray),
@@ -131,16 +134,22 @@ struct sa_boundary_forces_params
 	const	float2	*vertPos2;
 	const	float	epsilon;
 	const	bool	movingBoundaries;
+	const	bool	inoutBoundaries;
+			uint	*IOwaterdepth;
 
 	// Constructor / initializer
 	sa_boundary_forces_params(
 				float4	*_newGGam,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
-		const	bool	_movingBoundaries) :
+		const	bool	_movingBoundaries,
+		const	bool	_inoutBoundaries,
+				uint	*_IOwaterdepth) :
 		newGGam(_newGGam),
 		epsilon(_epsilon),
-		movingBoundaries(_movingBoundaries)
+		movingBoundaries(_movingBoundaries),
+		inoutBoundaries(_inoutBoundaries),
+		IOwaterdepth(_IOwaterdepth)
 	{
 		if (_vertPos) {
 			vertPos0 = _vertPos[0];
@@ -155,9 +164,9 @@ struct sa_boundary_forces_params
 /// Additional parameters passed only to kernels with KEPSVISC
 struct kepsvisc_forces_params
 {
-	float2	*keps_dkde;
+	float3	*keps_dkde;
 	float	*turbvisc;
-	kepsvisc_forces_params(float2 *_keps_dkde, float *_turbvisc) :
+	kepsvisc_forces_params(float3 *_keps_dkde, float *_turbvisc) :
 		keps_dkde(_keps_dkde),
 		turbvisc(_turbvisc)
 	{}
@@ -183,6 +192,7 @@ struct forces_params :
 	forces_params(
 		// common
 				float4	*_forces,
+				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_pos,
@@ -209,19 +219,21 @@ struct forces_params :
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
 		const	bool	_movingBoundaries,
+		const	bool	_inoutBoundaries,
+				uint	*_IOwaterdepth,
 
 		// KEPSVISC
-				float2	*_keps_dkde,
+				float3	*_keps_dkde,
 				float	*_turbvisc
 		) :
-		common_forces_params(_forces, _rbforces, _rbtorques,
+		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius),
 		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc, _cflOffset),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
-			(_newGGam, _vertPos, _epsilon, _movingBoundaries),
+			(_newGGam, _vertPos, _epsilon, _movingBoundaries, _inoutBoundaries, _IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
 };

@@ -82,15 +82,18 @@ enum CommandType {
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
 	UPDATE_SEGMENTS,	// dump segments to shared host array, then update the number of internal parts
+	DOWNLOAD_NEWNUMPARTS,	// dump the updated number of particles (in case of inlets/outlets)
+	UPLOAD_NEWNUMPARTS,		// update the "newNumParts" on device with the host value
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	MLS,				// MLS correction
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
-	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
-	SA_UPDATE_BOUND_VALUES, // update bounary values
 	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)
+	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,	// compute segment boundary conditions and identify fluid particles that leave open boundaries
+	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,		// compute vertex boundary conditions including mass update and create new fluid particles at open boundaries; at the init step this routine also computes a preliminary grad gamma direction vector
+	DELETE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
 	SPS,				// SPS stress matrix computation kernel
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
@@ -100,6 +103,7 @@ enum CommandType {
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
+	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
 	QUIT				// quits the simulation cycle
 };
 
@@ -120,6 +124,13 @@ enum CommandType {
 // these grow from the top
 #define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
 #define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
+
+// flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
+// is associated to an open boundary
+#define VERTEX1 ((flag_t)1)
+#define VERTEX2 (VERTEX1 << 1)
+#define VERTEX3 (VERTEX2 << 1)
+#define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
 
 // now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
 // these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available
@@ -171,17 +182,22 @@ struct GlobalData {
 	NetworkManager* networkManager;
 
 	// NOTE: the following holds
-	// s_hPartsPerDevice[x] <= processParticles[d] <= totParticles <= processParticles
+	// s_hPartsPerDevice[x] <= processParticles[d] <= totParticles <= allocatedParticles
 	// - s_hPartsPerDevice[x] is the number of particles currently being handled by the GPU
 	//   (only useful in multigpu to keep track of the number of particles to dump; varies according to the fluid displacemente in the domain)
 	// - processParticles[d] is the sum of all the internal particles of all the GPUs in the process of rank d
 	//   (only useful in multinode to keep track of the number of particles and offset to dump them on host; varies according to the fluid displacement in the domain)
 	// - totParticles is the sum of all the internal particles of all the network
+	//   (equal to the sum of all the processParticles, can vary if there are inlets/outlets)
+	// - allocatedParticles is the number of allocations
+	//   (can be higher when there are inlets)
 
 	// global number of particles - whole simulation
 	uint totParticles;
 	// number of particles of each process
 	uint processParticles[MAX_NODES_PER_CLUSTER];
+	// number of allocated particles *in the process*
+	uint allocatedParticles;
 	// global number of planes (same as local ones)
 	//uint numPlanes;
 	// grid size, for particle hash computation
@@ -212,6 +228,10 @@ struct GlobalData {
 
 	// last dt for each PS
 	float dts[MAX_DEVICES_PER_NODE];
+
+	// indicates whether particles were created at open boundaries
+	bool	particlesCreatedOnNode[MAX_DEVICES_PER_NODE];
+	bool	particlesCreated;
 
 	// indices for double-buffered device arrays (0 or 1)
 
@@ -285,6 +305,7 @@ struct GlobalData {
 		threadSynchronizer(NULL),
 		networkManager(NULL),
 		totParticles(0),
+		allocatedParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),
@@ -301,6 +322,7 @@ struct GlobalData {
 		iterations(0),
 		t(0.0f),
 		dt(0.0f),
+		particlesCreated(false),
 		lastGlobalPeakNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
@@ -315,6 +337,10 @@ struct GlobalData {
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			dts[d] = 0.0F;
+
+		// init particlesCreatedOnNode
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			particlesCreatedOnNode[d] = false;
 
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)

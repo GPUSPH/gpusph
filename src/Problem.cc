@@ -581,6 +581,25 @@ Problem::get_ODE_bodies_steprot(void)
 }
 
 
+uint
+Problem::max_parts(uint numParts)
+{
+	if (!m_simparams.inoutBoundaries)
+		return numParts;
+
+	// we assume that we can't have more particles than by filling the whole domain:
+	// if the user knows how many particles there are going to be he should implement
+	// his own version of this function
+	double3 range = get_worldsize();
+	range /= m_deltap; // regular fill
+	uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
+	printf("  estimating %u particles to fill the world\n", wparts);
+
+	return wparts;
+}
+
+// input: force, torque, step number (why?), dt
+// output: cg, trans, steprot (can be input uninitialized)
 void
 Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
 		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
@@ -783,4 +802,21 @@ Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4*
 		k[i] = k0;
 		e[i] = e0;
 	}
+}
+
+void
+Problem::imposeOpenBoundaryConditionHost(
+			float4*			newEulerVel,
+			float*			newTke,
+			float*			newEpsilon,
+	const	particleinfo*	info,
+	const	float4*			oldPos,
+			uint*			IOwaterdepth,
+	const	uint			numParticles,
+	const	uint			numObjects,
+	const	uint			particleRangeEnd,
+	const	hashKey*		particleHash)
+{
+	// not implemented
+	return;
 }

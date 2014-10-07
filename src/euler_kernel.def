@@ -55,11 +55,13 @@ eulerDevice(
 	const float4*	oldPos,
 	const hashKey*	particleHash,
 	const float4*	oldVel,
+	const float4*	gGam,
 	const float*	oldTKE,
 	const float*	oldEps,
 	const particleinfo* info,
 	const float4*	forces,
-	float2*	keps_dkde,
+	const float2*	contupd,
+	float3*	keps_dkde,
 	const float4*	xsph,
 	float4*	newPos,
 	float4*	newVel,
@@ -99,7 +101,7 @@ eulerDevice(
 		   velc = vel if step == 1, but
 		   velc = vel + forces[index]*dt/2.0f if step == 2
 		 */
-		const float4 velc = vel + (step - 1)*forces[index]*half_dt;
+		const float4 velc = vel + (step - 1)*force*half_dt;
 
 		// Updating particle position
 		if (FLUID(pinfo)) {
@@ -117,24 +119,37 @@ eulerDevice(
 			//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
 			// For step 2:
 			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-			// Fixed particles only evolve the density
-			if (FIXED_PART(pinfo)) {
-				vel.w += dt*force.w;
-			} else {
-				vel += dt*force;
+			if (step == 1) {
+				// gamma at time n+1 (gGam.w is gamma at time n)
+				const float gamNp1 = gGam[index].w+dt*contupd[index].y;
+				vel.w = gGam[index].w/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+			}
+			else {
+				// gamma at time n (gGam.w is gamma at time n+1/2)
+				const float gamN   = gGam[index].w-dt/2.0f*contupd[index].y;
+				// gamma at time n+1
+				const float gamNp1 = gGam[index].w+dt/2.0f*contupd[index].y;
+				vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*gGam[index].w*force.w) + dt*contupd[index].x;
+			}
+			//vel.w += dt*force.w + dt*contupd[index].x + dt*contupd[index].y;
+			// Fixed particles only evolve the density, non-fixed also evolve the velocity
+			if (!FIXED_PART(pinfo)) {
+				vel.x += dt*force.x;
+				vel.y += dt*force.y;
+				vel.z += dt*force.z;
 			}
 
 			// Updating k and e for k-e model
 			if (keps_dkde) {
-				const float2 dkde = keps_dkde[index];
+				const float3 dkde = keps_dkde[index];
 				const float oldK = fmax(keps_k,1e-6f);
 				// implicit formulations of k and e
 				keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
-				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*1.92f);
+				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
 			}
 		}
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
-		else if (VERTEX(pinfo)) {
+		else if (VERTEX(pinfo) && !IO_BOUNDARY(pinfo)) {
 			vel += dt*force;
 		}
 		// Moving boundaries

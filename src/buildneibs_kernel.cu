@@ -203,10 +203,16 @@ calcHashDevice(float4*			posArray,		///< particle's positions (in, out)
 		if (toofar)
 			disable_particle(pos);
 
+		// mark with special hash if inactive
+		if (INACTIVE(pos))
+			gridHash = CELL_HASH_MAX;
+
 		// Store grid hash, particle index and position relative to cell
 		particleHash[index] = makeParticleHash(gridHash, info);
 		posArray[index] = pos;
 	}
+
+
 
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
@@ -282,10 +288,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float*			sortedTKE,			// output: k for k-e model
 										float*			sortedEps,			// output: e for k-e model
 										float*			sortedTurbVisc,		// output: eddy viscosity
+										float4*			sortedEulerVel,		// output: sorted euler vel
 										const hashKey*	particleHash,	///< previously sorted particle's hashes (in)
 										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
-										const uint		numParticles	///< total number of particles
-										)
+										const uint		numParticles,	///< total number of particles
+										uint*			newNumParticles)	// output: number of active particles
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -327,16 +334,27 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		// everytime we use a cell hash to access an element of CellStart or CellEnd
 
 		if (index == 0 || cellHash != sharedHash[threadIdx.x]) {
+
 			// new cell, otherwise, it's the number of active particles (short hash: compare with 32 bits max)
-			cellStart[cellHash & CELLTYPE_BITMASK] = index;
+			if (cellHash != CELL_HASH_MAX)
+				// if it isn't an inactive particle, it is also the start of the cell
+				cellStart[cellHash & CELLTYPE_BITMASK] = index;
+			else
+				*newNumParticles = index;
+
 			// If it isn't the first particle, it must also be the end of the previous cell
 			if (index > 0)
 				cellEnd[sharedHash[threadIdx.x] & CELLTYPE_BITMASK] = index;
 		}
 
+		// if we are an inactive particle, we're done (short hash: compare with 32 bits max)
+		if (cellHash == CELL_HASH_MAX)
+			return;
+
 		if (index == numParticles - 1) {
 			// ditto
 			cellEnd[cellHash & CELLTYPE_BITMASK] = index + 1;
+			*newNumParticles = numParticles;
 		}
 
 		if (segmentStart) {
@@ -366,11 +384,17 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		}
 
 		if (sortedVertices) {
-			const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
-			sortedVertices[index] = make_vertexinfo(
-				vertices.x,
-				vertices.y,
-				vertices.z, 0);
+			if (BOUNDARY(info)) {
+				const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
+				sortedVertices[index] = make_vertexinfo(
+					vertices.x,
+					vertices.y,
+					vertices.z,
+					vertices.w);
+			}
+			else
+				// TODO FIXME: empty domain going to be filled by inlet -> maybe particle has id 0!
+				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
 		}
 
 		if (sortedTKE) {
@@ -383,6 +407,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 
 		if (sortedTurbVisc) {
 			sortedTurbVisc[index] = tex1Dfetch(tviscTex, sortedIndex);
+		}
+
+		if (sortedEulerVel) {
+			sortedEulerVel[index] = tex1Dfetch(eulerVelTex, sortedIndex);
 		}
 
 	}
@@ -553,7 +581,7 @@ struct niC_vars :
 /// check if a particle at distance relPos is close enough to be considered for neibslist inclusion
 template<bool use_sa_boundary>
 __device__ __forceinline__
-bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo, const bool segment,
+bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo,
 	buildneibs_params<use_sa_boundary> params)
 {
 	return sqlength(relPos) < params.sqinfluenceradius; // default check: against the influence radius
@@ -562,13 +590,12 @@ bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo, const boo
 /// SA_BOUNDARY specialization
 template<>
 __device__ __forceinline__
-bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo, const bool segment,
+bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo,
 	buildneibs_params<true> params)
 {
 	const float rp2(sqlength(relPos));
-	// skip standard check when only checking segments, and include BOUNDARY neighbors which are
-	// a little further than sqinfluenceradius
-	return !segment && (rp2 < params.sqinfluenceradius ||
+	// include BOUNDARY neighbors which are a little further than sqinfluenceradius
+	return (rp2 < params.sqinfluenceradius ||
 		(rp2 < params.boundNlSqInflRad && BOUNDARY(neibInfo)));
 }
 
@@ -642,7 +669,7 @@ neibsInCell(
 			const uint		index,		///< current particle index
 			float3			pos,		///< current particle position
 			uint&			neibs_num,	///< number of neighbors for the current particle
-			const bool		segment)	///< if a segment is searching we are only looking for the three vertices
+			const bool		segment)	///< if a segment is searching we are also looking for the three vertices
 {
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
@@ -675,11 +702,6 @@ neibsInCell(
 		if (TESTPOINTS(neibInfo))
 			continue;
 
-		// for SA_BOUNDARY, BOUNDARY particles only look at VERTEX neighbors,
-		// to update vertexPos (BOUNDARY particles don't need an actual neibs list
-		if (use_sa_boundary && segment && !VERTEX(neibInfo))
-			continue;
-
 		// Compute relative position between particle and potential neighbor
 		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
 		#if (__COMPUTE__ >= 20)
@@ -696,7 +718,7 @@ neibsInCell(
 
 		// Check if the squared distance is smaller than the squared influence radius
 		// used for neighbor list construction
-		bool close_enough = isCloseEnough(relPos, neibInfo, segment, params);
+		bool close_enough = isCloseEnough(relPos, neibInfo, params);
 
 		if (close_enough) {
 			if (neibs_num < d_maxneibsnum) {
@@ -705,7 +727,8 @@ neibsInCell(
 				encode_cell = false;
 			}
 			neibs_num++;
-		} else if (segment) {
+		}
+		if (segment) {
 			process_niC_segment(index, neib_index, relPos, params, var);
 		}
 
