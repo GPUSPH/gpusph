@@ -111,7 +111,7 @@ void*	reduce_buffer = NULL;
 		VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
 		/*VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
 		VISC_CHECK(boundarytype, SPSVISC, dem); \
-		VISC_CHECK(boundarytype, KEPSVISC, dem);*/
+		*/ VISC_CHECK(boundarytype, KEPSVISC, dem);
 
 #define VISC_SWITCH(boundarytype, dem) \
 	switch (visctype) { \
