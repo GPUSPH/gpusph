@@ -339,7 +339,7 @@ void GPUWorker::computeCellBursts()
 	uint network_bursts = 0;
 	uint node_bursts = 0;
 
-	// Auxiliary macros. Use with parentheses when possibile
+	// Auxiliary macros. Use with parentheses when possible
 #define BURST_IS_EMPTY(peer, direction) \
 	(burst_vector_index[peer][direction] == -1)
 	// closing a burst means dropping the associated pointer index
@@ -357,7 +357,7 @@ void GPUWorker::computeCellBursts()
 	// iterate on all cells
 	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
-		// We want to send the current cell to the neigbor processes only once, but multiple neib cells could
+		// We want to send the current cell to the neighbor processes only once, but multiple neib cells could
 		// belong the the same process. Therefore we keep a list of recipient gidx who already received the
 		// current cell. We will also use this list as a "recipient list", esp. to check which bursts need to
 		// be closed. The list is reset for every cell, before iterating the neighbors.
@@ -439,7 +439,7 @@ void GPUWorker::computeCellBursts()
 					// simple peer copy or mpi transfer?
 					const TransferScope transfer_scope = (curr_cell_rank == neib_cell_rank ? NODE_SCOPE : NETWORK_SCOPE);
 
-					// devices fecth peers' memory with any intervention from the sender (aka: only RCV bursts in same node)
+					// devices fetch peers' memory with any intervention from the sender (aka: only RCV bursts in same node)
 					if (transfer_scope == NODE_SCOPE && transfer_direction == SND)
 						continue;
 
@@ -452,12 +452,12 @@ void GPUWorker::computeCellBursts()
 						if (! BURST_IS_EMPTY(other_device_gidx,transfer_direction)) {
 
 							// cell index is higher than the last enqueued; it is edging as well; no other cell
-							// interrrupted the burst until now. So cell is consecutive with previous in both
+							// interrupted the burst until now. So cell is consecutive with previous in both
 							// the sending the the receiving device
 							m_bursts[ burst_vector_index[other_device_gidx][transfer_direction] ].cells.push_back(lin_curr_cell);
 
 						} else {
-							// if we are here, either the burst was empty or not compatabile. In both cases, create a new one
+							// if we are here, either the burst was empty or not compatible. In both cases, create a new one
 							CellList list;
 							list.push_back(lin_curr_cell);
 
@@ -469,7 +469,7 @@ void GPUWorker::computeCellBursts()
 								0, 0, 0
 							};
 
-							// store (ovewrite, if was non-empty) its forthcoming index
+							// store (overwrite, if was non-empty) its forthcoming index
 							burst_vector_index[other_device_gidx][transfer_direction] = m_bursts.size();
 							// append it
 							m_bursts.push_back(burst);
@@ -516,8 +516,8 @@ void GPUWorker::computeCellBursts()
 
 				} // iterate on neibs of current cells
 
-		// There was no neib cell (i.e. it was an internal cell for every device), so skip burst-breaking conditinals.
-		// NOTE: comment the following line to allow bursts only along linearization (e.g. with Y-split and XYZ linearizazion,
+		// There was no neib cell (i.e. it was an internal cell for every device), so skip burst-breaking conditionals.
+		// NOTE: comment the following line to allow bursts only along linearization (e.g. with Y-split and XYZ linearization,
 		// only one burst will be used with the following line active; several, aka one per Y line, will be used with the
 		// following commented). This can useful only for debugging or profiling purposes
 		if (!edging) continue;
