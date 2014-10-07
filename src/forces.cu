@@ -68,23 +68,23 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
-		if (!dtadapt && !xsphcorr) \
+		/*if (!dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
-		else if (dtadapt && !xsphcorr) \
+		else*/ if (dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
-		else if (dtadapt && xsphcorr) \
+		/*else if (dtadapt && xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); */ \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); \
+		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem);*/ \
 		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -97,7 +97,7 @@ void*	reduce_buffer = NULL;
 #define FORMULATION_SWITCH(boundarytype, visc, dem) \
 	switch (sph_formulation) { \
 		FORMULATION_CHECK(SPH_F1, boundarytype, visc, dem); \
-		FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem); \
+		/*FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem);*/ \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
@@ -107,11 +107,11 @@ void*	reduce_buffer = NULL;
 		break
 
 #define VISC_CHECK_STANDARD(boundarytype, dem) \
-		VISC_CHECK(boundarytype, ARTVISC, dem); \
+		/*VISC_CHECK(boundarytype, ARTVISC, dem);*/ \
 		VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
-		VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
+		/*VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
 		VISC_CHECK(boundarytype, SPSVISC, dem); \
-		VISC_CHECK(boundarytype, KEPSVISC, dem);
+		VISC_CHECK(boundarytype, KEPSVISC, dem);*/
 
 #define VISC_SWITCH(boundarytype, dem) \
 	switch (visctype) { \
@@ -126,8 +126,8 @@ void*	reduce_buffer = NULL;
 
 #define BOUNDARY_SWITCH(dem) \
 	switch (boundarytype) { \
-		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
-		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
+		/*BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
+		BOUNDARY_CHECK(MK_BOUNDARY, dem); */ \
 		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
@@ -547,9 +547,9 @@ forces(
 	else
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
-	if (usedem)
+	/*if (usedem)
 		BOUNDARY_SWITCH(true)
-	else
+	else */
 		BOUNDARY_SWITCH(false)
 
 	return numBlocks;
