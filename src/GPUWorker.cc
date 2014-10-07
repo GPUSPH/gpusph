@@ -106,7 +106,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
+		m_dBuffers << new CUDABuffer<BUFFER_VERTIDINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
@@ -1494,10 +1494,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
-			case INVINDEX:
-				if (dbg_step_printf) printf(" T %d issuing INVINDEX\n", deviceIndex);
-				instance->kernel_inverseParticleIndex();
-				break;
 			case CROP:
 				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
@@ -1569,6 +1565,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case SA_UPDATE_BOUND_VALUES:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
 				instance->kernel_updateValuesAtBoundaryElements();
+				break;
+			case SA_UPDATE_VERTIDINDEX:
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
+				instance->kernel_updateVertIdIndexBuffer();
 				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
@@ -1673,18 +1673,6 @@ void GPUWorker::kernel_sort()
 			numPartsToElaborate);
 }
 
-void GPUWorker::kernel_inverseParticleIndex()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	inverseParticleIndex (	m_dBuffers.getData<BUFFER_PARTINDEX>(),
-							m_dBuffers.getData<BUFFER_INVINDEX>(),
-							numPartsToElaborate);
-}
-
 void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
 	// reset also if the device is empty (or we will download uninitialized values)
@@ -1725,8 +1713,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
 
 							m_numParticles,
-							m_nGridCells,
-							m_dBuffers.getData<BUFFER_INVINDEX>());
+							m_nGridCells);
 }
 
 void GPUWorker::kernel_buildNeibsList()
@@ -1749,6 +1736,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 					m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 					m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+					m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
@@ -2178,10 +2166,24 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
 				numPartsToElaborate,
 				initStep);
+}
+
+void GPUWorker::kernel_updateVertIdIndexBuffer()
+{
+	// it is possible to run on internal particles only, although current design makes it meaningful only on all particles
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	updateVertIDToIndex(m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+						m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
+						numPartsToElaborate);
 }
 
 void GPUWorker::kernel_dynamicBoundaryConditions()

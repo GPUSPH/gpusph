@@ -157,38 +157,25 @@ Writer::Writer(const GlobalData *_gdata) :
 		mkdir(testpointsDir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 	}
 
-	string energy_fn = m_dirname + "/energy.txt";
-	m_energyfile = fopen(energy_fn.c_str(), "w");
-	/*if (!m_energyfile) {
-		stringstream ss;
-		ss << "Cannot open data file " << energy_fn;
-		throw runtime_error(ss.str());
-	} else*/
+	string energy_fn = open_data_file(m_energyfile, "energy", "", ".txt");
 	if (m_energyfile) {
-		fputs("#\ttime", m_energyfile);
+		m_energyfile << "#\ttime";
 		uint fluid = 0;
 		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			fprintf(m_energyfile, "\tkinetic%u\tpotential%u\telastic%u",
-					fluid, fluid, fluid);
-		fputs("\n", m_energyfile);
+			m_energyfile	<< "\tkinetic" << fluid
+							<< "\tpotential" << fluid
+							<< "\telastic" << fluid;
+		m_energyfile << endl;
 	}
 
 	//WaveGage
-	string WaveGage_fn = m_dirname + "/WaveGage.txt";
-	m_WaveGagefile = fopen(WaveGage_fn.c_str(), "w");
-	/*if (!m_WaveGagefile) {
-		stringstream ss;
-		ss << "Cannot open data file " << WaveGage_fn;
-		throw runtime_error(ss.str());
-	} else */
-	if (m_WaveGagefile)
-	{
-		fputs("#\ttime", m_WaveGagefile);
+	string WaveGage_fn = open_data_file(m_WaveGagefile, "WaveGage", "", ".txt");
+	if (m_WaveGagefile) {
+		m_WaveGagefile << "#\ttime";
 		uint gage = 0;
 		for (; gage < m_problem->get_simparams()->gage.size(); ++gage)
-			fprintf(m_WaveGagefile, "\tzgage%u",
-					gage);
-		fputs("\n", m_WaveGagefile);
+			m_energyfile << "\tzgage" << gage;
+		m_WaveGagefile << endl;
 	}
 }
 
@@ -219,13 +206,13 @@ void
 Writer::write_energy(double t, float4 *energy)
 {
 	if (m_energyfile) {
-		fprintf(m_energyfile, "%g", t);
+		m_energyfile << t;
 		uint fluid = 0;
 		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			fprintf(m_energyfile, "\t%g\t%g\t%g",
-					energy[fluid].x, energy[fluid].y, energy[fluid].z);
-		fputs("\n", m_energyfile);
-		fflush(m_energyfile);
+			m_energyfile	<< "\t" << energy[fluid].x
+							<< "\t" << energy[fluid].y
+							<< "\t" << energy[fluid].z;
+		m_energyfile << endl;
 	}
 }
 
@@ -234,13 +221,11 @@ void
 Writer::write_WaveGage(double t, GageList const& gage)
 {
 	if (m_WaveGagefile) {
-		fprintf(m_WaveGagefile, "%g", t);
+		m_WaveGagefile << t;
 		for (size_t i=0; i < gage.size(); i++) {
-			fprintf(m_WaveGagefile, "\t%g",
-				gage[i].z);
+			m_WaveGagefile << "\t" << gage[i].z;
 		}
-		fputs("\n", m_WaveGagefile);
-		fflush(m_WaveGagefile);
+		m_WaveGagefile << endl;
 	}
 }
 
@@ -274,3 +259,32 @@ uint Writer::getLastFilenum()
 {
 	return m_FileCounter;
 }
+
+string
+Writer::open_data_file(ofstream &out, const char* base, string const& num, string const& sfx)
+{
+	string filename(base), full_filename;
+
+	if (gdata && gdata->mpi_nodes > 1)
+		filename += "_n" + gdata->rankString();
+
+	if (!num.empty())
+		filename += "_" + num;
+
+	filename += sfx;
+
+	full_filename = m_dirname + "/" + filename;
+
+	out.open(full_filename.c_str());
+
+	if (!out) {
+		stringstream ss;
+		ss << "Cannot open data file " << full_filename;
+		throw runtime_error("Cannot open data file " + full_filename);
+	}
+
+	out.exceptions(ofstream::failbit | ofstream::badbit);
+
+	return filename;
+}
+

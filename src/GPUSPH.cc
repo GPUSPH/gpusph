@@ -1200,8 +1200,6 @@ void GPUSPH::buildNeibList()
 
 	doCommand(CALCHASH);
 	doCommand(SORT);
-	if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
-		doCommand(INVINDEX);
 	doCommand(REORDER);
 
 	// swap pos, vel and info double buffers
@@ -1226,9 +1224,18 @@ void GPUSPH::buildNeibList()
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
 	}
 
+	// update vertID->particleIndex lookup table for vertex connectivity, on *all* particles
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+		gdata->only_internal = false;
+		doCommand(SA_UPDATE_VERTIDINDEX);
+	}
+
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
 	doCommand(BUILDNEIBS);
+
+	if (MULTI_DEVICE && problem->get_simparams()->boundarytype == SA_BOUNDARY)
+		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
 
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	const uint maxPossibleNeibs = gdata->problem->get_simparams()->maxneibsnum;

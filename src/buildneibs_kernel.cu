@@ -247,20 +247,6 @@ fixHashDevice(hashKey*			particleHash,	///< particle's hashes (in, out)
 
 #undef MOVINGNOTFLUID
 
-__global__
-__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-void inverseParticleIndexDevice (   uint*   particleIndex,
-                    uint*   inversedParticleIndex,
-                    uint    numParticles)
-{
-    const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
-
-    if (index < numParticles) {
-        int oldindex = particleIndex[index];
-        inversedParticleIndex[oldindex] = index;
-    }
-}
-
 /// Reorders particles data after the sort and updates cells informations
 /*! This kernel should be called after the sort. It
  * 		- computes the index of the first and last particle of
@@ -298,8 +284,8 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 										float*			sortedTurbVisc,		// output: eddy viscosity
 										const hashKey*	particleHash,	///< previously sorted particle's hashes (in)
 										const uint*		particleIndex,	///< previously sorted particle's hashes (in)
-										const uint		numParticles,	///< total number of particles
-										const uint*		inversedParticleIndex)
+										const uint		numParticles	///< total number of particles
+										)
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -382,9 +368,9 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		if (sortedVertices) {
 			const vertexinfo vertices = tex1Dfetch(vertTex, sortedIndex);
 			sortedVertices[index] = make_vertexinfo(
-				inversedParticleIndex[vertices.x],
-				inversedParticleIndex[vertices.y],
-				inversedParticleIndex[vertices.z], 0);
+				vertices.x,
+				vertices.y,
+				vertices.z, 0);
 		}
 
 		if (sortedTKE) {
@@ -400,6 +386,28 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 		}
 
 	}
+}
+
+/// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
+/*! This kernel should be called after the reorder.
+ *
+ *	\param[in] particleInfo : particleInfo
+ *	\param[out] vertIDToIndex : ID-to-particleIndex lookup table, overwritten
+ *	\param[in] numParticles : total number of particles
+ */
+__global__
+__launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+void updateVertIDToIndexDevice(	particleinfo*	particleInfo,	///< particle's informations
+								uint*			vertIDToIndex,	///< vertIDToIndex array (out)
+								const uint		numParticles)	///< total number of particles
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+	// Handle the case when number of particles is not multiple of block size
+	if (index >= numParticles)
+		return;
+
+	// assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
+	vertIDToIndex[ id(particleInfo[index]) ] = index;
 }
 
 /// Compute the grid position for a neighbor cell
@@ -496,13 +504,13 @@ struct common_niC_vars
 /// variables found in use_sa_boundary specialization of neibsInCell
 struct sa_boundary_niC_vars
 {
-	const	vertexinfo	vertices;
+	vertexinfo	vertices;
 	const	float4		boundElement;
 	const	uint		j;
 	const	float4		coord2;
 
 	__device__ __forceinline__
-	sa_boundary_niC_vars(const uint index) :
+	sa_boundary_niC_vars(const uint index, buildneibs_params<true> const& bparams) :
 		vertices(tex1Dfetch(vertTex, index)),
 		boundElement(tex1Dfetch(boundTex, index)),
 		// j is 0, 1 or 2 depending on which is smaller (in magnitude) between
@@ -521,7 +529,12 @@ struct sa_boundary_niC_vars
 			// j == 2
 			make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f)
 			)
-		{}
+		{
+			// here local copy of part IDs of vertices are replaced by the correspondent part indices
+			vertices.x = bparams.vertIDToIndex[vertices.x];
+			vertices.y = bparams.vertIDToIndex[vertices.y];
+			vertices.z = bparams.vertIDToIndex[vertices.z];
+		}
 };
 
 /// all neibsInCell variables
@@ -531,9 +544,9 @@ struct niC_vars :
 	COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)
 {
 	__device__ __forceinline__
-	niC_vars(int3 const& gridPos, const uint index) :
+	niC_vars(int3 const& gridPos, const uint index, buildneibs_params<use_sa_boundary> const& bparams) :
 		common_niC_vars(gridPos),
-		COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)(index)
+		COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)(index, bparams)
 	{}
 };
 
@@ -636,7 +649,7 @@ neibsInCell(
 	if (!calcNeibCell<periodicbound>(gridPos, gridOffset))
 		return;
 
-	niC_vars<use_sa_boundary> var(gridPos, index);
+	niC_vars<use_sa_boundary> var(gridPos, index, params);
 
 	// Return if the cell is empty
 	if (var.bucketStart == 0xffffffff)

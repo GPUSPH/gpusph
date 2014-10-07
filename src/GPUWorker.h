@@ -205,7 +205,6 @@ private:
 	// kernels
 	void kernel_calcHash();
 	void kernel_sort();
-	void kernel_inverseParticleIndex();
 	void kernel_reorderDataAndFindCellStart();
 	void kernel_buildNeibsList();
 	void kernel_forces();
@@ -219,6 +218,7 @@ private:
 	void kernel_reduceRBForces();
 	void kernel_dynamicBoundaryConditions();
 	void kernel_updateValuesAtBoundaryElements();
+	void kernel_updateVertIdIndexBuffer();
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();

@@ -34,23 +34,16 @@ using namespace std;
 CustomTextWriter::CustomTextWriter(const GlobalData *_gdata)
   : Writer(_gdata)
 {
-	string time_filename = m_dirname + "/time.txt";
-    m_timefile = NULL;
-    m_timefile = fopen(time_filename.c_str(), "w");
+	m_fname_sfx = ".txt";
 
-	if (m_timefile == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " << time_filename;
-		throw runtime_error(ss.str());
-		}
+	string time_fname = open_data_file(m_timefile, "time", "", ".txt");
 }
 
 
 CustomTextWriter::~CustomTextWriter()
 {
-    if (m_timefile != NULL) {
-        fclose(m_timefile);
-		m_timefile = NULL;
+    if (m_timefile) {
+		m_timefile.close();
     }
 }
 
@@ -62,64 +55,55 @@ CustomTextWriter::write(uint numParts, BufferList const& buffers, uint node_offs
 	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 
-	string filename, full_filename;
-
-	filename = "PART_" + next_filenum() + ".txt";
-	full_filename = m_dirname + "/" + filename;
-
-	FILE *fid = fopen(full_filename.c_str(), "w");
-
-	if (fid == NULL) {
-		stringstream ss;
-		ss << "Cannot open data file " <<full_filename;
-		throw runtime_error(ss.str());
-		}
+	ofstream fid;
+	string filename = open_data_file(fid, "PART", next_filenum());
 
 	// Modify this part to match your requirements
 	// Writing datas
 	for (uint i=0; i < numParts; i++) {
-		// position
-		  fprintf(fid,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]), object(info[i])
-												, pos[i].x, pos[i].y, pos[i].z);
+		// id, type, object, position
+		fid << id(info[i]) << "\t" << type(info[i]) << "\t" << object(info[i]) << "\t";
+		fid << pos[i].x << "\t" << pos[i].y << "\t" << pos[i].z << "\t";
+
 		// velocity
 		if (FLUID(info[i]))
-			fprintf(fid,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
+			fid << vel[i].x << "\t" << vel[i].y << "\t" << vel[i].z << "\t";
 		else
-			fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
+			fid << "0.0\t0.0\t0.0\t";
 
 		// mass
-		fprintf(fid,"%f\t",pos[i].w);
+		fid << pos[i].w << "\t";
 
 		// density
 		if (FLUID(info[i]))
-			fprintf(fid,"%f\t",vel[i].w);
+			fid << vel[i].w << "\t";
 		else
-			fprintf(fid,"%f\t", 0.0);
+			fid << "0.0\t";
 
 		// pressure
 		if (FLUID(info[i]))
-			fprintf(fid,"%f\t",m_problem->pressure(vel[i].w, object(info[i])));  //Tony
+			fid << m_problem->pressure(vel[i].w, object(info[i])) << "\t";
 		else
-			fprintf(fid,"%f\t", 0.0);
+			fid << "0.0\t";
 
 		// vorticity
 		if (vort) {
-			if (FLUID(info[i]) > 0.0)
-				fprintf(fid,"%f\t%f\t%f\t",vort[i].x, vort[i].y, vort[i].z);
+			if (FLUID(info[i]))
+				fid << vort[i].x << "\t" << vort[i].y << "\t" << vort[i].z << "\t";
 			else
-				fprintf(fid,"%f\t%f\t%f\t",0.0, 0.0, 0.0);
-			}
-
-		fprintf(fid,"\n");
-
+				fid << "0.0\t0.0\t0.0\t";
 		}
 
-	fclose(fid);
+		fid << endl;
 
-	//Writing time to VTUinp.pvd file
-	if (m_timefile != NULL) {
-		fprintf(m_timefile,"%d\t%f\n", m_FileCounter, t);
-		}
+	}
+
+	fid.close();
+
+	// Map file number to time
+	if (m_timefile) {
+		m_timefile << m_FileCounter << "\t" << t << endl;
+	}
 
 }
 
