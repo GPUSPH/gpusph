@@ -249,6 +249,8 @@ private:
 
 	// aux method to warp signed cell coordinates when periodicity is enabled
 	void periodicityWarp(int &cx, int &cy, int &cz);
+	// aux method to check wether cell coords are inside the domain
+	bool isCellInsideProblemDomain(int cx, int cy, int cz);
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, unsigned int _devnum);

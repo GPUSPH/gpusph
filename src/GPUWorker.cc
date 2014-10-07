@@ -1978,6 +1978,14 @@ void GPUWorker::periodicityWarp(int &cx, int &cy, int &cz)
 	}
 }
 
+// aux method to check wether cell coords are inside the domain (does NOT take into account periodicity)
+bool GPUWorker::isCellInsideProblemDomain(int cx, int cy, int cz)
+{
+	return ((cx >= 0 && cx <= gdata->gridSize.x) &&
+			(cy >= 0 && cy <= gdata->gridSize.y) &&
+			(cz >= 0 && cz <= gdata->gridSize.z));
+}
+
 void GPUWorker::kernel_forces_async_enqueue()
 {
 	if (!gdata->only_internal)
