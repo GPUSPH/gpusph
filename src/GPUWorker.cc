@@ -1352,7 +1352,7 @@ void GPUWorker::createCompactDeviceMap() {
 							// warp periodic boundaries
 							if (m_simparams->periodicbound) {
 								// periodicity along X
-								if (m_physparams->dispvect.x) {
+								if (m_simparams->periodicbound & PERIODIC_X) {
 									// WARNING: checking if c* is negative MUST be done before checking if it's greater than
 									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
 									if (cx < 0) {
@@ -1363,7 +1363,7 @@ void GPUWorker::createCompactDeviceMap() {
 									}
 								} // if dispvect.x
 								// periodicity along Y
-								if (m_physparams->dispvect.y) {
+								if (m_simparams->periodicbound & PERIODIC_Y) {
 									if (cy < 0) {
 										cy = gdata->gridSize.y - 1;
 									} else
@@ -1372,7 +1372,7 @@ void GPUWorker::createCompactDeviceMap() {
 									}
 								} // if dispvect.y
 								// periodicity along Z
-								if (m_physparams->dispvect.z) {
+								if (m_simparams->periodicbound & PERIODIC_Z) {
 									if (cz < 0) {
 										cz = gdata->gridSize.z - 1;
 									} else
