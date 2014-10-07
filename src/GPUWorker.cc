@@ -482,6 +482,9 @@ void GPUWorker::computeCellBursts()
 								node_bursts++;
 							else
 								network_bursts++;
+
+							// to disable bursts, we close every burst as soon as it was created
+							CLOSE_BURST(other_device_gidx, transfer_direction)
 						}
 					}
 
