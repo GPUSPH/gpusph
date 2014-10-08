@@ -713,8 +713,10 @@ testpoints( const float4*	pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, newVel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, newTke, numParticles*sizeof(float)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, newEpsilon, numParticles*sizeof(float)));
+	if (newTke)
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, newTke, numParticles*sizeof(float)));
+	if (newEpsilon)
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, newEpsilon, numParticles*sizeof(float)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	// execute the kernel
@@ -731,8 +733,10 @@ testpoints( const float4*	pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
-	CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
+	if (newTke)
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_kTex));
+	if (newEpsilon)
+		CUDA_SAFE_CALL(cudaUnbindTexture(keps_eTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 
