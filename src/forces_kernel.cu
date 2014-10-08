@@ -1066,9 +1066,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// This is an average of the velocities of the vertices
 			if (!IO_BOUNDARY(info) || !INFLOW(info)) {
 				if (oldTKE){
-					oldVel[index] = (	oldVel[verts.x] +
-										oldVel[verts.y] +
-										oldVel[verts.z] )/3.0f;
+					oldVel[index] = (	oldVel[vertXidx] +
+										oldVel[vertYidx] +
+										oldVel[vertZidx] )/3.0f;
 					oldTKE[index] = sumtke/alpha;
 				}
 				if (oldEps)
