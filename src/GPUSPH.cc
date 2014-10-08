@@ -503,7 +503,7 @@ bool GPUSPH::runSimulation() {
 			if (problem->get_simparams()->inoutBoundaries) {
 				doCommand(DELETE_OUTGOING_PARTS);
 				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES);
+					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 			}
 		}
 
@@ -603,7 +603,7 @@ bool GPUSPH::runSimulation() {
 			if (problem->get_simparams()->inoutBoundaries) {
 				doCommand(DELETE_OUTGOING_PARTS);
 				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES);
+					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 			}
 		}
 
