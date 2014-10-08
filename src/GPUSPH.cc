@@ -450,7 +450,7 @@ bool GPUSPH::runSimulation() {
 
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_CONTUPD | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -493,12 +493,12 @@ bool GPUSPH::runSimulation() {
 			// compute boundary conditions on segments and detect outgoing particles at open boundaries
 			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, POST_SA_SEGEMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			if (problem->get_simparams()->inoutBoundaries) {
 				doCommand(DELETE_OUTGOING_PARTS);
@@ -507,7 +507,7 @@ bool GPUSPH::runSimulation() {
 			}
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
@@ -525,7 +525,7 @@ bool GPUSPH::runSimulation() {
 
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_CONTUPD | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
+			doCommand(UPDATE_EXTERNAL, POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -593,12 +593,12 @@ bool GPUSPH::runSimulation() {
 			// compute boundary conditions on segments and detect outgoing particles at open boundaries
 			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_VERTICES | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, POST_SA_SEGEMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			if (problem->get_simparams()->inoutBoundaries) {
 				doCommand(DELETE_OUTGOING_PARTS);
@@ -620,7 +620,7 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
 
 		// increase counters
 		gdata->iterations++;
