@@ -2387,7 +2387,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
-				gdata->totParticles,
+				gdata->newIDsOffset,
 				initStep);
 }
 

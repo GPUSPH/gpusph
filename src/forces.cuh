@@ -361,7 +361,7 @@ saVertexBoundaryConditions(
 	const	float			slength,
 	const	int				kerneltype,
 	const	float			influenceradius,
-	const	uint&			numActiveParticles,
+	const	uint&			newIDsOffset,
 	const	bool			initStep);
 
 // disables particles that went through boundaries when open boundaries are used

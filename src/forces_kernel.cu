@@ -132,8 +132,8 @@ __constant__ float	d_objectboundarydf;
 // Neibdata cell number to offset
 __constant__ char3	d_cell_to_offset[27];
 
-// initial number of active particles, used for id generation
-__constant__ uint	d_particles_id_range;
+// host-computed id offset used for id generation
+__constant__ uint	d_newIDsOffset;
 
 /************************************************************************************************************/
 /*							  Functions used by the differents CUDA kernels							   */
@@ -1520,7 +1520,7 @@ saVertexBoundaryConditions(
 			// that we can drop the stupid particleinfo ushort4 typedef and we should just
 			// define particleinfo as a ushort ushort uint struct, with proper alignment.
 			// FIXME endianness
-			uint clone_id = id(info) + d_particles_id_range;
+			uint clone_id = id(info) + d_newIDsOffset;
 			particleinfo clone_info = info;
 			clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
 			clone_info.y = 0; // reset object to 0

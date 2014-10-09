@@ -198,6 +198,9 @@ struct GlobalData {
 	uint processParticles[MAX_NODES_PER_CLUSTER];
 	// number of allocated particles *in the process*
 	uint allocatedParticles;
+	// number of SA vertices and non fluid parts, used for id cloning
+	uint numVertices;
+	uint numInitialNonFluidParticles;
 	// global number of planes (same as local ones)
 	//uint numPlanes;
 	// grid size, for particle hash computation
@@ -232,6 +235,10 @@ struct GlobalData {
 	// indicates whether particles were created at open boundaries
 	bool	particlesCreatedOnNode[MAX_DEVICES_PER_NODE];
 	bool	particlesCreated;
+	// keep track of #iterations in which at particlesCreated holds
+	uint	createdParticlesIterations;
+	// offset used for ID cloning
+	uint	newIDsOffset;
 
 	// indices for double-buffered device arrays (0 or 1)
 
@@ -306,6 +313,8 @@ struct GlobalData {
 		networkManager(NULL),
 		totParticles(0),
 		allocatedParticles(0),
+		numVertices(0),
+		numInitialNonFluidParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),
@@ -323,6 +332,8 @@ struct GlobalData {
 		t(0.0f),
 		dt(0.0f),
 		particlesCreated(false),
+		createdParticlesIterations(0),
+		newIDsOffset(0),
 		lastGlobalPeakNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),

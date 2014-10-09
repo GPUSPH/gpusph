@@ -252,6 +252,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	printf("---\n");
 
+	// if any SA open bounds is enabled, we need to update the counters for correct id creation
+	if (problem->get_simparams()->inoutBoundaries)
+		countVertexAndNonFluidParticles();
+
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
 		problem->init_keps(
@@ -595,6 +599,22 @@ bool GPUSPH::runSimulation() {
 			if (MULTI_DEVICE)
 				doCommand(UPDATE_EXTERNAL, POST_SA_SEGEMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
+			// compute the offset for id cloning and check for possible overflows
+			// NOTE: the formula is
+			//    new_id = vertex_id + initial_parts - initial_fluid_parts +
+			//             (num_iterations_with_part_creations * numVertexParticles)
+			// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
+			if (problem->get_simparams()->inoutBoundaries) {
+
+				gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
+					(gdata->numVertices * gdata->createdParticlesIterations);
+
+				if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
+					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
+					gdata->quit_request = true;
+				}
+			}
+
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
@@ -618,6 +638,10 @@ bool GPUSPH::runSimulation() {
 			// if runnign multinode, should also find the network minimum
 			if (MULTI_NODE)
 				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
+
+			// update the it counter if new particles are created
+			if (gdata->particlesCreated)
+				gdata->createdParticlesIterations++;
 		}
 
 		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
@@ -921,6 +945,19 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete[] gdata->s_dCellEnds;
 		delete[] gdata->s_dCellStarts;
 		delete[] gdata->s_dSegmentsStart;
+	}
+}
+
+void GPUSPH::countVertexAndNonFluidParticles()
+{
+	for (uint p = 0; p < gdata->totParticles; p++) {
+		particleinfo info = gdata->s_hBuffers.getData<BUFFER_INFO>()[p];
+
+		if ( !FLUID(info) ) {
+			gdata->numInitialNonFluidParticles++;
+			if ( VERTEX(info) )
+				gdata->numVertices++;
+		}
 	}
 }
 

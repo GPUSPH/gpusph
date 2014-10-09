@@ -1170,7 +1170,7 @@ saVertexBoundaryConditions(
 	const	float			slength,
 	const	int				kerneltype,
 	const	float			influenceradius,
-	const	uint&			numActiveParticles,
+	const	uint&			newIDsOffset,
 	const	bool			initStep)
 {
 	int dummy_shared = 0;
@@ -1178,7 +1178,7 @@ saVertexBoundaryConditions(
 	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_particles_id_range, &numActiveParticles, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 

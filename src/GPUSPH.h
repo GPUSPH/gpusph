@@ -68,6 +68,9 @@ private:
 	size_t allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
 
+	// udpated the correspondent fields in gdata
+	void countVertexAndNonFluidParticles();
+
 	// sort particles by device before uploading
 	void sortParticlesByHash();
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
