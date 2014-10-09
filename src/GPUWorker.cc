@@ -2459,7 +2459,7 @@ void GPUWorker::uploadConstants()
 	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	if (m_simparams->inoutBoundaries)
-		setioboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+		gdata->problem->setioboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()

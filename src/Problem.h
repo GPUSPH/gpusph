@@ -54,18 +54,6 @@ typedef std::vector<vertexinfo> VertexVect;
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
 
-extern "C"
-{
-
-void
-setioboundconstants(
-	const	PhysParams	*physparams,
-	float3	const&		worldOrigin,
-	uint3	const&		gridSize,
-	float3	const&		cellSize);
-
-}
-
 using namespace std;
 
 class Problem {
@@ -293,6 +281,13 @@ class Problem {
 		int	get_ODE_body_numparts(const int) const;
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+
+		virtual void
+		setioboundconstants(
+			const	PhysParams	*physparams,
+			float3	const&		worldOrigin,
+			uint3	const&		gridSize,
+			float3	const&		cellSize) {};
 
 		virtual void imposeOpenBoundaryConditionHost(
 					float4*			newEulerVel,

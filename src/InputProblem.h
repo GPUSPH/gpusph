@@ -44,6 +44,13 @@ class InputProblem: public Problem {
 		uint max_parts(uint);
 
 		void
+		setioboundconstants(
+			const	PhysParams	*physparams,
+			float3	const&		worldOrigin,
+			uint3	const&		gridSize,
+			float3	const&		cellSize);
+
+		void
 		imposeOpenBoundaryConditionHost(
 					float4*			newEulerVel,
 					float*			newTke,

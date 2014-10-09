@@ -11,7 +11,7 @@
 #include "utils.h"
 #include "Problem.h"
 
-namespace cuIO
+namespace cuInputProblem
 {
 #include "cellgrid.h"
 // Core SPH functions
@@ -134,25 +134,25 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 	}
 }
 
-} // end of cuIO namespace
+} // end of cuInputProblem namespace
 
 extern "C"
 {
 
 void
-setioboundconstants(
+InputProblem::setioboundconstants(
 	const	PhysParams	*physparams,
 	float3	const&		worldOrigin,
 	uint3	const&		gridSize,
 	float3	const&		cellSize)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuIO::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_worldOrigin, &worldOrigin, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_gridSize, &gridSize, sizeof(uint3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuInputProblem::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
 
 }
 
@@ -182,7 +182,7 @@ InputProblem::imposeOpenBoundaryConditionHost(
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	cuIO::InputProblem_imposeOpenBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
+	cuInputProblem::InputProblem_imposeOpenBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
 		(newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
