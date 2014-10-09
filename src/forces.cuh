@@ -366,7 +366,7 @@ saVertexBoundaryConditions(
 
 // disables particles that went through boundaries when open boundaries are used
 void
-deleteOutgoingParts(		float4*			pos,
+disableOutgoingParts(		float4*			pos,
 							vertexinfo*		vertices,
 					const	particleinfo*	info,
 					const	uint			numParticles,

@@ -1027,7 +1027,7 @@ void calc_energy(
 }
 
 void
-deleteOutgoingParts(		float4*			pos,
+disableOutgoingParts(		float4*			pos,
 							vertexinfo*		vertices,
 					const	particleinfo*	info,
 					const	uint			numParticles,
@@ -1039,7 +1039,7 @@ deleteOutgoingParts(		float4*			pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	//execute kernel
-	cuforces::deleteOutgoingPartsDevice<<<numBlocks, numThreads>>>
+	cuforces::disableOutgoingPartsDevice<<<numBlocks, numThreads>>>
 		(	pos,
 			vertices,
 			numParticles);

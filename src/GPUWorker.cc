@@ -1624,9 +1624,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case DELETE_OUTGOING_PARTS:
-				if (dbg_step_printf) printf(" T %d issuing DELETE_OUTGOING_PARTS:\n", deviceIndex);
-				instance->kernel_deleteOutgoingParts();
+			case DISABLE_OUTGOING_PARTS:
+				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
+				instance->kernel_disableOutgoingParts();
 				break;
 			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
 				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
@@ -2391,14 +2391,14 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				initStep);
 }
 
-void GPUWorker::kernel_deleteOutgoingParts()
+void GPUWorker::kernel_disableOutgoingParts()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	deleteOutgoingParts(
+	disableOutgoingParts(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),

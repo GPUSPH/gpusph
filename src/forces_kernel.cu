@@ -2462,7 +2462,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 }
 
 __global__ void
-deleteOutgoingPartsDevice(			float4*		oldPos,
+disableOutgoingPartsDevice(			float4*		oldPos,
 									vertexinfo*	oldVertices,
 							const	uint		numParticles)
 {

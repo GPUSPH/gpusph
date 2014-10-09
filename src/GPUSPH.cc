@@ -501,7 +501,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			if (problem->get_simparams()->inoutBoundaries) {
-				doCommand(DELETE_OUTGOING_PARTS);
+				doCommand(DISABLE_OUTGOING_PARTS);
 				if (MULTI_DEVICE)
 					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 			}
@@ -601,7 +601,7 @@ bool GPUSPH::runSimulation() {
 				doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			if (problem->get_simparams()->inoutBoundaries) {
-				doCommand(DELETE_OUTGOING_PARTS);
+				doCommand(DISABLE_OUTGOING_PARTS);
 				if (MULTI_DEVICE)
 					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
 			}

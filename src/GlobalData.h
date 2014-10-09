@@ -93,7 +93,7 @@ enum CommandType {
 	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)
 	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,	// compute segment boundary conditions and identify fluid particles that leave open boundaries
 	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,		// compute vertex boundary conditions including mass update and create new fluid particles at open boundaries; at the init step this routine also computes a preliminary grad gamma direction vector
-	DELETE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
+	DISABLE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
 	SPS,				// SPS stress matrix computation kernel
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
