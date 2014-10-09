@@ -232,7 +232,8 @@ enum ParticleType {
 #define IO_PARTICLE_FLAG		(PART_FLAG_START<<2)
 #define VEL_IO_PARTICLE_FLAG	(PART_FLAG_START<<3)
 #define INFLOW_PARTICLE_FLAG	(PART_FLAG_START<<4)
-
+#define MOVING_PARTICLE_FLAG	(PART_FLAG_START<<5)
+#define FLOATING_PARTICLE_FLAG	(PART_FLAG_START<<6)
 
 /* A bitmask to select only the fluid number */
 #define FLUID_NUM_MASK	((1<<MAX_FLUID_BITS)-1)
@@ -286,6 +287,10 @@ disable_particle(float4 &pos) {
 // velocities are imposed. If it is not set the open boundary is an outflow and the tangential
 // velocities are computed from the interior of the fluid (i.e. extrapolated).
 #define INFLOW(f)		(type(f) & INFLOW_PARTICLE_FLAG)
+// This flag is set for moving vertices / segments either forced or free (floating)
+#define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
+// If the floating flag is set then the particles 
+#define FLOATING(f)		(type(f) & FLOATING_PARTICLE_FLAT)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data
