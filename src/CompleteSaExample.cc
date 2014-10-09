@@ -122,15 +122,15 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
-			int openBoundType = h5File.buf[i].KENT;
+			int specialBoundType = h5File.buf[i].KENT;
 			// count the number of different objects
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			m_simparams.numObjects = max(openBoundType, m_simparams.numObjects);
-			info[i] = make_particleinfo(VERTEXPART, openBoundType, i);
+			m_simparams.numObjects = max(specialBoundType, m_simparams.numObjects);
+			info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
 			// Define the type of boundaries
-			if (openBoundType == 1) {
+			if (specialBoundType == 1) {
 				// this vertex is part of an open boundary
 				SET_FLAG(info[i], IO_PARTICLE_FLAG);
 				// if you need to impose the velocity uncomment the following
@@ -138,7 +138,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
 				// open boundary is an inflow
 				SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
-			} else if (openBoundType == 2) {
+			} else if (specialBoundType == 2) {
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
@@ -156,10 +156,10 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
-			int openBoundType = h5File.buf[i].KENT;
-			info[i] = make_particleinfo(BOUNDPART, openBoundType, i);
+			int specialBoundType = h5File.buf[i].KENT;
+			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
 			// Define the type of boundaries
-			if (openBoundType == 1) {
+			if (specialBoundType == 1) {
 				// this vertex is part of an open boundary
 				SET_FLAG(info[i], IO_PARTICLE_FLAG);
 				// if you need to impose the velocity uncomment the following
@@ -167,7 +167,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
 				// open boundary is an inflow
 				SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
-			} else if (openBoundType == 2) {
+			} else if (specialBoundType == 2) {
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
