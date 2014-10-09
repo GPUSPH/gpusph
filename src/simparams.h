@@ -86,6 +86,7 @@ typedef struct SimParams {
 	bool			calcPrivate;		// add the private array for debugging / additional calculation
 	float			epsilon;			// if |r_a - r_b| < epsilon two positions are considered identical
 	bool			movingBoundaries;	// defines if moving boundaries are present
+	bool			floatingObjects;	// defines if floating objects are present
 	bool			inoutBoundaries;	// defines if in- or outflow boundaries are present
 	uint			numObjects;			// number of ODE objects + open boundaries
 
@@ -126,6 +127,7 @@ typedef struct SimParams {
 		calcPrivate(false),
 		epsilon(5e-5),
 		movingBoundaries(false),
+		floatingObjects(false),
 		inoutBoundaries(false),
 		numObjects(0)
 	{};
