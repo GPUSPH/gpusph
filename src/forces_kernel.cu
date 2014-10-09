@@ -2474,6 +2474,7 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {
 				vertexinfo vertices = oldVertices[index];
+				// TODO FIXME use something else to check for vertices.x!=0
 				if (vertices.x != 0) {
 					disable_particle(pos);
 					vertices.x = 0;
