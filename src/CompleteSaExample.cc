@@ -235,5 +235,5 @@ CompleteSaExample::max_parts(uint numpart)
 
 void CompleteSaExample::fillDeviceMap()
 {
-	fillDeviceMapByAxis(Z_AXIS);
+	fillDeviceMapByAxis(Y_AXIS);
 }
