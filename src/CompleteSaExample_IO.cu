@@ -23,6 +23,7 @@ CompleteSaExample_imposeOpenBoundaryCondition(
 	const	particleinfo	info,
 	const	float3			absPos,
 			float			waterdepth,
+	const	float			t,
 			float4&			eulerVel,
 			float&			tke,
 			float&			eps)
@@ -64,6 +65,7 @@ CompleteSaExample_imposeOpenBoundaryConditionDevice(
 			float*		newEpsilon,
 	const	float4*		oldPos,
 	const	uint*		IOwaterdepth,
+	const	float		t,
 	const	uint		numParticles,
 	const	hashKey*	particleHash)
 {
@@ -92,7 +94,7 @@ CompleteSaExample_imposeOpenBoundaryConditionDevice(
 			}
 			*/
 			// this now calls the virtual function that is problem specific
-			CompleteSaExample_imposeOpenBoundaryCondition(info, absPos, waterdepth, eulerVel, tke, eps);
+			CompleteSaExample_imposeOpenBoundaryCondition(info, absPos, waterdepth, t, eulerVel, tke, eps);
 			// copy values to arrays
 			newEulerVel[index] = eulerVel;
 			if(newTke)
@@ -135,6 +137,7 @@ CompleteSaExample::imposeOpenBoundaryConditionHost(
 	const	particleinfo*	info,
 	const	float4*			oldPos,
 			uint			*IOwaterdepth,
+	const	float			t,
 	const	uint			numParticles,
 	const	uint			numObjects,
 	const	uint			particleRangeEnd,
@@ -152,7 +155,7 @@ CompleteSaExample::imposeOpenBoundaryConditionHost(
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	cuCompleteSaExample::CompleteSaExample_imposeOpenBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
-		(newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, numParticles, particleHash);
+		(newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 

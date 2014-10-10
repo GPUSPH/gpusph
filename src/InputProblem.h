@@ -58,6 +58,7 @@ class InputProblem: public Problem {
 			const	particleinfo*	info,
 			const	float4*			oldPos,
 					uint*			IOwaterdepth,
+			const	float			t,
 			const	uint			numParticles,
 			const	uint			numObjects,
 			const	uint			particleRangeEnd,

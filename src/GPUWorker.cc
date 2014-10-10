@@ -2171,6 +2171,7 @@ void GPUWorker::kernel_imposeOpenBoundaryCondition()
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 			m_dIOwaterdepth,
+			gdata->t,
 			m_numParticles,
 			m_simparams->numObjects,
 			numPartsToElaborate,
