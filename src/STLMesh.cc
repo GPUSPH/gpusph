@@ -298,6 +298,25 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 	}
 }
 
+void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+{
+	const double m_lx = m_maxbounds.x - m_minbounds.y;
+	const double m_ly = m_maxbounds.y - m_minbounds.y;
+	const double m_lz = m_maxbounds.z - m_minbounds.z;
+
+	m_ODEBody = dBodyCreate(ODEWorld);
+
+	dMassSetZero(&m_ODEMass);
+	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dBodySetRotation(m_ODEBody, m_ODERot);
+
+	if (ODESpace)
+		ODEGeomCreate(ODESpace, dx);
+}
+
 /* TODO */
 
 int STLMesh::Fill(PointVect&, double, bool)
