@@ -1182,8 +1182,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		float4 pos = oldPos[index];
 
 		// don't check inactive particles and those that have already found their segment
-		// TODO FIXME: empty domain going to be filled by inlet -> maybe particle has id 0!
-		if (INACTIVE(pos) || vertices[index].x != 0)
+		if (INACTIVE(pos) || vertices[index].x | vertices[index].y != 0)
 			return;
 
 		// Compute grid position of current particle
@@ -1453,8 +1452,7 @@ saVertexBoundaryConditions(
 				const float4 relPos = pos_corr - oldPos[neib_index];
 
 				// check if this fluid particles is marked for deletion (i.e. vertices != 0)
-				// TODO FIXME: empty domain going to be filled by inlet -> maybe particle has id 0!
-				if (neibVertXidx != 0 && ACTIVE(relPos)) {
+				if (neibVerts.x | neibVerts.y != 0 && ACTIVE(relPos)) {
 					// betaAV is the weight in barycentric coordinates
 					float betaAV = 0.0f;
 					const float4 vertexWeights = oldGGam[neib_index];
@@ -2474,8 +2472,7 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 			float4 pos = oldPos[index];
 			if (ACTIVE(pos)) {
 				vertexinfo vertices = oldVertices[index];
-				// TODO FIXME use something else to check for vertices.x!=0
-				if (vertices.x != 0) {
+				if (vertices.x | vertices.y != 0) {
 					disable_particle(pos);
 					vertices.x = 0;
 					vertices.y = 0;
