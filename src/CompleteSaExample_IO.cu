@@ -33,7 +33,14 @@ CompleteSaExample_imposeOpenBoundaryCondition(
 	eps = 0.0f;
 
 	if (INFLOW(info) && !VEL_IO(info)) {
-		waterdepth = 0.9f; // set inflow waterdepth to 0.9 (with respect to world_origin)
+		/*
+		if (t < 1.0)
+			// disable/reduce inlet influence for a given settling time
+			waterdepth = 0.5f;
+		else
+		*/
+			// set inflow waterdepth to 0.9 (with respect to world_origin)
+			waterdepth = 0.9f;
 		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 		const float pressure = 9.81e3f*localdepth;
 		eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
