@@ -24,8 +24,12 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 	H = 1.0;
-	l = 1.2; w = 1.2; h = 1.0;
-	m_origin = make_double3(0.0, 0.0, 0.0);
+	// extra margin around the domain size
+	const double MARGIN = 0.1;
+	l = 1.2 + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box)
+	w = 1.0 + 2 * MARGIN;
+	h = 1.0 + 2 * MARGIN;
+	m_origin = make_double3(- MARGIN, - MARGIN, - MARGIN);
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
 	m_simparams.movingBoundaries = true;
