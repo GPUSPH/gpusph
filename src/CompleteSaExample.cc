@@ -29,10 +29,11 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	H = 1.0;
 	// extra margin around the domain size
 	const double MARGIN = 0.1;
-	l = 1.2 + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box)
+	const double INLET_BOX_LENGTH = 0.25;
+	l = 1.0 + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
 	w = 1.0 + 2 * MARGIN;
 	h = 1.0 + 2 * MARGIN;
-	m_origin = make_double3(- 0.2 - MARGIN, - MARGIN, - MARGIN);
+	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
 	m_simparams.movingBoundaries = true;
