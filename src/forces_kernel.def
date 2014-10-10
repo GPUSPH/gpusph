@@ -1684,15 +1684,15 @@ forcesDevice(
 			const float3 globalpos = d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize;
 
 			// Adding repulsive force computed from DEM
-			if (params.usedem) {
-				switch (boundarytype) {
-					case LJ_BOUNDARY:
+			switch (boundarytype) {
+				case LJ_BOUNDARY:
+					if (params.usedem) {
 						geom_coeff = DemLJForce(demTex, globalpos,
 								pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-						break;
-					default:
-						break;
-				}
+					}
+					break;
+				default:
+					break;
 			}
 
 			// Adding repulsive force computed from geometric boundaries
