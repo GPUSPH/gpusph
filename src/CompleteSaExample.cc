@@ -70,7 +70,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-6);
+	set_timer_tick(1.0e-2);
 	add_writer(VTKWRITER, 1);
 
 	// Name of problem used for directory creation
