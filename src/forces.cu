@@ -60,7 +60,7 @@ void*	reduce_buffer = NULL;
 		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
 			forces, contupd, rbforces, rbtorques, \
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle, \
-			deltap, slength, influenceradius, \
+			deltap, slength, influenceradius, usedem,\
 			cfl, cflTVisc, cflOffset, \
 			xsph, \
 			newGGam, vertPos, epsilon, movingBoundaries, inoutBoundaries, IOwaterdepth, \
@@ -124,7 +124,7 @@ void*	reduce_buffer = NULL;
 		VISC_SWITCH(boundary, dem) \
 		break
 
-#define BOUNDARY_SWITCH(dem) \
+#define IO_BOUNDARY_SWITCH(dem) \
 	switch (boundarytype) { \
 		/*BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
 		BOUNDARY_CHECK(MK_BOUNDARY, dem); */ \
@@ -547,10 +547,10 @@ forces(
 	else
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
-	/*if (usedem)
-		BOUNDARY_SWITCH(true)
-	else */
-		BOUNDARY_SWITCH(false)
+	if (inoutBoundaries)
+		IO_BOUNDARY_SWITCH(true)
+	else
+		IO_BOUNDARY_SWITCH(false)
 
 	return numBlocks;
 }

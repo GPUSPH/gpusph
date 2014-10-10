@@ -72,6 +72,7 @@ struct common_forces_params
 	const	float	deltap;
 	const	float	slength;
 	const	float	influenceradius;
+	const	bool	usedem;
 
 	// Constructor / initializer
 	common_forces_params(
@@ -87,7 +88,8 @@ struct common_forces_params
 		const	uint	_toParticle,
 		const	float	_deltap,
 		const	float	_slength,
-		const	float	_influenceradius) :
+		const	float	_influenceradius,
+		const	bool	_usedem) :
 		forces(_forces),
 		contupd(_contupd),
 		rbforces(_rbforces),
@@ -100,7 +102,8 @@ struct common_forces_params
 		toParticle(_toParticle),
 		deltap(_deltap),
 		slength(_slength),
-		influenceradius(_influenceradius)
+		influenceradius(_influenceradius),
+		usedem(_usedem)
 	{}
 };
 
@@ -205,6 +208,7 @@ struct forces_params :
 				float	_deltap,
 				float	_slength,
 				float	_influenceradius,
+				bool	_usedem,
 
 		// dyndt
 				float	*_cfl,
@@ -229,7 +233,7 @@ struct forces_params :
 		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
-			_deltap, _slength, _influenceradius),
+			_deltap, _slength, _influenceradius, _usedem),
 		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc, _cflOffset),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)

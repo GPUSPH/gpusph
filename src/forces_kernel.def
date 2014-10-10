@@ -1474,7 +1474,7 @@ template<KernelType kerneltype,
 	ViscosityType visctype,
 	bool dyndt,
 	bool usexsph,
-	bool usedem>
+	bool inoutBoundaries>
 __global__ void
 forcesDevice(
 	forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph> params)
@@ -1684,7 +1684,7 @@ forcesDevice(
 			const float3 globalpos = d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize;
 
 			// Adding repulsive force computed from DEM
-			if (usedem) {
+			if (params.usedem) {
 				switch (boundarytype) {
 					case LJ_BOUNDARY:
 						geom_coeff = DemLJForce(demTex, globalpos,
