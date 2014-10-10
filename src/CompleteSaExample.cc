@@ -14,6 +14,8 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
 	cube = STLMesh::load_stl("./meshes/CompleteSaExample_cube_coarse.stl");
 
+	m_simparams.numObjects = 2;
+
 	m_simparams.sfactor=1.3f;
 	set_deltap(0.02f);
 
@@ -73,13 +75,44 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	set_timer_tick(1.0e-2);
 	add_writer(VTKWRITER, 1);
 
+	/*
+	// will use only 1 ODE body: the floating/moving cube (container is fixed)
+	allocate_ODE_bodies(1);
+	dInitODE();
+	// world setup
+	m_ODEWorld = dWorldCreate();
+	m_ODESpace = dHashSpaceCreate(0);
+	//m_ODEJointGroup = dJointGroupCreate(0);
+	// Set gravity（x, y, z)
+	dWorldSetGravity(m_ODEWorld,
+		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
+
 	// Name of problem used for directory creation
 	m_name = "CompleteSaExample";
+	*/
 }
 
 
 int CompleteSaExample::fill_parts()
 {
+	/*
+	container->ODEGeomCreate(m_ODESpace, m_deltap);
+	cube->ODEGeomCreate(m_ODESpace, m_deltap);
+
+	// cube density half water density
+	const double cube_size = 0.2;
+	cube->SetMass( (cube_size * cube_size * cube_size) * 0.5 );
+
+	// no need to unfill, done by Crixus
+	// cube->Unfill(fluid_parts, m_deltap);
+
+	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, ); // only dynamics
+	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
+	cube->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace); // dynamics + collisions
+	add_ODE_body(cube);
+
+	*/
+
 	return h5File.getNParts();
 }
 
