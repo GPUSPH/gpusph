@@ -1315,7 +1315,7 @@ __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
 	// check whether we are close to a wall
-	if(pout.minlRas < 0.5f && !VERTEX(pdata.info)){
+	if(pout.minlRas < 0.5f && pdata.ptype != PT_VERTEX){
 		// linear smoothing between eps/2 and eps
 		const float sx = fmax(pout.minlRas*4.0f - 1.0f,0.0f);
 		// smootherstep function
@@ -1328,7 +1328,7 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
 	pout.force /= pout.gGam.w;
 	// make sure that the velocity of vertices is orthogonal to its normal vector for keps
-	if (VERTEX(pdata.info)){
+	if (pdata.ptype == PT_VERTEX){
 		const float tmp = pout.force.w;
 		pout.force -= dot3(pout.force, pout.gGam)*pout.gGam/sqlength3(pout.gGam);
 		pout.force.w = tmp;
@@ -1353,7 +1353,7 @@ compute_water_depth_at_outflow<SA_BOUNDARY>::with(FP const& params, P const& pda
 {
 	// note all computations here are done assuming that the gravity vector points in z direction only
 	// if the fluid particle is higher than the vertex particle then don't continue (saves a few atomics)
-	if (!FLUID(ndata.info) || ndata.relPos.z < 0.0f)
+	if (ndata.ntype != PT_FLUID || ndata.relPos.z < 0.0f)
 		return;
 	// z position of fluid particle with respect to world_origin
 	float nZpos = pdata.pos.z - ndata.relPos.z + pdata.gridPos.z*d_cellSize.z + 0.5f*d_cellSize.z;
@@ -1651,7 +1651,7 @@ forcesDevice(
 
 			// Objects only interact with fluid particles, since object-object
 			// and object-boundary forces are computed with ODE
-			if (OBJECT(info))
+			if (pdata.ptype == PT_OBJECT)
 				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
 
 			// with SA_BOUNDARY, fluid and vertex particles interact with any
@@ -1659,7 +1659,7 @@ forcesDevice(
 			// TODO FIXME they should interact with BOUNDARY particles such
 			// that the current particle influence radius intersects the
 			// boundary element
-			if (boundarytype == SA_BOUNDARY && (FLUID(info) || VERTEX(info)))
+			if (boundarytype == SA_BOUNDARY && (pdata.ptype == PT_FLUID || pdata.ptype == PT_VERTEX))
 				computes_stuff = computes_stuff || BOUNDARY(neib_info);
 
 			// bail out if we do not interact with this neighbor
@@ -1679,9 +1679,9 @@ forcesDevice(
 			// of the focal particle
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
-			if (FLUID(pdata.info)) {
+			if (pdata.ptype == PT_FLUID) {
 
-				if (FLUID(ndata.info) || (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
+				if (ndata.ntype == PT_FLUID || (boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX) ) ) {
 
 					// computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
@@ -1706,15 +1706,15 @@ forcesDevice(
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && VERTEX(info) && !IO_BOUNDARY(info)) {
+			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && !IO_BOUNDARY(info)) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (boundarytype == SA_BOUNDARY && VERTEX(info) && IO_BOUNDARY(info) && !INFLOW(info)) {
+			else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !INFLOW(info)) {
 				// Compute the maximum depth at outflows
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
-			else if (OBJECT(info)) {
+			else if (pdata.ptype == PT_OBJECT) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
 				nout.DvDt *= ndata.relPos.w;
@@ -1726,7 +1726,7 @@ forcesDevice(
 		} // end of loop over neighbors
 
 		// External forces etc
-		if (FLUID(info)) {
+		if (pdata.ptype == PT_FLUID) {
 
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
@@ -1766,13 +1766,13 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		else if (VERTEX(info)) {
+		else if (pdata.ptype == PT_VERTEX) {
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
 		}
 
 		// Writing out the results
-		if (OBJECT(info)) {
+		if (pdata.ptype == PT_OBJECT) {
 			params.rbforces[pdata.rbindex] = pout.force;
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
@@ -1782,7 +1782,7 @@ forcesDevice(
 			write_gamma<boundarytype>::with(params, pdata, pout);
 		}
 
-		if (FLUID(info)) {
+		if (pdata.ptype == PT_FLUID) {
 			write_xsph<usexsph>::with(params, pdata, pout);
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
