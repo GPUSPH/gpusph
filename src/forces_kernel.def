@@ -530,6 +530,29 @@ template<KernelType kerneltype,
 	bool dyndt,
 	bool usexsph,
 	bool inoutBoundaries>
+struct eulerVel_neib_data
+{
+	// we will get as arguments also the current particle data and forces_kernel params.
+	// Define shorthands for their data type
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
+
+	const float4 relEulerVelRho;
+	const float4 relEulerVelVisc;
+
+	__device__ __forceinline__
+	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const uint _info) :
+		relEulerVelRho(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index)),
+		relEulerVelVisc(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
+	{}
+};
+
+template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype,
+	ViscosityType visctype,
+	bool dyndt,
+	bool usexsph,
+	bool inoutBoundaries>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
 // can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
@@ -537,6 +560,12 @@ struct forces_neib_data :
 		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
 		empty<
 			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
+		> >::type,
+	// relative eulerian velocity
+	conditional<visctype == KEPSVISC || inoutBoundaries,
+		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+		empty<
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
 		> >::type,
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
@@ -554,6 +583,13 @@ struct forces_neib_data :
 				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
 			> >::type
 		_sa_boundary_neib_data;
+	typedef
+		typename conditional<visctype == KEPSVISC || inoutBoundaries,
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+			empty<
+				eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
+			> >::type
+		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
 	typedef typename _common_neib_data::params_t params_t;
 
@@ -565,6 +601,7 @@ struct forces_neib_data :
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
+		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
 		p_precalc_particle_data<sph_formulation,
 			typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(this->relVel.w, _info, *this),
