@@ -137,6 +137,7 @@ struct sa_boundary_forces_params
 	const	float2	*vertPos2;
 	const	float	epsilon;
 	const	bool	movingBoundaries;
+	// TODO move into separate struct for inoutBoundaries
 			uint	*IOwaterdepth;
 
 	// Constructor / initializer
