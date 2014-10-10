@@ -540,8 +540,8 @@ struct eulerVel_neib_data
 	const float4 relEulerVelVisc;
 
 	__device__ __forceinline__
-	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const uint _info) :
-		relEulerVelRho(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index)),
+	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const particleinfo _info) :
+		relEulerVelRho(as_float3(pdata.eulerVel) - (pdata.ptype == PT_VERTEX && INFLOW(_info) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
 		relEulerVelVisc(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
 	{}
 };
