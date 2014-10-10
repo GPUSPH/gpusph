@@ -194,7 +194,7 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 	cnormal = cross(v[1] - v[0], v[2] - v[1]);
 	cnormal /= length(cnormal);
 
-	// the stored normal is assumed to be 'correct' if it introduces an error of less than 
+	// the stored normal is assumed to be 'correct' if it introduces an error of less than
 	// FLT_EPSILON relative to the triangle barycenter
 	bool normal_match = (length(cnormal - t.normal) < length(avg_pos)*FLT_EPSILON);
 
