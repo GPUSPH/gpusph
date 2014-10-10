@@ -6,6 +6,9 @@
 #include "Problem.h"
 #include "HDF5SphReader.h"
 
+// for loading meshes as ODE objs
+#include "STLMesh.h"
+
 class CompleteSaExample: public Problem {
 	private:
 		string			inputfile;
@@ -13,7 +16,8 @@ class CompleteSaExample: public Problem {
 		double			w, l, h;
 		double			H;				// water level (used to set D constant)
 		HDF5SphReader	h5File;
-
+		STLMesh		*container;
+		STLMesh		*cube;
 
 	public:
 		CompleteSaExample(const GlobalData *);

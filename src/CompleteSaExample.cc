@@ -11,6 +11,9 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 {
 	h5File.setFilename("meshes/0.complete_sa_example.h5sph");
 
+	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
+	cube = STLMesh::load_stl("./meshes/CompleteSaExample_cube_coarse.stl");
+
 	m_simparams.sfactor=1.3f;
 	set_deltap(0.02f);
 
