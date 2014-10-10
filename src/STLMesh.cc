@@ -303,10 +303,17 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 int STLMesh::Fill(PointVect&, double, bool)
 {}
 
+void STLMesh::Fill(PointVect&, const double)
+{}
+
 bool STLMesh::IsInside(const Point&, double) const
 {}
 
 double STLMesh::Volume(const double dx) const
 {}
+
 void STLMesh::SetInertia(double)
+{}
+
+void STLMesh::SetInertia(const double*)
 {}

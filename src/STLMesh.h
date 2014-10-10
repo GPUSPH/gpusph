@@ -147,12 +147,14 @@ public:
 
 	void FillBorder(PointVect&, double);
 	int Fill(PointVect&, double, bool);
+	void Fill(PointVect&, const double);
 	bool IsInside(const Point&, double) const;
 
 	double SetPartMass(const double, const double);
 	void SetPartMass(const double);
 	double Volume(const double dx) const;
 	void SetInertia(double);
+	void SetInertia(const double*);
 
 	void ODEGeomCreate(dSpaceID, const double);
 };
