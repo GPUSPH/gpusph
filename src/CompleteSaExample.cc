@@ -20,7 +20,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.kinematicvisc = 1.0e-2f;
 	m_simparams.visctype = DYNAMICVISC;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
+	m_physparams.set_density(0, 1000.0, 7.0f, 50.0f);
 
 	// ugh (cit.)
 	m_simparams.maxneibsnum = 384;
