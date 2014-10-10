@@ -56,79 +56,79 @@ void*	reduce_buffer = NULL;
  * the given combination of kernel, boundary type, viscosity, dt and xsph use,
  * since they all use the same constructor parameters (which is a huge list)
  */
-#define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph) \
-		forces_params<kernel, boundarytype, visc, dyndt, usexsph>( \
+#define FORCES_PARAMS(kernel, boundarytype, visc, dyndt, usexsph, inoutBoundaries) \
+		forces_params<kernel, boundarytype, visc, dyndt, usexsph, inoutBoundaries>( \
 			forces, contupd, rbforces, rbtorques, \
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle, \
 			deltap, slength, influenceradius, usedem,\
 			cfl, cflTVisc, cflOffset, \
 			xsph, \
-			newGGam, vertPos, epsilon, movingBoundaries, inoutBoundaries, IOwaterdepth, \
+			newGGam, vertPos, epsilon, movingBoundaries, IOwaterdepth, \
 			keps_dkde, turbvisc)
 
-#define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
+#define KERNEL_CHECK(kernel, boundarytype, formulation, visc, inoutBoundaries) \
 	case kernel: \
 		/*if (!dtadapt && !xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, inoutBoundaries><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, false, false, inoutBoundaries)); \
 		else if (!dtadapt && xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, inoutBoundaries><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, false, true, inoutBoundaries)); \
 		else*/ if (dtadapt && !xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, inoutBoundaries><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, false, inoutBoundaries)); \
 		/*else if (dtadapt && xsphcorr) \
-				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); */ \
+				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, inoutBoundaries><<< numBlocks, numThreads, dummy_shared >>>\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, true, inoutBoundaries)); */ \
 		break
 
-#define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
+#define KERNEL_SWITCH(formulation, boundarytype, visc, inoutBoundaries) \
 	switch (kerneltype) { \
-		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem);*/ \
-		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
+		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, inoutBoundaries);*/ \
+		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, inoutBoundaries); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
 
-#define FORMULATION_CHECK(formulation, boundarytype, visc, dem) \
+#define FORMULATION_CHECK(formulation, boundarytype, visc, inoutBoundaries) \
 	case formulation: \
-		KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
+		KERNEL_SWITCH(formulation, boundarytype, visc, inoutBoundaries) \
 		break
 
-#define FORMULATION_SWITCH(boundarytype, visc, dem) \
+#define FORMULATION_SWITCH(boundarytype, visc, inoutBoundaries) \
 	switch (sph_formulation) { \
-		FORMULATION_CHECK(SPH_F1, boundarytype, visc, dem); \
-		/*FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem);*/ \
+		FORMULATION_CHECK(SPH_F1, boundarytype, visc, inoutBoundaries); \
+		/*FORMULATION_CHECK(SPH_F2, boundarytype, visc, inoutBoundaries);*/ \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
-#define VISC_CHECK(boundarytype, visc, dem) \
+#define VISC_CHECK(boundarytype, visc, inoutBoundaries) \
 	case visc: \
-		FORMULATION_SWITCH(boundarytype, visc, dem) \
+		FORMULATION_SWITCH(boundarytype, visc, inoutBoundaries) \
 		break
 
-#define VISC_CHECK_STANDARD(boundarytype, dem) \
-		/*VISC_CHECK(boundarytype, ARTVISC, dem);*/ \
-		VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
-		/*VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
-		VISC_CHECK(boundarytype, SPSVISC, dem); \
-		*/ VISC_CHECK(boundarytype, KEPSVISC, dem);
+#define VISC_CHECK_STANDARD(boundarytype, inoutBoundaries) \
+		/*VISC_CHECK(boundarytype, ARTVISC, inoutBoundaries);*/ \
+		VISC_CHECK(boundarytype, DYNAMICVISC, inoutBoundaries); \
+		/*VISC_CHECK(boundarytype, KINEMATICVISC, inoutBoundaries);\
+		VISC_CHECK(boundarytype, SPSVISC, inoutBoundaries); \
+		*/ VISC_CHECK(boundarytype, KEPSVISC, inoutBoundaries);
 
-#define VISC_SWITCH(boundarytype, dem) \
+#define VISC_SWITCH(boundarytype, inoutBoundaries) \
 	switch (visctype) { \
-		VISC_CHECK_STANDARD(boundarytype, dem); \
+		VISC_CHECK_STANDARD(boundarytype, inoutBoundaries); \
 		NOT_IMPLEMENTED_CHECK(Viscosity, visctype); \
 	}
 
-#define BOUNDARY_CHECK(boundary, dem) \
+#define BOUNDARY_CHECK(boundary, inoutBoundaries) \
 	case boundary: \
-		VISC_SWITCH(boundary, dem) \
+		VISC_SWITCH(boundary, inoutBoundaries) \
 		break
 
-#define IO_BOUNDARY_SWITCH(dem) \
+#define IO_BOUNDARY_SWITCH(inoutBoundaries) \
 	switch (boundarytype) { \
-		/*BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
-		BOUNDARY_CHECK(MK_BOUNDARY, dem); */ \
-		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
+		/*BOUNDARY_CHECK(LJ_BOUNDARY, inoutBoundaries); \
+		BOUNDARY_CHECK(MK_BOUNDARY, inoutBoundaries); */ \
+		BOUNDARY_CHECK(SA_BOUNDARY, inoutBoundaries); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
@@ -391,6 +391,7 @@ const	particleinfo	*info,
 void
 forces_bind_textures(	const	float4	*pos,
 						const	float4	*vel,
+						const	float4	*eulerVel,
 						const	float4	*oldGGam,
 						const	float4	*boundelem,
 						const	particleinfo	*info,
@@ -405,6 +406,8 @@ forces_bind_textures(	const	float4	*pos,
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
+	if (eulerVel)
+		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, eulerVel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	if (boundarytype == SA_BOUNDARY) {
@@ -420,7 +423,8 @@ forces_bind_textures(	const	float4	*pos,
 
 void
 forces_unbind_textures(	ViscosityType	visctype,
-						BoundaryType	boundarytype)
+						BoundaryType	boundarytype,
+						bool			inoutBoundaries)
 {
 	if (visctype == SPSVISC) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(tau0Tex));
@@ -432,6 +436,8 @@ forces_unbind_textures(	ViscosityType	visctype,
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
+	if (inoutBoundaries || visctype == KEPSVISC)
+		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	if (boundarytype == SA_BOUNDARY) {

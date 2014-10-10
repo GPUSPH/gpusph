@@ -92,6 +92,7 @@ setforcesrbstart(const uint* rbfirstindex, int numbodies);
 void
 forces_bind_textures(	const	float4	*pos,
 						const	float4	*vel,
+						const	float4	*eulerVel,
 						const	float4	*oldGGam,
 						const	float4	*boundelem,
 						const	particleinfo	*info,
@@ -103,7 +104,8 @@ forces_bind_textures(	const	float4	*pos,
 
 void
 forces_unbind_textures(	ViscosityType	visctype,
-						BoundaryType	boundarytype);
+						BoundaryType	boundarytype,
+						bool			inoutBoundaries);
 
 float
 forces_dtreduce(	float	slength,

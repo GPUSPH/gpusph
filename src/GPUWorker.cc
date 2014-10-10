@@ -122,7 +122,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
 
-	if (m_simparams->inoutBoundaries)
+	if (m_simparams->inoutBoundaries || m_simparams->visctype == KEPSVISC)
 		m_dBuffers << new CUDABuffer<BUFFER_EULERVEL>();
 
 	if (m_simparams->calcPrivate)
@@ -1885,6 +1885,7 @@ void GPUWorker::bind_textures_forces()
 	forces_bind_textures(
 		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+		m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),   // eulerVel(n)
 		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -1899,7 +1900,11 @@ void GPUWorker::bind_textures_forces()
 // Unbind the textures needed by forces kernel
 void GPUWorker::unbind_textures_forces()
 {
-	forces_unbind_textures(m_simparams->visctype, m_simparams->boundarytype);
+	forces_unbind_textures(
+		m_simparams->visctype,
+		m_simparams->boundarytype,
+		m_simparams->inoutBoundaries
+	);
 }
 
 // Dt reduction after forces kernel
