@@ -148,9 +148,10 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
-		//float rho = density(H - h5File.buf[i].Coords_2, 0);
-		float rho = m_physparams.rho0[0];
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		float rho = density(H - h5File.buf[i].Coords_2, 0);
+		//float rho = m_physparams.rho0[0];
+		vel[i] = make_float4(0, 0, 0, rho);
+		//vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		if (eulerVel)
 			eulerVel[i] = vel[i];
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
