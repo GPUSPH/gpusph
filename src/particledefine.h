@@ -283,10 +283,13 @@ disable_particle(float4 &pos) {
 // If this flag is set the normal velocity is imposed at an open boundary
 // if it is not set the pressure is imposed instead
 #define VEL_IO(f)		(type(f) & VEL_IO_PARTICLE_FLAG)
+// If vel_io is not set then we have a pressure inlet
+#define PRES_IO(f)		(!VEL_IO(f))
 // If this flag is set an open boundary is treated as an inflow and thus the tangential
 // velocities are imposed. If it is not set the open boundary is an outflow and the tangential
 // velocities are computed from the interior of the fluid (i.e. extrapolated).
 #define INFLOW(f)		(type(f) & INFLOW_PARTICLE_FLAG)
+#define OUTFLOW(f)		(!INFLOW(f))
 // This flag is set for moving vertices / segments either forced or free (floating)
 #define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
 // If the floating flag is set then the particles 
