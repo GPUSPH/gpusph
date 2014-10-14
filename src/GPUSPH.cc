@@ -497,7 +497,7 @@ bool GPUSPH::runSimulation() {
 			// compute boundary conditions on segments and detect outgoing particles at open boundaries
 			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, POST_SA_SEGEMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
@@ -597,7 +597,7 @@ bool GPUSPH::runSimulation() {
 			// compute boundary conditions on segments and detect outgoing particles at open boundaries
 			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, POST_SA_SEGEMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+				doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 			// compute the offset for id cloning and check for possible overflows
 			// NOTE: the formula is
