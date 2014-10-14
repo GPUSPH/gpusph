@@ -389,8 +389,9 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 #endif
+		// Fluid particles don't have a eulerian velocity
 		if (eulerVel)
-			eulerVel[i] = vel[i];
+			eulerVel[i] = make_float4(0.0f);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 	}
@@ -404,12 +405,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(lvel, 0, 0, rho);
+				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
+				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
 #else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+				if (eulerVel)
+					eulerVel[i] = vel[i];
 #endif
-			if (eulerVel)
-				eulerVel[i] = vel[i];
 			int openBoundType = h5File.buf[i].KENT;
 			// count the number of different objects
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
@@ -454,12 +456,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
 	SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
-				vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
+				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
+				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
 #else
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+				if (eulerVel)
+					eulerVel[i] = vel[i];
 #endif
-			if (eulerVel)
-				eulerVel[i] = vel[i];
 			int openBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, openBoundType, i);
 			// Define the type of open boundaries
