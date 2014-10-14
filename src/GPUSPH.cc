@@ -1376,6 +1376,13 @@ void GPUSPH::initializeBoundaryConditions()
 	// initially data is in read so swap to write
 	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES);
 
+	if (problem->get_simparams()->inoutBoundaries) {
+		gdata->only_internal = false;
+		gdata->swapDeviceBuffers(BUFFER_POS);
+		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
+		gdata->swapDeviceBuffers(BUFFER_POS);
+	}
+
 	gdata->only_internal = true;
 	// compute boundary conditions for segments
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
