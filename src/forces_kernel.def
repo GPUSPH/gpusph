@@ -541,7 +541,7 @@ struct eulerVel_neib_data
 
 	__device__ __forceinline__
 	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const particleinfo _info) :
-		relEulerVelRho(as_float3(pdata.eulerVel) - (pdata.ptype == PT_VERTEX && INFLOW(_info) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
+		relEulerVelRho(as_float3(pdata.eulerVel) - ((VERTEX(_info) || BOUNDARY(_info)) && IO_BOUNDARY(_info) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
 		relEulerVelVisc(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
 	{}
 };
@@ -706,7 +706,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
 		// when using KEPSVISC, or when outflow boundaries are present
-		return !(inoutBoundaries && !INFLOW(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+		return !(inoutBoundaries && OUTFLOW(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
@@ -769,8 +769,42 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	}
 }
 
+// A functor that helps to compute the influence of eulerian velocities onto the governing equations
+template<bool inoutBoundaries>
+struct compute_euler_contributions {
+	// boundary term
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+
+	// volumic term
+	template<typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_euler_contributions<true>::boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DrDt -= ndata.relVel.w*dot3(ndata.relEulerVelRho, ndata.belem)*nout.gamAS.x;
+}
+
+template<>
+template<typename FP, typename P, typename N, typename OP, typename ON>
+__device__ __forceinline__ void
+compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+{
+	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVelRho, ndata.relPos)*ndata.f;
+}
+
 /// A functor that computes the time derivative of rho
-template<BoundaryType>
+template<BoundaryType boundarytype>
 struct compute_density_derivative {
 
 	// common volumic Ferrari diffusion term
@@ -804,7 +838,7 @@ struct compute_density_derivative {
 	}
 
 	// actual method
-	template<SPHFormulation sph_formulation,
+	template<SPHFormulation sph_formulation, bool inoutBoundaries,
 		typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -825,18 +859,17 @@ struct compute_density_derivative {
 /// Specialization in the SA_BOUNDARY case
 
 template<>
-template<SPHFormulation sph_formulation, typename FP, typename P, typename N, typename OP, typename ON>
+template<SPHFormulation sph_formulation, bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	if (ndata.ntype == PT_BOUNDARY) {
 		// boundary term of div(v)
-		// AM-TODO assume no movement of i/o wall
-		nout.DgamDt = dot3(pdata.vel, ndata.belem)*nout.gamAS.x;
-		nout.DrDt = -ndata.relVel.w*dot3(ndata.relVel-pdata.vel, ndata.belem)*nout.gamAS.x;
-		// AM-TODO this is for all pressure outlets
-		// D\rho/Dn is not zero near a pressure outlet so the volume diffusion formula gains a term
-		if (d_ferrari && object(ndata.info) == 2) {
+		nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
+		if (IO_BOUNDARY(ndata.info))
+			compute_euler_contributions<inoutBoundaries>::boundary_term(params, pdata, ndata, pout, nout);
+		// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
+		if (d_ferrari && inoutBoundaries && IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
 			const int fType =  PART_FLUID_NUM(pdata.info);
 			// gravity correction for free-surface flows
 			const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
@@ -847,7 +880,9 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 		}
 	} else {
 		// volumic term of div(v)
-		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+		common_with(params, pdata, ndata, pout, nout);
+		if (inoutBoundaries && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info))
+			compute_euler_contributions<inoutBoundaries>::volumic_term(params, pdata, ndata, pout, nout);
 		if (d_ferrari) {
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			ferrari_correction(params, pdata, ndata, pout, nout);
@@ -858,7 +893,6 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 			nout.contDiff *= pdata.vel.w/ndata.relVel.w;
 		}
 	}
-
 }
 
 /// Functor to compute the pressure contribution to the particle acceleration.
@@ -1684,7 +1718,7 @@ forcesDevice(
 				if (ndata.ntype == PT_FLUID || (boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX) ) ) {
 
 					// computes d\rho/dt, including ferrari correction
-					compute_density_derivative<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
+					compute_density_derivative<boundarytype>::with<sph_formulation, inoutBoundaries>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
 					pout.contupd.x += nout.contDiff;
 					pout.contupd.y += nout.DgamDt;
@@ -1710,7 +1744,7 @@ forcesDevice(
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !INFLOW(info)) {
+			else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && OUTFLOW(info)) {
 				// Compute the maximum depth at outflows
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}

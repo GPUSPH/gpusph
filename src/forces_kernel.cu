@@ -1148,9 +1148,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				eps = eps*u2*u;
 			}
 			oldEulerVel[index] = eulerVel;
-			// we temporarily write all the eulerVel data into the normal vel array. This is okay as long
-			// as we don't have moving boundaries or k-eps / io mixing
-			oldVel[index] = eulerVel;
+			// the density of the particle is equal to the "eulerian density"
+			oldVel[index].w = eulerVel.w;
 
 			// imposition of k and epsilon at inflows (was already set to dk/dn = deps/dn = 0 for non INFLOW)
 			if (INFLOW(info)) {
@@ -1214,9 +1213,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 				const float3 normal = as_float3(tex1Dfetch(boundTex, neib_index));
 
-				// relative velocity to the lagrangian velocity of the segment
-				// if we have moving boundaries there would be a "-lagVel[neib_index]" at the end
-				const float3 relVel = as_float3(vel);
+				const float3 relVel = as_float3(vel - oldVel[neib_index]);
 
 				// quick check if we are behind a segment and if the segment is reasonably close by
 				// (max distance vertex to segment is deltap/2)
@@ -1422,7 +1419,8 @@ saVertexBoundaryConditions(
 				// check if vertex is associated with this segment
 				if (neibVertXidx == index || neibVertYidx == index || neibVertZidx == index) {
 					// boundary conditions on rho, k, eps
-					sumrho += oldVel[neib_index].w;
+					const float neibRho = oldVel[neib_index].w;
+					sumrho += neibRho;
 					if (IO_BOUNDARY(neib_info)){
 						// number of vertices associated to a segment that are of the same object type
 						float numOutVerts = 2.0f;
@@ -1433,7 +1431,7 @@ saVertexBoundaryConditions(
 						// TODO we can have a switch here to decide on whether we want to impose a velocity
 						// or a flux. If as now we multiply the whole thing with the density of the segment
 						// then the flux will vary.
-						sumMdot += oldVel[neib_index].w/numOutVerts*boundElement.w*
+						sumMdot += neibRho/numOutVerts*boundElement.w*
 									dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 						sumEulerVel += oldEulerVel[neib_index];
 					}
@@ -1493,9 +1491,8 @@ saVertexBoundaryConditions(
 			eulerVel.z = sumEulerVel.z/numseg;
 		}
 		oldEulerVel[index] = eulerVel;
-		// we temporarily write all the eulerVel data into the normal vel array. This is okay as long
-		// as we don't have moving boundaries or k-eps / io mixing
-		oldVel[index] = eulerVel;
+		// the density of the particle is equal to the "eulerian density"
+		oldVel[index].w = eulerVel.w;
 
 		// finalize mass computation
 		// reference mass:
@@ -1536,7 +1533,8 @@ saVertexBoundaryConditions(
 
 			// assign new values to array
 			oldPos[clone_idx] = clone_pos;
-			oldVel[clone_idx] = oldVel[index];
+			// the new velocity of the fluid particle is the eulerian velocity of the vertex
+			oldVel[clone_idx] = oldEulerVel[index];
 			pinfo[clone_idx] = clone_info;
 			particleHash[clone_idx] = makeParticleHash( calcGridHash(clone_gridPos), clone_info);
 			forces[clone_idx] = make_float4(0.0f);
