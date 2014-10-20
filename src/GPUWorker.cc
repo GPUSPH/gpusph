@@ -2300,6 +2300,10 @@ void GPUWorker::kernel_reduceRBForces()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
+	// if we have ODE objects but not particles on them, do not reduce
+	// (possible? e.g. vector objects?)
+	if (m_numBodiesParticles == 0) return;
+
 	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
 					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
 }
