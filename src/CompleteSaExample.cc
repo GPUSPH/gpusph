@@ -92,6 +92,12 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	*/
 }
 
+// for an exaple ODE_nearCallback see
+// http://ode-wiki.org/wiki/index.php?title=Manual:_Collision_Detection#Collision_detection
+void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
+{
+	// stub
+}
 
 int CompleteSaExample::fill_parts()
 {
