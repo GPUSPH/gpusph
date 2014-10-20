@@ -99,6 +99,10 @@ void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	// stub
 }
 
+CompleteSaExample::~CompleteSaExample()
+{
+}
+
 int CompleteSaExample::fill_parts()
 {
 	/*

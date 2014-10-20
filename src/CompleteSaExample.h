@@ -21,7 +21,7 @@ class CompleteSaExample: public Problem {
 
 	public:
 		CompleteSaExample(const GlobalData *);
-		~CompleteSaExample(void) {};
+		~CompleteSaExample(void);
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
