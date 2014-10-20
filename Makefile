@@ -555,6 +555,8 @@ ifeq ($(dbg), 1)
 else
 	CXXFLAGS += -O3
 endif
+# add -O3 anyway - workaround to fix a linking error when compiling with dbg=1, CUDA 5.0
+CXXFLAGS += -O3
 
 # option: verbose - 0 quiet compiler, 1 ptx assembler, 2 all warnings
 ifeq ($(verbose), 1)
