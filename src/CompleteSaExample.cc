@@ -75,21 +75,19 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	set_timer_tick(1.0e-2);
 	add_writer(VTKWRITER, 1);
 
-	/*
 	// will use only 1 ODE body: the floating/moving cube (container is fixed)
 	allocate_ODE_bodies(1);
 	dInitODE();
 	// world setup
-	m_ODEWorld = dWorldCreate();
-	m_ODESpace = dHashSpaceCreate(0);
-	//m_ODEJointGroup = dJointGroupCreate(0);
+	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
+	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
+	//m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
 	// Set gravity（x, y, z)
 	dWorldSetGravity(m_ODEWorld,
 		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
 
 	// Name of problem used for directory creation
 	m_name = "CompleteSaExample";
-	*/
 }
 
 // for an exaple ODE_nearCallback see
@@ -101,6 +99,9 @@ void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 
 CompleteSaExample::~CompleteSaExample()
 {
+	dSpaceDestroy(m_ODESpace);
+	dWorldDestroy(m_ODEWorld);
+	dCloseODE();
 }
 
 int CompleteSaExample::fill_parts()
@@ -122,6 +123,14 @@ int CompleteSaExample::fill_parts()
 	add_ODE_body(cube);
 
 	*/
+
+	// here create ODE planes in the geom space, if needed (no ODE body)
+
+	// here create ODE bodies from GPUSPH objs, e.g.:
+	// Sphere sphere = new ...
+	// sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
+	// sphere.ODEGeomCreate(m_ODESpace, m_deltap);
+	// add_ODE_body(&sphere);
 
 	return h5File.getNParts();
 }
