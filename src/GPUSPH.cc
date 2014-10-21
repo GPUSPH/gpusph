@@ -1230,7 +1230,7 @@ void GPUSPH::doWrite(bool force)
 		dpos.w = pos.w;
 
 		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
-			fprintf(stderr, "WARNING: particle %u (%u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",
+			fprintf(stderr, "WARNING: particle %u (id %u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",
 				i, id(info[i]),
 				pos.x, pos.y, pos.z,
 				gridPos.x, gridPos.y, gridPos.z,
