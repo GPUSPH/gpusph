@@ -513,6 +513,9 @@ bool GPUSPH::runSimulation() {
 
 		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
 
+		// Here the first part of our time integration scheme is complete. All updated values
+		// are now in the read buffers again.
+
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
@@ -645,6 +648,9 @@ bool GPUSPH::runSimulation() {
 		}
 
 		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
+
+		// Here the second part of our time integration scheme is complete, i.e. the time-step is
+		// fully computed. All updated values are now in the read buffers again.
 
 		// increase counters
 		gdata->iterations++;
