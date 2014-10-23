@@ -750,7 +750,7 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
 
 			// get Eulerian velocity
-			if (gdata->problem->get_simparams()->inoutBoundaries)
+			if (gdata->problem->get_simparams()->inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
 				which_buffers |= BUFFER_EULERVEL;
 
 			// get private array
@@ -843,7 +843,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
 	}
 
-	if (problem->m_simparams.inoutBoundaries)
+	if (problem->m_simparams.inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
 		gdata->s_hBuffers << new HostBuffer<BUFFER_EULERVEL>();
 
 	if (problem->m_simparams.calcPrivate)
