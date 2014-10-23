@@ -1015,7 +1015,7 @@ compute_repulsive_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 }
 
 // Functor that returns the relative Eulerian velocity for viscous computations
-template<bool inoutBoundaries>
+template<bool eulerVelPresent>
 struct getRelEulerVelVisc
 {
 	template<typename N>
@@ -1149,7 +1149,8 @@ visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& nda
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		(d_visccoeff+pdata.turbViscForViscTerm)*pdata.vel.w,
 		(d_visccoeff+ndata.turbViscForViscTerm)*ndata.relVel.w));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<inoutBoundaries>::with(ndata));
+	// call getRelEulerVelVisc always with true as in keps we always have that value
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<true>::with(ndata));
 }
 
 // artificial viscosity
@@ -1259,7 +1260,7 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
 
-	const float4 relEulerVel = getRelEulerVelVisc<inoutBoundaries>::with(ndata);
+	const float4 relEulerVel = getRelEulerVelVisc<true>::with(ndata);
 	pout.dvx += (ndata.relVel.x+relEulerVel.x)*dvmul;
 	pout.dvy += (ndata.relVel.y+relEulerVel.y)*dvmul;
 	pout.dvz += (ndata.relVel.z+relEulerVel.z)*dvmul;
@@ -1770,7 +1771,7 @@ forcesDevice(
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && !IO_BOUNDARY(info)) {
+			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && !IO_BOUNDARY(pdata.info)) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}
