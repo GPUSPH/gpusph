@@ -706,7 +706,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
 		// when using KEPSVISC, or when outflow boundaries are present
-		return !(inoutBoundaries && OUTFLOW(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+		return !(inoutBoundaries && IO_BOUNDARY(pdata.info) && OUTFLOW(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
@@ -746,6 +746,8 @@ template<KernelType kerneltype, typename FP, typename P, typename N, typename OP
 __device__ __forceinline__ void
 compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && OUTFLOW(pdata.info))
+		return;
 	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
@@ -1012,6 +1014,25 @@ compute_repulsive_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 	nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
 }
 
+// Functor that returns the relative Eulerian velocity for viscous computations
+template<bool inoutBoundaries>
+struct getRelEulerVelVisc
+{
+	template<typename N>
+	__device__ __forceinline__
+	static float4
+	with(N const& ndata)
+	{ return make_float4(0.0f); }
+};
+
+template<>
+template<typename N>
+__device__ __forceinline__ float4
+getRelEulerVelVisc<true>::with(N const& ndata)
+{
+	return ndata.relEulerVelVisc;
+}
+
 // auxiliary functor computing boundary contribution to the viscous term
 // note that these boundary contributions are specialized for SA_BOUNDARY.
 // As no other boundary condition has any boundary terms there is no need to add another template parameter
@@ -1043,8 +1064,7 @@ visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// a component of fluid paricle velocity tangential to the wall
-	// TODO movingboundary: instead of pdata.vel use relative lagrangian velocity
-	const float3 u_t = as_float3(pdata.vel) - dot(as_float3(pdata.vel), ndata.normal_s)*ndata.normal_s;
+	const float3 u_t = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);
 
 	// we solve iteratively the wall law equation to obtain y+ value
@@ -1073,34 +1093,34 @@ visc_boundary_part<KEPSVISC>::with
 // auxiliary functor computing volumic contribution to the viscous term
 template<ViscosityType visctype>
 struct visc_volumic_part {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
+	template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
 };
 
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w));
-	nout.DvDt += visc*as_float3(ndata.relVel);
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<inoutBoundaries>::with(ndata));
 }
 
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<KINEMATICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
-	nout.DvDt += visc*as_float3(ndata.relVel);
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<inoutBoundaries>::with(ndata));
 }
 
 // SPS viscosity is just kinematic + a contribution based on the strain rate
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<SPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1122,19 +1142,19 @@ visc_volumic_part<SPSVISC>::with(FP const& params, P const& pdata, N const& ndat
 
 // k-e viscosity: dynamic + turbulent
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		(d_visccoeff+pdata.turbViscForViscTerm)*pdata.vel.w,
 		(d_visccoeff+ndata.turbViscForViscTerm)*ndata.relVel.w));
-	nout.DvDt += visc*as_float3(ndata.relVel);
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<inoutBoundaries>::with(ndata));
 }
 
 // artificial viscosity
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 visc_volumic_part<ARTVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1152,7 +1172,7 @@ visc_volumic_part<ARTVISC>::with(FP const& params, P const& pdata, N const& ndat
 template<BoundaryType>
 struct compute_viscous_contrib {
 
-	template<ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout){
@@ -1163,7 +1183,7 @@ struct compute_viscous_contrib {
 };
 
 template<>
-template<ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -1173,7 +1193,7 @@ compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 			visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
 	else
 		// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
-		visc_volumic_part<visctype>::with(params, pdata, ndata, pout, nout);
+		visc_volumic_part<visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
 }
 
 /// Functor to compute the KEPS diffusion and velocity gradient terms
@@ -1181,7 +1201,7 @@ compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 template<BoundaryType boundarytype, ViscosityType visctype>
 struct compute_keps_term
 {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
+	template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -1189,7 +1209,7 @@ struct compute_keps_term
 };
 
 template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
+template<bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
@@ -1236,9 +1256,11 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
 	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
-	pout.dvx += ndata.relVel.x*dvmul;
-	pout.dvy += ndata.relVel.y*dvmul;
-	pout.dvz += ndata.relVel.z*dvmul;
+
+	const float4 relEulerVel = getRelEulerVelVisc<inoutBoundaries>::with(ndata);
+	pout.dvx += (ndata.relVel.x+relEulerVel.x)*dvmul;
+	pout.dvy += (ndata.relVel.y+relEulerVel.y)*dvmul;
+	pout.dvz += (ndata.relVel.z+relEulerVel.z)*dvmul;
 }
 
 
@@ -1405,14 +1427,20 @@ struct write_gamma
 	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, OP const& pout) { /* do nothing */ }
+	with(FP const& params, P const& pdata, OP const& pout, const bool inoutBoundaries)
+	{ /* do nothing */ }
 };
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
-write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout)
-{ params.newGGam[pdata.index] = pout.gGam; }
+write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout, const bool inoutBoundaries)
+{
+	if (inoutBoundaries && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && OUTFLOW(pdata.info))
+		params.newGGam[pdata.index] = pdata.oldGGam;
+	else
+		params.newGGam[pdata.index] = pout.gGam;
+}
 
 /// A functor that writes out the mean vel,
 /// but only for XSPH
@@ -1727,10 +1755,10 @@ forcesDevice(
 					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
 					// compute viscous forces
-					compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 
 					// compute diffusion terms for k-epsilon and the strain rate tensor
-					compute_keps_term<boundarytype, visctype>::with(params, pdata, ndata, pout, nout);
+					compute_keps_term<boundarytype, visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
 
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
@@ -1742,7 +1770,7 @@ forcesDevice(
 			}
 			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && !IO_BOUNDARY(info)) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
+				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}
 			else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && OUTFLOW(info)) {
 				// Compute the maximum depth at outflows
@@ -1813,7 +1841,7 @@ forcesDevice(
 								- d_rbcg[object(info)], as_float3(pout.force)));
 		} else {
 			write_forces::with(params, pdata, pout);
-			write_gamma<boundarytype>::with(params, pdata, pout);
+			write_gamma<boundarytype>::with(params, pdata, pout, inoutBoundaries);
 		}
 
 		if (pdata.ptype == PT_FLUID) {
