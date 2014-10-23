@@ -55,6 +55,7 @@ eulerDevice(
 	const float4*	oldPos,
 	const hashKey*	particleHash,
 	const float4*	oldVel,
+	const float4*	oldEulerVel,
 	const float4*	gGam,
 	const float*	oldTKE,
 	const float*	oldEps,
@@ -65,6 +66,7 @@ eulerDevice(
 	const float4*	xsph,
 	float4*	newPos,
 	float4*	newVel,
+	float4*	newEulerVel,
 	float*	newTKE,
 	float*	newEps,
 	const uint	numParticles,
@@ -85,6 +87,7 @@ eulerDevice(
 	// copying pos and vel in the new arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
+	float4 eulerVel = oldEulerVel[index];		// always eulerVel(n)
 	// TODO templatize better
 	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
 	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
@@ -151,7 +154,9 @@ eulerDevice(
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		else if (VERTEX(pinfo)) {
 			if (!IO_BOUNDARY(pinfo))
-				vel += dt*force;
+				// this is for k-eps only. Normally forces are going to be empty
+				eulerVel += dt*force;
+				// TODO-AM add here moving object part
 			else {
 				vel.x = 0.0f;
 				vel.y = 0.0f;
@@ -198,6 +203,7 @@ eulerDevice(
 
 	newPos[index] = pos;
 	newVel[index] = vel;
+	newEulerVel[index] = eulerVel;
 	if (newTKE)
 		newTKE[index] = keps_k;
 	if (newEps)

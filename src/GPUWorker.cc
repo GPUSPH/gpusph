@@ -2138,6 +2138,7 @@ void GPUWorker::kernel_euler()
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 			m_dBuffers.getData<BUFFER_HASH>(),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
@@ -2151,6 +2152,7 @@ void GPUWorker::kernel_euler()
 			// integrated pos vel, k, e
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 			m_numParticles,

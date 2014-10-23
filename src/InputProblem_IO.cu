@@ -133,8 +133,7 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 			if(newEpsilon)
 				newEpsilon[index] = eps;
 		}
-		else
-			newEulerVel[index] = make_float4(0.0f);
+		// all other vertex particles had their eulerVel set in euler already
 	}
 }
 
