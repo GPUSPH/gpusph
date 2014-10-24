@@ -1378,7 +1378,7 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 		// linear smoothing between eps/2 and eps
 		const float sx = fmax(pout.minlRas*4.0f - 1.0f,0.0f);
 		// smootherstep function
-		const float smooth = (6.0f*sx*sx*sx*sx*sx-15.0f*sx*sx*sx*sx+10.0f*sx*sx*sx);
+		const float smooth = ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 		// interpolated value of gamma
 		const float intGam = pout.gamavg > 1e-5f ? pout.gamavg/pout.alpha : pout.gGam.w;
 		pout.gGam.w = smooth*pout.gGam.w + (1.0f-smooth)*intGam;
