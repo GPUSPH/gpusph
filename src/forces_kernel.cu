@@ -453,11 +453,11 @@ calcGridHashPeriodic(int3 gridPos)
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(const float4	pos,
+getNeibIndex(float4 const&	pos,
 			float3&			pos_corr,
 			const uint*		cellStart,
 			neibdata		neib_data,
-			const int3		gridPos,
+			int3 const&		gridPos,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index)
 {
