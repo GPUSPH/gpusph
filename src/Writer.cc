@@ -174,7 +174,7 @@ Writer::Writer(const GlobalData *_gdata) :
 		m_WaveGagefile << "#\ttime";
 		uint gage = 0;
 		for (; gage < m_problem->get_simparams()->gage.size(); ++gage)
-			m_energyfile << "\tzgage" << gage;
+			m_WaveGagefile << "\tzgage" << gage;
 		m_WaveGagefile << endl;
 	}
 }
