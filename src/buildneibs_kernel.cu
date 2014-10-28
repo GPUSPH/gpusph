@@ -602,23 +602,23 @@ bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo,
 /// process SA_BOUNDARY segments in neibsInCell
 template<bool use_sa_boundary>
 __device__ __forceinline__
-void process_niC_segment(const uint index, const uint neib_index, float3 const& relPos,
+void process_niC_segment(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<use_sa_boundary> const& params,
 	niC_vars<use_sa_boundary> const& var)
 { /* do nothing by default */ }
 
 template<>
 __device__ __forceinline__
-void process_niC_segment<true>(const uint index, const uint neib_index, float3 const& relPos,
+void process_niC_segment<true>(const uint index, const uint neib_id, float3 const& relPos,
 	buildneibs_params<true> const& params,
 	niC_vars<true> const& var)
 {
 	int i = -1;
-	if (neib_index == var.vertices.x)
+	if (neib_id == var.vertices.x)
 		i = 0;
-	else if (neib_index == var.vertices.y)
+	else if (neib_id == var.vertices.y)
 		i = 1;
-	else if (neib_index == var.vertices.z)
+	else if (neib_id == var.vertices.z)
 		i = 2;
 	if (i>-1) {
 		// relPosProj is the projected relative position of the vertex to the segment.
@@ -729,7 +729,7 @@ neibsInCell(
 			neibs_num++;
 		}
 		if (segment) {
-			process_niC_segment(index, neib_index, relPos, params, var);
+			process_niC_segment(index, id(neibInfo), relPos, params, var);
 		}
 
 	}
