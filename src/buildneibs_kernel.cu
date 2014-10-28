@@ -393,7 +393,6 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
 					vertices.w);
 			}
 			else
-				// TODO FIXME: empty domain going to be filled by inlet -> maybe particle has id 0!
 				sortedVertices[index] = make_vertexinfo(0, 0, 0, 0);
 		}
 
