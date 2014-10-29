@@ -1538,7 +1538,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-	const bool dbg_step_printf = false;
+	bool dbg_step_printf = false;
 
 	// TODO
 	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
@@ -1689,6 +1689,13 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 		}
 		if (gdata->keep_going) {
+			/*
+			// example usage of checkPartValBy*()
+			if (gdata->iterations >= 10) {
+				dbg_step_printf = true; // optional
+				instance->checkPartValByIndex("test", 0);
+			}
+			*/
 			// the first barrier waits for the main thread to set the next command; the second is to unlock
 			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 1
 			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
@@ -2519,3 +2526,107 @@ void GPUWorker::uploadBodiesTransRotMatrices()
 	seteulerrbsteprot(gdata->s_hMovObjRotationMatrices, m_simparams->numObjects);
 }
 
+// Auxiliary method for debugging purposes: downloads on the host one or multiple field values of
+// a single particle of given INDEX. It should be considered a canvas for writing more complex,
+// context-dependent checks. It replaces a minimal subset of capabilities of a proper debugger
+// (like cuda-dbg) when that is not available or too slow.
+// Parameters:
+// - printID is just a constant string to distinguish method calls in different parts of the code;
+// - pindex is the current index of the particle being investigated (to be found with BUFFER_VERTIDINDEX
+//   (when available) or in doWrite() after saving (if a save was performed after last reorder).
+// Possible improvement: make it accept buffer flags. But is it worth the time?
+void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
+{
+	// here it is possible to set a condition on the simulation state, e.g.:
+	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
+
+	// get particle info
+	particleinfo pinfo;
+	CUDA_SAFE_CALL(cudaMemcpy(&pinfo, m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]) + pindex, sizeof(particleinfo),
+		cudaMemcpyDeviceToHost));
+
+	// this is the right place to filter for particle type, e.g.:
+	// if (!FLUID(pinfo)) return;
+
+	// get vel(s)
+	float4 rVel, wVel;
+	CUDA_SAFE_CALL(cudaMemcpy(&rVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(&wVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	printf("XX_%s: id %u (%s) idx %u IT %u, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
+		printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations,
+		rVel.x, rVel.y, rVel.z, rVel.w, wVel.x, wVel.y, wVel.z, wVel.w );
+
+	/*
+	// get pos(s)
+	// WARNING: it is a *local* pos! It is only useful if we are checking for relative distances of clearly wrong values
+	float4 rPos, wPos;
+	CUDA_SAFE_CALL(cudaMemcpy(&rPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(&wPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	printf("XX_%s: id %u idx %u IT %u, readPos (%g,%g,%g %g) writePos (%g,%g,%g %g)\n",
+		printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations,
+		rPos.x, rPos.y, rPos.z, rPos.w, wPos.x, wPos.y, wPos.z, wPos.w );
+	*/
+
+	/*
+	// get force
+	float4 force;
+	CUDA_SAFE_CALL(cudaMemcpy(&force, m_dBuffers.getData<BUFFER_FORCES>() + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	printf("XX_%s: id %u idx %u IT %u, force (%g,%g,%g %g)\n",
+		printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations,
+		force.x, force.y, force.z, force.w);
+	*/
+
+	/*
+	// example of additional values
+	if (m_simparams->boundarytype == SA_BOUNDARY) {
+		// get grad_gammas
+		float4 rGgam, wGgam;
+		CUDA_SAFE_CALL(cudaMemcpy(&rGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]) + pindex,
+			sizeof(float4), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(&wGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]) + pindex,
+			sizeof(float4), cudaMemcpyDeviceToHost));
+		// printf ...
+
+		if (BOUNDARY(pinfo)) {
+			// get vert pos
+			float2 vPos0, vPos1, vPos2;
+			CUDA_SAFE_CALL(cudaMemcpy(&vPos0, m_dBuffers.getData<BUFFER_VERTPOS>(0) + pindex,
+				sizeof(float2), cudaMemcpyDeviceToHost));
+			CUDA_SAFE_CALL(cudaMemcpy(&vPos1, m_dBuffers.getData<BUFFER_VERTPOS>(1) + pindex,
+				sizeof(float2), cudaMemcpyDeviceToHost));
+			CUDA_SAFE_CALL(cudaMemcpy(&vPos2, m_dBuffers.getData<BUFFER_VERTPOS>(2) + pindex,
+				sizeof(float2), cudaMemcpyDeviceToHost));
+			// printf...
+		}
+	}
+	*/
+}
+
+// Analogous to checkPartValByIndex(), but locates the particle by ID through the BUFFER_VERTIDINDEX
+// hash table. This is available only when SA_BOUNDARY is being used and only for VERTEX particles,
+// unless updateVertIDToIndexDevice() is changed to update also non-vertex particles.
+// WARNING: fixing updateVertIDToIndexDevice() for fluid particles is dangerous if there is an inlet,
+// since the ID of generate parts easily overflows the number of allocated particles!
+void GPUWorker::checkPartValById(const char* printID, const uint pid)
+{
+	// here it is possible to set a condition, e.g.:
+	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
+
+	uint pidx = 0;
+
+	// retrieve part index, if BUFFER_VERTIDINDEX was set also for this particle
+	CUDA_SAFE_CALL(cudaMemcpy(&pidx, m_dBuffers.getData<BUFFER_VERTIDINDEX>() + pid, sizeof(uint), cudaMemcpyDeviceToHost));
+
+	checkPartValByIndex(printID, pidx);
+}
