@@ -434,7 +434,14 @@ void updateVertIDToIndexDevice(	particleinfo*	particleInfo,	///< particle's info
 		return;
 
 	// assuming vertIDToIndex is allocated, since this kernel is called only with SA bounds
-	vertIDToIndex[ id(particleInfo[index]) ] = index;
+	particleinfo info = particleInfo[index];
+
+	// only vertex particles need to have this information, it should not be done
+	// fluid particles as their ids can grow and cause buffer overflows
+	if(VERTEX(info))
+		// as the vertex particles never change their id (which is <= than the initial
+		// particle count, this buffer does not overflow
+		vertIDToIndex[ id(info) ] = index;
 }
 
 /// Compute the grid position for a neighbor cell
