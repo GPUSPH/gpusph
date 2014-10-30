@@ -1066,9 +1066,12 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// This is an average of the velocities of the vertices
 			if (!IO_BOUNDARY(info) || !INFLOW(info)) {
 				if (oldTKE){
-					oldEulerVel[index] = (	oldEulerVel[vertXidx] +
-											oldEulerVel[vertYidx] +
-											oldEulerVel[vertZidx] )/3.0f;
+					eulerVel = (	oldEulerVel[vertXidx] +
+									oldEulerVel[vertYidx] +
+									oldEulerVel[vertZidx] )/3.0f;
+					// ensure that velocity is normal to segment normal
+					eulerVel -= dot3(eulerVel,normal)*normal;
+					oldEulerVel[index] = eulerVel;
 					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
 				}
 				if (oldEps)
@@ -1382,7 +1385,11 @@ saVertexBoundaryConditions(
 	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
 	float4 sumEulerVel = make_float4(0.0f); // summation for computing the averages of the Euler velocities
 	float numseg  = 0.0f;  // number of adjacent segments
-	float3 avgNorm = make_float3(0.0f); // average norm used in the initial step
+	// Average norm used in the intial step to compute grad gamma for vertex particles
+	// During the simulation this is used for open boundaries to determine whether particles are created
+	// For all other boundaries in the keps case this is the average normal of all non-open boundaries used to ensure that the
+	// Eulerian velocity is only normal to the fixed wall
+	float3 avgNorm = make_float3(0.0f);
 
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
@@ -1442,8 +1449,9 @@ saVertexBoundaryConditions(
 					// for the computation of gamma, in general we need a sort of normal as well
 					// for open boundaries to decide whether or not particles are created at a
 					// vertex or not
-					if (IO_BOUNDARY(info) || initStep)
+					if (IO_BOUNDARY(info) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info))) {
 						avgNorm += as_float3(boundElement);
+					}
 				}
 			}
 			else if (FLUID(neib_info)){
@@ -1471,11 +1479,19 @@ saVertexBoundaryConditions(
 		} // BOUNDARY(neib_info) || FLUID(neib_info)
 	}
 
+	// normalize average norm
+	if (IO_BOUNDARY(info) || initStep || oldTKE)
+		avgNorm = normalize(avgNorm);
+
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	oldVel[index].w = sumrho/numseg;
-	if (oldTKE)
+	if (oldTKE) {
 		oldTKE[index] = sumtke/numseg;
+		// adjust Eulerian velocity so that it is tangential to the fixed wall
+		if (!IO_BOUNDARY(info))
+			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
+	}
 	if (oldEps)
 		oldEps[index] = sumeps/numseg;
 	// open boundaries
@@ -1503,7 +1519,7 @@ saVertexBoundaryConditions(
 			// create new particle if the mass of the vertex is large enough
 			pos.w > 0.5f*refMass &&
 			// check that the flow vector points into the domain
-			dot(as_float3(eulerVel),normalize(avgNorm)) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
+			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
 			// pressure inlets need p > 0 to create particles
 			(VEL_IO(info) || fabs(eulerVel.w-rho0) > rho0*1e-5f) )
 		{
@@ -1556,7 +1572,6 @@ saVertexBoundaryConditions(
 
 	// finalize computation of average norm for gamma calculation in the initial step
 	if (initStep) {
-		avgNorm /= length(avgNorm);
 		oldGGam[index].x = avgNorm.x;
 		oldGGam[index].y = avgNorm.y;
 		oldGGam[index].z = avgNorm.z;

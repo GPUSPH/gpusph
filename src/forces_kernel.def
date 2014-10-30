@@ -1386,12 +1386,6 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
 	pout.force /= pout.gGam.w;
-	// make sure that the velocity of vertices is orthogonal to its normal vector for keps
-	if (pdata.ptype == PT_VERTEX){
-		const float tmp = pout.force.w;
-		pout.force -= dot3(pout.force, pout.gGam)*pout.gGam/sqlength3(pout.gGam);
-		pout.force.w = tmp;
-	}
 }
 
 /// A functor that computes the mean velocity (XSPH)
