@@ -1489,7 +1489,7 @@ saVertexBoundaryConditions(
 	if (oldTKE) {
 		oldTKE[index] = sumtke/numseg;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if (!IO_BOUNDARY(info))
+		if (!IO_BOUNDARY(info) && !initStep)
 			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
 	}
 	if (oldEps)
