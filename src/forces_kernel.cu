@@ -1069,10 +1069,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					oldEulerVel[index] = (	oldEulerVel[vertXidx] +
 											oldEulerVel[vertYidx] +
 											oldEulerVel[vertZidx] )/3.0f;
-					oldTKE[index] = sumtke/alpha;
+					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
 				}
 				if (oldEps)
-					oldEps[index] = sumeps/alpha;
+					oldEps[index] = fmax(sumeps/alpha, 1e-5f); // eps should never be 0
 			}
 			if (IO_BOUNDARY(info))
 				sumvel /= alpha;
@@ -1081,9 +1081,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		else {
 			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
 			if (oldTKE)
-				oldTKE[index] = 0.0;
+				oldTKE[index] = 1e-5f;
 			if (oldEps)
-				oldEps[index] = 0.0;
+				oldEps[index] = 1e-5f;
 			if (IO_BOUNDARY(info))
 				sumvel = make_float3(0.0f);
 		}
