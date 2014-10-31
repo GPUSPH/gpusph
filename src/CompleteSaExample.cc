@@ -206,7 +206,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
-				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
 				m_physparams.rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
@@ -236,7 +236,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
-				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
