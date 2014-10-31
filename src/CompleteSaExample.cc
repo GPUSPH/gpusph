@@ -170,9 +170,8 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 		float rho = density(H - h5File.buf[i].Coords_2, 0);
 		//float rho = m_physparams.rho0[0];
 		vel[i] = make_float4(0, 0, 0, rho);
-		//vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		if (eulerVel)
-			eulerVel[i] = vel[i];
+			eulerVel[i] = make_float4(0);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
 			m_physparams.rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
@@ -186,7 +185,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
-				eulerVel[i] = vel[i];
+				eulerVel[i] = make_float4(0);
 			int specialBoundType = h5File.buf[i].KENT;
 			// count the number of different objects
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
@@ -221,7 +220,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 		for (uint i = j; i < j + n_bparts; i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
-				eulerVel[i] = vel[i];
+				eulerVel[i] = make_float4(0);
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
 			// Define the type of boundaries
