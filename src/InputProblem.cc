@@ -9,6 +9,9 @@
 
 InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
+	// Error catcher for SPECIFIC_PROBLEM definition
+	// If the value is not defined properly this will throw a compile error
+	int i = SPECIFIC_PROBLEM;
 	//StillWater periodic (symmetric)
 	//*************************************************************************************
 #if SPECIFIC_PROBLEM == StillWater
