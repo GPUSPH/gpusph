@@ -993,9 +993,17 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			eps /= sharedVertices;
 		}
 
-		const float4 pos = oldPos[index];
+		// velocity for moving objects transferred from vertices
+		float3 vel = make_float3(0.0f);
+		if (MOVING(info)) {
+			vel += as_float3(oldVel[vertXidx]);
+			vel += as_float3(oldVel[vertYidx]);
+			vel += as_float3(oldVel[vertZidx]);
+			vel /= 3.0f;
+		}
+		as_float3(oldVel[index]) = vel;
 
-		const float vel = length(make_float3(oldVel[index]));
+		const float4 pos = oldPos[index];
 
 		// note that all sums below run only over fluid particles (including the Shepard filter)
 		float sumrho = 0.0f; // summation for computing the density

@@ -283,13 +283,14 @@ class Problem {
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 
 		virtual void
-		setioboundconstants(
+		setboundconstants(
 			const	PhysParams	*physparams,
 			float3	const&		worldOrigin,
 			uint3	const&		gridSize,
 			float3	const&		cellSize) {};
 
-		virtual void imposeOpenBoundaryConditionHost(
+		virtual void imposeBoundaryConditionHost(
+					float4*			newVel,
 					float4*			newEulerVel,
 					float*			newTke,
 					float*			newEpsilon,

@@ -1674,7 +1674,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				break;
 			case IMPOSE_OPEN_BOUNDARY_CONDITION:
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
-				instance->kernel_imposeOpenBoundaryCondition();
+				instance->kernel_imposeBoundaryCondition();
 				break;
 			case COMPUTE_TESTPOINTS:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_TESTPOINTS\n", deviceIndex);
@@ -2164,14 +2164,15 @@ void GPUWorker::kernel_euler()
 			m_simparams->xsph);
 }
 
-void GPUWorker::kernel_imposeOpenBoundaryCondition()
+void GPUWorker::kernel_imposeBoundaryCondition()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	gdata->problem->imposeOpenBoundaryConditionHost(
+	gdata->problem->imposeBoundaryConditionHost(
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
@@ -2471,7 +2472,7 @@ void GPUWorker::uploadConstants()
 	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	if (m_simparams->inoutBoundaries)
-		gdata->problem->setioboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()

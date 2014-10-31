@@ -1,5 +1,5 @@
-#ifndef PROBLEM_IO_CU
-#define PROBLEM_IO_CU
+#ifndef PROBLEM_BC_CU
+#define PROBLEM_BC_CU
 
 #include <math.h>
 #include <string>
@@ -19,20 +19,23 @@ namespace cuInputProblem
 
 __device__
 void
-InputProblem_imposeOpenBoundaryCondition(
+InputProblem_imposeBoundaryCondition(
 	const	particleinfo	info,
 	const	float3			absPos,
 			float			waterdepth,
 	const	float			t,
+			float4&			vel,
 			float4&			eulerVel,
 			float&			tke,
 			float&			eps)
 {
+	vel = make_float4(0.0f);
 	eulerVel = make_float4(0.0f);
 	tke = 0.0f;
 	eps = 0.0f;
 
-	if (VEL_IO(info)) {
+	if (IO_BOUNDARY(info)) {
+		if (VEL_IO(info)) {
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO
 			// third order approximation to the flow in a rectangular duct
 			const float y2 = absPos.y*absPos.y;
@@ -55,44 +58,51 @@ InputProblem_imposeOpenBoundaryCondition(
 #else
 			eulerVel.x = 0.0f;
 #endif
-	}
-	else {
+		}
+		else {
 #if SPECIFIC_PROBLEM == LaPalisseSmallTest
-		if (INFLOW(info))
-			waterdepth = 0.21; // set inflow waterdepth to 0.21 (with respect to world_origin)
-		const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
-		const float pressure = 9.81e3f*localdepth;
-		eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
+			if (INFLOW(info))
+				waterdepth = 0.21; // set inflow waterdepth to 0.21 (with respect to world_origin)
+			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float pressure = 9.81e3f*localdepth;
+			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
 #else
-		eulerVel.w = 1000.0f;
+			eulerVel.w = 1000.0f;
 #endif
+		}
+
+		// impose tangential velocity
+		if (INFLOW(info)) {
+			eulerVel.y = 0.0f;
+			eulerVel.z = 0.0f;
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+			// k and eps based on Versteeg & Malalasekera (2001)
+			// turbulent intensity (between 1% and 6%)
+			const float Ti = 0.01f;
+			// in case of a pressure inlet eulerVel.x = 0 so we set u to 1 to multiply it later once
+			// we know the correct velocity
+			const float u = eulerVel.x > 1e-6f ? eulerVel.x : 1.0f;
+			tke = 3.0f/2.0f*(u*Ti)*(u*Ti);
+			tke = 3.33333f;
+			// length scale of the flow
+			const float L = 1.0f;
+			// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
+			// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
+			eps = 2.874944542f*tke*u*Ti/L;
+			eps = 1.0f/0.41f/fmax(1.0f-fabs(absPos.z),0.025f);
+#endif
+		}
 	}
 
-	// impose tangential velocity
-	if (INFLOW(info)) {
-		eulerVel.y = 0.0f;
-		eulerVel.z = 0.0f;
-#if SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
-		// k and eps based on Versteeg & Malalasekera (2001)
-		// turbulent intensity (between 1% and 6%)
-		const float Ti = 0.01f;
-		// in case of a pressure inlet eulerVel.x = 0 so we set u to 1 to multiply it later once
-		// we know the correct velocity
-		const float u = eulerVel.x > 1e-6f ? eulerVel.x : 1.0f;
-		tke = 3.0f/2.0f*(u*Ti)*(u*Ti);
-		tke = 3.33333f;
-		// length scale of the flow
-		const float L = 1.0f;
-		// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
-		// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
-		eps = 2.874944542f*tke*u*Ti/L;
-		eps = 1.0f/0.41f/fmax(1.0f-fabs(absPos.z),0.025f);
-#endif
+	// forced moving boundaries
+	else if (MOVING(info) && !FLOATING(info)) {
+		;// placeholder if only
 	}
 }
 
 __global__ void
-InputProblem_imposeOpenBoundaryConditionDevice(
+InputProblem_imposeBoundaryConditionDevice(
+			float4*		newVel,
 			float4*		newEulerVel,
 			float*		newTke,
 			float*		newEpsilon,
@@ -107,13 +117,15 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 	if (index >= numParticles)
 		return;
 
-	float4 eulerVel = make_float4(0.0f); // imposed velocity/pressure
-	float tke = 0.0f;
-	float eps = 0.0f;
+	float4 vel = make_float4(0.0f);			// imposed velocity for moving objects
+	float4 eulerVel = make_float4(0.0f);	// imposed velocity/pressure for open boundaries
+	float tke = 0.0f;						// imposed turbulent kinetic energy for open boundaries
+	float eps = 0.0f;						// imposed turb. diffusivity for open boundaries
+
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
-		if (VERTEX(info) && IO_BOUNDARY(info)) {
-			// open boundaries
+		// open boundaries and forced moving objects
+		if (VERTEX(info) && (IO_BOUNDARY(info) || (MOVING(info) && !FLOATING(info)) )) {
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
@@ -125,8 +137,9 @@ InputProblem_imposeOpenBoundaryConditionDevice(
 				waterdepth += d_worldOrigin.z; // now absolute z position
 			}
 			// this now calls the virtual function that is problem specific
-			InputProblem_imposeOpenBoundaryCondition(info, absPos, waterdepth, t, eulerVel, tke, eps);
+			InputProblem_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays
+			newVel[index] = vel;
 			newEulerVel[index] = eulerVel;
 			if(newTke)
 				newTke[index] = tke;
@@ -143,7 +156,7 @@ extern "C"
 {
 
 void
-InputProblem::setioboundconstants(
+InputProblem::setboundconstants(
 	const	PhysParams	*physparams,
 	float3	const&		worldOrigin,
 	uint3	const&		gridSize,
@@ -162,7 +175,8 @@ InputProblem::setioboundconstants(
 }
 
 void
-InputProblem::imposeOpenBoundaryConditionHost(
+InputProblem::imposeBoundaryConditionHost(
+			float4*			newVel,
 			float4*			newEulerVel,
 			float*			newTke,
 			float*			newEpsilon,
@@ -186,8 +200,8 @@ InputProblem::imposeOpenBoundaryConditionHost(
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	cuInputProblem::InputProblem_imposeOpenBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
-		(newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
+	cuInputProblem::InputProblem_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
+		(newVel, newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
@@ -198,7 +212,7 @@ InputProblem::imposeOpenBoundaryConditionHost(
 	CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("imposeOpenBoundaryCondition kernel execution failed");
+	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");
 }
 
 #endif

@@ -293,7 +293,7 @@ disable_particle(float4 &pos) {
 // This flag is set for moving vertices / segments either forced or free (floating)
 #define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
 // If the floating flag is set then the particles 
-#define FLOATING(f)		(type(f) & FLOATING_PARTICLE_FLAT)
+#define FLOATING(f)		(type(f) & FLOATING_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data

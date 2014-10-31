@@ -152,11 +152,22 @@ eulerDevice(
 			}
 		}
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
-		else if (VERTEX(pinfo)) {
-			if (!IO_BOUNDARY(pinfo))
-				// this is for k-eps only. Normally forces are going to be empty
+		else if (VERTEX(pinfo) || BOUNDARY(pinfo)) {
+			if (!IO_BOUNDARY(pinfo)) {
+				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
-				// TODO-AM add here moving object part
+				// move segments and boundary particles if the MOVING flag is set
+				if (MOVING(pinfo)) {
+					pos.x += vel.x*dt;
+					pos.y += vel.y*dt;
+					pos.z += vel.z*dt;
+				}
+				else {
+					vel.x = 0.0f;
+					vel.y = 0.0f;
+					vel.z = 0.0f;
+				}
+			}
 			else {
 				vel.x = 0.0f;
 				vel.y = 0.0f;

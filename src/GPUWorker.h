@@ -233,7 +233,7 @@ private:
 	void kernel_calcPrivate();
 	void kernel_testpoints();
 	void kernel_disableOutgoingParts();
-	void kernel_imposeOpenBoundaryCondition();
+	void kernel_imposeBoundaryCondition();
 	/*void uploadMbData();
 	void uploadGravity();*/
 
