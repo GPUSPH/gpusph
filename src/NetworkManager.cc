@@ -395,16 +395,15 @@ void NetworkManager::networkFloatReduction(float *buffer, const unsigned int buf
 #endif
 }
 
-// TODO don't use an integer buffer but a char one to save space (3 BYTES for every device !!111eleven)
 void NetworkManager::networkBoolReduction(bool *buffer, const unsigned int bufferElements)
 {
 #if USE_MPI
-	// we need an integer buffer since MPI doesn't have a bool type
-	int ibuffer[bufferElements];
+	// we need a char buffer since MPI doesn't have a bool type
+	char ibuffer[bufferElements];
 	for (uint i=0; i<bufferElements; i++)
 		ibuffer[i] = buffer[i] ? 1 : 0;
 
-	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_INTEGER, MPI_MAX, MPI_COMM_WORLD);
+	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_CHAR, MPI_MAX, MPI_COMM_WORLD);
 
 	for (uint i=0; i<bufferElements; i++)
 		buffer[i] = ibuffer[i] > 0;
