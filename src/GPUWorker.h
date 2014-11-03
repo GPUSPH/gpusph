@@ -234,6 +234,8 @@ private:
 	void kernel_testpoints();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
+	void kernel_fetch_iowaterdepth();
+	void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
 	void uploadGravity();*/
 

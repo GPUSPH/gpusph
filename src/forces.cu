@@ -1206,6 +1206,24 @@ saVertexBoundaryConditions(
 
 }
 
+void
+fetchIOwaterdepth(
+			uint*	h_IOwaterdepth,
+	const	uint*	d_IOwaterdepth,
+	const	uint	numObjects)
+{
+	CUDA_SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyDeviceToHost));
+}
+
+void
+uploadIOwaterdepth(
+	const	uint*	h_IOwaterdepth,
+			uint*	d_IOwaterdepth,
+	const	uint	numObjects)
+{
+	CUDA_SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+}
+
 } // extern "C"
 
 #undef KERNEL_CHECK

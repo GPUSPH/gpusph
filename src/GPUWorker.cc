@@ -2164,6 +2164,34 @@ void GPUWorker::kernel_euler()
 			m_simparams->xsph);
 }
 
+void GPUWorker::kernel_fetch_iowaterdepth()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	fetchIOwaterdepth(
+			gdata->h_IOwaterdepth[m_deviceIndex],
+			m_dIOwaterdepth,
+			m_simparams->numObjects);
+
+}
+
+void GPUWorker::kernel_upload_iowaterdepth()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	uploadIOwaterdepth(
+			gdata->h_IOwaterdepth[0],
+			m_dIOwaterdepth,
+			m_simparams->numObjects);
+
+}
+
 void GPUWorker::kernel_imposeBoundaryCondition()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);

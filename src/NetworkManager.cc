@@ -384,9 +384,51 @@ void NetworkManager::receiveShorts(unsigned char src_globalDevIdx, unsigned char
 void NetworkManager::networkFloatReduction(float *buffer, const unsigned int bufferElements, ReductionType rtype)
 {
 #if USE_MPI
-	MPI_Op _operator = (rtype == MIN_REDUCTION ? MPI_MIN : MPI_SUM);
+	MPI_Op _operator;
+	switch (rtype) {
+		case MIN_REDUCTION:
+			_operator = MPI_MIN;
+			break;
+		case MAX_REDUCTION:
+			_operator = MPI_MAX;
+			break;
+		case SUM_REDUCTION:
+			_operator = MPI_SUM;
+			break;
+		default:
+			_operator = MPI_SUM;
+			printf("WARNING: Wrong operator in networkFloatReduction specified. Defaulting to SUM_REDUCTION.\n");
+	}
 
 	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, buffer, bufferElements, MPI_FLOAT, _operator, MPI_COMM_WORLD);
+
+	if (mpi_err != MPI_SUCCESS)
+		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);
+#else
+	NO_MPI_ERR;
+#endif
+}
+
+void NetworkManager::networkIntReduction(int *buffer, const unsigned int bufferElements, ReductionType rtype)
+{
+#if USE_MPI
+	MPI_Op _operator;
+	switch (rtype) {
+		case MIN_REDUCTION:
+			_operator = MPI_MIN;
+			break;
+		case MAX_REDUCTION:
+			_operator = MPI_MAX;
+			break;
+		case SUM_REDUCTION:
+			_operator = MPI_SUM;
+			break;
+		default:
+			_operator = MPI_SUM;
+			printf("WARNING: Wrong operator in networkFloatReduction specified. Defaulting to SUM_REDUCTION.\n");
+	}
+
+	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, buffer, bufferElements, MPI_INTEGER, _operator, MPI_COMM_WORLD);
 
 	if (mpi_err != MPI_SUCCESS)
 		printf("WARNING: MPI_Allreduce returned error %d\n", mpi_err);

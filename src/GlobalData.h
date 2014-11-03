@@ -104,6 +104,8 @@ enum CommandType {
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
+	FETCH_IOWATERDEPTH,		// gets the IOwaterdepth array from the GPU
+	UPLOAD_IOWATERDEPTH,	// uploads the IOwaterdepth array to the GPU
 	QUIT				// quits the simulation cycle
 };
 
@@ -298,6 +300,9 @@ struct GlobalData {
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
+
+	// waterdepth at pressure outflows
+	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAXBODIES];
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];

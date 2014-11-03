@@ -13,6 +13,7 @@ typedef unsigned int uint;
 enum ReductionType
 {
 	MIN_REDUCTION,
+	MAX_REDUCTION,
 	SUM_REDUCTION
 };
 
@@ -55,6 +56,8 @@ public:
 #endif
 	// network reduction on bool buffer across the network
 	void networkBoolReduction(bool *buffer, const unsigned int bufferElements);
+	// network reduction on int buffer across the network
+	void networkIntReduction(int *buffer, const unsigned int bufferElements, ReductionType rtype);
 	// network reduction on float buffer across the network
 	void networkFloatReduction(float *buffer, const unsigned int bufferElements, ReductionType rtype);
 	// send one int, gather the int from all nodes (allgather)

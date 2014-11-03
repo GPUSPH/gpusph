@@ -374,6 +374,20 @@ disableOutgoingParts(		float4*			pos,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd);
 
+// fetches the per device waterdepth from the GPU
+void
+fetchIOwaterdepth(
+			uint*	h_IOwaterdepth,
+	const	uint*	d_IOwaterdepth,
+	const	uint	numObjects);
+
+// upload the global waterdepth to the GPU
+void
+uploadIOwaterdepth(
+	const	uint*	h_IOwaterdepth,
+			uint*	d_IOwaterdepth,
+	const	uint	numObjects);
+
 }
 
 #endif

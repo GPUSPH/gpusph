@@ -484,6 +484,27 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 
 			if (problem->get_simparams()->inoutBoundaries) {
+				// if we have multiple devices then we need to run a global max on the different gpus / nodes
+				if (MULTI_DEVICE) {
+					// each device gets his waterdepth array from the gpu
+					doCommand(FETCH_IOWATERDEPTH);
+					int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
+					// max over all devices per node
+					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
+						n_IOwaterdepth[ob] = 0;
+						for (uint d = 0; d < gdata->devices; d++)
+							n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+					}
+					// if we are in multi-node mode we need to run an mpi reduction over all nodes
+					if (MULTI_NODE) {
+						gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
+					}
+					// copy global value back to one array so that we can upload it again
+					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
+						gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
+					// upload the global max value to the devices
+					doCommand(UPLOAD_IOWATERDEPTH);
+				}
 				gdata->only_internal = false;
 				gdata->swapDeviceBuffers(BUFFER_POS);
 				doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
@@ -587,6 +608,27 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
 
 			if (problem->get_simparams()->inoutBoundaries) {
+				// if we have multiple devices then we need to run a global max on the different gpus / nodes
+				if (MULTI_DEVICE) {
+					// each device gets his waterdepth array from the gpu
+					doCommand(FETCH_IOWATERDEPTH);
+					int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
+					// max over all devices per node
+					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
+						n_IOwaterdepth[ob] = 0;
+						for (uint d = 0; d < gdata->devices; d++)
+							n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+					}
+					// if we are in multi-node mode we need to run an mpi reduction over all nodes
+					if (MULTI_NODE) {
+						gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
+					}
+					// copy global value back to one array so that we can upload it again
+					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
+						gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
+					// upload the global max value to the devices
+					doCommand(UPLOAD_IOWATERDEPTH);
+				}
 				gdata->only_internal = false;
 				gdata->swapDeviceBuffers(BUFFER_POS);
 				doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
@@ -1383,6 +1425,27 @@ void GPUSPH::initializeBoundaryConditions()
 	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES);
 
 	if (problem->get_simparams()->inoutBoundaries) {
+		// if we have multiple devices then we need to run a global max on the different gpus / nodes
+		if (MULTI_DEVICE) {
+			// each device gets his waterdepth array from the gpu
+			doCommand(FETCH_IOWATERDEPTH);
+			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
+			// max over all devices per node
+			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
+				n_IOwaterdepth[ob] = 0;
+				for (uint d = 0; d < gdata->devices; d++)
+					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+			}
+			// if we are in multi-node mode we need to run an mpi reduction over all nodes
+			if (MULTI_NODE) {
+				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
+			}
+			// copy global value back to one array so that we can upload it again
+			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
+				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
+			// upload the global max value to the devices
+			doCommand(UPLOAD_IOWATERDEPTH);
+		}
 		gdata->only_internal = false;
 		gdata->swapDeviceBuffers(BUFFER_POS);
 		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
