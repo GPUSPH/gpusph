@@ -1833,6 +1833,8 @@ forcesDevice(
 		// Writing out the results
 		if (pdata.ptype == PT_OBJECT) {
 			params.rbforces[pdata.rbindex] = pout.force;
+			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
+			//       of gravity and the local position of the cg. wrt. that gridPos.
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(pout.force)));
