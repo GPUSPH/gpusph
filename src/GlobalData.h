@@ -373,6 +373,11 @@ struct GlobalData {
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
 				s_hDeviceCanAccessPeer[d][p] = false;
 
+		// init h_IOwaterdepth
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
+				h_IOwaterdepth[d][p] = 0;
+
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos
