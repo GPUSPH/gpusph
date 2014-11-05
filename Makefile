@@ -99,6 +99,9 @@ CPUDEPS = $(MAKEFILE).cpu
 
 # .cc source files (CPU)
 MPICXXFILES = $(SRCDIR)/NetworkManager.cc
+ifeq ($(USE_HDF5),2)
+	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
+endif
 CCFILES = $(filter-out $(MPICXXFILES),$(wildcard $(SRCDIR)/*.cc))
 
 # .cu source files (GPU), excluding *_kernel.cu
@@ -389,7 +392,7 @@ endif
 
 # END of MPICXX mess
 
-# option: hdf5 - 0 do not use HDF5, 1 use HDF5. Default: autodetect
+# option: hdf5 - 0 do not use HDF5, 1 use HDF5, 2 use HDF5 and HDF5 requires MPI. Default: autodetect
 ifdef hdf5
 	# does it differ from last?
 	ifneq ($(USE_HDF5),$(hdf5))
@@ -400,7 +403,13 @@ ifdef hdf5
 	endif
 else
 	# check if we can link to the HDF5 library, and disable HDF5 otherwise
-	USE_HDF5 ?= $(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
+	# we return -1 in case of failure to differentiate from a case such as 'make hdf5=0 ; make', in which case we
+	# want to skip also the MPICXX test
+	USE_HDF5 ?= $(shell echo '\#include <hdf5.h>\nmain(){}' | $(CXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - 2> /dev/null && echo 1 || echo -1)
+	ifeq ($(USE_HDF5),-1)
+		# on some configurations, HDF5 requires mpi. check this, by first compiling with CXX
+		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - && echo 2 || echo 0)
+	endif
 endif
 
 # --- Includes and library section start ---
@@ -465,11 +474,11 @@ LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
 
-ifeq ($(USE_HDF5),1)
+ifeq ($(USE_HDF5),0)
+	TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
+else
 	# link to HDF5 for input reading
 	LIBS += -lhdf5
-else
-	TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
 endif
 
 # pthread needed for the UDP writer
