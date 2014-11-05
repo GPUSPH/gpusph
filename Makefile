@@ -726,6 +726,7 @@ gpuclean: computeclean
 # target: computeclean - Clean compute capability selection stuff
 computeclean:
 	$(RM) $(LIST_CUDA_CC) $(COMPUTE_SELECT_OPTFILE)
+	$(SED_COMMAND) '/COMPUTE=/d' Makefile.conf
 
 # target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
