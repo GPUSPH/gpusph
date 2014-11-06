@@ -69,6 +69,7 @@ eulerDevice(
 	float4*	newEulerVel,
 	float*	newTKE,
 	float*	newEps,
+	float4*	newBoundElement,
 	const uint	numParticles,
 	const float	full_dt,
 	const float	half_dt, /* full_dt/2 */
@@ -157,12 +158,28 @@ eulerDevice(
 				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
 				// move segments and boundary particles if the MOVING flag is set
-				if (MOVING(pinfo)) {
-					pos.x += vel.x*dt;
-					pos.y += vel.y*dt;
-					pos.z += vel.z*dt;
+				if (MOVING(pinfo) && step == 2) {
+					const uint i = object(pinfo)-1;
+					// old position
+					const float4 oldPos = pos;
+					// Applying center of gravity translation
+					pos.x += d_rbtrans[i].x;
+					pos.y += d_rbtrans[i].y;
+					pos.z += d_rbtrans[i].z;
+					// Applying rotation around center of gravity
+					const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
+					applyrot(&d_rbsteprot[9*i], relPos, pos);
+					// compute velocity as position derivative
+					vel.x = (pos.x - oldPos.x)/dt;
+					vel.y = (pos.y - oldPos.y)/dt;
+					vel.z = (pos.z - oldPos.z)/dt;
+					// update normal of boundary element
+					if (BOUNDARY(pinfo)) {
+						const float3 normal = as_float3(newBoundElement[index]);
+						applyrot(&d_rbsteprot[9*i], normal, newBoundElement[index]);
+					}
 				}
-				else {
+				else if (!MOVING(pinfo)) {
 					vel.x = 0.0f;
 					vel.y = 0.0f;
 					vel.z = 0.0f;
@@ -200,7 +217,7 @@ eulerDevice(
 		}
 		// TODO: change object particles velocity
 		else if (type(pinfo) == OBJECTPART && step == 2) {
-			const int i = object(pinfo);
+			const int i = object(pinfo)-1;
 			// Applying center of gravity translation
 			pos.x += d_rbtrans[i].x;
 			pos.y += d_rbtrans[i].y;

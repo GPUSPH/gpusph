@@ -87,7 +87,7 @@ void
 setforcesrbcg(const float3* cg, int numbodies);
 
 void
-setforcesrbstart(const uint* rbfirstindex, int numbodies);
+setforcesrbstart(const int* rbfirstindex, int numbodies);
 
 void
 forces_bind_textures(	const	float4	*pos,

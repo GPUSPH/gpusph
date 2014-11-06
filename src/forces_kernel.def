@@ -147,7 +147,7 @@ struct rb_particle_data
 	const	uint	rbindex;
 
 	__device__ __forceinline__
-	rb_particle_data(particleinfo const& info) : rbindex(id(info) + d_rbstartindex[object(info)])
+	rb_particle_data(particleinfo const& info) : rbindex(object(info) != 0 ? id(info) + d_rbstartindex[object(info)] : UINT_MAX)
 	{}
 };
 
@@ -190,6 +190,9 @@ struct sa_boundary_particle_data
 	// For fluid particles it is used in case the particle is too close to a wall
 	const	float4	oldGGam;
 
+	// boundary element, used to compute the force on a boundary element for floating objects
+	const	float4 belem;
+
 	// For fluid particles, we always want to recompute gamma, while for vertex
 	// particles we only want to recompute if we have moving boundaries or if
 	// gamma itself has not been computed before, where ‘computed before’ is
@@ -202,7 +205,8 @@ struct sa_boundary_particle_data
 		computeGamma(FLUID(info) || (VERTEX(info) && (params.movingBoundaries || visctype==KEPSVISC))),
 		// the actual oldGGam loading: this will also set computeGamma true if
 		// it was false but .w was < epsilon
-		oldGGam(fetchOldGamma(index, params.epsilon, computeGamma))
+		oldGGam(fetchOldGamma(index, params.epsilon, computeGamma)),
+		belem(BOUNDARY(info) ? tex1Dfetch(boundTex, index) : make_float4(0.0f))
 	{}
 };
 
@@ -751,7 +755,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
-		const float ndist = fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
+		const float ndist = sqlength3(ndata.relPos)/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
 		const float wVol = ndata.r < params.slength ? 1.0f/max(ndist,1e-3f) : 0.0f;//W<kerneltype>(ndata.r, params.slength);
 		pout.gamavg += (neib_gam.w + dotRGG)*wVol;
 		pout.alpha += wVol;
@@ -1388,6 +1392,28 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	pout.force /= pout.gGam.w;
 }
 
+/// A functor that computes the force acting on a boundary element
+/// but only for SA_BOUNDARY
+template<BoundaryType>
+struct compute_boundary_force
+{
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP &pout)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP, typename PD, typename OP>
+__device__ __forceinline__ void
+compute_boundary_force<SA_BOUNDARY>::with(FP const& params, PD const& pdata, OP &pout)
+{
+	// Force = Pressure*SurfaceArea*NormalVector
+	pout.force = P(pdata.vel.w, PART_FLUID_NUM(pdata.info))*pdata.belem.w*pdata.belem;
+	pout.force.w = 0.0f;
+}
+
 /// A functor that computes the mean velocity (XSPH)
 template<BoundaryType>
 struct compute_water_depth_at_outflow
@@ -1829,15 +1855,21 @@ forcesDevice(
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
 		}
+		else if (pdata.ptype == PT_BOUNDARY && MOVING(info) && FLOATING(info)) {
+			// For SA_BOUNDARY: compute force acting on boundary
+			compute_boundary_force<boundarytype>::with(params, pdata, pout);
+		}
 
 		// Writing out the results
-		if (pdata.ptype == PT_OBJECT) {
+		if (pdata.ptype == PT_OBJECT || (pdata.ptype == PT_BOUNDARY && boundarytype == SA_BOUNDARY && FLOATING(info))) {
 			params.rbforces[pdata.rbindex] = pout.force;
 			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
 			//       of gravity and the local position of the cg. wrt. that gridPos.
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
-								- d_rbcg[object(info)], as_float3(pout.force)));
+								- d_rbcg[object(info)-1], as_float3(pout.force)));
+			pout.force = make_float4(0.0f);
+			write_forces::with(params, pdata, pout);
 		} else {
 			write_forces::with(params, pdata, pout);
 			write_gamma<boundarytype>::with(params, pdata, pout, inoutBoundaries);

@@ -52,6 +52,15 @@ class CompleteSaExample: public Problem {
 			const	uint			particleRangeEnd,
 			const	hashKey*		particleHash);
 
+		void imposeForcedMovingObjects(
+					float3*	gravityCenters,
+					float3*	translations,
+					float*	rotationMatrices,
+			const	uint*	ODEobjectId,
+			const	uint	numObjects,
+			const	double	t,
+			const	float	dt);
+
 		void release_memory(void) {};
 
 		void fillDeviceMap();

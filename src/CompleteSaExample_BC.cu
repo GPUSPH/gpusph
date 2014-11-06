@@ -68,11 +68,6 @@ CompleteSaExample_imposeBoundaryCondition(
 			eps = 2.874944542f*tke*u*Ti/L;
 		}
 	}
-
-	// forced movement of the cube
-	else if (MOVING(info) && !FLOATING(info)) {
-		vel.x = 0.2f;
-	}
 }
 
 __global__ void
@@ -100,7 +95,7 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		// open boundaries and forced moving objects
-		if (VERTEX(info) && (IO_BOUNDARY(info) || (MOVING(info) && !FLOATING(info)) )) {
+		if (VERTEX(info) && IO_BOUNDARY(info)) {
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;

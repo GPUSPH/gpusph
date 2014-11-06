@@ -120,7 +120,7 @@ __constant__ float	d_cosconeanglenonfluid;
 __device__ float3	d_force;
 __device__ float3	d_torque;
 __constant__ float3	d_rbcg[MAXBODIES];
-__constant__ uint	d_rbstartindex[MAXBODIES];
+__constant__ int	d_rbstartindex[MAXBODIES];
 __constant__ float	d_objectobjectdf;
 __constant__ float	d_objectboundarydf;
 
@@ -1082,6 +1082,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					oldEulerVel[index] = eulerVel;
 					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
 				}
+				else
+					oldEulerVel[index] = make_float4(0.0f);
 				if (oldEps)
 					oldEps[index] = fmax(sumeps/alpha, 1e-5f); // eps should never be 0
 			}
@@ -1091,6 +1093,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 		else {
 			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
+			oldEulerVel[index] = make_float4(0.0f);
 			if (oldTKE)
 				oldTKE[index] = 1e-5f;
 			if (oldEps)

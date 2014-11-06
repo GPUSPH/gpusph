@@ -174,6 +174,7 @@ int OdeObjects::fill_parts()
 	sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
 	sphere.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_ODE_body(&sphere);
+	m_ODEobjectId[0]=0;
 
 	// Rigid body #2 : cylinder
 	cylinder = Cylinder(Point(0.9, 0.7*ly, r0), 0.05, Vector(0, 0, 0.2));
@@ -184,6 +185,7 @@ int OdeObjects::fill_parts()
 	cylinder.ODEBodyCreate(m_ODEWorld, m_deltap);
 	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_ODE_body(&cylinder);
+	m_ODEobjectId[1]=1;
 
 	/*joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
 	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
@@ -235,7 +237,7 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(OBJECTPART, k, i - j);
+			info[i] = make_particleinfo(OBJECTPART, k+1, i - j);
 			calc_localpos_and_hash(rbparts[i - j], info[i], pos[i], hash[i]);
 		}
 		j += rbparts.size();

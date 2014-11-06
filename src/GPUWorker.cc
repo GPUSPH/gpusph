@@ -920,12 +920,15 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		// m_hRbForces = new float4[m_numBodiesParticles];
 		// m_hRbTorques = new float4[m_numBodiesParticles];
 
-		uint rbfirstindex[MAXBODIES];
+		int rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
 
-		rbfirstindex[0] = 0;
-		for (uint i = 1; i < m_simparams->numODEbodies; i++) {
-			rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(i - 1);
+		rbfirstindex[0] = gdata->problem->m_firstODEobjectPartId;
+		for (uint i = 1; i < m_simparams->numObjects; i++) {
+			if (gdata->problem->m_ODEobjectId[i-1] != UINT_MAX)
+				rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(gdata->problem->m_ODEobjectId[i-1]);
+			else
+				rbfirstindex[i] = rbfirstindex[i-1];
 		}
 		setforcesrbstart(rbfirstindex, m_simparams->numODEbodies);
 
@@ -1665,7 +1668,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				instance->uploadBodiesCentersOfGravity();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_MATRICES\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
 				break;
 			case CALC_PRIVATE:
@@ -2155,6 +2158,7 @@ void GPUWorker::kernel_euler()
 			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
 			m_numParticles,
 			numPartsToElaborate,
 			gdata->dt, // m_dt,
@@ -2505,13 +2509,13 @@ void GPUWorker::uploadConstants()
 
 void GPUWorker::uploadBodiesCentersOfGravity()
 {
-	setforcesrbcg(gdata->s_hRbGravityCenters, m_simparams->numODEbodies);
-	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numODEbodies);
+	setforcesrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
+	seteulerrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
 }
 
 void GPUWorker::uploadBodiesTransRotMatrices()
 {
-	seteulerrbtrans(gdata->s_hRbTranslations, m_simparams->numODEbodies);
-	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numODEbodies);
+	seteulerrbtrans(gdata->s_hMovObjTranslations, m_simparams->numObjects);
+	seteulerrbsteprot(gdata->s_hMovObjRotationMatrices, m_simparams->numObjects);
 }
 

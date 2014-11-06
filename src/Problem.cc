@@ -54,6 +54,9 @@ Problem::Problem(const GlobalData *_gdata)
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
+	for (uint i=0; i<MAXBODIES; i++)
+		m_ODEobjectId[i] = UINT_MAX;
+	m_firstODEobjectPartId = 0;
 }
 
 
@@ -818,6 +821,19 @@ Problem::imposeBoundaryConditionHost(
 	const	uint			numObjects,
 	const	uint			particleRangeEnd,
 	const	hashKey*		particleHash)
+{
+	// not implemented
+	return;
+}
+
+void Problem::imposeForcedMovingObjects(
+			float3*	gravityCenters,
+			float3*	translations,
+			float*	rotationMatrices,
+	const	uint*	ODEobjectId,
+	const	uint	numObjects,
+	const	double	t,
+	const	float	dt)
 {
 	// not implemented
 	return;

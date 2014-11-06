@@ -223,6 +223,9 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				eulerVel[i] = make_float4(0);
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
+			// Save the id of the first boundary particle that belongs to an ODE object
+			if (m_firstODEobjectPartId == 0 && m_ODEobjectId[specialBoundType] != UINT_MAX)
+				m_firstODEobjectPartId = i;
 			// Define the type of boundaries
 			if (specialBoundType == 1) {
 				// this vertex is part of an open boundary
@@ -290,4 +293,24 @@ CompleteSaExample::max_parts(uint numpart)
 void CompleteSaExample::fillDeviceMap()
 {
 	fillDeviceMapByAxis(Y_AXIS);
+}
+
+void CompleteSaExample::imposeForcedMovingObjects(
+			float3*	gravityCenters,
+			float3*	translations,
+			float*	rotationMatrices,
+	const	uint*	ODEobjectId,
+	const	uint	numObjects,
+	const	double	t,
+	const	float	dt)
+{
+	// for object(info)==n we need to access array index n-1
+	uint id = 2-1;
+	// if ODEobjectId[id] is not equal to UINT_MAX we have a floating object
+	if (ODEobjectId[id] == UINT_MAX) {
+		gravityCenters[id] = make_float3(0.0f, 0.0f, 0.0f);
+		translations[id] = make_float3(0.2f*dt, 0.0f, 0.0f);
+		for (uint i=0; i<9; i++)
+			rotationMatrices[id*9+i] = (i==0 || i==4 || i==8) ? 1.0f : 0.0f;
+	}
 }

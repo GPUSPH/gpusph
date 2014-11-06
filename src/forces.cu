@@ -333,9 +333,9 @@ setforcesrbcg(const float3* cg, int numbodies)
 
 
 void
-setforcesrbstart(const uint* rbfirstindex, int numbodies)
+setforcesrbstart(const int* rbfirstindex, int numbodies)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbstartindex, rbfirstindex, numbodies*sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbstartindex, rbfirstindex, numbodies*sizeof(int)));
 }
 
 void

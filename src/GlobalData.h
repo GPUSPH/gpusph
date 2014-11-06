@@ -301,6 +301,11 @@ struct GlobalData {
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
 
+	// moving objects
+	float3* s_hMovObjGravityCenters;
+	float3* s_hMovObjTranslations;
+	float* s_hMovObjRotationMatrices;
+
 	// waterdepth at pressure outflows
 	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAXBODIES];
 
@@ -348,7 +353,10 @@ struct GlobalData {
 		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
-		s_hRbRotationMatrices(NULL)
+		s_hRbRotationMatrices(NULL),
+		s_hMovObjGravityCenters(NULL),
+		s_hMovObjTranslations(NULL),
+		s_hMovObjRotationMatrices(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)

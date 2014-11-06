@@ -185,9 +185,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
-	// initialize CGs (or, the problem could directly write on gdata)
-	initializeObjectsCGs();
-
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
 	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
@@ -251,6 +248,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem->copy_to_array(gdata->s_hBuffers);
 
 	printf("---\n");
+
+	// initialize CGs (or, the problem could directly write on gdata)
+	initializeObjectsCGs();
 
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
 	if (problem->get_simparams()->inoutBoundaries)
@@ -464,9 +464,14 @@ bool GPUSPH::runSimulation() {
 		//				initially done trivial and slow: stop and read
 		//			//reduce bodies
 
+		// boundelements is swapped because the normals are updated in the moving objects case
+		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
+
+		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
 
 		//			//reduce bodies
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -560,46 +565,78 @@ bool GPUSPH::runSimulation() {
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// reduce bodies
-		if (problem->get_simparams()->numODEbodies > 0) {
-			doCommand(REDUCE_BODIES_FORCES);
+		if (problem->get_simparams()->numObjects > 0) {
+			if (problem->get_simparams()->numODEbodies > 0) {
+				doCommand(REDUCE_BODIES_FORCES);
 
-			float3* totForce = new float3[problem->get_simparams()->numODEbodies];
-			float3* totTorque = new float3[problem->get_simparams()->numODEbodies];
+				float3* totForce = new float3[problem->get_simparams()->numODEbodies];
+				float3* totTorque = new float3[problem->get_simparams()->numODEbodies];
 
-			// now sum up the partial forces and momenta computed in each gpu
-			for (uint ob = 0; ob < problem->get_simparams()->numODEbodies; ob ++) {
+				// now sum up the partial forces and momenta computed in each gpu
+				for (uint ob = 0; ob < problem->get_simparams()->numODEbodies; ob ++) {
 
-				totForce[ob] = make_float3( 0.0F );
-				totTorque[ob] = make_float3( 0.0F );
+					totForce[ob] = make_float3( 0.0F );
+					totTorque[ob] = make_float3( 0.0F );
 
-				for (uint d = 0; d < gdata->devices; d++) {
-					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
-					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
-				} // iterate on devices
-			} // iterate on objects
+					for (uint d = 0; d < gdata->devices; d++) {
+						totForce[ob] += gdata->s_hRbTotalForce[d][ob];
+						totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
+					} // iterate on devices
+				} // iterate on objects
 
-			// if running multinode, also reduce across nodes
-			if (MULTI_NODE) {
-				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+				// if running multinode, also reduce across nodes
+				if (MULTI_NODE) {
+					// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+					gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+					gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+				}
+
+				problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
 			}
 
-			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+			// copy values into the moving object arrays
+			for (uint ob=0; ob < problem->get_simparams()->numObjects; ob++) {
+				const uint curODEobjectId = problem->m_ODEobjectId[ob];
+				if (curODEobjectId != UINT_MAX) {
+					gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[curODEobjectId];
+					gdata->s_hMovObjTranslations[ob] = gdata->s_hRbTranslations[curODEobjectId];
+					for (uint i=0; i<9; i++)
+						gdata->s_hMovObjRotationMatrices[ob*9+i] = gdata->s_hRbRotationMatrices[curODEobjectId*9+i];
+				}
+			}
+
+			// TODO AM: at this point we should impose stuff for forced moving objects
+			// the -1 is because we always access object(info)-1
+			gdata->s_hMovObjGravityCenters[2-1] = make_float3(0.0f, 0.0f, 0.0f);
+			gdata->s_hMovObjTranslations[2-1] = make_float3(0.2f*gdata->dt, 0.0f, 0.0f);
+			for (uint i=0; i<9; i++)
+				gdata->s_hMovObjRotationMatrices[(2-1)*9+i] = (i==0 || i==4 || i==8) ? 1.0f : 0.0f;
+			problem->imposeForcedMovingObjects(
+				gdata->s_hMovObjGravityCenters,
+				gdata->s_hMovObjTranslations,
+				gdata->s_hMovObjRotationMatrices,
+				problem->m_ODEobjectId,
+				problem->get_simparams()->numObjects,
+				gdata->t,
+				gdata->dt
+				);
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);
 		} // if there are objects
 
 		// swap read and writes again because the write contains the variables at time n
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+		// boundelements is swapped because the normals are updated in the moving objects case
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
+		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+
 		// euler needs the previous centers of gravity, so we upload CGs only here
-		if (problem->get_simparams()->numODEbodies > 0)
+		if (problem->get_simparams()->numObjects > 0)
 			doCommand(UPLOAD_OBJECTS_CG);
 
 		//			//reduce bodies
@@ -1676,9 +1713,29 @@ void GPUSPH::initializeObjectsCGs()
 			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
 		}
 		uint rbfirstindex[MAXBODIES];
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(int)));
 		for (int i=0; i < m_simparams->numbodies; i++) {
 			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
 		} */
+	}
+
+	// allocate centers of gravity
+	uint numObj = gdata->problem->get_simparams()->numObjects;
+	printf("alloc: %d\n", numObj);
+	if (numObj > 0) {
+		gdata->s_hMovObjGravityCenters = new float3 [numObj];
+		gdata->s_hMovObjTranslations = new float3 [numObj];
+		gdata->s_hMovObjRotationMatrices = new float [numObj*9];
+	}
+
+	// copy values into the moving object arrays
+	for (uint ob=0; ob < numObj; ob++) {
+		const uint curODEobjectId = gdata->problem->m_ODEobjectId[ob];
+		if (curODEobjectId != UINT_MAX)
+			// this is the gravity center for floating ODE objects
+			gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[curODEobjectId];
+		else
+			// we don't need a center of gravity just yet for forced moving objects (non-ODE)
+			gdata->s_hMovObjGravityCenters[ob] = make_float3(0.0f);
 	}
 }

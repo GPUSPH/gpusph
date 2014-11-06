@@ -111,6 +111,8 @@ class Problem {
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
+		uint		m_ODEobjectId[MAXBODIES];			// ODE object id
+		uint		m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
 		Problem(const GlobalData *_gdata);
 
@@ -302,6 +304,15 @@ class Problem {
 			const	uint			numObjects,
 			const	uint			particleRangeEnd,
 			const	hashKey*		particleHash);
+
+		virtual void imposeForcedMovingObjects(
+					float3*	gravityCenters,
+					float3*	translations,
+					float*	rotationMatrices,
+			const	uint*	ODEobjectId,
+			const	uint	numObjects,
+			const	double	t,
+			const	float	dt);
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();
