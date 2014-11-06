@@ -605,12 +605,7 @@ bool GPUSPH::runSimulation() {
 				}
 			}
 
-			// TODO AM: at this point we should impose stuff for forced moving objects
-			// the -1 is because we always access object(info)-1
-			gdata->s_hMovObjGravityCenters[2-1] = make_float3(0.0f, 0.0f, 0.0f);
-			gdata->s_hMovObjTranslations[2-1] = make_float3(0.2f*gdata->dt, 0.0f, 0.0f);
-			for (uint i=0; i<9; i++)
-				gdata->s_hMovObjRotationMatrices[(2-1)*9+i] = (i==0 || i==4 || i==8) ? 1.0f : 0.0f;
+			// Impose translation & rotation for forced movement of objects
 			problem->imposeForcedMovingObjects(
 				gdata->s_hMovObjGravityCenters,
 				gdata->s_hMovObjTranslations,
