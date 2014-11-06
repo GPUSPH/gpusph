@@ -334,7 +334,7 @@ struct GlobalData {
 		quit_request(false),
 		save_request(false),
 		iterations(0),
-		t(0.0f),
+		t(0.0),
 		dt(0.0f),
 		particlesCreated(false),
 		createdParticlesIterations(0),
