@@ -582,6 +582,8 @@ bool GPUSPH::runSimulation() {
 						totForce[ob] += gdata->s_hRbTotalForce[d][ob];
 						totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
 					} // iterate on devices
+					printf("fo: %d: %e %e %e\n", ob, totForce[ob].x, totForce[ob].y, totForce[ob].z);
+					printf("ft: %d: %e %e %e\n", ob, totTorque[ob].x, totTorque[ob].y, totTorque[ob].z);
 				} // iterate on objects
 
 				// if running multinode, also reduce across nodes
@@ -602,6 +604,11 @@ bool GPUSPH::runSimulation() {
 					gdata->s_hMovObjTranslations[ob] = gdata->s_hRbTranslations[curODEobjectId];
 					for (uint i=0; i<9; i++)
 						gdata->s_hMovObjRotationMatrices[ob*9+i] = gdata->s_hRbRotationMatrices[curODEobjectId*9+i];
+					printf("cg: %e %e %e\n", gdata->s_hMovObjGravityCenters[ob].x, gdata->s_hMovObjGravityCenters[ob].y, gdata->s_hMovObjGravityCenters[ob].z);
+					printf("trans: %e %e %e\n", gdata->s_hMovObjTranslations[ob].x, gdata->s_hMovObjTranslations[ob].y, gdata->s_hMovObjTranslations[ob].z);
+					printf("rot1: %e %e %e\n", gdata->s_hMovObjRotationMatrices[ob*9+0], gdata->s_hMovObjRotationMatrices[ob*9+1], gdata->s_hMovObjRotationMatrices[ob*9+2]);
+					printf("rot2: %e %e %e\n", gdata->s_hMovObjRotationMatrices[ob*9+3], gdata->s_hMovObjRotationMatrices[ob*9+4], gdata->s_hMovObjRotationMatrices[ob*9+5]);
+					printf("rot3: %e %e %e\n", gdata->s_hMovObjRotationMatrices[ob*9+6], gdata->s_hMovObjRotationMatrices[ob*9+7], gdata->s_hMovObjRotationMatrices[ob*9+8]);
 				}
 			}
 
