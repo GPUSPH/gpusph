@@ -279,7 +279,7 @@ void STLMesh::FillBorder(PointVect& parts, double)
 	}
 }
 
-void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
+void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double density)
 {
 	m_ODETriMeshData = dGeomTriMeshDataCreate();
 	// TODO FIXME sanity checks on data type (use *Single1 if data is floats,
@@ -290,15 +290,31 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 
 	// use the default callbacks
 	m_ODEGeom = dCreateTriMesh(ODESpace, m_ODETriMeshData, NULL, NULL, NULL);
-	if (m_ODEBody)
+	if (m_ODEBody) {
+		// set the body
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
+		// compute the mass, center of gravity and inertial tensor for the object
+		// assuming constant density
+		dMassSetTrimesh (&m_ODEMass, (dReal)density, m_ODEGeom);
+		// get the data from the m_ODEmass struct and write it to the vars in Object
+		m_mass = m_ODEMass.mass;
+		m_center(0) = m_ODEMass.c[0];
+		m_center(1) = m_ODEMass.c[1];
+		m_center(2) = m_ODEMass.c[2];
+		// TODO check if this is actually required
+		m_inertia[0] = m_ODEMass.I[0];
+		m_inertia[1] = m_ODEMass.I[4];
+		m_inertia[2] = m_ODEMass.I[8];
+		// Set the position of the body
+		dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	}
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
 		dGeomSetRotation(m_ODEGeom, m_ODERot);
 	}
 }
 
-void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace)
 {
 	const double m_lx = m_maxbounds.x - m_minbounds.y;
 	const double m_ly = m_maxbounds.y - m_minbounds.y;
@@ -307,14 +323,18 @@ void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpac
 	m_ODEBody = dBodyCreate(ODEWorld);
 
 	dMassSetZero(&m_ODEMass);
-	dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
-
-	dBodySetMass(m_ODEBody, &m_ODEMass);
-	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dBodySetRotation(m_ODEBody, m_ODERot);
 
 	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx);
+		ODEGeomCreate(ODESpace, dx, density);
+	else {
+		// In case we don't have a geometry we can make ODE believe it is a box.
+		// This works because all we need in this case are center of gravity and the
+		// tensor of inertia together with the mass to compute the movement of the object.
+		dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+		dBodySetMass(m_ODEBody, &m_ODEMass);
+		dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+		dBodySetRotation(m_ODEBody, m_ODERot);
+	}
 }
 
 /* TODO */

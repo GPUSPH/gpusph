@@ -126,10 +126,10 @@ class Object {
 		 */
 		//@{
 		/// Create an ODE body in the specified ODE world and space
-		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0)
+		virtual void ODEBodyCreate(dWorldID, const double, const double, dSpaceID ODESpace = 0)
 		{ throw std::runtime_error("ODEBodyCreate called but not defined!"); }
 		/// Create an ODE geometry in the specified ODE space
-		virtual void ODEGeomCreate(dSpaceID, const double)
+		virtual void ODEGeomCreate(dSpaceID, const double, const double density = 1.0)
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		//@}
 

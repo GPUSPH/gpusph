@@ -110,25 +110,13 @@ int CompleteSaExample::fill_parts()
 	container->ODEGeomCreate(m_ODESpace, m_deltap);
 
 	// cube density half water density
-	const double cube_size = 0.2;
-	cube->SetMass( (cube_size * cube_size * cube_size) * 0.5 );
-
-	//cube->ODEBodyCreate(m_ODEWorld, m_deltap); // only dynamics
+	const double cube_density = 1000.0; // 1 = water
+	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density); // only dynamics
 	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
-	cube->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace); // dynamics + collisions
+	cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density, m_ODESpace); // dynamics + collisions
 	// particles with object(info)-1==1 are associated with ODE object number 0
 	m_ODEobjectId[2-1] = 0;
 	add_ODE_body(cube);
-	double cg[3];
-	double inertia[3];
-	cg[0] = 1.0;
-	cg[1] = 1.0;
-	cg[2] = 1.0;
-	cube->SetCenterOfGravity(cg);
-	inertia[0] = 1.0;
-	inertia[1] = 1.0;
-	inertia[2] = 1.0;
-	cube->SetInertia(inertia);
 
 	return h5File.getNParts();
 }
