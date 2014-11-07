@@ -1691,6 +1691,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 		if (gdata->keep_going) {
 			/*
 			// example usage of checkPartValBy*()
+			// alternatively, can be used in the previous switch construct, to check who changes what
 			if (gdata->iterations >= 10) {
 				dbg_step_printf = true; // optional
 				instance->checkPartValByIndex("test", 0);
@@ -2537,8 +2538,9 @@ void GPUWorker::uploadBodiesTransRotMatrices()
 // Possible improvement: make it accept buffer flags. But is it worth the time?
 void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 {
-	// here it is possible to set a condition on the simulation state, e.g.:
+	// here it is possible to set a condition on the simulation state, device number, e.g.:
 	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
+	// if (m_deviceIndex == 1) return;
 
 	// get particle info
 	particleinfo pinfo;
@@ -2548,14 +2550,27 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 	// this is the right place to filter for particle type, e.g.:
 	// if (!FLUID(pinfo)) return;
 
+	/*
+	// get hash
+	hashKey phash;
+	CUDA_SAFE_CALL(cudaMemcpy(&phash, m_dBuffers.getData<BUFFER_HASH>() + pindex,
+		sizeof(hashKey), cudaMemcpyDeviceToHost));
+	uint3 gridpos = gdata->calcGridPosFromCellHash(cellHashFromParticleHash(phash));
+	printf("HHd%u_%s: id %u (%s) idx %u IT %u, phash %lx, cell %u (%d,%d,%d)\n",
+		m_deviceIndex, printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations, phash, cellHashFromParticleHash(phash),
+		gridpos.x, gridpos.y, gridpos.z);
+	*/
+
 	// get vel(s)
 	float4 rVel, wVel;
 	CUDA_SAFE_CALL(cudaMemcpy(&rVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]) + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(&wVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]) + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
-	printf("XX_%s: id %u (%s) idx %u IT %u, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
-		printID, id(pinfo),
+	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
+		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
 		pindex, gdata->iterations,
 		rVel.x, rVel.y, rVel.z, rVel.w, wVel.x, wVel.y, wVel.z, wVel.w );
@@ -2568,8 +2583,8 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 		sizeof(float4), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(&wPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]) + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
-	printf("XX_%s: id %u idx %u IT %u, readPos (%g,%g,%g %g) writePos (%g,%g,%g %g)\n",
-		printID, id(pinfo),
+	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readPos (%g,%g,%g %g) writePos (%g,%g,%g %g)\n",
+		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
 		pindex, gdata->iterations,
 		rPos.x, rPos.y, rPos.z, rPos.w, wPos.x, wPos.y, wPos.z, wPos.w );
@@ -2580,8 +2595,8 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 	float4 force;
 	CUDA_SAFE_CALL(cudaMemcpy(&force, m_dBuffers.getData<BUFFER_FORCES>() + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
-	printf("XX_%s: id %u idx %u IT %u, force (%g,%g,%g %g)\n",
-		printID, id(pinfo),
+	printf("XXd%u_%s: id %u (%s) idx %u IT %u, force (%g,%g,%g %g)\n",
+		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
 		pindex, gdata->iterations,
 		force.x, force.y, force.z, force.w);
@@ -2596,7 +2611,11 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 			sizeof(float4), cudaMemcpyDeviceToHost));
 		CUDA_SAFE_CALL(cudaMemcpy(&wGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]) + pindex,
 			sizeof(float4), cudaMemcpyDeviceToHost));
-		// printf ...
+		printf("XXd%u_%s: id %u (%s) idx %u IT %u, rGGam (%g,%g,%g %g) wGGam (%g,%g,%g %g)\n",
+			m_deviceIndex, printID, id(pinfo),
+			(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+			pindex, gdata->iterations,
+			rGgam.x, rGgam.y, rGgam.z, rGgam.w, wGgam.x, wGgam.y, wGgam.z, wGgam.w );
 
 		if (BOUNDARY(pinfo)) {
 			// get vert pos
