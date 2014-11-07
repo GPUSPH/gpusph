@@ -1047,6 +1047,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 			if (r < influenceradius && FLUID(neib_info)) {
 				const float neib_rho = oldVel[neib_index].w;
+
+				// Naif workaround to trespassing: just ignore parts with low density (<10% max oscillation)
+				if (neib_rho < 999.0F) continue; // TODO FIXME TEST
+
 				const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 				const float neib_vel = length(make_float3(oldVel[neib_index]));
 				const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
