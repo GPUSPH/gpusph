@@ -72,7 +72,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-2);
+	set_timer_tick(1.0e-6);
 	add_writer(VTKWRITER, 1);
 
 	// will use only 1 ODE body: the floating/moving cube (container is fixed)
@@ -106,31 +106,29 @@ CompleteSaExample::~CompleteSaExample()
 
 int CompleteSaExample::fill_parts()
 {
-	/*
+	// here create ODE planes in the geom space, if needed (no ODE body)
 	container->ODEGeomCreate(m_ODESpace, m_deltap);
-	cube->ODEGeomCreate(m_ODESpace, m_deltap);
 
 	// cube density half water density
 	const double cube_size = 0.2;
 	cube->SetMass( (cube_size * cube_size * cube_size) * 0.5 );
 
-	// no need to unfill, done by Crixus
-	// cube->Unfill(fluid_parts, m_deltap);
-
-	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, ); // only dynamics
+	//cube->ODEBodyCreate(m_ODEWorld, m_deltap); // only dynamics
 	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
 	cube->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace); // dynamics + collisions
+	// particles with object(info)-1==1 are associated with ODE object number 0
+	m_ODEobjectId[2-1] = 0;
 	add_ODE_body(cube);
-
-	*/
-
-	// here create ODE planes in the geom space, if needed (no ODE body)
-
-	// here create ODE bodies from GPUSPH objs, e.g.:
-	// Sphere sphere = new ...
-	// sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
-	// sphere.ODEGeomCreate(m_ODESpace, m_deltap);
-	// add_ODE_body(&sphere);
+	double cg[3];
+	double inertia[3];
+	cg[0] = 1.0;
+	cg[1] = 1.0;
+	cg[2] = 1.0;
+	cube->SetCenterOfGravity(cg);
+	inertia[0] = 1.0;
+	inertia[1] = 1.0;
+	inertia[2] = 1.0;
+	cube->SetInertia(inertia);
 
 	return h5File.getNParts();
 }
@@ -215,6 +213,8 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
 
+	uint numOdeObjParts = 0;
+
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";
 		for (uint i = j; i < j + n_bparts; i++) {
@@ -224,7 +224,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
 			// Save the id of the first boundary particle that belongs to an ODE object
-			if (m_firstODEobjectPartId == 0 && m_ODEobjectId[specialBoundType] != UINT_MAX)
+			if (m_firstODEobjectPartId == 0 && specialBoundType != 0 &&  m_ODEobjectId[specialBoundType-1] != UINT_MAX)
 				m_firstODEobjectPartId = i;
 			// Define the type of boundaries
 			if (specialBoundType == 1) {
@@ -239,7 +239,8 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
-				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				numOdeObjParts++;
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
@@ -255,6 +256,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 	}
 	// Make sure that fluid + vertex + boundaries are done in that order
 	// before adding any other items like testpoints, etc.
+	cube->SetNumParts(numOdeObjParts);
 
 	//Testpoints
 	if (test_points.size()) {

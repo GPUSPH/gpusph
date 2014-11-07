@@ -147,7 +147,7 @@ struct rb_particle_data
 	const	uint	rbindex;
 
 	__device__ __forceinline__
-	rb_particle_data(particleinfo const& info) : rbindex(object(info) != 0 ? id(info) + d_rbstartindex[object(info)] : UINT_MAX)
+	rb_particle_data(particleinfo const& info) : rbindex(object(info) != 0 ? ((int)id(info)) + d_rbstartindex[object(info)-1] : UINT_MAX)
 	{}
 };
 
@@ -1409,8 +1409,8 @@ template<typename FP, typename PD, typename OP>
 __device__ __forceinline__ void
 compute_boundary_force<SA_BOUNDARY>::with(FP const& params, PD const& pdata, OP &pout)
 {
-	// Force = Pressure*SurfaceArea*NormalVector
-	pout.force = P(pdata.vel.w, PART_FLUID_NUM(pdata.info))*pdata.belem.w*pdata.belem;
+	// Force = -Pressure*SurfaceArea*NormalOutsideVector
+	pout.force = -P(pdata.vel.w, PART_FLUID_NUM(pdata.info))*pdata.belem.w*pdata.belem;
 	pout.force.w = 0.0f;
 }
 
@@ -1656,8 +1656,11 @@ forcesDevice(
 		// * vertex particles (for SA_BOUNDARY)
 
 		bool computes_stuff = FLUID(info) || OBJECT(info);
-		if (boundarytype == SA_BOUNDARY)
+		if (boundarytype == SA_BOUNDARY){
 			computes_stuff = computes_stuff || VERTEX(info);
+			// floating objects need to compute the force acting on them
+			computes_stuff = computes_stuff || (BOUNDARY(info) && FLOATING(info));
+		}
 
 		// nothing to do if the particle doesn't need to compute forces
 		if (!computes_stuff)
@@ -1855,19 +1858,20 @@ forcesDevice(
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 			gamma_fixup<boundarytype>::with(params, pdata, pout);
 		}
-		else if (pdata.ptype == PT_BOUNDARY && MOVING(info) && FLOATING(info)) {
+		else if (pdata.ptype == PT_BOUNDARY && FLOATING(info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
 
 		// Writing out the results
-		if (pdata.ptype == PT_OBJECT || (pdata.ptype == PT_BOUNDARY && boundarytype == SA_BOUNDARY && FLOATING(info))) {
+		if (pdata.ptype == PT_OBJECT || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
 			params.rbforces[pdata.rbindex] = pout.force;
 			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
 			//       of gravity and the local position of the cg. wrt. that gridPos.
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)-1], as_float3(pout.force)));
+			// set forces to zero for this particle
 			pout.force = make_float4(0.0f);
 			write_forces::with(params, pdata, pout);
 		} else {

@@ -923,14 +923,14 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
 
-		rbfirstindex[0] = gdata->problem->m_firstODEobjectPartId;
+		rbfirstindex[0] = -gdata->problem->m_firstODEobjectPartId;
 		for (uint i = 1; i < m_simparams->numObjects; i++) {
 			if (gdata->problem->m_ODEobjectId[i-1] != UINT_MAX)
 				rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(gdata->problem->m_ODEobjectId[i-1]);
 			else
 				rbfirstindex[i] = rbfirstindex[i-1];
 		}
-		setforcesrbstart(rbfirstindex, m_simparams->numODEbodies);
+		setforcesrbstart(rbfirstindex, m_simparams->numObjects);
 
 		int offset = 0;
 		for (uint i = 0; i < m_simparams->numODEbodies; i++) {

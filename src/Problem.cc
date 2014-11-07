@@ -541,7 +541,7 @@ Problem::get_ODE_bodies_numparts(void) const
 {
 	int total_parts = 0;
 	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
-		total_parts += m_ODE_bodies[i]->GetParts().size();
+		total_parts += m_ODE_bodies[i]->GetNumParts();
 	}
 
 	return total_parts;
@@ -554,7 +554,7 @@ Problem::get_ODE_body_numparts(const int i) const
 	if (!m_simparams.numODEbodies)
 		return 0;
 
-	return m_ODE_bodies[i]->GetParts().size();
+	return m_ODE_bodies[i]->GetNumParts();
 }
 
 

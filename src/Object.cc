@@ -95,6 +95,15 @@ Object::SetMass(const double mass)
 }
 
 
+/// Set the objects center of gravity
+void
+Object::SetCenterOfGravity(const double* cg)
+{
+	m_center(0) = cg[0];
+	m_center(1) = cg[1];
+	m_center(2) = cg[2];
+}
+
 /// Set the object principal moments of inertia
 /*! Directly set the object principal moments of inertia.
  *
@@ -144,6 +153,26 @@ PointVect&
 Object::GetParts(void)
 {
 	return m_parts;
+}
+
+/// Sets the number of particles associated with an object
+void Object::SetNumParts(const int numParts)
+{
+	m_numParts = numParts;
+}
+
+/// Gets the number of particles associated with an object
+/*! This function either returns the set number of particles which is used
+ *  in case of a loaded STL mesh or the number of particles set in m_parts
+ */
+uint Object::GetNumParts()
+{
+	// if the number of particles was not explicitly set then obtain it from
+	// m_parts
+	if (m_numParts == 0)
+		m_numParts = m_parts.size();
+
+	return m_numParts;
 }
 
 /// Fill the object with particles

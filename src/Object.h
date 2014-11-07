@@ -55,6 +55,7 @@ class Object {
 		double				m_inertia[3];			///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;					///< Mass of the object
 		PointVect			m_parts;				///< Particles belonging to the object
+		uint				m_numParts;				///< Number of particles belonging to the object
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
 		dGeomID				m_ODEGeom;		///< ODE geometry ID assicuated with the object
@@ -65,6 +66,7 @@ class Object {
 			m_ODEGeom = 0;
 			dRSetIdentity (m_ODERot);
 			m_center = Point(0,0,0);
+			m_numParts = 0;
 		};
 
 		virtual ~Object(void) {};
@@ -102,11 +104,20 @@ class Object {
 		 */
 		virtual void SetInertia(const double dx) = 0;
 		virtual void SetInertia(const double*);
+		void SetCenterOfGravity(const double*);
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
 
 		/// Returns the particle vector associatet with the object
 		PointVect& GetParts(void);
+
+		/// Sets the number of particles associated with an object
+		void SetNumParts(const int numParts);
+		/// Gets the number of particles associated with an object
+		/*! This function either returns the set number of particles which is used
+		 *  in case of a loaded STL mesh or the number of particles set in m_parts
+		 */
+		uint GetNumParts();
 
 		/// \name ODE related functions
 		/* These are not pure virtual to allow new GPUSPH Objects to be defined without
