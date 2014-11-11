@@ -303,8 +303,8 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		m_center(2) = m_ODEMass.c[2];
 		// TODO check if this is actually required
 		m_inertia[0] = m_ODEMass.I[0];
-		m_inertia[1] = m_ODEMass.I[4];
-		m_inertia[2] = m_ODEMass.I[8];
+		m_inertia[1] = m_ODEMass.I[5];
+		m_inertia[2] = m_ODEMass.I[10];
 		// Set the position of the body
 		dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
 	}
