@@ -316,7 +316,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 
 void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace)
 {
-	const double m_lx = m_maxbounds.x - m_minbounds.y;
+	const double m_lx = m_maxbounds.x - m_minbounds.x;
 	const double m_ly = m_maxbounds.y - m_minbounds.y;
 	const double m_lz = m_maxbounds.z - m_minbounds.z;
 
