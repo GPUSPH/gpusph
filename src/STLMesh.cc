@@ -330,7 +330,7 @@ void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double den
 		// In case we don't have a geometry we can make ODE believe it is a box.
 		// This works because all we need in this case are center of gravity and the
 		// tensor of inertia together with the mass to compute the movement of the object.
-		dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+		dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_lz + dx);
 		dBodySetMass(m_ODEBody, &m_ODEMass);
 		dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
 		dBodySetRotation(m_ODEBody, m_ODERot);
