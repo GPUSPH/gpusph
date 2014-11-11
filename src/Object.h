@@ -34,10 +34,10 @@
 
 //! Object container class
 /*!
- *	The Object class is a container class for geomtrical objects.
+ *	The Object class is a container class for geometrical objects.
  *	It contains several utility function for drawing, filling, unfilling
- *  and setting or accesing object data along with pure virtual function
- *  that need to be implemented by his childs.
+ *  and setting or accessing object data along with pure virtual function
+ *  that need to be implemented by his children.
  *
  *
  *  For simplicity and efficiency reasons we use, often as possible, the
@@ -58,8 +58,8 @@ class Object {
 		uint				m_numParts;				///< Number of particles belonging to the object
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
-		dGeomID				m_ODEGeom;		///< ODE geometry ID assicuated with the object
-		dMass				m_ODEMass;		///< ODE iniertial parameters of the object
+		dGeomID				m_ODEGeom;		///< ODE geometry ID associated with the object
+		dMass				m_ODEMass;		///< ODE inertial parameters of the object
 
 		Object(void) {
 			m_ODEBody = 0;
@@ -95,7 +95,7 @@ class Object {
 		/// \name Inertia related functions
 		//@{
 		/// Compute the matrix of inertia
-		/*! This function compute the matrix of inertia of the obkect in the inertial
+		/*! This function compute the matrix of inertia of the object in the inertial
 		 *  frame (i.e. the 3 diagonal components) and store it in the m_inertia array.
 		 *	For the same reasons as volume, the inertia depends on particle spacing.
 		 *	\param dx : particle spacing
@@ -108,7 +108,7 @@ class Object {
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
 
-		/// Returns the particle vector associatet with the object
+		/// Returns the particle vector associated with the object
 		PointVect& GetParts(void);
 
 		/// Sets the number of particles associated with an object
@@ -172,7 +172,7 @@ class Object {
 		//@}
 
 		/// Detect if a particle is inside an object
-		/*!	Detect if a perticle is located inside the object or at a distance inferior
+		/*!	Detect if a particle is located inside the object or at a distance inferior
 		 *  to a threshold value.
 		 *	\param dx : threshold value
 		 *	\return true if particle is inside the object or closer than dx
