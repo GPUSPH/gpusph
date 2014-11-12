@@ -1877,7 +1877,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_simparams->epsilon,
 			m_simparams->movingBoundaries,
 			m_simparams->inoutBoundaries,
-			m_dIOwaterdepth, // TODO FIXME Eugenio: in multi-GPU this needs to be maxed across devices
+			m_dIOwaterdepth,
 			m_simparams->visctype,
 			m_physparams->visccoeff,
 			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
