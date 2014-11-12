@@ -1604,11 +1604,11 @@ void* GPUWorker::simulationThread(void *ptr) {
 				instance->kernel_upload_iowaterdepth();
 				break;
 			case DOWNLOAD_NEWNUMPARTS:
-				//printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
 				instance->downloadNewNumParticles();
 				break;
 			case UPLOAD_NEWNUMPARTS:
-				//printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
 				instance->uploadNewNumParticles();
 				break;
 			case APPEND_EXTERNAL:
