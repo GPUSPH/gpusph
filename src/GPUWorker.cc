@@ -1695,6 +1695,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
+			default:
+				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
+				exit(1);
 		}
 		if (gdata->keep_going) {
 			// the first barrier waits for the main thread to set the next command; the second is to unlock
