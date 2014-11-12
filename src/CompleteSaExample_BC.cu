@@ -99,15 +99,7 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
-			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
-			/*
-			if (!VEL_IO(info) && !INFLOW(info)) {
-				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
-				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
-				waterdepth += d_worldOrigin.z; // now absolute z position
-			}
-			*/
 			// this now calls the virtual function that is problem specific
 			CompleteSaExample_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays
