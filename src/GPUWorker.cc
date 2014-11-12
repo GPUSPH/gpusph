@@ -1595,6 +1595,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
 				break;
+			case DOWNLOAD_IOWATERDEPTH:
+				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_IOWATERDEPTH\n", deviceIndex);
+				instance->kernel_download_iowaterdepth();
+				break;
+			case UPLOAD_IOWATERDEPTH:
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_IOWATERDEPTH\n", deviceIndex);
+				instance->kernel_upload_iowaterdepth();
+				break;
 			case DOWNLOAD_NEWNUMPARTS:
 				//printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
 				instance->downloadNewNumParticles();
@@ -2168,14 +2176,14 @@ void GPUWorker::kernel_euler()
 			m_simparams->xsph);
 }
 
-void GPUWorker::kernel_fetch_iowaterdepth()
+void GPUWorker::kernel_download_iowaterdepth()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	fetchIOwaterdepth(
+	downloadIOwaterdepth(
 			gdata->h_IOwaterdepth[m_deviceIndex],
 			m_dIOwaterdepth,
 			m_simparams->numObjects);

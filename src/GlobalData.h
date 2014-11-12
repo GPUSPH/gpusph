@@ -104,7 +104,7 @@ enum CommandType {
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
-	FETCH_IOWATERDEPTH,		// gets the IOwaterdepth array from the GPU
+	DOWNLOAD_IOWATERDEPTH,		// gets the IOwaterdepth array from the GPU
 	UPLOAD_IOWATERDEPTH,	// uploads the IOwaterdepth array to the GPU
 	QUIT				// quits the simulation cycle
 };

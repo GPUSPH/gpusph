@@ -1594,7 +1594,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
 		if (MULTI_DEVICE) {
 			// each device gets his waterdepth array from the gpu
-			doCommand(FETCH_IOWATERDEPTH);
+			doCommand(DOWNLOAD_IOWATERDEPTH);
 			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
 			// max over all devices per node
 			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {

@@ -1207,7 +1207,7 @@ saVertexBoundaryConditions(
 }
 
 void
-fetchIOwaterdepth(
+downloadIOwaterdepth(
 			uint*	h_IOwaterdepth,
 	const	uint*	d_IOwaterdepth,
 	const	uint	numObjects)
