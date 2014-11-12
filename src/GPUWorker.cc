@@ -2054,7 +2054,7 @@ void GPUWorker::kernel_forces_async_complete()
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	if (numPartsToElaborate > 0 ) {
 		// wait for the completion of the kernel
@@ -2089,7 +2089,7 @@ void GPUWorker::kernel_forces()
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
@@ -2134,7 +2134,7 @@ void GPUWorker::kernel_euler()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 		euler(
 			// previous pos, vel, k, e, info
@@ -2405,7 +2405,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	// pos, vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	saVertexBoundaryConditions(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
