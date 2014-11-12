@@ -98,8 +98,8 @@ private:
 	// rebuild the neighbor list
 	void buildNeibList();
 
-	// initialization of semi-analytic boundary arrays
-	void initializeBoundaryConditions();
+	// setting of boundary conditions for the semi-analytical boundaries
+	void saBoundaryConditions(flag_t cFlag);
 
 	// print information about the status of the simulation
 	void printStatus();

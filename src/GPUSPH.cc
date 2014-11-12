@@ -377,7 +377,7 @@ bool GPUSPH::runSimulation() {
 		buildNeibList();
 
 		// set density and other values for segments and vertices
-		initializeBoundaryConditions();
+		saBoundaryConditions(INITIALIZATION_STEP);
 
 	}
 
@@ -485,57 +485,9 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
-		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-
-			if (problem->get_simparams()->inoutBoundaries) {
-				// if we have multiple devices then we need to run a global max on the different gpus / nodes
-				if (MULTI_DEVICE) {
-					// each device gets his waterdepth array from the gpu
-					doCommand(FETCH_IOWATERDEPTH);
-					int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
-					// max over all devices per node
-					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
-						n_IOwaterdepth[ob] = 0;
-						for (uint d = 0; d < gdata->devices; d++)
-							n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
-					}
-					// if we are in multi-node mode we need to run an mpi reduction over all nodes
-					if (MULTI_NODE) {
-						gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
-					}
-					// copy global value back to one array so that we can upload it again
-					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
-						gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
-					// upload the global max value to the devices
-					doCommand(UPLOAD_IOWATERDEPTH);
-				}
-				gdata->only_internal = false;
-				gdata->swapDeviceBuffers(BUFFER_POS);
-				doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
-				gdata->swapDeviceBuffers(BUFFER_POS);
-			}
-
-			gdata->only_internal = true;
-
-			gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
-			// compute boundary conditions on segments and detect outgoing particles at open boundaries
-			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
-			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-			if (problem->get_simparams()->inoutBoundaries) {
-				doCommand(DISABLE_OUTGOING_PARTS);
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
-			}
-		}
+		// semi-analytical boundary conditions
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
+			saBoundaryConditions(INTEGRATOR_STEP_1);
 
 		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
 
@@ -643,73 +595,9 @@ bool GPUSPH::runSimulation() {
 
 		//			//reduce bodies
 
-		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-
-			if (problem->get_simparams()->inoutBoundaries) {
-				// if we have multiple devices then we need to run a global max on the different gpus / nodes
-				if (MULTI_DEVICE) {
-					// each device gets his waterdepth array from the gpu
-					doCommand(FETCH_IOWATERDEPTH);
-					int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
-					// max over all devices per node
-					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
-						n_IOwaterdepth[ob] = 0;
-						for (uint d = 0; d < gdata->devices; d++)
-							n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
-					}
-					// if we are in multi-node mode we need to run an mpi reduction over all nodes
-					if (MULTI_NODE) {
-						gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
-					}
-					// copy global value back to one array so that we can upload it again
-					for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
-						gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
-					// upload the global max value to the devices
-					doCommand(UPLOAD_IOWATERDEPTH);
-				}
-				gdata->only_internal = false;
-				gdata->swapDeviceBuffers(BUFFER_POS);
-				doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
-				gdata->swapDeviceBuffers(BUFFER_POS);
-			}
-
-			gdata->only_internal = true;
-
-			gdata->swapDeviceBuffers(BUFFER_VERTICES);
-
-			// compute boundary conditions on segments and detect outgoing particles at open boundaries
-			doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-			// compute the offset for id cloning and check for possible overflows
-			// NOTE: the formula is
-			//    new_id = vertex_id + initial_parts - initial_fluid_parts +
-			//             (num_iterations_with_part_creations * numVertexParticles)
-			// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
-			if (problem->get_simparams()->inoutBoundaries) {
-
-				gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-					(gdata->numVertices * gdata->createdParticlesIterations);
-
-				if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
-					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
-					gdata->quit_request = true;
-				}
-			}
-
-			// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
-			doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-			if (problem->get_simparams()->inoutBoundaries) {
-				doCommand(DISABLE_OUTGOING_PARTS);
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
-			}
-		}
+		// semi-analytical boundary conditions
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
+			saBoundaryConditions(INTEGRATOR_STEP_2);
 
 		// update inlet/outlet changes only after step 2
 		// and check if a forced buildneibs is required (i.e. if particles were created)
@@ -1458,54 +1346,6 @@ void GPUSPH::doCallBacks()
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
-void GPUSPH::initializeBoundaryConditions()
-{
-	// initially data is in read so swap to write
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES);
-
-	if (problem->get_simparams()->inoutBoundaries) {
-		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE) {
-			// each device gets his waterdepth array from the gpu
-			doCommand(FETCH_IOWATERDEPTH);
-			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
-			// max over all devices per node
-			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
-				n_IOwaterdepth[ob] = 0;
-				for (uint d = 0; d < gdata->devices; d++)
-					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
-			}
-			// if we are in multi-node mode we need to run an mpi reduction over all nodes
-			if (MULTI_NODE) {
-				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
-			}
-			// copy global value back to one array so that we can upload it again
-			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
-				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
-			// upload the global max value to the devices
-			doCommand(UPLOAD_IOWATERDEPTH);
-		}
-		gdata->only_internal = false;
-		gdata->swapDeviceBuffers(BUFFER_POS);
-		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
-		gdata->swapDeviceBuffers(BUFFER_POS);
-	}
-
-	gdata->only_internal = true;
-	// compute boundary conditions for segments
-	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-	// compute boundary conditions for vertices and get an initial estimate for the grad(gamma) direction
-	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, INITIALIZATION_STEP);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
-
-	// swap changed buffers back so that read contains the new data
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
-}
-
 void GPUSPH::printStatus()
 {
 //#define ti timingInfo
@@ -1740,4 +1580,86 @@ void GPUSPH::initializeObjectsCGs()
 			// we don't need a center of gravity just yet for forced moving objects (non-ODE)
 			gdata->s_hMovObjGravityCenters[ob] = make_float3(0.0f);
 	}
+}
+
+void GPUSPH::saBoundaryConditions(flag_t cFlag)
+{
+	// initially data is in read so swap to write
+	if (cFlag & INITIALIZATION_STEP)
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES);
+
+	// impose open boundary conditions
+	if (problem->get_simparams()->inoutBoundaries) {
+		// reduce the water depth at pressure outlets if required
+		// if we have multiple devices then we need to run a global max on the different gpus / nodes
+		if (MULTI_DEVICE) {
+			// each device gets his waterdepth array from the gpu
+			doCommand(FETCH_IOWATERDEPTH);
+			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
+			// max over all devices per node
+			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
+				n_IOwaterdepth[ob] = 0;
+				for (uint d = 0; d < gdata->devices; d++)
+					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+			}
+			// if we are in multi-node mode we need to run an mpi reduction over all nodes
+			if (MULTI_NODE) {
+				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
+			}
+			// copy global value back to one array so that we can upload it again
+			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
+				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
+			// upload the global max value to the devices
+			doCommand(UPLOAD_IOWATERDEPTH);
+		}
+		gdata->only_internal = false;
+		gdata->swapDeviceBuffers(BUFFER_POS);
+		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
+		gdata->swapDeviceBuffers(BUFFER_POS);
+	}
+
+	gdata->only_internal = true;
+
+	if (!(cFlag & INITIALIZATION_STEP))
+		gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
+	// compute boundary conditions on segments and detect outgoing particles at open boundaries
+	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	// check if new particles were created and check for ID overflow
+	if (cFlag & INTEGRATOR_STEP_2) {
+		// compute the offset for id cloning and check for possible overflows
+		// NOTE: the formula is
+		//    new_id = vertex_id + initial_parts - initial_fluid_parts +
+		//             (num_iterations_with_part_creations * numVertexParticles)
+		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
+		if (problem->get_simparams()->inoutBoundaries) {
+
+			gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
+				(gdata->numVertices * gdata->createdParticlesIterations);
+
+			if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
+				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
+				gdata->quit_request = true;
+			}
+		}
+	}
+
+	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
+	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	// check if we need to delete some particles which passed through open boundaries
+	if (problem->get_simparams()->inoutBoundaries && !(cFlag & INITIALIZATION_STEP)) {
+		doCommand(DISABLE_OUTGOING_PARTS);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+	}
+
+	// swap changed buffers back so that read contains the new data
+	if (cFlag & INITIALIZATION_STEP)
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 }
