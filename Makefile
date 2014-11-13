@@ -392,6 +392,13 @@ endif
 
 # END of MPICXX mess
 
+# override: HDF5_CPP - preprocessor flags to find/use HDF5
+HDF5_CPP ?= $(shell pkg-config --cflags-only-I hdf5 2> /dev/null)
+# override: HDF5_CXX - compiler flags to use HDF5
+HDF5_CXX ?= $(shell pkg-config --cflags-only-other hdf5 2> /dev/null)
+# override: HDF5_LD - LD flags to use HDF5
+HDF5_LD ?= $(shell pkg-config --libs hdf5 2> /dev/null || echo -lhdf5)
+
 # option: hdf5 - 0 do not use HDF5, 1 use HDF5, 2 use HDF5 and HDF5 requires MPI. Default: autodetect
 ifdef hdf5
 	# does it differ from last?
@@ -405,10 +412,10 @@ else
 	# check if we can link to the HDF5 library, and disable HDF5 otherwise
 	# we return -1 in case of failure to differentiate from a case such as 'make hdf5=0 ; make', in which case we
 	# want to skip also the MPICXX test
-	USE_HDF5 ?= $(shell echo '\#include <hdf5.h>\nmain(){}' | $(CXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - 2> /dev/null && echo 1 || echo -1)
+	USE_HDF5 ?= $(shell echo '\#include <hdf5.h>\nmain(){}' | $(CXX) -xc++ $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
 	ifeq ($(USE_HDF5),-1)
 		# on some configurations, HDF5 requires mpi. check this, by first compiling with CXX
-		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - 2> /dev/null && echo 2 || echo 0)
+		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
 	endif
 endif
 
@@ -478,7 +485,7 @@ ifeq ($(USE_HDF5),0)
 	TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
 else
 	# link to HDF5 for input reading
-	LIBS += -lhdf5
+	LIBS += $(HDF5_LD)
 endif
 
 # pthread needed for the UDP writer
@@ -521,6 +528,9 @@ CPPFLAGS += $(INCPATH)
 
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
+ifneq ($(USE_HDF5),0)
+	CPPFLAGS += $(HDF5_CPP)
+endif
 
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device. Since this might be done before COMPUTE
@@ -536,6 +546,11 @@ CPPFLAGS += -DdSINGLE
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
+
+# HDF5 might require specific flags
+ifneq ($(USE_HDF5),0)
+	CXXFLAGS += $(HDF5_CXX)
+endif
 
 # nvcc-specific flags
 
