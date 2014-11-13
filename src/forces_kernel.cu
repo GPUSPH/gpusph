@@ -802,13 +802,17 @@ gaussQuadratureO5(	const	float3	vPos0,
 {
 	float2 val = make_float2(0.0f);
 	// perform the summation
+#pragma unroll
 	for (int i=0; i<3; i++) {
-		for (int j=0; j<GQ_O5_mult[i]; j++) {
+#pragma unroll
+		for (int j=0; j<3; j++) {
 			float3 pa =	vPos0*GQ_O5_points[i][j]       +
 						vPos1*GQ_O5_points[i][(j+1)%3] +
 						vPos2*GQ_O5_points[i][(j+2)%3]  ;
 			pa -= relPos;
 			val += GQ_O5_weights[i]*wendlandOnSegment(length(pa));
+			if (j >= GQ_O5_mult[i])
+				break;
 		}
 	}
 	// compute the triangle volume
@@ -859,13 +863,17 @@ gaussQuadratureO14(	const	float3	vPos0,
 {
 	float2 val = make_float2(0.0f);
 	// perform the summation
+#pragma unroll
 	for (int i=0; i<10; i++) {
-		for (int j=0; j<GQ_O14_mult[i]; j++) {
+#pragma unroll
+		for (int j=0; j<6; j++) {
 			float3 pa =	vPos0*GQ_O14_points[i][j%3]       +
 						vPos1*GQ_O14_points[i][(j+1+j/3)%3] +
 						vPos2*GQ_O14_points[i][(j+2-j/3)%3]  ;
 			pa -= relPos;
 			val += GQ_O14_weights[i]*wendlandOnSegment(length(pa));
+			if (j >= GQ_O14_mult[i])
+				break;
 		}
 	}
 	// compute the triangle volume
