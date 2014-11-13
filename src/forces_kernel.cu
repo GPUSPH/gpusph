@@ -911,26 +911,21 @@ Gamma(	const	float		&slength,
 	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
 	// local coordinate system for relative positions to vertices
 	uint j = 0;
-	float4 coord1 = make_float4(0.0f);
-	float4 coord2 = make_float4(0.0f);
 	// Get index j for which n_s is minimal
 	if (fabs(boundElement.x) > fabs(boundElement.y))
 		j = 1;
-	if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
+	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
 		j = 2;
+
 	// compute second coordinate which is equal to n_s x e_j
-	if (j==0) {
-		coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
-		coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
-	}
-	else if (j==1) {
-		coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
-		coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
-	}
-	else {
-		coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-		coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
-	}
+	const float4 coord1 = make_float4( j == 0, j == 1, j == 2, 0); // set the coordinate j to 1
+	const float4 coord2 = make_float4(
+		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+		-(j==1)*boundElement.z + (j == 2)*boundElement.y, // -z if j == 1, y if j == 2
+		 (j==0)*boundElement.z - (j == 2)*boundElement.x, // z if j == 0, -x if j == 2
+		-(j==0)*boundElement.y + (j == 1)*boundElement.x, // -y if j == 0, x if j == 1
+		0);
+
 	// relative positions of vertices with respect to the segment, normalized by h
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
@@ -1011,7 +1006,7 @@ Gamma(	const	float		&slength,
 		// Gaussian quadrature of 14th order
 //		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
-		float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		const float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		gradGamma_as += intVal.x;
 		gamma_as += intVal.y*dot3(boundElement,q_aSigma);
 	}
