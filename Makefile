@@ -408,7 +408,7 @@ else
 	USE_HDF5 ?= $(shell echo '\#include <hdf5.h>\nmain(){}' | $(CXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - 2> /dev/null && echo 1 || echo -1)
 	ifeq ($(USE_HDF5),-1)
 		# on some configurations, HDF5 requires mpi. check this, by first compiling with CXX
-		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - && echo 2 || echo 0)
+		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(LIBPATH) -lhdf5 -o /dev/null - 2> /dev/null && echo 2 || echo 0)
 	endif
 endif
 
