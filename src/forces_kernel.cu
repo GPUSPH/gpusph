@@ -328,11 +328,11 @@ calcGridHashPeriodic(int3 gridPos)
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(const float4	pos,
+getNeibIndex(float4 const&	pos,
 			float3&			pos_corr,
 			const uint*		cellStart,
 			neibdata		neib_data,
-			const int3		gridPos,
+			int3 const&		gridPos,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index)
 {
@@ -2368,7 +2368,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
@@ -2416,9 +2416,10 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float normal_length = length(as_float3(normal));
 
 	//Checking the planes
-	// TODO: fix me for homogenous precision
+	const float3 globalpos = d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize;
+
 	for (uint i = 0; i < d_numplanes; ++i) {
-		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
+		float r = abs(dot(globalpos, as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
 		if (r < influenceradius) {
 			as_float3(normal) += as_float3(d_planes[i])* normal_length;
 			normal_length = length(as_float3(normal));
@@ -2426,9 +2427,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Second loop over all neighbors
-
-	// Resetting grid position of current particle
-	gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	// Resetting persistent variables across getNeibData
 	neib_cellnum = 0;
