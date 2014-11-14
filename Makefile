@@ -412,10 +412,10 @@ else
 	# check if we can link to the HDF5 library, and disable HDF5 otherwise
 	# we return -1 in case of failure to differentiate from a case such as 'make hdf5=0 ; make', in which case we
 	# want to skip also the MPICXX test
-	USE_HDF5 ?= $(shell echo '\#include <hdf5.h>\nmain(){}' | $(CXX) -xc++ $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
+	USE_HDF5 ?= $(shell echo '\#include <hdf5.h>\nmain(){}' | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
 	ifeq ($(USE_HDF5),-1)
 		# on some configurations, HDF5 requires mpi. check this, by first compiling with CXX
-		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
+		USE_HDF5 := $(shell echo '\#include <hdf5.h>\nmain(){}' | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
 	endif
 endif
 
