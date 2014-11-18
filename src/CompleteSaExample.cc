@@ -35,9 +35,12 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	// extra margin around the domain size
 	const double MARGIN = 0.1;
 	const double INLET_BOX_LENGTH = 0.25;
-	l = 1.0 + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
-	w = 1.0 + 2 * MARGIN;
-	h = 1.0 + 2 * MARGIN;
+	// size of the main cube, exlcuding the inlet and any margin
+	box_l = box_w = box_h = 1.0;
+	// world size
+	world_l = box_l + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
+	world_w = box_w + 2 * MARGIN;
+	world_h = box_h + 2 * MARGIN;
 	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
@@ -58,7 +61,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
-	m_size = make_double3(l, w ,h);
+	m_size = make_double3(world_l, world_w ,world_h);
 
 	// Physical parameters
 	float g = length(m_physparams.gravity);

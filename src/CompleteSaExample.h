@@ -13,7 +13,8 @@ class CompleteSaExample: public Problem {
 	private:
 		string			inputfile;
 		PointVect		test_points;
-		double			w, l, h;
+		double			world_w, world_l, world_h;			// world size (i.e. incl. margins and inlet box)
+		double			box_w, box_l, box_h;	// size of the main box (excl. margins, no inlet box)
 		double			H;				// water level (used to set D constant)
 		HDF5SphReader	h5File;
 		STLMesh		*container;
