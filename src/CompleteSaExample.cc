@@ -113,7 +113,8 @@ int CompleteSaExample::fill_parts()
 	container->ODEGeomCreate(m_ODESpace, m_deltap);
 
 	// cube density half water density
-	const double cube_density = 1000.0; // 1 = water
+	const double water_density_fraction = 0.5F;
+	const double cube_density = 1000.0 * water_density_fraction; // 1000 = water
 	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density); // only dynamics
 	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
 	cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density, m_ODESpace); // dynamics + collisions
