@@ -144,6 +144,33 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 	ep = m_ep;
 }
 
+/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
+// TODO: could be useful to print also the rotation matrix
+void Object::ODEPrintInformation()
+{
+	if (m_ODEBody) {
+		const dReal* cpos = dBodyGetPosition(m_ODEBody);
+		printf("ODE Body ID: %u\n", m_ODEBody);
+		printf("  Mass:     %g\n", m_ODEMass.mass);
+		printf("  Position: %g\t%g\t%g\n", cpos[0], cpos[1], cpos[2]);
+		printf("  CG:       %g\t%g\t%g\n", m_ODEMass.c[0], m_ODEMass.c[1], m_ODEMass.c[2]);
+		printf("  Inertia:  %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[0], m_ODEMass.I[1], m_ODEMass.I[2], m_ODEMass.I[3]);
+		printf("            %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[4], m_ODEMass.I[5], m_ODEMass.I[6], m_ODEMass.I[7]);
+		printf("            %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[8], m_ODEMass.I[9], m_ODEMass.I[10], m_ODEMass.I[11]);
+	}
+	if (m_ODEGeom) {
+		dReal bbox[6];
+		const dReal* gpos = dGeomGetPosition(m_ODEGeom);
+		dGeomGetAABB(m_ODEGeom, bbox);
+		printf("ODE Geom ID: %u\n", m_ODEGeom);
+		printf("  Position: %g\t%g\t%g\n", gpos[0], gpos[1], gpos[2]);
+		printf("  B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
+			bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]);
+		printf("    size:   X [%g] Y [%g] Z [%g]\n", bbox[1] - bbox[0],
+			bbox[3] - bbox[2], bbox[5] - bbox[4]);
+	}
+}
+
 
 /// Return the particle vector associated with the object
 /*! Return the particle vector associated with the object

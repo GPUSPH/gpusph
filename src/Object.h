@@ -131,6 +131,8 @@ class Object {
 		/// Create an ODE geometry in the specified ODE space
 		virtual void ODEGeomCreate(dSpaceID, const double, const double density = 1.0)
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
+		/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
+		void ODEPrintInformation();
 		//@}
 
 
