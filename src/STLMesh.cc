@@ -290,10 +290,8 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 
 	// use the default callbacks
 	m_ODEGeom = dCreateTriMesh(ODESpace, m_ODETriMeshData, NULL, NULL, NULL);
-	if (m_ODEBody) {
-		// set the body
-		dGeomSetBody(m_ODEGeom, m_ODEBody);
 
+	if (m_ODEBody) {
 		/* Now we want to compute the body CG, mass and inertia tensor, assuming
 		 * constant density. They are all computed by ODE for a generic mesh in
 		 * dMassSetTrimesh(). For some obscure reason, ODE requires the CG to be
@@ -306,52 +304,45 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		 * See: https://groups.google.com/d/msg/ode-users/SUQzotZNIZU/wMpXpXIk4MMJ
 		 */
 
-		// compute the CG only
+		// associate the geometry to the body
+		dGeomSetBody(m_ODEGeom, m_ODEBody);
+
+		// here we are interested only in the CG; inertia is wrong
 		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
 
-		// center CG to origin
-		dBodySetPosition(m_ODEBody, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
-		dMassTranslate( &m_ODEMass, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
-		dBodySetMass(m_ODEBody, &m_ODEMass);
-
-		// call again dMassSetTrimesh() to compute the proper inertia tensor
-		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
-
-		// read new center and mass
-		// TODO WARNING: are we overwriting Object::m_center with local ODE coordinates? ~(0,0,0)
+		// save the CG in the local m_center class member
 		m_center(0) = m_ODEMass.c[0];
 		m_center(1) = m_ODEMass.c[1];
 		m_center(2) = m_ODEMass.c[2];
 
-		// read inertia and mass
+		// CG != origin until now; for correct inertia computation, we shift the geometry to
+		// make the CG coincide with the (ODE object local) origin
+		dGeomSetOffsetPosition(m_ODEGeom, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
+
+		// compute again CG, mass, inertia (correct this time)
+		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+
+		// CG is now very close to zero, except for numerical leftovers which we manually reset
+		m_ODEMass.c[0] = m_ODEMass.c[1] = m_ODEMass.c[2] = 0;
+
+		// we worked on the m_ODEMass class member; tell ODE that's the new ODEMass
+		dBodySetMass(m_ODEBody, &m_ODEMass);
+
+		// once the inertia matrix is correctly computed, we can move back the ODE obj to its global position
+		dBodySetPosition(m_ODEBody,m_center(0), m_center(1), m_center(2));
+
+		// store inertia and mass in local class members
 		m_inertia[0] = m_ODEMass.I[0];
 		m_inertia[1] = m_ODEMass.I[5];
 		m_inertia[2] = m_ODEMass.I[10];
 		m_mass = m_ODEMass.mass;
 
-		// old stuff left for next fixes -------------------------
-		//dMassSetTrimeshTotal(&m_ODEMass, (dReal)density, m_ODEGeom);
-		//dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_lz + dx);
-		//const double cs = 0.2; // + dx;
-		//dMassSetBox(&m_ODEMass, (dReal)density, cs, cs, cs);
-		//printf(" passed to massSet: %g\t%g\t%g\t%g\n", density, cs, cs, cs);
-		//dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
-		// get the data from the m_ODEmass struct and write it to the vars in Object
-		// Translate the CG to local coordinate origin
-		// (see https://groups.google.com/d/msg/ode-users/SUQzotZNIZU/wMpXpXIk4MMJ)
-		//dMassTranslate( &m_ODEMass, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
-		// Set the position of the body
-		//dBodySetPosition(m_ODEBody, -m_center(0), -m_center(1), -m_center(2));
+		// reset the numerical leftovers in inertia matrix
+		m_ODEMass.I[1] = m_ODEMass.I[2] = m_ODEMass.I[4] = 0;
+		m_ODEMass.I[6] = m_ODEMass.I[8] = m_ODEMass.I[9] = 0;
 
-		// print computed inertia matrix, for dbg
-		if (true) {
-			printf("ODE computed inertial data:\n");
-			printf("Inertia: %g\t%g\t%g\t%g\n", m_ODEMass.I[0], m_ODEMass.I[1], m_ODEMass.I[2], m_ODEMass.I[3]);
-			printf("         %g\t%g\t%g\t%g\n", m_ODEMass.I[4], m_ODEMass.I[5], m_ODEMass.I[6], m_ODEMass.I[7]);
-			printf("         %g\t%g\t%g\t%g\n", m_ODEMass.I[8], m_ODEMass.I[9], m_ODEMass.I[10], m_ODEMass.I[11]);
-			printf("     CG: %g\t%g\t%g\n", m_ODEMass.c[0], m_ODEMass.c[1], m_ODEMass.c[2]);
-			printf("   Mass: %g\n", m_ODEMass.mass);
-		}
+		// show final computed position, CG, mass, inertia, bbox
+		ODEPrintInformation();
 	}
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
