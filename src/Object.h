@@ -122,6 +122,8 @@ class Object {
 		{	if (!m_ODEBody)
 				throw std::runtime_error("ODEGetBody called but object is not associated with an ODE body !");
 			return m_ODEBody; }
+		/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
+		void ODEPrintInformation();
 		//@}
 
 
