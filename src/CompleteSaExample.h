@@ -19,6 +19,7 @@ class CompleteSaExample: public Problem {
 		HDF5SphReader	h5File;
 		STLMesh		*container;
 		STLMesh		*cube;
+		dGeomID		m_box_planes[5];	// planes to model the main tank
 
 	public:
 		CompleteSaExample(const GlobalData *);

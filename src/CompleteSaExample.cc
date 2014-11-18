@@ -84,7 +84,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	// world setup
 	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
 	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
-	//m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
+	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
 	// Set gravity（x, y, z)
 	dWorldSetGravity(m_ODEWorld,
 		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
@@ -97,7 +97,31 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 // http://ode-wiki.org/wiki/index.php?title=Manual:_Collision_Detection#Collision_detection
 void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 {
-	// stub
+	// ODE generates multiple candidate contact points. We should use at least 3 for cube-plane
+	// interaction, the more the better (probably).
+	// CHECK: any significant correlation between performance and MAX_CONTACTS?
+	const int MAX_CONTACTS = 10;
+	dContact contact[MAX_CONTACTS];
+
+	// offset between dContactGeom-s of consecutive dContact-s in contact araray
+	const uint skip_offset = sizeof(dContact);
+
+	// Do no handle collisions between planes. With 1 floatinb cube, "skip collisions not involving the cube"
+	if (o1 != cube->m_ODEGeom && o2 != cube->m_ODEGeom)
+		return;
+
+	// collide the candidate pair o1, o2
+	int num_contacts = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, skip_offset);
+
+	// resulting collision points are treated by ODE as joints. We use them all
+	for (int i = 0; i < num_contacts; i++) {
+		contact[i].surface.mode = dContactBounce;
+		contact[i].surface.mu   = dInfinity;
+		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
+		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
+		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
+		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
+	}
 }
 
 CompleteSaExample::~CompleteSaExample()
@@ -109,8 +133,14 @@ CompleteSaExample::~CompleteSaExample()
 
 int CompleteSaExample::fill_parts()
 {
-	// here create ODE planes in the geom space, if needed (no ODE body)
-	container->ODEGeomCreate(m_ODESpace, m_deltap);
+	/* If we needed an accurate collision detection between the container and the cube (i.e.
+	 * using the actual container mesh instead of modelling it with 5 infinite planes), we'd
+	 * have to create a geometry for the container as well. However, in this case the mesh
+	 * should be "thick" (2 layers, with volume inside) and not flat. With a flat mesh, ODE
+	 * detects the contained cube as penetrated into the container and thus colliding.
+	 * Long story short: don't uncomment the following.
+	 */
+	//container->ODEGeomCreate(m_ODESpace, m_deltap);
 
 	// cube density half water density
 	const double water_density_fraction = 0.5F;
@@ -121,6 +151,21 @@ int CompleteSaExample::fill_parts()
 	// particles with object(info)-1==1 are associated with ODE object number 0
 	m_ODEobjectId[2-1] = 0;
 	add_ODE_body(cube);
+
+	// planes modelling the tank, for the interaction with the cube
+	m_box_planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0); // floor
+	m_box_planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0); // YZ plane, lower X
+	m_box_planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, - box_l); // YZ plane, higher X
+	m_box_planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0); // XZ plane, lower y
+	m_box_planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, - box_w); // XZ plane, higher Y
+
+	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
+	// compute the distance of a probe point from a plane (positive if penetrated, negative out)
+	/*
+	double3 probe_point = make_double3 (0.5, 0.5, 0.5);
+	printf("Test: probe point is distant %g from the bottom plane.\n,
+		dGeomPlanePointDepth(m_box_planes[0], probe_point.x, probe_point.y, probe_point.z)
+	*/
 
 	return h5File.getNParts();
 }
