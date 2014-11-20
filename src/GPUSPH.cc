@@ -272,7 +272,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		hf->load();
 		cerr << "Successfully restored hot start file" << endl;
 		cout << *hf << endl;
-		cerr << "Restarting from t=" << hf->get_t() << endl;
+		cerr << "Restarting from t=" << hf->get_t()
+			<< ", iteration=" << hf->get_iterations()
+			<< ", dt=" << hf->get_dt() << endl;
+		gdata->iterations = hf->get_iterations();
+		gdata->dt = hf->get_dt();
 		gdata->t = hf->get_t();
 		hot_in.close();
 	}

@@ -75,6 +75,8 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.version = 1;
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
+		_header.iterations = _gdata->iterations;
+		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
 		fp->write((char *)&_header, sizeof(_header));
 		break;
@@ -89,7 +91,7 @@ void HotFile::readHeader(ifstream *fp) {
 	// read and check version
 	uint v;
 	fp->read((char*)&v, sizeof(v));
-	if(v != 1)
+	if (v != 1)
 		unsupported_version(v);
 
 	fp->seekg(0); // rewind

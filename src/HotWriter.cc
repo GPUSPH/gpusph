@@ -26,11 +26,8 @@ bool HotWriter::need_write(float t) const {
 	/* check if we would write according to the common Writer logic */
 	bool would_write = Writer::need_write(t);
 	/* but then delay write until the next buildneibs */
-	if (would_write) {
-		// TODO is it gdata->iterations or gdata->iterations + 1 that we
-		// should check against?
+	if (would_write)
 		return ((gdata->iterations % gdata->problem->m_simparams.buildneibsfreq) == 0);
-	}
 	return false;
 }
 

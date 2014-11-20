@@ -11,6 +11,7 @@ The file represents particle and other state.
 #include "GlobalData.h"
 
 typedef unsigned int uint;
+typedef unsigned long ulong;
 
 using namespace std;
 
@@ -21,12 +22,16 @@ typedef struct {
 	uint	version;
 	uint	buffer_count;
 	uint	particle_count;
-	uint	reserved[16];
+	uint	reserved[13];
+	ulong	iterations;
+	float	dt;
 	float	t;
 } header_t;
 
 /** HotFile version. */
-typedef enum { VERSION_1 } version_t;
+typedef enum {
+	VERSION_1,
+} version_t;
 
 class HotFile {
 public:
@@ -35,6 +40,8 @@ public:
 		const BufferList &buffers, uint node_offset, float t,
 		const bool testpoints);
 	~HotFile();
+	ulong get_iterations() { return _header.iterations; }
+	float get_dt() { return _header.dt; }
 	float get_t() { return _header.t; }
 	void save();
 	void load();
