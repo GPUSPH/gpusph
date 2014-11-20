@@ -37,7 +37,7 @@
 #include "Writer.h"
 #include "HotWriter.h"
 
-vector<Writer*> Writer::m_writers = vector<Writer*>();
+WriterMap Writer::m_writers = WriterMap();
 bool Writer::m_forced = false;
 
 static const char* WriterName[] = {
@@ -61,32 +61,40 @@ Writer::Create(GlobalData *_gdata)
 		Writer *writer = NULL;
 		WriterType wt = it->first;
 		float freq = it->second;
-		switch (wt) {
-		case TEXTWRITER:
-			writer = new TextWriter(_gdata);
-			break;
-		case VTKWRITER:
-			writer = new VTKWriter(_gdata);
-			break;
-		case VTKLEGACYWRITER:
-			writer = new VTKLegacyWriter(_gdata);
-			break;
-		case CUSTOMTEXTWRITER:
-			writer = new CustomTextWriter(_gdata);
-			break;
-		case UDPWRITER:
-			writer = new UDPWriter(_gdata);
-			break;
-		case HOTWRITER:
-			writer = new HotWriter(_gdata);
-			break;
-		default:
-			stringstream ss;
-			ss << "Unknown writer type " << wt;
-			throw runtime_error(ss.str());
+
+		/* Check if the writer is in there already */
+		WriterMap::iterator wm = m_writers.find(wt);
+		if (wm != m_writers.end()) {
+			writer = wm->second;
+			cerr << "Overriding " << WriterName[wt] << " writing frequency" << endl;
+		} else {
+			switch (wt) {
+			case TEXTWRITER:
+				writer = new TextWriter(_gdata);
+				break;
+			case VTKWRITER:
+				writer = new VTKWriter(_gdata);
+				break;
+			case VTKLEGACYWRITER:
+				writer = new VTKLegacyWriter(_gdata);
+				break;
+			case CUSTOMTEXTWRITER:
+				writer = new CustomTextWriter(_gdata);
+				break;
+			case UDPWRITER:
+				writer = new UDPWriter(_gdata);
+				break;
+			case HOTWRITER:
+				writer = new HotWriter(_gdata);
+				break;
+			default:
+				stringstream ss;
+				ss << "Unknown writer type " << wt;
+				throw runtime_error(ss.str());
+			}
+			m_writers[wt] = writer;
 		}
 		writer->set_write_freq(freq);
-		m_writers.push_back(writer);
 		cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
 	}
 }
@@ -95,10 +103,10 @@ bool
 Writer::NeedWrite(float t)
 {
 	bool need_write = false;
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		need_write |= writer->need_write(t);
 	}
 	return need_write;
@@ -107,10 +115,10 @@ Writer::NeedWrite(float t)
 void
 Writer::MarkWritten(float t, bool force)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		if (writer->need_write(t) || force || m_forced)
 			writer->mark_written(t);
 	}
@@ -120,10 +128,10 @@ void
 Writer::Write(uint numParts, BufferList const& buffers,
 	uint node_offset, float t, const bool testpoints)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced)
 			writer->write(numParts, buffers, node_offset, t, testpoints);
 	}
@@ -132,10 +140,10 @@ Writer::Write(uint numParts, BufferList const& buffers,
 void
 Writer::WriteWaveGage(float t, GageList const& gage)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced)
 			writer->write_WaveGage(t, gage);
 	}
@@ -144,10 +152,10 @@ Writer::WriteWaveGage(float t, GageList const& gage)
 void
 Writer::Destroy()
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		delete writer;
 	}
 	m_writers.clear();

@@ -28,6 +28,7 @@
 // Standard C/C++ Library Includes
 #include <fstream>
 #include <string>
+#include <map>
 #include <stdlib.h>
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
@@ -67,6 +68,11 @@ enum WriterType
 // list of writer type, write freq pairs
 typedef vector<pair<WriterType, float> > WriterList;
 
+class Writer;
+
+// hash of WriterType, pointer to actual writer
+typedef map<WriterType, Writer*> WriterMap;
+
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
  * (whose content is decided by the Problem) and passes all requests
@@ -75,7 +81,7 @@ typedef vector<pair<WriterType, float> > WriterList;
 class Writer
 {
 	// list of actual writers
-	static vector<Writer*> m_writers;
+	static WriterMap m_writers;
 
 	// should we be force saving regardless of timer ticks
 	// and frequencies?
