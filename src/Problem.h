@@ -45,6 +45,8 @@
 #include "Object.h"
 #include "buffer.h"
 
+#include "deprecation.h"
+
 #include "ode/ode.h"
 
 typedef std::vector<vertexinfo> VertexVect;
@@ -225,10 +227,16 @@ class Problem {
 		{ add_gage(make_double3(x, y, z)); }
 
 		// set the timer tick
-		void set_timer_tick(float t);
+		// DEPRECATED: use ad_writer() with the frequency in seconds
+		void set_timer_tick(float t) DEPRECATED;
 
 		// add a new writer
-		void add_writer(WriterType wt, int freq = 1);
+		// DEPRECATED: use ad_writer() with the frequency in seconds
+		// by passing as argument the product of freq and the timer tick
+		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, float)");
+
+		// add a new writer, with the given write frequency in (fractions of) seconds
+		void add_writer(WriterType wt, float freq);
 
 		// return the list of writers
 		WriterList const& get_writers() const

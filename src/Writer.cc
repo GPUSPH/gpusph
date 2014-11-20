@@ -38,7 +38,6 @@
 #include "HotWriter.h"
 
 vector<Writer*> Writer::m_writers = vector<Writer*>();
-float Writer::m_timer_tick = 0;
 bool Writer::m_forced = false;
 
 void
@@ -52,7 +51,7 @@ Writer::Create(GlobalData *_gdata)
 	for (; it != end; ++it) {
 		Writer *writer = NULL;
 		WriterType wt = it->first;
-		int freq = it->second;
+		float freq = it->second;
 		switch (wt) {
 		case TEXTWRITER:
 			writer = new TextWriter(_gdata);
@@ -189,7 +188,7 @@ Writer::~Writer()
 }
 
 void
-Writer::set_write_freq(int f)
+Writer::set_write_freq(float f)
 {
 	m_writefreq = f;
 }
@@ -200,7 +199,7 @@ Writer::need_write(float t) const
 	if (m_writefreq == 0)
 		return false;
 
-	if (m_last_write_time < 0 || t - m_last_write_time >= m_timer_tick*m_writefreq)
+	if (m_last_write_time < 0 || t - m_last_write_time >= m_writefreq)
 		return true;
 
 	return false;
