@@ -48,23 +48,23 @@ public:
 	bool need_write(float t) const;
 
 	void write(uint numParts, const BufferList &buffers,
-        uint node_offset, float t, const bool testpoints);
+		uint node_offset, float t, const bool testpoints);
 
-    void set_num_files_to_save(int num_files) {
-        _num_files_to_save = num_files;
-    }
+	void set_num_files_to_save(int num_files) {
+		_num_files_to_save = num_files;
+	}
 
-    int get_num_files_to_save() {
-        return _num_files_to_save;
-    }
+	int get_num_files_to_save() {
+		return _num_files_to_save;
+	}
 
 private:
-    int                 _num_files_to_save;
-    std::vector<string> _current_filenames;
-    uint                _particle_count;
-    uint                _file_count;
-    bool                _write_next_time;
-    string              next_filename();
+	int					_num_files_to_save;
+	std::vector<string>	_current_filenames;
+	uint				_particle_count;
+	uint				_file_count;
+	bool				_write_next_time;
+	string				next_filename();
 };
 
 /** Determines how far back in simulation time we can restart a simulation */
@@ -75,10 +75,10 @@ HotFile header encoding.
 */
 typedef struct {
 	uint	version;
-    uint	buffer_count;
-    uint	particle_count;
-    uint	reserved[16];
-    float	t;
+	uint	buffer_count;
+	uint	particle_count;
+	uint	reserved[16];
+	float	t;
 } header_t;
 
 /**
@@ -102,26 +102,26 @@ class HotFile {
 public:
 	HotFile(const string &filename, const GlobalData *gdata);
 	HotFile(const string &filename, const GlobalData *gdata, uint numParts,
-			const BufferList &buffers, uint node_offset, float t,
-            const bool testpoints);
+		const BufferList &buffers, uint node_offset, float t,
+		const bool testpoints);
 	~HotFile();
 	float get_t() { return _header.t; }
 	bool save();
 	bool load();
 private:
-	string		        _filename;
-	uint		        _particle_count;
-	BufferList	        _buffers;
-	uint		        _node_offset;
-	float		        _t;
-	bool		        _testpoints;
-    const GlobalData    *_gdata;
-	header_t            _header;
+	string				_filename;
+	uint				_particle_count;
+	BufferList			_buffers;
+	uint				_node_offset;
+	float				_t;
+	bool				_testpoints;
+	const GlobalData	*_gdata;
+	header_t			_header;
 
-    void writeBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
-    void writeHeader(FILE *fp, version_t version);
-    bool readBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
-    bool readHeader(FILE *fp);
+	void writeBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
+	void writeHeader(FILE *fp, version_t version);
+	bool readBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
+	bool readHeader(FILE *fp);
 
 	friend std::ostream& operator<<(std::ostream&, const HotFile&);
 };
