@@ -93,10 +93,11 @@ void show_version()
 void print_usage() {
 	show_version();
 	cout << "Syntax: " << endl;
-	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
+	cout << "\tGPUSPH [--resume fname] [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
 	cout << "\t       [--num_hosts VAL [--byslot_scheduling]]\n";
 	cout << "\tGPUSPH --help\n\n";
+	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
 	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	cout << " --dem : Use given DEM (if problem supports it)\n";
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
@@ -128,6 +129,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		arg = *argv;
 		argv++;
 		argc--;
+		if (!strcmp(arg, "--resume")) {
+			_clOptions->resume_fname = std::string(*argv);
+			argv++;
+			argc--;
+		} else
 		if (!strcmp(arg, "--device")) {
 			/* read the next arg as a list of integers */
 			char * pch;

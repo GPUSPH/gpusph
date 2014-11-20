@@ -27,14 +27,12 @@ such as 'hot_00063.bin' are present.
 
 To hot-start a subsequent simulation, identify the point in time from which you
 want to start (associated with a particular hot start file)
-e.g. 'hot_00063.bin'.  Set an environment variable named GPUSPH_HOTSTART_FILE
-to the path of the desired hot start file:
+e.g. 'hot_00063.bin' and invoke GPUSPH with the --resume command line option:
 
-    export GPUSPH_HOTSTART_FILE=`pwd`/tests/DamBreak3dnn/data/hot_00063.bin
+    ./GPUSPH --resume `pwd`/tests/DamBreak3dnn/data/hot_00063.bin
 
-When the simulation starts, if the GPUSPH_HOTSTART_FILE environment variable
-is set *and* points to a valid file, the simulation will start from that point.
-Otherwise, the simulation will start from the beginning.
+If the hotstart file is found and valid, the simulation will start from that
+point. GPUSPH will abort otherwise.
 */
 class HotWriter : public Writer {
 public:

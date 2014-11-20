@@ -240,57 +240,42 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
 	}
 
-	printf("Copying the particles to shared arrays...\n");
-	printf("---\n");
-	// copy particles from problem to GPUSPH buffers
-	// TODO FIXME copying data from the problem doubles the host memory requirements
-	// find some smart way to have the host fill the shared buffer directly.
+	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
+	 * or, if it was requested, we load buffers from a HotStart file
+	 */
+	/* TODO FIXME copying data from the Problem doubles the host memory
+	 * requirements, find some smart way to have the host fill the shared
+	 * buffer directly.
+	 */
 
-	/* KAG - hot start
-	Strategy is, if user has set the environment variable GPUSPH_HOTSTART_FILE
-	to the full path of an existing HotFile filename (see HotWriter.h), we
-	load that state as our initial simulation state.  If file doesn't exist
-	or variable is not set, we initialize simulation normally.
-	*/
-	char *hotstart_filename = getenv("GPUSPH_HOTSTART_FILE");
-	bool hotstarted = false;
-	if (hotstart_filename) do {
+	if (clOptions->resume_fname.empty()) {
+		printf("Copying the particles to shared arrays...\n");
+		printf("---\n");
+		problem->copy_to_array(gdata->s_hBuffers);
+		printf("---\n");
+	} else {
 		struct stat statbuf;
-		bool is_there = !stat(hotstart_filename, &statbuf);
 		ifstream hot_in;
-		if (!is_there) {
-			cerr << "Hot start file " << hotstart_filename << " not found, ignoring" << endl;
-			break;
-		}
-		cerr << "Hot starting from " << hotstart_filename << "..." << endl;
-		hot_in.open(hotstart_filename);
-		if (!hot_in) {
-			cerr << "Failed to open " << hotstart_filename << endl;
-			break;
+		ostringstream err_msg;
+		HotFile *hf = NULL;
+		const char *fname = clOptions->resume_fname.c_str();
+		cout << "Hot starting from " << fname << "..." << endl;
+		if (stat(fname, &statbuf)) {
+			// stat failed
+			err_msg << "Hot start file " << fname << " not found";
+			throw runtime_error(err_msg.str());
 		}
 		/* enable automatic exception handling on failure */
 		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
-		HotFile *hf = NULL;
-		try {
-			hf = new HotFile(hot_in, gdata);
-			hf->load();
-			cerr << "Successfully restored hot start file" << endl;
-			cout << *hf << endl;
-			cerr << "Restarting from t=" << hf->get_t() << endl;
-			gdata->t = hf->get_t();
-			hotstarted = true;
-		} catch (exception &err) {
-			cerr << "Error restoring hot start file:" << err.what() << endl;
-		}
-		if (hf)
-			delete hf;
-		if (hot_in)
-			hot_in.close();
-	} while (0);
-	if (!hotstarted)
-		problem->copy_to_array(gdata->s_hBuffers);
-
-	printf("---\n");
+		hot_in.open(fname);
+		hf = new HotFile(hot_in, gdata);
+		hf->load();
+		cerr << "Successfully restored hot start file" << endl;
+		cout << *hf << endl;
+		cerr << "Restarting from t=" << hf->get_t() << endl;
+		gdata->t = hf->get_t();
+		hot_in.close();
+	}
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)

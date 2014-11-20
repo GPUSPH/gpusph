@@ -33,6 +33,7 @@ using namespace std;
 
 struct Options {
 	string	problem; // problem name
+	string	resume_fname; // file to resume simulation from
 	int		device;  // which device to use
 	string	dem; // DEM file to use
 	string	dir; // directory where data will be saved
@@ -46,6 +47,7 @@ struct Options {
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
 	Options(void) :
 		problem(),
+		resume_fname(),
 		device(-1),
 		dem(),
 		dir(),
