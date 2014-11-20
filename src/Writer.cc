@@ -40,6 +40,15 @@
 vector<Writer*> Writer::m_writers = vector<Writer*>();
 bool Writer::m_forced = false;
 
+static const char* WriterName[] = {
+	"TextWriter",
+	"VTKWriter",
+	"VTKLegacyWriter",
+	"CustomTextWriter",
+	"UDPWriter",
+	"HotWriter"
+};
+
 void
 Writer::Create(GlobalData *_gdata)
 {
@@ -78,6 +87,7 @@ Writer::Create(GlobalData *_gdata)
 		}
 		writer->set_write_freq(freq);
 		m_writers.push_back(writer);
+		cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
 	}
 }
 
