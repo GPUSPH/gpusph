@@ -42,7 +42,6 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 	// generate filename with iterative integer
 	ofstream out;
 	string filename = open_data_file(out, "hot", next_filenum());
-	out.close(); // TODO FIXME temporary until HotFile is converted to C++ ostreams
 
 	// save the filename in order to manage removing unwanted files
 	_current_filenames.push_back(filename);
@@ -61,8 +60,11 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 	}
 
 	// create and save the hot file
-	HotFile *hf = new HotFile(filename, gdata, numParts, buffers, node_offset,
+	HotFile *hf = new HotFile(out, gdata, numParts, buffers, node_offset,
 		t, testpoints);
 	hf->save();
+	delete hf;
+
+	out.close();
 }
 

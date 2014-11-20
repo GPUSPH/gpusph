@@ -246,28 +246,49 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// TODO FIXME copying data from the problem doubles the host memory requirements
 	// find some smart way to have the host fill the shared buffer directly.
 
-    /* KAG - hot start
-    Strategy is, if user has set the environment variable GPUSPH_HOTSTART_FILE
-    to the full path of an existing HotFile filename (see HotWriter.h), we
-    load that state as our initial simulation state.  If file doesn't exist
-    or variable is not set, we initialize simulation normally.
-    */
-    char *hotstart_filename = getenv("GPUSPH_HOTSTART_FILE");
-    struct stat statbuf;
-    if(hotstart_filename && !stat(hotstart_filename, &statbuf)) {
-        cerr << "HOT START: " << hotstart_filename << endl;
-        HotFile *hf = new HotFile(hotstart_filename, gdata);
-        if(hf->load() == false) {
-            cerr << "Error restoring hot start file" << endl;
-        } else {
-            cerr << "Successfully restored hot start file" << endl;
-            gdata->t = hf->get_t();
-            cerr << "Initializing t to " << hf->get_t() << endl;
-            cout << *hf << endl;
-        }
-    } else {
-        problem->copy_to_array(gdata->s_hBuffers);
-    }
+	/* KAG - hot start
+	Strategy is, if user has set the environment variable GPUSPH_HOTSTART_FILE
+	to the full path of an existing HotFile filename (see HotWriter.h), we
+	load that state as our initial simulation state.  If file doesn't exist
+	or variable is not set, we initialize simulation normally.
+	*/
+	char *hotstart_filename = getenv("GPUSPH_HOTSTART_FILE");
+	bool hotstarted = false;
+	if (hotstart_filename) do {
+		struct stat statbuf;
+		bool is_there = !stat(hotstart_filename, &statbuf);
+		ifstream hot_in;
+		if (!is_there) {
+			cerr << "Hot start file " << hotstart_filename << " not found, ignoring" << endl;
+			break;
+		}
+		cerr << "Hot starting from " << hotstart_filename << "..." << endl;
+		hot_in.open(hotstart_filename);
+		if (!hot_in) {
+			cerr << "Failed to open " << hotstart_filename << endl;
+			break;
+		}
+		/* enable automatic exception handling on failure */
+		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
+		HotFile *hf = NULL;
+		try {
+			hf = new HotFile(hot_in, gdata);
+			hf->load();
+			cerr << "Successfully restored hot start file" << endl;
+			cout << *hf << endl;
+			cerr << "Restarting from t=" << hf->get_t() << endl;
+			gdata->t = hf->get_t();
+			hotstarted = true;
+		} catch (exception &err) {
+			cerr << "Error restoring hot start file:" << err.what() << endl;
+		}
+		if (hf)
+			delete hf;
+		if (hot_in)
+			hot_in.close();
+	} while (0);
+	if (!hotstarted)
+		problem->copy_to_array(gdata->s_hBuffers);
 
 	printf("---\n");
 

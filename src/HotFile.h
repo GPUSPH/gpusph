@@ -6,6 +6,7 @@ The file represents particle and other state.
 #ifndef H_HOTFILE_H
 
 #include <string>
+#include <fstream>
 
 #include "GlobalData.h"
 
@@ -29,16 +30,19 @@ typedef enum { VERSION_1 } version_t;
 
 class HotFile {
 public:
-	HotFile(const string &filename, const GlobalData *gdata);
-	HotFile(const string &filename, const GlobalData *gdata, uint numParts,
+	HotFile(ifstream &fp, const GlobalData *gdata);
+	HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
 		const BufferList &buffers, uint node_offset, float t,
 		const bool testpoints);
 	~HotFile();
 	float get_t() { return _header.t; }
-	bool save();
-	bool load();
+	void save();
+	void load();
 private:
-	string				_filename;
+	union {
+		ifstream		*in;
+		ofstream		*out;
+	}					_fp;
 	uint				_particle_count;
 	BufferList			_buffers;
 	uint				_node_offset;
@@ -47,10 +51,10 @@ private:
 	const GlobalData	*_gdata;
 	header_t			_header;
 
-	void writeBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
-	void writeHeader(FILE *fp, version_t version);
-	bool readBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
-	bool readHeader(FILE *fp);
+	void writeBuffer(ofstream *fp, AbstractBuffer *buffer, version_t version);
+	void writeHeader(ofstream *fp, version_t version);
+	void readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version);
+	void readHeader(ifstream *fp);
 
 	friend std::ostream& operator<<(std::ostream&, const HotFile&);
 };
