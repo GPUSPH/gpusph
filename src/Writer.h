@@ -40,6 +40,9 @@
 // GageList
 #include "simparams.h"
 
+// deprecation macros
+#include "deprecation.h"
+
 // Forward declaration of GlobalData and Problem, instead of inclusion
 // of the respective headers, to avoid cross-include messes
 
@@ -61,7 +64,7 @@ enum WriterType
 };
 
 // list of writer type, write freq pairs
-typedef vector<pair<WriterType, uint> > WriterList;
+typedef vector<pair<WriterType, double> > WriterList;
 
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
@@ -72,10 +75,6 @@ class Writer
 {
 	// list of actual writers
 	static vector<Writer*> m_writers;
-
-	// base writing timer tick. Each writer has a write frequency which is
-	// a multiple of this
-	static double m_timer_tick;
 
 	// should we be force saving regardless of timer ticks
 	// and frequencies?
@@ -110,14 +109,6 @@ public:
 	static void
 	WriteWaveGage(double t, GageList const& gage);
 
-	// set the timer tick
-	static inline void SetTimerTick(double t)
-	{ m_timer_tick = t; }
-
-	// get the timer tick value
-	static inline double GetTimerTick()
-	{ return m_timer_tick; }
-
 	// record that the upcoming write requests should be forced (regardless of write frequency)
 	static inline void
 	SetForced(bool force)
@@ -132,7 +123,7 @@ protected:
 	Writer(const GlobalData *_gdata);
 	virtual ~Writer();
 
-	void set_write_freq(int f);
+	void set_write_freq(double f);
 
 	bool need_write(double t) const;
 
@@ -149,7 +140,6 @@ protected:
 
 	uint getLastFilenum();
 
-	double			m_last_write_time;
 	// default suffix (extension) for data files)
 	string			m_fname_sfx;
 
@@ -166,7 +156,8 @@ protected:
 	open_data_file(ofstream &out, const char* base, string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
-	int				m_writefreq;
+	double			m_last_write_time;
+	double			m_writefreq;
 
 	string			m_dirname;
 	uint			m_FileCounter;

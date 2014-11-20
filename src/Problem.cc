@@ -370,14 +370,27 @@ Problem::create_problem_dir(void)
 	return m_problem_dir;
 }
 
+// timer tick, for compatibility with old timer-tick writer frequency API
+static double deprecated_timer_tick DEPRECATED;
+
 void
-Problem::set_timer_tick(float t)
+Problem::set_timer_tick(double t)
 {
-	Writer::SetTimerTick(t);
+	fputs("WARNING: set_timer_tick() is deprecated\n", stderr);
+	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
+	deprecated_timer_tick = t;
 }
 
 void
 Problem::add_writer(WriterType wt, int freq)
+{
+	fputs("WARNING: add_writer(WriterType, int) is deprecated\n", stderr);
+	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
+	add_writer(wt, freq*deprecated_timer_tick);
+}
+
+void
+Problem::add_writer(WriterType wt, double freq)
 {
 	m_writers.push_back(make_pair(wt, freq));
 }
