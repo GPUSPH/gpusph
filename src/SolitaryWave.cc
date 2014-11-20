@@ -133,8 +133,7 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	mb_callback(0.0, 0.0, 0);
 
 	// Drawing and saving times
-	set_timer_tick(0.001f);
-	add_writer(VTKWRITER, 100);
+	add_writer(VTKWRITER, 0.1f);
 
 	// Name of problem used for directory creation
 	m_name = "SolitaryWave";

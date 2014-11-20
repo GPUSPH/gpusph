@@ -88,8 +88,7 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_gtend=3.0f;
 
 	// Drawing and saving times
-	set_timer_tick(0.01f);
-	add_writer(VTKWRITER, 10);
+	add_writer(VTKWRITER, 0.1f);
 
 	// Name of problem used for directory creation
 	m_name = "Seiche";

@@ -93,8 +93,7 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
 
 	// Drawing and saving times
-	set_timer_tick( 0.01f);
-	add_writer(VTKWRITER, 10);
+	add_writer(VTKWRITER, 0.1f);
 
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
