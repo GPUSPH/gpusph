@@ -42,8 +42,8 @@
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
-// HotWriter
-#include "HotWriter.h"
+// HotFile
+#include "HotFile.h"
 
 /* Include all other opt file for show_version */
 #include "gpusph_version.opt"

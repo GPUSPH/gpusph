@@ -2,11 +2,7 @@
 #define H_HOTWRITER_H
 
 #include "Writer.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <pthread.h>
+#include "HotFile.h"
 
 using namespace std;
 
@@ -69,61 +65,5 @@ private:
 
 /** Determines how far back in simulation time we can restart a simulation */
 #define DEFAULT_NUM_FILES_TO_SAVE 8
-
-/**
-HotFile header encoding.
-*/
-typedef struct {
-	uint	version;
-	uint	buffer_count;
-	uint	particle_count;
-	uint	reserved[16];
-	float	t;
-} header_t;
-
-/**
-HotFile buffer encoding.
-*/
-typedef struct {
-	uint	name_length;
-	char	name[64];
-	uint	element_size;
-	uint	array_count;
-} encoded_buffer_t;
-
-/** HotFile version. */
-typedef enum { VERSION_1 } version_t;
-
-/**
-HotFile represents a hot-start file used to restart simulations.
-The file represents particle and other state.
-*/
-class HotFile {
-public:
-	HotFile(const string &filename, const GlobalData *gdata);
-	HotFile(const string &filename, const GlobalData *gdata, uint numParts,
-		const BufferList &buffers, uint node_offset, float t,
-		const bool testpoints);
-	~HotFile();
-	float get_t() { return _header.t; }
-	bool save();
-	bool load();
-private:
-	string				_filename;
-	uint				_particle_count;
-	BufferList			_buffers;
-	uint				_node_offset;
-	float				_t;
-	bool				_testpoints;
-	const GlobalData	*_gdata;
-	header_t			_header;
-
-	void writeBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
-	void writeHeader(FILE *fp, version_t version);
-	bool readBuffer(FILE *fp, AbstractBuffer *buffer, version_t version);
-	bool readHeader(FILE *fp);
-
-	friend std::ostream& operator<<(std::ostream&, const HotFile&);
-};
 
 #endif
