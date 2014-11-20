@@ -12,10 +12,11 @@
 using namespace std;
 
 HotWriter::HotWriter(const GlobalData *_gdata): Writer(_gdata) {
+
+	m_fname_sfx = ".bin";
+
 	_num_files_to_save = DEFAULT_NUM_FILES_TO_SAVE;
 	_particle_count = 0;
-	_file_count = 0;
-	_write_next_time = false;
 }
 
 HotWriter::~HotWriter() {
@@ -33,24 +34,15 @@ bool HotWriter::need_write(float t) const {
 	return false;
 }
 
-string HotWriter::next_filename() {
-	stringstream ss;
-
-	ss.width(Writer::FNUM_WIDTH);
-	ss.fill('0');
-	ss << _file_count;
-
-	_file_count++;
-	return ss.str();
-}
-
 void HotWriter::write(uint numParts, const BufferList &buffers,
 	uint node_offset, float t, const bool testpoints) {
 
 	cout << "KAG: write()" << endl;
 
 	// generate filename with iterative integer
-	string filename = m_dirname + "/hot_" + next_filename() + ".bin";
+	ofstream out;
+	string filename = open_data_file(out, "hot", next_filenum());
+	out.close(); // TODO FIXME temporary until HotFile is converted to C++ ostreams
 
 	// save the filename in order to manage removing unwanted files
 	_current_filenames.push_back(filename);

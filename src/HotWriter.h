@@ -61,9 +61,6 @@ private:
 	int					_num_files_to_save;
 	std::vector<string>	_current_filenames;
 	uint				_particle_count;
-	uint				_file_count;
-	bool				_write_next_time;
-	string				next_filename();
 };
 
 /** Determines how far back in simulation time we can restart a simulation */
