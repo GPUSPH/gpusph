@@ -94,8 +94,7 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	set_timer_tick(0.002f);
-	add_writer(VTKWRITER, 100);
+	add_writer(VTKWRITER, 0.2);
 
 	// Set up callback function
 	m_simparams.mbcallback = true;

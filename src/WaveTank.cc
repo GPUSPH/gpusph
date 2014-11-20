@@ -132,8 +132,7 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	mb_callback(0.0, 0.0, 0);
 
 	// Drawing and saving times
-	set_timer_tick(0.01);
-	add_writer(VTKWRITER, 20);
+	add_writer(VTKWRITER, 0.2);
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";

@@ -210,8 +210,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-4);
-	add_writer(VTKWRITER, 1000);
+	add_writer(VTKWRITER, 0.1);
 
 	// Name of problem used for directory creation
 	m_name = "InputProblem";
