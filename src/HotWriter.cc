@@ -44,10 +44,18 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 	string filename = open_data_file(out, "hot", next_filenum());
 
 	// save the filename in order to manage removing unwanted files
-	_current_filenames.push_back(filename);
+	_current_filenames.push_back(m_dirname + "/" + filename);
+
+	// create and save the hot file
+	HotFile *hf = new HotFile(out, gdata, numParts, buffers, node_offset,
+		t, testpoints);
+	hf->save();
+	delete hf;
+
+	out.close();
 
 	// remove unwanted files, we only keep the last _num_files_to_save ones
-	if(_current_filenames.size() > _num_files_to_save) {
+	if(_num_files_to_save > 0 && _current_filenames.size() > _num_files_to_save) {
 		int num_to_remove = _current_filenames.size() - _num_files_to_save;
 		for(int i = 0; i < num_to_remove; i++) {
 			string to_remove = _current_filenames.at(i);
@@ -59,12 +67,5 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 			_current_filenames.begin() + num_to_remove);
 	}
 
-	// create and save the hot file
-	HotFile *hf = new HotFile(out, gdata, numParts, buffers, node_offset,
-		t, testpoints);
-	hf->save();
-	delete hf;
-
-	out.close();
 }
 
