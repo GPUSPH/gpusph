@@ -9,6 +9,9 @@
 // for loading meshes as ODE objs
 #include "STLMesh.h"
 
+// Water level simulated by the pressure inlet
+#define INLET_WATER_LEVEL	0.9
+
 class CompleteSaExample: public Problem {
 	private:
 		string			inputfile;

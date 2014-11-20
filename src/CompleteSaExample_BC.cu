@@ -43,8 +43,8 @@ CompleteSaExample_imposeBoundaryCondition(
 				waterdepth = 0.5f;
 			else
 			*/
-				// set inflow waterdepth to 0.9 (with respect to world_origin)
-				waterdepth = 0.9f;
+				// set inflow waterdepth
+				waterdepth = INLET_WATER_LEVEL;
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));

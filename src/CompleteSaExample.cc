@@ -32,7 +32,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 	initial_water_level = 0.5;
-	expected_final_water_level = 0.9;
+	expected_final_water_level = INLET_WATER_LEVEL;
 	// extra margin around the domain size
 	const double MARGIN = 0.1;
 	const double INLET_BOX_LENGTH = 0.25;
