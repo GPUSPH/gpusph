@@ -39,6 +39,8 @@ struct Options {
 	string	dir; // directory where data will be saved
 	double	deltap; // deltap
 	float	tend; // simulation end
+	float	checkpoint_freq; // frequency of hotstart checkpoints (in simulated seconds)
+	int	checkpoints; // number of hotstart checkpoints to keep
 	bool	nosave; // disable saving
 	bool	gpudirect; // enable GPUDirect
 	bool	striping; // enable striping (i.e. compute/transfer overlap)
@@ -52,6 +54,8 @@ struct Options {
 		dem(),
 		dir(),
 		deltap(NAN),
+		checkpoint_freq(NAN),
+		checkpoints(-1),
 		tend(NAN),
 		nosave(false),
 		gpudirect(false),

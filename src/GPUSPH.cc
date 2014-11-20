@@ -163,7 +163,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
 
-	// create the Writer according to the WriterType
+	// create the Writers according to the WriterType
 	createWriter();
 
 	// TODO: writeSummary

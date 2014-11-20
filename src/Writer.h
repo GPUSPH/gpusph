@@ -132,6 +132,9 @@ protected:
 
 	void set_write_freq(float f);
 
+	float get_write_freq() const
+	{ return m_writefreq; }
+
 	/* Individual writers can override this */
 	virtual bool need_write(float t) const;
 
