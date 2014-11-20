@@ -31,7 +31,8 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.testpoints = false;
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
-	H = 1.0;
+	initial_water_level = 0.5;
+	expected_final_water_level = 0.9;
 	// extra margin around the domain size
 	const double MARGIN = 0.1;
 	const double INLET_BOX_LENGTH = 0.25;
@@ -66,7 +67,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	float g = length(m_physparams.gravity);
 
-	m_physparams.dcoeff = 5.0f*g*H;
+	m_physparams.dcoeff = 5.0f*g*expected_final_water_level;
 
 	m_physparams.r0 = m_deltap;
 
@@ -202,7 +203,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
-		float rho = density(H - h5File.buf[i].Coords_2, 0);
+		float rho = density(initial_water_level - h5File.buf[i].Coords_2, 0);
 		//float rho = m_physparams.rho0[0];
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
@@ -217,7 +218,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(H - h5File.buf[i].Coords_2, 0);
+			float rho = density(initial_water_level - h5File.buf[i].Coords_2, 0);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = make_float4(0);
