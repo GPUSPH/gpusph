@@ -135,7 +135,8 @@ protected:
 
 	void set_write_freq(int f);
 
-	bool need_write(float t) const;
+	/* Individual writers can override this */
+	virtual bool need_write(float t) const;
 
 	virtual void
 	write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints) = 0;

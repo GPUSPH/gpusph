@@ -41,6 +41,9 @@ public:
 	HotWriter(const GlobalData *_gdata);
 	~HotWriter();
 
+	/* HotFiles must be dumped right before a neiblist construction,
+	 * so we override need_write to ensure this: we write at the
+	 * buildneibs not earlier than our actual write time */
 	bool need_write(float t) const;
 
 	void write(uint numParts, const BufferList &buffers,
@@ -50,7 +53,7 @@ public:
 		_num_files_to_save = num_files;
 	}
 
-	int get_num_files_to_save() {
+	int get_num_files_to_save() const {
 		return _num_files_to_save;
 	}
 
