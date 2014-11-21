@@ -1530,10 +1530,9 @@ forcesDevice(
 						printf("Interaction OBJECT <- FLUID ...\n");
 					if (FLUID(pdata.info) && OBJECT(ndata.info))
 						printf("Interaction FLUID <- OBJECT ...\n");*/
-				}
-				/*else {
+				} else {
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
-				}*/
+				}
 
 			}
 			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && VERTEX(info)) {
