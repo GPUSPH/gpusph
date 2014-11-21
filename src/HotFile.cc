@@ -36,6 +36,8 @@ HotFile::HotFile(ifstream &fp, const GlobalData *gdata) {
 void HotFile::save() {
 	// write a header
 	writeHeader(_fp.out, VERSION_1);
+
+	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		writeBuffer(_fp.out, (AbstractBuffer*)iter->second, VERSION_1);
@@ -43,10 +45,33 @@ void HotFile::save() {
 	}
 }
 
+// auxiliary method that checks that two values are the same, and throws an
+// exception otherwise
+static void
+check_counts_match(const char* what, size_t hf_count, size_t sim_count)
+{
+	if (hf_count == sim_count)
+		return;
+
+	ostringstream os;
+	os << "mismatched " << what << " count; HotFile has " << hf_count
+		<< ", simulation has " << sim_count;
+	throw runtime_error(os.str());
+}
+
+
 void HotFile::load() {
 	// read header
 	readHeader(_fp.in);
 
+	// TODO FIXME multinode should take into account per-rank particles
+	check_counts_match("particle", _particle_count, _gdata->totParticles);
+
+	// TODO FIXME would it be possible to restore from a situation with a
+	// different number of arrays?
+	check_counts_match("buffer", _header.buffer_count, _gdata->s_hBuffers.size());
+
+	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		cout << "Will load buffer here..." << endl;
