@@ -1153,7 +1153,7 @@ void GPUSPH::doWrite(bool force)
 				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
 					(dpos.y > gage_llimit[g].y) && (dpos.y < gage_ulimit[g].y)) {
 						gage_parts[g]++;
-						gages[g].z += pos.z;
+						gages[g].z += dpos.z;
 				}
 			}
 

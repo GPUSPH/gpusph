@@ -1847,9 +1847,14 @@ void GPUWorker::unbind_textures_forces()
 	forces_unbind_textures(m_simparams->visctype, m_simparams->boundarytype);
 }
 
-// Dt reduction after forces kernel
+// Reduce array of maximum dt after forces, but only for adaptive timesteps
+// Otherwise, just return the current (fixed) timestep
 float GPUWorker::forces_dt_reduce()
 {
+	// no reduction for fixed timestep
+	if (!m_simparams->dtadapt)
+		return m_simparams->dt;
+
 	return forces_dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
