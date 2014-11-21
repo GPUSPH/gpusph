@@ -242,7 +242,7 @@ Problem::create_problem_dir(void)
 }
 
 // timer tick, for compatibility with old timer-tick writer frequency API
-static float deprecated_timer_tick DEPRECATED;
+static float deprecated_timer_tick;
 
 void
 Problem::set_timer_tick(float t)
