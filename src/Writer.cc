@@ -286,7 +286,7 @@ Writer::need_write(float t) const
 	if (m_writefreq == 0)
 		return false;
 
-	if (m_last_write_time < 0 || t - m_last_write_time >= m_writefreq)
+	if (floor(t/m_writefreq) > floor(m_last_write_time/m_writefreq))
 		return true;
 
 	return false;
