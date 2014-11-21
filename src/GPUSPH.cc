@@ -182,10 +182,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
-	// initialize CGs (or, the problem could directly write on gdata)
-	initializeObjectsCGs();
-	initializeObjectsVelocities();
-
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
 	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
@@ -270,15 +266,23 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		hf = new HotFile(hot_in, gdata);
 		hf->load();
 		cerr << "Successfully restored hot start file" << endl;
-		cout << *hf << endl;
+		cerr << *hf << endl;
 		cerr << "Restarting from t=" << hf->get_t()
 			<< ", iteration=" << hf->get_iterations()
 			<< ", dt=" << hf->get_dt() << endl;
+		// warn about possible discrepancies in case of ODE objects
+		if (problem->get_simparams()->numODEbodies) {
+			cerr << "WARNING: simulation has rigid bodies, resume will not give identical results" << endl;
+		}
 		gdata->iterations = hf->get_iterations();
 		gdata->dt = hf->get_dt();
 		gdata->t = hf->get_t();
 		hot_in.close();
 	}
+
+	// initialize CGs (or, the problem could directly write on gdata)
+	initializeObjectsCGs();
+	initializeObjectsVelocities();
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)

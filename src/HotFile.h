@@ -22,7 +22,8 @@ typedef struct {
 	uint	version;
 	uint	buffer_count;
 	uint	particle_count;
-	uint	reserved[13];
+	uint	body_count;
+	uint	reserved[12];
 	ulong	iterations;
 	double	t;
 	float	dt;
@@ -60,8 +61,11 @@ private:
 	header_t			_header;
 
 	void writeBuffer(ofstream *fp, AbstractBuffer *buffer, version_t version);
+	void writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
+		const float3 *linvel, const float3 *angvel, version_t version);
 	void writeHeader(ofstream *fp, version_t version);
 	void readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version);
+	void readBody(ifstream *fp, version_t version);
 	void readHeader(ifstream *fp);
 
 	friend std::ostream& operator<<(std::ostream&, const HotFile&);

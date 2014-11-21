@@ -16,6 +16,25 @@ typedef struct {
 	uint	array_count;
 } encoded_buffer_t;
 
+/**
+HotFile object encoding
+
+Note that ODE does some massaging of the quaternion, so resuming will not give
+exactly the same results as running the simulation continuously.
+
+There are ways around this, such as hacking directly the ODE internals or
+keeping a history of the motions of the objects, but this is currently deemed
+overkill.
+*/
+typedef struct {
+	uint	index;
+	float	gravity_center[3];
+	float	quaternion[4];
+	float	linvel[3];
+	float	angvel[3];
+	float	reserved[10];
+} encoded_body_t;
+
 HotFile::HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
 	const BufferList &buffers, uint node_offset, double t,
 	const bool testpoints) {
@@ -43,6 +62,14 @@ void HotFile::save() {
 		writeBuffer(_fp.out, (AbstractBuffer*)iter->second, VERSION_1);
 		iter++;
 	}
+
+	const float3 *cgs = _gdata->problem->get_ODE_bodies_cg();
+	const dQuaternion *quats = _gdata->problem->get_ODE_bodies_quaternion();
+	const float3 *linvels = _gdata->problem->get_ODE_bodies_linearvel();
+	const float3 *angvels = _gdata->problem->get_ODE_bodies_angularvel();
+	for (int b = 0; b < _header.body_count; ++b)
+		writeBody(_fp.out, b, cgs + b, quats[b],
+			linvels + b, angvels + b, VERSION_1);
 }
 
 // auxiliary method that checks that two values are the same, and throws an
@@ -71,12 +98,21 @@ void HotFile::load() {
 	// different number of arrays?
 	check_counts_match("buffer", _header.buffer_count, _gdata->s_hBuffers.size());
 
+	// NOTE: simulation with ODE bodies cannot be resumed identically due to
+	// the way ODE handles its internal state.
+	check_counts_match("body", _header.body_count, _gdata->problem->get_simparams()->numODEbodies);
+
 	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
 		cout << "Will load buffer here..." << endl;
 		readBuffer(_fp.in, (AbstractBuffer*)iter->second, VERSION_1);
 		iter++;
+	}
+
+	for (uint b = 0; b < _header.body_count; ++b) {
+		cout << "Restoring body #" << b << " ..." << endl;
+		readBody(_fp.in, VERSION_1);
 	}
 }
 
@@ -96,10 +132,11 @@ unsupported_version(uint version)
 void HotFile::writeHeader(ofstream *fp, version_t version) {
 	switch (version) {
 	case VERSION_1:
-		memset(&_header, 0, sizeof(header_t));
+		memset(&_header, 0, sizeof(_header));
 		_header.version = 1;
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
+		_header.body_count = _gdata->problem->get_simparams()->numODEbodies;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
@@ -111,7 +148,7 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 }
 
 void HotFile::readHeader(ifstream *fp) {
-	memset(&_header, 0, sizeof(header_t));
+	memset(&_header, 0, sizeof(_header));
 
 	// read and check version
 	uint v;
@@ -128,7 +165,7 @@ void HotFile::writeBuffer(ofstream *fp, AbstractBuffer *buffer, version_t versio
 	switch (version) {
 	case VERSION_1:
 		encoded_buffer_t eb;
-		memset(&eb, 0, sizeof(encoded_buffer_t));
+		memset(&eb, 0, sizeof(eb));
 		eb.name_length = strlen(buffer->get_buffer_name());
 		strcpy(eb.name, buffer->get_buffer_name());
 		eb.element_size = buffer->get_element_size();
@@ -169,7 +206,7 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 	switch (version) {
 	case VERSION_1:
 		encoded_buffer_t eb;
-		memset(&eb, 0, sizeof(encoded_buffer_t));
+		memset(&eb, 0, sizeof(eb));
 		fp->read((char*)&eb, sizeof(eb));
 		cout << "read buffer header: " << eb.name << endl;
 		if (strcmp(buffer->get_buffer_name(), eb.name))
@@ -181,8 +218,58 @@ void HotFile::readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version
 	}
 }
 
+void HotFile::writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
+	const float3 *linvel, const float3 *angvel, version_t version)
+{
+	switch (version) {
+	case VERSION_1:
+		encoded_body_t eb;
+		memset(&eb, 0, sizeof(eb));
+
+		eb.index = index;
+
+		eb.gravity_center[0] = cg->x;
+		eb.gravity_center[1] = cg->y;
+		eb.gravity_center[2] = cg->z;
+
+		eb.quaternion[0] = quaternion[0];
+		eb.quaternion[1] = quaternion[1];
+		eb.quaternion[2] = quaternion[2];
+		eb.quaternion[3] = quaternion[3];
+
+		eb.linvel[0] = linvel->x;
+		eb.linvel[1] = linvel->y;
+		eb.linvel[2] = linvel->z;
+
+		eb.angvel[0] = angvel->x;
+		eb.angvel[1] = angvel->y;
+		eb.angvel[2] = angvel->z;
+
+		fp->write((const char *)&eb, sizeof(eb));
+		break;
+	default:
+		unsupported_version(version);
+	}
+}
+
+void HotFile::readBody(ifstream *fp, version_t version)
+{
+	switch (version) {
+	case VERSION_1:
+		encoded_body_t eb;
+		memset(&eb, 0, sizeof(eb));
+		fp->read((char *)&eb, sizeof(eb));
+		_gdata->problem->restore_ODE_body(eb.index, eb.gravity_center, eb.quaternion,
+			eb.linvel, eb.angvel);
+		break;
+	default:
+		unsupported_version(version);
+	}
+}
+
+
 std::ostream& operator<<(std::ostream &strm, const HotFile &h) {
 	return strm << "HotFile( version=" << h._header.version << ", pc=" <<
-		h._header.particle_count << ")";
+		h._header.particle_count << ", bc=" << h._header.body_count << ")";
 }
 
