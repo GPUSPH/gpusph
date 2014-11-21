@@ -776,10 +776,6 @@ Gamma(	const	float		&slength,
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
 	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
-	// check if we are close to a wall
-	if (q_aSigma.w < 0.5f) {
-		minlRas = min(minlRas, q_aSigma.w);
-	}
 	// calculate if the projection of a (with respect to n) is inside the segment
 	const float4 ba = v1 - v0; // vector from v0 to v1
 	const float4 ca = v2 - v0; // vector from v0 to v2
@@ -792,6 +788,15 @@ Gamma(	const	float		&slength,
 	const float invdet = 1.0f/(uv*uv-uu*vv);
 	const float u = (uv*wv-vv*wu)*invdet;
 	const float v = (uv*wu-uu*wv)*invdet;
+
+	// check if we are on top of a segment and if we are reasonably close to a wall
+	if ((   (u > -epsilon && u < 1.0f+epsilon) ||
+			(v > -epsilon && v < 1.0f+epsilon) ||
+			(1.0f - (u+v) > -epsilon && -(u+v) < epsilon) ) &&
+			q_aSigma.w < 0.5f) {
+		minlRas = min(minlRas, q_aSigma.w);
+	}
+
 	//const float w = 1.0f - u - v;
 	float gradGamma_as = 0.0f;
 	float gamma_as = 0.0f;
