@@ -275,8 +275,8 @@ class Problem {
 		float* get_ODE_bodies_steprot(void);
 		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &);
-		int	get_ODE_bodies_numparts(void) const;
-		int	get_ODE_body_numparts(const int) const;
+		size_t	get_ODE_bodies_numparts(void) const;
+		size_t	get_ODE_body_numparts(const int) const;
 
 		void init_keps(float*, float*, uint, particleinfo*);
 

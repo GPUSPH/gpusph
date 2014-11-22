@@ -533,10 +533,10 @@ Problem::add_ODE_body(Object* object)
 }
 
 
-int
+size_t
 Problem::get_ODE_bodies_numparts(void) const
 {
-	int total_parts = 0;
+	size_t total_parts = 0;
 	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
 		total_parts += m_ODE_bodies[i]->GetParts().size();
 	}
@@ -545,7 +545,7 @@ Problem::get_ODE_bodies_numparts(void) const
 }
 
 
-int
+size_t
 Problem::get_ODE_body_numparts(const int i) const
 {
 	if (!m_simparams.numODEbodies)
@@ -698,9 +698,9 @@ Problem::set_grid_params(void)
 	if (m_simparams.boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
-	m_gridsize.x = floor(m_size.x / cellSide);
-	m_gridsize.y = floor(m_size.y / cellSide);
-	m_gridsize.z = floor(m_size.z / cellSide);
+	m_gridsize.x = (uint)floor(m_size.x / cellSide);
+	m_gridsize.y = (uint)floor(m_size.y / cellSide);
+	m_gridsize.z = (uint)floor(m_size.z / cellSide);
 
 	// While trying to run a simulation at very low resolution, the user might
 	// set a deltap so large that cellSide is bigger than m_size.{x,y,z}, resulting
@@ -739,9 +739,9 @@ int3
 Problem::calc_grid_pos(const Point&	pos)
 {
 	int3 gridPos;
-	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
-	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
-	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
+	gridPos.y = (int)floor((pos(1) - m_origin.y) / m_cellsize.y);
+	gridPos.z = (int)floor((pos(2) - m_origin.z) / m_cellsize.z);
 	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
 	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
 	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);
