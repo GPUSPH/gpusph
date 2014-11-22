@@ -1,4 +1,14 @@
-/* Math on CUDA vector types, from cutil_math.h */
+/* Math on CUDA vector types, inspired by cutil_math.h */
+
+// NOTES: to ensure no downconversions are introduced, this header should
+// compile cleanly with -Wconversion enabled. To achieve this, use the following
+// care when adding functions:
+// * float functions should be used on float POD types (e.g.: fabsf instead of
+//   fabs when the argument is a float);
+// * double functions should be used double POD types (obviously);
+// * explictly cast int/uint to float when doing mixed int/float operations,
+//   since int-to-float conversion can actually cause data loss (for values
+//   larger than 2^24) and thus -Wconversion warns about them.
 
 #ifndef VECTOR_MATH_H
 #define VECTOR_MATH_H
@@ -373,22 +383,22 @@ static __inline__ __host__ __device__ float3 operator*(const float3 &a, const fl
 
 static __inline__ __host__ __device__ float3 operator*(const int3 &a, const float3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(float(a.x) * b.x, float(a.y) * b.y, float(a.z) * b.z);
 }
 
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const int3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(a.x * float(b.x), a.y * float(b.y), a.z * float(b.z));
 }
 
 static __inline__ __host__ __device__ float3 operator*(const uint3 &a, const float3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(float(a.x) * b.x, float(a.y) * b.y, float(a.z) * b.z);
 }
 
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const uint3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(a.x * float(b.x), a.y * float(b.y), a.z * float(b.z));
 }
 
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const float &s)
