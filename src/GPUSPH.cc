@@ -999,8 +999,8 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uint cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
-		uint pdev;
+		uchar cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
+		uchar pdev;
 		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
@@ -1067,7 +1067,7 @@ void GPUSPH::setViscosityCoefficient()
 
 		case KINEMATICVISC:
 		case SPSVISC:
-			pp->visccoeff = 4.0*pp->kinematicvisc;
+			pp->visccoeff = 4*pp->kinematicvisc;
 			break;
 
 		case KEPSVISC:

@@ -56,7 +56,7 @@ using namespace std;
 
 class Problem {
 	private:
-		float		m_last_rbdata_write_time;
+		double		m_last_rbdata_write_time;
 		string		m_problem_dir;
 		WriterList	m_writers;
 
@@ -84,7 +84,7 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		float		m_rbdata_writeinterval;
+		double		m_rbdata_writeinterval;
 		FILE*		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }

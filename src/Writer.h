@@ -115,7 +115,7 @@ public:
 	{ m_timer_tick = t; }
 
 	// get the timer tick value
-	static inline float GetTimerTick()
+	static inline double GetTimerTick()
 	{ return m_timer_tick; }
 
 	// record that the upcoming write requests should be forced (regardless of write frequency)
