@@ -576,9 +576,14 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 	open_data_file(fp, "WaveGage", current_filenum());
 	size_t num = gage.size();
 
+	// For gages without points, z will be NaN, and we'll set
+	// it to match the lowest world coordinate
+	const double worldBottom = gdata->worldOrigin.z;
+
 	// Header
 	fp << "<?xml version='1.0'?>" << endl;
-	fp << "<VTKFile type= 'UnstructuredGrid'  version= '0.1'  byte_order= 'BigEndian'>" << endl;
+	fp << "<VTKFile type='UnstructuredGrid'  version='0.1'  byte_order='" <<
+		endianness[*(char*)&endian_int & 1] << "'>" << endl;
 	fp << " <UnstructuredGrid>" << endl;
 	fp << "  <Piece NumberOfPoints='" << num << "' NumberOfCells='" << num << "'>" << endl;
 
@@ -586,7 +591,8 @@ VTKWriter::write_WaveGage(double t, GageList const& gage)
 	fp << "   <Points>" << endl;
 	fp << "	<DataArray type='Float32' NumberOfComponents='3' format='ascii'>" << endl;
 	for (size_t i=0; i <  num; i++)
-		fp << gage[i].x << "\t" << gage[i].y << "\t" << gage[i].z << "\t";
+		fp << gage[i].x << "\t" << gage[i].y << "\t" <<
+			(isfinite(gage[i].z) ? gage[i].z : worldBottom) << "\t";
 	fp << endl;
 	fp << "	</DataArray>" << endl;
 	fp << "   </Points>" << endl;
