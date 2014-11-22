@@ -250,9 +250,12 @@ class Problem {
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
+
+		// TODO time parameter should be a double
 		virtual MbCallBack& mb_callback(const float, const float, const int);
 		virtual float4* get_mbdata(const float, const float, const bool);
 		virtual float3 g_callback(const float);
+
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
 			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";

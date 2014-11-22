@@ -82,10 +82,10 @@ typedef struct PhysParams {
 		p2coeff(6.0f),
 		epsxsph(0.5f),
 		numFluids(1),
-		cosconeanglefluid(0.86),
-		cosconeanglenonfluid (0.5),
-		objectobjectdf (1.0),
-		objectboundarydf (1.0)
+		cosconeanglefluid(0.86f),
+		cosconeanglenonfluid(0.5f),
+		objectobjectdf(1.0f),
+		objectboundarydf(1.0f)
 	{};
 	/*! Set density parameters
 	  @param i	index in the array of materials

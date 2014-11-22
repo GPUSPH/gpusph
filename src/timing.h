@@ -146,7 +146,8 @@ class IPPSCounter
 		double diff_seconds(timespec &end, timespec &start) {
 			timespec diff;
 			timespec_diff(end, start, diff);
-			return diff.tv_sec + diff.tv_nsec/1.0e9;
+			/* explicit casts to silence -Wconversion */
+			return double(diff.tv_sec) + double(diff.tv_nsec)/1.0e9;
 		}
 
 		// returns the elapsed seconds since [re]start() was called

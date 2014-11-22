@@ -82,10 +82,10 @@ Problem::check_dt(void)
 	float dt_from_visc = NAN;
 	if (m_simparams.visctype != ARTVISC) {
 		dt_from_visc = m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc;
-		dt_from_visc *= 0.125; // TODO this should be configurable
+		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}
 
-	float cfl_dt = fmin(dt_from_sspeed, fmin(dt_from_gravity, dt_from_visc));
+	float cfl_dt = fminf(dt_from_sspeed, fminf(dt_from_gravity, dt_from_visc));
 
 	if (m_simparams.dt > cfl_dt) {
 		fprintf(stderr, "WARNING: dt %g bigger than %g imposed by CFL conditions (sspeed: %g, gravity: %g, viscosity: %g)\n",
@@ -152,7 +152,7 @@ Problem::check_maxneibsnum(void)
 	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
 	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
 	// increase maxneibsnum as appropriate
-	maxneibsnum = ceil(ratio*maxneibsnum);
+	maxneibsnum = (uint)ceil(ratio*maxneibsnum);
 	// round up to multiple of 32
 	maxneibsnum = round_up(maxneibsnum, 32U);
 

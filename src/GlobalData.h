@@ -220,7 +220,7 @@ struct GlobalData {
 
 	// moving boundaries
 	float4	*s_mbData;
-	uint	mbDataSize;
+	size_t	mbDataSize;
 
 	// planes
 	uint numPlanes;
@@ -336,9 +336,9 @@ struct GlobalData {
 	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(double px, double py, double pz) const {
 		int3 gridPos;
-		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
-		gridPos.y = floor((py - worldOrigin.y) / cellSize.y);
-		gridPos.z = floor((pz - worldOrigin.z) / cellSize.z);
+		gridPos.x = (int)floor((px - worldOrigin.x) / cellSize.x);
+		gridPos.y = (int)floor((py - worldOrigin.y) / cellSize.y);
+		gridPos.z = (int)floor((pz - worldOrigin.z) / cellSize.z);
 		return gridPos;
 	}
 	// overloaded
@@ -416,7 +416,7 @@ struct GlobalData {
 		};
 		static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
 
-		double mem = memory;
+		double mem = (double)memory;
 		uint idx = 0;
 		while (mem > 1024 && idx < memSuffix_els - 1) {
 			mem /= 1024;
@@ -476,6 +476,14 @@ struct GlobalData {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
+
+	/* disable -Wconversion warnings in this uchar manipulation sections, since GCC is a bit overeager 
+	 * in signaling potential issues in the upconversion from uchar to (u)int and subsequent downconversion
+	 * that happen on the shifts
+	 */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+
 	// *** MPI aux methods: conversion from/to local device ids to global ones
 	// get rank from globalDeviceIndex
 	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
@@ -498,6 +506,8 @@ struct GlobalData {
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
 		}
 	}
+
+#pragma GCC diagnostic pop
 
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
