@@ -761,7 +761,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	const size_t numparts = gdata->totParticles;
 
 	const uint numcells = gdata->nGridCells;
-	const size_t ucharCellSize = sizeof(uchar) * numcells;
+	const size_t devcountCellSize = sizeof(devcount_t) * numcells;
 	const size_t uintCellSize = sizeof(uint) * numcells;
 
 	size_t totCPUbytes = 0;
@@ -804,9 +804,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (MULTI_DEVICE) {
 		// deviceMap
-		gdata->s_hDeviceMap = new uchar[numcells];
-		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
-		totCPUbytes += ucharCellSize;
+		gdata->s_hDeviceMap = new devcount_t[numcells];
+		memset(gdata->s_hDeviceMap, 0, devcountCellSize);
+		totCPUbytes += devcountCellSize;
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
 		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
@@ -880,14 +880,14 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer? or: just use HASH, sorting also for cells, not only for device
-	uchar* m_hParticleKeys = new uchar[gdata->totParticles];
+	devcount_t* m_hParticleKeys = new devcount_t[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
 		// compute containing device according to the particle's hash
 		uint cellHash = cellHashFromParticleHash( gdata->s_hBuffers.getData<BUFFER_HASH>()[p] );
-		uchar whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
+		devcount_t whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
 		m_hParticleKeys[p] = whichGlobalDev;
@@ -999,8 +999,8 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uchar cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
-		uchar pdev;
+		devcount_t cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
+		devcount_t pdev;
 		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",

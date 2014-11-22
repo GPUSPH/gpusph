@@ -148,16 +148,16 @@ struct GlobalData {
 	// # of GPUs running
 
 	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
-	unsigned int devices;
+	devcount_t devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
-	unsigned int mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
+	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
 	int mpi_rank; // MPI rank. -1 if not initialized
 
 	// total number of devices. Same as "devices" if single-node
-	unsigned int totDevices;
+	devcount_t totDevices;
 
 	// array of GPUWorkers, one per GPU
 	GPUWorker** GPUWORKERS;
@@ -198,7 +198,7 @@ struct GlobalData {
 	// CPU buffers ("s" stands for "shared"). Not double buffered
 	BufferList s_hBuffers;
 
-	uchar*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
+	devcount_t*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
 	// counter: how many particles per device
 	uint s_hPartsPerDevice[MAX_DEVICES_PER_NODE]; // TODO: can change to PER_NODE if not compiling for multinode
@@ -383,7 +383,7 @@ struct GlobalData {
 
 	// compute the global device Id of the cell holding globalPos
 	// NOTE: as the name suggests, globalPos is _global_
-	uchar calcGlobalDeviceIndex(double4 globalPos) const {
+	devcount_t calcGlobalDeviceIndex(double4 globalPos) const {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
@@ -486,23 +486,23 @@ struct GlobalData {
 
 	// *** MPI aux methods: conversion from/to local device ids to global ones
 	// get rank from globalDeviceIndex
-	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
+	inline static devcount_t RANK(devcount_t globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
 	// get deviceIndex from globalDeviceIndex
-	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
+	inline static devcount_t DEVICE(devcount_t globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
 	// get globalDeviceIndex from rank and deviceIndex
-	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << DEVICE_BITS) | (localDevId & DEVICE_BITS_MASK));} // compute global dev id
+	inline static devcount_t GLOBAL_DEVICE_ID(devcount_t nodeRank, devcount_t localDevId) { return ((nodeRank << DEVICE_BITS) | (localDevId & DEVICE_BITS_MASK));} // compute global dev id
 	// compute a simple "linearized" index of the given device, as opposite to convertDevices() does. Not static because devices is known after instantiation and initialization
-	inline uchar GLOBAL_DEVICE_NUM(uchar globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
+	inline devcount_t GLOBAL_DEVICE_NUM(devcount_t globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
 	// opoosite of the previous: get rank
-	uchar RANK_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized / devices; }
+	devcount_t RANK_FROM_LINEARIZED_GLOBAL(devcount_t linearized) const { return linearized / devices; }
 	// opposite of the previous: get device
-	uchar DEVICE_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized % devices; }
+	devcount_t DEVICE_FROM_LINEARIZED_GLOBAL(devcount_t linearized) const { return linearized % devices; }
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
 	void convertDeviceMap() const {
 		for (uint n = 0; n < nGridCells; n++) {
-			uchar _rank = RANK_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
-			uchar _dev  = DEVICE_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
+			devcount_t _rank = RANK_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
+			devcount_t _dev  = DEVICE_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
 		}
 	}

@@ -325,7 +325,8 @@ void Problem::fillDeviceMapByCellHash()
 {
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
-		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->totDevices-1);
+		// guaranteed to fit in a devcount_t due to how it's computed
+		gdata->s_hDeviceMap[i] = devcount_t(min( i/cells_per_device, gdata->totDevices-1));
 }
 
 // partition by splitting along the specified axis
@@ -354,7 +355,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 			cells_per_longest_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (float)gdata->totDevices);
+	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (double)gdata->totDevices);
 	/*
 	printf("Splitting domain along axis %s, %u cells per part\n",
 		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_longest_axis);
@@ -369,9 +370,9 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 					case Z_AXIS: axis_coordinate = cz; break;
 				}
 				// everything is just a preparation for the following line
-				uchar dstDevice = axis_coordinate / cells_per_device_per_longest_axis;
+				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_longest_axis);
 				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
-				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				dstDevice = (devcount_t)min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -461,16 +462,16 @@ void Problem::fillDeviceMapByRegularGrid()
 	float Xsize = gdata->worldSize.x;
 	float Ysize = gdata->worldSize.y;
 	float Zsize = gdata->worldSize.z;
-	uint cutsX = 1;
-	uint cutsY = 1;
-	uint cutsZ = 1;
-	uint remaining_factors = gdata->totDevices;
+	devcount_t cutsX = 1;
+	devcount_t cutsY = 1;
+	devcount_t cutsZ = 1;
+	devcount_t remaining_factors = gdata->totDevices;
 
 	// define the product of non-zero cuts to keep track of current number of parallelepipeds
 //#define NZ_PRODUCT	((cutsX > 0? cutsX : 1) * (cutsY > 0? cutsY : 1) * (cutsZ > 0? cutsZ : 1))
 
 	while (cutsX * cutsY * cutsZ < gdata->totDevices) {
-		uint factor = 1;
+		devcount_t factor = 1;
 		// choose the highest factor among 2, 3 and 5 which divides remaining_factors
 		if (remaining_factors % 5 == 0) factor = 5; else
 		if (remaining_factors % 3 == 0) factor = 3; else
