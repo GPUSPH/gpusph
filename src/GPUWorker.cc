@@ -41,7 +41,7 @@
 // UINT_MAX
 #include "limits.h"
 
-GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
+GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 	gdata = _gdata;
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
@@ -364,8 +364,8 @@ void GPUWorker::computeCellBursts()
 		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
 		// find the owner
-		const uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
-		const uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
+		const devcount_t curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
+		const devcount_t curr_cell_rank = gdata->RANK( curr_cell_gidx );
 
 		// redundant correctness check
 		if ( curr_cell_rank >= gdata->mpi_nodes ) {
@@ -402,8 +402,8 @@ void GPUWorker::computeCellBursts()
 
 					// now compute the linearized hash of the neib cell and other properties
 					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
-					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
-					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
+					const devcount_t neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
+					const devcount_t neib_cell_rank = gdata->RANK( neib_cell_gidx );
 
 					// is this neib mine?
 					const bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
@@ -433,7 +433,7 @@ void GPUWorker::computeCellBursts()
 						continue;
 
 					// the "other" device is the device owning the cell (curr or neib) which is not mine
-					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
+					const devcount_t other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
 
 					if (any_mine) {
 
@@ -728,7 +728,7 @@ void GPUWorker::transferBursts()
 
 				// retrieve peer's indices, if intra-node
 				const AbstractBuffer *peerbuf = NULL;
-				uchar peerCudaDevNum = 0;
+				uint peerCudaDevNum = 0;
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
@@ -1361,7 +1361,7 @@ unsigned int GPUWorker::getCUDADeviceNumber()
 	return m_cudaDeviceNumber;
 }
 
-unsigned int GPUWorker::getDeviceIndex()
+devcount_t GPUWorker::getDeviceIndex()
 {
 	return m_deviceIndex;
 }
