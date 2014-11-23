@@ -45,6 +45,8 @@
 #include "Object.h"
 #include "buffer.h"
 
+#include "deprecation.h"
+
 #include "ode/ode.h"
 
 typedef std::vector<vertexinfo> VertexVect;
@@ -251,11 +253,17 @@ class Problem {
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
 
-		// TODO time parameter should be a double
-		virtual MbCallBack& mb_callback(const float t, const float dt, const int i);
-		virtual float4* get_mbdata(const float t, const float dt, const bool forceupdate);
-		virtual float3 g_callback(const float t);
+		/* moving boundary and gravity callbacks */
+		virtual MbCallBack& mb_callback(const float t, const float dt, const int i) DEPRECATED;
+		virtual float3 g_callback(const float t) DEPRECATED;
 
+		virtual MbCallBack& mb_callback(const double t, const float dt, const int i);
+		virtual float3 g_callback(const double t);
+
+		float4* get_mbdata(const double t, const float dt, const bool forceupdate);
+
+
+		/* ODE callbacks */
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
 			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";

@@ -301,17 +301,55 @@ Problem::finished(double t) const
 
 
 MbCallBack&
+Problem::mb_callback(const double t, const float dt, const int i)
+{
+	/* If this was not overridden, it's likely that the caller overridden the deprecated
+	 * float version, passthrough */
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: mb_callback(float, float, int) is deprecated, please switch to mb_callback(double, float, int)\n");
+		reminder_shown = true;
+	}
+	return mb_callback(float(t), dt, i);
+};
+
+MbCallBack&
 Problem::mb_callback(const float t, const float dt, const int i)
 {
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
+		reminder_shown = true;
+	}
 	return m_mbcallbackdata[i];
 };
 
 
 float3
+Problem::g_callback(const double t)
+{
+	/* If this was not overridden, it's likely that the caller overridden the deprecated
+	 * float version, passthrough */
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
+		reminder_shown = true;
+	}
+	return g_callback(float(t));
+}
+
+float3
 Problem::g_callback(const float t)
 {
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
+		reminder_shown = true;
+	}
 	return make_float3(0.0);
 }
+
+
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
 // Default algorithm: split along the longest axis
@@ -644,7 +682,7 @@ Problem::copy_planes(float4*, float*)
 
 
 float4*
-Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
+Problem::get_mbdata(const double t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
 
