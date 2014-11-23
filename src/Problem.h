@@ -252,9 +252,9 @@ class Problem {
 		virtual void release_memory(void) = 0;
 
 		// TODO time parameter should be a double
-		virtual MbCallBack& mb_callback(const float, const float, const int);
-		virtual float4* get_mbdata(const float, const float, const bool);
-		virtual float3 g_callback(const float);
+		virtual MbCallBack& mb_callback(const float t, const float dt, const int i);
+		virtual float4* get_mbdata(const float t, const float dt, const bool forceupdate);
+		virtual float3 g_callback(const float t);
 
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
