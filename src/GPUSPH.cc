@@ -85,6 +85,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
+	problem->write_summary();
+
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
 	// only init if MULTI_NODE
