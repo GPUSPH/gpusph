@@ -129,6 +129,7 @@ void*	reduce_buffer = NULL;
 		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
 		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
 		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
+		BOUNDARY_CHECK(DYN_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 

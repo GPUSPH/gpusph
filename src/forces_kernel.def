@@ -837,7 +837,8 @@ struct compute_repulsive_force {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout);
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{ /* do nothing */ }
 };
 
 template<>
@@ -1386,10 +1387,13 @@ forcesDevice(
 		// * fluid particles
 		// * object particles
 		// * vertex particles (for SA_BOUNDARY)
+		// * evertyhing except TESTPOINTS (for DYN_BOUNDARY)
 
 		bool computes_stuff = FLUID(info) || OBJECT(info);
 		if (boundarytype == SA_BOUNDARY)
 			computes_stuff = computes_stuff || VERTEX(info);
+		if (boundarytype == DYN_BOUNDARY)
+			computes_stuff = !TESTPOINTS(info);
 
 		// nothing to do if the particle doesn't need to compute forces
 		if (!computes_stuff)
@@ -1473,10 +1477,12 @@ forcesDevice(
 			if (OBJECT(info))
 				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
 
-			// TODO FIXME implement properly DYN_BOUNDARY type and int that case
-			// prevent BOUNDARY  parts from having other BOUNDARY or OBJECT parts
-			// in their neib list
-			// with SA_BOUNDARY, fluid and vertex particles interact with any
+			// With DYN_BOUNDARY, non-fluid (object, boundary, etc) particles only interact
+			// with fluid particles
+			if (boundarytype == DYN_BOUNDARY && !FLUID(info))
+				computes_stuff = computes_stuff && FLUID(neib_info);
+
+			// With SA_BOUNDARY, fluid and vertex particles interact with any
 			// BOUNDARY particles in the neiblist, regardless of distance
 			// TODO FIXME they should interact with BOUNDARY particles such
 			// that the current particle influence radius intersects the
@@ -1501,10 +1507,10 @@ forcesDevice(
 			// of the focal particle
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
-			// TODO FIXME remove the dirty fixes for dynamic boundaries and objects
-			if (FLUID(pdata.info) || OBJECT(pdata.info)) {
+			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
+			if (FLUID(pdata.info) || boundarytype == DYN_BOUNDARY) {
 
-				if (FLUID(ndata.info) || (FLUID(pdata.info) && OBJECT(ndata.info))
+				if (FLUID(ndata.info) || boundarytype == DYN_BOUNDARY
 						|| (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)) ) ) {
 
 					// computes d\rho/dt, including ferrari correction
@@ -1523,13 +1529,6 @@ forcesDevice(
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
-					if (OBJECT(pdata.info) && OBJECT(ndata.info))
-						printf("Something's wrong ...\n");
-
-					/*if (OBJECT(pdata.info) && FLUID(ndata.info))
-						printf("Interaction OBJECT <- FLUID ...\n");
-					if (FLUID(pdata.info) && OBJECT(ndata.info))
-						printf("Interaction FLUID <- OBJECT ...\n");*/
 				} else {
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
@@ -1539,11 +1538,11 @@ forcesDevice(
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<visctype>(params, pdata, ndata, pout, nout);
 			}
-			/*else if (OBJECT(pdata.info)) {
+			else if (OBJECT(pdata.info)) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
 				nout.DvDt *= ndata.relPos.w;
-			}*/
+			}
 
 			// sum all contributions from the neighbours in the force array
 			as_float3(pout.force) += nout.DvDt;
@@ -1558,6 +1557,7 @@ forcesDevice(
 
 			// post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
+
 			// for KEPS: finalizes computation of strain rate & computes de/dt and dk/dt
 			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
 
