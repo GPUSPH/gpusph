@@ -42,7 +42,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.ferrari = 0;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;
-   // m_simparams.boundarytype= DYN_BOUNDARY;
+	m_simparams.boundarytype= DYN_BOUNDARY;
 	m_simparams.tend = 20.0f; //0.00036f
 
 	// Free surface detection
@@ -203,7 +203,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			ht = 0.0;
 		float rho = density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(FLUIDPART | FIXED_PARTICLE_FLAG, 0, i);
+		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	uint j = boundary_parts.size();
