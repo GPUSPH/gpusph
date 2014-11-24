@@ -35,6 +35,7 @@
 #include <string>
 #include <cstdio>
 #include <iostream>
+#include <fstream>
 
 #include "Options.h"
 #include "Writer.h"
@@ -87,7 +88,7 @@ class Problem {
 		double	m_deltap;		// Initial particle spacing
 
 		double		m_rbdata_writeinterval;
-		FILE*		m_rbdatafile;
+		ofstream		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }

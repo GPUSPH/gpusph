@@ -49,7 +49,6 @@ Problem::Problem(const GlobalData *_gdata)
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_mbnumber = 0;
-	m_rbdatafile = NULL;
 	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
@@ -61,9 +60,8 @@ Problem::~Problem(void)
 {
 	if (m_ODE_bodies)
 		delete [] m_ODE_bodies;
-	if (m_rbdatafile != NULL) {
-        fclose(m_rbdatafile);
-    }
+	if (m_rbdatafile.is_open())
+		m_rbdatafile.close();
 }
 
 static const char* TF[] = { "false", "true" };
@@ -366,13 +364,8 @@ Problem::create_problem_dir(void)
 
 	if (m_rbdata_writeinterval) {
 		string rbdata_filename = m_problem_dir + "/rbdata.txt";
-		m_rbdatafile = fopen(rbdata_filename.c_str(), "w");
-
-		if (m_rbdatafile == NULL) {
-			stringstream ss;
-			ss << "Cannot open rigid bodies data file " << rbdata_filename;
-			throw runtime_error(ss.str());
-			}
+		m_rbdatafile.exceptions(ofstream::failbit | ofstream::badbit);
+		m_rbdatafile.open(rbdata_filename.c_str());
 	}
 	return m_problem_dir;
 }
@@ -419,8 +412,14 @@ Problem::write_rbdata(double t)
 			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
 				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
-				fprintf(m_rbdatafile, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", i, t, cg[0],
-						cg[1], cg[2], quat[0], quat[1], quat[2], quat[3]);
+				m_rbdatafile << i << "\t" << t
+					<< cg[0] << "\t"
+					<< cg[1] << "\t"
+					<< cg[2] << "\t"
+					<< quat[0] << "\t"
+					<< quat[1] << "\t"
+					<< quat[2] << "\t"
+					<< quat[3];
 			}
 		}
 	}
