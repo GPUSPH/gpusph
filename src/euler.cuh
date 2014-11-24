@@ -79,6 +79,7 @@ euler(	const float4*		oldPos,
 		const float			dt2,
 		const int			step,
 		const float			t,
-		const bool			xsphcorr);
+		const bool			xsphcorr,
+		BoundaryType		boundarytype);
 }
 #endif

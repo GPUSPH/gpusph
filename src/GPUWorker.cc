@@ -2055,7 +2055,8 @@ void GPUWorker::kernel_euler()
 			gdata->dt/2.0f, // m_dt/2.0,
 			firstStep ? 1 : 2,
 			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
-			m_simparams->xsph);
+			m_simparams->xsph,
+			m_simparams->boundarytype);
 }
 
 void GPUWorker::kernel_mls()
