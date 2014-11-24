@@ -66,10 +66,10 @@ typedef struct PhysParams {
 	float	nsres;			// DEM north-south resolution
 	float	demdx;			// Used for normal compution: displcement in x direction range ]0, exres[
 	float	demdy;			// displcement in y direction range ]0, nsres[
-	float	demdxdy;
-	float	demzmin;		// demdx*demdy
-	float	smagfactor;		// Cs*∆p^2
-	float	kspsfactor;		// 2/3*Ci*∆^2
+	float	demdxdy;		// demdx*demdy
+	float	demzmin;		// minimum z in DEM
+	float	smagfactor;		// (Cs*∆p)^2
+	float	kspsfactor;		// 2/3*Ci*∆p^2
 	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
