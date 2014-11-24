@@ -84,8 +84,8 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Variable gravity terms:  starting with m_physparams.gravity as defined above
-	m_gtstart=0.3f;
-	m_gtend=3.0f;
+	m_gtstart=0.3;
+	m_gtend=3.0;
 
 	// Drawing and saving times
 	set_timer_tick(0.01f);
@@ -108,7 +108,7 @@ void Seiche::release_memory(void)
 	boundary_parts.clear();
 }
 
-float3 Seiche::g_callback(const float t)
+float3 Seiche::g_callback(const double t)
 {
 	if(t > m_gtstart && t < m_gtend)
 		m_physparams.gravity=make_float3(2.*sin(9.8*(t-m_gtstart)), 0.0, -9.81f);

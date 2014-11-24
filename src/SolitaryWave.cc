@@ -156,7 +156,7 @@ void SolitaryWave::release_memory(void)
 }
 
 
-MbCallBack& SolitaryWave::mb_callback(const float t, const float dt, const int i)
+MbCallBack& SolitaryWave::mb_callback(const double t, const float dt, const int i)
 {
 	switch (i) {
 		// Piston

@@ -129,7 +129,7 @@ void DamBreakGate::release_memory(void)
 }
 
 
-MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i)
+MbCallBack& DamBreakGate::mb_callback(const double t, const float dt, const int i)
 {
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
 	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {

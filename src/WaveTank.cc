@@ -155,7 +155,7 @@ void WaveTank::release_memory(void)
 }
 
 
-MbCallBack& WaveTank::mb_callback(const float t, const float dt, const int i)
+MbCallBack& WaveTank::mb_callback(const double t, const float dt, const int i)
 {
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
