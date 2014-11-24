@@ -180,6 +180,9 @@ class Problem {
 			return m_deltap;
 		}
 
+		double get_deltap() const
+		{ return m_deltap; }
+
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
 		{

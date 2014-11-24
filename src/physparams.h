@@ -81,6 +81,8 @@ typedef struct PhysParams {
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
+		smagfactor(NAN),
+		kspsfactor(NAN),
 		numFluids(1),
 		cosconeanglefluid(0.86f),
 		cosconeanglenonfluid(0.5f),

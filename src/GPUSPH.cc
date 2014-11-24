@@ -85,6 +85,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
+	// sets the correct viscosity coefficient according to the one set in SimParams
+	setViscosityCoefficient();
+
 	problem->write_summary();
 
 	m_totalPerformanceCounter = new IPPSCounter();
@@ -158,9 +161,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// compute mbdata size
 	gdata->mbDataSize = problem->m_mbnumber * sizeof(float4);
-
-	// sets the correct viscosity coefficient according to the one set in SimParams
-	setViscosityCoefficient();
 
 	// create the Writer according to the WriterType
 	createWriter();
@@ -1061,8 +1061,10 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 void GPUSPH::setViscosityCoefficient()
 {
 	PhysParams *pp = gdata->problem->get_physparams();
-	// Setting visccoeff
-	switch (gdata->problem->get_simparams()->visctype) {
+	ViscosityType vt = gdata->problem->get_simparams()->visctype;
+
+	// Set visccoeff based on the viscosity model used
+	switch (vt) {
 		case ARTVISC:
 			pp->visccoeff = pp->artvisccoeff;
 			break;
@@ -1080,6 +1082,22 @@ void GPUSPH::setViscosityCoefficient()
 		default:
 			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
 			break;
+	}
+
+	// Set SPS factors from coefficients, if they were not set
+	// by the problem
+	if (vt == SPSVISC) {
+		// TODO physparams should have configurable Cs, Ci
+		// rather than configurable smagfactor, kspsfactor, probably
+		const double spsCs = 0.12;
+		const double spsCi = 0.0066;
+		const double dp = gdata->problem->get_deltap();
+		if (isnan(pp->smagfactor)) {
+			pp->smagfactor = spsCs*dp;
+			pp->smagfactor *= pp->smagfactor; // (Cs*∆p)^2
+		}
+		if (isnan(pp->kspsfactor))
+			pp->kspsfactor = (2*spsCi/3)*dp*dp; // (2/3) Ci ∆p^2
 	}
 }
 
