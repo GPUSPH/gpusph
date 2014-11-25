@@ -1031,6 +1031,7 @@ __global__ void
 updateBoundValuesDevice(	float4*		oldVel,
 				float*		oldTKE,
 				float*		oldEps,
+				uint*		vertIDToIndex,
 				const uint	numParticles,
 				bool		initStep)
 {
@@ -1041,29 +1042,35 @@ updateBoundValuesDevice(	float4*		oldVel,
 		if (BOUNDARY(info)) {
 			// get vertex indices associated to the boundary segment
 			const vertexinfo vertices = tex1Dfetch(vertTex, index);
+
+			// load the indices of the vertices only once
+			const uint vertXidx = vertIDToIndex[vertices.x];
+			const uint vertYidx = vertIDToIndex[vertices.y];
+			const uint vertZidx = vertIDToIndex[vertices.z];
+
 			// segment values are equal to the averaged vertex values
 			// density
-			//const float ro1 = oldVel[vertices.x].w;
-			//const float ro2 = oldVel[vertices.y].w;
-			//const float ro3 = oldVel[vertices.z].w;
+			//const float ro1 = oldVel[vertXidx].w;
+			//const float ro2 = oldVel[vertYidx].w;
+			//const float ro3 = oldVel[vertZidx].w;
 			//oldVel[index].w = (ro1 + ro2 + ro3)/3.f;
 			// velocity
-			const float4 vel1 = oldVel[vertices.x];
-			const float4 vel2 = oldVel[vertices.y];
-			const float4 vel3 = oldVel[vertices.z];
+			const float4 vel1 = oldVel[vertXidx];
+			const float4 vel2 = oldVel[vertYidx];
+			const float4 vel3 = oldVel[vertZidx];
 			oldVel[index] = (vel1 + vel2 + vel3)/3.f;
 			// turbulent kinetic energy
 			if (oldTKE) {
-				const float k1 = oldTKE[vertices.x];
-				const float k2 = oldTKE[vertices.y];
-				const float k3 = oldTKE[vertices.z];
+				const float k1 = oldTKE[vertXidx];
+				const float k2 = oldTKE[vertYidx];
+				const float k3 = oldTKE[vertZidx];
 				oldTKE[index] = (k1 + k2 + k3)/3.f;
 			}
 			// epsilon
 			if (oldEps) {
-				const float eps1 = oldEps[vertices.x];
-				const float eps2 = oldEps[vertices.y];
-				const float eps3 = oldEps[vertices.z];
+				const float eps1 = oldEps[vertXidx];
+				const float eps2 = oldEps[vertYidx];
+				const float eps3 = oldEps[vertZidx];
 				oldEps[index] = (eps1 + eps2 + eps3)/3.f;
 			}
 		}

@@ -45,8 +45,7 @@ static const char* WriterName[] = {
 	"VTKWriter",
 	"VTKLegacyWriter",
 	"CustomTextWriter",
-	"UDPWriter",
-	"HotWriter"
+	"UDPWriter"
 };
 
 void
@@ -61,13 +60,13 @@ Writer::Create(GlobalData *_gdata)
 
 	/* average writer frequency, used as default frequency for HOTWRITER,
 	 * unless otherwise specified */
-	float avg_freq = 0;
+	double avg_freq = 0;
 	int avg_count = 0;
 
 	for (; it != end; ++it) {
 		Writer *writer = NULL;
 		WriterType wt = it->first;
-		float freq = it->second;
+		double freq = it->second;
 
 		/* Check if the writer is in there already */
 		WriterMap::iterator wm = m_writers.find(wt);
@@ -120,7 +119,7 @@ Writer::Create(GlobalData *_gdata)
 	HotWriter *htwr = NULL;
 	const WriterType wt = HOTWRITER;
 	WriterMap::iterator wm = m_writers.find(wt);
-	float freq = options->checkpoint_freq;
+	double freq = options->checkpoint_freq;
 	int chkpts = options->checkpoints;
 
 	if (wm != m_writers.end()) {
@@ -169,7 +168,7 @@ Writer::Create(GlobalData *_gdata)
 }
 
 bool
-Writer::NeedWrite(float t)
+Writer::NeedWrite(double t)
 {
 	bool need_write = false;
 	WriterMap::iterator it(m_writers.begin());
@@ -182,7 +181,7 @@ Writer::NeedWrite(float t)
 }
 
 void
-Writer::MarkWritten(float t, bool force)
+Writer::MarkWritten(double t, bool force)
 {
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
@@ -195,7 +194,7 @@ Writer::MarkWritten(float t, bool force)
 
 void
 Writer::Write(uint numParts, BufferList const& buffers,
-	uint node_offset, float t, const bool testpoints)
+	uint node_offset, double t, const bool testpoints)
 {
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
@@ -207,7 +206,7 @@ Writer::Write(uint numParts, BufferList const& buffers,
 }
 
 void
-Writer::WriteWaveGage(float t, GageList const& gage)
+Writer::WriteWaveGage(double t, GageList const& gage)
 {
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
@@ -275,13 +274,13 @@ Writer::~Writer()
 }
 
 void
-Writer::set_write_freq(float f)
+Writer::set_write_freq(double f)
 {
 	m_writefreq = f;
 }
 
 bool
-Writer::need_write(float t) const
+Writer::need_write(double t) const
 {
 	if (m_writefreq == 0)
 		return false;
@@ -293,7 +292,7 @@ Writer::need_write(float t) const
 }
 
 void
-Writer::write_energy(float t, float4 *energy)
+Writer::write_energy(double t, float4 *energy)
 {
 	if (m_energyfile) {
 		m_energyfile << t;
@@ -308,7 +307,7 @@ Writer::write_energy(float t, float4 *energy)
 
 //WaveGage
 void
-Writer::write_WaveGage(float t, GageList const& gage)
+Writer::write_WaveGage(double t, GageList const& gage)
 {
 	if (m_WaveGagefile) {
 		m_WaveGagefile << t;

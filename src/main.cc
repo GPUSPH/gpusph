@@ -321,7 +321,13 @@ int main(int argc, char** argv) {
 	gdata.networkManager->initNetwork();
 	gdata.networkManager->printInfo();
 
-	gdata.mpi_nodes = gdata.networkManager->getWorldSize();
+	int nm_worldsize = gdata.networkManager->getWorldSize();
+	if (nm_worldsize > MAX_NODES_PER_CLUSTER) {
+		cerr << "Too many nodes in cluster: " << nm_worldsize << " > " << MAX_NODES_PER_CLUSTER << endl;
+		exit(1);
+	}
+
+	gdata.mpi_nodes = devcount_t(nm_worldsize);
 	gdata.mpi_rank = gdata.networkManager->getProcessRank();
 
 	// We "shift" the cuda device indices by devIndexOffset. It is useful in case of multiple processes per node. Will write external docs about the formula

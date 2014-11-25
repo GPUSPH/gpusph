@@ -24,8 +24,9 @@ typedef struct {
 	uint	particle_count;
 	uint	reserved[13];
 	ulong	iterations;
+	double	t;
 	float	dt;
-	float	t;
+	uint	_reserved[3];
 } header_t;
 
 /** HotFile version. */
@@ -37,12 +38,12 @@ class HotFile {
 public:
 	HotFile(ifstream &fp, const GlobalData *gdata);
 	HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
-		const BufferList &buffers, uint node_offset, float t,
+		const BufferList &buffers, uint node_offset, double t,
 		const bool testpoints);
 	~HotFile();
 	ulong get_iterations() { return _header.iterations; }
 	float get_dt() { return _header.dt; }
-	float get_t() { return _header.t; }
+	double get_t() { return _header.t; }
 	void save();
 	void load();
 private:
@@ -53,7 +54,7 @@ private:
 	uint				_particle_count;
 	BufferList			_buffers;
 	uint				_node_offset;
-	float				_t;
+	double				_t;
 	bool				_testpoints;
 	const GlobalData	*_gdata;
 	header_t			_header;

@@ -1,4 +1,14 @@
-/* Math on CUDA vector types, from cutil_math.h */
+/* Math on CUDA vector types, inspired by cutil_math.h */
+
+// NOTES: to ensure no downconversions are introduced, this header should
+// compile cleanly with -Wconversion enabled. To achieve this, use the following
+// care when adding functions:
+// * float functions should be used on float POD types (e.g.: fabsf instead of
+//   fabs when the argument is a float);
+// * double functions should be used double POD types (obviously);
+// * explictly cast int/uint to float when doing mixed int/float operations,
+//   since int-to-float conversion can actually cause data loss (for values
+//   larger than 2^24) and thus -Wconversion warns about them.
 
 #ifndef VECTOR_MATH_H
 #define VECTOR_MATH_H
@@ -26,6 +36,12 @@ inline float rsqrtf(float x)
 {
 	return 1.0f / sqrtf(x);
 }
+
+inline double rsqrt(double x)
+{
+	return 1.0 / sqrt(x);
+}
+
 
 #endif
 
@@ -228,7 +244,7 @@ static __inline__ __host__ __device__ float2 normalize(const float2 &v)
 // floor
 static __inline__ __host__ __device__ float2 floor(const float2 &v)
 {
-	return make_float2(floor(v.x), floor(v.y));
+	return make_float2(floorf(v.x), floorf(v.y));
 }
 
 // reflect
@@ -240,7 +256,7 @@ static __inline__ __host__ __device__ float2 reflect(const float2 &i, const floa
 // absolute value
 static __inline__ __host__ __device__ float2 fabs(const float2 &v)
 {
-	return make_float2(fabs(v.x), fabs(v.y));
+	return make_float2(fabsf(v.x), fabsf(v.y));
 }
 
 // double2 functions
@@ -367,22 +383,22 @@ static __inline__ __host__ __device__ float3 operator*(const float3 &a, const fl
 
 static __inline__ __host__ __device__ float3 operator*(const int3 &a, const float3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(float(a.x) * b.x, float(a.y) * b.y, float(a.z) * b.z);
 }
 
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const int3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(a.x * float(b.x), a.y * float(b.y), a.z * float(b.z));
 }
 
 static __inline__ __host__ __device__ float3 operator*(const uint3 &a, const float3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(float(a.x) * b.x, float(a.y) * b.y, float(a.z) * b.z);
 }
 
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const uint3 &b)
 {
-	return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+	return make_float3(a.x * float(b.x), a.y * float(b.y), a.z * float(b.z));
 }
 
 static __inline__ __host__ __device__ float3 operator*(const float3 &a, const float &s)
@@ -472,7 +488,7 @@ static __inline__ __host__ __device__ float3 normalize(const float3 &v)
 // floor
 static __inline__ __host__ __device__ float3 floor(const float3 &v)
 {
-	return make_float3(floor(v.x), floor(v.y), floor(v.z));
+	return make_float3(floorf(v.x), floorf(v.y), floorf(v.z));
 }
 
 // reflect
@@ -484,7 +500,7 @@ static __inline__ __host__ __device__ float3 reflect(const float3 &i, const floa
 // absolute value
 static __inline__ __host__ __device__ float3 fabs(const float3 &v)
 {
-	return make_float3(fabs(v.x), fabs(v.y), fabs(v.z));
+	return make_float3(fabsf(v.x), fabsf(v.y), fabsf(v.z));
 }
 
 static __inline__ __host__ __device__ float3 rotate(const float3 &v, const float3 &ort, const float &angle)
@@ -640,19 +656,19 @@ static __inline__ __host__ __device__ double3 operator/(const double3 &a, const 
 
 static __inline__ __host__ __device__ double3 operator/(const double3 &a, const double &s)
 {
-	float inv = 1.0 / s;
+	double inv = 1.0 / s;
 	return a * inv;
 }
 
 static __inline__ __host__ __device__ double3 operator/(const double &s, const double3 &a)
 {
-	float inv = 1.0f / s;
+	double inv = 1.0 / s;
 	return a * inv;
 }
 
 static __inline__ __host__ __device__ void operator/=(double3 &a, const double &s)
 {
-	float inv = 1.0 / s;
+	double inv = 1.0 / s;
 	a *= inv;
 }
 
@@ -678,13 +694,13 @@ static __inline__ __host__ __device__ double sqlength(const double3 &v)
 // length
 static __inline__ __host__ __device__ double length(const double3 &v)
 {
-	return sqrtf(sqlength(v));
+	return sqrt(sqlength(v));
 }
 
 // normalize
 static __inline__ __host__ __device__ double3 normalize(const double3 &v)
 {
-	float invLen = rsqrtf(sqlength(v));
+	double invLen = rsqrt(sqlength(v));
 	return v * invLen;
 }
 
@@ -895,13 +911,13 @@ static __inline__ __host__ __device__ float4 normalize(const float4 &v)
 // floor
 static __inline__ __host__ __device__ float4 floor(const float4 &v)
 {
-	return make_float4(floor(v.x), floor(v.y), floor(v.z), floor(v.w));
+	return make_float4(floorf(v.x), floorf(v.y), floorf(v.z), floorf(v.w));
 }
 
 // absolute value
 static __inline__ __host__ __device__ float4 fabs(const float4 &v)
 {
-	return make_float4(fabs(v.x), fabs(v.y), fabs(v.z), fabs(v.w));
+	return make_float4(fabsf(v.x), fabsf(v.y), fabsf(v.z), fabsf(v.w));
 }
 
 // char3 functions

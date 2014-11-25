@@ -42,10 +42,10 @@ public:
 	/* HotFiles must be dumped right before a neiblist construction,
 	 * so we override need_write to ensure this: we write at the
 	 * buildneibs not earlier than our actual write time */
-	bool need_write(float t) const;
+	bool need_write(double t) const;
 
 	void write(uint numParts, const BufferList &buffers,
-		uint node_offset, float t, const bool testpoints);
+		uint node_offset, double t, const bool testpoints);
 
 	void set_num_files_to_save(int num_files) {
 		_num_files_to_save = num_files;

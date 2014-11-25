@@ -17,7 +17,7 @@ typedef struct {
 } encoded_buffer_t;
 
 HotFile::HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
-	const BufferList &buffers, uint node_offset, float t,
+	const BufferList &buffers, uint node_offset, double t,
 	const bool testpoints) {
 	_fp.out = &fp;
 	_gdata = gdata;

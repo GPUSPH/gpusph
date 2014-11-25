@@ -69,15 +69,13 @@ OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1f);
+	add_writer(VTKWRITER, 0.1);
 
 	// Name of problem used for directory creation
 	m_name = "OpenChannel";

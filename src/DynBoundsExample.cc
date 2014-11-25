@@ -70,7 +70,7 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.r0 = m_deltap/2;
 	m_physparams.kinematicvisc = 120;
 
-	add_writer(VTKWRITER, 0.01f);
+	add_writer(VTKWRITER, 0.01);
 
 	m_name = "DynBoundsExample";
 }

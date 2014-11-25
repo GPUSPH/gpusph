@@ -159,20 +159,6 @@ fixHash(hashKey*	particleHash,
 }
 
 
-void
-inverseParticleIndex (	uint*	particleIndex,
-			uint*	inversedParticleIndex,
-			uint	numParticles)
-{
-	int numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
-	int numBlocks = (int) ceil(numParticles / (float) numThreads);
-
-	cuneibs::inverseParticleIndexDevice<<< numBlocks, numThreads >>>(particleIndex, inversedParticleIndex, numParticles);
-
-	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("InverseParticleIndex kernel execution failed");
-}
-
 void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
 									uint*				cellEnd,			// output: cell end index
 									uint*				segmentStart,
@@ -197,8 +183,8 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const float*		oldEps,				// input: e for k-e model
 									const float*		oldTurbVisc,		// input: eddy viscosity
 									const uint			numParticles,
-									const uint			numGridCells,
-									uint*				inversedParticleIndex)
+									const uint			numGridCells
+									)
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
@@ -229,7 +215,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
 		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
-												particleHash, particleIndex, numParticles, inversedParticleIndex);
+												particleHash, particleIndex, numParticles);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
@@ -253,6 +239,16 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaUnbindTexture(tviscTex));
 }
 
+void
+updateVertIDToIndex(particleinfo*	particleInfo,
+					uint*			vertIDToIndex,
+					const uint		numParticles)
+{
+	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numBlocks = div_up(numParticles, numThreads);
+
+	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
+}
 
 void
 buildNeibsList(	neibdata*			neibsList,
@@ -261,6 +257,7 @@ buildNeibsList(	neibdata*			neibsList,
 				vertexinfo*			vertices,
 				const float4		*boundelem,
 				float2*				vertPos[],
+				const uint*			vertIDToIndex,
 				const hashKey*		particleHash,
 				const uint*			cellStart,
 				const uint*			cellEnd,
@@ -316,7 +313,7 @@ buildNeibsList(	neibdata*			neibsList,
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, boundNlSqInflRad);
+			vertPos, vertIDToIndex, boundNlSqInflRad);
 
 		BUILDNEIBS_SWITCH(true);
 
@@ -324,7 +321,7 @@ buildNeibsList(	neibdata*			neibsList,
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	} else {
 		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, boundNlSqInflRad);
+			vertPos, vertIDToIndex, boundNlSqInflRad);
 
 		BUILDNEIBS_SWITCH(false);
 	}

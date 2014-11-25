@@ -94,7 +94,7 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2f);
+	add_writer(VTKWRITER, 0.2);
 
 	// Set up callback function
 	m_simparams.mbcallback = true;
@@ -128,7 +128,7 @@ void DamBreakGate::release_memory(void)
 }
 
 
-MbCallBack& DamBreakGate::mb_callback(const float t, const float dt, const int i)
+MbCallBack& DamBreakGate::mb_callback(const double t, const float dt, const int i)
 {
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
 	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {

@@ -55,7 +55,7 @@ class DamBreakGate: public Problem {
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
-		MbCallBack& mb_callback(const float, const float, const int);
+		MbCallBack& mb_callback(const double, const float, const int);
 		void release_memory(void);
 };
 #endif	/* _DAMBREAKGATE_H */

@@ -33,8 +33,8 @@
 
 typedef struct MbCallBack {
 	short			type;
-	float			tstart;
-	float			tend;
+	double			tstart;
+	double			tend;
 	float3			origin;
 	float3			vel;
 	float3			disp;
@@ -57,7 +57,7 @@ typedef struct SimParams {
 	double			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
 	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;					// initial timestep
-	float			tend;				// simulation end time (0 means run forever)
+	double			tend;				// simulation end time (0 means run forever)
 	bool			xsph;				// true if XSPH correction
 	bool			dtadapt;			// true if adaptive timestep
 	float			dtadaptfactor;		// safety factor in the adaptive time step formula
@@ -88,10 +88,10 @@ typedef struct SimParams {
 	bool			movingBoundaries;	// defines if moving boundaries are present
 
 	SimParams(void) :
-		sfactor(1.3),
+		sfactor(1.3f),
 		slength(0),
 		kerneltype(WENDLAND),
-		kernelradius(2.0),
+		kernelradius(2.0f),
 		influenceRadius(0),
 		nlInfluenceRadius(0),
 		nlSqInfluenceRadius(0),
@@ -99,7 +99,7 @@ typedef struct SimParams {
 		tend(0),
 		xsph(false),
 		dtadapt(true),
-		dtadaptfactor(0.3),
+		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
 		shepardfreq(0),
 		mlsfreq(15),
@@ -108,7 +108,7 @@ typedef struct SimParams {
 		mbcallback(false),
 		gcallback(false),
 		periodicbound(PERIODIC_NONE),
-		nlexpansionfactor(1.0),
+		nlexpansionfactor(1.0f),
 		usedem(false),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
@@ -122,7 +122,7 @@ typedef struct SimParams {
 		numODEbodies(0),
 		maxneibsnum(0),
 		calcPrivate(false),
-		epsilon(5e-5),
+		epsilon(5e-5f),
 		movingBoundaries(false)
 	{};
 

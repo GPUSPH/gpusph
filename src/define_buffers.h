@@ -56,12 +56,12 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
-#define BUFFER_INVINDEX		(BUFFER_PARTINDEX << 1)
-SET_BUFFER_TRAITS(BUFFER_INVINDEX, uint, 1, "Inverse Particle Index");
+#define BUFFER_VERTIDINDEX		(BUFFER_PARTINDEX << 1)
+SET_BUFFER_TRAITS(BUFFER_VERTIDINDEX, uint, 1, "Vertice ID to Particle Index");
 
 // not used for the time being. evaluate if they should be migrated to the buffer mechanism
 // too or not
-#define BUFFER_CELLSTART	(BUFFER_INVINDEX << 1)
+#define BUFFER_CELLSTART	(BUFFER_VERTIDINDEX << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLSTART, uint, 1, "Cell Start");
 #define BUFFER_CELLEND		(BUFFER_CELLSTART << 1)
 SET_BUFFER_TRAITS(BUFFER_CELLEND, uint, 1, "Cell End");
@@ -131,7 +131,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 #define ALL_PARTICLE_BUFFERS	(ALL_DEFINED_BUFFERS & ~(BUFFERS_CFL | BUFFERS_CELL | BUFFER_NEIBSLIST))
 
 // particle-based buffers to be imported during the APPEND_EXTERNAL command
-#define IMPORT_BUFFERS			(BUFFER_POS | BUFFER_HASH | BUFFER_VEL | BUFFER_INFO | BUFFER_VERTPOS | DBLBUFFER_READ)
+#define IMPORT_BUFFERS			(BUFFER_POS | BUFFER_HASH | BUFFER_VEL | BUFFER_INFO | BUFFER_VERTICES | DBLBUFFER_READ)
 
 // all double buffers TODO some template metaprogramming would help here
 #define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \

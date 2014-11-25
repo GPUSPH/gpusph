@@ -113,7 +113,7 @@ SphericTest2::SphericTest2(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.05f);
+	add_writer(VTKWRITER, 0.05);
 
 	// Name of problem used for directory creation
 	m_name = "SphericTest2";

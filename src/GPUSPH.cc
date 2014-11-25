@@ -88,6 +88,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
+	// sets the correct viscosity coefficient according to the one set in SimParams
+	setViscosityCoefficient();
+
+	problem->write_summary();
+
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
 	// only init if MULTI_NODE
@@ -159,9 +164,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// compute mbdata size
 	gdata->mbDataSize = problem->m_mbnumber * sizeof(float4);
-
-	// sets the correct viscosity coefficient according to the one set in SimParams
-	setViscosityCoefficient();
 
 	// create the Writers according to the WriterType
 	createWriter();
@@ -614,7 +616,7 @@ bool GPUSPH::runSimulation() {
 		if (MULTI_NODE)
 			m_multiNodePerformanceCounter->incItersTimesParts( gdata->totParticles );
 		// to check, later, that the simulation is actually progressing
-		float previous_t = gdata->t;
+		double previous_t = gdata->t;
 		gdata->t += gdata->dt;
 		// buildneibs_freq?
 
@@ -795,7 +797,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	const size_t numparts = gdata->totParticles;
 
 	const uint numcells = gdata->nGridCells;
-	const size_t ucharCellSize = sizeof(uchar) * numcells;
+	const size_t devcountCellSize = sizeof(devcount_t) * numcells;
 	const size_t uintCellSize = sizeof(uint) * numcells;
 
 	size_t totCPUbytes = 0;
@@ -838,9 +840,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (MULTI_DEVICE) {
 		// deviceMap
-		gdata->s_hDeviceMap = new uchar[numcells];
-		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
-		totCPUbytes += ucharCellSize;
+		gdata->s_hDeviceMap = new devcount_t[numcells];
+		memset(gdata->s_hDeviceMap, 0, devcountCellSize);
+		totCPUbytes += devcountCellSize;
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
 		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
@@ -914,14 +916,14 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer? or: just use HASH, sorting also for cells, not only for device
-	uchar* m_hParticleKeys = new uchar[gdata->totParticles];
+	devcount_t* m_hParticleKeys = new devcount_t[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
 		// compute containing device according to the particle's hash
 		uint cellHash = cellHashFromParticleHash( gdata->s_hBuffers.getData<BUFFER_HASH>()[p] );
-		uchar whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
+		devcount_t whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
 		m_hParticleKeys[p] = whichGlobalDev;
@@ -1033,8 +1035,8 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uint cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
-		uint pdev;
+		devcount_t cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
+		devcount_t pdev;
 		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
@@ -1093,15 +1095,17 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 void GPUSPH::setViscosityCoefficient()
 {
 	PhysParams *pp = gdata->problem->get_physparams();
-	// Setting visccoeff
-	switch (gdata->problem->get_simparams()->visctype) {
+	ViscosityType vt = gdata->problem->get_simparams()->visctype;
+
+	// Set visccoeff based on the viscosity model used
+	switch (vt) {
 		case ARTVISC:
 			pp->visccoeff = pp->artvisccoeff;
 			break;
 
 		case KINEMATICVISC:
 		case SPSVISC:
-			pp->visccoeff = 4.0*pp->kinematicvisc;
+			pp->visccoeff = 4*pp->kinematicvisc;
 			break;
 
 		case KEPSVISC:
@@ -1112,6 +1116,22 @@ void GPUSPH::setViscosityCoefficient()
 		default:
 			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
 			break;
+	}
+
+	// Set SPS factors from coefficients, if they were not set
+	// by the problem
+	if (vt == SPSVISC) {
+		// TODO physparams should have configurable Cs, Ci
+		// rather than configurable smagfactor, kspsfactor, probably
+		const double spsCs = 0.12;
+		const double spsCi = 0.0066;
+		const double dp = gdata->problem->get_deltap();
+		if (isnan(pp->smagfactor)) {
+			pp->smagfactor = spsCs*dp;
+			pp->smagfactor *= pp->smagfactor; // (Cs*∆p)^2
+		}
+		if (isnan(pp->kspsfactor))
+			pp->kspsfactor = (2*spsCi/3)*dp*dp; // (2/3) Ci ∆p^2
 	}
 }
 
@@ -1232,8 +1252,6 @@ void GPUSPH::buildNeibList()
 
 	doCommand(CALCHASH);
 	doCommand(SORT);
-	if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
-		doCommand(INVINDEX);
 	doCommand(REORDER);
 
 	// swap pos, vel and info double buffers
@@ -1258,9 +1276,18 @@ void GPUSPH::buildNeibList()
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
 	}
 
+	// update vertID->particleIndex lookup table for vertex connectivity, on *all* particles
+	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
+		gdata->only_internal = false;
+		doCommand(SA_UPDATE_VERTIDINDEX);
+	}
+
 	// build neib lists only for internal particles
 	gdata->only_internal = true;
 	doCommand(BUILDNEIBS);
+
+	if (MULTI_DEVICE && problem->get_simparams()->boundarytype == SA_BOUNDARY)
+		doCommand(UPDATE_EXTERNAL, BUFFER_VERTPOS);
 
 	// scan and check the peak number of neighbors and the estimated number of interactions
 	const uint maxPossibleNeibs = gdata->problem->get_simparams()->maxneibsnum;

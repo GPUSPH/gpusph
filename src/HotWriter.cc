@@ -22,7 +22,7 @@ HotWriter::HotWriter(const GlobalData *_gdata): Writer(_gdata) {
 HotWriter::~HotWriter() {
 }
 
-bool HotWriter::need_write(float t) const {
+bool HotWriter::need_write(double t) const {
 	/* check if we would write according to the common Writer logic */
 	bool would_write = Writer::need_write(t);
 	/* but then delay write until the next buildneibs */
@@ -32,7 +32,7 @@ bool HotWriter::need_write(float t) const {
 }
 
 void HotWriter::write(uint numParts, const BufferList &buffers,
-	uint node_offset, float t, const bool testpoints) {
+	uint node_offset, double t, const bool testpoints) {
 
 	cout << "KAG: write()" << endl;
 

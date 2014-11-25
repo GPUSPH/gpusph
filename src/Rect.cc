@@ -41,7 +41,7 @@ Rect::Rect(void)
 
 Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
-	if (abs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
+	if (fabs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
 		std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
 		exit(1);
 	}
@@ -306,7 +306,7 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 	int endy = ny;
 	double belm_surf = m_lx/nx * m_ly/ny / 2.0;
 
-	uint predef_vparts = 0;
+	size_t predef_vparts = 0;
 	Point belm(0, 0, 0, belm_surf);
 
 	//Fill near-edge regions with boundary particles (elements) and set connectivity for them

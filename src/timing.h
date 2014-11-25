@@ -146,7 +146,8 @@ class IPPSCounter
 		double diff_seconds(timespec &end, timespec &start) {
 			timespec diff;
 			timespec_diff(end, start, diff);
-			return diff.tv_sec + diff.tv_nsec/1.0e9;
+			/* explicit casts to silence -Wconversion */
+			return double(diff.tv_sec) + double(diff.tv_nsec)/1.0e9;
 		}
 
 		// returns the elapsed seconds since [re]start() was called
@@ -182,9 +183,10 @@ class TimingException: public std::exception
 {
 
 public:
-	float simTime, dt;
+	double simTime;
+	float dt;
 
-	TimingException(float _time = nan(""), float _dt = nan("")) :
+	TimingException(double _time = nan(""), float _dt = nan("")) :
 		std::exception(), simTime(_time), dt(_dt) {}
 
 	virtual const char *what() const throw() {
@@ -195,7 +197,7 @@ public:
 class DtZeroException: public TimingException
 {
 public:
-	DtZeroException(float _time = nan(""), float _dt = 0) :
+	DtZeroException(double _time = nan(""), float _dt = 0) :
 		TimingException(_time, _dt) {}
 
 	virtual const char *what() const throw() {
