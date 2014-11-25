@@ -459,7 +459,10 @@ Problem::mb_callback(const double t, const float dt, const int i)
 		fprintf(stderr, "WARNING: mb_callback(float, float, int) is deprecated, please switch to mb_callback(double, float, int)\n");
 		reminder_shown = true;
 	}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 	return mb_callback(float(t), dt, i);
+#pragma
 };
 
 MbCallBack&
@@ -484,7 +487,10 @@ Problem::g_callback(const double t)
 		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
 		reminder_shown = true;
 	}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 	return g_callback(float(t));
+#pragma GCC diagnostic pop
 }
 
 float3
