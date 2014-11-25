@@ -137,7 +137,11 @@ void*	reduce_buffer = NULL;
 
 #define SPS_CHECK(kernel) \
 	case kernel: \
-		cuforces::SPSstressMatrixDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
+		if (boundarytype == DYN_BOUNDARY) \
+		cuforces::SPSstressMatrixDevice<kernel, true><<< numBlocks, numThreads, dummy_shared >>> \
+				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
+		else \
+		cuforces::SPSstressMatrixDevice<kernel, false><<< numBlocks, numThreads, dummy_shared >>> \
 				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 		break
 
@@ -347,6 +351,7 @@ const	particleinfo	*info,
 			uint	particleRangeEnd,
 			float	slength,
 		KernelType	kerneltype,
+		BoundaryType	boundarytype,
 			float	influenceradius)
 {
 	int dummy_shared = 0;

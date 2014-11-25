@@ -2149,6 +2149,7 @@ void GPUWorker::kernel_sps()
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->kerneltype,
+		m_simparams->boundarytype,
 		m_simparams->influenceRadius);
 }
 
