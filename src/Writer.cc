@@ -273,15 +273,6 @@ Writer::need_write(double t) const
 	return false;
 }
 
-void
-Writer::write_energy(double t, float4 *energy)
-{ /* do nothing by default */ }
-
-//WaveGage
-void
-Writer::write_WaveGage(double t, GageList const& gage)
-{ /* do nothing by default */ }
-
 string
 Writer::current_filenum() {
 	stringstream ss;

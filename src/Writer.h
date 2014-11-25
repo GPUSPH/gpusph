@@ -150,14 +150,13 @@ protected:
 	inline void mark_written(double t) { m_last_write_time = t; }
 
 	virtual void
-	write_energy(double t, float4 *energy);
+	write_energy(double t, float4 *energy) {}
 
 	virtual void
-	write_WaveGage(double t, GageList const& gage);
+	write_WaveGage(double t, GageList const& gage) {}
 
 	virtual void
-	write_objects(double t, Object const* const* bodies)
-	{}
+	write_objects(double t, Object const* const* bodies) {}
 
 	uint getLastFilenum();
 
