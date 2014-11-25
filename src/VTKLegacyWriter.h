@@ -36,7 +36,7 @@ public:
 	VTKLegacyWriter(const GlobalData *_gdata);
 	~VTKLegacyWriter();
 
-	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints);
+	virtual void write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints);
 
 	// this method is used to close the XML in the timefile,
 	// so that the timefile is always valid, and then seek back to the pre-close

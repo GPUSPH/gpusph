@@ -36,9 +36,16 @@
 #include "VTKWriter.h"
 #include "Writer.h"
 
-vector<Writer*> Writer::m_writers = vector<Writer*>();
-float Writer::m_timer_tick = 0;
+WriterMap Writer::m_writers = WriterMap();
 bool Writer::m_forced = false;
+
+static const char* WriterName[] = {
+	"TextWriter",
+	"VTKWriter",
+	"VTKLegacyWriter",
+	"CustomTextWriter",
+	"UDPWriter"
+};
 
 void
 Writer::Create(GlobalData *_gdata)
@@ -51,53 +58,62 @@ Writer::Create(GlobalData *_gdata)
 	for (; it != end; ++it) {
 		Writer *writer = NULL;
 		WriterType wt = it->first;
-		int freq = it->second;
-		switch (wt) {
-		case TEXTWRITER:
-			writer = new TextWriter(_gdata);
-			break;
-		case VTKWRITER:
-			writer = new VTKWriter(_gdata);
-			break;
-		case VTKLEGACYWRITER:
-			writer = new VTKLegacyWriter(_gdata);
-			break;
-		case CUSTOMTEXTWRITER:
-			writer = new CustomTextWriter(_gdata);
-			break;
-		case UDPWRITER:
-			writer = new UDPWriter(_gdata);
-			break;
-		default:
-			stringstream ss;
-			ss << "Unknown writer type " << wt;
-			throw runtime_error(ss.str());
+		double freq = it->second;
+
+		/* Check if the writer is in there already */
+		WriterMap::iterator wm = m_writers.find(wt);
+		if (wm != m_writers.end()) {
+			writer = wm->second;
+			cerr << "Overriding " << WriterName[wt] << " writing frequency" << endl;
+		} else {
+			switch (wt) {
+			case TEXTWRITER:
+				writer = new TextWriter(_gdata);
+				break;
+			case VTKWRITER:
+				writer = new VTKWriter(_gdata);
+				break;
+			case VTKLEGACYWRITER:
+				writer = new VTKLegacyWriter(_gdata);
+				break;
+			case CUSTOMTEXTWRITER:
+				writer = new CustomTextWriter(_gdata);
+				break;
+			case UDPWRITER:
+				writer = new UDPWriter(_gdata);
+				break;
+			default:
+				stringstream ss;
+				ss << "Unknown writer type " << wt;
+				throw runtime_error(ss.str());
+			}
+			m_writers[wt] = writer;
 		}
 		writer->set_write_freq(freq);
-		m_writers.push_back(writer);
+		cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
 	}
 }
 
 bool
-Writer::NeedWrite(float t)
+Writer::NeedWrite(double t)
 {
 	bool need_write = false;
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		need_write |= writer->need_write(t);
 	}
 	return need_write;
 }
 
 void
-Writer::MarkWritten(float t, bool force)
+Writer::MarkWritten(double t, bool force)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		if (writer->need_write(t) || force || m_forced)
 			writer->mark_written(t);
 	}
@@ -105,24 +121,24 @@ Writer::MarkWritten(float t, bool force)
 
 void
 Writer::Write(uint numParts, BufferList const& buffers,
-	uint node_offset, float t, const bool testpoints)
+	uint node_offset, double t, const bool testpoints)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced)
 			writer->write(numParts, buffers, node_offset, t, testpoints);
 	}
 }
 
 void
-Writer::WriteWaveGage(float t, GageList const& gage)
+Writer::WriteWaveGage(double t, GageList const& gage)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced)
 			writer->write_WaveGage(t, gage);
 	}
@@ -130,23 +146,24 @@ Writer::WriteWaveGage(float t, GageList const& gage)
 
 
 void
-Writer::WriteObjectForces(float t, uint numobjects, const float3* forces, const float3* momentums)
+Writer::WriteObjectForces(double t, uint numobjects, const float3* forces, const float3* momentums)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
-		writer->write_objectforces(t, numobjects, forces, momentums);
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced)
+			writer->write_objectforces(t, numobjects, forces, momentums);
 	}
 }
 
 void
 Writer::Destroy()
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		delete writer;
 	}
 	m_writers.clear();
@@ -200,25 +217,25 @@ Writer::~Writer()
 }
 
 void
-Writer::set_write_freq(int f)
+Writer::set_write_freq(double f)
 {
 	m_writefreq = f;
 }
 
 bool
-Writer::need_write(float t) const
+Writer::need_write(double t) const
 {
 	if (m_writefreq == 0)
 		return false;
 
-	if (m_last_write_time < 0 || t - m_last_write_time >= m_timer_tick*m_writefreq)
+	if (floor(t/m_writefreq) > floor(m_last_write_time/m_writefreq))
 		return true;
 
 	return false;
 }
 
 void
-Writer::write_energy(float t, float4 *energy)
+Writer::write_energy(double t, float4 *energy)
 {
 	if (m_energyfile) {
 		m_energyfile << t;
@@ -233,7 +250,7 @@ Writer::write_energy(float t, float4 *energy)
 
 //WaveGage
 void
-Writer::write_WaveGage(float t, GageList const& gage)
+Writer::write_WaveGage(double t, GageList const& gage)
 {
 	if (m_WaveGagefile) {
 		m_WaveGagefile << t;
@@ -247,7 +264,7 @@ Writer::write_WaveGage(float t, GageList const& gage)
 
 // Object forces
 void
-Writer::write_objectforces(float t, uint numobjects, const float3* forces, const float3* momentums)
+Writer::write_objectforces(double t, uint numobjects, const float3* forces, const float3* momentums)
 {
 	if (m_objectforcesfile) {
 		m_objectforcesfile << t;

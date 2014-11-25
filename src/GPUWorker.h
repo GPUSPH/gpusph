@@ -55,11 +55,11 @@ private:
 	GlobalData* gdata;
 
 	unsigned int m_cudaDeviceNumber;
-	unsigned int m_deviceIndex;
-	unsigned int m_globalDeviceIdx;
+	devcount_t m_deviceIndex;
+	devcount_t m_globalDeviceIdx;
 	GlobalData* getGlobalData();
 	unsigned int getCUDADeviceNumber();
-	unsigned int getDeviceIndex();
+	devcount_t getDeviceIndex();
 
 	// number of particles of the assigned subset
 	uint m_numParticles;
@@ -206,7 +206,6 @@ private:
 	// kernels
 	void kernel_calcHash();
 	void kernel_sort();
-	void kernel_inverseParticleIndex();
 	void kernel_reorderDataAndFindCellStart();
 	void kernel_buildNeibsList();
 	void kernel_forces();
@@ -220,6 +219,7 @@ private:
 	void kernel_reduceRBForces();
 	void kernel_dynamicBoundaryConditions();
 	void kernel_updateValuesAtBoundaryElements();
+	void kernel_updateVertIdIndexBuffer();
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();
@@ -239,7 +239,7 @@ private:
 	float forces_dt_reduce();
 public:
 	// constructor & destructor
-	GPUWorker(GlobalData* _gdata, unsigned int _devnum);
+	GPUWorker(GlobalData* _gdata, devcount_t _devnum);
 	~GPUWorker();
 
 	// getters of the number of particles

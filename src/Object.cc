@@ -54,6 +54,7 @@ Object::SetPartMass(const double dx, const double rho)
 
 /// Set the mass of object particles
 /*! Directly set the mass of object particles without any computation.
+ *
  *	\param mass : particle mass
  *
  *  Beware, particle mass should be set before any filling operation
@@ -143,6 +144,7 @@ Object::GetParts(void)
 
 /// Fill the object with particles
 /*! Fill the object by calling Fill(points, dx, true).
+ *
  *	\param points : particle vector
  *	\param dx : particle spacing
  */

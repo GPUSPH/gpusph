@@ -35,6 +35,7 @@
 #include <string>
 #include <cstdio>
 #include <iostream>
+#include <fstream>
 
 #include "Options.h"
 #include "Writer.h"
@@ -44,6 +45,8 @@
 #include "vector_math.h"
 #include "Object.h"
 #include "buffer.h"
+
+#include "deprecation.h"
 
 #include "ode/ode.h"
 
@@ -56,7 +59,7 @@ using namespace std;
 
 class Problem {
 	private:
-		float		m_last_rbdata_write_time;
+		double		m_last_rbdata_write_time;
 		string		m_problem_dir;
 		WriterList	m_writers;
 
@@ -84,8 +87,8 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		float		m_rbdata_writeinterval;
-		FILE*		m_rbdatafile;
+		double		m_rbdata_writeinterval;
+		ofstream		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }
@@ -114,6 +117,12 @@ class Problem {
 		Problem(const GlobalData *_gdata);
 
 		virtual ~Problem(void);
+
+		/* Save a summary of phy, sim params and options */
+		void write_simparams(ostream &out);
+		void write_physparams(ostream &out);
+		void write_options(ostream &out);
+		void write_summary();
 
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
@@ -174,6 +183,9 @@ class Problem {
 			return m_deltap;
 		}
 
+		double get_deltap() const
+		{ return m_deltap; }
+
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
 		{
@@ -227,10 +239,16 @@ class Problem {
 		{ add_gage(make_double3(x, y, z)); }
 
 		// set the timer tick
-		void set_timer_tick(float t);
+		// DEPRECATED: use ad_writer() with the frequency in seconds
+		void set_timer_tick(double t) DEPRECATED;
 
 		// add a new writer
-		void add_writer(WriterType wt, int freq = 1);
+		// DEPRECATED: use ad_writer() with the frequency in seconds
+		// by passing as argument the product of freq and the timer tick
+		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, float)");
+
+		// add a new writer, with the given write frequency in (fractions of) seconds
+		void add_writer(WriterType wt, double freq);
 
 		// return the list of writers
 		WriterList const& get_writers() const
@@ -238,23 +256,32 @@ class Problem {
 
 		// overridden in subclasses if they want explicit writes
 		// beyond those controlled by the writer(s) periodic time
-		virtual bool need_write(float) const;
+		virtual bool need_write(double) const;
 
 		// TODO these should be moved out of here into a specific writer
-		virtual bool need_write_rbdata(float) const;
-		void write_rbdata(float);
+		virtual bool need_write_rbdata(double) const;
+		void write_rbdata(double);
 
 		// is the simulation running at the given time?
-		bool finished(float) const;
+		bool finished(double) const;
 
 		virtual int fill_parts(void) = 0;
 		virtual uint fill_planes(void);
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
-		virtual MbCallBack& mb_callback(const float, const float, const int);
-		virtual float4* get_mbdata(const float, const float, const bool);
-		virtual float3 g_callback(const float);
+
+		/* moving boundary and gravity callbacks */
+		virtual MbCallBack& mb_callback(const float t, const float dt, const int i) DEPRECATED;
+		virtual float3 g_callback(const float t) DEPRECATED;
+
+		virtual MbCallBack& mb_callback(const double t, const float dt, const int i);
+		virtual float3 g_callback(const double t);
+
+		float4* get_mbdata(const double t, const float dt, const bool forceupdate);
+
+
+		/* ODE callbacks */
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
 			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
@@ -277,8 +304,8 @@ class Problem {
 		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &,
 									float3 * &, float3 * &);
-		int	get_ODE_bodies_numparts(void) const;
-		int	get_ODE_body_numparts(const int) const;
+		size_t	get_ODE_bodies_numparts(void) const;
+		size_t	get_ODE_body_numparts(const int) const;
 
 		void init_keps(float*, float*, uint, particleinfo*);
 

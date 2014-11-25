@@ -47,7 +47,7 @@ TextWriter::~TextWriter()
 }
 
 void
-TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
+TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
 {
 	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
 	const float4 *vel = buffers.getData<BUFFER_VEL>();

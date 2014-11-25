@@ -41,7 +41,7 @@
 // UINT_MAX
 #include "limits.h"
 
-GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
+GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 	gdata = _gdata;
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
@@ -106,7 +106,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers << new CUDABuffer<BUFFER_INVINDEX>();
+		m_dBuffers << new CUDABuffer<BUFFER_VERTIDINDEX>();
 		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
 		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
 		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
@@ -374,8 +374,8 @@ void GPUWorker::computeCellBursts()
 		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
 		// find the owner
-		const uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
-		const uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
+		const devcount_t curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
+		const devcount_t curr_cell_rank = gdata->RANK( curr_cell_gidx );
 
 		// redundant correctness check
 		if ( curr_cell_rank >= gdata->mpi_nodes ) {
@@ -412,8 +412,8 @@ void GPUWorker::computeCellBursts()
 
 					// now compute the linearized hash of the neib cell and other properties
 					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
-					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
-					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
+					const devcount_t neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
+					const devcount_t neib_cell_rank = gdata->RANK( neib_cell_gidx );
 
 					// is this neib mine?
 					const bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
@@ -443,7 +443,7 @@ void GPUWorker::computeCellBursts()
 						continue;
 
 					// the "other" device is the device owning the cell (curr or neib) which is not mine
-					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
+					const devcount_t other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
 
 					if (any_mine) {
 
@@ -738,7 +738,7 @@ void GPUWorker::transferBursts()
 
 				// retrieve peer's indices, if intra-node
 				const AbstractBuffer *peerbuf = NULL;
-				uchar peerCudaDevNum = 0;
+				uint peerCudaDevNum = 0;
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
@@ -1281,37 +1281,34 @@ void GPUWorker::createCompactDeviceMap() {
 							int cx = ix + dx;
 							int cy = iy + dy;
 							int cz = iz + dz;
+
 							// warp periodic boundaries
-							if (m_simparams->periodicbound) {
-								// periodicity along X
-								if (m_physparams->dispvect.x) {
-									// WARNING: checking if c* is negative MUST be done before checking if it's greater than
-									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
-									if (cx < 0) {
-										cx = gdata->gridSize.x - 1;
-									} else
-									if (cx >= gdata->gridSize.x) {
-										cx = 0;
-									}
-								} // if dispvect.x
-								// periodicity along Y
-								if (m_physparams->dispvect.y) {
-									if (cy < 0) {
-										cy = gdata->gridSize.y - 1;
-									} else
-									if (cy >= gdata->gridSize.y) {
-										cy = 0;
-									}
-								} // if dispvect.y
-								// periodicity along Z
-								if (m_physparams->dispvect.z) {
-									if (cz < 0) {
-										cz = gdata->gridSize.z - 1;
-									} else
-									if (cz >= gdata->gridSize.z) {
-										cz = 0;
-									}
-								} // if dispvect.z
+
+							// periodicity along X
+							if (m_simparams->periodicbound & PERIODIC_X) {
+								// WARNING: checking if c* is negative MUST be done before checking if it's greater than
+								// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
+								if (cx < 0) {
+									cx = gdata->gridSize.x - 1;
+								} else if (cx >= gdata->gridSize.x) {
+									cx = 0;
+								}
+							}
+							// periodicity along Y
+							if (m_simparams->periodicbound & PERIODIC_Y) {
+								if (cy < 0) {
+									cy = gdata->gridSize.y - 1;
+								} else if (cy >= gdata->gridSize.y) {
+									cy = 0;
+								}
+							}
+							// periodicity along Z
+							if (m_simparams->periodicbound & PERIODIC_Z) {
+								if (cz < 0) {
+									cz = gdata->gridSize.z - 1;
+								} else if (cz >= gdata->gridSize.z) {
+									cz = 0;
+								}
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||
@@ -1371,7 +1368,7 @@ unsigned int GPUWorker::getCUDADeviceNumber()
 	return m_cudaDeviceNumber;
 }
 
-unsigned int GPUWorker::getDeviceIndex()
+devcount_t GPUWorker::getDeviceIndex()
 {
 	return m_deviceIndex;
 }
@@ -1506,10 +1503,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SORT\n", deviceIndex);
 				instance->kernel_sort();
 				break;
-			case INVINDEX:
-				if (dbg_step_printf) printf(" T %d issuing INVINDEX\n", deviceIndex);
-				instance->kernel_inverseParticleIndex();
-				break;
 			case CROP:
 				if (dbg_step_printf) printf(" T %d issuing CROP\n", deviceIndex);
 				instance->dropExternalParticles();
@@ -1581,6 +1574,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case SA_UPDATE_BOUND_VALUES:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
 				instance->kernel_updateValuesAtBoundaryElements();
+				break;
+			case SA_UPDATE_VERTIDINDEX:
+				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
+				instance->kernel_updateVertIdIndexBuffer();
 				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
@@ -1689,18 +1686,6 @@ void GPUWorker::kernel_sort()
 			numPartsToElaborate);
 }
 
-void GPUWorker::kernel_inverseParticleIndex()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_numInternalParticles : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	inverseParticleIndex (	m_dBuffers.getData<BUFFER_PARTINDEX>(),
-							m_dBuffers.getData<BUFFER_INVINDEX>(),
-							numPartsToElaborate);
-}
-
 void GPUWorker::kernel_reorderDataAndFindCellStart()
 {
 	// reset also if the device is empty (or we will download uninitialized values)
@@ -1741,8 +1726,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
 
 							m_numParticles,
-							m_nGridCells,
-							m_dBuffers.getData<BUFFER_INVINDEX>());
+							m_nGridCells);
 }
 
 void GPUWorker::kernel_buildNeibsList()
@@ -1765,6 +1749,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
 					m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 					m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+					m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dCellStart,
 					m_dCellEnd,
@@ -2206,10 +2191,24 @@ void GPUWorker::kernel_updateValuesAtBoundaryElements()
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_numParticles,
 				numPartsToElaborate,
 				initStep);
+}
+
+void GPUWorker::kernel_updateVertIdIndexBuffer()
+{
+	// it is possible to run on internal particles only, although current design makes it meaningful only on all particles
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	updateVertIDToIndex(m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+						m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
+						numPartsToElaborate);
 }
 
 void GPUWorker::kernel_dynamicBoundaryConditions()

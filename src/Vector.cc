@@ -201,8 +201,8 @@ Vector
 Vector::rotated(const double &angle, const Vector &normal) const
 {
 	double vnorm = normal.norm();
-	double ct = cosf(angle);
-	double st = sinf(angle);
+	double ct = cos(angle);
+	double st = sin(angle);
 	double xx = normal(0),
 		   yy = normal(1),
 		   zz = normal(2);
@@ -412,30 +412,30 @@ Vector operator/(const Vector &vect, double k)
 
 float4 make_float4(const Vector &v)
 {
-	return make_float4(v(0), v(1), v(2), v(3));
+	return make_float4(float(v(0)), float(v(1)), float(v(2)), float(v(3)));
 }
 
 
 float3 make_float3(const Vector &v)
 {
-	return make_float3(v(0), v(1), v(2));
+	return make_float3(float(v(0)), float(v(1)), float(v(2)));
 }
 
 
 void make_dvector3(const Vector &v, dVector3 vec)
 {
-	vec[0] = v(0);
-	vec[1] = v(1);
-	vec[2] = v(2);
+	vec[0] = dReal(v(0));
+	vec[1] = dReal(v(1));
+	vec[2] = dReal(v(2));
 }
 
 
 void make_dvector4(const Vector &v, dVector4 vec)
 {
-	vec[0] = v(0);
-	vec[1] = v(1);
-	vec[2] = v(2);
-	vec[3] = v(3);
+	vec[0] = dReal(v(0));
+	vec[1] = dReal(v(1));
+	vec[2] = dReal(v(2));
+	vec[3] = dReal(v(3));
 }
 
 

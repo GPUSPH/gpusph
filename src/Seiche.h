@@ -45,7 +45,7 @@ class Seiche: public Problem {
 		PointVect	boundary_parts;
 		float		h, w, l;
 		float		H; // still water level
-		float		m_gtstart, m_gtend;
+		double		m_gtstart, m_gtend;
 
 	public:
 		Seiche(const GlobalData *);
@@ -55,7 +55,7 @@ class Seiche: public Problem {
 		uint fill_planes(void);
 		void copy_to_array(BufferList &);
 		void copy_planes(float4*, float*);
-		float3 g_callback(const float);
+		float3 g_callback(const double);
 
 		void release_memory(void);
 };

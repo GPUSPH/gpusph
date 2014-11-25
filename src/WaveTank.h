@@ -61,7 +61,7 @@ class WaveTank: public Problem {
 		void copy_planes(float4*, float*);
 
 		void copy_to_array(BufferList &);
-		MbCallBack& mb_callback(const float, const float, const int);
+		MbCallBack& mb_callback(const double, const float, const int);
 
 		void release_memory(void);
 

@@ -111,7 +111,7 @@ write_arr(ofstream &out, T const *var, size_t len)
 
 
 void
-VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, float t, const bool testpoints)
+VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints)
 {
 	const double4 *pos = buffers.getData<BUFFER_POS_GLOBAL>();
 	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
@@ -567,7 +567,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, flo
 }
 
 void
-VTKWriter::write_WaveGage(float t, GageList const& gage)
+VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
 	// call the generic write_WaveGage first
 	Writer::write_WaveGage(t, gage);

@@ -1058,6 +1058,7 @@ updateBoundValues(	float4*		oldVel,
 			float*		oldTKE,
 			float*		oldEps,
 			vertexinfo*	vertices,
+			uint*		vertIDToIndex,
 			particleinfo*	info,
 			uint		numParticles,
 			uint		particleRangeEnd,
@@ -1070,7 +1071,7 @@ updateBoundValues(	float4*		oldVel,
 	CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 
 	//execute kernel
-	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldTKE, oldEps, numParticles, initStep);
+	cuforces::updateBoundValuesDevice<<<numBlocks, numThreads>>>(oldVel, oldTKE, oldEps, vertIDToIndex, numParticles, initStep);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));

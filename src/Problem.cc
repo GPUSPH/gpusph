@@ -49,7 +49,6 @@ Problem::Problem(const GlobalData *_gdata)
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_mbnumber = 0;
-	m_rbdatafile = NULL;
 	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
@@ -61,10 +60,145 @@ Problem::~Problem(void)
 {
 	if (m_ODE_bodies)
 		delete [] m_ODE_bodies;
-	if (m_rbdatafile != NULL) {
-        fclose(m_rbdatafile);
-    }
+	if (m_rbdatafile.is_open())
+		m_rbdatafile.close();
 }
+
+static const char* TF[] = { "false", "true" };
+static const char* ED[] = { "disabled", "enabled" };
+
+// TODO mark params overridden by options with a *
+void
+Problem::write_simparams(ostream &out)
+{
+#define SP m_simparams
+
+	out << "Simulation parameters:" << endl;
+
+	out << " deltap = " << m_deltap << endl;
+	out << " sfactor = " << SP.sfactor << endl;
+	out << " slength = " << SP.slength << endl;
+	out << " kerneltype: " << SP.kerneltype << " (" << KernelName[SP.kerneltype] << ")" << endl;
+	out << " kernelradius = " << SP.kernelradius << endl;
+	out << " influenceRadius = " << SP.influenceRadius << endl;
+	out << " initial dt = " << SP.dt << endl;
+	out << " simulation end time = " << SP.tend << endl;
+	out << " neib list construction every " << SP.buildneibsfreq << " iterations" << endl;
+	out << " Shepard filter every " << SP.shepardfreq << " iterations" << endl;
+	out << " MLS filter every " << SP.mlsfreq << " iterations" << endl;
+	out << " adaptive time stepping " << ED[SP.dtadapt] << endl;
+	if (SP.dtadapt)
+		out << " safety factor for adaptive time step = " << SP.dtadaptfactor << endl;
+	out << " XSPH correction " << ED[SP.xsph] << endl;
+	out << " SPH formulation: " << SP.sph_formulation << " (" << SPHFormulationName[SP.sph_formulation] << ")" << endl;
+	out << " viscosity type: " << SP.visctype << " (" << ViscosityName[SP.visctype] << ")" << endl;
+	out << " moving boundaries " << ED[SP.mbcallback] << endl;
+	out << " time-dependent gravity " << ED[SP.gcallback] << endl;
+	out << " periodicity: " << SP.periodicbound << " (" << PeriodicityName[SP.periodicbound] << ")" << endl;
+	out << " DEM: " << TF[SP.usedem] << endl;
+#undef SP
+}
+
+void
+Problem::write_physparams(ostream &out)
+{
+#define SP m_simparams
+#define PP m_physparams
+
+	out << "Physical parameters:" << endl;
+
+#define g PP.gravity
+	out << " gravity = (" << g.x << ", " << g.y << ", " << g.z << ") [" << length(g) << "] "
+		<< (SP.gcallback ? "time-dependent" : "fixed") << endl;
+#undef g
+	out << " numFluids = " << PP.numFluids << endl;
+	for (uint f = 0; f < PP.numFluids ; ++f) {
+		out << " rho0[ " << f << " ] = " << PP.rho0[f] << endl;
+		out << " B[ " << f << " ] = " << PP.bcoeff[f] << endl;
+		out << " gamma[ " << f << " ] = " << PP.gammacoeff[f] << endl;
+		out << " sscoeff[ " << f << " ] = " << PP.sscoeff[f] << endl;
+		out << " sspowercoeff[ " << f << " ] = " << PP.sspowercoeff[f] << endl;
+		out << " sound speed[ " << f << " ] = " << soundspeed(PP.rho0[f],f) << endl;
+	}
+
+	out << " partsurf = " << PP.partsurf << endl;
+
+	out << " " << BoundaryName[SP.boundarytype] << " boundary parameters:" << endl;
+	out << "\tr0 = " << PP.r0 << endl;
+	switch (SP.boundarytype) {
+		case LJ_BOUNDARY:
+			out << "\td = " << PP.dcoeff << endl;
+			out << "\tp1 = " << PP.p1coeff << endl;
+			out << "\tp2 = " << PP.p2coeff << endl;
+			break;
+		case MK_BOUNDARY:
+			out << "\tK = " << PP.MK_K << endl;
+			out << "\td = " << PP.MK_d << endl;
+			out << "\tbeta = " << PP.MK_beta << endl;
+			break;
+		default:
+			/* nothing else */
+			break;
+	}
+
+	out << " " << ViscosityName[SP.visctype] << " viscosity parameters:" << endl;
+	if (SP.visctype == ARTVISC) {
+		out << "\tartvisccoeff = " << PP.artvisccoeff << "" << endl;
+		out << "\tepsartvisc = " << PP.epsartvisc << "" << endl;
+	} else
+		out << "\tkinematicvisc = " << PP.kinematicvisc << " (m^2/s)" << endl;
+	if (SP.visctype == SPSVISC) {
+		out << "\tSmagfactor = " << PP.smagfactor << endl;
+		out << "\tkSPSfactor = " << PP.kspsfactor << endl;
+	}
+	out << "\tvisccoeff = " << PP.visccoeff << endl;
+
+	if (SP.xsph) {
+		out << " epsxsph = " << PP.epsxsph << endl;
+	}
+
+	if (SP.usedem) {
+		out << " DEM resolution EW = " << PP.ewres << ", NS = " << PP.nsres << endl;
+		out << " DEM displacement for normal computation dx = " << PP.demdx << ", dy = " << PP.demdy << endl;
+		out << " DEM zmin = " << PP.demzmin << endl;
+	}
+#undef SP
+#undef PP
+}
+
+void
+Problem::write_options(ostream &out)
+{
+#define OP m_options
+	out << "Comman-line options:" << endl;
+	out << " problem: " << OP->problem << endl;
+	out << " dem: " << OP->dem << endl;
+	out << " dir: " << OP->dir << endl;
+	out << " deltap: " << OP->deltap << endl;
+	out << " tend: " << OP->tend << endl;
+	out << " hosts: " << OP->num_hosts << endl;
+	out << " saving " << ED[!OP->nosave] << endl;
+	out << " GPUDirect " << ED[OP->gpudirect] << endl;
+	out << " striping " << ED[OP->striping] << endl;
+	out << " async network transfers " << ED[OP->asyncNetworkTransfers] << endl;
+#undef OP
+}
+
+void
+Problem::write_summary(void)
+{
+	ofstream out;
+	out.exceptions(ofstream::failbit | ofstream::badbit);
+	out.open((m_problem_dir + "/summary.txt").c_str());
+
+	write_simparams(out);
+	out << endl;
+	write_physparams(out);
+	out << endl;
+	write_options(out);
+	out.close();
+}
+
 
 void
 Problem::check_dt(void)
@@ -82,10 +216,10 @@ Problem::check_dt(void)
 	float dt_from_visc = NAN;
 	if (m_simparams.visctype != ARTVISC) {
 		dt_from_visc = m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc;
-		dt_from_visc *= 0.125; // TODO this should be configurable
+		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}
 
-	float cfl_dt = fmin(dt_from_sspeed, fmin(dt_from_gravity, dt_from_visc));
+	float cfl_dt = fminf(dt_from_sspeed, fminf(dt_from_gravity, dt_from_visc));
 
 	if (m_simparams.dt > cfl_dt) {
 		fprintf(stderr, "WARNING: dt %g bigger than %g imposed by CFL conditions (sspeed: %g, gravity: %g, viscosity: %g)\n",
@@ -152,7 +286,7 @@ Problem::check_maxneibsnum(void)
 	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
 	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
 	// increase maxneibsnum as appropriate
-	maxneibsnum = ceil(ratio*maxneibsnum);
+	maxneibsnum = (uint)ceil(ratio*maxneibsnum);
 	// round up to multiple of 32
 	maxneibsnum = round_up(maxneibsnum, 32U);
 
@@ -230,25 +364,34 @@ Problem::create_problem_dir(void)
 
 	if (m_rbdata_writeinterval) {
 		string rbdata_filename = m_problem_dir + "/rbdata.txt";
-		m_rbdatafile = fopen(rbdata_filename.c_str(), "w");
-
-		if (m_rbdatafile == NULL) {
-			stringstream ss;
-			ss << "Cannot open rigid bodies data file " << rbdata_filename;
-			throw runtime_error(ss.str());
-			}
+		m_rbdatafile.exceptions(ofstream::failbit | ofstream::badbit);
+		m_rbdatafile.open(rbdata_filename.c_str());
 	}
 	return m_problem_dir;
 }
 
+// timer tick, for compatibility with old timer-tick writer frequency API
+// remove when the old API is obsoleted
+static double deprecated_timer_tick;
+
 void
-Problem::set_timer_tick(float t)
+Problem::set_timer_tick(double t)
 {
-	Writer::SetTimerTick(t);
+	fputs("WARNING: set_timer_tick() is deprecated\n", stderr);
+	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
+	deprecated_timer_tick = t;
 }
 
 void
 Problem::add_writer(WriterType wt, int freq)
+{
+	fputs("WARNING: add_writer(WriterType, int) is deprecated\n", stderr);
+	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
+	add_writer(wt, freq*deprecated_timer_tick);
+}
+
+void
+Problem::add_writer(WriterType wt, double freq)
 {
 	m_writers.push_back(make_pair(wt, freq));
 }
@@ -256,13 +399,13 @@ Problem::add_writer(WriterType wt, int freq)
 // override in problems where you want to save
 // at specific times regardless of standard conditions
 bool
-Problem::need_write(float t) const
+Problem::need_write(double t) const
 {
 	return false;
 }
 
 bool
-Problem::need_write_rbdata(float t) const
+Problem::need_write_rbdata(double t) const
 {
 	if (m_rbdata_writeinterval == 0)
 		return false;
@@ -276,15 +419,21 @@ Problem::need_write_rbdata(float t) const
 
 
 void
-Problem::write_rbdata(float t)
+Problem::write_rbdata(double t)
 {
 	if (m_simparams.numODEbodies) {
 		if (need_write_rbdata(t)) {
 			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
 				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
-				fprintf(m_rbdatafile, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", i, t, cg[0],
-						cg[1], cg[2], quat[0], quat[1], quat[2], quat[3]);
+				m_rbdatafile << i << "\t" << t
+					<< cg[0] << "\t"
+					<< cg[1] << "\t"
+					<< cg[2] << "\t"
+					<< quat[0] << "\t"
+					<< quat[1] << "\t"
+					<< quat[2] << "\t"
+					<< quat[3];
 			}
 		}
 	}
@@ -293,25 +442,69 @@ Problem::write_rbdata(float t)
 
 // is the simulation finished at the given time?
 bool
-Problem::finished(float t) const
+Problem::finished(double t) const
 {
-	float tend(m_simparams.tend);
+	double tend(m_simparams.tend);
 	return tend && (t > tend);
 }
 
 
 MbCallBack&
+Problem::mb_callback(const double t, const float dt, const int i)
+{
+	/* If this was not overridden, it's likely that the caller overridden the deprecated
+	 * float version, passthrough */
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: mb_callback(float, float, int) is deprecated, please switch to mb_callback(double, float, int)\n");
+		reminder_shown = true;
+	}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+	return mb_callback(float(t), dt, i);
+#pragma GCC diagnostic pop
+};
+
+MbCallBack&
 Problem::mb_callback(const float t, const float dt, const int i)
 {
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
+		reminder_shown = true;
+	}
 	return m_mbcallbackdata[i];
 };
 
 
 float3
+Problem::g_callback(const double t)
+{
+	/* If this was not overridden, it's likely that the caller overridden the deprecated
+	 * float version, passthrough */
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
+		reminder_shown = true;
+	}
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+	return g_callback(float(t));
+#pragma GCC diagnostic pop
+}
+
+float3
 Problem::g_callback(const float t)
 {
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
+		reminder_shown = true;
+	}
 	return make_float3(0.0);
 }
+
+
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
 // Default algorithm: split along the longest axis
@@ -325,7 +518,8 @@ void Problem::fillDeviceMapByCellHash()
 {
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
-		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->totDevices-1);
+		// guaranteed to fit in a devcount_t due to how it's computed
+		gdata->s_hDeviceMap[i] = devcount_t(min( i/cells_per_device, gdata->totDevices-1));
 }
 
 // partition by splitting along the specified axis
@@ -354,7 +548,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 			cells_per_longest_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (float)gdata->totDevices);
+	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (double)gdata->totDevices);
 	/*
 	printf("Splitting domain along axis %s, %u cells per part\n",
 		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_longest_axis);
@@ -369,9 +563,9 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 					case Z_AXIS: axis_coordinate = cz; break;
 				}
 				// everything is just a preparation for the following line
-				uchar dstDevice = axis_coordinate / cells_per_device_per_longest_axis;
+				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_longest_axis);
 				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
-				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				dstDevice = (devcount_t)min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -461,16 +655,16 @@ void Problem::fillDeviceMapByRegularGrid()
 	float Xsize = gdata->worldSize.x;
 	float Ysize = gdata->worldSize.y;
 	float Zsize = gdata->worldSize.z;
-	uint cutsX = 1;
-	uint cutsY = 1;
-	uint cutsZ = 1;
-	uint remaining_factors = gdata->totDevices;
+	devcount_t cutsX = 1;
+	devcount_t cutsY = 1;
+	devcount_t cutsZ = 1;
+	devcount_t remaining_factors = gdata->totDevices;
 
 	// define the product of non-zero cuts to keep track of current number of parallelepipeds
 //#define NZ_PRODUCT	((cutsX > 0? cutsX : 1) * (cutsY > 0? cutsY : 1) * (cutsZ > 0? cutsZ : 1))
 
 	while (cutsX * cutsY * cutsZ < gdata->totDevices) {
-		uint factor = 1;
+		devcount_t factor = 1;
 		// choose the highest factor among 2, 3 and 5 which divides remaining_factors
 		if (remaining_factors % 5 == 0) factor = 5; else
 		if (remaining_factors % 3 == 0) factor = 3; else
@@ -533,10 +727,10 @@ Problem::add_ODE_body(Object* object)
 }
 
 
-int
+size_t
 Problem::get_ODE_bodies_numparts(void) const
 {
-	int total_parts = 0;
+	size_t total_parts = 0;
 	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
 		total_parts += m_ODE_bodies[i]->GetParts().size();
 	}
@@ -545,7 +739,7 @@ Problem::get_ODE_bodies_numparts(void) const
 }
 
 
-int
+size_t
 Problem::get_ODE_body_numparts(const int i) const
 {
 	if (!m_simparams.numODEbodies)
@@ -677,7 +871,7 @@ Problem::copy_planes(float4*, float*)
 
 
 float4*
-Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
+Problem::get_mbdata(const double t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
 
@@ -732,9 +926,9 @@ Problem::set_grid_params(void)
 	if (m_simparams.boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
-	m_gridsize.x = floor(m_size.x / cellSide);
-	m_gridsize.y = floor(m_size.y / cellSide);
-	m_gridsize.z = floor(m_size.z / cellSide);
+	m_gridsize.x = (uint)floor(m_size.x / cellSide);
+	m_gridsize.y = (uint)floor(m_size.y / cellSide);
+	m_gridsize.z = (uint)floor(m_size.z / cellSide);
 
 	// While trying to run a simulation at very low resolution, the user might
 	// set a deltap so large that cellSide is bigger than m_size.{x,y,z}, resulting
@@ -773,9 +967,9 @@ int3
 Problem::calc_grid_pos(const Point&	pos)
 {
 	int3 gridPos;
-	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
-	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
-	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
+	gridPos.y = (int)floor((pos(1) - m_origin.y) / m_cellsize.y);
+	gridPos.z = (int)floor((pos(2) - m_origin.z) / m_cellsize.z);
 	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
 	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
 	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);

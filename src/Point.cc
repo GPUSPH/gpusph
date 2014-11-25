@@ -447,30 +447,30 @@ double distsq(const Point &pnt1, const Point &pnt2)
 
 float4 make_float4(const Point &pt)
 {
-	return make_float4(pt(0), pt(1), pt(2), pt(3));
+	return make_float4(float(pt(0)), float(pt(1)), float(pt(2)), float(pt(3)));
 }
 
 
 float3 make_float3(const Point &pt)
 {
-	return make_float3(pt(0), pt(1), pt(2));
+	return make_float3(float(pt(0)), float(pt(1)), float(pt(2)));
 }
 
 
 void make_dvector3(const Point &pt, dVector3 vec)
 {
-	vec[0] = pt(0);
-	vec[1] = pt(1);
-	vec[2] = pt(2);
+	vec[0] = dReal(pt(0));
+	vec[1] = dReal(pt(1));
+	vec[2] = dReal(pt(2));
 }
 
 
 void make_dvector4(const Point &pt, dVector4 vec)
 {
-	vec[0] = pt(0);
-	vec[1] = pt(1);
-	vec[2] = pt(2);
-	vec[3] = pt(3);
+	vec[0] = dReal(pt(0));
+	vec[1] = dReal(pt(1));
+	vec[2] = dReal(pt(2));
+	vec[3] = dReal(pt(3));
 }
 
 // DEBUG
