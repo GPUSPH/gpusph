@@ -88,8 +88,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();
 
-	problem->write_summary();
-
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
 	// only init if MULTI_NODE
@@ -164,8 +162,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// create the Writer according to the WriterType
 	createWriter();
-
-	// TODO: writeSummary
 
 	// we should need no PS anymore
 	//		> new PS

@@ -60,6 +60,12 @@ public:
 	bool need_write(double t) const;
 
 private:
+	/* Save a summary of phys_params, sim_params and options */
+	void write_simparams(ostream &out);
+	void write_physparams(ostream &out);
+	void write_options(ostream &out);
+	void write_summary();
+
 	ofstream		m_energyfile;
 	ofstream		m_WaveGagefile;
 };

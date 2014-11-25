@@ -116,12 +116,6 @@ class Problem {
 
 		virtual ~Problem(void);
 
-		/* Save a summary of phy, sim params and options */
-		void write_simparams(ostream &out);
-		void write_physparams(ostream &out);
-		void write_options(ostream &out);
-		void write_summary();
-
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
 		virtual void check_dt();
