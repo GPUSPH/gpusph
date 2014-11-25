@@ -569,9 +569,6 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 void
 VTKWriter::write_WaveGage(double t, GageList const& gage)
 {
-	// call the generic write_WaveGage first
-	Writer::write_WaveGage(t, gage);
-
 	ofstream fp;
 	open_data_file(fp, "WaveGage", current_filenum());
 	size_t num = gage.size();

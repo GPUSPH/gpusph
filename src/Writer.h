@@ -57,6 +57,7 @@ using namespace std;
 
 enum WriterType
 {
+	COMMONWRITER,
 	TEXTWRITER,
 	VTKWRITER,
 	VTKLEGACYWRITER,
@@ -130,8 +131,11 @@ protected:
 	virtual ~Writer();
 
 	void set_write_freq(double f);
+	double get_write_freq()
+	{ return m_writefreq; }
 
-	bool need_write(double t) const;
+	virtual bool
+	need_write(double t) const;
 
 	virtual void
 	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
@@ -162,14 +166,17 @@ protected:
 	open_data_file(ofstream &out, const char* base, string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
+	inline string
+	open_data_file(ofstream &out, const char* base)
+	{ return open_data_file(out, base, string(), m_fname_sfx); }
+
+
 	double			m_last_write_time;
 	double			m_writefreq;
 
 	string			m_dirname;
 	uint			m_FileCounter;
 	ofstream		m_timefile;
-	ofstream		m_energyfile;
-	ofstream		m_WaveGagefile;
 
 	const Problem	*m_problem;
 	string			next_filenum();
