@@ -18,15 +18,14 @@ fi
 
 test -f "$file" || abort "Gage file '$file' not found"
 
-cols=$(awk '{print NF-1; exit}' "$file")
+cols=$(awk '{print NF; exit}' "$file")
 
-gage=0
 col=2
-cmd="plot '$file' using 1:$col with lines title 'zgage$gage'"
+cmd="plot '$file' using 1:$col with lines title column"
 while test $col -lt $cols ; do
 	col=$(($col+1))
 	gage=$(($gage+1))
-	cmd="$cmd, '' using 1:$col with lines title 'zgage$gage'"
+	cmd="$cmd, '' using 1:$col with lines title column"
 done
 
 echo $cmd
