@@ -194,6 +194,32 @@ Writer::WriteWaveGage(double t, GageList const& gage)
 }
 
 void
+Writer::WriteObjects(double t, Object const* const* bodies)
+{
+	// is the common writer special?
+	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced) {
+			writer->write_objects(t, bodies);
+			written = true;
+		}
+	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_objects(t, bodies);
+}
+
+
+void
 Writer::Destroy()
 {
 	WriterMap::iterator it(m_writers.begin());

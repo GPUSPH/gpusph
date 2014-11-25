@@ -56,6 +56,7 @@ public:
 
 	void write_energy(double t, float4 *energy);
 	void write_WaveGage(double t, GageList const& gage);
+	void write_objects(double t, Object const* const* bodies);
 
 	bool need_write(double t) const;
 
@@ -68,6 +69,8 @@ private:
 
 	ofstream		m_energyfile;
 	ofstream		m_WaveGagefile;
+	ofstream		m_objectfile;
+
 };
 #endif
 

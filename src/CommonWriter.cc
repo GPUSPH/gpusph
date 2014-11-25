@@ -64,6 +64,27 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 			m_WaveGagefile << endl;
 		}
 	}
+
+	// TODO only do this if object data writing is enabled
+	size_t nbodies = m_problem->get_simparams()->numODEbodies;
+	if (nbodies > 0) {
+		string rbdata_fn = open_data_file(m_objectfile, "rbdata");
+		if (m_objectfile) {
+			m_objectfile << "#\ttime";
+			for (size_t obj = 0; obj < nbodies; ++obj) {
+				// center of mass
+				m_objectfile << "\tCM" << obj << "_X";
+				m_objectfile << "\tCM" << obj << "_Y";
+				m_objectfile << "\tCM" << obj << "_Z";
+				// quaternion
+				m_objectfile << "\tQ" << obj << "_1";
+				m_objectfile << "\tQ" << obj << "_I";
+				m_objectfile << "\tQ" << obj << "_J";
+				m_objectfile << "\tQ" << obj << "_K";
+			}
+			m_objectfile << endl;
+		}
+	}
 }
 
 CommonWriter::~CommonWriter()
@@ -72,6 +93,8 @@ CommonWriter::~CommonWriter()
 		m_energyfile.close();
 	if (m_WaveGagefile)
 		m_WaveGagefile.close();
+	if (m_objectfile)
+		m_objectfile.close();
 }
 
 void
@@ -101,6 +124,24 @@ CommonWriter::write_WaveGage(double t, GageList const& gage)
 			m_WaveGagefile << "\t" << gage[i].z;
 		}
 		m_WaveGagefile << endl;
+	}
+}
+
+void
+CommonWriter::write_objects(double t, Object const* const* bodies)
+{
+	if (m_objectfile) {
+		m_objectfile << t;
+		size_t nbodies = m_problem->get_simparams()->numODEbodies;
+		for (size_t obj = 0; obj < nbodies; ++obj) {
+			const dReal *cg = dBodyGetPosition(bodies[obj]->m_ODEBody);
+			const dReal *quat = dBodyGetQuaternion(bodies[obj]->m_ODEBody);
+			m_objectfile
+				<< "\t" << cg[0] << "\t" << cg[1] << "\t" << cg[2]
+				<< "\t" << quat[0] << "\t" << quat[1]
+				<< "\t" << quat[2] << "\t" << quat[3];
+		}
+		m_objectfile << endl;
 	}
 }
 

@@ -49,7 +49,6 @@ Problem::Problem(const GlobalData *_gdata)
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_mbnumber = 0;
-	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
@@ -60,8 +59,6 @@ Problem::~Problem(void)
 {
 	if (m_ODE_bodies)
 		delete [] m_ODE_bodies;
-	if (m_rbdatafile.is_open())
-		m_rbdatafile.close();
 }
 
 void
@@ -226,11 +223,6 @@ Problem::create_problem_dir(void)
 
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
-	if (m_rbdata_writeinterval) {
-		string rbdata_filename = m_problem_dir + "/rbdata.txt";
-		m_rbdatafile.exceptions(ofstream::failbit | ofstream::badbit);
-		m_rbdatafile.open(rbdata_filename.c_str());
-	}
 	return m_problem_dir;
 }
 
@@ -266,42 +258,6 @@ bool
 Problem::need_write(double t) const
 {
 	return false;
-}
-
-bool
-Problem::need_write_rbdata(double t) const
-{
-	if (m_rbdata_writeinterval == 0)
-		return false;
-
-	if (t - m_last_rbdata_write_time >= m_rbdata_writeinterval) {
-		return true;
-	}
-
-	return false;
-}
-
-
-void
-Problem::write_rbdata(double t)
-{
-	if (m_simparams.numODEbodies) {
-		if (need_write_rbdata(t)) {
-			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
-				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
-				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
-				m_rbdatafile << i << "\t" << t
-					<< cg[0] << "\t"
-					<< cg[1] << "\t"
-					<< cg[2] << "\t"
-					<< quat[0] << "\t"
-					<< quat[1] << "\t"
-					<< quat[2] << "\t"
-					<< quat[3];
-			}
-		}
-	}
-	m_last_rbdata_write_time = t;
 }
 
 // is the simulation finished at the given time?

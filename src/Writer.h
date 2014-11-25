@@ -41,6 +41,9 @@
 // GageList
 #include "simparams.h"
 
+// Object
+#include "Object.h"
+
 // deprecation macros
 #include "deprecation.h"
 
@@ -116,6 +119,10 @@ public:
 	static void
 	WriteWaveGage(double t, GageList const& gage);
 
+	// write object data
+	static void
+	WriteObjects(double t, Object const* const* bodies);
+
 	// record that the upcoming write requests should be forced (regardless of write frequency)
 	static inline void
 	SetForced(bool force)
@@ -147,6 +154,10 @@ protected:
 
 	virtual void
 	write_WaveGage(double t, GageList const& gage);
+
+	virtual void
+	write_objects(double t, Object const* const* bodies)
+	{}
 
 	uint getLastFilenum();
 

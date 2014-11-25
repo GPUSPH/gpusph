@@ -1180,6 +1180,10 @@ void GPUSPH::doWrite(bool force)
 		Writer::WriteWaveGage(gdata->t, gages);
 	}
 
+	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+		Writer::WriteObjects(gdata->t, gdata->problem->get_ODE_bodies());
+	}
+
 	//Testpoints
 	if (gdata->problem->get_simparams()->testpoints) {
 		// Write testpoints, on buffer read
