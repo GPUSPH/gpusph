@@ -36,10 +36,12 @@
  * The files created by the CommonWriter should all follow the following format:
  *
  * 0. tab separated
- * 1. a header on the first row, characterized by having a hash sign (#) as
- *    first character and then followed by the title of each column
+ * 1. a header on the first row (column titles)
  * 2. the simulation time should always be the first column
  * 3. one row per time point
+ *
+ * This makes it easy to import these files into common tools, and trivial
+ * to plot them with e.g. gnuplot
  */
 
 #include "Writer.h"

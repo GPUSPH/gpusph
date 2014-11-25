@@ -45,7 +45,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	// TODO only do this if energy writing is enabled
 	string energy_fn = open_data_file(m_energyfile, "energy");
 	if (m_energyfile) {
-		m_energyfile << "#\ttime";
+		m_energyfile << "time";
 		uint fluid = 0;
 		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
 			m_energyfile	<< "\tkinetic" << fluid
@@ -58,7 +58,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	if (ngages > 0) {
 		string WaveGage_fn = open_data_file(m_WaveGagefile, "WaveGage");
 		if (m_WaveGagefile) {
-			m_WaveGagefile << "#\ttime";
+			m_WaveGagefile << "time";
 			for (size_t gage = 0; gage < ngages; ++gage)
 				m_WaveGagefile << "\tzgage" << gage;
 			m_WaveGagefile << endl;
@@ -70,7 +70,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	if (nbodies > 0) {
 		string rbdata_fn = open_data_file(m_objectfile, "rbdata");
 		if (m_objectfile) {
-			m_objectfile << "#\ttime";
+			m_objectfile << "time";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
 				// center of mass
 				m_objectfile << "\tCM" << obj << "_X";
