@@ -148,6 +148,7 @@ forces(
 	const	bool	movingBoundaries,
 	const	bool	inoutBoundaries,
 			uint	*IOwaterdepth,
+	const	bool	ioWaterdepthCompute,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -388,6 +389,33 @@ uploadIOwaterdepth(
 			uint*	d_IOwaterdepth,
 	const	uint	numObjects);
 
-}
+// identifies vertices at the corners of open boundaries
+void
+saIdentifyCornerVertices(
+	const	float4*			oldPos,
+	const	float4*			boundelement,
+			particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			eps);
 
+// finds the closest vertex particles for segments which have no vertices themselves that are of
+// the same object type and are no corner particles
+void
+saFindClosestVertex(
+	const	float4*			oldPos,
+			particleinfo*	info,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd);
+
+}
 #endif

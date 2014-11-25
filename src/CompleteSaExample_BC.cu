@@ -169,10 +169,12 @@ CompleteSaExample::imposeBoundaryConditionHost(
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// reset waterdepth calculation
-	uint h_IOwaterdepth[numObjects];
-	for (uint i=0; i<numObjects; i++)
-		h_IOwaterdepth[i] = 0;
-	CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+	if (IOwaterdepth) {
+		uint h_IOwaterdepth[numObjects];
+		for (uint i=0; i<numObjects; i++)
+			h_IOwaterdepth[i] = 0;
+		CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+	}
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");

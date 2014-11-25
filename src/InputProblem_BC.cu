@@ -131,7 +131,7 @@ InputProblem_imposeBoundaryConditionDevice(
 									+ 0.5f*d_cellSize;
 			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
-			if (!VEL_IO(info) && !INFLOW(info)) {
+			if (!VEL_IO(info) && !INFLOW(info) && IOwaterdepth) {
 				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
 				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
 				waterdepth += d_worldOrigin.z; // now absolute z position
@@ -206,10 +206,12 @@ InputProblem::imposeBoundaryConditionHost(
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 
 	// reset waterdepth calculation
-	uint h_IOwaterdepth[numObjects];
-	for (uint i=0; i<numObjects; i++)
-		h_IOwaterdepth[i] = 0;
-	CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+	if (IOwaterdepth) {
+		uint h_IOwaterdepth[numObjects];
+		for (uint i=0; i<numObjects; i++)
+			h_IOwaterdepth[i] = 0;
+		CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+	}
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");

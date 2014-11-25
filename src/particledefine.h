@@ -232,8 +232,9 @@ enum ParticleType {
 #define IO_PARTICLE_FLAG		(PART_FLAG_START<<2)
 #define VEL_IO_PARTICLE_FLAG	(PART_FLAG_START<<3)
 #define INFLOW_PARTICLE_FLAG	(PART_FLAG_START<<4)
-#define MOVING_PARTICLE_FLAG	(PART_FLAG_START<<5)
-#define FLOATING_PARTICLE_FLAG	(PART_FLAG_START<<6)
+#define CORNER_PARTICLE_FLAG	(PART_FLAG_START<<5)
+#define MOVING_PARTICLE_FLAG	(PART_FLAG_START<<6)
+#define FLOATING_PARTICLE_FLAG	(PART_FLAG_START<<7)
 
 /* A bitmask to select only the fluid number */
 #define FLUID_NUM_MASK	((1<<MAX_FLUID_BITS)-1)
@@ -290,6 +291,10 @@ disable_particle(float4 &pos) {
 // velocities are computed from the interior of the fluid (i.e. extrapolated).
 #define INFLOW(f)		(type(f) & INFLOW_PARTICLE_FLAG)
 #define OUTFLOW(f)		(!INFLOW(f))
+// If this flag is set then a particle at an open boundary will have a non-varying mass but still
+// be treated like an open boundary particle apart from that. This avoids having to span new particles
+// very close to the side wall which causes problems
+#define CORNER(f)		(type(f) & CORNER_PARTICLE_FLAG)
 // This flag is set for moving vertices / segments either forced or free (floating)
 #define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
 // If the floating flag is set then the particles 

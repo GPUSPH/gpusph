@@ -88,7 +88,9 @@ eulerDevice(
 	// copying pos and vel in the new arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
-	float4 eulerVel = oldEulerVel[index];		// always eulerVel(n)
+	float4 eulerVel = make_float4(0.0f);
+	if (oldEulerVel)
+		eulerVel = oldEulerVel[index];		// always eulerVel(n)
 	// TODO templatize better
 	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
 	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
@@ -142,6 +144,8 @@ eulerDevice(
 				vel.y += dt*force.y;
 				vel.z += dt*force.z;
 			}
+			if (id(pinfo) == 31350062)
+				printf("fo: %e %e %e | d %e %e %e \n", force.x, force.y, force.z, force.w, contupd[index].x, contupd[index].y);
 
 			// Updating k and e for k-e model
 			if (keps_dkde) {
@@ -154,7 +158,7 @@ eulerDevice(
 		}
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		else if (VERTEX(pinfo) || BOUNDARY(pinfo)) {
-			if (!IO_BOUNDARY(pinfo)) {
+			if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
 				// move segments and boundary particles if the MOVING flag is set
@@ -231,7 +235,8 @@ eulerDevice(
 
 	newPos[index] = pos;
 	newVel[index] = vel;
-	newEulerVel[index] = eulerVel;
+	if(newEulerVel)
+		newEulerVel[index] = eulerVel;
 	if (newTKE)
 		newTKE[index] = keps_k;
 	if (newEps)

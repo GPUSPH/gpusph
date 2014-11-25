@@ -894,7 +894,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	}
 
 	// water depth at open boundaries
-	if (m_simparams->inoutBoundaries) {
+	if (m_simparams->inoutBoundaries && m_simparams->ioWaterdepthComputation) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numObjects*sizeof(uint)));
 		allocated += m_simparams->numObjects*sizeof(uint);
 	}
@@ -986,7 +986,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
-	if (m_simparams->inoutBoundaries)
+	if (m_simparams->inoutBoundaries && m_simparams->ioWaterdepthComputation)
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
 	if (m_simparams->numODEbodies) {
@@ -1651,6 +1651,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
 				instance->kernel_updateVertIdIndexBuffer();
 				break;
+			case IDENTIFY_CORNER_VERTICES:
+				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
+				instance->kernel_saIdentifyCornerVertices();
+				break;
+			case FIND_CLOSEST_VERTEX:
+				if (dbg_step_printf) printf(" T %d issuing FIND_CLOSEST_VERTEX\n", deviceIndex);
+				instance->kernel_saFindClosestVertex();
+				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
@@ -1878,6 +1886,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_simparams->movingBoundaries,
 			m_simparams->inoutBoundaries,
 			m_dIOwaterdepth,
+			m_simparams->ioWaterdepthComputation,
 			m_simparams->visctype,
 			m_physparams->visccoeff,
 			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
@@ -2221,7 +2230,7 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-			m_dIOwaterdepth,
+			m_simparams->ioWaterdepthComputation ? m_dIOwaterdepth : NULL,
 			gdata->t,
 			m_numParticles,
 			m_simparams->numObjects,
@@ -2445,6 +2454,45 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_simparams->influenceRadius,
 				gdata->newIDsOffset,
 				initStep);
+}
+
+void GPUWorker::kernel_saIdentifyCornerVertices()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	saIdentifyCornerVertices(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				numPartsToElaborate,
+				gdata->problem->m_deltap,
+				m_simparams->epsilon);
+}
+
+void GPUWorker::kernel_saFindClosestVertex()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	saFindClosestVertex(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				numPartsToElaborate);
 }
 
 void GPUWorker::kernel_disableOutgoingParts()

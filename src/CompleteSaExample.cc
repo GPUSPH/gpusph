@@ -31,7 +31,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.testpoints = false;
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
-	H = 1.0;
+	H = 0.5;
 	// extra margin around the domain size
 	const double MARGIN = 0.1;
 	const double INLET_BOX_LENGTH = 0.25;
@@ -42,7 +42,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
 	m_simparams.movingBoundaries = true;
-	m_simparams.floatingObjects = true;
+	//m_simparams.floatingObjects = true;
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
@@ -76,15 +76,15 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	add_writer(VTKWRITER, 1);
 
 	// will use only 1 ODE body: the floating/moving cube (container is fixed)
-	allocate_ODE_bodies(1);
-	dInitODE();
-	// world setup
-	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
-	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
-	//m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
-	// Set gravity（x, y, z)
-	dWorldSetGravity(m_ODEWorld,
-		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
+	//allocate_ODE_bodies(1);
+	//dInitODE();
+	//// world setup
+	//m_ODEWorld = dWorldCreate(); // ODE world for dynamics
+	//m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
+	////m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
+	//// Set gravity（x, y, z)
+	//dWorldSetGravity(m_ODEWorld,
+	//	m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
 
 	// Name of problem used for directory creation
 	m_name = "CompleteSaExample";
@@ -99,13 +99,14 @@ void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 
 CompleteSaExample::~CompleteSaExample()
 {
-	dSpaceDestroy(m_ODESpace);
-	dWorldDestroy(m_ODEWorld);
-	dCloseODE();
+	//dSpaceDestroy(m_ODESpace);
+	//dWorldDestroy(m_ODEWorld);
+	//dCloseODE();
 }
 
 int CompleteSaExample::fill_parts()
 {
+	/*
 	// here create ODE planes in the geom space, if needed (no ODE body)
 	container->ODEGeomCreate(m_ODESpace, m_deltap);
 
@@ -117,6 +118,7 @@ int CompleteSaExample::fill_parts()
 	// particles with object(info)-1==1 are associated with ODE object number 0
 	m_ODEobjectId[2-1] = 0;
 	add_ODE_body(cube);
+	*/
 
 	return h5File.getNParts();
 }
@@ -227,8 +229,8 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
-				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-				numOdeObjParts++;
+				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				//numOdeObjParts++;
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;

@@ -125,6 +125,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
+	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 
 	// CSV file for tespoints
 	string testpoints_fname = m_dirname + "/testpoints/testpoints_" + current_filenum() + ".csv";
@@ -219,6 +220,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			offset += sizeof(uchar)*numParts+sizeof(int);
 		}
 		scalar_array(fid, "UInt32", "Part id", offset);
+		offset += sizeof(uint)*numParts+sizeof(int);
+	}
+
+	if(vertices){
+		scalar_array(fid, "UInt32", "vertices", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
@@ -430,6 +436,15 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uint value = id(info[i]);
+			write_var(fid, value);
+		}
+	}
+
+	if(vertices){
+		// id
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			uint value = vertices[i].w;
 			write_var(fid, value);
 		}
 	}

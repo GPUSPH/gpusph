@@ -49,46 +49,47 @@ typedef struct MbCallBack {
 typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
-	double			sfactor;			// smoothing factor
-	double			slength;			// smoothing length (smoothing factor * deltap)
-	KernelType		kerneltype;			// kernel type
-	double			kernelradius;		// kernel radius
-	double			influenceRadius;	// influence radius ( = kernelradius * slength)
-	double			nlInfluenceRadius;	// extended radius ( = influence radius * nlexpansionfactor)
+	double			sfactor;				// smoothing factor
+	double			slength;				// smoothing length (smoothing factor * deltap)
+	KernelType		kerneltype;				// kernel type
+	double			kernelradius;			// kernel radius
+	double			influenceRadius;		// influence radius ( = kernelradius * slength)
+	double			nlInfluenceRadius;		// extended radius ( = influence radius * nlexpansionfactor)
 	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
-	float			dt;					// initial timestep
-	double			tend;				// simulation end time (0 means run forever)
-	bool			xsph;				// true if XSPH correction
-	bool			dtadapt;			// true if adaptive timestep
-	float			dtadaptfactor;		// safety factor in the adaptive time step formula
-	uint			buildneibsfreq;		// frequency (in iterations) of neib list rebuilding
-	uint			shepardfreq;		// frequency (in iterations) of Shepard density filter
-	uint			mlsfreq;			// frequency (in iterations) of MLS density filter
-	float			ferrari;			// coefficient for Ferrari correction
-	ViscosityType	visctype;			// viscosity type (1 artificial, 2 laminar)
-	bool			mbcallback;			// true if moving boundary velocity varies
-	bool			gcallback;			// true if using a variable gravity in problem
-	Periodicity		periodicbound;		// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
-	double			nlexpansionfactor;	// increase influcenradius by nlexpansionfactor for neib list construction
-	bool			usedem;				// true if using a DEM
-	SPHFormulation	sph_formulation;	// formulation to use for density and pressure computation
-	BoundaryType	boundarytype;		// boundary force formulation (Lennard-Jones etc)
-	bool			vorticity;			// true if we want to save vorticity
-	bool			testpoints;			// true if we want to find velocity at testpoints
-	bool			csvtestpoints;		// true to dump the testpoints also in CSV files
-	bool			csvsimplegages;		// true to dump the gages also in CSV files
-	bool			savenormals;		// true if we want to save the normals at free surface
-	bool			surfaceparticle;	// true if we want to find surface particles
-	bool			calc_energy;		// true if we want to compute system energy at save time
-	GageList		gage;				// water gages
-	uint			numODEbodies;		// number of floating bodies
-	uint			maxneibsnum;		// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
-	bool			calcPrivate;		// add the private array for debugging / additional calculation
-	float			epsilon;			// if |r_a - r_b| < epsilon two positions are considered identical
-	bool			movingBoundaries;	// defines if moving boundaries are present
-	bool			floatingObjects;	// defines if floating objects are present
-	bool			inoutBoundaries;	// defines if in- or outflow boundaries are present
-	uint			numObjects;			// number of ODE objects + open boundaries
+	float			dt;						// initial timestep
+	double			tend;					// simulation end time (0 means run forever)
+	bool			xsph;					// true if XSPH correction
+	bool			dtadapt;				// true if adaptive timestep
+	float			dtadaptfactor;			// safety factor in the adaptive time step formula
+	uint			buildneibsfreq;			// frequency (in iterations) of neib list rebuilding
+	uint			shepardfreq;			// frequency (in iterations) of Shepard density filter
+	uint			mlsfreq;				// frequency (in iterations) of MLS density filter
+	float			ferrari;				// coefficient for Ferrari correction
+	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
+	bool			mbcallback;				// true if moving boundary velocity varies
+	bool			gcallback;				// true if using a variable gravity in problem
+	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
+	double			nlexpansionfactor;		// increase influcenradius by nlexpansionfactor for neib list construction
+	bool			usedem;					// true if using a DEM
+	SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
+	BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
+	bool			vorticity;				// true if we want to save vorticity
+	bool			testpoints;				// true if we want to find velocity at testpoints
+	bool			csvtestpoints;			// true to dump the testpoints also in CSV files
+	bool			csvsimplegages;			// true to dump the gages also in CSV files
+	bool			savenormals;			// true if we want to save the normals at free surface
+	bool			surfaceparticle;		// true if we want to find surface particles
+	bool			calc_energy;			// true if we want to compute system energy at save time
+	GageList		gage;					// water gages
+	uint			numODEbodies;			// number of floating bodies
+	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
+	bool			calcPrivate;			// add the private array for debugging / additional calculation
+	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
+	bool			movingBoundaries;		// defines if moving boundaries are present
+	bool			floatingObjects;		// defines if floating objects are present
+	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
+	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows
+	uint			numObjects;				// number of ODE objects + open boundaries
 
 	SimParams(void) :
 		sfactor(1.3),
@@ -129,6 +130,7 @@ typedef struct SimParams {
 		movingBoundaries(false),
 		floatingObjects(false),
 		inoutBoundaries(false),
+		ioWaterdepthComputation(false),
 		numObjects(0)
 	{};
 

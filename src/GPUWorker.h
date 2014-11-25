@@ -227,6 +227,8 @@ private:
 	void kernel_updateVertIdIndexBuffer();
 	void kernel_saSegmentBoundaryConditions();
 	void kernel_saVertexBoundaryConditions();
+	void kernel_saIdentifyCornerVertices();
+	void kernel_saFindClosestVertex();
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();

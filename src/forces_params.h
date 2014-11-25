@@ -139,6 +139,7 @@ struct sa_boundary_forces_params
 	const	bool	movingBoundaries;
 	// TODO move into separate struct for inoutBoundaries
 			uint	*IOwaterdepth;
+			bool	ioWaterdepthComputation;
 
 	// Constructor / initializer
 	sa_boundary_forces_params(
@@ -146,11 +147,13 @@ struct sa_boundary_forces_params
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
 		const	bool	_movingBoundaries,
-				uint	*_IOwaterdepth) :
+				uint	*_IOwaterdepth,
+		const	bool	_ioWaterdepthComputation) :
 		newGGam(_newGGam),
 		epsilon(_epsilon),
 		movingBoundaries(_movingBoundaries),
-		IOwaterdepth(_IOwaterdepth)
+		IOwaterdepth(_IOwaterdepth),
+		ioWaterdepthComputation(_ioWaterdepthComputation)
 	{
 		if (_vertPos) {
 			vertPos0 = _vertPos[0];
@@ -223,6 +226,7 @@ struct forces_params :
 		const	float	_epsilon,
 		const	bool	_movingBoundaries,
 				uint	*_IOwaterdepth,
+		const	bool	_ioWaterdepthComputation,
 
 		// KEPSVISC
 				float3	*_keps_dkde,
@@ -235,7 +239,7 @@ struct forces_params :
 		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc, _cflOffset),
 		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
-			(_newGGam, _vertPos, _epsilon, _movingBoundaries, _IOwaterdepth),
+			(_newGGam, _vertPos, _epsilon, _movingBoundaries, _IOwaterdepth, _ioWaterdepthComputation),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
 };

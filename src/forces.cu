@@ -63,7 +63,7 @@ void*	reduce_buffer = NULL;
 			deltap, slength, influenceradius, usedem,\
 			cfl, cflTVisc, cflOffset, \
 			xsph, \
-			newGGam, vertPos, epsilon, movingBoundaries, IOwaterdepth, \
+			newGGam, vertPos, epsilon, movingBoundaries, IOwaterdepth, ioWaterdepthComputation,\
 			keps_dkde, turbvisc)
 
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, inoutBoundaries) \
@@ -527,6 +527,7 @@ forces(
 	const	bool	movingBoundaries,
 	const	bool	inoutBoundaries,
 			uint	*IOwaterdepth,
+	const	bool	ioWaterdepthComputation,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
@@ -1222,6 +1223,83 @@ uploadIOwaterdepth(
 	const	uint	numObjects)
 {
 	CUDA_SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+}
+
+void
+saIdentifyCornerVertices(
+	const	float4*			oldPos,
+	const	float4*			boundelement,
+			particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			eps)
+{
+	int dummy_shared = 0;
+
+	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
+
+	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
+	#if (__COMPUTE__ == 20)
+	dummy_shared = 2560;
+	#endif
+	// execute the kernel
+	cuforces::saIdentifyCornerVertices<<< numBlocks, numThreads, dummy_shared >>> (
+		oldPos,
+		info,
+		particleHash,
+		cellStart,
+		neibsList,
+		numParticles,
+		deltap,
+		eps);
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("saIdentifyCornerVertices kernel execution failed");
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+
+}
+
+void
+saFindClosestVertex(
+	const	float4*			oldPos,
+			particleinfo*	info,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd)
+{
+	int dummy_shared = 0;
+
+	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+
+	cuforces::saFindClosestVertex<<< numBlocks, numThreads, dummy_shared >>>(
+				oldPos,
+				info,
+				vertices,
+				vertIDToIndex,
+				particleHash,
+				cellStart,
+				neibsList,
+				numParticles);
+
+	// check if kernel invocation generated an error
+	CUT_CHECK_ERROR("saFindClosestVertex kernel execution failed");
+
+	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 
 } // extern "C"

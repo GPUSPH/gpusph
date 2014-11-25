@@ -964,7 +964,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		if (IO_BOUNDARY(info)) {
 			float sharedVertices = 0.0f;
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertXidx))){
+			if(true || IO_BOUNDARY(tex1Dfetch(infoTex, vertXidx))){
 				eulerVel += oldEulerVel[vertXidx];
 				if (oldTKE)
 					tke += oldTKE[vertXidx];
@@ -972,7 +972,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					eps += oldEps[vertXidx];
 				sharedVertices += 1.0f;
 			}
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertYidx))){
+			if(true || IO_BOUNDARY(tex1Dfetch(infoTex, vertYidx))){
 				eulerVel += oldEulerVel[vertYidx];
 				if (oldTKE)
 					tke += oldTKE[vertYidx];
@@ -980,7 +980,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					eps += oldEps[vertYidx];
 				sharedVertices += 1.0f;
 			}
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertZidx))){
+			if(true || IO_BOUNDARY(tex1Dfetch(infoTex, vertZidx))){
 				eulerVel += oldEulerVel[vertZidx];
 				if (oldTKE)
 					tke += oldTKE[vertZidx];
@@ -1082,7 +1082,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					oldEulerVel[index] = eulerVel;
 					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
 				}
-				else
+				else if (oldEulerVel)
 					oldEulerVel[index] = make_float4(0.0f);
 				if (oldEps)
 					oldEps[index] = fmax(sumeps/alpha, 1e-5f); // eps should never be 0
@@ -1093,7 +1093,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 		else {
 			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
-			oldEulerVel[index] = make_float4(0.0f);
+			if (oldEulerVel)
+				oldEulerVel[index] = make_float4(0.0f);
 			if (oldTKE)
 				oldTKE[index] = 1e-5f;
 			if (oldEps)
@@ -1175,19 +1176,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		}
 
-		// set the vertices.w coordinate which identifies how many associated vertex particles
-		// are part of an open boundary
-		if (initStep) {
-			uint vertCount = 0;
-			// if i-th vertex is part of an open boundary set i-th bit of vertCount to 1
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertXidx)))
-				vertCount |= VERTEX1;
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertYidx)))
-				vertCount |= VERTEX2;
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertZidx)))
-				vertCount |= VERTEX3;
-			vertices[index].w = vertCount;
-		}
 	}
 	// for fluid particles this kernel checks whether they have crossed the boundary at open boundaries
 	else if (inoutBoundaries && FLUID(info)) {
@@ -1284,8 +1272,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// the fluid particle found a segment so let's save it
 					// note normally vertices is empty for fluid particles so this will indicate
 					// from now on that it has to be destroyed
-					const vertexinfo verts = vertices[neib_index];
-					vertices[index] = verts;
+					vertexinfo verts = vertices[neib_index];
 
 					// furthermore we need to save the weights beta_{a,v} to avoid using
 					// neighbours of neighbours. As the particle will be deleted anyways we
@@ -1293,50 +1280,57 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					// in the 3-D case are the barycentric coordinates which we have already
 					// computed.
 					float4 vertexWeights = make_float4(0.0f);
-					// Check if all vertices are associated to an open boundary
-					// in this case we can use the barycentric coordinates
-					if (verts.w == ALLVERTICES) {
-						vertexWeights.x = 1.0f - (u+v);
-						vertexWeights.y = u;
-						vertexWeights.z = v;
-					}
-					// If there are two vertices then use the remaining two and split accordingly
-					else if (verts.w & (VERTEX1 | VERTEX2)) {
-						vertexWeights.x = 1.0f - (u+v);
-						vertexWeights.y = u;
-						vertexWeights.z = 0.0f;
-					}
-					else if (verts.w & (VERTEX2 | VERTEX3)) {
-						vertexWeights.x = 1.0f - (u+v);
-						vertexWeights.y = 0.0f;
-						vertexWeights.z = v;
-					}
-					else if (verts.w & (VERTEX3 | VERTEX1)) {
-						vertexWeights.x = 0.0f;
-						vertexWeights.y = u;
-						vertexWeights.z = v;
-					}
-					// if only one vertex is associated to the open boundary use only that one
-					else if (verts.w & VERTEX1) {
+					if (CORNER(neib_info)) {
 						vertexWeights.x = 1.0f;
-						vertexWeights.y = 0.0f;
-						vertexWeights.z = 0.0f;
+						verts.x = verts.w;
 					}
-					else if (verts.w & VERTEX2) {
-						vertexWeights.x = 0.0f;
-						vertexWeights.y = 1.0f;
-						vertexWeights.z = 0.0f;
-					}
-					else if (verts.w & VERTEX3) {
-						vertexWeights.x = 0.0f;
-						vertexWeights.y = 0.0f;
-						vertexWeights.z = 1.0f;
+					else {
+						// Check if all vertices are associated to an open boundary
+						// in this case we can use the barycentric coordinates
+						if (verts.w == ALLVERTICES) {
+							vertexWeights.x = 1.0f - (u+v);
+							vertexWeights.y = u;
+							vertexWeights.z = v;
+						}
+						// If there are two vertices then use the remaining two and split accordingly
+						else if (verts.w & (VERTEX1 | VERTEX2)) {
+							vertexWeights.x = 1.0f - (u+v);
+							vertexWeights.y = u;
+							vertexWeights.z = 0.0f;
+						}
+						else if (verts.w & (VERTEX2 | VERTEX3)) {
+							vertexWeights.x = 1.0f - (u+v);
+							vertexWeights.y = 0.0f;
+							vertexWeights.z = v;
+						}
+						else if (verts.w & (VERTEX3 | VERTEX1)) {
+							vertexWeights.x = 0.0f;
+							vertexWeights.y = u;
+							vertexWeights.z = v;
+						}
+						// if only one vertex is associated to the open boundary use only that one
+						else if (verts.w & VERTEX1) {
+							vertexWeights.x = 1.0f;
+							vertexWeights.y = 0.0f;
+							vertexWeights.z = 0.0f;
+						}
+						else if (verts.w & VERTEX2) {
+							vertexWeights.x = 0.0f;
+							vertexWeights.y = 1.0f;
+							vertexWeights.z = 0.0f;
+						}
+						else if (verts.w & VERTEX3) {
+							vertexWeights.x = 0.0f;
+							vertexWeights.y = 0.0f;
+							vertexWeights.z = 1.0f;
+						}
 					}
 					// normalize to make sure that all the weight is split up
 					vertexWeights = normalize3(vertexWeights);
 					// transfer mass to .w index as it is overwritten with the disable below
 					vertexWeights.w = pos.w;
 					oldGGam[index] = vertexWeights;
+					vertices[index] = verts;
 
 					// one segment is enough so jump out of the neighbour loop
 					break;
@@ -1396,6 +1390,7 @@ saVertexBoundaryConditions(
 	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
 	float4 sumEulerVel = make_float4(0.0f); // summation for computing the averages of the Euler velocities
 	float numseg  = 0.0f;  // number of adjacent segments
+	bool foundFluid = false;
 	// Average norm used in the intial step to compute grad gamma for vertex particles
 	// During the simulation this is used for open boundaries to determine whether particles are created
 	// For all other boundaries in the keps case this is the average normal of all non-open boundaries used to ensure that the
@@ -1439,7 +1434,7 @@ saVertexBoundaryConditions(
 					// boundary conditions on rho, k, eps
 					const float neibRho = oldVel[neib_index].w;
 					sumrho += neibRho;
-					if (IO_BOUNDARY(neib_info)){
+					if (!CORNER(info) && IO_BOUNDARY(neib_info)){
 						// number of vertices associated to a segment that are of the same object type
 						float numOutVerts = 2.0f;
 						if (neibVerts.w == ALLVERTICES) // all vertices are of the same object type
@@ -1464,9 +1459,17 @@ saVertexBoundaryConditions(
 						avgNorm += as_float3(boundElement);
 					}
 				}
+				// AM TODO FIXME the following code should work, but doesn't for some obscure reason
+				//if (CORNER(neib_info) && neibVerts.w == id(info)) {
+				//	const float neibRho = oldVel[neib_index].w;
+				//	sumMdot += neibRho*boundElement.w*
+				//				dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
+				//}
 			}
 			else if (FLUID(neib_info)){
 				const float4 relPos = pos_corr - oldPos[neib_index];
+				if(!foundFluid && length3(relPos) < influenceradius)
+					foundFluid = true;
 
 				// check if this fluid particles is marked for deletion (i.e. vertices != 0)
 				if (neibVerts.x | neibVerts.y != 0 && ACTIVE(relPos)) {
@@ -1500,13 +1503,13 @@ saVertexBoundaryConditions(
 	if (oldTKE) {
 		oldTKE[index] = sumtke/numseg;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if (!IO_BOUNDARY(info) && !initStep)
+		if (!IO_BOUNDARY(info) && !initStep) // AAA FIXME TKE
 			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
 	}
 	if (oldEps)
 		oldEps[index] = sumeps/numseg;
 	// open boundaries
-	if (IO_BOUNDARY(info)) {
+	if (IO_BOUNDARY(info) && !CORNER(info)) {
 		float4 eulerVel = oldEulerVel[index];
 		// imposing velocities => density needs to be averaged from segments
 		if (VEL_IO(info))
@@ -1528,11 +1531,13 @@ saVertexBoundaryConditions(
 			// only create new particles in the second part of the time step
 		if (step == 2 &&
 			// create new particle if the mass of the vertex is large enough
-			pos.w > 0.5f*refMass &&
+			pos.w > refMass &&
 			// check that the flow vector points into the domain
 			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
 			// pressure inlets need p > 0 to create particles
-			(VEL_IO(info) || fabs(eulerVel.w-rho0) > rho0*1e-5f) )
+			(VEL_IO(info) || fabs(eulerVel.w-rho0) > rho0*1e-5f) &&
+			// corner vertices are not allowed to create new particles
+			!CORNER(info))
 		{
 			pos.w -= refMass;
 			// Create new particle
@@ -1577,7 +1582,9 @@ saVertexBoundaryConditions(
 		}
 		// time stepping
 		pos.w += dt*sumMdot;
-		pos.w = fmax(-refMass, fmin(refMass, pos.w));
+		pos.w = fmax(0.0f, fmin(refMass*2.0f, pos.w));
+		if (!foundFluid)
+			pos.w = 0.0f;
 		oldPos[index].w = pos.w;
 	}
 
@@ -2511,6 +2518,177 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 		}
 	}
 }
+
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+saIdentifyCornerVertices(
+				const	float4*			oldPos,
+						particleinfo*	pinfo,
+				const	hashKey*		particleHash,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+				const	uint			numParticles,
+				const	float			deltap,
+				const	float			eps)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for vertex particles which are associated to an object
+	particleinfo info = pinfo[index];
+	const uint obj = object(info);
+	if (!VERTEX(info) || obj==0 || !IO_BOUNDARY(info))
+		return;
+
+	float4 pos = oldPos[index];
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+		const uint neib_obj = object(neib_info);
+
+		if (BOUNDARY(neib_info) && obj != neib_obj) {
+			const float4 relPos = pos_corr - oldPos[neib_index];
+			const float r = length3(relPos);
+			// if the position is greater than 1.5 dr then the segment is too far away
+			if (r > deltap*1.5f)
+				continue;
+
+			// check normal distance to segment
+			const float4 boundElement = tex1Dfetch(boundTex, neib_index);
+			const float normDist = fabs(dot3(boundElement,relPos));
+
+			// if normal distance is less than dr then the particle is a corner particle
+			// this implies that the mass of this particle won't vary but it is still treated
+			// like an open boundary in every other aspect
+			if (normDist < deltap - eps){
+				SET_FLAG(info, CORNER_PARTICLE_FLAG);
+				pinfo[index] = info;
+				break;
+			}
+		}
+	}
+}
+
+__global__ void
+__launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
+saFindClosestVertex(
+				const	float4*			oldPos,
+						particleinfo*	pinfo,
+						vertexinfo*		vertices,
+				const	uint*			vertIDToIndex,
+				const	hashKey*		particleHash,
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+				const	uint			numParticles)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	// read particle data from sorted arrays
+	// kernel is only run for boundary particles which are associated to an object
+	particleinfo info = pinfo[index];
+	const uint obj = object(info);
+	if (!BOUNDARY(info) || obj==0 || !IO_BOUNDARY(info))
+		return;
+
+	const vertexinfo verts = vertices[index];
+	// load the indices of the vertices only once
+	const uint vertXidx = vertIDToIndex[verts.x];
+	const uint vertYidx = vertIDToIndex[verts.y];
+	const uint vertZidx = vertIDToIndex[verts.z];
+	// get the info of those vertices
+	particleinfo infoX = pinfo[vertXidx];
+	particleinfo infoY = pinfo[vertYidx];
+	particleinfo infoZ = pinfo[vertZidx];
+	// check if at least one of vertex particles is part of same IO object and not a corner vertex
+	if ((object(infoX) == obj && !CORNER(infoX)) ||
+		(object(infoY) == obj && !CORNER(infoY)) ||
+		(object(infoZ) == obj && !CORNER(infoZ))   ) {
+		// in this case set vertices.w which identifies how many vertex particles are associated to the same
+		// IO object
+		uint vertCount = 0;
+		// if i-th vertex is part of an open boundary and not a corner set i-th bit of vertCount to 1
+		if(IO_BOUNDARY(infoX) && !CORNER(infoX))
+			vertCount |= VERTEX1;
+		if(IO_BOUNDARY(infoY) && !CORNER(infoY))
+			vertCount |= VERTEX2;
+		if(IO_BOUNDARY(infoZ) && !CORNER(infoZ))
+			vertCount |= VERTEX3;
+		vertices[index].w = vertCount;
+		if (vertCount != 0) { // AAA
+			return;
+		}
+		// nothing left to do here in this routine
+		//return;
+	}
+
+	// otherwise identify the closest vertex particle that belongs to the same IO object and is not a corner vertex
+	float4 pos = oldPos[index];
+
+	// Compute grid position of current particle
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	float minDist = 1e10;
+	uint minVertId = UINT_MAX;
+
+	// Loop over all the neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+					neib_cellnum, neib_cell_base_index);
+
+		const particleinfo neib_info = pinfo[neib_index];
+		const uint neib_obj = object(neib_info);
+
+		if (VERTEX(neib_info) && obj == neib_obj && !CORNER(neib_info)) {
+			const float4 relPos = pos_corr - oldPos[neib_index];
+			const float r = length3(relPos);
+			if (minDist > r) {
+				minDist = r;
+				minVertId = id(neib_info);
+			}
+		}
+	}
+	if (minVertId == UINT_MAX) {
+		// make sure we get a nice crash here
+		printf("-- ERROR -- Could not find a non-corner vertex for segment id: %d with object type: %d\n", id(info), obj);
+		return;
+	} else {
+		vertices[index].w = minVertId;
+		SET_FLAG(info, CORNER_PARTICLE_FLAG);
+		pinfo[index] = info;
+	}
+}
+
 /************************************************************************************************************/
 
 } //namespace cuforces

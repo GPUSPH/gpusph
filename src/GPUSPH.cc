@@ -696,7 +696,7 @@ bool GPUSPH::runSimulation() {
 
 			// get GradGamma
 			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
-				which_buffers |= BUFFER_GRADGAMMA;
+				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
 
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
@@ -1585,14 +1585,25 @@ void GPUSPH::initializeObjectsCGs()
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
 	// initially data is in read so swap to write
-	if (cFlag & INITIALIZATION_STEP)
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_VERTICES);
+	if (cFlag & INITIALIZATION_STEP) {
+		gdata->swapDeviceBuffers(BUFFER_INFO);
+		doCommand(IDENTIFY_CORNER_VERTICES);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
+
+		gdata->swapDeviceBuffers(BUFFER_VERTICES);
+		doCommand(FIND_CLOSEST_VERTEX);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_VERTICES | DBLBUFFER_WRITE);
+
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO);
+	}
 
 	// impose open boundary conditions
 	if (problem->get_simparams()->inoutBoundaries) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE) {
+		if (MULTI_DEVICE && problem->get_simparams()->ioWaterdepthComputation) {
 			// each device gets his waterdepth array from the gpu
 			doCommand(DOWNLOAD_IOWATERDEPTH);
 			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];

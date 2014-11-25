@@ -391,7 +391,7 @@ struct sa_boundary_particle_output
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
 		gGam(make_float4(0, 0, 0, 1)),
-		minlRas(1e10),
+		minlRas(1e10f),
 		alpha(0.0f),
 		gamavg(0.0f)
 	{}
@@ -413,7 +413,7 @@ struct keps_particle_output
 	{
 		dvx = dvy = dvz = make_float3(0.0f);
 		diff_term_k = diff_term_e = 0;
-		ce2yap = 1.92;
+		ce2yap = 1.92f;
 	}
 };
 
@@ -545,7 +545,7 @@ struct eulerVel_neib_data
 
 	__device__ __forceinline__
 	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const particleinfo _info) :
-		relEulerVelRho(as_float3(pdata.eulerVel) - ((VERTEX(_info) || BOUNDARY(_info)) && IO_BOUNDARY(_info) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
+		relEulerVelRho(as_float3(pdata.eulerVel) - ((VERTEX(_info) || BOUNDARY(_info)) && (IO_BOUNDARY(_info) && !CORNER(_info)) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
 		relEulerVelVisc(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
 	{}
 };
@@ -887,7 +887,7 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 	} else {
 		// volumic term of div(v)
 		common_with(params, pdata, ndata, pout, nout);
-		if (inoutBoundaries && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info))
+		if (inoutBoundaries && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
 			compute_euler_contributions<inoutBoundaries>::volumic_term(params, pdata, ndata, pout, nout);
 		if (d_ferrari) {
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
@@ -1794,7 +1794,7 @@ forcesDevice(
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && !IO_BOUNDARY(pdata.info)) {
+			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}

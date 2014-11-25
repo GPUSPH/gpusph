@@ -240,7 +240,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_physparams.kinematicvisc = 1.0e-2f;
 		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-		m_physparams.set_density(0, 1000.0, 7.0f, 80.0f);
+		m_physparams.set_density(0, 1000.0, 7.0f, 110.0f);
 
 		m_simparams.tend = 10.0;
 		m_simparams.testpoints = false;
@@ -251,6 +251,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-5.4, -1.1, -2.1);
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
+		m_simparams.ioWaterdepthComputation = true;
 	//*************************************************************************************
 
 #endif
@@ -444,8 +445,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-				//if (openBoundType == 1)
-				//	SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
+				if (openBoundType == 1)
+					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}

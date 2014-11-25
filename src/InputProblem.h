@@ -23,7 +23,7 @@
 #define LaPalisseSmallTest		11	// Small testcase for La Palisse (pressure in/out with free-surface)
 //*******************************************************************************************************
 // Chosse one of the problems above
-#define SPECIFIC_PROBLEM LaPalisseSmallTest
+#define SPECIFIC_PROBLEM SmallChannelFlow
 
 class InputProblem: public Problem {
 	private:
