@@ -1271,37 +1271,34 @@ void GPUWorker::createCompactDeviceMap() {
 							int cx = ix + dx;
 							int cy = iy + dy;
 							int cz = iz + dz;
+
 							// warp periodic boundaries
-							if (m_simparams->periodicbound) {
-								// periodicity along X
-								if (m_physparams->dispvect.x) {
-									// WARNING: checking if c* is negative MUST be done before checking if it's greater than
-									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
-									if (cx < 0) {
-										cx = gdata->gridSize.x - 1;
-									} else
-									if (cx >= gdata->gridSize.x) {
-										cx = 0;
-									}
-								} // if dispvect.x
-								// periodicity along Y
-								if (m_physparams->dispvect.y) {
-									if (cy < 0) {
-										cy = gdata->gridSize.y - 1;
-									} else
-									if (cy >= gdata->gridSize.y) {
-										cy = 0;
-									}
-								} // if dispvect.y
-								// periodicity along Z
-								if (m_physparams->dispvect.z) {
-									if (cz < 0) {
-										cz = gdata->gridSize.z - 1;
-									} else
-									if (cz >= gdata->gridSize.z) {
-										cz = 0;
-									}
-								} // if dispvect.z
+
+							// periodicity along X
+							if (m_simparams->periodicbound & PERIODIC_X) {
+								// WARNING: checking if c* is negative MUST be done before checking if it's greater than
+								// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
+								if (cx < 0) {
+									cx = gdata->gridSize.x - 1;
+								} else if (cx >= gdata->gridSize.x) {
+									cx = 0;
+								}
+							}
+							// periodicity along Y
+							if (m_simparams->periodicbound & PERIODIC_Y) {
+								if (cy < 0) {
+									cy = gdata->gridSize.y - 1;
+								} else if (cy >= gdata->gridSize.y) {
+									cy = 0;
+								}
+							}
+							// periodicity along Z
+							if (m_simparams->periodicbound & PERIODIC_Z) {
+								if (cz < 0) {
+									cz = gdata->gridSize.z - 1;
+								} else if (cz >= gdata->gridSize.z) {
+									cz = 0;
+								}
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||

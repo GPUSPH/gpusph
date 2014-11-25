@@ -44,9 +44,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		//periodic boundaries
 		m_simparams.periodicbound = PERIODIC_X;
-		m_physparams.dispvect = make_float3(l, l, 0.0);
-		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-		m_physparams.maxlimit = make_float3(l, l, 0.0f);
 		m_origin = make_double3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	}
@@ -161,10 +158,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 //	m_physparams.gravity = make_float3(9.81f*sin(atan(slope)), 0.0, -9.81f*cos(atan(slope)));
 
 //	//periodic boundaries
-//	m_simparams.periodicbound = true;
-//	m_physparams.dispvect = make_float3(l, 0.0f, 0.0f);
-//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-//	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
+//	m_simparams.periodicbound = PERIODIC_X;
 //	//*************************************************************************************
 
 //	// Poiseuille flow
@@ -184,10 +178,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 //	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
 //
 //	//periodic boundaries
-//	m_simparams.periodicbound = true;
-//	m_physparams.dispvect = make_float3(l, w, 0.0f);
-//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-//	m_physparams.maxlimit = make_float3(l, w, 0.0f);
+//	m_simparams.periodicbound = PERIODIC_XY;
 //	//*************************************************************************************
 
 	// SPH parameters
