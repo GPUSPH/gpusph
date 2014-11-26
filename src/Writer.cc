@@ -95,7 +95,16 @@ Writer::Create(GlobalData *_gdata)
 			m_writers[wt] = writer;
 		}
 		writer->set_write_freq(freq);
-		cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
+		if (freq > 0)
+			cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
+		else if (freq == 0)
+			cout << WriterName[wt] << " will write every iteration" << endl;
+		else if (freq < 0)
+			cout << WriterName[wt] << " has been disabled" << endl;
+		else if (isnan(freq))
+			cout << WriterName[wt] << " has special treatment" << endl;
+		else
+			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;
 	}
 
 	// If there is no CommonWriter, create it. It will have the default settings
@@ -121,7 +130,7 @@ void
 Writer::MarkWritten(double t, bool force)
 {
 	// is the common writer special?
-	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool common_special = m_writers[COMMONWRITER]->is_special();
 	bool written = false; // set to true if any writer acted
 
 	WriterMap::iterator it(m_writers.begin());
@@ -153,7 +162,7 @@ Writer::Write(uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)
 {
 	// is the common writer special?
-	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool common_special = m_writers[COMMONWRITER]->is_special();
 	bool written = false; // set to true if any writer acted
 
 	WriterMap::iterator it(m_writers.begin());
@@ -178,7 +187,7 @@ void
 Writer::WriteWaveGage(double t, GageList const& gage)
 {
 	// is the common writer special?
-	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool common_special = m_writers[COMMONWRITER]->is_special();
 	bool written = false; // set to true if any writer acted
 
 	WriterMap::iterator it(m_writers.begin());
@@ -203,7 +212,7 @@ void
 Writer::WriteObjects(double t, Object const* const* bodies)
 {
 	// is the common writer special?
-	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool common_special = m_writers[COMMONWRITER]->is_special();
 	bool written = false; // set to true if any writer acted
 
 	WriterMap::iterator it(m_writers.begin());
@@ -294,8 +303,13 @@ Writer::set_write_freq(double f)
 bool
 Writer::need_write(double t) const
 {
-	if (m_writefreq == 0)
+	// negative frequency: writer disabled
+	if (m_writefreq < 0)
 		return false;
+
+	// null frequency: write always
+	if (m_writefreq == 0)
+		return true;
 
 	if (floor(t/m_writefreq) > floor(m_last_write_time/m_writefreq))
 		return true;

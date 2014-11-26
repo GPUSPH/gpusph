@@ -515,31 +515,28 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->numODEbodies > 0) {
 			doCommand(REDUCE_BODIES_FORCES);
 
-			float3* totForce = new float3[problem->get_simparams()->numODEbodies];
-			float3* totTorque = new float3[problem->get_simparams()->numODEbodies];
-
 			// now sum up the partial forces and momenta computed in each gpu
 			for (uint ob = 0; ob < problem->get_simparams()->numODEbodies; ob ++) {
 
-				totForce[ob] = make_float3( 0.0F );
-				totTorque[ob] = make_float3( 0.0F );
+				gdata->s_hRbTotalForce[ob] = make_float3( 0.0F );
+				gdata->s_hRbTotalTorque[ob] = make_float3( 0.0F );
 
 				for (uint d = 0; d < gdata->devices; d++) {
-					totForce[ob] += gdata->s_hRbTotalForce[d][ob];
-					totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
+					gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d][ob];
+					gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d][ob];
 				} // iterate on devices
 			} // iterate on objects
 
 			// if running multinode, also reduce across nodes
 			if (MULTI_NODE) {
 				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
 			}
 
-			Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, totForce, totTorque);
+			Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque);
 
-			problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
+			problem->ODE_bodies_timestep(gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
 					gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler

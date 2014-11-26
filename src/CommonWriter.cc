@@ -38,7 +38,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 
 	// special value denoting default behavior of writing every time
 	// any other writer does
-	m_writefreq = -1;
+	m_writefreq = NAN;
 
 	write_summary();
 

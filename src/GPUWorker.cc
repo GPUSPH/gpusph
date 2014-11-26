@@ -2158,22 +2158,22 @@ void GPUWorker::kernel_reduceRBForces()
 	// make sure this device does not add any obsolete contribute to forces acting on objects
 	if (MULTI_DEVICE) {
 		for (uint ob = 0; ob < m_simparams->numODEbodies; ob++) {
-			gdata->s_hRbTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
-			gdata->s_hRbTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
+			gdata->s_hRbDeviceTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
 		}
 	}
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
-					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
+	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbDeviceTotalForce[m_deviceIndex],
+					gdata->s_hRbDeviceTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
 
 	// TODO Debug (remove)
-	/*printf("objects %d, F(%e, %e, %e) M(%e, %e, %e) \n", (int) m_simparams->numODEbodies, gdata->s_hRbTotalForce[m_deviceIndex][0].x,
-			gdata->s_hRbTotalForce[m_deviceIndex][0].y, gdata->s_hRbTotalForce[m_deviceIndex][0].z,
-			gdata->s_hRbTotalTorque[m_deviceIndex][0].x, gdata->s_hRbTotalTorque[m_deviceIndex][0].y,
-			gdata->s_hRbTotalTorque[m_deviceIndex][0].z);*/
+	/*printf("objects %d, F(%e, %e, %e) M(%e, %e, %e) \n", (int) m_simparams->numODEbodies, gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].x,
+			gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].y, gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].z,
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].x, gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].y,
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].z);*/
 }
 
 void GPUWorker::kernel_updateValuesAtBoundaryElements()

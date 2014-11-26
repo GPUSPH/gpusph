@@ -266,8 +266,12 @@ struct GlobalData {
 
 	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
-	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
-	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+	float3 s_hRbDeviceTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
+	float3 s_hRbDeviceTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+
+	float3 s_hRbTotalForce[MAXBODIES]; // aggregate total force (sum across all devices and nodes);
+	float3 s_hRbTotalTorque[MAXBODIES]; // aggregate total torque (sum across all devices and nodes);
+
 	// gravity centers and rototranslations, which are computed by the ODE library
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
@@ -324,8 +328,8 @@ struct GlobalData {
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			for (uint ob=0; ob < MAXBODIES; ob++) {
-				s_hRbTotalForce[d][ob] = make_float3(0.0F);
-				s_hRbTotalTorque[d][ob] = make_float3(0.0F);
+				s_hRbDeviceTotalForce[d][ob] = make_float3(0.0F);
+				s_hRbDeviceTotalTorque[d][ob] = make_float3(0.0F);
 			}
 
 		// init last indices for segmented scans for objects
