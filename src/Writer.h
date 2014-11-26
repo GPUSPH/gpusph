@@ -142,6 +142,11 @@ protected:
 	double get_write_freq()
 	{ return m_writefreq; }
 
+	// does this writer need special treatment?
+	// (This is only used for the COMMONWRITER presently.)
+	bool is_special()
+	{ return isnan(m_writefreq); }
+
 	inline void
 	mark_written(double t)
 	{ m_last_write_time = t; }
@@ -184,7 +189,11 @@ protected:
 	{ return open_data_file(out, base, string(), m_fname_sfx); }
 
 
+	// time of last write
 	double			m_last_write_time;
+	// time between writes. Special values:
+	// zero means write every time
+	// negative values means don't write (writer disabled)
 	double			m_writefreq;
 
 	string			m_dirname;
