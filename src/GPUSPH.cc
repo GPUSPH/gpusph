@@ -534,8 +534,6 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
 			}
 
-			Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque);
-
 			problem->ODE_bodies_timestep(gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
 					gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
@@ -1186,6 +1184,7 @@ void GPUSPH::doWrite(bool force)
 	}
 
 	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+		Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque);
 		Writer::WriteObjects(gdata->t, gdata->problem->get_ODE_bodies());
 	}
 
