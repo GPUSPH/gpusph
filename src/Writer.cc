@@ -142,6 +142,12 @@ Writer::MarkWritten(double t, bool force)
 		m_writers[COMMONWRITER]->mark_written(t);
 }
 
+/* TODO FIXME C++11
+ * All of the Write* delegates have the exact same structure,
+ * wish we could use C++11 variadic templates and code them as a single
+ * function.
+ */
+
 void
 Writer::Write(uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)

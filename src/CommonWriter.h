@@ -31,8 +31,8 @@
  * It is independent of all other writers, active by default, and by default
  * writes a datapoint every time any other writer also writes (i.e. it doesn't
  * have a frequency of its own). It is of course possible to override this
- * behavior by setting its frequency to 0 (to disable it) or to any other value
- * (for a fixed frequency).
+ * behavior by setting its frequency to 0 (to disable it) or to any other (positive)
+ * value (for a fixed frequency) in the problem.
  * The files created by the CommonWriter should all follow the following format:
  *
  * 0. tab separated

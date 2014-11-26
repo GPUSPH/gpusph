@@ -138,16 +138,19 @@ protected:
 	virtual ~Writer();
 
 	void set_write_freq(double f);
+
 	double get_write_freq()
 	{ return m_writefreq; }
+
+	inline void
+	mark_written(double t)
+	{ m_last_write_time = t; }
 
 	virtual bool
 	need_write(double t) const;
 
 	virtual void
 	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
-
-	inline void mark_written(double t) { m_last_write_time = t; }
 
 	virtual void
 	write_energy(double t, float4 *energy) {}
