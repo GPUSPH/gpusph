@@ -128,6 +128,7 @@ CommonWriter::write_energy(double t, float4 *energy)
 							<< "\t" << energy[fluid].y
 							<< "\t" << energy[fluid].z;
 		m_energyfile << endl;
+		m_energyfile.flush();
 	}
 }
 
@@ -140,6 +141,7 @@ CommonWriter::write_WaveGage(double t, GageList const& gage)
 			m_WaveGagefile << "\t" << gage[i].z;
 		}
 		m_WaveGagefile << endl;
+		m_WaveGagefile.flush();
 	}
 }
 
@@ -158,6 +160,7 @@ CommonWriter::write_objects(double t, Object const* const* bodies)
 				<< "\t" << quat[2] << "\t" << quat[3];
 		}
 		m_objectfile << endl;
+		m_objectfile.flush();
 	}
 }
 
@@ -178,6 +181,7 @@ CommonWriter::write_objectforces(double t, uint numobjects, const float3* forces
 				<< "\t" << momentums[i].z;
 		}
 		m_objectforcesfile << endl;
+		m_objectforcesfile.flush();
 	}
 }
 
