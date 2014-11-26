@@ -1535,7 +1535,7 @@ saVertexBoundaryConditions(
 			// check that the flow vector points into the domain
 			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
 			// pressure inlets need p > 0 to create particles
-			(VEL_IO(info) || fabs(eulerVel.w-rho0) > rho0*1e-5f) &&
+			(VEL_IO(info) || eulerVel.w-rho0 > rho0*1e-5f) &&
 			// corner vertices are not allowed to create new particles
 			!CORNER(info))
 		{
@@ -1580,6 +1580,8 @@ saVertexBoundaryConditions(
 			if (oldEps)
 				oldEps[clone_idx] = oldEps[index];
 		}
+		if (!VEL_IO(info) && sumMdot > 0.0f && !(eulerVel.w-rho0 > rho0*1e-5f))
+			sumMdot = 0.0f;
 		// time stepping
 		pos.w += dt*sumMdot;
 		pos.w = fmax(0.0f, fmin(refMass*2.0f, pos.w));
