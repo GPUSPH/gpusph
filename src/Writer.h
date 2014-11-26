@@ -41,6 +41,9 @@
 // GageList
 #include "simparams.h"
 
+// Object
+#include "Object.h"
+
 // deprecation macros
 #include "deprecation.h"
 
@@ -57,6 +60,7 @@ using namespace std;
 
 enum WriterType
 {
+	COMMONWRITER,
 	TEXTWRITER,
 	VTKWRITER,
 	VTKLEGACYWRITER,
@@ -115,6 +119,11 @@ public:
 	static void
 	WriteWaveGage(double t, GageList const& gage);
 
+	// write object data
+	static void
+	WriteObjects(double t, Object const* const* bodies);
+
+	// write object forces
 	static void
 	WriteObjectForces(double t, uint numobjects, const float3* forces, const float3* momentums);
 
@@ -134,21 +143,31 @@ protected:
 
 	void set_write_freq(double f);
 
-	bool need_write(double t) const;
+	double get_write_freq()
+	{ return m_writefreq; }
+
+	inline void
+	mark_written(double t)
+	{ m_last_write_time = t; }
+
+	virtual bool
+	need_write(double t) const;
 
 	virtual void
 	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
 
-	inline void mark_written(double t) { m_last_write_time = t; }
+	virtual void
+	write_energy(double t, float4 *energy) {}
 
 	virtual void
-	write_energy(double t, float4 *energy);
+	write_WaveGage(double t, GageList const& gage) {}
 
 	virtual void
-	write_WaveGage(double t, GageList const& gage);
+	write_objects(double t, Object const* const* bodies) {}
 
 	virtual void
-	write_objectforces(double t, uint numobjects, const float3* forces, const float3* momentums);
+	write_objectforces(double t, uint numobjects,
+		const float3* forces, const float3* momentums) {}
 
 	uint getLastFilenum();
 
@@ -168,15 +187,17 @@ protected:
 	open_data_file(ofstream &out, const char* base, string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
+	inline string
+	open_data_file(ofstream &out, const char* base)
+	{ return open_data_file(out, base, string(), m_fname_sfx); }
+
+
 	double			m_last_write_time;
 	double			m_writefreq;
 
 	string			m_dirname;
 	uint			m_FileCounter;
 	ofstream		m_timefile;
-	ofstream		m_energyfile;
-	ofstream		m_objectforcesfile;
-	ofstream		m_WaveGagefile;
 
 	const Problem	*m_problem;
 	string			next_filenum();

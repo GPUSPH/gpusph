@@ -29,6 +29,7 @@
 #include "Writer.h"
 #include "GlobalData.h"
 
+#include "CommonWriter.h"
 #include "CustomTextWriter.h"
 #include "TextWriter.h"
 #include "UDPWriter.h"
@@ -40,6 +41,7 @@ WriterMap Writer::m_writers = WriterMap();
 bool Writer::m_forced = false;
 
 static const char* WriterName[] = {
+	"CommonWriter",
 	"TextWriter",
 	"VTKWriter",
 	"VTKLegacyWriter",
@@ -67,6 +69,9 @@ Writer::Create(GlobalData *_gdata)
 			cerr << "Overriding " << WriterName[wt] << " writing frequency" << endl;
 		} else {
 			switch (wt) {
+			case COMMONWRITER:
+				writer = new CommonWriter(_gdata);
+				break;
 			case TEXTWRITER:
 				writer = new TextWriter(_gdata);
 				break;
@@ -92,6 +97,11 @@ Writer::Create(GlobalData *_gdata)
 		writer->set_write_freq(freq);
 		cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
 	}
+
+	// If there is no CommonWriter, create it. It will have the default settings
+	// of writing whenever any other writer writes
+	if (m_writers.find(COMMONWRITER) == m_writers.end())
+		m_writers[COMMONWRITER] = new CommonWriter(_gdata);
 }
 
 bool
@@ -110,51 +120,133 @@ Writer::NeedWrite(double t)
 void
 Writer::MarkWritten(double t, bool force)
 {
+	// is the common writer special?
+	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool written = false; // set to true if any writer acted
+
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
 		Writer *writer = it->second;
-		if (writer->need_write(t) || force || m_forced)
+		if (writer->need_write(t) || force || m_forced) {
 			writer->mark_written(t);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->mark_written(t);
 }
+
+/* TODO FIXME C++11
+ * All of the Write* delegates have the exact same structure,
+ * wish we could use C++11 variadic templates and code them as a single
+ * function.
+ */
 
 void
 Writer::Write(uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)
 {
+	// is the common writer special?
+	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool written = false; // set to true if any writer acted
+
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
 		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced)
+		if (writer->need_write(t) || m_forced) {
 			writer->write(numParts, buffers, node_offset, t, testpoints);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write(numParts, buffers, node_offset, t, testpoints);
 }
 
 void
 Writer::WriteWaveGage(double t, GageList const& gage)
 {
+	// is the common writer special?
+	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool written = false; // set to true if any writer acted
+
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
 		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced)
+		if (writer->need_write(t) || m_forced) {
 			writer->write_WaveGage(t, gage);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_WaveGage(t, gage);
 }
 
+void
+Writer::WriteObjects(double t, Object const* const* bodies)
+{
+	// is the common writer special?
+	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced) {
+			writer->write_objects(t, bodies);
+			written = true;
+		}
+	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_objects(t, bodies);
+}
 
 void
 Writer::WriteObjectForces(double t, uint numobjects, const float3* forces, const float3* momentums)
 {
+	// is the common writer special?
+	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool written = false; // set to true if any writer acted
+
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
 		Writer *writer = it->second;
-		if (writer->need_write(t) || m_forced)
+		if (writer->need_write(t) || m_forced) {
 			writer->write_objectforces(t, numobjects, forces, momentums);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_objectforces(t, numobjects, forces, momentums);
 }
 
 void
@@ -186,29 +278,6 @@ Writer::Writer(const GlobalData *_gdata) :
 		mkdir(testpointsDir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 	}
 
-	string energy_fn = open_data_file(m_energyfile, "energy", "", ".txt");
-	if (m_energyfile) {
-		m_energyfile << "#\ttime";
-		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			m_energyfile	<< "\tkinetic" << fluid
-							<< "\tpotential" << fluid
-							<< "\telastic" << fluid;
-		m_energyfile << endl;
-	}
-
-	//WaveGage
-	string WaveGage_fn = open_data_file(m_WaveGagefile, "WaveGage", "", ".txt");
-	if (m_WaveGagefile) {
-		m_WaveGagefile << "#\ttime";
-		uint gage = 0;
-		for (; gage < m_problem->get_simparams()->gage.size(); ++gage)
-			m_WaveGagefile << "\tzgage" << gage;
-		m_WaveGagefile << endl;
-	}
-
-	// Forces on objects
-	string objectforces_fn = open_data_file(m_objectforcesfile, "objectforces", "", ".txt");
 }
 
 Writer::~Writer()
@@ -232,55 +301,6 @@ Writer::need_write(double t) const
 		return true;
 
 	return false;
-}
-
-void
-Writer::write_energy(double t, float4 *energy)
-{
-	if (m_energyfile) {
-		m_energyfile << t;
-		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			m_energyfile	<< "\t" << energy[fluid].x
-							<< "\t" << energy[fluid].y
-							<< "\t" << energy[fluid].z;
-		m_energyfile << endl;
-	}
-}
-
-//WaveGage
-void
-Writer::write_WaveGage(double t, GageList const& gage)
-{
-	if (m_WaveGagefile) {
-		m_WaveGagefile << t;
-		for (size_t i=0; i < gage.size(); i++) {
-			m_WaveGagefile << "\t" << gage[i].z;
-		}
-		m_WaveGagefile << endl;
-	}
-}
-
-
-// Object forces
-void
-Writer::write_objectforces(double t, uint numobjects, const float3* forces, const float3* momentums)
-{
-	if (m_objectforcesfile) {
-		m_objectforcesfile << t;
-		for (int i=0; i < numobjects; i++) {
-			m_objectforcesfile << "\t" << i;
-			m_objectforcesfile
-				<< "\t" << forces[i].x
-				<< "\t" << forces[i].y
-				<< "\t" << forces[i].z;
-			m_objectforcesfile
-				<< "\t" << momentums[i].x
-				<< "\t" << momentums[i].y
-				<< "\t" << momentums[i].z;
-		}
-		m_objectforcesfile << endl;
-	}
 }
 
 string

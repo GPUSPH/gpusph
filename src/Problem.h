@@ -59,7 +59,6 @@ using namespace std;
 
 class Problem {
 	private:
-		double		m_last_rbdata_write_time;
 		string		m_problem_dir;
 		WriterList	m_writers;
 
@@ -86,9 +85,6 @@ class Problem {
 		double3	m_cellsize;		// Size of grid cells
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
-
-		double		m_rbdata_writeinterval;
-		ofstream		m_rbdatafile;
 
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }
@@ -117,12 +113,6 @@ class Problem {
 		Problem(const GlobalData *_gdata);
 
 		virtual ~Problem(void);
-
-		/* Save a summary of phy, sim params and options */
-		void write_simparams(ostream &out);
-		void write_physparams(ostream &out);
-		void write_options(ostream &out);
-		void write_summary();
 
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
@@ -258,10 +248,6 @@ class Problem {
 		// beyond those controlled by the writer(s) periodic time
 		virtual bool need_write(double) const;
 
-		// TODO these should be moved out of here into a specific writer
-		virtual bool need_write_rbdata(double) const;
-		void write_rbdata(double);
-
 		// is the simulation running at the given time?
 		bool finished(double) const;
 
@@ -296,6 +282,9 @@ class Problem {
 		void allocate_ODE_bodies(const uint);
 		void add_ODE_body(Object* object);
 		Object* get_ODE_body(const uint);
+		Object const* const* get_ODE_bodies() const
+		{ return m_ODE_bodies; }
+
 		void get_ODE_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		float3* get_ODE_bodies_cg(void);
 		float* get_ODE_bodies_steprot(void);
