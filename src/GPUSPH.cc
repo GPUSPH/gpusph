@@ -1112,7 +1112,7 @@ void GPUSPH::doWrite(bool force)
 
 	// WaveGages work by looking at neighboring SURFACE particles and averaging their z coordinates
 	// NOTE: it's a standard average, not an SPH smoothing, so the neighborhood is arbitrarily fixed
-	// at gage (x,y) ± 2 smoothing lengths
+	// at gage (x,y) Â± 2 smoothing lengths
 	// TODO should it be an SPH smoothing instead?
 
 	GageList &gages = problem->get_simparams()->gage;
