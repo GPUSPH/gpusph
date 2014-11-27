@@ -618,6 +618,10 @@ Problem::get_ODE_bodies_steprot(void)
 	return m_bodies_steprot;
 }
 
+void
+Problem::object_forces_callback(double t, int step, float3 *forces, float3 *torques)
+{ /* default does nothing */ }
+
 
 void
 Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,

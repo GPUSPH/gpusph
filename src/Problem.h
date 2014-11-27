@@ -290,6 +290,13 @@ class Problem {
 		float* get_ODE_bodies_steprot(void);
 		float3* get_ODE_bodies_linearvel(void);
 		float3* get_ODE_bodies_angularvel(void);
+
+		/* This method can be overridden in problems when the object
+		 * forces have to be altered in some way before being applied.
+		 */
+		virtual void
+		object_forces_callback(double t, int step, float3 *forces, float3 *torques);
+
 		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
 									const double, float3 * &, float3 * &, float * &,
 									float3 * &, float3 * &);

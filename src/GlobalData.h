@@ -272,6 +272,12 @@ struct GlobalData {
 	float3 s_hRbTotalForce[MAXBODIES]; // aggregate total force (sum across all devices and nodes);
 	float3 s_hRbTotalTorque[MAXBODIES]; // aggregate total torque (sum across all devices and nodes);
 
+	// actual applied total forces and torques. may be different from the computed total
+	// forces/torques if modified by the problem callback
+	float3 s_hRbAppliedForce[MAXBODIES];
+	float3 s_hRbAppliedTorque[MAXBODIES];
+
+
 	// gravity centers and rototranslations, which are computed by the ODE library
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
