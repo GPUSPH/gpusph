@@ -149,6 +149,7 @@ eulerDevice(
 			// Updating positions for piston particles.
 			// Now d_mbdata.x contains the piston velocity
 			pos.x += d_mbdata[obj].x*dt;
+			vel.x = d_mbdata[obj].x;
 			break;
 		case PT_PADDLE:
 			{
@@ -160,12 +161,16 @@ eulerDevice(
 			// Apply rotation around y axis
 			pos.x += c*relPos.x + s*relPos.y;
 			pos.z += -s*relPos.x + c*relPos.y;
+			// Velocity
+			vel.x = d_mbdata[obj].z*relPos.y;
+			vel.z = -d_mbdata[obj].z*relPos.x;
 			}
 			break;
 		case PT_GATE:
 			// Updating positions for gate particles
 			// mbdata.x,y,z contains gate velocity
 			as_float3(pos) += as_float3(d_mbdata[obj])*dt;
+			as_float3(vel) = as_float3(d_mbdata[obj]);
 			break;
 		case PT_OBJECT:
 			vel.w += dt*force.w;
