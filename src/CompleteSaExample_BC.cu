@@ -39,8 +39,8 @@ CompleteSaExample_imposeBoundaryCondition(
 		if (INFLOW(info) && !VEL_IO(info)) {
 			/*
 			if (t < 1.0)
-				// disable/reduce inlet influence for a given settling time
-				waterdepth = 0.5f;
+				// inlet pressure grows to target in 1s settling time
+				waterdepth = 0.5 + t * (INLET_WATER_LEVEL - 0.5F);
 			else
 			*/
 				// set inflow waterdepth
