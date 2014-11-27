@@ -125,7 +125,9 @@ public:
 
 	// write object forces
 	static void
-	WriteObjectForces(double t, uint numobjects, const float3* forces, const float3* momentums);
+	WriteObjectForces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques);
 
 	// record that the upcoming write requests should be forced (regardless of write frequency)
 	static inline void
@@ -172,7 +174,8 @@ protected:
 
 	virtual void
 	write_objectforces(double t, uint numobjects,
-		const float3* forces, const float3* momentums) {}
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques) {}
 
 	uint getLastFilenum();
 

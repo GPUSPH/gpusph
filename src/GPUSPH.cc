@@ -1190,7 +1190,9 @@ void GPUSPH::doWrite(bool force)
 	}
 
 	if (gdata->problem->get_simparams()->numODEbodies > 0) {
-		Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies, gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque);
+		Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies,
+			gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque,
+			gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 		Writer::WriteObjects(gdata->t, gdata->problem->get_ODE_bodies());
 	}
 

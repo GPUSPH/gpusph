@@ -234,7 +234,9 @@ Writer::WriteObjects(double t, Object const* const* bodies)
 }
 
 void
-Writer::WriteObjectForces(double t, uint numobjects, const float3* forces, const float3* momentums)
+Writer::WriteObjectForces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques)
 {
 	// is the common writer special?
 	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
@@ -249,13 +251,17 @@ Writer::WriteObjectForces(double t, uint numobjects, const float3* forces, const
 
 		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced) {
-			writer->write_objectforces(t, numobjects, forces, momentums);
+			writer->write_objectforces(t, numobjects,
+				computedforces, computedtorques,
+				appliedforces, appliedtorques);
 			written = true;
 		}
 	}
 
 	if (common_special && written)
-		m_writers[COMMONWRITER]->write_objectforces(t, numobjects, forces, momentums);
+		m_writers[COMMONWRITER]->write_objectforces(t, numobjects,
+				computedforces, computedtorques,
+				appliedforces, appliedtorques);
 }
 
 void

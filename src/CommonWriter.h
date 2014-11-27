@@ -60,7 +60,9 @@ public:
 	void write_energy(double t, float4 *energy);
 	void write_WaveGage(double t, GageList const& gage);
 	void write_objects(double t, Object const* const* bodies);
-	void write_objectforces(double t, uint numobjects, const float3* forces, const float3* momentums);
+	void write_objectforces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques);
 
 	bool need_write(double t) const;
 

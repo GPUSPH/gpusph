@@ -89,14 +89,22 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		if (m_objectfile) {
 			m_objectfile << "time";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
-				// forces
-				m_objectfile << "\tF" << obj << "_X";
-				m_objectfile << "\tF" << obj << "_Y";
-				m_objectfile << "\tF" << obj << "_Z";
-				// torques
-				m_objectfile << "\tM" << obj << "_X";
-				m_objectfile << "\tM" << obj << "_Y";
-				m_objectfile << "\tM" << obj << "_Z";
+				// computed forces
+				m_objectfile << "\tComputed_F" << obj << "_X";
+				m_objectfile << "\tComputed_F" << obj << "_Y";
+				m_objectfile << "\tComputed_F" << obj << "_Z";
+				// computed torques
+				m_objectfile << "\tComputed_M" << obj << "_X";
+				m_objectfile << "\tComputed_M" << obj << "_Y";
+				m_objectfile << "\tComputed_M" << obj << "_Z";
+				// applied forces
+				m_objectfile << "\tApplied_F" << obj << "_X";
+				m_objectfile << "\tApplied_F" << obj << "_Y";
+				m_objectfile << "\tApplied_F" << obj << "_Z";
+				// applied torques
+				m_objectfile << "\tApplied_M" << obj << "_X";
+				m_objectfile << "\tApplied_M" << obj << "_Y";
+				m_objectfile << "\tApplied_M" << obj << "_Z";
 			}
 			m_objectfile << endl;
 		}
@@ -165,20 +173,30 @@ CommonWriter::write_objects(double t, Object const* const* bodies)
 }
 
 void
-CommonWriter::write_objectforces(double t, uint numobjects, const float3* forces, const float3* momentums)
+CommonWriter::write_objectforces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques)
 {
 	if (m_objectforcesfile) {
 		m_objectforcesfile << t;
 		for (int i=0; i < numobjects; i++) {
 			m_objectforcesfile << "\t" << i;
 			m_objectforcesfile
-				<< "\t" << forces[i].x
-				<< "\t" << forces[i].y
-				<< "\t" << forces[i].z;
+				<< "\t" << computedforces[i].x
+				<< "\t" << computedforces[i].y
+				<< "\t" << computedforces[i].z;
 			m_objectforcesfile
-				<< "\t" << momentums[i].x
-				<< "\t" << momentums[i].y
-				<< "\t" << momentums[i].z;
+				<< "\t" << computedtorques[i].x
+				<< "\t" << computedtorques[i].y
+				<< "\t" << computedtorques[i].z;
+			m_objectforcesfile
+				<< "\t" << appliedforces[i].x
+				<< "\t" << appliedforces[i].y
+				<< "\t" << appliedforces[i].z;
+			m_objectforcesfile
+				<< "\t" << appliedtorques[i].x
+				<< "\t" << appliedtorques[i].y
+				<< "\t" << appliedtorques[i].z;
 		}
 		m_objectforcesfile << endl;
 		m_objectforcesfile.flush();
