@@ -338,6 +338,12 @@ struct GlobalData {
 				s_hRbDeviceTotalTorque[d][ob] = make_float3(0.0F);
 			}
 
+		// init total computed and applied forces
+		for (uint ob=0; ob < MAXBODIES; ob++) {
+			s_hRbAppliedForce[ob] = s_hRbTotalForce[ob] = make_float3(0.0F);
+			s_hRbAppliedTorque[ob] = s_hRbTotalTorque[ob] = make_float3(0.0F);
+		}
+
 		// init last indices for segmented scans for objects
 		for (uint ob=0; ob < MAXBODIES; ob++)
 			s_hRbLastIndex[ob] = 0;
