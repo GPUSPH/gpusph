@@ -239,7 +239,7 @@ Writer::WriteObjectForces(double t, uint numobjects,
 		const float3* appliedforces, const float3* appliedtorques)
 {
 	// is the common writer special?
-	bool common_special = (m_writers[COMMONWRITER]->get_write_freq() < 0);
+	bool common_special = m_writers[COMMONWRITER]->is_special();
 	bool written = false; // set to true if any writer acted
 
 	WriterMap::iterator it(m_writers.begin());

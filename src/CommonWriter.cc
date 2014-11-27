@@ -86,27 +86,27 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 		}
 
 		string objforce_fn = open_data_file(m_objectforcesfile, "objectforces");
-		if (m_objectfile) {
-			m_objectfile << "time";
+		if (m_objectforcesfile) {
+			m_objectforcesfile << "time";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
 				// computed forces
-				m_objectfile << "\tComputed_F" << obj << "_X";
-				m_objectfile << "\tComputed_F" << obj << "_Y";
-				m_objectfile << "\tComputed_F" << obj << "_Z";
+				m_objectforcesfile << "\tComputed_F" << obj << "_X";
+				m_objectforcesfile << "\tComputed_F" << obj << "_Y";
+				m_objectforcesfile << "\tComputed_F" << obj << "_Z";
 				// computed torques
-				m_objectfile << "\tComputed_M" << obj << "_X";
-				m_objectfile << "\tComputed_M" << obj << "_Y";
-				m_objectfile << "\tComputed_M" << obj << "_Z";
+				m_objectforcesfile << "\tComputed_M" << obj << "_X";
+				m_objectforcesfile << "\tComputed_M" << obj << "_Y";
+				m_objectforcesfile << "\tComputed_M" << obj << "_Z";
 				// applied forces
-				m_objectfile << "\tApplied_F" << obj << "_X";
-				m_objectfile << "\tApplied_F" << obj << "_Y";
-				m_objectfile << "\tApplied_F" << obj << "_Z";
+				m_objectforcesfile << "\tApplied_F" << obj << "_X";
+				m_objectforcesfile << "\tApplied_F" << obj << "_Y";
+				m_objectforcesfile << "\tApplied_F" << obj << "_Z";
 				// applied torques
-				m_objectfile << "\tApplied_M" << obj << "_X";
-				m_objectfile << "\tApplied_M" << obj << "_Y";
-				m_objectfile << "\tApplied_M" << obj << "_Z";
+				m_objectforcesfile << "\tApplied_M" << obj << "_X";
+				m_objectforcesfile << "\tApplied_M" << obj << "_Y";
+				m_objectforcesfile << "\tApplied_M" << obj << "_Z";
 			}
-			m_objectfile << endl;
+			m_objectforcesfile << endl;
 		}
 	}
 }
@@ -180,7 +180,6 @@ CommonWriter::write_objectforces(double t, uint numobjects,
 	if (m_objectforcesfile) {
 		m_objectforcesfile << t;
 		for (int i=0; i < numobjects; i++) {
-			m_objectforcesfile << "\t" << i;
 			m_objectforcesfile
 				<< "\t" << computedforces[i].x
 				<< "\t" << computedforces[i].y
