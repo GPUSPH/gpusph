@@ -86,7 +86,11 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	add_gage(1, 0.3);
 	add_gage(0.5, 0.3);
 
-	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
+	/* Uncomment preferred boundary type, comment the others */
+	// TODO easier way to switch
+	m_simparams.boundarytype = LJ_BOUNDARY;
+	// m_simparams.boundarytype = MK_BOUNDARY;
+	// m_simparams.boundarytype = DYN_BOUNDARY;
 
 	// Physical parameters
 	H = 0.45;
@@ -132,7 +136,7 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	mb_callback(0.0, 0.0, 0);
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2);
+	add_writer(VTKWRITER, 0.1);
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
@@ -164,7 +168,7 @@ MbCallBack& WaveTank::mb_callback(const double t, const float dt, const int i)
 		const float arg = mbpaddledata.omega*(t - mbpaddledata.tstart);
 		theta = mbpaddledata.amplitude*cos(arg);
 		dthetadt = - mbpaddledata.amplitude*mbpaddledata.omega*sin(arg);
-		}
+	}
 	mbpaddledata.sintheta = sin(theta);
 	mbpaddledata.costheta = cos(theta);
 	mbpaddledata.dthetadt = dthetadt;
@@ -176,27 +180,37 @@ int WaveTank::fill_parts()
 {
 	const float r0 = m_physparams.r0;
 	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
+	/* When using dynamic boundaries, the number of layers should be the
+	 * at least equal to kernel radius times smoothing factor
+	 */
+	const int dynbound_layers = ceil(m_simparams.kernelradius * m_simparams.sfactor);
 
 	experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
-						Vector(0, ly, 0), Vector(0, 0, height));
+		Vector(0, ly, 0), Vector(0, 0, height));
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	Rect paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-				Vector(paddle_length*mbpaddledata.sintheta, 0, paddle_length*mbpaddledata.costheta));
+		Vector(paddle_length*mbpaddledata.sintheta, 0, paddle_length*mbpaddledata.costheta));
 
 	boundary_parts.reserve(100);
 	paddle_parts.reserve(500);
 	parts.reserve(34000);
 
 	paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	paddle.Fill(paddle_parts, br, true);
+	if (m_simparams.boundarytype == DYN_BOUNDARY)
+		paddle.FillIn(paddle_parts, m_deltap, -dynbound_layers);
+	else
+		paddle.Fill(paddle_parts, br, true);
 
 	bottom_rect = Rect(Point(h_length, 0, 0), Vector(0, ly, 0),
-			Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
+		Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
 	if (!use_bottom_plane) {
-	   bottom_rect.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	   bottom_rect.Fill(boundary_parts,br,true);
-	   }
+		bottom_rect.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		if (m_simparams.boundarytype == DYN_BOUNDARY)
+			bottom_rect.FillIn(boundary_parts, m_deltap, dynbound_layers);
+		else
+			bottom_rect.Fill(boundary_parts,br,true);
+	}
 
 	Rect fluid;
 	float z = 0;
@@ -207,11 +221,11 @@ int WaveTank::fill_parts()
 		float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  r0, z),
-				Vector(0, ly-2.0*r0, 0), Vector(l, 0, 0));
+			Vector(0, ly-2.0*r0, 0), Vector(l, 0, 0));
 		fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid.Fill(parts, m_deltap, true);
 		n++;
-	 }
+	}
 
 	if (m_simparams.testpoints) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
@@ -249,7 +263,7 @@ int WaveTank::fill_parts()
 		cone.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		cone.FillBorder(boundary_parts, br, false, true);
 		cone.Unfill(parts, br);
-    }
+	}
 
 	return parts.size() + boundary_parts.size() + paddle_parts.size() + test_points.size();
 }
@@ -257,12 +271,11 @@ int WaveTank::fill_parts()
 
 uint WaveTank::fill_planes()
 {
-    if (!use_bottom_plane) {
+	if (!use_bottom_plane) {
 		return 5;
-		}
-	else {
+	} else {
 		return 6;
-		} //corresponds to number of planes
+	} //corresponds to number of planes
 }
 
 
@@ -278,11 +291,11 @@ void WaveTank::copy_planes(float4 *planes, float *planediv)
 	planediv[1] = 1.0;
 	planes[2] = make_float4(0, -1.0, 0, w); //far wall
 	planediv[2] = 1.0;
- 	planes[3] = make_float4(1.0, 0, 0, 0);  //end
- 	planediv[3] = 1.0;
- 	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
- 	planediv[4] = 1.0;
- 	if (use_bottom_plane)  {
+	planes[3] = make_float4(1.0, 0, 0, 0);  //end
+	planediv[3] = 1.0;
+	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
+	planediv[4] = 1.0;
+	if (use_bottom_plane)  {
 		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
 		planediv[5] = 1.0;
 	}
