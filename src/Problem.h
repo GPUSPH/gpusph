@@ -235,7 +235,7 @@ class Problem {
 		// add a new writer
 		// DEPRECATED: use ad_writer() with the frequency in seconds
 		// by passing as argument the product of freq and the timer tick
-		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, float)");
+		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, double)");
 
 		// add a new writer, with the given write frequency in (fractions of) seconds
 		void add_writer(WriterType wt, double freq);
