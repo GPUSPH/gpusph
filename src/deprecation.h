@@ -55,14 +55,10 @@
 #endif
 
 
-// This #if 0 is to allow easy copy-pase of the pragmas below
-#if 0
-
 /* For the functions that provide compatibility between the deprecated
  * and new APIs, we want to avoid getting deprecation warnings,
  * since they are only for (all the) other uses of the deprecated APIs.
- * To achieve this, wrap the compatibility code in this way:
- */
+ * To achieve this, we would wrap the compatibility code in this way:
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -70,4 +66,36 @@ compatibility_code(calling, deprecated, functions);
 and_or_assigning_to = obsolete_variables;
 #pragma GCC diagnostic pop
 
+ * which is only supported fully since GCC 4.6, and partially since 4.2.
+ *
+ * To have cleaner compiles with older versions of GCC (yes, some users have
+ * reported using versions older than 4.2 (!)), we wrap these diagnostic
+ * functions in a macro that does nothing before GCC 4.6, which we
+ * use as cut-off for properly supported clean compilation.
+ *
+ * See also
+ * http://dbp-consulting.com/tutorials/SuppressingGCCWarnings.html
+ * for a more complete solution.
+ */
+
+// auxiliary macros to assemble the pragmas
+#define GCC_DIAG_STR(s) #s
+#define GCC_DIAG_JOINSTR(x,y) GCC_DIAG_STR(x ## y)
+#define GCC_DIAG_DO_PRAGMA(x) _Pragma (#x)
+#define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
+
+#if (__GNUC__*100 + __GNUC_MINOR__) < 406
+
+// no diagnostic mangling
+#define IGNORE_WARNINGS(str)
+#define RESTORE_WARNINGS
+
+#else
+
+// the macros we will use in the code: IGNORE_WARNINGS and RESTORE_WARNINGS
+#define IGNORE_WARNINGS(str) \
+	GCC_DIAG_PRAGMA(push) \
+	GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W, str))
+#define RESTORE_WARNINGS \
+	GCC_DIAG_PRAGMA(pop)
 #endif

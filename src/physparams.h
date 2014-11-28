@@ -64,9 +64,9 @@ typedef struct PhysParams {
 
 	// offset vector and limits for periodic boundaries:
 	// DEPRECATED
-	float3	dispvect DEPRECATED_MSG("dispvect, maxlimit and minlimit are not needed anymore");
-	float3	maxlimit DEPRECATED_MSG("dispvect, maxlimit and minlimit are not needed anymore");
-	float3	minlimit DEPRECATED_MSG("dispvect, maxlimit and minlimit are not needed anymore");
+	float3	dispvect DEPRECATED_MSG("dispvect is not needed anymore");
+	float3	maxlimit DEPRECATED_MSG("maxlimit is not needed anymore");
+	float3	minlimit DEPRECATED_MSG("minlimit is not needed anymore");
 
 	float	ewres;			// DEM east-west resolution
 	float	nsres;			// DEM north-south resolution
@@ -85,8 +85,7 @@ typedef struct PhysParams {
 	// We have three deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
@@ -100,7 +99,7 @@ typedef struct PhysParams {
 		objectobjectdf(1.0f),
 		objectboundarydf(1.0f)
 	{};
-#pragma GCC diagnostic pop
+RESTORE_WARNINGS
 
 	/*! Set density parameters
 	  @param i	index in the array of materials

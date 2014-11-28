@@ -502,8 +502,7 @@ struct GlobalData {
 	 * in signaling potential issues in the upconversion from uchar to (u)int and subsequent downconversion
 	 * that happen on the shifts
 	 */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
+	IGNORE_WARNINGS(conversion)
 
 	// *** MPI aux methods: conversion from/to local device ids to global ones
 	// get rank from globalDeviceIndex
@@ -528,7 +527,7 @@ struct GlobalData {
 		}
 	}
 
-#pragma GCC diagnostic pop
+	RESTORE_WARNINGS
 
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;
