@@ -42,8 +42,17 @@
 /* Mark a function deprecated */
 #define DEPRECATED __attribute__((deprecated))
 
-/* Mark a function deprecated, explaining what to do instead */
+/* Mark a function deprecated, explaining what to do instead,
+ *
+ * This syntax is only supported in GCC 4.6 or later though,
+ * so for older compilers we alias it to the messageless one
+ */
+
+#if (__GNUC__*100 + __GNUC_MINOR__) < 406
+#define DEPRECATED_MSG(str) __attribute__((deprecated))
+#else
 #define DEPRECATED_MSG(str) __attribute__((deprecated(str)))
+#endif
 
 
 // This #if 0 is to allow easy copy-pase of the pragmas below
