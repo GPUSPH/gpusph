@@ -1477,6 +1477,11 @@ forcesDevice(
 			if (OBJECT(info))
 				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
 
+			// For DYN boundary, non-FLUID particles should only interact with
+			// FLUID particles
+			if (boundarytype == DYN_BOUNDARY && !FLUID(info))
+				computes_stuff = !!FLUID(neib_info);
+
 			// With SA_BOUNDARY, fluid and vertex particles interact with any
 			// BOUNDARY particles in the neiblist, regardless of distance
 			// TODO FIXME they should interact with BOUNDARY particles such
