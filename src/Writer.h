@@ -76,6 +76,9 @@ class Writer;
 // hash of WriterType, pointer to actual writer
 typedef map<WriterType, Writer*> WriterMap;
 
+// ditto, const
+typedef map<WriterType, const Writer*> ConstWriterMap;
+
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
  * (whose content is decided by the Problem) and passes all requests
@@ -103,8 +106,9 @@ public:
 	static void
 	Create(GlobalData *_gdata);
 
-	// does any of the writers need to write at the given time?
-	static bool NeedWrite(double t);
+	// return a WriterMap of the writers that need to write
+	static ConstWriterMap
+	NeedWrite(double t);
 
 	// mark writers as done if they needed to save
 	// at the given time (optionally force)
@@ -138,6 +142,9 @@ public:
 	static void
 	Destroy();
 
+	double get_write_freq() const
+	{ return m_writefreq; }
+
 protected:
 
 	Writer(const GlobalData *_gdata);
@@ -145,12 +152,9 @@ protected:
 
 	void set_write_freq(double f);
 
-	double get_write_freq()
-	{ return m_writefreq; }
-
 	// does this writer need special treatment?
 	// (This is only used for the COMMONWRITER presently.)
-	bool is_special()
+	bool is_special() const
 	{ return isnan(m_writefreq); }
 
 	inline void
@@ -177,7 +181,7 @@ protected:
 		const float3* computedforces, const float3* computedtorques,
 		const float3* appliedforces, const float3* appliedtorques) {}
 
-	uint getLastFilenum();
+	uint getLastFilenum() const;
 
 	// default suffix (extension) for data files)
 	string			m_fname_sfx;

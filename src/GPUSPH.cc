@@ -615,8 +615,14 @@ bool GPUSPH::runSimulation() {
 
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
+		// are we done?
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = Writer::NeedWrite(gdata->t);
+		// list of writers that need to write
+		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
+		// do we need to write?
+		bool need_write = !writers.empty();
+		// do we want to write anyway? (the problem want us to write, or we are done,
+		// or we are quitting)
 		bool force_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
 		if (gdata->save_request) {
 			force_write = true;
@@ -689,8 +695,29 @@ bool GPUSPH::runSimulation() {
 				// --nosave enabled, not final: just pretend we actually saved
 				Writer::MarkWritten(gdata->t, true);
 
-			printStatus();
-			m_intervalPerformanceCounter->restart();
+			// we generally want to print the current status and reset the
+			// interval performance counter when writing. However, when writing
+			// at every timestep, this can be very bothersome (lots and lots of
+			// output) so we do not print the status if the only writer(s) that
+			// have been writing have a frequency of 0 (write every timestep)
+			// TODO the logic here could be improved; for example, we are not
+			// considering the case of a single writer that writes at every timestep:
+			// when do we print the status then?
+			// TODO other enhancements would be to print who is writing (what)
+			// during the print status
+			double maxfreq = 0;
+			ConstWriterMap::iterator it(writers.begin());
+			ConstWriterMap::iterator end(writers.end());
+			do {
+				double freq = it->second->get_write_freq();
+				if (freq > maxfreq)
+					maxfreq = freq;
+				++it;
+			} while (it != end);
+			if (force_write || maxfreq > 0) {
+				printStatus();
+				m_intervalPerformanceCounter->restart();
+			}
 		}
 
 		if (finished || gdata->quit_request)
