@@ -113,15 +113,16 @@ Writer::Create(GlobalData *_gdata)
 		m_writers[COMMONWRITER] = new CommonWriter(_gdata);
 }
 
-bool
+ConstWriterMap
 Writer::NeedWrite(double t)
 {
-	bool need_write = false;
+	ConstWriterMap need_write;
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = it->second;
-		need_write |= writer->need_write(t);
+		const Writer *writer = it->second;
+		if (writer->need_write(t))
+			need_write[it->first] = it->second;
 	}
 	return need_write;
 }
@@ -319,7 +320,7 @@ Writer::next_filenum()
 	return ret;
 }
 
-uint Writer::getLastFilenum()
+uint Writer::getLastFilenum() const
 {
 	return m_FileCounter;
 }
