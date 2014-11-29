@@ -1567,12 +1567,13 @@ forcesDevice(
 
 		} // end of loop over neighbors
 
+		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
+		if (FLUID(pdata.info) || VERTEX(pdata.info)) {
+			gamma_fixup<boundarytype>::with(params, pdata, pout);
+		}
+
 		// External forces etc
 		if (FLUID(pdata.info)) {
-
-			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
-
 			// post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 
@@ -1609,16 +1610,12 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		else if (VERTEX(pdata.info)) {
-			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
-		}
 
 		// Writing out the results
 		if (OBJECT(pdata.info)) {
 			// The forces computed in the neighbors loop are forces by unit of mass so when
-			// computing the forces (an torques) on an object the force acting on each object
-			// particle are multiplied by the particle mass.
+			// computing the forces (and torques) on an object the force acting on each object
+			// particle must be multiplied by the particle mass.
 			// TODO
 			// 1. use relative coordinates for cg and distance computation
 			// 2. the write of forces and torques is by nature not coalesced so why using float4
