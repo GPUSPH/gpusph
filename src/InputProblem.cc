@@ -215,7 +215,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		m_physparams.kinematicvisc = 1.0e-2f;
 		m_simparams.visctype = DYNAMICVISC;
-		m_physparams.gravity = make_float3(-0.1, 0.0, 0.0);
+		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
 		m_simparams.tend = 100.0;
@@ -268,6 +268,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
+	m_simparams.sph_formulation = SPH_F2;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
@@ -389,7 +390,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float lvel = (461.0f+y8-392.0f*z2-28.0f*y6*z2-70.0f*z4+z8+70.0f*y4*(z4-1.0f)-28.0f*y2*(14.0f-15.0f*z2+z6))/461.0f;
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			vel[i] = make_float4(1.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
+			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (m_physparams.rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
 #else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 #endif
@@ -412,7 +413,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
 				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
 #else
-				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]+2.0f);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
@@ -432,7 +433,9 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
 					// open boundary imposes velocity
+#if SPECIFIC_PROBLEM != IOWithoutWalls
 					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+#endif
 					// open boundary is an inflow
 					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 				} else if (openBoundType == 2) {
@@ -463,7 +466,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
 				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
 #else
-				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]+2.0f);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
@@ -478,7 +481,9 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
 					// open boundary imposes velocity
+#if SPECIFIC_PROBLEM != IOWithoutWalls
 					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+#endif
 					// open boundary is an inflow
 					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 				} else if (openBoundType == 2) {

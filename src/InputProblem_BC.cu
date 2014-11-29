@@ -62,10 +62,16 @@ InputProblem_imposeBoundaryCondition(
 		else {
 #if SPECIFIC_PROBLEM == LaPalisseSmallTest
 			if (INFLOW(info))
-				waterdepth = 0.21; // set inflow waterdepth to 0.21 (with respect to world_origin)
+				waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
+#elif SPECIFIC_PROBLEM == IOWithoutWalls
+			if (INFLOW(info))
+				eulerVel.w = 1002.0f;
+			else
+				eulerVel.w = 1002.0f;
+				//eulerVel.w = 1000.0f;
 #else
 			eulerVel.w = 1000.0f;
 #endif
