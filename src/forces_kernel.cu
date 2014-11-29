@@ -964,7 +964,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		if (IO_BOUNDARY(info)) {
 			float sharedVertices = 0.0f;
-			if(true || IO_BOUNDARY(tex1Dfetch(infoTex, vertXidx))){
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertXidx))){
 				eulerVel += oldEulerVel[vertXidx];
 				if (oldTKE)
 					tke += oldTKE[vertXidx];
@@ -972,7 +972,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					eps += oldEps[vertXidx];
 				sharedVertices += 1.0f;
 			}
-			if(true || IO_BOUNDARY(tex1Dfetch(infoTex, vertYidx))){
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertYidx))){
 				eulerVel += oldEulerVel[vertYidx];
 				if (oldTKE)
 					tke += oldTKE[vertYidx];
@@ -980,7 +980,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					eps += oldEps[vertYidx];
 				sharedVertices += 1.0f;
 			}
-			if(true || IO_BOUNDARY(tex1Dfetch(infoTex, vertZidx))){
+			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertZidx))){
 				eulerVel += oldEulerVel[vertZidx];
 				if (oldTKE)
 					tke += oldTKE[vertZidx];
@@ -1045,7 +1045,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const float r = length(as_float3(relPos));
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			if (r < influenceradius && FLUID(neib_info)) {
+			if (r < influenceradius && (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))) {
 				const float neib_rho = oldVel[neib_index].w;
 				const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 				const float neib_vel = length(make_float3(oldVel[neib_index]));
@@ -1137,8 +1137,8 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			// impose pressure
 			else {
 				float flux = 0.0f;
-				if (rhoExt > rhoInt) { // Shock wave
-					if (unInt > d_sscoeff[a]*1e-5f)
+				if (rhoExt > rhoInt && false) { // Shock wave
+					if (fabs(unInt) > d_sscoeff[a]*1e-5f)
 						flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*unInt) + unInt;
 					// Check whether it is really a shock wave
 					const float c = d_sscoeff[a]*powf(rhoExt/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
@@ -1444,6 +1444,7 @@ saVertexBoundaryConditions(
 						// TODO we can have a switch here to decide on whether we want to impose a velocity
 						// or a flux. If as now we multiply the whole thing with the density of the segment
 						// then the flux will vary.
+						numOutVerts = 3.0f;
 						sumMdot += neibRho/numOutVerts*boundElement.w*
 									dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 						sumEulerVel += oldEulerVel[neib_index];
@@ -1531,7 +1532,7 @@ saVertexBoundaryConditions(
 			// only create new particles in the second part of the time step
 		if (step == 2 &&
 			// create new particle if the mass of the vertex is large enough
-			pos.w > refMass &&
+			pos.w > refMass*0.5f &&
 			// check that the flow vector points into the domain
 			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
 			// pressure inlets need p > 0 to create particles
@@ -1584,7 +1585,7 @@ saVertexBoundaryConditions(
 			sumMdot = 0.0f;
 		// time stepping
 		pos.w += dt*sumMdot;
-		pos.w = fmax(0.0f, fmin(refMass*2.0f, pos.w));
+		pos.w = fmax(-refMass, fmin(refMass, pos.w));
 		if (!foundFluid)
 			pos.w = 0.0f;
 		oldPos[index].w = pos.w;

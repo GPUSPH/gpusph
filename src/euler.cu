@@ -84,7 +84,8 @@ euler(	const float4*		oldPos,
 		const hashKey*		particleHash,
 		const float4*		oldVel,
 		const float4*		oldEulerVel,
-		const float4*		gGam,
+		float4*				gGam,
+		const float4*		oldgGam,
 		const float*		oldTKE,
 		const float*		oldEps,
 		const particleinfo* info,
@@ -113,17 +114,17 @@ euler(	const float4*		oldPos,
 	// execute the kernel
 	if (step == 1) {
 		if (xsphcorr)
-			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldTKE, oldEps,
+			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
 								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
 		else
-			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldTKE, oldEps,
+			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
 								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
 	} else if (step == 2) {
 		if (xsphcorr)
-			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldTKE, oldEps,
+			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
 								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
 		else
-			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldTKE, oldEps,
+			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
 								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
 	} // if (step == 2)
 

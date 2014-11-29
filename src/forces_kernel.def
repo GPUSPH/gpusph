@@ -798,7 +798,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt -= ndata.relVel.w*dot3(ndata.relEulerVelRho, ndata.belem)*nout.gamAS.x;
+	nout.DrDt -= dot3(ndata.relEulerVelRho, ndata.belem)*nout.gamAS.x;
 }
 
 template<>
@@ -806,7 +806,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVelRho, ndata.relPos)*ndata.f;
+	nout.DrDt += ndata.relPos.w/ndata.relVel.w*dot3(ndata.relEulerVelRho, ndata.relPos)*ndata.f;
 }
 
 /// A functor that computes the time derivative of rho
@@ -840,7 +840,7 @@ struct compute_density_derivative {
 	static void
 	common_with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
+		nout.DrDt = ndata.relPos.w/ndata.relVel.w*ndata.vel_dot_pos*ndata.f;
 	}
 
 	// actual method
@@ -857,8 +857,10 @@ struct compute_density_derivative {
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
 		/* The second formulation takes into consideration the density ratio */
-		if (sph_formulation == SPH_F2)
-			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+		if (sph_formulation == SPH_F1)
+			nout.DrDt *= pdata.relVel.w;
+		else if (sph_formulation == SPH_F2)
+			nout.DrDt *= pdata.vel.w;
 	}
 };
 
@@ -889,15 +891,14 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 		common_with(params, pdata, ndata, pout, nout);
 		if (inoutBoundaries && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
 			compute_euler_contributions<inoutBoundaries>::volumic_term(params, pdata, ndata, pout, nout);
-		if (d_ferrari) {
+		if (d_ferrari && !(ndata.ntype==PT_VERTEX && IO_BOUNDARY(ndata.info))) {
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
 		/* The second formulation takes into consideration the density ratio */
-		if (sph_formulation == SPH_F2) {
-			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
-			nout.contDiff *= pdata.vel.w/ndata.relVel.w;
-		}
+	}
+	if (sph_formulation == SPH_F1) {
+		nout.DrDt *= ndata.relVel.w;
 	}
 }
 
@@ -1365,7 +1366,7 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 template<BoundaryType>
 struct gamma_fixup
 {
-	template<typename FP, typename P, typename OP>
+	template<SPHFormulation sph_formulation, typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, OP &pout)
@@ -1373,7 +1374,7 @@ struct gamma_fixup
 };
 
 template<>
-template<typename FP, typename P, typename OP>
+template<SPHFormulation sph_formulation, typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
@@ -1390,6 +1391,8 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
 	pout.force /= pout.gGam.w;
+	if (sph_formulation == SPH_F2)
+		pout.force.w *= pdata.vel.w;
 }
 
 /// A functor that computes the force acting on a boundary element
@@ -1798,7 +1801,7 @@ forcesDevice(
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && OUTFLOW(info)) {
+			else if (boundarytype == SA_BOUNDARY && params.ioWaterdepthComputation && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && OUTFLOW(info)) {
 				// Compute the maximum depth at outflows
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
@@ -1817,7 +1820,7 @@ forcesDevice(
 		if (pdata.ptype == PT_FLUID) {
 
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
+			gamma_fixup<boundarytype>::with<sph_formulation>(params, pdata, pout);
 
 			// post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
@@ -1856,7 +1859,7 @@ forcesDevice(
 		}
 		else if (pdata.ptype == PT_VERTEX) {
 			// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-			gamma_fixup<boundarytype>::with(params, pdata, pout);
+			gamma_fixup<boundarytype>::with<sph_formulation>(params, pdata, pout);
 		}
 		else if (pdata.ptype == PT_BOUNDARY && FLOATING(info)) {
 			// For SA_BOUNDARY: compute force acting on boundary

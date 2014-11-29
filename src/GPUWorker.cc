@@ -2163,6 +2163,7 @@ void GPUWorker::kernel_euler()
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
