@@ -210,7 +210,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-#if 0
+#if 1
 		double water_column = H - boundary_parts[i](2);
 		if (water_column < 0)
 			water_column = 0;
