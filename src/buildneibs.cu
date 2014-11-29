@@ -266,6 +266,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const float			boundNlSqInflRad,
+				const BoundaryType	boundarytype,
 				const Periodicity	periodicbound)
 {
 	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
@@ -273,12 +274,15 @@ buildNeibsList(	neibdata*			neibsList,
 	if (vertices || boundelem || vertPos) {
 		if (!vertices || !boundelem || ! vertPos) {
 			fprintf(stderr, "%p vs %p vs %p\n", vertices, boundelem, vertPos);
-			throw std::runtime_error("inconsistent params to buildNeibsList");
+			throw std::invalid_argument("inconsistent params to buildNeibsList");
 		}
 	}
 
-	// we are using SA_BOUNDARY if vertices is not NULL
-	bool use_sa_boundary = !!vertices;
+	if (boundarytype == SA_BOUNDARY && !vertices) {
+		fprintf(stderr, "%s boundary type selected, but no vertices!\n",
+			BoundaryName[boundarytype]);
+		throw std::invalid_argument("missing data");
+	}
 
 	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -291,31 +295,31 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
 
-#define BUILDNEIBS_CASE(use_sa, periodic) \
+#define BUILDNEIBS_CASE(btype, periodic) \
 	case periodic: \
-		cuneibs::buildNeibsListDevice<use_sa, periodic, true><<<numBlocks, numThreads>>>(params); \
+		cuneibs::buildNeibsListDevice<btype, periodic, true><<<numBlocks, numThreads>>>(params); \
 		break;
 
-#define BUILDNEIBS_SWITCH(use_sa) \
+#define BUILDNEIBS_SWITCH(btype) \
 	switch(periodicbound) { \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_NONE); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_X); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_Y); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_XY); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_Z); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_XZ); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_YZ); \
-		BUILDNEIBS_CASE(use_sa, PERIODIC_XYZ); \
+		BUILDNEIBS_CASE(btype, PERIODIC_NONE); \
+		BUILDNEIBS_CASE(btype, PERIODIC_X); \
+		BUILDNEIBS_CASE(btype, PERIODIC_Y); \
+		BUILDNEIBS_CASE(btype, PERIODIC_XY); \
+		BUILDNEIBS_CASE(btype, PERIODIC_Z); \
+		BUILDNEIBS_CASE(btype, PERIODIC_XZ); \
+		BUILDNEIBS_CASE(btype, PERIODIC_YZ); \
+		BUILDNEIBS_CASE(btype, PERIODIC_XYZ); \
 	}
 
-	if (use_sa_boundary) {
+	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
 
 		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, vertIDToIndex, boundNlSqInflRad);
 
-		BUILDNEIBS_SWITCH(true);
+		BUILDNEIBS_SWITCH(SA_BOUNDARY);
 
 		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
 		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
@@ -323,7 +327,15 @@ buildNeibsList(	neibdata*			neibsList,
 		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, vertIDToIndex, boundNlSqInflRad);
 
-		BUILDNEIBS_SWITCH(false);
+		// In non-SA boundary case, the only difference is between DYN and non-DYN
+		// boundary (because DYN_BOUNDARY needs to build neib list for boundary particles too).
+		// To avoid building too many variants of the kernels we will collect all
+		// non-SA, non-DYN boundary into the LJ case, since they all behave the same
+		if (boundarytype == DYN_BOUNDARY) {
+			BUILDNEIBS_SWITCH(DYN_BOUNDARY);
+		} else {
+			BUILDNEIBS_SWITCH(LJ_BOUNDARY);
+		}
 	}
 
 	// check if kernel invocation generated an error

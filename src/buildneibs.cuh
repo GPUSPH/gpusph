@@ -135,6 +135,7 @@ buildNeibsList(	neibdata*			neibsList,
 				const uint			gridCells,
 				const float			sqinfluenceradius,
 				const float			boundNlSqInflRad,
+				const BoundaryType	boundarytype,
 				const Periodicity	periodicbound);
 
 void

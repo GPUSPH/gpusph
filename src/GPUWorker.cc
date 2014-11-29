@@ -1758,6 +1758,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_nGridCells,
 					m_simparams->nlSqInfluenceRadius,
 					boundNlSqInflRad,
+					m_simparams->boundarytype,
 					m_simparams->periodicbound);
 
 	// download the peak number of neighbors and the estimated number of interactions
