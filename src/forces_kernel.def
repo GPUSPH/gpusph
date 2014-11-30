@@ -542,11 +542,13 @@ struct eulerVel_neib_data
 
 	const float4 relEulerVelRho;
 	const float4 relEulerVelVisc;
+	const float4 relEulerVelKEPS;
 
 	__device__ __forceinline__
 	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const particleinfo _info) :
 		relEulerVelRho(as_float3(pdata.eulerVel) - ((VERTEX(_info) || BOUNDARY(_info)) && (IO_BOUNDARY(_info) && !CORNER(_info)) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
-		relEulerVelVisc(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
+		relEulerVelVisc(as_float3(pdata.eulerVel) - (!BOUNDARY(_info) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
+		relEulerVelKEPS(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
 	{}
 };
 
@@ -1069,7 +1071,7 @@ visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// a component of fluid paricle velocity tangential to the wall
-	const float3 u_t = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
+	const float3 u_t = as_float3(ndata.relVel+ndata.relEulerVelVisc) - dot(as_float3(ndata.relVel+ndata.relEulerVelVisc), ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);
 
 	// we solve iteratively the wall law equation to obtain y+ value
@@ -1265,10 +1267,9 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
 
-	const float4 relEulerVel = getRelEulerVelVisc<true>::with(ndata);
-	pout.dvx += (ndata.relVel.x+relEulerVel.x)*dvmul;
-	pout.dvy += (ndata.relVel.y+relEulerVel.y)*dvmul;
-	pout.dvz += (ndata.relVel.z+relEulerVel.z)*dvmul;
+	pout.dvx += (ndata.relVel.x+ndata.relEulerVelKEPS.x)*dvmul;
+	pout.dvy += (ndata.relVel.y+ndata.relEulerVelKEPS.y)*dvmul;
+	pout.dvz += (ndata.relVel.z+ndata.relEulerVelKEPS.z)*dvmul;
 }
 
 

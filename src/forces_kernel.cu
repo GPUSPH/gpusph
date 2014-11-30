@@ -1456,7 +1456,7 @@ saVertexBoundaryConditions(
 					// for the computation of gamma, in general we need a sort of normal as well
 					// for open boundaries to decide whether or not particles are created at a
 					// vertex or not
-					if (IO_BOUNDARY(info) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info))) {
+					if ((IO_BOUNDARY(info) && !CORNER(info)) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info))) {
 						avgNorm += as_float3(boundElement);
 					}
 				}
@@ -1467,7 +1467,7 @@ saVertexBoundaryConditions(
 				//				dot3(oldEulerVel[neib_index],boundElement); // the euler vel should be subtracted by the lagrangian vel which is assumed to be 0 now.
 				//}
 			}
-			else if (FLUID(neib_info)){
+			else if (IO_BOUNDARY(info) && FLUID(neib_info)){
 				const float4 relPos = pos_corr - oldPos[neib_index];
 				if(!foundFluid && length3(relPos) < influenceradius)
 					foundFluid = true;
@@ -1504,7 +1504,7 @@ saVertexBoundaryConditions(
 	if (oldTKE) {
 		oldTKE[index] = sumtke/numseg;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if (!IO_BOUNDARY(info) && !initStep) // AAA FIXME TKE
+		if ((!IO_BOUNDARY(info) || CORNER(info)) && !initStep)
 			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
 	}
 	if (oldEps)
