@@ -241,6 +241,9 @@ private:
 	/*void uploadMbData();
 	void uploadGravity();*/
 
+	void checkPartValByIndex(const char* printID, const uint pindex);
+	void checkPartValById(const char* printID, const uint pid);
+
 	// asynchronous alternative to kernel_force
 	void kernel_forces_async_enqueue();
 	void kernel_forces_async_complete();

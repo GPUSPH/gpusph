@@ -31,13 +31,17 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.testpoints = false;
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
-	H = 0.5;
+	initial_water_level = 0.5;
+	expected_final_water_level = INLET_WATER_LEVEL;
 	// extra margin around the domain size
 	const double MARGIN = 0.1;
 	const double INLET_BOX_LENGTH = 0.25;
-	l = 1.0 + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
-	w = 1.0 + 2 * MARGIN;
-	h = 1.0 + 2 * MARGIN;
+	// size of the main cube, exlcuding the inlet and any margin
+	box_l = box_w = box_h = 1.0;
+	// world size
+	world_l = box_l + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
+	world_w = box_w + 2 * MARGIN;
+	world_h = box_h + 2 * MARGIN;
 	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
@@ -58,12 +62,12 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
-	m_size = make_double3(l, w ,h);
+	m_size = make_double3(world_l, world_w ,world_h);
 
 	// Physical parameters
 	float g = length(m_physparams.gravity);
 
-	m_physparams.dcoeff = 5.0f*g*H;
+	m_physparams.dcoeff = 5.0f*g*expected_final_water_level;
 
 	m_physparams.r0 = m_deltap;
 
@@ -72,19 +76,19 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-6);
+	set_timer_tick(1.0e-2);
 	add_writer(VTKWRITER, 1);
 
 	// will use only 1 ODE body: the floating/moving cube (container is fixed)
-	//allocate_ODE_bodies(1);
-	//dInitODE();
-	//// world setup
-	//m_ODEWorld = dWorldCreate(); // ODE world for dynamics
-	//m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
-	////m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
-	//// Set gravity（x, y, z)
-	//dWorldSetGravity(m_ODEWorld,
-	//	m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
+	allocate_ODE_bodies(1);
+	dInitODE();
+	// world setup
+	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
+	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
+	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
+	// Set gravity（x, y, z)
+	dWorldSetGravity(m_ODEWorld,
+		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
 
 	// Name of problem used for directory creation
 	m_name = "CompleteSaExample";
@@ -94,7 +98,31 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 // http://ode-wiki.org/wiki/index.php?title=Manual:_Collision_Detection#Collision_detection
 void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 {
-	// stub
+	// ODE generates multiple candidate contact points. We should use at least 3 for cube-plane
+	// interaction, the more the better (probably).
+	// CHECK: any significant correlation between performance and MAX_CONTACTS?
+	const int MAX_CONTACTS = 10;
+	dContact contact[MAX_CONTACTS];
+
+	// offset between dContactGeom-s of consecutive dContact-s in contact araray
+	const uint skip_offset = sizeof(dContact);
+
+	// Do no handle collisions between planes. With 1 floatinb cube, "skip collisions not involving the cube"
+	if (o1 != cube->m_ODEGeom && o2 != cube->m_ODEGeom)
+		return;
+
+	// collide the candidate pair o1, o2
+	int num_contacts = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, skip_offset);
+
+	// resulting collision points are treated by ODE as joints. We use them all
+	for (int i = 0; i < num_contacts; i++) {
+		contact[i].surface.mode = dContactBounce;
+		contact[i].surface.mu   = dInfinity;
+		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
+		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
+		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
+		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
+	}
 }
 
 CompleteSaExample::~CompleteSaExample()
@@ -106,18 +134,38 @@ CompleteSaExample::~CompleteSaExample()
 
 int CompleteSaExample::fill_parts()
 {
-	/*
-	// here create ODE planes in the geom space, if needed (no ODE body)
-	container->ODEGeomCreate(m_ODESpace, m_deltap);
+	/* If we needed an accurate collision detection between the container and the cube (i.e.
+	 * using the actual container mesh instead of modelling it with 5 infinite planes), we'd
+	 * have to create a geometry for the container as well. However, in this case the mesh
+	 * should be "thick" (2 layers, with volume inside) and not flat. With a flat mesh, ODE
+	 * detects the contained cube as penetrated into the container and thus colliding.
+	 * Long story short: don't uncomment the following.
+	 */
+	//container->ODEGeomCreate(m_ODESpace, m_deltap);
 
 	// cube density half water density
-	const double cube_density = 1000.0; // 1 = water
+	const double water_density_fraction = 0.5F;
+	const double cube_density = 1000.0 * water_density_fraction; // 1000 = water
 	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density); // only dynamics
 	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
 	cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density, m_ODESpace); // dynamics + collisions
 	// particles with object(info)-1==1 are associated with ODE object number 0
 	m_ODEobjectId[2-1] = 0;
 	add_ODE_body(cube);
+
+	// planes modelling the tank, for the interaction with the cube
+	m_box_planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0); // floor
+	m_box_planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0); // YZ plane, lower X
+	m_box_planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, - box_l); // YZ plane, higher X
+	m_box_planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0); // XZ plane, lower y
+	m_box_planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, - box_w); // XZ plane, higher Y
+
+	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
+	// compute the distance of a probe point from a plane (positive if penetrated, negative out)
+	/*
+	double3 probe_point = make_double3 (0.5, 0.5, 0.5);
+	printf("Test: probe point is distant %g from the bottom plane.\n,
+		dGeomPlanePointDepth(m_box_planes[0], probe_point.x, probe_point.y, probe_point.z)
 	*/
 
 	return h5File.getNParts();
@@ -155,7 +203,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
-		float rho = density(H - h5File.buf[i].Coords_2, 0);
+		float rho = density(initial_water_level - h5File.buf[i].Coords_2, 0);
 		//float rho = m_physparams.rho0[0];
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
@@ -170,7 +218,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(H - h5File.buf[i].Coords_2, 0);
+			float rho = density(initial_water_level - h5File.buf[i].Coords_2, 0);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = make_float4(0);

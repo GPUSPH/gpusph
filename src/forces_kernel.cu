@@ -328,11 +328,11 @@ calcGridHashPeriodic(int3 gridPos)
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(const float4	pos,
+getNeibIndex(float4 const&	pos,
 			float3&			pos_corr,
 			const uint*		cellStart,
 			neibdata		neib_data,
-			const int3		gridPos,
+			int3 const&		gridPos,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index)
 {
@@ -776,8 +776,8 @@ Gamma(	const	float		&slength,
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
 	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
-	// check if we are close to a wall
-	if (q_aSigma.w < 0.5f) {
+	// set minlRas only if we are deltap/2 far from a vertex
+	if (q_aSigma.w < 0.5f && length3(relPos) < deltap/2.0f/slength) {
 		minlRas = min(minlRas, q_aSigma.w);
 	}
 	// calculate if the projection of a (with respect to n) is inside the segment
@@ -1047,6 +1047,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 			if (r < influenceradius && (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))) {
 				const float neib_rho = oldVel[neib_index].w;
+
+				// Naif workaround to trespassing: just ignore parts with low density (<10% max oscillation)
+				if (neib_rho < 999.0F) continue; // TODO FIXME TEST
+
 				const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
 				const float neib_vel = length(make_float3(oldVel[neib_index]));
 				const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
@@ -2374,7 +2378,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
@@ -2422,9 +2426,10 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float normal_length = length(as_float3(normal));
 
 	//Checking the planes
-	// TODO: fix me for homogenous precision
+	const float3 globalpos = d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize;
+
 	for (uint i = 0; i < d_numplanes; ++i) {
-		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
+		float r = abs(dot(globalpos, as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
 		if (r < influenceradius) {
 			as_float3(normal) += as_float3(d_planes[i])* normal_length;
 			normal_length = length(as_float3(normal));
@@ -2432,9 +2437,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Second loop over all neighbors
-
-	// Resetting grid position of current particle
-	gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	// Resetting persistent variables across getNeibData
 	neib_cellnum = 0;

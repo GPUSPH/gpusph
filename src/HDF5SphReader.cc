@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fstream>
+#include <limits.h>
 
 #include "hdf5_select.opt"
 

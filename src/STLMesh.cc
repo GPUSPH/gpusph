@@ -290,23 +290,59 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 
 	// use the default callbacks
 	m_ODEGeom = dCreateTriMesh(ODESpace, m_ODETriMeshData, NULL, NULL, NULL);
+
 	if (m_ODEBody) {
-		// set the body
+		/* Now we want to compute the body CG, mass and inertia tensor, assuming
+		 * constant density. They are all computed by ODE for a generic mesh in
+		 * dMassSetTrimesh(). For some obscure reason, ODE requires the CG to be
+		 * at (0,0,0) in the object coordinate system for a correct inertia
+		 * computation; however, we want dMassSetTrimesh() itself to estimated
+		 * the CG. Therefore, we call it twice: the first time we'll read only
+		 * the CG; the second, also the inertia. The mass should be practically
+		 * identical in both calls.
+		 *
+		 * See: https://groups.google.com/d/msg/ode-users/SUQzotZNIZU/wMpXpXIk4MMJ
+		 */
+
+		// associate the geometry to the body
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
-		// compute the mass, center of gravity and inertial tensor for the object
-		// assuming constant density
-		dMassSetTrimesh (&m_ODEMass, (dReal)density, m_ODEGeom);
-		// get the data from the m_ODEmass struct and write it to the vars in Object
-		m_mass = m_ODEMass.mass;
+
+		// here we are interested only in the CG; inertia is wrong
+		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+
+		// save the CG in the local m_center class member
 		m_center(0) = m_ODEMass.c[0];
 		m_center(1) = m_ODEMass.c[1];
 		m_center(2) = m_ODEMass.c[2];
-		// TODO check if this is actually required
+
+		// CG != origin until now; for correct inertia computation, we shift the geometry to
+		// make the CG coincide with the (ODE object local) origin
+		dGeomSetOffsetPosition(m_ODEGeom, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
+
+		// compute again CG, mass, inertia (correct this time)
+		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+
+		// CG is now very close to zero, except for numerical leftovers which we manually reset
+		m_ODEMass.c[0] = m_ODEMass.c[1] = m_ODEMass.c[2] = 0;
+
+		// we worked on the m_ODEMass class member; tell ODE that's the new ODEMass
+		dBodySetMass(m_ODEBody, &m_ODEMass);
+
+		// once the inertia matrix is correctly computed, we can move back the ODE obj to its global position
+		dBodySetPosition(m_ODEBody,m_center(0), m_center(1), m_center(2));
+
+		// store inertia and mass in local class members
 		m_inertia[0] = m_ODEMass.I[0];
-		m_inertia[1] = m_ODEMass.I[4];
-		m_inertia[2] = m_ODEMass.I[8];
-		// Set the position of the body
-		dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+		m_inertia[1] = m_ODEMass.I[5];
+		m_inertia[2] = m_ODEMass.I[10];
+		m_mass = m_ODEMass.mass;
+
+		// reset the numerical leftovers in inertia matrix
+		m_ODEMass.I[1] = m_ODEMass.I[2] = m_ODEMass.I[4] = 0;
+		m_ODEMass.I[6] = m_ODEMass.I[8] = m_ODEMass.I[9] = 0;
+
+		// show final computed position, CG, mass, inertia, bbox
+		ODEPrintInformation();
 	}
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
@@ -316,7 +352,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 
 void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace)
 {
-	const double m_lx = m_maxbounds.x - m_minbounds.y;
+	const double m_lx = m_maxbounds.x - m_minbounds.x;
 	const double m_ly = m_maxbounds.y - m_minbounds.y;
 	const double m_lz = m_maxbounds.z - m_minbounds.z;
 
@@ -330,7 +366,8 @@ void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double den
 		// In case we don't have a geometry we can make ODE believe it is a box.
 		// This works because all we need in this case are center of gravity and the
 		// tensor of inertia together with the mass to compute the movement of the object.
-		dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_ly + dx);
+		// TODO FIXME: are we sure m_mass is set here? we have density and volume, should compute it instead?
+		dMassSetBoxTotal(&m_ODEMass, m_mass, m_lx + dx, m_ly + dx, m_lz + dx);
 		dBodySetMass(m_ODEBody, &m_ODEMass);
 		dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
 		dBodySetRotation(m_ODEBody, m_ODERot);

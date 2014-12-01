@@ -99,6 +99,9 @@ CPUDEPS = $(MAKEFILE).cpu
 
 # .cc source files (CPU)
 MPICXXFILES = $(SRCDIR)/NetworkManager.cc
+ifeq ($(USE_HDF5),2)
+	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
+endif
 CCFILES = $(filter-out $(MPICXXFILES),$(wildcard $(SRCDIR)/*.cc))
 
 # .cu source files (GPU), excluding *_kernel.cu
@@ -389,7 +392,14 @@ endif
 
 # END of MPICXX mess
 
-# option: hdf5 - 0 do not use HDF5, 1 use HDF5. Default: autodetect
+# override: HDF5_CPP - preprocessor flags to find/use HDF5
+HDF5_CPP ?= $(shell pkg-config --cflags-only-I hdf5 2> /dev/null)
+# override: HDF5_CXX - compiler flags to use HDF5
+HDF5_CXX ?= $(shell pkg-config --cflags-only-other hdf5 2> /dev/null)
+# override: HDF5_LD - LD flags to use HDF5
+HDF5_LD ?= $(shell pkg-config --libs hdf5 2> /dev/null || echo -lhdf5)
+
+# option: hdf5 - 0 do not use HDF5, 1 use HDF5, 2 use HDF5 and HDF5 requires MPI. Default: autodetect
 ifdef hdf5
 	# does it differ from last?
 	ifneq ($(USE_HDF5),$(hdf5))
@@ -399,8 +409,17 @@ ifdef hdf5
 		USE_HDF5=$(hdf5)
 	endif
 else
-	# check if we can link to the HDF5 library, and disable HDF5 otherwise
-	USE_HDF5 ?= $(shell $(CXX) $(LIBPATH) -shared -lhdf5 -o hdf5test 2> /dev/null && rm hdf5test && echo 1 || echo 0)
+	# check if we can link to the HDF5 library, and disable HDF5 otherwise.
+	# We return -1 in case of failure to differentiate from a case such as 'make hdf5=0 ; make', in which case we
+	# want to skip also the MPICXX test
+	# We use a for loop in the shell to echo each line because users might have different interactive shells
+	# that do (or do not) interpret a \n escape, so the only portable way seems to echo each line separately,
+	# and grouping the echos in { } doesn't seem to work from a Makefile shell invocation
+	USE_HDF5 ?= $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - && echo 1 || echo -1)
+	ifeq ($(USE_HDF5),-1)
+		# on some configurations, HDF5 requires mpi. check this, by first compiling with CXX
+		USE_HDF5 := $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - && echo 1 || echo -1)
+	endif
 endif
 
 # --- Includes and library section start ---
@@ -465,11 +484,11 @@ LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
 
-ifeq ($(USE_HDF5),1)
-	# link to HDF5 for input reading
-	LIBS += -lhdf5
-else
+ifeq ($(USE_HDF5),0)
 	TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
+else
+	# link to HDF5 for input reading
+	LIBS += $(HDF5_LD)
 endif
 
 # pthread needed for the UDP writer
@@ -512,6 +531,9 @@ CPPFLAGS += $(INCPATH)
 
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
+ifneq ($(USE_HDF5),0)
+	CPPFLAGS += $(HDF5_CPP)
+endif
 
 # We set __COMPUTE__ on the host to match that automatically defined
 # by the compiler on the device. Since this might be done before COMPUTE
@@ -527,6 +549,11 @@ CPPFLAGS += -DdSINGLE
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
+
+# HDF5 might require specific flags
+ifneq ($(USE_HDF5),0)
+	CXXFLAGS += $(HDF5_CXX)
+endif
 
 # nvcc-specific flags
 
@@ -728,13 +755,14 @@ gpuclean: computeclean
 # target: computeclean - Clean compute capability selection stuff
 computeclean:
 	$(RM) $(LIST_CUDA_CC) $(COMPUTE_SELECT_OPTFILE)
+	$(SED_COMMAND) '/COMPUTE=/d' Makefile.conf
 
 # target: cookiesclean - Clean last dbg, problem, compute, hash_key_size and fastmath choices,
 # target:                forcing .*_select.opt files to be regenerated (use if they're messed up)
 cookiesclean:
 	$(RM) -r $(OPTFILES) $(OPTSDIR)
 
-# target: confclean - Removes the default configuration file (Makefile.conf) as well as performing a cookiesclean
+# target: confclean - Clean all configuration options: like cookiesclean, but also purges Makefile.conf
 confclean: cookiesclean
 	$(RM) -f Makefile.conf
 
