@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fstream>
+#include <limits.h> // UINT_MAX
 
 #include "hdf5_select.opt"
 
