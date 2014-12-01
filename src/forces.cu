@@ -68,23 +68,23 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_CHECK(kernel, boundarytype, formulation, visc, dem) \
 	case kernel: \
-		/*if (!dtadapt && !xsphcorr) \
+		if (!dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, false)); \
 		else if (!dtadapt && xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, false, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, false, true)); \
-		else */if (dtadapt && !xsphcorr) \
+		else if (dtadapt && !xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, false, dem><<< numBlocks, numThreads, dummy_shared >>>\
 						(FORCES_PARAMS(kernel, boundarytype, visc, true, false)); \
-		/*else if (dtadapt && xsphcorr) \
+		else if (dtadapt && xsphcorr) \
 				cuforces::forcesDevice<kernel, formulation, boundarytype, visc, true, true, dem><<< numBlocks, numThreads, dummy_shared >>>\
-						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); */\
+						(FORCES_PARAMS(kernel, boundarytype, visc, true, true)); \
 		break
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 	switch (kerneltype) { \
-		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); */\
+		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); \
 		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -127,10 +127,8 @@ void*	reduce_buffer = NULL;
 #define BOUNDARY_SWITCH(dem) \
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
-		/* \
 		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
 		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
-		*/ \
 		BOUNDARY_CHECK(DYN_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
