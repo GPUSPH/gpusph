@@ -66,12 +66,25 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.visctype = DYNAMICVISC;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = SA_BOUNDARY;
+	m_simparams.boundarytype = DYN_BOUNDARY;
+	//m_simparams.boundarytype = SA_BOUNDARY;
 	//m_simparams.boundarytype = LJ_BOUNDARY;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
+
+	// enlarge the domain to take into account the extra layers of particles
+	// of the boundary
+	if (m_simparams.boundarytype == DYN_BOUNDARY && !m_usePlanes) {
+		// number of layers
+		dyn_layers = ceil(m_simparams.kernelradius*m_simparams.sfactor);
+		// extra layers are one less (since other boundary types still have
+		// one layer)
+		double3 extra_offset = make_double3((dyn_layers-1)*m_deltap);
+		m_origin -= extra_offset;
+		m_size += 2*extra_offset;
+	}
 
 	m_simparams.tend = 1.0;
 	if (m_simparams.boundarytype == SA_BOUNDARY) {
@@ -125,24 +138,31 @@ int StillWater::fill_parts()
 
 	parts.reserve(14000);
 
-	experiment_box = Cube(Point(m_origin), Vector(l, 0, 0), Vector(0, w, 0), Vector(0, 0, h));
+	experiment_box = Cube(Point(m_origin), Vector(m_size.x, 0, 0),
+		Vector(0, m_size.y, 0), Vector(0, 0, m_size.z));
 
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
 
-	if(!m_usePlanes){
-		if(m_simparams.boundarytype == SA_BOUNDARY) {
+	if (!m_usePlanes) {
+		switch (m_simparams.boundarytype) {
+		case SA_BOUNDARY:
 			experiment_box.FillBorder(boundary_parts, boundary_elems, vertex_parts, vertex_indexes, wd, false);
-		}
-		else {
+			break;
+		case DYN_BOUNDARY:
+			experiment_box.FillIn(boundary_parts, m_deltap, dyn_layers, false);
+			break;
+		default:
 			experiment_box.FillBorder(boundary_parts, wd, false);
+			break;
 		}
 	}
 
-	Cube fluid = Cube(m_origin + Point(wd, wd, wd), Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
+	double3 fluid_origin = m_origin;
+	if (m_simparams.boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
+		fluid_origin += make_double3((dyn_layers-1)*m_deltap);
+	fluid_origin += make_double3(wd); // one wd space from the boundary
+	Cube fluid = Cube(fluid_origin, Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	// InnerFill puts particle in the center of boxes of step m_deltap, hence at
-	// m_deltap/2 from the sides, so the total distance between particles and walls
-	// is m_deltap = r0
 	fluid.Fill(parts, m_deltap);
 
 	//DEBUG: set only one fluid particle
@@ -190,7 +210,15 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+#if 1
+		double water_column = H - boundary_parts[i](2);
+		if (water_column < 0)
+			water_column = 0;
+		float rho = density(water_column, 0);
+#else
+		float rho = m_physparams.rho0[0];
+#endif
+		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -199,7 +227,10 @@ void StillWater::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		float rho = density(H - parts[i-j](2), 0);
+		double water_column = H - parts[i - j](2);
+		if (water_column < 0)
+			water_column = 0;
+		float rho = density(water_column, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
 		info[i] = make_particleinfo(FLUIDPART, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);

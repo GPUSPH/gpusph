@@ -49,7 +49,6 @@ Problem::Problem(const GlobalData *_gdata)
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_mbnumber = 0;
-	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
@@ -60,145 +59,7 @@ Problem::~Problem(void)
 {
 	if (m_ODE_bodies)
 		delete [] m_ODE_bodies;
-	if (m_rbdatafile.is_open())
-		m_rbdatafile.close();
 }
-
-static const char* TF[] = { "false", "true" };
-static const char* ED[] = { "disabled", "enabled" };
-
-// TODO mark params overridden by options with a *
-void
-Problem::write_simparams(ostream &out)
-{
-#define SP m_simparams
-
-	out << "Simulation parameters:" << endl;
-
-	out << " deltap = " << m_deltap << endl;
-	out << " sfactor = " << SP.sfactor << endl;
-	out << " slength = " << SP.slength << endl;
-	out << " kerneltype: " << SP.kerneltype << " (" << KernelName[SP.kerneltype] << ")" << endl;
-	out << " kernelradius = " << SP.kernelradius << endl;
-	out << " influenceRadius = " << SP.influenceRadius << endl;
-	out << " initial dt = " << SP.dt << endl;
-	out << " simulation end time = " << SP.tend << endl;
-	out << " neib list construction every " << SP.buildneibsfreq << " iterations" << endl;
-	out << " Shepard filter every " << SP.shepardfreq << " iterations" << endl;
-	out << " MLS filter every " << SP.mlsfreq << " iterations" << endl;
-	out << " adaptive time stepping " << ED[SP.dtadapt] << endl;
-	if (SP.dtadapt)
-		out << " safety factor for adaptive time step = " << SP.dtadaptfactor << endl;
-	out << " XSPH correction " << ED[SP.xsph] << endl;
-	out << " SPH formulation: " << SP.sph_formulation << " (" << SPHFormulationName[SP.sph_formulation] << ")" << endl;
-	out << " viscosity type: " << SP.visctype << " (" << ViscosityName[SP.visctype] << ")" << endl;
-	out << " moving boundaries " << ED[SP.mbcallback] << endl;
-	out << " time-dependent gravity " << ED[SP.gcallback] << endl;
-	out << " periodicity: " << SP.periodicbound << " (" << PeriodicityName[SP.periodicbound] << ")" << endl;
-	out << " DEM: " << TF[SP.usedem] << endl;
-#undef SP
-}
-
-void
-Problem::write_physparams(ostream &out)
-{
-#define SP m_simparams
-#define PP m_physparams
-
-	out << "Physical parameters:" << endl;
-
-#define g PP.gravity
-	out << " gravity = (" << g.x << ", " << g.y << ", " << g.z << ") [" << length(g) << "] "
-		<< (SP.gcallback ? "time-dependent" : "fixed") << endl;
-#undef g
-	out << " numFluids = " << PP.numFluids << endl;
-	for (uint f = 0; f < PP.numFluids ; ++f) {
-		out << " rho0[ " << f << " ] = " << PP.rho0[f] << endl;
-		out << " B[ " << f << " ] = " << PP.bcoeff[f] << endl;
-		out << " gamma[ " << f << " ] = " << PP.gammacoeff[f] << endl;
-		out << " sscoeff[ " << f << " ] = " << PP.sscoeff[f] << endl;
-		out << " sspowercoeff[ " << f << " ] = " << PP.sspowercoeff[f] << endl;
-		out << " sound speed[ " << f << " ] = " << soundspeed(PP.rho0[f],f) << endl;
-	}
-
-	out << " partsurf = " << PP.partsurf << endl;
-
-	out << " " << BoundaryName[SP.boundarytype] << " boundary parameters:" << endl;
-	out << "\tr0 = " << PP.r0 << endl;
-	switch (SP.boundarytype) {
-		case LJ_BOUNDARY:
-			out << "\td = " << PP.dcoeff << endl;
-			out << "\tp1 = " << PP.p1coeff << endl;
-			out << "\tp2 = " << PP.p2coeff << endl;
-			break;
-		case MK_BOUNDARY:
-			out << "\tK = " << PP.MK_K << endl;
-			out << "\td = " << PP.MK_d << endl;
-			out << "\tbeta = " << PP.MK_beta << endl;
-			break;
-		default:
-			/* nothing else */
-			break;
-	}
-
-	out << " " << ViscosityName[SP.visctype] << " viscosity parameters:" << endl;
-	if (SP.visctype == ARTVISC) {
-		out << "\tartvisccoeff = " << PP.artvisccoeff << "" << endl;
-		out << "\tepsartvisc = " << PP.epsartvisc << "" << endl;
-	} else
-		out << "\tkinematicvisc = " << PP.kinematicvisc << " (m^2/s)" << endl;
-	if (SP.visctype == SPSVISC) {
-		out << "\tSmagfactor = " << PP.smagfactor << endl;
-		out << "\tkSPSfactor = " << PP.kspsfactor << endl;
-	}
-	out << "\tvisccoeff = " << PP.visccoeff << endl;
-
-	if (SP.xsph) {
-		out << " epsxsph = " << PP.epsxsph << endl;
-	}
-
-	if (SP.usedem) {
-		out << " DEM resolution EW = " << PP.ewres << ", NS = " << PP.nsres << endl;
-		out << " DEM displacement for normal computation dx = " << PP.demdx << ", dy = " << PP.demdy << endl;
-		out << " DEM zmin = " << PP.demzmin << endl;
-	}
-#undef SP
-#undef PP
-}
-
-void
-Problem::write_options(ostream &out)
-{
-#define OP m_options
-	out << "Comman-line options:" << endl;
-	out << " problem: " << OP->problem << endl;
-	out << " dem: " << OP->dem << endl;
-	out << " dir: " << OP->dir << endl;
-	out << " deltap: " << OP->deltap << endl;
-	out << " tend: " << OP->tend << endl;
-	out << " hosts: " << OP->num_hosts << endl;
-	out << " saving " << ED[!OP->nosave] << endl;
-	out << " GPUDirect " << ED[OP->gpudirect] << endl;
-	out << " striping " << ED[OP->striping] << endl;
-	out << " async network transfers " << ED[OP->asyncNetworkTransfers] << endl;
-#undef OP
-}
-
-void
-Problem::write_summary(void)
-{
-	ofstream out;
-	out.exceptions(ofstream::failbit | ofstream::badbit);
-	out.open((m_problem_dir + "/summary.txt").c_str());
-
-	write_simparams(out);
-	out << endl;
-	write_physparams(out);
-	out << endl;
-	write_options(out);
-	out.close();
-}
-
 
 void
 Problem::check_dt(void)
@@ -362,11 +223,6 @@ Problem::create_problem_dir(void)
 
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
-	if (m_rbdata_writeinterval) {
-		string rbdata_filename = m_problem_dir + "/rbdata.txt";
-		m_rbdatafile.exceptions(ofstream::failbit | ofstream::badbit);
-		m_rbdatafile.open(rbdata_filename.c_str());
-	}
 	return m_problem_dir;
 }
 
@@ -405,42 +261,6 @@ Problem::need_write(double t) const
 	return false;
 }
 
-bool
-Problem::need_write_rbdata(double t) const
-{
-	if (m_rbdata_writeinterval == 0)
-		return false;
-
-	if (t - m_last_rbdata_write_time >= m_rbdata_writeinterval) {
-		return true;
-	}
-
-	return false;
-}
-
-
-void
-Problem::write_rbdata(double t)
-{
-	if (m_simparams.numODEbodies) {
-		if (need_write_rbdata(t)) {
-			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
-				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
-				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
-				m_rbdatafile << i << "\t" << t
-					<< cg[0] << "\t"
-					<< cg[1] << "\t"
-					<< cg[2] << "\t"
-					<< quat[0] << "\t"
-					<< quat[1] << "\t"
-					<< quat[2] << "\t"
-					<< quat[3];
-			}
-		}
-	}
-	m_last_rbdata_write_time = t;
-}
-
 // is the simulation finished at the given time?
 bool
 Problem::finished(double t) const
@@ -460,10 +280,9 @@ Problem::mb_callback(const double t, const float dt, const int i)
 		fprintf(stderr, "WARNING: mb_callback(float, float, int) is deprecated, please switch to mb_callback(double, float, int)\n");
 		reminder_shown = true;
 	}
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+	IGNORE_WARNINGS(deprecated-declarations)
 	return mb_callback(float(t), dt, i);
-#pragma
+	RESTORE_WARNINGS
 };
 
 MbCallBack&
@@ -488,10 +307,9 @@ Problem::g_callback(const double t)
 		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
 		reminder_shown = true;
 	}
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+	IGNORE_WARNINGS(deprecated-declarations)
 	return g_callback(float(t));
-#pragma GCC diagnostic pop
+	RESTORE_WARNINGS
 }
 
 float3
@@ -751,10 +569,12 @@ Problem::get_ODE_body_numparts(const int i) const
 
 
 void
-Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
+Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot, float3 * & linearvel, float3 * & angularvel)
 {
-	cg = m_bodies_cg;
-	steprot = m_bodies_steprot;
+	cg = get_ODE_bodies_cg();
+	steprot = get_ODE_bodies_steprot();
+	linearvel = get_ODE_bodies_linearvel();
+	angularvel = get_ODE_bodies_angularvel();
 }
 
 
@@ -769,16 +589,43 @@ Problem::get_ODE_bodies_cg(void)
 }
 
 
+float3*
+Problem::get_ODE_bodies_linearvel(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_linearvel[i] = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
+	}
+
+	return m_bodies_linearvel;
+}
+
+
+float3*
+Problem::get_ODE_bodies_angularvel(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_angularvel[i] = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
+	}
+
+	return m_bodies_linearvel;
+}
+
+
 float*
 Problem::get_ODE_bodies_steprot(void)
 {
 	return m_bodies_steprot;
 }
 
+void
+Problem::object_forces_callback(double t, int step, float3 *forces, float3 *torques)
+{ /* default does nothing */ }
+
 
 void
 Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
-		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot,
+		float3 * & linearvel, float3 * & angularvel)
 {
 	dReal prev_quat[MAXBODIES][4];
 	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
@@ -800,6 +647,13 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
 		m_bodies_cg[i] = new_cg;
+
+		float3 new_lvel = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_linearvel[i] = new_lvel;
+
+		float3 new_avel = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_angularvel[i] = new_avel;
+
 		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 		dQuaternion step_quat;
 		dMatrix3 R;
@@ -819,6 +673,8 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 	trans = m_bodies_trans;
+	linearvel = m_bodies_linearvel;
+	angularvel = m_bodies_angularvel;
 }
 
 // Number of planes

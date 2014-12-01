@@ -59,7 +59,6 @@ using namespace std;
 
 class Problem {
 	private:
-		double		m_last_rbdata_write_time;
 		string		m_problem_dir;
 		WriterList	m_writers;
 
@@ -87,9 +86,6 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		double		m_rbdata_writeinterval;
-		ofstream		m_rbdatafile;
-
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }
 		int		get_dem_nrows() const { return m_nrows; }
@@ -110,17 +106,13 @@ class Problem {
 		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
+		float3		m_bodies_linearvel[MAXBODIES];		// Linear velocity of rigid bodies
+		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 
 		Problem(const GlobalData *_gdata);
 
 		virtual ~Problem(void);
-
-		/* Save a summary of phy, sim params and options */
-		void write_simparams(ostream &out);
-		void write_physparams(ostream &out);
-		void write_options(ostream &out);
-		void write_summary();
 
 		/* a function to check if the (initial or fixed) timestep
 		 * is compatible with the CFL coditions */
@@ -243,7 +235,7 @@ class Problem {
 		// add a new writer
 		// DEPRECATED: use ad_writer() with the frequency in seconds
 		// by passing as argument the product of freq and the timer tick
-		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, float)");
+		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, double)");
 
 		// add a new writer, with the given write frequency in (fractions of) seconds
 		void add_writer(WriterType wt, double freq);
@@ -255,10 +247,6 @@ class Problem {
 		// overridden in subclasses if they want explicit writes
 		// beyond those controlled by the writer(s) periodic time
 		virtual bool need_write(double) const;
-
-		// TODO these should be moved out of here into a specific writer
-		virtual bool need_write_rbdata(double) const;
-		void write_rbdata(double);
 
 		// is the simulation running at the given time?
 		bool finished(double) const;
@@ -294,11 +282,24 @@ class Problem {
 		void allocate_ODE_bodies(const uint);
 		void add_ODE_body(Object* object);
 		Object* get_ODE_body(const uint);
-		void get_ODE_bodies_data(float3 * &, float * &);
+		Object const* const* get_ODE_bodies() const
+		{ return m_ODE_bodies; }
+
+		void get_ODE_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		float3* get_ODE_bodies_cg(void);
 		float* get_ODE_bodies_steprot(void);
+		float3* get_ODE_bodies_linearvel(void);
+		float3* get_ODE_bodies_angularvel(void);
+
+		/* This method can be overridden in problems when the object
+		 * forces have to be altered in some way before being applied.
+		 */
+		virtual void
+		object_forces_callback(double t, int step, float3 *forces, float3 *torques);
+
 		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
-									const double, float3 * &, float3 * &, float * &);
+									const double, float3 * &, float3 * &, float * &,
+									float3 * &, float3 * &);
 		size_t	get_ODE_bodies_numparts(void) const;
 		size_t	get_ODE_body_numparts(const int) const;
 

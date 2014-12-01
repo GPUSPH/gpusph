@@ -29,7 +29,7 @@
 #include "Object.h"
 
 
-/// Compute the particle mass according to object volume (computed using Volume()) and density
+/// Compute the particle mass according to object volume and density
 /*! The mass of object particles is computed dividing the object volume
  *  by the number of particles needed for filling and multiplying the
  *	result by the density.
@@ -85,8 +85,7 @@ Object::SetMass(const double dx, const double rho)
 
 /// Set the mass of the object
 /*! Directly set the object mass without any computation.
- *
- *	\param mass : object mass
+ * \param mass : object mass
  */
 void
 Object::SetMass(const double mass)
@@ -97,7 +96,6 @@ Object::SetMass(const double mass)
 
 /// Set the object principal moments of inertia
 /*! Directly set the object principal moments of inertia.
- *
  *	\param inertia : pointer to the array containing principal moments of inertia (3 values)
  */
 void
@@ -116,7 +114,6 @@ Object::SetInertia(const double* inertia)
  *		- the object mass
  *		- the object principal moments of inertia
  *		- the Euler parameters defining the orientation of object principal axis of inertia respect to rest frame
- *
  *	\param cg : center of gravity
  *	\param mass : mass
  *	\param inertia : pointer to an 3 values array
@@ -137,8 +134,7 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 
 
 /// Return the particle vector associated with the object
-/*! Return the particle vector associated with the object
- *	\return number of particles needed to fill the object
+/*! \return a reference to the particles vector associated with the object
  */
 PointVect&
 Object::GetParts(void)
@@ -164,7 +160,6 @@ Object::Fill(PointVect& points, const double dx)
  *
  *  If the fill parameter is set to false the function just count the number of
  *  particles needed otherwise the particles are added to the particle vector.
- *
  *	\param ep : orientation
  *	\param center : translation to apply
  *	\param r : radius
@@ -193,7 +188,6 @@ Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& cent
  *
  *  If the fill parameter is set to false the function just count the number of
  *  particles needed otherwise the particles are added to the particle vector.
- *
  *	\param ep : orientation
  *	\param center : translation to apply
  *	\param rmin : minimum radius
@@ -224,7 +218,6 @@ Object::FillDisk(PointVect& points, const EulerParameters& ep, const Point& cent
  *
  *  If the fill parameter is set to false the function just count the number of
  *  particles needed otherwise the particles are added to the particle vector.
- *
  *	\param ep : orientation
  *	\param center : translation to apply
  *	\param rmin : minimum radius
@@ -265,11 +258,11 @@ Object::FillDiskBorder(PointVect& points, const EulerParameters& ep, const Point
 
 
 /// Remove particles from particle vector
-/*! Remove the particles of particles vector lying inside the object.
+/*! Remove the particles of particles vector lying inside the object
+ * 	within a tolerance off dx.
  *  This method used IsInside().
- *
  *	\param points : particle vector
- *	\param dx : particle spacing
+ *	\param dx : tolerance
  */
 void Object::Unfill(PointVect& points, const double dx) const
 {
@@ -287,3 +280,4 @@ void Object::Unfill(PointVect& points, const double dx) const
 
 	points = new_points;
 }
+

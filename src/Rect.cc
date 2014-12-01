@@ -31,6 +31,7 @@
 #include "Rect.h"
 
 
+/// Default onstructor
 Rect::Rect(void)
 {
 	m_origin = Point(0, 0, 0);
@@ -39,6 +40,13 @@ Rect::Rect(void)
 }
 
 
+/// Constructor
+/*!	The parallelipiped is built from a starting point and
+ 	two vectors
+	\param origin : starting point of the parallelipided
+	\param vx : first vector
+	\param vy : first vector
+*/
 Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
 	if (fabs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
@@ -53,8 +61,8 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 	m_ly = vy.norm();
 	m_center = m_origin + 0.5*m_vx + 0.5*m_vy;
 
-	Vector vz = m_vx.cross(m_vy);
-	vz.normalize();
+	m_vz = m_vx.cross(m_vy);
+	m_vz.normalize();
 
 	Vector axis;
 	double mat[9];
@@ -64,9 +72,9 @@ Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 	mat[1] = m_vy(0)/m_ly;
 	mat[4] = m_vy(1)/m_ly;
 	mat[7] = m_vy(2)/m_ly;
-	mat[2] = vz(0);
-	mat[5] = vz(1);
-	mat[8] = vz(2);
+	mat[2] = m_vz(0);
+	mat[5] = m_vz(1);
+	mat[8] = m_vz(2);
 
 	double trace = mat[0] + mat[4] + mat[8];
 	double cs = 0.5*(trace - 1.0);
@@ -152,6 +160,7 @@ Rect::Rect(const Point &origin, const double lx, const double ly, const EulerPar
 
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
+	m_vz = m_vx.cross(m_vz);
 
 	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 	m_origin.print();
@@ -573,6 +582,26 @@ Rect::Fill(PointVect& bpoints, PointVect& belems, PointVect& vpoints, std::vecto
 	}
 
 	return;
+}
+
+/// Fill a rectangle with layers of particles, from the surface
+/// to the direction of the normal vector. Use a negative
+/// value of layers to FillIn the opposite direction
+void
+Rect::FillIn(PointVect &points, const double dx, const int layers)
+{
+	int _layers = abs(layers);
+
+	Vector unitshift(layers > 0 ? m_vz : -m_vz);
+	unitshift.normalize();
+
+	Fill(points, dx, true);
+
+	while (--_layers > 0) {
+		Rect layer(m_origin + dx*_layers*unitshift, m_vx, m_vy);
+		layer.SetPartMass(m_center(3));
+		layer.Fill(points, dx, true);
+	}
 }
 
 bool

@@ -98,6 +98,7 @@ enum CommandType {
 	UPLOAD_PLANES,		// upload planes
 	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
+	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	QUIT				// quits the simulation cycle
@@ -265,12 +266,24 @@ struct GlobalData {
 
 	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
-	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
-	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+	float3 s_hRbDeviceTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
+	float3 s_hRbDeviceTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+
+	float3 s_hRbTotalForce[MAXBODIES]; // aggregate total force (sum across all devices and nodes);
+	float3 s_hRbTotalTorque[MAXBODIES]; // aggregate total torque (sum across all devices and nodes);
+
+	// actual applied total forces and torques. may be different from the computed total
+	// forces/torques if modified by the problem callback
+	float3 s_hRbAppliedForce[MAXBODIES];
+	float3 s_hRbAppliedTorque[MAXBODIES];
+
+
 	// gravity centers and rototranslations, which are computed by the ODE library
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
+	float3* s_hRbLinearVelocities;
+	float3*	s_hRbAngularVelocities;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -310,7 +323,9 @@ struct GlobalData {
 		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
-		s_hRbRotationMatrices(NULL)
+		s_hRbRotationMatrices(NULL),
+		s_hRbLinearVelocities(NULL),
+		s_hRbAngularVelocities(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -319,9 +334,15 @@ struct GlobalData {
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			for (uint ob=0; ob < MAXBODIES; ob++) {
-				s_hRbTotalForce[d][ob] = make_float3(0.0F);
-				s_hRbTotalTorque[d][ob] = make_float3(0.0F);
+				s_hRbDeviceTotalForce[d][ob] = make_float3(0.0F);
+				s_hRbDeviceTotalTorque[d][ob] = make_float3(0.0F);
 			}
+
+		// init total computed and applied forces
+		for (uint ob=0; ob < MAXBODIES; ob++) {
+			s_hRbAppliedForce[ob] = s_hRbTotalForce[ob] = make_float3(0.0F);
+			s_hRbAppliedTorque[ob] = s_hRbTotalTorque[ob] = make_float3(0.0F);
+		}
 
 		// init last indices for segmented scans for objects
 		for (uint ob=0; ob < MAXBODIES; ob++)
@@ -481,8 +502,7 @@ struct GlobalData {
 	 * in signaling potential issues in the upconversion from uchar to (u)int and subsequent downconversion
 	 * that happen on the shifts
 	 */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
+	IGNORE_WARNINGS(conversion)
 
 	// *** MPI aux methods: conversion from/to local device ids to global ones
 	// get rank from globalDeviceIndex
@@ -507,7 +527,7 @@ struct GlobalData {
 		}
 	}
 
-#pragma GCC diagnostic pop
+	RESTORE_WARNINGS
 
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;

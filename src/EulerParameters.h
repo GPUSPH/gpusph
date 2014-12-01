@@ -28,8 +28,9 @@
 
 #include "Point.h"
 #include "Vector.h"
+#include "ode/ode.h"
 
-//! Euler parameters class
+/// Euler parameters class
 /*!
  *	Euler parameters class provide:
  *		- basic operations with Euler parameters
@@ -39,50 +40,86 @@
  *	Euler parameters are normalized quaternions and then can represent any
  *	arbitrary rotation in space.
  *
+ *	Associating a rotation matrix to Eulers parameters needs some computation
+ *	so a precomputed rotation matrix is stored with the Euler parameters.
+ *	Considering that choice the user must call the method computing the rotation
+ *	matrix before making any rotation or inverse rotation.
+ *
+ *	There is a one-to-one correspondence between Euler parameters and Euler angles
+ *	\f$(\psi, \theta, \phi)\f$.
+ *	The Euler angles are used to represent the relative orientation between two
+ *	coordinate system :
+ *		- the rotation of angle \f$ \psi \f$ around (Oz) transforms (O,xyz) in (O, uvz).
+ *		- the rotation of angle \f$ \theta \f$ around (Ou) transforms (O,uvz) in (O, uwz').
+ *		- the rotation of angle \f$ \phi \f$ around (Oz) transforms (O,uwz') in (O, x'y'z').
+ *
+ * 	\htmlonly
+ * 	<table border="0">
+ * 	<tr>
+ *  	<td><img src="EulerAngles.png" width="300px"></img></td>
+ *	</tr>
+ *  	<td align="center">Euler angles</td>
+ *	</tr>
+ * 	</table>
+ *	\endhtmlonly
+ *
+ *	The three elemental rotations may occur either about the axes (xyz) of the original
+ *	coordinate system, which is assumed to remain motionless (extrinsic rotations), or
+ *	about the axes of the rotating coordinate system, which changes its orientation
+ *	after each elemental rotation (intrinsic rotations). There are 6 possible choice
+ *	and for sake of simplicity all Euler angles are defined according to the (zxz)
+ *	intrinsic choice.
+ *	The succession of rotations from coordinate system (xyz) to (x'y'z') in the (zxz)
+ *	intrinsic convention is depicted in the animation below.
+ *
+ * 	\htmlonly
+ * 	<table border="0">
+ * 	<tr>
+ *  	<td><img src="EulerZXZ.gif" width="380px"></img></td>
+ *	</tr>
+ *  	<td align="center">Coordinate change</td>
+ *	</tr>
+ * 	</table>
+ *	\endhtmlonly
+ *
  *	In the following documentation \f$ q=(q_0, q_1, q_2, q_3)\f$ will denotes
  *	a set of Euler parameters (i.e. with \f$ q^2_0 + q^2_1 + q^2_2 + q^2_3 = 1\f$).
 */
-
-
 class EulerParameters {
 	private:
 		double		m_ep[4];			///< Values of Euler parameters
 		double		m_rot[9];			///< Associated rotation matrix
 
 	public:
+		/// \name Constructors and destructor
+		//@{
 		EulerParameters(void);
 		EulerParameters(const double *);
 		EulerParameters(const float *);
 		EulerParameters(const double, const double, const double);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
+		EulerParameters(const dQuaternion &);
 		~EulerParameters(void) {};
+		//@}
 
-		EulerParameters& operator = (const EulerParameters&);
-
-		void Normalize(void);
-
-		void ExtractEulerZXZ(double &, double &, double &) const;
-
-		void ComputeRot(void);
-
-		/// \name Rotation
+		/// \name Rotation related methods
 		//@{
+		void ComputeRot(void);
 		float3 Rot(const float3 &) const;
 		Point Rot(const Point &) const;
 		Vector Rot(const Vector &) const;
-		//@}
-
-		/// \name Inverse rotation
-		//@{
 		float3 TransposeRot(const float3 &) const;
 		Vector TransposeRot(const Vector &) const;
 		Point TransposeRot(const Point &) const;
+		void StepRotation(const EulerParameters &, float *) const;
 		//@}
 
-		/// \name Rotation matrix between two Euler parameters
+		/// \name Utility methods
 		//@{
-		void StepRotation(const EulerParameters &, float *) const;
+		void Normalize(void);
+		void ExtractEulerZXZ(double &, double &, double &) const;
+		void ToODEQuaternion(dQuaternion &);
 		//@}
 
 		/** \name Access operators */
@@ -91,7 +128,11 @@ class EulerParameters {
 		double operator()(int) const;
 		//@}
 
+		/** \name Overloaded operators */
+		//@{
+		EulerParameters& operator = (const EulerParameters&);
 		EulerParameters &operator*=(const EulerParameters &);
+		//@}
 
 		/** \name Overloaded friends operators */
 		//@{
@@ -99,32 +140,10 @@ class EulerParameters {
 		friend EulerParameters operator*(const EulerParameters *, const EulerParameters &);
 		//@}
 
-		/** \name Printing functions */
+		/** \name Debug printing functions */
 		//@{
 		void print(void) const;
 		void printrot(void) const;
 		//@}
 };
-
-
-/// Return a refrence to parameter i
-/*!	\param i : parameter number
- *	\return reference to parameter i
-*/
-inline double &
-EulerParameters::operator()(int i)
-{
-	return m_ep[i];
-}
-
-
-/// Return the value of parameter i
-/*!	\param i : parameter number
- *	\return value of parameter i
-*/
-inline double
-EulerParameters::operator()(int i) const
-{
-	return m_ep[i];
-}
 #endif	/* EULERPARAMETERS_H */

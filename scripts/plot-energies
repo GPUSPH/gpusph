@@ -18,7 +18,7 @@ fi
 
 test -f "$file" || abort "Energy file '$file' not found"
 
-cols=$(awk '{print NF-1; exit}' "$file")
+cols=$(awk '{print NF; exit}' "$file")
 
 fluid=0
 

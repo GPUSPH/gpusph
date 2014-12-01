@@ -47,7 +47,7 @@ class Sphere: public Object {
 		void ODEGeomCreate(dSpaceID, const double);
 
 		void FillBorder(PointVect&, const double);
-
+		void FillIn(PointVect&, const double, const int);
 		int Fill(PointVect&, const double, const bool fill = true);
 
 		bool IsInside(const Point&, const double) const;
