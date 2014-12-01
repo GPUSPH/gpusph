@@ -98,6 +98,7 @@ enum CommandType {
 	UPLOAD_PLANES,		// upload planes
 	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
+	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	QUIT				// quits the simulation cycle
@@ -148,16 +149,16 @@ struct GlobalData {
 	// # of GPUs running
 
 	// number of user-specified devices (# of GPUThreads). When multi-node, #device per node
-	unsigned int devices;
+	devcount_t devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
-	unsigned int mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
+	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
 	int mpi_rank; // MPI rank. -1 if not initialized
 
 	// total number of devices. Same as "devices" if single-node
-	unsigned int totDevices;
+	devcount_t totDevices;
 
 	// array of GPUWorkers, one per GPU
 	GPUWorker** GPUWORKERS;
@@ -198,7 +199,7 @@ struct GlobalData {
 	// CPU buffers ("s" stands for "shared"). Not double buffered
 	BufferList s_hBuffers;
 
-	uchar*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
+	devcount_t*			s_hDeviceMap; // one uchar for each cell, tells  which device the cell has been assigned to
 
 	// counter: how many particles per device
 	uint s_hPartsPerDevice[MAX_DEVICES_PER_NODE]; // TODO: can change to PER_NODE if not compiling for multinode
@@ -220,7 +221,7 @@ struct GlobalData {
 
 	// moving boundaries
 	float4	*s_mbData;
-	uint	mbDataSize;
+	size_t	mbDataSize;
 
 	// planes
 	uint numPlanes;
@@ -265,12 +266,24 @@ struct GlobalData {
 
 	// ODE objects
 	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
-	float3 s_hRbTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
-	float3 s_hRbTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+	float3 s_hRbDeviceTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
+	float3 s_hRbDeviceTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+
+	float3 s_hRbTotalForce[MAXBODIES]; // aggregate total force (sum across all devices and nodes);
+	float3 s_hRbTotalTorque[MAXBODIES]; // aggregate total torque (sum across all devices and nodes);
+
+	// actual applied total forces and torques. may be different from the computed total
+	// forces/torques if modified by the problem callback
+	float3 s_hRbAppliedForce[MAXBODIES];
+	float3 s_hRbAppliedTorque[MAXBODIES];
+
+
 	// gravity centers and rototranslations, which are computed by the ODE library
 	float3* s_hRbGravityCenters;
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
+	float3* s_hRbLinearVelocities;
+	float3*	s_hRbAngularVelocities;
 
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
@@ -310,7 +323,9 @@ struct GlobalData {
 		nosave(false),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
-		s_hRbRotationMatrices(NULL)
+		s_hRbRotationMatrices(NULL),
+		s_hRbLinearVelocities(NULL),
+		s_hRbAngularVelocities(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -319,9 +334,15 @@ struct GlobalData {
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			for (uint ob=0; ob < MAXBODIES; ob++) {
-				s_hRbTotalForce[d][ob] = make_float3(0.0F);
-				s_hRbTotalTorque[d][ob] = make_float3(0.0F);
+				s_hRbDeviceTotalForce[d][ob] = make_float3(0.0F);
+				s_hRbDeviceTotalTorque[d][ob] = make_float3(0.0F);
 			}
+
+		// init total computed and applied forces
+		for (uint ob=0; ob < MAXBODIES; ob++) {
+			s_hRbAppliedForce[ob] = s_hRbTotalForce[ob] = make_float3(0.0F);
+			s_hRbAppliedTorque[ob] = s_hRbTotalTorque[ob] = make_float3(0.0F);
+		}
 
 		// init last indices for segmented scans for objects
 		for (uint ob=0; ob < MAXBODIES; ob++)
@@ -336,9 +357,9 @@ struct GlobalData {
 	// compute the coordinates of the cell which contains the particle located at pos
 	int3 calcGridPosHost(double px, double py, double pz) const {
 		int3 gridPos;
-		gridPos.x = floor((px - worldOrigin.x) / cellSize.x);
-		gridPos.y = floor((py - worldOrigin.y) / cellSize.y);
-		gridPos.z = floor((pz - worldOrigin.z) / cellSize.z);
+		gridPos.x = (int)floor((px - worldOrigin.x) / cellSize.x);
+		gridPos.y = (int)floor((py - worldOrigin.y) / cellSize.y);
+		gridPos.z = (int)floor((pz - worldOrigin.z) / cellSize.z);
 		return gridPos;
 	}
 	// overloaded
@@ -383,7 +404,7 @@ struct GlobalData {
 
 	// compute the global device Id of the cell holding globalPos
 	// NOTE: as the name suggests, globalPos is _global_
-	uchar calcGlobalDeviceIndex(double4 globalPos) const {
+	devcount_t calcGlobalDeviceIndex(double4 globalPos) const {
 		// do not access s_hDeviceMap if single-GPU
 		if (devices == 1 && mpi_nodes == 1) return 0;
 		// compute 3D cell coordinate
@@ -416,7 +437,7 @@ struct GlobalData {
 		};
 		static const size_t memSuffix_els = sizeof(memSuffix)/sizeof(*memSuffix);
 
-		double mem = memory;
+		double mem = (double)memory;
 		uint idx = 0;
 		while (mem > 1024 && idx < memSuffix_els - 1) {
 			mem /= 1024;
@@ -476,28 +497,37 @@ struct GlobalData {
 		return to_string(mpi_rank) + "." + to_string(mpi_nodes);
 	}
 
+
+	/* disable -Wconversion warnings in this uchar manipulation sections, since GCC is a bit overeager 
+	 * in signaling potential issues in the upconversion from uchar to (u)int and subsequent downconversion
+	 * that happen on the shifts
+	 */
+	IGNORE_WARNINGS(conversion)
+
 	// *** MPI aux methods: conversion from/to local device ids to global ones
 	// get rank from globalDeviceIndex
-	inline static uchar RANK(uchar globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
+	inline static devcount_t RANK(devcount_t globalDevId) { return (globalDevId >> DEVICE_BITS);} // discard device bits
 	// get deviceIndex from globalDeviceIndex
-	inline static uchar DEVICE(uchar globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
+	inline static devcount_t DEVICE(devcount_t globalDevId) { return (globalDevId & DEVICE_BITS_MASK);} // discard all but device bits
 	// get globalDeviceIndex from rank and deviceIndex
-	inline static uchar GLOBAL_DEVICE_ID(uchar nodeRank, uchar localDevId) { return ((nodeRank << DEVICE_BITS) | (localDevId & DEVICE_BITS_MASK));} // compute global dev id
+	inline static devcount_t GLOBAL_DEVICE_ID(devcount_t nodeRank, devcount_t localDevId) { return ((nodeRank << DEVICE_BITS) | (localDevId & DEVICE_BITS_MASK));} // compute global dev id
 	// compute a simple "linearized" index of the given device, as opposite to convertDevices() does. Not static because devices is known after instantiation and initialization
-	inline uchar GLOBAL_DEVICE_NUM(uchar globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
+	inline devcount_t GLOBAL_DEVICE_NUM(devcount_t globalDevId) { return devices * RANK( globalDevId ) + DEVICE( globalDevId ); }
 	// opoosite of the previous: get rank
-	uchar RANK_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized / devices; }
+	devcount_t RANK_FROM_LINEARIZED_GLOBAL(devcount_t linearized) const { return linearized / devices; }
 	// opposite of the previous: get device
-	uchar DEVICE_FROM_LINEARIZED_GLOBAL(uchar linearized) const { return linearized % devices; }
+	devcount_t DEVICE_FROM_LINEARIZED_GLOBAL(devcount_t linearized) const { return linearized % devices; }
 
 	// translate the numbers in the deviceMap in the correct global device index format (5 bits node + 3 bits device)
 	void convertDeviceMap() const {
 		for (uint n = 0; n < nGridCells; n++) {
-			uchar _rank = RANK_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
-			uchar _dev  = DEVICE_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
+			devcount_t _rank = RANK_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
+			devcount_t _dev  = DEVICE_FROM_LINEARIZED_GLOBAL( s_hDeviceMap[n] );
 			s_hDeviceMap[n] = GLOBAL_DEVICE_ID(_rank, _dev);
 		}
 	}
+
+	RESTORE_WARNINGS
 
 	// Write the process device map to a CSV file. Appends process rank if multinode.
 	// To open such file in Paraview: open the file; check the correct separator is set; apply "Table to points" filter;

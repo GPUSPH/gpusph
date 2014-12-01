@@ -41,7 +41,7 @@
 // UINT_MAX
 #include "limits.h"
 
-GPUWorker::GPUWorker(GlobalData* _gdata, unsigned int _deviceIndex) {
+GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 	gdata = _gdata;
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
@@ -202,10 +202,20 @@ void GPUWorker::computeAndSetAllocableParticles()
 	size_t totMemory, memPerCells, freeMemory, safetyMargin;
 	cudaMemGetInfo(&freeMemory, &totMemory);
 	// TODO configurable
+	#define TWOTO32 (float) (1<<20)
+	printf("Device idx %u: free memory %u MiB, total memory %u MiB\n", m_cudaDeviceNumber,
+			(uint)(((float)freeMemory)/TWOTO32), (uint)(((float)totMemory)/TWOTO32));
 	safetyMargin = totMemory/32; // 16MB on a 512MB GPU, 64MB on a 2GB GPU
 	// compute how much memory is required for the cells array
 	memPerCells = (size_t)gdata->nGridCells * computeMemoryPerCell();
 
+	if (freeMemory < 16 + safetyMargin){
+		fprintf(stderr, "FATAL: not enough free device memory for safety margin (%u MiB) \n", (uint)((float) (16 + safetyMargin)/TWOTO32));
+		exit(1);
+	}
+	#undef TWOTO32
+	// TODO what are segments ?
+	// Why subtract 16B of mem when we are taking MiB od safety margin ?
 	freeMemory -= 16; // segments
 	freeMemory -= safetyMargin;
 
@@ -364,8 +374,8 @@ void GPUWorker::computeCellBursts()
 		const int3 coords_curr_cell = gdata->reverseGridHashHost(lin_curr_cell);
 
 		// find the owner
-		const uchar curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
-		const uchar curr_cell_rank = gdata->RANK( curr_cell_gidx );
+		const devcount_t curr_cell_gidx = gdata->s_hDeviceMap[lin_curr_cell];
+		const devcount_t curr_cell_rank = gdata->RANK( curr_cell_gidx );
 
 		// redundant correctness check
 		if ( curr_cell_rank >= gdata->mpi_nodes ) {
@@ -402,8 +412,8 @@ void GPUWorker::computeCellBursts()
 
 					// now compute the linearized hash of the neib cell and other properties
 					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
-					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
-					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
+					const devcount_t neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
+					const devcount_t neib_cell_rank = gdata->RANK( neib_cell_gidx );
 
 					// is this neib mine?
 					const bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
@@ -433,7 +443,7 @@ void GPUWorker::computeCellBursts()
 						continue;
 
 					// the "other" device is the device owning the cell (curr or neib) which is not mine
-					const uint other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
+					const devcount_t other_device_gidx = (curr_cell_gidx == m_globalDeviceIdx ? neib_cell_gidx : curr_cell_gidx);
 
 					if (any_mine) {
 
@@ -728,7 +738,7 @@ void GPUWorker::transferBursts()
 
 				// retrieve peer's indices, if intra-node
 				const AbstractBuffer *peerbuf = NULL;
-				uchar peerCudaDevNum = 0;
+				uint peerCudaDevNum = 0;
 				if (m_bursts[i].scope == NODE_SCOPE) {
 					uchar peerDevIdx = gdata->DEVICE(m_bursts[i].peer_gidx);
 					peerbuf = gdata->GPUWORKERS[peerDevIdx]->getBuffer(bufkey);
@@ -1271,37 +1281,34 @@ void GPUWorker::createCompactDeviceMap() {
 							int cx = ix + dx;
 							int cy = iy + dy;
 							int cz = iz + dz;
+
 							// warp periodic boundaries
-							if (m_simparams->periodicbound) {
-								// periodicity along X
-								if (m_physparams->dispvect.x) {
-									// WARNING: checking if c* is negative MUST be done before checking if it's greater than
-									// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
-									if (cx < 0) {
-										cx = gdata->gridSize.x - 1;
-									} else
-									if (cx >= gdata->gridSize.x) {
-										cx = 0;
-									}
-								} // if dispvect.x
-								// periodicity along Y
-								if (m_physparams->dispvect.y) {
-									if (cy < 0) {
-										cy = gdata->gridSize.y - 1;
-									} else
-									if (cy >= gdata->gridSize.y) {
-										cy = 0;
-									}
-								} // if dispvect.y
-								// periodicity along Z
-								if (m_physparams->dispvect.z) {
-									if (cz < 0) {
-										cz = gdata->gridSize.z - 1;
-									} else
-									if (cz >= gdata->gridSize.z) {
-										cz = 0;
-									}
-								} // if dispvect.z
+
+							// periodicity along X
+							if (m_simparams->periodicbound & PERIODIC_X) {
+								// WARNING: checking if c* is negative MUST be done before checking if it's greater than
+								// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
+								if (cx < 0) {
+									cx = gdata->gridSize.x - 1;
+								} else if (cx >= gdata->gridSize.x) {
+									cx = 0;
+								}
+							}
+							// periodicity along Y
+							if (m_simparams->periodicbound & PERIODIC_Y) {
+								if (cy < 0) {
+									cy = gdata->gridSize.y - 1;
+								} else if (cy >= gdata->gridSize.y) {
+									cy = 0;
+								}
+							}
+							// periodicity along Z
+							if (m_simparams->periodicbound & PERIODIC_Z) {
+								if (cz < 0) {
+									cz = gdata->gridSize.z - 1;
+								} else if (cz >= gdata->gridSize.z) {
+									cz = 0;
+								}
 							}
 							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
 							if (cx < 0 || cx >= gdata->gridSize.x ||
@@ -1361,7 +1368,7 @@ unsigned int GPUWorker::getCUDADeviceNumber()
 	return m_cudaDeviceNumber;
 }
 
-unsigned int GPUWorker::getDeviceIndex()
+devcount_t GPUWorker::getDeviceIndex()
 {
 	return m_deviceIndex;
 }
@@ -1447,6 +1454,8 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	// upload centers of gravity of the bodies
 	instance->uploadBodiesCentersOfGravity();
+	// Upload linear and angular velocities of objects
+	instance->uploadBodiesVelocities();
 
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
@@ -1598,6 +1607,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
 				break;
+			case UPLOAD_OBJECTS_VELOCITIES:
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_VELOCITIES\n", deviceIndex);
+				instance->uploadBodiesVelocities();
+				break;
 			case CALC_PRIVATE:
 				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
 				instance->kernel_calcPrivate();
@@ -1745,6 +1758,7 @@ void GPUWorker::kernel_buildNeibsList()
 					m_nGridCells,
 					m_simparams->nlSqInfluenceRadius,
 					boundNlSqInflRad,
+					m_simparams->boundarytype,
 					m_simparams->periodicbound);
 
 	// download the peak number of neighbors and the estimated number of interactions
@@ -1819,9 +1833,14 @@ void GPUWorker::unbind_textures_forces()
 	forces_unbind_textures(m_simparams->visctype, m_simparams->boundarytype);
 }
 
-// Dt reduction after forces kernel
+// Reduce array of maximum dt after forces, but only for adaptive timesteps
+// Otherwise, just return the current (fixed) timestep
 float GPUWorker::forces_dt_reduce()
 {
+	// no reduction for fixed timestep
+	if (!m_simparams->dtadapt)
+		return m_simparams->dt;
+
 	return forces_dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
@@ -2022,7 +2041,8 @@ void GPUWorker::kernel_euler()
 			gdata->dt/2.0f, // m_dt/2.0,
 			firstStep ? 1 : 2,
 			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
-			m_simparams->xsph);
+			m_simparams->xsph,
+			m_simparams->boundarytype);
 }
 
 void GPUWorker::kernel_mls()
@@ -2130,6 +2150,7 @@ void GPUWorker::kernel_sps()
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->kerneltype,
+		m_simparams->boundarytype,
 		m_simparams->influenceRadius);
 }
 
@@ -2138,16 +2159,22 @@ void GPUWorker::kernel_reduceRBForces()
 	// make sure this device does not add any obsolete contribute to forces acting on objects
 	if (MULTI_DEVICE) {
 		for (uint ob = 0; ob < m_simparams->numODEbodies; ob++) {
-			gdata->s_hRbTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
-			gdata->s_hRbTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
+			gdata->s_hRbDeviceTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
 		}
 	}
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbTotalForce[m_deviceIndex],
-					gdata->s_hRbTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
+	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbDeviceTotalForce[m_deviceIndex],
+					gdata->s_hRbDeviceTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
+
+	// TODO Debug (remove)
+	/*printf("objects %d, F(%e, %e, %e) M(%e, %e, %e) \n", (int) m_simparams->numODEbodies, gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].x,
+			gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].y, gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].z,
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].x, gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].y,
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].z);*/
 }
 
 void GPUWorker::kernel_updateValuesAtBoundaryElements()
@@ -2282,3 +2309,8 @@ void GPUWorker::uploadBodiesTransRotMatrices()
 	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numODEbodies);
 }
 
+void GPUWorker::uploadBodiesVelocities()
+{
+	seteulerrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numODEbodies);
+	seteulerrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numODEbodies);
+}

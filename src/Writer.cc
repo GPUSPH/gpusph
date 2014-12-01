@@ -29,6 +29,7 @@
 #include "Writer.h"
 #include "GlobalData.h"
 
+#include "CommonWriter.h"
 #include "CustomTextWriter.h"
 #include "TextWriter.h"
 #include "UDPWriter.h"
@@ -36,9 +37,17 @@
 #include "VTKWriter.h"
 #include "Writer.h"
 
-vector<Writer*> Writer::m_writers = vector<Writer*>();
-double Writer::m_timer_tick = 0;
+WriterMap Writer::m_writers = WriterMap();
 bool Writer::m_forced = false;
+
+static const char* WriterName[] = {
+	"CommonWriter",
+	"TextWriter",
+	"VTKWriter",
+	"VTKLegacyWriter",
+	"CustomTextWriter",
+	"UDPWriter"
+};
 
 void
 Writer::Create(GlobalData *_gdata)
@@ -51,42 +60,69 @@ Writer::Create(GlobalData *_gdata)
 	for (; it != end; ++it) {
 		Writer *writer = NULL;
 		WriterType wt = it->first;
-		int freq = it->second;
-		switch (wt) {
-		case TEXTWRITER:
-			writer = new TextWriter(_gdata);
-			break;
-		case VTKWRITER:
-			writer = new VTKWriter(_gdata);
-			break;
-		case VTKLEGACYWRITER:
-			writer = new VTKLegacyWriter(_gdata);
-			break;
-		case CUSTOMTEXTWRITER:
-			writer = new CustomTextWriter(_gdata);
-			break;
-		case UDPWRITER:
-			writer = new UDPWriter(_gdata);
-			break;
-		default:
-			stringstream ss;
-			ss << "Unknown writer type " << wt;
-			throw runtime_error(ss.str());
+		double freq = it->second;
+
+		/* Check if the writer is in there already */
+		WriterMap::iterator wm = m_writers.find(wt);
+		if (wm != m_writers.end()) {
+			writer = wm->second;
+			cerr << "Overriding " << WriterName[wt] << " writing frequency" << endl;
+		} else {
+			switch (wt) {
+			case COMMONWRITER:
+				writer = new CommonWriter(_gdata);
+				break;
+			case TEXTWRITER:
+				writer = new TextWriter(_gdata);
+				break;
+			case VTKWRITER:
+				writer = new VTKWriter(_gdata);
+				break;
+			case VTKLEGACYWRITER:
+				writer = new VTKLegacyWriter(_gdata);
+				break;
+			case CUSTOMTEXTWRITER:
+				writer = new CustomTextWriter(_gdata);
+				break;
+			case UDPWRITER:
+				writer = new UDPWriter(_gdata);
+				break;
+			default:
+				stringstream ss;
+				ss << "Unknown writer type " << wt;
+				throw runtime_error(ss.str());
+			}
+			m_writers[wt] = writer;
 		}
 		writer->set_write_freq(freq);
-		m_writers.push_back(writer);
+		if (freq > 0)
+			cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
+		else if (freq == 0)
+			cout << WriterName[wt] << " will write every iteration" << endl;
+		else if (freq < 0)
+			cout << WriterName[wt] << " has been disabled" << endl;
+		else if (isnan(freq))
+			cout << WriterName[wt] << " has special treatment" << endl;
+		else
+			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;
 	}
+
+	// If there is no CommonWriter, create it. It will have the default settings
+	// of writing whenever any other writer writes
+	if (m_writers.find(COMMONWRITER) == m_writers.end())
+		m_writers[COMMONWRITER] = new CommonWriter(_gdata);
 }
 
-bool
+ConstWriterMap
 Writer::NeedWrite(double t)
 {
-	bool need_write = false;
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	ConstWriterMap need_write;
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
-		need_write |= writer->need_write(t);
+		const Writer *writer = it->second;
+		if (writer->need_write(t))
+			need_write[it->first] = it->second;
 	}
 	return need_write;
 }
@@ -94,47 +130,148 @@ Writer::NeedWrite(double t)
 void
 Writer::MarkWritten(double t, bool force)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
-		if (writer->need_write(t) || force || m_forced)
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || force || m_forced) {
 			writer->mark_written(t);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->mark_written(t);
 }
+
+/* TODO FIXME C++11
+ * All of the Write* delegates have the exact same structure,
+ * wish we could use C++11 variadic templates and code them as a single
+ * function.
+ */
 
 void
 Writer::Write(uint numParts, BufferList const& buffers,
 	uint node_offset, double t, const bool testpoints)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
-		if (writer->need_write(t) || m_forced)
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced) {
 			writer->write(numParts, buffers, node_offset, t, testpoints);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write(numParts, buffers, node_offset, t, testpoints);
 }
 
 void
 Writer::WriteWaveGage(double t, GageList const& gage)
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
-		if (writer->need_write(t) || m_forced)
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced) {
 			writer->write_WaveGage(t, gage);
+			written = true;
+		}
 	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_WaveGage(t, gage);
+}
+
+void
+Writer::WriteObjects(double t, Object const* const* bodies)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced) {
+			writer->write_objects(t, bodies);
+			written = true;
+		}
+	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_objects(t, bodies);
+}
+
+void
+Writer::WriteObjectForces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques)
+{
+	// is the common writer special?
+	bool common_special = m_writers[COMMONWRITER]->is_special();
+	bool written = false; // set to true if any writer acted
+
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
+	for ( ; it != end; ++it) {
+		// skip COMMONWRITER if special
+		if (common_special && it->first == COMMONWRITER)
+			continue;
+
+		Writer *writer = it->second;
+		if (writer->need_write(t) || m_forced) {
+			writer->write_objectforces(t, numobjects,
+				computedforces, computedtorques,
+				appliedforces, appliedtorques);
+			written = true;
+		}
+	}
+
+	if (common_special && written)
+		m_writers[COMMONWRITER]->write_objectforces(t, numobjects,
+				computedforces, computedtorques,
+				appliedforces, appliedtorques);
 }
 
 void
 Writer::Destroy()
 {
-	vector<Writer*>::iterator it(m_writers.begin());
-	vector<Writer*>::iterator end(m_writers.end());
+	WriterMap::iterator it(m_writers.begin());
+	WriterMap::iterator end(m_writers.end());
 	for ( ; it != end; ++it) {
-		Writer *writer = *it;
+		Writer *writer = it->second;
 		delete writer;
 	}
 	m_writers.clear();
@@ -157,26 +294,6 @@ Writer::Writer(const GlobalData *_gdata) :
 		mkdir(testpointsDir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 	}
 
-	string energy_fn = open_data_file(m_energyfile, "energy", "", ".txt");
-	if (m_energyfile) {
-		m_energyfile << "#\ttime";
-		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			m_energyfile	<< "\tkinetic" << fluid
-							<< "\tpotential" << fluid
-							<< "\telastic" << fluid;
-		m_energyfile << endl;
-	}
-
-	//WaveGage
-	string WaveGage_fn = open_data_file(m_WaveGagefile, "WaveGage", "", ".txt");
-	if (m_WaveGagefile) {
-		m_WaveGagefile << "#\ttime";
-		uint gage = 0;
-		for (; gage < m_problem->get_simparams()->gage.size(); ++gage)
-			m_energyfile << "\tzgage" << gage;
-		m_WaveGagefile << endl;
-	}
 }
 
 Writer::~Writer()
@@ -185,7 +302,7 @@ Writer::~Writer()
 }
 
 void
-Writer::set_write_freq(int f)
+Writer::set_write_freq(double f)
 {
 	m_writefreq = f;
 }
@@ -193,40 +310,18 @@ Writer::set_write_freq(int f)
 bool
 Writer::need_write(double t) const
 {
-	if (m_writefreq == 0)
+	// negative frequency: writer disabled
+	if (m_writefreq < 0)
 		return false;
 
-	if (m_last_write_time < 0 || t - m_last_write_time >= m_timer_tick*m_writefreq)
+	// null frequency: write always
+	if (m_writefreq == 0)
+		return true;
+
+	if (floor(t/m_writefreq) > floor(m_last_write_time/m_writefreq))
 		return true;
 
 	return false;
-}
-
-void
-Writer::write_energy(double t, float4 *energy)
-{
-	if (m_energyfile) {
-		m_energyfile << t;
-		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
-			m_energyfile	<< "\t" << energy[fluid].x
-							<< "\t" << energy[fluid].y
-							<< "\t" << energy[fluid].z;
-		m_energyfile << endl;
-	}
-}
-
-//WaveGage
-void
-Writer::write_WaveGage(double t, GageList const& gage)
-{
-	if (m_WaveGagefile) {
-		m_WaveGagefile << t;
-		for (size_t i=0; i < gage.size(); i++) {
-			m_WaveGagefile << "\t" << gage[i].z;
-		}
-		m_WaveGagefile << endl;
-	}
 }
 
 string
@@ -255,7 +350,7 @@ Writer::next_filenum()
 	return ret;
 }
 
-uint Writer::getLastFilenum()
+uint Writer::getLastFilenum() const
 {
 	return m_FileCounter;
 }

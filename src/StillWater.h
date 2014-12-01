@@ -15,8 +15,9 @@ class StillWater: public Problem {
 		PointVect	vertex_parts;
 		VertexVect	vertex_indexes;
 
-		float		h, w, l;
-		float		H; // still water level
+		double		h, w, l;
+		double		H; // still water level
+		uint		dyn_layers; // layers of dynamic boundaries particles
 		bool		m_usePlanes; // use planes or boundaries
 
 	public:

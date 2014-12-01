@@ -42,7 +42,8 @@ class Rect: public Object {
 	private:
 		Point   m_origin;
 		double	m_lx, m_ly;
-		Vector  m_vx, m_vy;
+		Vector	m_vx, m_vy;
+		Vector	m_vz; // normal vector
 
 	public:
 		Rect(void);
@@ -61,7 +62,7 @@ class Rect: public Object {
 		void Fill(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const int, std::vector<uint> [][4]);
 		int Fill(PointVect&, const double, const bool, const bool);
 		int Fill(PointVect&, const double, const bool fill = true);
-
+		void FillIn(PointVect& points, const double dx, const int layers);
 		bool IsInside(const Point&, const double) const;
 };
 #endif	/* _RECT_H */

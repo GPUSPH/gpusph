@@ -44,9 +44,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		//periodic boundaries
 		m_simparams.periodicbound = PERIODIC_X;
-		m_physparams.dispvect = make_float3(l, l, 0.0);
-		m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-		m_physparams.maxlimit = make_float3(l, l, 0.0f);
 		m_origin = make_double3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	}
@@ -180,10 +177,27 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 //	m_physparams.gravity = make_float3(9.81f*sin(atan(slope)), 0.0, -9.81f*cos(atan(slope)));
 
 //	//periodic boundaries
-//	m_simparams.periodicbound = true;
-//	m_physparams.dispvect = make_float3(l, 0.0f, 0.0f);
-//	m_physparams.minlimit = make_float3(0.0f, 0.0f, 0.0f);
-//	m_physparams.maxlimit = make_float3(l, 0.0f, 0.0f);
+//	m_simparams.periodicbound = PERIODIC_X;
+//	//*************************************************************************************
+
+//	// Poiseuille flow
+//	//*************************************************************************************
+//	inputfile = "/home/vorobyev/Crixus/geometries/2planes_periodicity/0.2planes_0.02.h5sph";
+//
+//	set_deltap(0.02f);
+//
+//	m_simparams.testpoints = false;
+//	H = 1.0;
+//	l = 0.26; w = 0.26; h = 1.0;
+//
+//	m_physparams.kinematicvisc = 0.1f;
+//	m_physparams.gravity = make_float3(0.8, 0.0, 0.0);		// laminar
+//
+//	//m_physparams.kinematicvisc = 0.00078125f;
+//	//m_physparams.gravity = make_float3(2.0, 0.0, 0.0);	// turbulent
+//
+//	//periodic boundaries
+//	m_simparams.periodicbound = PERIODIC_XY;
 //	//*************************************************************************************
 
 	// SPH parameters
@@ -214,8 +228,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-2);
-	add_writer(VTKWRITER, 1);
+	add_writer(VTKWRITER, 0.1);
 
 	// Name of problem used for directory creation
 	m_name = "InputProblem";

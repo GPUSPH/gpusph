@@ -33,6 +33,12 @@ Torus::Torus(const Point& center, const Vector& axis, const double R, const doub
 		rotdir = Vector(0, 1, 0);
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
+
+	dQuaternion q;
+	for (int i = 0; i < 4; i++)
+		q[i] = m_ep(i);
+
+	dQtoR(q, m_ODERot);
 }
 
 
@@ -44,6 +50,12 @@ Torus::Torus(const Point& center, const double R, const double r, const EulerPar
 
 	m_ep = ep;
 	m_ep.ComputeRot();
+
+	dQuaternion q;
+	for (int i = 0; i < 4; i++)
+		q[i] = m_ep(i);
+
+	dQtoR(q, m_ODERot);
 }
 
 
@@ -89,6 +101,17 @@ Torus::FillBorder(PointVect& points, const double dx)
   	 }
 }
 
+void
+Torus::FillIn(PointVect& points, const double dx, const int layers)
+{
+	Torus inner = Torus(m_center, m_R, m_r - ((double)layers + 0.5)*dx, m_ep);
+	PointVect inpoints;
+
+	Fill(inpoints, dx, true);
+	inner.Unfill(inpoints, 0);
+	points.insert(points.end(), inpoints.begin(), inpoints.end());
+}
+
 
 int
 Torus::Fill(PointVect& points, const double dx, const bool fill)
@@ -113,14 +136,26 @@ Torus::IsInside(const Point& p, const double dx) const
 {
 	Point lp = m_ep.TransposeRot(p - m_center);
 
-	const double Rmin = m_R - m_r - dx;
-	const double Rmax = m_R + m_r + dx;
-	const double rxy = sqrt(lp(0)*lp(0) + lp(1)*lp(1));
-	const double radsq = (rxy - m_R)*(rxy - m_R) + lp(2)*lp(2);
-	if (radsq < Rmin*Rmin)
-		return false;
-	if (radsq > Rmax*Rmax)
-		return false;
+	const double r = m_r + dx;
+	double temp = m_R - sqrt(lp(0)*lp(0) + lp(1)*lp(1));
+	temp *= temp;
+	temp += lp(2)*lp(2) - r*r;
+	if (temp < 0)
+		return true;
 
-	return true;
+	return false;
+}
+
+
+void
+Torus::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
+{
+	m_ODEBody = dBodyCreate(ODEWorld);
+	dMassSetZero(&m_ODEMass);
+	SetInertia(dx);
+	dMassSetParameters (&m_ODEMass, m_mass, 0.0, 0.0, 0.0,
+		m_inertia[0], m_inertia[1], m_inertia[2], 0.0, 0.0, 0.0);
+	dBodySetMass(m_ODEBody, &m_ODEMass);
+	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dBodySetRotation(m_ODEBody, m_ODERot);
 }

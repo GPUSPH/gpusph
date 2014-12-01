@@ -458,11 +458,11 @@ calcGridHashPeriodic(int3 gridPos)
  * getNeibIndex calls.
  */
 __device__ __forceinline__ uint
-getNeibIndex(const float4	pos,
+getNeibIndex(float4 const&	pos,
 			float3&			pos_corr,
 			const uint*		cellStart,
 			neibdata		neib_data,
-			const int3		gridPos,
+			int3 const&		gridPos,
 			char&			neib_cellnum,
 			uint&			neib_cell_base_index)
 {
@@ -598,7 +598,7 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (2) compute turbulent eddy viscosity (non-dynamic)
 // (3) compute turbulent shear stresses
 // (4) return SPS tensor matrix (tau) divided by rho^2
-template<KernelType kerneltype>
+template<KernelType kerneltype, bool dynbounds>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 SPSstressMatrixDevice(	const float4* posArray,
@@ -618,9 +618,13 @@ SPSstressMatrixDevice(	const float4* posArray,
 		return;
 
 	// read particle data from sorted arrays
-	// compute SPS matrix only for fluid particles
+	// compute SPS matrix only for fluid particles, except in the
+	// DYN_BOUNDARY case (dynbounds = true), in which case we compute
+	// it for everything
+	// TODO testpoints should also compute SPS, it'd be useful
+	// when we will enable SPS saving to disk
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
+	if (NOT_FLUID(info) && !dynbounds)
 		return;
 
 	// read particle data from sorted arrays
@@ -680,7 +684,12 @@ SPSstressMatrixDevice(	const float4* posArray,
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && FLUID(neib_info)) {
+		// velocity gradient is contributed by fluid particles only,
+		// except in the DYN_BOUNDARY case where all particles (except TESTPOINTS,
+		// of course) contribute
+		const bool valid_neib_type = FLUID(neib_info) || (dynbounds && !TESTPOINTS(neib_info));
+
+		if (r < influenceradius && valid_neib_type) {
 			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
@@ -1965,7 +1974,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Compute grid position of current particle
-	int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
@@ -2013,9 +2022,10 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	float normal_length = length(as_float3(normal));
 
 	//Checking the planes
-	// TODO: fix me for homogenous precision
+	const float3 globalpos = d_worldOrigin + as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize;
+
 	for (uint i = 0; i < d_numplanes; ++i) {
-		float r = abs(dot(as_float3(pos), as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
+		float r = abs(dot(globalpos, as_float3(d_planes[i])) + d_planes[i].w)/d_plane_div[i];
 		if (r < influenceradius) {
 			as_float3(normal) += as_float3(d_planes[i])* normal_length;
 			normal_length = length(as_float3(normal));
@@ -2023,9 +2033,6 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	// Second loop over all neighbors
-
-	// Resetting grid position of current particle
-	gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
 	// Resetting persistent variables across getNeibData
 	neib_cellnum = 0;

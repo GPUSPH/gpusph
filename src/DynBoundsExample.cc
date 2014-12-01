@@ -53,6 +53,7 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.mlsfreq = 0;
 	m_simparams.tend = 2;
 
+	m_simparams.boundarytype = DYN_BOUNDARY;
 	m_simparams.visctype = DYNAMICVISC;
 	m_simparams.periodicbound = PERIODIC_XY;
 
@@ -70,8 +71,7 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.r0 = m_deltap/2;
 	m_physparams.kinematicvisc = 120;
 
-	set_timer_tick(1.0e-4);
-	add_writer(VTKWRITER, 100);
+	add_writer(VTKWRITER, 0.01);
 
 	m_name = "DynBoundsExample";
 }
@@ -123,7 +123,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 		ht *= cos(alpha);
 		float rho = density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(FLUIDPART | FIXED_PARTICLE_FLAG, 0, i);
+		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 		pos[i].w = m_deltap*m_deltap*m_deltap*rho;
 	}

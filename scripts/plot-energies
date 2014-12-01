@@ -13,12 +13,12 @@ test -z "$file" && abort "Please specify a file"
 # Support specifying just the toplevel directory
 if test -d "$file" ; then
 	test -d "$file/data" && file="$file/data"
-	test -e "$file/energy.txt" && file="$file/energy.txt" || abort "No gage file found in $file"
+	test -e "$file/energy.txt" && file="$file/energy.txt" || abort "No energy file found in $file"
 fi
 
-test -f "$file" || abort "Gage file '$file' not found"
+test -f "$file" || abort "Energy file '$file' not found"
 
-cols=$(awk '{print NF-1; exit}' "$file")
+cols=$(awk '{print NF; exit}' "$file")
 
 fluid=0
 

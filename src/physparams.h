@@ -30,6 +30,8 @@
 
 #include "particledefine.h"
 
+#include "deprecation.h"
+
 typedef struct PhysParams {
 	float	rho0[MAX_FLUID_TYPES]; // density of various particles
 
@@ -59,34 +61,46 @@ typedef struct PhysParams {
 	float	visccoeff;
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
-	float3	dispvect;		// offset vector for periodic boundaries
-	float3	maxlimit;
-	float3	minlimit;
+
+	// offset vector and limits for periodic boundaries:
+	// DEPRECATED
+	float3	dispvect DEPRECATED_MSG("dispvect is not needed anymore");
+	float3	maxlimit DEPRECATED_MSG("maxlimit is not needed anymore");
+	float3	minlimit DEPRECATED_MSG("minlimit is not needed anymore");
+
 	float	ewres;			// DEM east-west resolution
 	float	nsres;			// DEM north-south resolution
 	float	demdx;			// Used for normal compution: displcement in x direction range ]0, exres[
 	float	demdy;			// displcement in y direction range ]0, nsres[
-	float	demdxdy;
-	float	demzmin;		// demdx*demdy
-	float	smagfactor;		// Cs*∆p^2
-	float	kspsfactor;		// 2/3*Ci*∆^2
+	float	demdxdy;		// demdx*demdy
+	float	demzmin;		// minimum z in DEM
+	float	smagfactor;		// (Cs*∆p)^2
+	float	kspsfactor;		// 2/3*Ci*∆p^2
 	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
 	float	objectobjectdf;	// damping factor for object-object interaction
 	float	objectboundarydf;	// damping factor for object-boundary interaction
 
+	// We have three deprecated members, but we don't need
+	// to get a warning about them for the constructor, only
+	// when the users actually assign to them
+IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		partsurf(0),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
+		smagfactor(NAN),
+		kspsfactor(NAN),
 		numFluids(1),
-		cosconeanglefluid(0.86),
-		cosconeanglenonfluid (0.5),
-		objectobjectdf (1.0),
-		objectboundarydf (1.0)
+		cosconeanglefluid(0.86f),
+		cosconeanglenonfluid(0.5f),
+		objectobjectdf(1.0f),
+		objectboundarydf(1.0f)
 	{};
+RESTORE_WARNINGS
+
 	/*! Set density parameters
 	  @param i	index in the array of materials
 	  @param rho	base density
