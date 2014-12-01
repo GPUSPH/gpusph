@@ -28,6 +28,7 @@
 // Standard C/C++ Library Includes
 #include <fstream>
 #include <string>
+#include <map>
 #include <stdlib.h>
 // TODO on Windows it's direct.h
 #include <sys/stat.h>
@@ -39,6 +40,12 @@
 
 // GageList
 #include "simparams.h"
+
+// Object
+#include "Object.h"
+
+// deprecation macros
+#include "deprecation.h"
 
 // Forward declaration of GlobalData and Problem, instead of inclusion
 // of the respective headers, to avoid cross-include messes
@@ -53,6 +60,7 @@ using namespace std;
 
 enum WriterType
 {
+	COMMONWRITER,
 	TEXTWRITER,
 	VTKWRITER,
 	VTKLEGACYWRITER,
@@ -61,7 +69,15 @@ enum WriterType
 };
 
 // list of writer type, write freq pairs
-typedef vector<pair<WriterType, uint> > WriterList;
+typedef vector<pair<WriterType, double> > WriterList;
+
+class Writer;
+
+// hash of WriterType, pointer to actual writer
+typedef map<WriterType, Writer*> WriterMap;
+
+// ditto, const
+typedef map<WriterType, const Writer*> ConstWriterMap;
 
 /*! The Writer class acts both as base class for the actual writers,
  * and a dispatcher. It holds a (static) list of writers
@@ -71,11 +87,7 @@ typedef vector<pair<WriterType, uint> > WriterList;
 class Writer
 {
 	// list of actual writers
-	static vector<Writer*> m_writers;
-
-	// base writing timer tick. Each writer has a write frequency which is
-	// a multiple of this
-	static double m_timer_tick;
+	static WriterMap m_writers;
 
 	// should we be force saving regardless of timer ticks
 	// and frequencies?
@@ -94,8 +106,9 @@ public:
 	static void
 	Create(GlobalData *_gdata);
 
-	// does any of the writers need to write at the given time?
-	static bool NeedWrite(double t);
+	// return a WriterMap of the writers that need to write
+	static ConstWriterMap
+	NeedWrite(double t);
 
 	// mark writers as done if they needed to save
 	// at the given time (optionally force)
@@ -110,13 +123,15 @@ public:
 	static void
 	WriteWaveGage(double t, GageList const& gage);
 
-	// set the timer tick
-	static inline void SetTimerTick(double t)
-	{ m_timer_tick = t; }
+	// write object data
+	static void
+	WriteObjects(double t, Object const* const* bodies);
 
-	// get the timer tick value
-	static inline float GetTimerTick()
-	{ return m_timer_tick; }
+	// write object forces
+	static void
+	WriteObjectForces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques);
 
 	// record that the upcoming write requests should be forced (regardless of write frequency)
 	static inline void
@@ -127,29 +142,47 @@ public:
 	static void
 	Destroy();
 
+	double get_write_freq() const
+	{ return m_writefreq; }
+
 protected:
 
 	Writer(const GlobalData *_gdata);
 	virtual ~Writer();
 
-	void set_write_freq(int f);
+	void set_write_freq(double f);
 
-	bool need_write(double t) const;
+	// does this writer need special treatment?
+	// (This is only used for the COMMONWRITER presently.)
+	bool is_special() const
+	{ return isnan(m_writefreq); }
+
+	inline void
+	mark_written(double t)
+	{ m_last_write_time = t; }
+
+	virtual bool
+	need_write(double t) const;
 
 	virtual void
 	write(uint numParts, BufferList const& buffers, uint node_offset, double t, const bool testpoints) = 0;
 
-	inline void mark_written(double t) { m_last_write_time = t; }
+	virtual void
+	write_energy(double t, float4 *energy) {}
 
 	virtual void
-	write_energy(double t, float4 *energy);
+	write_WaveGage(double t, GageList const& gage) {}
 
 	virtual void
-	write_WaveGage(double t, GageList const& gage);
+	write_objects(double t, Object const* const* bodies) {}
 
-	uint getLastFilenum();
+	virtual void
+	write_objectforces(double t, uint numobjects,
+		const float3* computedforces, const float3* computedtorques,
+		const float3* appliedforces, const float3* appliedtorques) {}
 
-	double			m_last_write_time;
+	uint getLastFilenum() const;
+
 	// default suffix (extension) for data files)
 	string			m_fname_sfx;
 
@@ -166,13 +199,21 @@ protected:
 	open_data_file(ofstream &out, const char* base, string const& num)
 	{ return open_data_file(out, base, num, m_fname_sfx); }
 
-	int				m_writefreq;
+	inline string
+	open_data_file(ofstream &out, const char* base)
+	{ return open_data_file(out, base, string(), m_fname_sfx); }
+
+
+	// time of last write
+	double			m_last_write_time;
+	// time between writes. Special values:
+	// zero means write every time
+	// negative values means don't write (writer disabled)
+	double			m_writefreq;
 
 	string			m_dirname;
 	uint			m_FileCounter;
 	ofstream		m_timefile;
-	ofstream		m_energyfile;
-	ofstream		m_WaveGagefile;
 
 	const Problem	*m_problem;
 	string			next_filenum();

@@ -409,16 +409,23 @@ ifdef hdf5
 		USE_HDF5=$(hdf5)
 	endif
 else
-	# check if we can link to the HDF5 library, and disable HDF5 otherwise.
-	# We return -1 in case of failure to differentiate from a case such as 'make hdf5=0 ; make', in which case we
-	# want to skip also the MPICXX test
-	# We use a for loop in the shell to echo each line because users might have different interactive shells
-	# that do (or do not) interpret a \n escape, so the only portable way seems to echo each line separately,
-	# and grouping the echos in { } doesn't seem to work from a Makefile shell invocation
-	USE_HDF5 ?= $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - && echo 1 || echo -1)
+	# Check if we can link to the HDF5 library, and disable HDF5 otherwise.
+	# On some configurations, HDF5 requires MPI, so we check HDF5 twice,
+	# once with CXX and once with MPICXX.
+	# During the CXX test we return -1 in case of failure to differentiate from
+	# a case such as 'make hdf5=0 ; make', in which case we want to skip also
+	# the MPICXX test.
+	# We use a for loop in the shell to echo each line because users might have
+	# different interactive shells that do (or do not) interpret a \n escape,
+	# so the only portable way seems to echo each line separately,
+	# and grouping the echos in { } doesn't seem to work from a Makefile
+	# shell invocation
+	USE_HDF5 ?= $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(CXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 1 || echo -1)
 	ifeq ($(USE_HDF5),-1)
-		# on some configurations, HDF5 requires mpi. check this, by first compiling with CXX
-		USE_HDF5 := $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - && echo 1 || echo -1)
+		USE_HDF5 := $(shell for line in '\#include <hdf5.h>' 'main(){}' ; do echo $$line ; done | $(MPICXX) -xc++ $(INCPATH) $(LIBPATH) $(HDF5_CPP) $(HDF5_CXX) $(HDF5_LD) -o /dev/null - 2> /dev/null && echo 2 || echo 0)
+		ifeq ($(USE_HDF5),0)
+			TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
+		endif
 	endif
 endif
 
@@ -484,9 +491,7 @@ LIBS += -lcudart
 # link to ODE for the objects
 LIBS += -lode
 
-ifeq ($(USE_HDF5),0)
-	TMP := $(info HDF5 library not found, HDF5 input will NOT be supported)
-else
+ifneq ($(USE_HDF5),0)
 	# link to HDF5 for input reading
 	LIBS += $(HDF5_LD)
 endif

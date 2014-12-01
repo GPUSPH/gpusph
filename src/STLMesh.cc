@@ -382,6 +382,9 @@ int STLMesh::Fill(PointVect&, double, bool)
 void STLMesh::Fill(PointVect&, const double)
 {}
 
+void STLMesh::FillIn(PointVect&, const double, const int)
+{}
+
 bool STLMesh::IsInside(const Point&, double) const
 {}
 

@@ -49,8 +49,6 @@ Problem::Problem(const GlobalData *_gdata)
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_mbnumber = 0;
-	m_rbdatafile = NULL;
-	m_rbdata_writeinterval = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
@@ -64,9 +62,6 @@ Problem::~Problem(void)
 {
 	if (m_ODE_bodies)
 		delete [] m_ODE_bodies;
-	if (m_rbdatafile != NULL) {
-        fclose(m_rbdatafile);
-    }
 }
 
 void
@@ -85,10 +80,10 @@ Problem::check_dt(void)
 	float dt_from_visc = NAN;
 	if (m_simparams.visctype != ARTVISC) {
 		dt_from_visc = m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc;
-		dt_from_visc *= 0.125; // TODO this should be configurable
+		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}
 
-	float cfl_dt = fmin(dt_from_sspeed, fmin(dt_from_gravity, dt_from_visc));
+	float cfl_dt = fminf(dt_from_sspeed, fminf(dt_from_gravity, dt_from_visc));
 
 	if (m_simparams.dt > cfl_dt) {
 		fprintf(stderr, "WARNING: dt %g bigger than %g imposed by CFL conditions (sspeed: %g, gravity: %g, viscosity: %g)\n",
@@ -155,7 +150,7 @@ Problem::check_maxneibsnum(void)
 	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
 	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
 	// increase maxneibsnum as appropriate
-	maxneibsnum = ceil(ratio*maxneibsnum);
+	maxneibsnum = (uint)ceil(ratio*maxneibsnum);
 	// round up to multiple of 32
 	maxneibsnum = round_up(maxneibsnum, 32U);
 
@@ -231,27 +226,31 @@ Problem::create_problem_dir(void)
 
 	mkdir(m_problem_dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
-	if (m_rbdata_writeinterval) {
-		string rbdata_filename = m_problem_dir + "/rbdata.txt";
-		m_rbdatafile = fopen(rbdata_filename.c_str(), "w");
-
-		if (m_rbdatafile == NULL) {
-			stringstream ss;
-			ss << "Cannot open rigid bodies data file " << rbdata_filename;
-			throw runtime_error(ss.str());
-			}
-	}
 	return m_problem_dir;
 }
 
+// timer tick, for compatibility with old timer-tick writer frequency API
+// remove when the old API is obsoleted
+static double deprecated_timer_tick;
+
 void
-Problem::set_timer_tick(float t)
+Problem::set_timer_tick(double t)
 {
-	Writer::SetTimerTick(t);
+	fputs("WARNING: set_timer_tick() is deprecated\n", stderr);
+	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
+	deprecated_timer_tick = t;
 }
 
 void
 Problem::add_writer(WriterType wt, int freq)
+{
+	fputs("WARNING: add_writer(WriterType, int) is deprecated\n", stderr);
+	fputs("\tPlease use the floating-point version of add_writer() instead\n", stderr);
+	add_writer(wt, freq*deprecated_timer_tick);
+}
+
+void
+Problem::add_writer(WriterType wt, double freq)
 {
 	m_writers.push_back(make_pair(wt, freq));
 }
@@ -264,36 +263,6 @@ Problem::need_write(double t) const
 	return false;
 }
 
-bool
-Problem::need_write_rbdata(double t) const
-{
-	if (m_rbdata_writeinterval == 0)
-		return false;
-
-	if (t - m_last_rbdata_write_time >= m_rbdata_writeinterval) {
-		return true;
-	}
-
-	return false;
-}
-
-
-void
-Problem::write_rbdata(double t)
-{
-	if (m_simparams.numODEbodies) {
-		if (need_write_rbdata(t)) {
-			for (uint i = 1; i < m_simparams.numODEbodies; i++) {
-				const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
-				const dReal* cg = dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody);
-				fprintf(m_rbdatafile, "%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n", i, t, cg[0],
-						cg[1], cg[2], quat[0], quat[1], quat[2], quat[3]);
-			}
-		}
-	}
-	m_last_rbdata_write_time = t;
-}
-
 // is the simulation finished at the given time?
 bool
 Problem::finished(double t) const
@@ -304,17 +273,59 @@ Problem::finished(double t) const
 
 
 MbCallBack&
+Problem::mb_callback(const double t, const float dt, const int i)
+{
+	/* If this was not overridden, it's likely that the caller overridden the deprecated
+	 * float version, passthrough */
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: mb_callback(float, float, int) is deprecated, please switch to mb_callback(double, float, int)\n");
+		reminder_shown = true;
+	}
+	IGNORE_WARNINGS(deprecated-declarations)
+	return mb_callback(float(t), dt, i);
+	RESTORE_WARNINGS
+};
+
+MbCallBack&
 Problem::mb_callback(const float t, const float dt, const int i)
 {
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
+		reminder_shown = true;
+	}
 	return m_mbcallbackdata[i];
 };
 
 
 float3
+Problem::g_callback(const double t)
+{
+	/* If this was not overridden, it's likely that the caller overridden the deprecated
+	 * float version, passthrough */
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: g_callback(float) is deprecated, please switch to g_callback(double)\n");
+		reminder_shown = true;
+	}
+	IGNORE_WARNINGS(deprecated-declarations)
+	return g_callback(float(t));
+	RESTORE_WARNINGS
+}
+
+float3
 Problem::g_callback(const float t)
 {
+	static bool reminder_shown = false;
+	if (!reminder_shown) {
+		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
+		reminder_shown = true;
+	}
 	return make_float3(0.0);
 }
+
+
 
 // Fill the device map with "devnums" (*global* device ids) in range [0..numDevices[.
 // Default algorithm: split along the longest axis
@@ -328,7 +339,8 @@ void Problem::fillDeviceMapByCellHash()
 {
 	uint cells_per_device = gdata->nGridCells / gdata->totDevices;
 	for (uint i=0; i < gdata->nGridCells; i++)
-		gdata->s_hDeviceMap[i] = min( i/cells_per_device, gdata->totDevices-1);
+		// guaranteed to fit in a devcount_t due to how it's computed
+		gdata->s_hDeviceMap[i] = devcount_t(min( i/cells_per_device, gdata->totDevices-1));
 }
 
 // partition by splitting along the specified axis
@@ -357,7 +369,7 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 			cells_per_longest_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (float)gdata->totDevices);
+	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (double)gdata->totDevices);
 	/*
 	printf("Splitting domain along axis %s, %u cells per part\n",
 		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_longest_axis);
@@ -372,9 +384,9 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 					case Z_AXIS: axis_coordinate = cz; break;
 				}
 				// everything is just a preparation for the following line
-				uchar dstDevice = axis_coordinate / cells_per_device_per_longest_axis;
+				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_longest_axis);
 				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
-				dstDevice = min(dstDevice, gdata->totDevices - 1);
+				dstDevice = (devcount_t)min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
 				// assign it
@@ -464,16 +476,16 @@ void Problem::fillDeviceMapByRegularGrid()
 	float Xsize = gdata->worldSize.x;
 	float Ysize = gdata->worldSize.y;
 	float Zsize = gdata->worldSize.z;
-	uint cutsX = 1;
-	uint cutsY = 1;
-	uint cutsZ = 1;
-	uint remaining_factors = gdata->totDevices;
+	devcount_t cutsX = 1;
+	devcount_t cutsY = 1;
+	devcount_t cutsZ = 1;
+	devcount_t remaining_factors = gdata->totDevices;
 
 	// define the product of non-zero cuts to keep track of current number of parallelepipeds
 //#define NZ_PRODUCT	((cutsX > 0? cutsX : 1) * (cutsY > 0? cutsY : 1) * (cutsZ > 0? cutsZ : 1))
 
 	while (cutsX * cutsY * cutsZ < gdata->totDevices) {
-		uint factor = 1;
+		devcount_t factor = 1;
 		// choose the highest factor among 2, 3 and 5 which divides remaining_factors
 		if (remaining_factors % 5 == 0) factor = 5; else
 		if (remaining_factors % 3 == 0) factor = 3; else
@@ -536,10 +548,10 @@ Problem::add_ODE_body(Object* object)
 }
 
 
-int
+size_t
 Problem::get_ODE_bodies_numparts(void) const
 {
-	int total_parts = 0;
+	size_t total_parts = 0;
 	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
 		total_parts += m_ODE_bodies[i]->GetNumParts();
 	}
@@ -548,7 +560,7 @@ Problem::get_ODE_bodies_numparts(void) const
 }
 
 
-int
+size_t
 Problem::get_ODE_body_numparts(const int i) const
 {
 	if (!m_simparams.numODEbodies)
@@ -559,10 +571,12 @@ Problem::get_ODE_body_numparts(const int i) const
 
 
 void
-Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot)
+Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot, float3 * & linearvel, float3 * & angularvel)
 {
-	cg = m_bodies_cg;
-	steprot = m_bodies_steprot;
+	cg = get_ODE_bodies_cg();
+	steprot = get_ODE_bodies_steprot();
+	linearvel = get_ODE_bodies_linearvel();
+	angularvel = get_ODE_bodies_angularvel();
 }
 
 
@@ -577,11 +591,37 @@ Problem::get_ODE_bodies_cg(void)
 }
 
 
+float3*
+Problem::get_ODE_bodies_linearvel(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_linearvel[i] = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
+	}
+
+	return m_bodies_linearvel;
+}
+
+
+float3*
+Problem::get_ODE_bodies_angularvel(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+		m_bodies_angularvel[i] = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
+	}
+
+	return m_bodies_linearvel;
+}
+
+
 float*
 Problem::get_ODE_bodies_steprot(void)
 {
 	return m_bodies_steprot;
 }
+
+void
+Problem::object_forces_callback(double t, int step, float3 *forces, float3 *torques)
+{ /* default does nothing */ }
 
 
 uint
@@ -605,7 +645,8 @@ Problem::max_parts(uint numParts)
 // output: cg, trans, steprot (can be input uninitialized)
 void
 Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
-		const double dt, float3 * & cg, float3 * & trans, float * & steprot)
+		const double dt, float3 * & cg, float3 * & trans, float * & steprot,
+		float3 * & linearvel, float3 * & angularvel)
 {
 	dReal prev_quat[MAXBODIES][4];
 	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
@@ -627,6 +668,13 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
 		m_bodies_cg[i] = new_cg;
+
+		float3 new_lvel = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_linearvel[i] = new_lvel;
+
+		float3 new_avel = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
+		m_bodies_angularvel[i] = new_avel;
+
 		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
 		dQuaternion step_quat;
 		dMatrix3 R;
@@ -646,6 +694,8 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
 	trans = m_bodies_trans;
+	linearvel = m_bodies_linearvel;
+	angularvel = m_bodies_angularvel;
 }
 
 // Number of planes
@@ -665,7 +715,7 @@ Problem::copy_planes(float4*, float*)
 
 
 float4*
-Problem::get_mbdata(const float t, const float dt, const bool forceupdate)
+Problem::get_mbdata(const double t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
 
@@ -720,9 +770,9 @@ Problem::set_grid_params(void)
 	if (m_simparams.boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
-	m_gridsize.x = floor(m_size.x / cellSide);
-	m_gridsize.y = floor(m_size.y / cellSide);
-	m_gridsize.z = floor(m_size.z / cellSide);
+	m_gridsize.x = (uint)floor(m_size.x / cellSide);
+	m_gridsize.y = (uint)floor(m_size.y / cellSide);
+	m_gridsize.z = (uint)floor(m_size.z / cellSide);
 
 	// While trying to run a simulation at very low resolution, the user might
 	// set a deltap so large that cellSide is bigger than m_size.{x,y,z}, resulting
@@ -761,9 +811,9 @@ int3
 Problem::calc_grid_pos(const Point&	pos)
 {
 	int3 gridPos;
-	gridPos.x = floor((pos(0) - m_origin.x) / m_cellsize.x);
-	gridPos.y = floor((pos(1) - m_origin.y) / m_cellsize.y);
-	gridPos.z = floor((pos(2) - m_origin.z) / m_cellsize.z);
+	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
+	gridPos.y = (int)floor((pos(1) - m_origin.y) / m_cellsize.y);
+	gridPos.z = (int)floor((pos(2) - m_origin.z) / m_cellsize.z);
 	gridPos.x = min(max(0, gridPos.x), m_gridsize.x-1);
 	gridPos.y = min(max(0, gridPos.y), m_gridsize.y-1);
 	gridPos.z = min(max(0, gridPos.z), m_gridsize.z-1);

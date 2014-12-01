@@ -73,6 +73,22 @@ seteulerrbtrans(const float3* trans, int numbodies)
 
 
 void
+seteulerrblinearvel(const float3* linearvel, int numbodies)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rblinearvel, linearvel, numbodies*sizeof(float3)));
+	//printf("Upload linear vel: %e %e %e\n", linearvel[0].x, linearvel[0].y, linearvel[0].z);
+}
+
+
+void
+seteulerrbangularvel(const float3* angularvel, int numbodies)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbangularvel, angularvel, numbodies*sizeof(float3)));
+	//printf("Upload angular vel: %e %e %e\n", angularvel[0].x, angularvel[0].y, angularvel[0].z);
+}
+
+
+void
 seteulerrbsteprot(const float* rot, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
@@ -105,28 +121,42 @@ euler(	const float4*		oldPos,
 		const float			dt2,
 		const int			step,
 		const float			t,
-		const bool			xsphcorr)
+		const bool			xsphcorr,
+		BoundaryType		boundarytype)
 {
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_INTEGRATE, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
+#define ARGS oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps, \
+	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
+
 	// execute the kernel
-	if (step == 1) {
-		if (xsphcorr)
-			cueuler::eulerDevice<1, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
-								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
-		else
-			cueuler::eulerDevice<1, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
-								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
-	} else if (step == 2) {
-		if (xsphcorr)
-			cueuler::eulerDevice<2, 1><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
-								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
-		else
-			cueuler::eulerDevice<2, 0><<< numBlocks, numThreads >>>(oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps,
-								info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t);
-	} // if (step == 2)
+	if (boundarytype == DYN_BOUNDARY) {
+		if (step == 1) {
+			if (xsphcorr)
+				cueuler::eulerDevice<1, true, true><<< numBlocks, numThreads >>>(ARGS);
+			else
+				cueuler::eulerDevice<1, false, true><<< numBlocks, numThreads >>>(ARGS);
+		} else if (step == 2) {
+			if (xsphcorr)
+				cueuler::eulerDevice<2, true, true><<< numBlocks, numThreads >>>(ARGS);
+			else
+				cueuler::eulerDevice<2, false, true><<< numBlocks, numThreads >>>(ARGS);
+		}
+	} else {
+		if (step == 1) {
+			if (xsphcorr)
+				cueuler::eulerDevice<1, true, false><<< numBlocks, numThreads >>>(ARGS);
+			else
+				cueuler::eulerDevice<1, false, false><<< numBlocks, numThreads >>>(ARGS);
+		} else if (step == 2) {
+			if (xsphcorr)
+				cueuler::eulerDevice<2, true, false><<< numBlocks, numThreads >>>(ARGS);
+			else
+				cueuler::eulerDevice<2, false, false><<< numBlocks, numThreads >>>(ARGS);
+		}
+	}
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");

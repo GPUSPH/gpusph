@@ -37,43 +37,86 @@
 #include "Point.h"
 #include "Vector.h"
 
-
+//! Cube object class
+/*!
+ *	The cube class defines the cube object and implements all the
+ *	methods necessary for using the object within a simulation as
+ *	a fluid container or as a floating body.
+ *
+ * 	<TABLE border="0">
+ * 	<TR>
+ *  	<TD>\image html cube1.png</TD>
+ * 		<TD>\image html cube2.png</TD>
+ *	</TR>
+ * 	</TABLE>
+ *
+ * The body frame (x', y', z') is centered at the center of gravity
+ * of the cube and coincide with the principal axis of inertia frame.
+ *
+ * The cube is defined with an origin (i.e. the bottom left corner
+ * in the body frame) expressed in the global frame (x, y, z), three
+ * length (the length along x', y' and z') and an orientation ( the
+ * relative orientation of the body frame respect to the global one).
+*/
 class Cube: public Object {
 	private:
-		Point	m_origin;
-		Vector	m_vx, m_vy, m_vz;
-		double	m_lx, m_ly, m_lz;
+		Point	m_origin;	///< origin of the cube (bottom left corner in the body frame) expressed in the global reference frame
+		Vector	m_vx;		///< vector representing the edge along x'
+		Vector 	m_vy;		///< vector representing the edge along y'
+		Vector 	m_vz;		///< vector representing the edge along z'
+		double	m_lx;		///< length along x' axis
+		double 	m_ly;		///< length along y' axis
+		double 	m_lz;		///< length along z' axis
 
 	public:
+		/// \name Constructors and destructor
+		//@{
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters&);
 		Cube(const Point&, const double, const double, const double, const dQuaternion);
 		Cube(const Point&, const Vector&, const Vector&, const Vector&);
 		virtual ~Cube(void) {};
+		//@}
 
-		double Volume(const double) const;
-		void SetInertia(const double);
-
-		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
-
+		/// \name Filling functions
+		//@{
 		void FillBorder(PointVect&, PointVect&, PointVect&, std::vector<uint4>&, const double, const bool);
 		void FillBorder(PointVect&, const double, const int, const bool*);
 		void FillBorder(PointVect&, const double, const bool);
+		/// Fill the whole surface of the cube with particles
+		/* 	Fill the whole surface of the cube with particles with a
+		 * 	given particle spacing.
+		 * 	\param points : vector where the particles will be added
+		 * 	\param dx : particle spacing
+		 */
 		void FillBorder(PointVect& points, const double dx)
-		{
-			FillBorder(points, dx, true);
-		}
-
+		{ FillBorder(points, dx, true);}
 		int Fill(PointVect&, const double, const bool, const bool);
+		/// Fill the cube with particles
+		/* Fill the whole cube (including faces) with particles with a given
+		 * particle spacing.
+		 * 	\param points : vector where the particles will be added
+		 * 	\param dx : particle spacing
+		 * 	\param fill : if true add the particles to points otherwise just
+		 * 				count the number of particles
+		 * 	\return the number of particles used in the fill
+		 */
 		int Fill(PointVect& points, const double dx, const bool fill = true)
-		{
-			return Fill(points, dx, true, fill);
-		}
-
+		{ return Fill(points, dx, true, fill);}
 		void InnerFill(PointVect&, const double);
+		void FillIn(PointVect&, const double, const int, const bool);
+		void FillIn(PointVect&, const double, const int);
+		//@}
 
+		double Volume(const double) const;
+		void SetInertia(const double);
 		bool IsInside(const Point&, const double) const;
+
+		/// \name ODE related  functions
+		//@{
+		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
+		void ODEGeomCreate(dSpaceID, const double);
+		//@}
 };
 
 #endif	/* _CUBE_H */

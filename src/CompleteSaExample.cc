@@ -76,8 +76,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	set_timer_tick(1.0e-2);
-	add_writer(VTKWRITER, 1);
+	add_writer(VTKWRITER, 1e-2f);
 
 	// will use only 1 ODE body: the floating/moving cube (container is fixed)
 	allocate_ODE_bodies(1);

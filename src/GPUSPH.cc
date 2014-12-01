@@ -85,6 +85,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
 
+	// sets the correct viscosity coefficient according to the one set in SimParams
+	setViscosityCoefficient();
+
 	m_totalPerformanceCounter = new IPPSCounter();
 	m_intervalPerformanceCounter = new IPPSCounter();
 	// only init if MULTI_NODE
@@ -157,13 +160,8 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// compute mbdata size
 	gdata->mbDataSize = problem->m_mbnumber * sizeof(float4);
 
-	// sets the correct viscosity coefficient according to the one set in SimParams
-	setViscosityCoefficient();
-
 	// create the Writer according to the WriterType
 	createWriter();
-
-	// TODO: writeSummary
 
 	// we should need no PS anymore
 	//		> new PS
@@ -251,6 +249,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// initialize CGs (or, the problem could directly write on gdata)
 	initializeObjectsCGs();
+	initializeObjectsVelocities();
 
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
 	if (problem->get_simparams()->inoutBoundaries)
@@ -518,32 +517,36 @@ bool GPUSPH::runSimulation() {
 
 		// reduce bodies
 		if (problem->get_simparams()->numObjects > 0) {
-			if (problem->get_simparams()->numODEbodies > 0) {
+			size_t numBodies = problem->get_simparams()->numODEbodies;
+			if (numBodies > 0) {
 				doCommand(REDUCE_BODIES_FORCES);
 
-				float3* totForce = new float3[problem->get_simparams()->numODEbodies];
-				float3* totTorque = new float3[problem->get_simparams()->numODEbodies];
-
 				// now sum up the partial forces and momenta computed in each gpu
-				for (uint ob = 0; ob < problem->get_simparams()->numODEbodies; ob ++) {
-
-					totForce[ob] = make_float3( 0.0F );
-					totTorque[ob] = make_float3( 0.0F );
+				for (uint ob = 0; ob < numBodies; ob ++) {
+					gdata->s_hRbTotalForce[ob] = make_float3( 0.0F );
+					gdata->s_hRbTotalTorque[ob] = make_float3( 0.0F );
 
 					for (uint d = 0; d < gdata->devices; d++) {
-						totForce[ob] += gdata->s_hRbTotalForce[d][ob];
-						totTorque[ob] += gdata->s_hRbTotalTorque[d][ob];
+						gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d][ob];
+						gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d][ob];
 					} // iterate on devices
 				} // iterate on objects
 
 				// if running multinode, also reduce across nodes
 				if (MULTI_NODE) {
 					// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-					gdata->networkManager->networkFloatReduction((float*)totForce, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
-					gdata->networkManager->networkFloatReduction((float*)totTorque, 3 * problem->get_simparams()->numODEbodies, SUM_REDUCTION);
+					gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numBodies, SUM_REDUCTION);
+					gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numBodies, SUM_REDUCTION);
 				}
 
-				problem->ODE_bodies_timestep(totForce, totTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices);
+				/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
+				memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numBodies*sizeof(float3));
+				memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numBodies*sizeof(float3));
+
+				problem->object_forces_callback(gdata->t, 2, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+
+				problem->ODE_bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
+						gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 			}
 
 			// copy values into the moving object arrays
@@ -570,6 +573,8 @@ bool GPUSPH::runSimulation() {
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);
+			// Upload objects linear and angular velocities
+			doCommand(UPLOAD_OBJECTS_VELOCITIES);
 		} // if there are objects
 
 		// swap read and writes again because the write contains the variables at time n
@@ -630,7 +635,7 @@ bool GPUSPH::runSimulation() {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
-			// if runnign multinode, should also find the network minimum
+			// if runnin multinode, should also find the network minimum
 			if (MULTI_NODE)
 				gdata->networkManager->networkFloatReduction(&(gdata->dt), 1, MIN_REDUCTION);
 		}
@@ -651,15 +656,21 @@ bool GPUSPH::runSimulation() {
 
 		//printf("Finished iteration %lu, time %g, dt %g\n", gdata->iterations, gdata->t, gdata->dt);
 
+		// are we done?
 		bool finished = gdata->problem->finished(gdata->t);
-		bool need_write = Writer::NeedWrite(gdata->t);
+		// list of writers that need to write
+		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
+		// do we need to write?
+		bool need_write = !writers.empty();
+		// do we want to write anyway? (the problem want us to write, or we are done,
+		// or we are quitting)
 		bool force_write = gdata->problem->need_write(gdata->t) || finished || gdata->quit_request;
 		if (gdata->save_request) {
 			force_write = true;
 			gdata->save_request = false;
 		}
 
-		// if we are about to quit, we want to save regardless --nosave option
+		// If we are about to quit, we want to save regardless --nosave option
 		if (finished || gdata->quit_request)
 			force_write = true;
 
@@ -669,6 +680,8 @@ bool GPUSPH::runSimulation() {
 			buildNeibList();
 		}
 
+		// Launch specific post processing kernels (vorticity, free surface detection , ...)
+		// before writing to disk
 		if (need_write || force_write) {
 
 			//if (final_save)
@@ -733,8 +746,29 @@ bool GPUSPH::runSimulation() {
 				// --nosave enabled, not final: just pretend we actually saved
 				Writer::MarkWritten(gdata->t, true);
 
-			printStatus();
-			m_intervalPerformanceCounter->restart();
+			// we generally want to print the current status and reset the
+			// interval performance counter when writing. However, when writing
+			// at every timestep, this can be very bothersome (lots and lots of
+			// output) so we do not print the status if the only writer(s) that
+			// have been writing have a frequency of 0 (write every timestep)
+			// TODO the logic here could be improved; for example, we are not
+			// considering the case of a single writer that writes at every timestep:
+			// when do we print the status then?
+			// TODO other enhancements would be to print who is writing (what)
+			// during the print status
+			double maxfreq = 0;
+			ConstWriterMap::iterator it(writers.begin());
+			ConstWriterMap::iterator end(writers.end());
+			do {
+				double freq = it->second->get_write_freq();
+				if (freq > maxfreq)
+					maxfreq = freq;
+				++it;
+			} while (it != end);
+			if (force_write || maxfreq > 0) {
+				printStatus();
+				m_intervalPerformanceCounter->restart();
+			}
 		}
 
 		if (finished || gdata->quit_request)
@@ -815,7 +849,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	const size_t numparts = gdata->allocatedParticles;
 
 	const uint numcells = gdata->nGridCells;
-	const size_t ucharCellSize = sizeof(uchar) * numcells;
+	const size_t devcountCellSize = sizeof(devcount_t) * numcells;
 	const size_t uintCellSize = sizeof(uint) * numcells;
 
 	size_t totCPUbytes = 0;
@@ -858,9 +892,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (MULTI_DEVICE) {
 		// deviceMap
-		gdata->s_hDeviceMap = new uchar[numcells];
-		memset(gdata->s_hDeviceMap, 0, ucharCellSize);
-		totCPUbytes += ucharCellSize;
+		gdata->s_hDeviceMap = new devcount_t[numcells];
+		memset(gdata->s_hDeviceMap, 0, devcountCellSize);
+		totCPUbytes += devcountCellSize;
 
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
 		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
@@ -947,14 +981,14 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d = 0; d < MAX_DEVICES_PER_CLUSTER; d++) particlesPerGlobalDevice[d] = 0;
 
 	// TODO: move this in allocateGlobalBuffers...() and rename it, or use only here as a temporary buffer? or: just use HASH, sorting also for cells, not only for device
-	uchar* m_hParticleKeys = new uchar[gdata->totParticles];
+	devcount_t* m_hParticleKeys = new devcount_t[gdata->totParticles];
 
 	// fill array with particle hashes (aka global device numbers) and increase counters
 	for (uint p = 0; p < gdata->totParticles; p++) {
 
 		// compute containing device according to the particle's hash
 		uint cellHash = cellHashFromParticleHash( gdata->s_hBuffers.getData<BUFFER_HASH>()[p] );
-		uchar whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
+		devcount_t whichGlobalDev = gdata->s_hDeviceMap[ cellHash ];
 
 		// that's the key!
 		m_hParticleKeys[p] = whichGlobalDev;
@@ -1066,8 +1100,8 @@ void GPUSPH::sortParticlesByHash() {
 	for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 		hcount[d] = 0;
 	for (uint p=0; p < gdata->totParticles && monotonic; p++) {
-		uint cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
-		uint pdev;
+		devcount_t cdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p]) ];
+		devcount_t pdev;
 		if (p > 0) pdev = gdata->s_hDeviceMap[ cellHashFromParticleHash(gdata->s_hBuffers.getData<BUFFER_HASH>()[p-1]) ];
 		if (p > 0 && cdev < pdev ) {
 			printf(" -- sorting error: array[%d] has device n%dd%u, array[%d] has device n%dd%u (skipping next errors)\n",
@@ -1126,15 +1160,17 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 void GPUSPH::setViscosityCoefficient()
 {
 	PhysParams *pp = gdata->problem->get_physparams();
-	// Setting visccoeff
-	switch (gdata->problem->get_simparams()->visctype) {
+	ViscosityType vt = gdata->problem->get_simparams()->visctype;
+
+	// Set visccoeff based on the viscosity model used
+	switch (vt) {
 		case ARTVISC:
 			pp->visccoeff = pp->artvisccoeff;
 			break;
 
 		case KINEMATICVISC:
 		case SPSVISC:
-			pp->visccoeff = 4.0*pp->kinematicvisc;
+			pp->visccoeff = 4*pp->kinematicvisc;
 			break;
 
 		case KEPSVISC:
@@ -1145,6 +1181,22 @@ void GPUSPH::setViscosityCoefficient()
 		default:
 			throw runtime_error(string("Don't know how to set viscosity coefficient for chosen viscosity type!"));
 			break;
+	}
+
+	// Set SPS factors from coefficients, if they were not set
+	// by the problem
+	if (vt == SPSVISC) {
+		// TODO physparams should have configurable Cs, Ci
+		// rather than configurable smagfactor, kspsfactor, probably
+		const double spsCs = 0.12;
+		const double spsCi = 0.0066;
+		const double dp = gdata->problem->get_deltap();
+		if (isnan(pp->smagfactor)) {
+			pp->smagfactor = spsCs*dp;
+			pp->smagfactor *= pp->smagfactor; // (Cs*∆p)^2
+		}
+		if (isnan(pp->kspsfactor))
+			pp->kspsfactor = (2*spsCi/3)*dp*dp; // (2/3) Ci ∆p^2
 	}
 }
 
@@ -1206,7 +1258,7 @@ void GPUSPH::doWrite(bool force)
 			warned_nan_pos = true;
 		}
 
-		// for surface particles add the z coodinate to the appropriate wavegages
+		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
 				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
@@ -1231,7 +1283,15 @@ void GPUSPH::doWrite(bool force)
 		Writer::WriteWaveGage(gdata->t, gages);
 	}
 
+	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+		Writer::WriteObjectForces(gdata->t, problem->get_simparams()->numODEbodies,
+			gdata->s_hRbTotalForce, gdata->s_hRbTotalTorque,
+			gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+		Writer::WriteObjects(gdata->t, gdata->problem->get_ODE_bodies());
+	}
+
 	//Testpoints
+	// TODO: move into runSim ?
 	if (gdata->problem->get_simparams()->testpoints) {
 		// Write testpoints, on buffer read
 		doCommand(COMPUTE_TESTPOINTS);
@@ -1666,4 +1726,13 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	// swap changed buffers back so that read contains the new data
 	if (cFlag & INITIALIZATION_STEP)
 		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+}
+
+// initialize the centers of gravity of objects
+void GPUSPH::initializeObjectsVelocities()
+{
+	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+		gdata->s_hRbLinearVelocities = gdata->problem->get_ODE_bodies_linearvel();
+		gdata->s_hRbAngularVelocities = gdata->problem->get_ODE_bodies_angularvel();
+	}
 }

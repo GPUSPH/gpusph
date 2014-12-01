@@ -49,7 +49,7 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
-template<int step, bool xsphcorr>
+template<int step, bool xsphcorr, bool dynbounds>
 __global__ void
 eulerDevice(
 	const float4*	oldPos,
@@ -86,7 +86,8 @@ eulerDevice(
 
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
-	// copying pos and vel in the new arrays
+	// copying pos and vel in the new arrays, except in DYN_BOUNDARY
+	// case (dynbounds == true)
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 	float4 eulerVel = make_float4(0.0f);
@@ -97,8 +98,14 @@ eulerDevice(
 	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
 
 	const particleinfo pinfo = info[index];
+	const ParticleType ptype = static_cast<ParticleType>(PART_TYPE(pinfo));
 
-	if(ACTIVE(pos) && type(pinfo) != BOUNDPART) {
+	do {
+		// we only integrate ACTIVE particles which are not BOUNDARY particles,
+		// unless dynbounds is active (in which case BOUNDARY particles are also integrated)
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !dynbounds))
+			break;
+
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
 		// mean XSPH velocity, only when XSPH is active
 		// the compiler is smart enough to actually optimize this out
@@ -110,16 +117,18 @@ eulerDevice(
 		 */
 		const float4 velc = vel + (step - 1)*force*half_dt;
 
+		// object index
+		const int obj = object(pinfo);
+
 		// Updating particle position
-		if (FLUID(pinfo)) {
+		switch (ptype) {
+		case PT_FLUID:
 			// add weighted mean_vel only in xsphcorr case
 			// the compiler is smart enough to optimize it out
 			// in the xsphcorr == false case
-			if (!FIXED_PART(pinfo)) {
-				pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
-				pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
-				pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
-			}
+			pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
+			pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
+			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
 			// Updating particle velocity and density
 			// For step 1:
@@ -169,9 +178,13 @@ eulerDevice(
 				keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
 				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
 			}
-		}
+			break;
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
-		else if (VERTEX(pinfo) || BOUNDARY(pinfo)) {
+		case PT_BOUNDARY:
+			if (dynbounds)
+				vel.w += dt*force.w;
+			// no break allowed here
+		case PT_VERTEX:
 			if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
@@ -208,44 +221,57 @@ eulerDevice(
 				vel.y = 0.0f;
 				vel.z = 0.0f;
 			}
-		}
+			break;
 		// Moving boundaries
-		// Updating positions for piston particles.
-		// Now d_mbdata.x contains the piston velocity
-		else if (type(pinfo) == PISTONPART) {
-			const int i = object(pinfo);
-			pos.x += d_mbdata[i].x*dt;
-		}
-		// Updating postions for paddle particles
-		else if (type(pinfo)  == PADDLEPART) {
-			const int i = object(pinfo);
+		case PT_PISTON:
+			// Updating positions for piston particles.
+			// Now d_mbdata.x contains the piston velocity
+			pos.x += d_mbdata[obj].x*dt;
+			vel.x = d_mbdata[obj].x;
+			break;
+		case PT_PADDLE:
+			{
+			// Updating postions for paddle particles
 			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
-			const float2 relPos = make_float2(absPos.x - d_mbdata[i].x, absPos.z - d_mbdata[i].y);
-			const float c = cos(d_mbdata[i].z*dt) - 1.0f;
-			const float s = sin(d_mbdata[i].z*dt);
+			const float2 relPos = make_float2(absPos.x - d_mbdata[obj].x, absPos.z - d_mbdata[obj].y);
+			const float c = cos(d_mbdata[obj].z*dt) - 1.0f;
+			const float s = sin(d_mbdata[obj].z*dt);
 			// Apply rotation around y axis
 			pos.x += c*relPos.x + s*relPos.y;
 			pos.z += -s*relPos.x + c*relPos.y;
-		}
-		// Updating positions for gate particles
-		// mbdata.x,y,z contains gate velocity
-		else if (type(pinfo) == GATEPART) {
-			const int i = object(pinfo);
-			as_float3(pos) += as_float3(d_mbdata[i])*dt;
-		}
-		// TODO: change object particles velocity
-		else if (type(pinfo) == OBJECTPART && step == 2) {
-			const int i = object(pinfo)-1;
-			// Applying center of gravity translation
-			pos.x += d_rbtrans[i].x;
-			pos.y += d_rbtrans[i].y;
-			pos.z += d_rbtrans[i].z;
+			// Velocity
+			vel.x = d_mbdata[obj].z*relPos.y;
+			vel.z = -d_mbdata[obj].z*relPos.x;
+			}
+			break;
+		case PT_GATE:
+			// Updating positions for gate particles
+			// mbdata.x,y,z contains gate velocity
+			as_float3(pos) += as_float3(d_mbdata[obj])*dt;
+			as_float3(vel) = as_float3(d_mbdata[obj]);
+			break;
+		case PT_OBJECT:
+			vel.w += dt*force.w;
+			if (step == 2) {
+				// Applying center of gravity translation
+				pos.x += d_rbtrans[obj].x;
+				pos.y += d_rbtrans[obj].y;
+				pos.z += d_rbtrans[obj].z;
 
-			// Applying rotation around center of gravity
-			const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
-			applyrot(&d_rbsteprot[9*i], relPos, pos);
+				// Applying rotation around center of gravity
+				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
+				applyrot(&d_rbsteprot[9*obj], relPos, pos);
+
+				// Computing particles velocity
+				// V(P) = V(Cg) + PCg^omega
+				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
+			}
+			break;
+		case PT_TESTPOINT:
+			/* TODO */
+			break;
 		}
-	}
+	} while (0);
 
 	newPos[index] = pos;
 	newVel[index] = vel;

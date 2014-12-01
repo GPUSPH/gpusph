@@ -84,6 +84,7 @@ enum BoundaryType {
 	LJ_BOUNDARY,
 	MK_BOUNDARY,
 	SA_BOUNDARY,
+	DYN_BOUNDARY,
 	INVALID_BOUNDARY
 };
 
@@ -96,6 +97,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 	"Lennard-Jones",
 	"Monaghan-Kajtar",
 	"Ferrand et al.",
+	"Dynamic",
 	"(invalid)"
 }
 #endif

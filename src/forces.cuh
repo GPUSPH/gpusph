@@ -175,6 +175,7 @@ const	particleinfo	*info,
 			uint	particleRangeEnd,
 			float	slength,
 		KernelType	kerneltype,
+	BoundaryType	boundarytype,
 			float	influenceradius);
 
 void

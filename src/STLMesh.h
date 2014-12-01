@@ -148,6 +148,7 @@ public:
 	void FillBorder(PointVect&, double);
 	int Fill(PointVect&, double, bool);
 	void Fill(PointVect&, const double);
+	void FillIn(PointVect &, const double, const int);
 	bool IsInside(const Point&, double) const;
 
 	double SetPartMass(const double, const double);

@@ -127,14 +127,19 @@ void*	reduce_buffer = NULL;
 #define IO_BOUNDARY_SWITCH(inoutBoundaries) \
 	switch (boundarytype) { \
 		/*BOUNDARY_CHECK(LJ_BOUNDARY, inoutBoundaries); \
-		BOUNDARY_CHECK(MK_BOUNDARY, inoutBoundaries); */ \
-		BOUNDARY_CHECK(SA_BOUNDARY, inoutBoundaries); \
-		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
+		BOUNDARY_CHECK(MK_BOUNDARY, inoutBoundaries); \
+		*/BOUNDARY_CHECK(SA_BOUNDARY, inoutBoundaries); \
+		/*BOUNDARY_CHECK(DYN_BOUNDARY, inoutBoundaries); \
+		*/NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
 #define SPS_CHECK(kernel) \
 	case kernel: \
-		cuforces::SPSstressMatrixDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
+		if (boundarytype == DYN_BOUNDARY) \
+		cuforces::SPSstressMatrixDevice<kernel, true><<< numBlocks, numThreads, dummy_shared >>> \
+				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
+		else \
+		cuforces::SPSstressMatrixDevice<kernel, false><<< numBlocks, numThreads, dummy_shared >>> \
 				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
 		break
 
@@ -350,6 +355,7 @@ const	particleinfo	*info,
 			uint	particleRangeEnd,
 			float	slength,
 		KernelType	kerneltype,
+		BoundaryType	boundarytype,
 			float	influenceradius)
 {
 	int dummy_shared = 0;

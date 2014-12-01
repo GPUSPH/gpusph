@@ -35,6 +35,7 @@
 #include <string>
 #include <cstdio>
 #include <iostream>
+#include <fstream>
 
 #include "Options.h"
 #include "Writer.h"
@@ -44,6 +45,8 @@
 #include "vector_math.h"
 #include "Object.h"
 #include "buffer.h"
+
+#include "deprecation.h"
 
 #include "ode/ode.h"
 
@@ -58,7 +61,6 @@ using namespace std;
 
 class Problem {
 	private:
-		float		m_last_rbdata_write_time;
 		string		m_problem_dir;
 		WriterList	m_writers;
 
@@ -87,9 +89,6 @@ class Problem {
 		uint3	m_gridsize;		// Number of grid cells along each axis
 		double	m_deltap;		// Initial particle spacing
 
-		float		m_rbdata_writeinterval;
-		FILE*		m_rbdatafile;
-
 		const float*	get_dem() const { return m_dem; }
 		int		get_dem_ncols() const { return m_ncols; }
 		int		get_dem_nrows() const { return m_nrows; }
@@ -110,6 +109,8 @@ class Problem {
 		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
+		float3		m_bodies_linearvel[MAXBODIES];		// Linear velocity of rigid bodies
+		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 		uint		m_ODEobjectId[MAXBODIES];			// ODE object id
 		uint		m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
@@ -177,6 +178,9 @@ class Problem {
 			return m_deltap;
 		}
 
+		double get_deltap() const
+		{ return m_deltap; }
+
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
 		{
@@ -230,10 +234,16 @@ class Problem {
 		{ add_gage(make_double3(x, y, z)); }
 
 		// set the timer tick
-		void set_timer_tick(float t);
+		// DEPRECATED: use ad_writer() with the frequency in seconds
+		void set_timer_tick(double t) DEPRECATED;
 
 		// add a new writer
-		void add_writer(WriterType wt, int freq = 1);
+		// DEPRECATED: use ad_writer() with the frequency in seconds
+		// by passing as argument the product of freq and the timer tick
+		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, double)");
+
+		// add a new writer, with the given write frequency in (fractions of) seconds
+		void add_writer(WriterType wt, double freq);
 
 		// return the list of writers
 		WriterList const& get_writers() const
@@ -242,10 +252,6 @@ class Problem {
 		// overridden in subclasses if they want explicit writes
 		// beyond those controlled by the writer(s) periodic time
 		virtual bool need_write(double) const;
-
-		// TODO these should be moved out of here into a specific writer
-		virtual bool need_write_rbdata(double) const;
-		void write_rbdata(double);
 
 		// is the simulation running at the given time?
 		bool finished(double) const;
@@ -257,9 +263,18 @@ class Problem {
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
-		virtual MbCallBack& mb_callback(const float, const float, const int);
-		virtual float4* get_mbdata(const float, const float, const bool);
-		virtual float3 g_callback(const float);
+
+		/* moving boundary and gravity callbacks */
+		virtual MbCallBack& mb_callback(const float t, const float dt, const int i) DEPRECATED;
+		virtual float3 g_callback(const float t) DEPRECATED;
+
+		virtual MbCallBack& mb_callback(const double t, const float dt, const int i);
+		virtual float3 g_callback(const double t);
+
+		float4* get_mbdata(const double t, const float dt, const bool forceupdate);
+
+
+		/* ODE callbacks */
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 		{
 			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
@@ -274,13 +289,26 @@ class Problem {
 		void allocate_ODE_bodies(const uint);
 		void add_ODE_body(Object* object);
 		Object* get_ODE_body(const uint);
-		void get_ODE_bodies_data(float3 * &, float * &);
+		Object const* const* get_ODE_bodies() const
+		{ return m_ODE_bodies; }
+
+		void get_ODE_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		float3* get_ODE_bodies_cg(void);
 		float* get_ODE_bodies_steprot(void);
+		float3* get_ODE_bodies_linearvel(void);
+		float3* get_ODE_bodies_angularvel(void);
+
+		/* This method can be overridden in problems when the object
+		 * forces have to be altered in some way before being applied.
+		 */
+		virtual void
+		object_forces_callback(double t, int step, float3 *forces, float3 *torques);
+
 		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
-									const double, float3 * &, float3 * &, float * &);
-		int	get_ODE_bodies_numparts(void) const;
-		int	get_ODE_body_numparts(const int) const;
+									const double, float3 * &, float3 * &, float * &,
+									float3 * &, float3 * &);
+		size_t	get_ODE_bodies_numparts(void) const;
+		size_t	get_ODE_body_numparts(const int) const;
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 

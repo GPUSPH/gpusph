@@ -747,17 +747,17 @@ neibsInCell(
 /// Builds particles neighbors list
 /*! This kernel computes the neighbor's indexes of all particles.
  *
- *	\pparam use_sa_boundary : assume SA_BOUNDARY
+ *	\pparam boundarytype : the boundary type (determines which particles have a neib list)
  *	\pparam periodicbound : use periodic boundaries (0 ... 7)
  *	\pparam neibcount : compute maximum neighbor number (0, 1)
  *
  * First and last particle index for grid cells and particle's informations
  * are read through texture fetches.
  */
-template<bool use_sa_boundary, Periodicity periodicbound, bool neibcount>
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 __global__ void
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
-buildNeibsListDevice(buildneibs_params<use_sa_boundary> params)
+buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -774,7 +774,9 @@ buildNeibsListDevice(buildneibs_params<use_sa_boundary> params)
 		// the neighbor list is only constructed for fluid, testpoint, and object particles.
 		// if we use SA_BOUNDARY, also for vertex and boundary particles
 		bool build_nl = FLUID(info) || TESTPOINTS(info) || OBJECT(info);
-		if (use_sa_boundary)
+		if (boundarytype == DYN_BOUNDARY)
+			build_nl = build_nl || BOUNDARY(info);
+		if (boundarytype == SA_BOUNDARY)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
 		if (!build_nl)
 			break; // nothing to do for other particles
@@ -797,7 +799,7 @@ buildNeibsListDevice(buildneibs_params<use_sa_boundary> params)
 		for(int z=-1; z<=1; z++) {
 			for(int y=-1; y<=1; y++) {
 				for(int x=-1; x<=1; x++) {
-					neibsInCell<use_sa_boundary, periodicbound>(params,
+					neibsInCell<boundarytype == SA_BOUNDARY, periodicbound>(params,
 						gridPos,
 						make_int3(x, y, z),
 						(x + 1) + (y + 1)*3 + (z + 1)*9,

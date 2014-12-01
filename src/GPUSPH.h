@@ -115,6 +115,8 @@ private:
 
 	// initialize the centers of gravity of objects
 	void initializeObjectsCGs();
+	// initialize velocities (linear and angular) of objects
+	void initializeObjectsVelocities();
 
 public:
 	// destructor
