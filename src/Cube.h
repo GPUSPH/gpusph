@@ -37,6 +37,8 @@
 #include "Point.h"
 #include "Vector.h"
 
+#include "deprecation.h"
+
 //! Cube object class
 /*!
  *	The cube class defines the cube object and implements all the
@@ -74,7 +76,7 @@ class Cube: public Object {
 		Cube(void);
 		Cube(const Point&, const double, const double, const double, const EulerParameters&);
 		Cube(const Point&, const double, const double, const double, const dQuaternion);
-		Cube(const Point&, const Vector&, const Vector&, const Vector&);
+		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED;
 		virtual ~Cube(void) {};
 		//@}
 
