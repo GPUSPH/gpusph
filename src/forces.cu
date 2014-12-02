@@ -84,7 +84,7 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, dem) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem); \
+		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, dem);*/ \
 		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, dem); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -97,7 +97,7 @@ void*	reduce_buffer = NULL;
 #define FORMULATION_SWITCH(boundarytype, visc, dem) \
 	switch (sph_formulation) { \
 		FORMULATION_CHECK(SPH_F1, boundarytype, visc, dem); \
-		FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem); \
+		/*FORMULATION_CHECK(SPH_F2, boundarytype, visc, dem);*/ \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
@@ -108,10 +108,10 @@ void*	reduce_buffer = NULL;
 
 #define VISC_CHECK_STANDARD(boundarytype, dem) \
 		VISC_CHECK(boundarytype, ARTVISC, dem); \
-		VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
+		/*VISC_CHECK(boundarytype, DYNAMICVISC, dem); \
 		VISC_CHECK(boundarytype, KINEMATICVISC, dem);\
 		VISC_CHECK(boundarytype, SPSVISC, dem); \
-		VISC_CHECK(boundarytype, KEPSVISC, dem);
+		VISC_CHECK(boundarytype, KEPSVISC, dem);*/
 
 #define VISC_SWITCH(boundarytype, dem) \
 	switch (visctype) { \
@@ -127,7 +127,7 @@ void*	reduce_buffer = NULL;
 #define BOUNDARY_SWITCH(dem) \
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, dem); \
-		BOUNDARY_CHECK(MK_BOUNDARY, dem); \
+		/*BOUNDARY_CHECK(MK_BOUNDARY, dem);*/ \
 		BOUNDARY_CHECK(SA_BOUNDARY, dem); \
 		BOUNDARY_CHECK(DYN_BOUNDARY, dem); \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
