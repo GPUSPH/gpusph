@@ -127,6 +127,39 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 
 	if (m_simparams->calcPrivate)
 		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
+#define NEIBSENGINE_CASE(btype, periodic) \
+	case periodic: \
+		neibsEngine = new CUDANeibsEngine<btype, periodic, true>(); \
+		break;
+
+#define NEIBSENGINE_SWITCH(btype) \
+	switch (m_simparams->periodicbound) { \
+		NEIBSENGINE_CASE(btype, PERIODIC_NONE); \
+		NEIBSENGINE_CASE(btype, PERIODIC_X); \
+		NEIBSENGINE_CASE(btype, PERIODIC_Y); \
+		NEIBSENGINE_CASE(btype, PERIODIC_XY); \
+		NEIBSENGINE_CASE(btype, PERIODIC_Z); \
+		NEIBSENGINE_CASE(btype, PERIODIC_XZ); \
+		NEIBSENGINE_CASE(btype, PERIODIC_YZ); \
+		NEIBSENGINE_CASE(btype, PERIODIC_XYZ); \
+	}
+
+	switch (m_simparams->boundarytype) {
+	case SA_BOUNDARY:
+		NEIBSENGINE_SWITCH(SA_BOUNDARY)
+		break;
+	case DYN_BOUNDARY:
+		NEIBSENGINE_SWITCH(DYN_BOUNDARY)
+		break;
+	case LJ_BOUNDARY:
+		NEIBSENGINE_SWITCH(LJ_BOUNDARY)
+		break;
+	case MK_BOUNDARY:
+		NEIBSENGINE_SWITCH(MK_BOUNDARY)
+		break;
+	default:
+		throw runtime_error("WTF BOUNDARY");
+	}
 }
 
 GPUWorker::~GPUWorker() {
@@ -1766,19 +1799,20 @@ void GPUWorker::kernel_calcHash()
 	// ones to keep numerical consistency.
 
 	if (gdata->iterations == 0)
-		fixHash(	m_dBuffers.getData<BUFFER_HASH>(),
+		neibsEngine->fixHash(
+					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dBuffers.getData<BUFFER_PARTINDEX>(),
 					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 					m_dCompactDeviceMap,
 					m_numParticles);
 	else
-		calcHash(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		neibsEngine->calcHash(
+					m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 					m_dBuffers.getData<BUFFER_HASH>(),
 					m_dBuffers.getData<BUFFER_PARTINDEX>(),
 					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 					m_dCompactDeviceMap,
-					m_numParticles,
-					m_simparams->periodicbound);
+					m_numParticles);
 }
 
 void GPUWorker::kernel_sort()
@@ -1788,7 +1822,8 @@ void GPUWorker::kernel_sort()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sort(	m_dBuffers.getData<BUFFER_HASH>(),
+	neibsEngine->sort(
+			m_dBuffers.getData<BUFFER_HASH>(),
 			m_dBuffers.getData<BUFFER_PARTINDEX>(),
 			numPartsToElaborate);
 }
@@ -1802,7 +1837,8 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 	if (m_numParticles == 0) return;
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
-	reorderDataAndFindCellStart(m_dCellStart,	  // output: cell start index
+	neibsEngine->reorderDataAndFindCellStart(
+							m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
 							m_dSegmentStart,
 							// output: sorted arrays
@@ -1840,7 +1876,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 
 void GPUWorker::kernel_buildNeibsList()
 {
-	resetneibsinfo();
+	neibsEngine->resetinfo();
 
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
@@ -1856,7 +1892,8 @@ void GPUWorker::kernel_buildNeibsList()
 	// it is used to add segments into the neighbour list even if they are outside the kernel support
 	const float boundNlSqInflRad = powf(sqrt(m_simparams->nlSqInfluenceRadius) + m_simparams->slength/m_simparams->sfactor/2.0f,2.0f);
 
-	buildNeibsList(	m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+	neibsEngine->buildNeibsList(
+					m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 					m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 					m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
@@ -1870,12 +1907,10 @@ void GPUWorker::kernel_buildNeibsList()
 					numPartsToElaborate,
 					m_nGridCells,
 					m_simparams->nlSqInfluenceRadius,
-					boundNlSqInflRad,
-					m_simparams->boundarytype,
-					m_simparams->periodicbound);
+					boundNlSqInflRad);
 
 	// download the peak number of neighbors and the estimated number of interactions
-	getneibsinfo( gdata->timingInfo[m_deviceIndex] );
+	neibsEngine->getinfo( gdata->timingInfo[m_deviceIndex] );
 }
 
 // returns numBlocks as computed by forces()
@@ -2444,7 +2479,8 @@ void GPUWorker::kernel_updateVertIdIndexBuffer()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	updateVertIDToIndex(m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+	neibsEngine->updateVertIDToIndex(
+						m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 						m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 						numPartsToElaborate);
 }
@@ -2594,7 +2630,7 @@ void GPUWorker::uploadConstants()
 	setforcesconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	seteulerconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
-	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	if (m_simparams->inoutBoundaries)
 		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);

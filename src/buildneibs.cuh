@@ -30,6 +30,7 @@
 #include "physparams.h"
 #include "simparams.h"
 #include "timing.h"
+#include "neibsengine.h"
 
 #include "vector_math.h"
 
@@ -55,9 +56,6 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
-
-extern "C"
-{
 void
 setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -145,5 +143,135 @@ sort(	hashKey*	particleHash,
 		uint*	particleIndex,
 		uint	numParticles
 		);
-}
+
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+class CUDANeibsEngine : public AbstractNeibsEngine
+{
+public:
+	void
+	setconstants(const SimParams *simparams, const PhysParams *physparams,
+		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+		idx_t const& allocatedParticles)
+	{
+		setneibsconstants(simparams, physparams, worldOrigin, gridSize, cellSize,
+			allocatedParticles);
+	}
+
+	void
+	getconstants(SimParams *simparams, PhysParams *physparams)
+	{ getneibsconstants(simparams, physparams); }
+
+	void
+	resetinfo()
+	{ resetneibsinfo(); }
+
+	void
+	getinfo(TimingInfo &timingInfo)
+	{ getneibsinfo(timingInfo); }
+
+	void
+	calcHash(float4*	pos,
+		 hashKey*	particleHash,
+		 uint*		particleIndex,
+		 const particleinfo* particleInfo,
+		 uint*		compactDeviceMap,
+		 const uint		numParticles)
+	{
+		::calcHash(pos, particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles,
+			periodicbound);
+	}
+
+	void
+	fixHash(hashKey*	particleHash,
+			uint*		particleIndex,
+			const particleinfo* particleInfo,
+			uint*		compactDeviceMap,
+			const uint		numParticles)
+	{
+		::fixHash(particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles);
+	}
+
+	void
+	reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
+									uint*				cellEnd,			// output: cell end index
+									uint*				segmentStart,
+									float4*				newPos,				// output: sorted positions
+									float4*				newVel,				// output: sorted velocities
+									particleinfo*		newInfo,			// output: sorted info
+									float4*				newBoundElement,	// output: sorted boundary elements
+									float4*				newGradGamma,		// output: sorted gradient gamma
+									vertexinfo*			newVertices,		// output: sorted vertices
+									float*				newTKE,				// output: k for k-e model
+									float*				newEps,				// output: e for k-e model
+									float*				newTurbVisc,		// output: eddy viscosity
+									float4*				newEulerVel,		// output: sorted euler vel
+									const hashKey*		particleHash,		// input: sorted grid hashes
+									const uint*			particleIndex,		// input: sorted particle indices
+									const float4*		oldPos,				// input: unsorted positions
+									const float4*		oldVel,				// input: unsorted velocities
+									const particleinfo*	oldInfo,			// input: unsorted info
+									const float4*		oldBoundElement,	// input: sorted boundary elements
+									const float4*		oldGradGamma,		// input: sorted gradient gamma
+									const vertexinfo*	oldVertices,		// input: sorted vertices
+									const float*		oldTKE,				// input: k for k-e model
+									const float*		oldEps,				// input: e for k-e model
+									const float*		oldTurbVisc,		// input: eddy viscosity
+									const float4*		oldEulerVel,		// input: euler vel
+									const uint			numParticles,
+									uint*				newNumParticles)	// output: number of active particles found
+	{
+		::reorderDataAndFindCellStart(cellStart, cellEnd, segmentStart,
+									newPos, newVel, newInfo,
+									newBoundElement, newGradGamma, newVertices,
+									newTKE, newEps, newTurbVisc, newEulerVel,
+									particleHash, particleIndex,
+									oldPos, oldVel, oldInfo,
+									oldBoundElement, oldGradGamma, oldVertices,
+									oldTKE, oldEps, oldTurbVisc, oldEulerVel,
+									numParticles, newNumParticles);
+	}
+
+	void
+	updateVertIDToIndex(particleinfo*	particleInfo,	// input: particle's information
+						uint*			vertIDToIndex,	// output: vertIDToIndex array
+						const uint		numParticles)	// input: total number of particles
+	{
+		::updateVertIDToIndex(particleInfo, vertIDToIndex, numParticles);
+	}
+
+	void
+	buildNeibsList(	neibdata*			neibsList,
+					const float4*		pos,
+					const particleinfo*	info,
+					vertexinfo*			vertices,
+					const float4		*boundelem,
+					float2*				vertPos[],
+					const uint*			vertIDToIndex,
+					const hashKey*		particleHash,
+					const uint*			cellStart,
+					const uint*			cellEnd,
+					const uint			numParticles,
+					const uint			particleRangeEnd,
+					const uint			gridCells,
+					const float			sqinfluenceradius,
+					const float			boundNlSqInflRad)
+	{
+		::buildNeibsList(neibsList, pos, info, vertices, boundelem, vertPos,
+			vertIDToIndex, particleHash, cellStart, cellEnd, numParticles,
+			particleRangeEnd, gridCells, sqinfluenceradius, boundNlSqInflRad,
+			boundarytype, periodicbound);
+	}
+
+	void
+	sort(	hashKey	*particleHash,
+			uint	*particleIndex,
+			uint	numParticles)
+	{
+		::sort(particleHash, particleIndex, numParticles);
+	}
+
+};
+
+
+
 #endif

@@ -40,6 +40,8 @@
 #include "physparams.h"
 #include "simparams.h"
 
+#include "neibsengine.h"
+
 // buffers and buffer lists
 #include "buffer.h"
 
@@ -53,6 +55,8 @@ private:
 	pthread_t pthread_id;
 	static void* simulationThread(void *ptr);
 	GlobalData* gdata;
+
+	AbstractNeibsEngine *neibsEngine;
 
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;

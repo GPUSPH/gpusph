@@ -38,9 +38,6 @@
 
 #include "utils.h"
 
-extern "C"
-{
-
 void
 setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -363,4 +360,4 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 	CUT_CHECK_ERROR("thrust sort failed");
 
 }
-}
+
