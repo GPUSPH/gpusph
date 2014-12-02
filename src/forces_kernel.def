@@ -712,7 +712,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
 		// when using KEPSVISC, or when outflow boundaries are present
-		return !(inoutBoundaries && IO_BOUNDARY(pdata.info) && OUTFLOW(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+		return !(inoutBoundaries && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
@@ -752,7 +752,7 @@ template<KernelType kerneltype, typename FP, typename P, typename N, typename OP
 __device__ __forceinline__ void
 compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && OUTFLOW(pdata.info))
+	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		return;
 	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
@@ -1464,7 +1464,7 @@ template<typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 write_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP const& pout, const bool inoutBoundaries)
 {
-	if (inoutBoundaries && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && OUTFLOW(pdata.info))
+	if (inoutBoundaries && !pdata.computeGamma && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		params.newGGam[pdata.index] = pdata.oldGGam;
 	else
 		params.newGGam[pdata.index] = pout.gGam;
@@ -1838,8 +1838,8 @@ forcesDevice(
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (boundarytype == SA_BOUNDARY && params.ioWaterdepthComputation && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && OUTFLOW(info)) {
-				// Compute the maximum depth at outflows
+			else if (boundarytype == SA_BOUNDARY && params.ioWaterdepthComputation && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
+				// Compute the maximum depth at pressure boundaries
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
 			else if (pdata.ptype == PT_OBJECT) {

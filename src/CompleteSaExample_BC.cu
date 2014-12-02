@@ -36,7 +36,8 @@ CompleteSaExample_imposeBoundaryCondition(
 
 	// open boundary conditions
 	if (IO_BOUNDARY(info)) {
-		if (INFLOW(info) && !VEL_IO(info)) {
+		// impose pressure
+		if (!VEL_IO(info)) {
 			/*
 			if (t < 1.0)
 				// inlet pressure grows to target in 1s settling time
@@ -48,24 +49,6 @@ CompleteSaExample_imposeBoundaryCondition(
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
-		}
-
-		// impose tangential velocity
-		if (INFLOW(info)) {
-			eulerVel.y = 0.0f;
-			eulerVel.z = 0.0f;
-			// k and eps based on Versteeg & Malalasekera (2001)
-			// turbulent intensity (between 1% and 6%)
-			const float Ti = 0.01f;
-			// in case of a pressure inlet eulerVel.x = 0 so we set u to 1 to multiply it later once
-			// we know the correct velocity
-			const float u = eulerVel.x > 1e-6f ? eulerVel.x : 1.0f;
-			tke = 3.33333f;
-			// length scale of the flow
-			const float L = 1.0f;
-			// constant is C_\mu^(3/4)/0.07*sqrt(3/2)
-			// formula is epsilon = C_\mu^(3/4) k^(3/2)/(0.07 L)
-			eps = 2.874944542f*tke*u*Ti/L;
 		}
 	}
 }

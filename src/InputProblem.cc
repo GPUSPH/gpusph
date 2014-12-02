@@ -433,20 +433,15 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM != IOWithoutWalls
 					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
 #endif
-					// open boundary is an inflow
-					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 				} else if (openBoundType == 2) {
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
 					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
-					// open boundary is an outflow => INFLOW_PARTICLE_FLAG not set
 				}
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-				if (openBoundType == 1)
-					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
@@ -481,20 +476,15 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM != IOWithoutWalls
 					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
 #endif
-					// open boundary is an inflow
-					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 				} else if (openBoundType == 2) {
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
 					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
-					// open boundary is an outflow => INFLOW_PARTICLE_FLAG not set
 				}
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-				if (openBoundType == 1)
-					SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;

@@ -61,13 +61,13 @@ InputProblem_imposeBoundaryCondition(
 		}
 		else {
 #if SPECIFIC_PROBLEM == LaPalisseSmallTest
-			if (INFLOW(info))
+			if (object(info)==1)
 				waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			if (INFLOW(info))
+			if (object(info)==1)
 				eulerVel.w = 1002.0f;
 			else
 				eulerVel.w = 1002.0f;
@@ -78,7 +78,7 @@ InputProblem_imposeBoundaryCondition(
 		}
 
 		// impose tangential velocity
-		if (INFLOW(info)) {
+		if (VEL_IO(info)) {
 			eulerVel.y = 0.0f;
 			eulerVel.z = 0.0f;
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
@@ -137,7 +137,7 @@ InputProblem_imposeBoundaryConditionDevice(
 									+ 0.5f*d_cellSize;
 			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
-			if (!VEL_IO(info) && !INFLOW(info) && IOwaterdepth) {
+			if (!VEL_IO(info) && IOwaterdepth) {
 				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
 				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
 				waterdepth += d_worldOrigin.z; // now absolute z position

@@ -971,35 +971,34 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		const uint vertYidx = vertIDToIndex[verts.y];
 		const uint vertZidx = vertIDToIndex[verts.z];
 
+		// get the imposed quantities from the vertices
 		if (IO_BOUNDARY(info)) {
-			float sharedVertices = 0.0f;
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertXidx))){
-				eulerVel += oldEulerVel[vertXidx];
+			// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
+			if (VEL_IO(info)) {
+				eulerVel.x =	oldEulerVel[vertXidx].x +
+								oldEulerVel[vertYidx].x +
+								oldEulerVel[vertZidx].x;
+				eulerVel.y =	oldEulerVel[vertXidx].y +
+								oldEulerVel[vertYidx].y +
+								oldEulerVel[vertZidx].y;
+				eulerVel.z =	oldEulerVel[vertXidx].z +
+								oldEulerVel[vertYidx].z +
+								oldEulerVel[vertZidx].z;
 				if (oldTKE)
-					tke += oldTKE[vertXidx];
+					tke =	oldTKE[vertXidx] +
+							oldTKE[vertYidx] +
+							oldTKE[vertZidx];
 				if (oldEps)
-					eps += oldEps[vertXidx];
-				sharedVertices += 1.0f;
+					eps =	oldEps[vertXidx] +
+							oldEps[vertYidx] +
+							oldEps[vertZidx];
 			}
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertYidx))){
-				eulerVel += oldEulerVel[vertYidx];
-				if (oldTKE)
-					tke += oldTKE[vertYidx];
-				if (oldEps)
-					eps += oldEps[vertYidx];
-				sharedVertices += 1.0f;
+			// for imposed density only eulerVel.w will be required, the rest will be computed
+			else {
+				eulerVel.w =	oldEulerVel[vertXidx].w +
+								oldEulerVel[vertYidx].w +
+								oldEulerVel[vertZidx].w;
 			}
-			if(IO_BOUNDARY(tex1Dfetch(infoTex, vertZidx))){
-				eulerVel += oldEulerVel[vertZidx];
-				if (oldTKE)
-					tke += oldTKE[vertZidx];
-				if (oldEps)
-					eps += oldEps[vertZidx];
-				sharedVertices += 1.0f;
-			}
-			eulerVel /= sharedVertices;
-			tke /= sharedVertices;
-			eps /= sharedVertices;
 		}
 
 		// velocity for moving objects transferred from vertices
@@ -1067,12 +1066,16 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// normal distance based on grad Gamma which approximates the normal of the domain
 				const float normDist = fmax(fabs(dot3(normal,relPos)), deltap);
 				sumrho += (1.0f + dot(d_gravity,as_float3(relPos))/sqC0)*w*neib_rho;
-				if (IO_BOUNDARY(info))
-					sumvel += w*as_float3(oldVel[neib_index]);
+				// for all boundaries we have dk/dn = 0
 				sumtke += w*neib_k;
-				if (IO_BOUNDARY(info))
+				if (IO_BOUNDARY(info)) {
+					// for open boundaries compute dv/dn = 0
+					sumvel += w*as_float3(oldVel[neib_index]);
+					// and de/dn = 0
 					sumeps += w*neib_eps;
+				}
 				else
+					// for solid boundaries we have de/dn = c_mu^(3/4)*4*k^(3/2)/(\kappa r)
 					// the constant is coming from 4*powf(0.09,0.75)/0.41
 					sumeps += w*(neib_eps + 1.603090412f*powf(neib_k,1.5f)/normDist);
 				alpha += w;
@@ -1082,20 +1085,34 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		if (alpha > 1e-5f) {
 			// for the k-epsilon model we also need to determine the velocity of the wall.
 			// This is an average of the velocities of the vertices
-			if (!IO_BOUNDARY(info) || !INFLOW(info)) {
+			if (!(IO_BOUNDARY(info) && VEL_IO(info))) {
 				if (oldTKE){
-					eulerVel = (	oldEulerVel[vertXidx] +
-									oldEulerVel[vertYidx] +
-									oldEulerVel[vertZidx] )/3.0f;
-					// ensure that velocity is normal to segment normal
-					eulerVel -= dot3(eulerVel,normal)*normal;
-					oldEulerVel[index] = eulerVel;
+					// for solid boundaries we want to get the eulerian velocity (based on viscous forces)
+					// from all associated vertices
+					if (!IO_BOUNDARY(info)) {
+						eulerVel = (	oldEulerVel[vertXidx] +
+										oldEulerVel[vertYidx] +
+										oldEulerVel[vertZidx] )/3.0f;
+						// ensure that velocity is normal to segment normal
+						eulerVel -= dot3(eulerVel,normal)*normal;
+						oldEulerVel[index] = eulerVel;
+					}
+					// for solid boundaries and pressure imposed boundaries we take dk/dn = 0
 					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
 				}
 				else if (oldEulerVel)
 					oldEulerVel[index] = make_float4(0.0f);
 				if (oldEps)
+					// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
+					// for open boundaries we have dk/dn = 0
 					oldEps[index] = fmax(sumeps/alpha, 1e-5f); // eps should never be 0
+			}
+			// velocity imposition
+			else {
+				if (oldTKE)
+					oldTKE[index] = tke;
+				if (oldEps)
+					oldEps[index] = eps;
 			}
 			if (IO_BOUNDARY(info))
 				sumvel /= alpha;
@@ -1121,17 +1138,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const float rhoExt = eulerVel.w;
 			const int a = PART_FLUID_NUM(info);
 
-			// if we have an outflow the tangential velocity components are computed from the
-			// interpolated velocity. The normal velocity remains as set from Euler or will be
-			// replaced afterwards if pressure is imposed.
-			if (!INFLOW(info)) {
-				eulerVel = make_float4(sumvel) + (unExt - unInt)*normal;
-				eulerVel.w = rhoExt;
-			}
-
-			// impose velocity
+			// impose velocity (and k,eps) => compute density
 			if (VEL_IO(info)) {
-				if (unExt > unInt) { // Shock wave (Rankine-Hugoniot)
+				// Rankine-Hugoniot is not properly working
+				/*if (unExt > unInt) { // Shock wave (Rankine-Hugoniot)
 					eulerVel.w = RHO(P(rhoInt, a) + rhoInt*unInt*(unInt - unExt), a);
 					// with the new rho check if this is actually a shock wave
 					const float c = d_sscoeff[a]*powf(eulerVel.w/d_rho0[a], (d_gammacoeff[a]-1.0f)/2.0f);
@@ -1142,12 +1152,14 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						eulerVel.w = RHOR(R(rhoInt, a) + (unExt - unInt), a);
 				} else { // expansion wave
 					eulerVel.w = RHOR(R(rhoInt, a) + (unExt - unInt), a);
-				}
+				}*/
+				eulerVel.w = RHOR(R(rhoInt, a) + (unExt - unInt), a);
 			}
-			// impose pressure
+			// impose pressure => compute velocity (normal & tangential; k and eps are already interpolated)
 			else {
 				float flux = 0.0f;
-				if (rhoExt > rhoInt && false) { // Shock wave
+				// Rankine-Hugoniot is not properly working
+				/*if (rhoExt > rhoInt && false) { // Shock wave
 					if (fabs(unInt) > d_sscoeff[a]*1e-5f)
 						flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*unInt) + unInt;
 					// Check whether it is really a shock wave
@@ -1159,30 +1171,20 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
 				} else { // Expansion wave
 					flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
-				}
+				}*/
+				flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
+				// impose eulerVel according to dv/dn = 0
+				as_float3(eulerVel) = sumvel;
 				// remove normal component of velocity
 				eulerVel = eulerVel - dot3(eulerVel, normal)*normal;
 				// add calculated normal velocity
 				eulerVel += normal*flux;
+				// set density to the imposed one
 				eulerVel.w = rhoExt;
-				// if we don't have a velocity inflow then the velocity used to compute k was set to one so now
-				// that we have the real velocity we can compute the real k
-				const float u = length3(eulerVel);
-				const float u2 = u*u;
-				tke = tke*u2;
-				eps = eps*u2*u;
 			}
 			oldEulerVel[index] = eulerVel;
 			// the density of the particle is equal to the "eulerian density"
 			oldVel[index].w = eulerVel.w;
-
-			// imposition of k and epsilon at inflows (was already set to dk/dn = deps/dn = 0 for non INFLOW)
-			if (INFLOW(info)) {
-				if (oldTKE)
-					oldTKE[index] = tke;
-				if (oldEps)
-					oldEps[index] = eps;
-			}
 
 		}
 

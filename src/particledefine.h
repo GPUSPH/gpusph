@@ -233,7 +233,6 @@ enum ParticleType {
 #define FIXED_PARTICLE_FLAG		(PART_FLAG_START<<1)
 #define IO_PARTICLE_FLAG		(PART_FLAG_START<<2)
 #define VEL_IO_PARTICLE_FLAG	(PART_FLAG_START<<3)
-#define INFLOW_PARTICLE_FLAG	(PART_FLAG_START<<4)
 #define CORNER_PARTICLE_FLAG	(PART_FLAG_START<<5)
 #define MOVING_PARTICLE_FLAG	(PART_FLAG_START<<6)
 #define FLOATING_PARTICLE_FLAG	(PART_FLAG_START<<7)
@@ -288,11 +287,6 @@ disable_particle(float4 &pos) {
 #define VEL_IO(f)		(type(f) & VEL_IO_PARTICLE_FLAG)
 // If vel_io is not set then we have a pressure inlet
 #define PRES_IO(f)		(!VEL_IO(f))
-// If this flag is set an open boundary is treated as an inflow and thus the tangential
-// velocities are imposed. If it is not set the open boundary is an outflow and the tangential
-// velocities are computed from the interior of the fluid (i.e. extrapolated).
-#define INFLOW(f)		(type(f) & INFLOW_PARTICLE_FLAG)
-#define OUTFLOW(f)		(!INFLOW(f))
 // If this flag is set then a particle at an open boundary will have a non-varying mass but still
 // be treated like an open boundary particle apart from that. This avoids having to span new particles
 // very close to the side wall which causes problems

@@ -224,8 +224,6 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// if you need to impose the velocity uncomment the following
 				//// open boundary imposes velocity
 				//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
-				// open boundary is an inflow
-				SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 			} else if (specialBoundType == 2) {
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
@@ -259,8 +257,6 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// if you need to impose the velocity uncomment the following
 				//// open boundary imposes velocity
 				//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
-				// open boundary is an inflow
-				SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
 			} else if (specialBoundType == 2) {
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
