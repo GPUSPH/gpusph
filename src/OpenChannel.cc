@@ -103,8 +103,8 @@ int OpenChannel::fill_parts()
 	rect2 = Rect(Point(m_deltap/2., 0, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
 	rect3 = Rect(Point(m_deltap/2., a, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, a, 0), Vector(0, 0, h + r0));
-	Cube fluid = Cube(Point(m_deltap/2.0, r0, r0), Vector(l - m_deltap, 0, 0), Vector(0, a - 2*r0, 0), Vector(0, 0, H - r0));
+	experiment_box = Cube(Point(0, 0, 0), l, a, h + r0);
+	Cube fluid = Cube(Point(m_deltap/2.0, r0, r0), l - m_deltap, a - 2*r0, H - r0);
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);

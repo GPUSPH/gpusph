@@ -103,11 +103,10 @@ int BuoyancyTest::fill_parts()
 	const double dp = m_deltap;
 	const int layers = 4;
 
-	Cube experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
-						Vector(0, ly, 0), Vector(0, 0, lz));
+	Cube experiment_box = Cube(Point(0, 0, 0), lx, ly, lz);
 
-	Cube fluid = Cube(Point(dp*layers, dp*layers, dp*layers), Vector(lx - 2.0*dp*layers, 0, 0),
-				Vector(0, ly - 2.0*dp*layers, 0), Vector(0, 0, H));
+	Cube fluid = Cube(Point(dp*layers, dp*layers, dp*layers),
+		lx - 2.0*dp*layers, ly - 2.0*dp*layers, H);
 	planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0.0);
 	planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0.0);
 	planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, -lx);
@@ -129,8 +128,7 @@ int BuoyancyTest::fill_parts()
 			double olx = 10.0*m_deltap;
 			double oly = 10.0*m_deltap;
 			double olz = 10.0*m_deltap;
-			cube  = Cube(Point(lx/2.0 - olx/2.0, ly/2.0 - oly/2.0, H/2.0 - olz/2.0), Vector(olx, 0, 0),
-					Vector(0, oly, 0), Vector(0, 0, olz));
+			cube  = Cube(Point(lx/2.0 - olx/2.0, ly/2.0 - oly/2.0, H/2.0 - olz/2.0), olx, oly, olz);
 			floating = &cube;
 			}
 			break;

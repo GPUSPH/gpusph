@@ -93,15 +93,13 @@ DynBoundsExample::fill_parts(void)
 {
 	float r0 = m_deltap/2;
 
-	Cube fluid = Cube(m_origin + make_double3(0, 0, w),
-		Vector(W, 0, 0), Vector(0, W, 0), Vector(0, 0, H));
+	Cube fluid = Cube(m_origin + make_double3(0, 0, w), W, W, H);
 	fluid.InnerFill(parts, m_deltap);
 
-	Cube *bp = new Cube(m_origin, Vector(W, 0, 0), Vector(0, W, 0), Vector(0, 0, w));
+	Cube *bp = new Cube(m_origin, W, W, w);
 	bp->InnerFill(boundary_parts, m_deltap);
 	delete bp;
-	bp = new Cube(m_origin + make_double3(0, 0, H + w),
-		Vector(W, 0, 0), Vector(0, W, 0), Vector(0, 0, w));
+	bp = new Cube(m_origin + make_double3(0, 0, H + w), W, W, w);
 	bp->InnerFill(boundary_parts, m_deltap);
 	delete bp;
 

@@ -205,8 +205,7 @@ int SolitaryWave::fill_parts()
 
 	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
-                     Vector(0, width, 0), Vector(0, 0, height));
+	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length, width, height);
 
 	boundary_parts.reserve(100);
 	parts.reserve(34000);
