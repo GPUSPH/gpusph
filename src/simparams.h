@@ -102,7 +102,7 @@ typedef struct SimParams {
 		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
 		shepardfreq(0),
-		mlsfreq(15),
+		mlsfreq(0),
 		ferrari(0),
 		visctype(ARTVISC),
 		mbcallback(false),
