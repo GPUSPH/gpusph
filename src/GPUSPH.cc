@@ -746,12 +746,12 @@ bool GPUSPH::runSimulation() {
 			double maxfreq = 0;
 			ConstWriterMap::iterator it(writers.begin());
 			ConstWriterMap::iterator end(writers.end());
-			do {
+			while (it != end) {
 				double freq = it->second->get_write_freq();
 				if (freq > maxfreq)
 					maxfreq = freq;
 				++it;
-			} while (it != end);
+			}
 			if (force_write || maxfreq > 0) {
 				printStatus();
 				m_intervalPerformanceCounter->restart();
