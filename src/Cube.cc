@@ -45,7 +45,7 @@ Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
 }
 
 
-/// Constructor from edges length and orientation (Euler paramaters)
+/// Constructor from edges length and optional orientation (Euler paramaters)
 /*! Construct a cube of given dimension with an orientation given by
  *  Euler parameters.
  *	lx, ly, lz parameters are the dimension of the cube along the X', Y'
@@ -54,9 +54,11 @@ Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
  *	\param lx : length along X' axis
  *	\param ly : length along Y' axis
  *	\param lz : length along Z' axis
- *	\param ep : Euler parameters defining the orientation
+ *	\param ep : (optional) Euler parameters defining the orientation
  *
- *  Beware, particle mass should be set before any filling operation
+ *  Beware, particle mass should be set before any filling operation.
+ *
+ *  If the orientation is not specified, it is assumed that the local axes are parallel to the system one.
  */
 Cube::Cube(const Point &origin, const double lx, const double ly, const double lz, const EulerParameters &ep)
 {
