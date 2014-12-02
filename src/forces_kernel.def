@@ -315,7 +315,7 @@ struct forces_particle_data :
 	// PT_OBJECT don't use them
 	vel_particle_data,
 	// eulerian velocity only used in case of keps or with open boundaries
-	COND_STRUCT(visctype == KEPSVISC || inoutBoundaries,
+	COND_STRUCT(visctype == KEPSVISC || inoutBoundaries, // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)

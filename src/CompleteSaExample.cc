@@ -46,7 +46,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
 	m_simparams.movingBoundaries = true;
-	//m_simparams.floatingObjects = true;
+	m_simparams.floatingObjects = true;
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
@@ -63,17 +63,6 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(world_l, world_w ,world_h);
-
-	// Physical parameters
-	float g = length(m_physparams.gravity);
-
-	m_physparams.dcoeff = 5.0f*g*expected_final_water_level;
-
-	m_physparams.r0 = m_deltap;
-
-	m_physparams.artvisccoeff = 0.3f;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 1e-2f);
@@ -116,7 +105,7 @@ void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	// resulting collision points are treated by ODE as joints. We use them all
 	for (int i = 0; i < num_contacts; i++) {
 		contact[i].surface.mode = dContactBounce;
-		contact[i].surface.mu   = dInfinity;
+		contact[i].surface.mu   = dInfinity; //ER TODO friction coefficient
 		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
 		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
 		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
@@ -126,9 +115,9 @@ void CompleteSaExample::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 
 CompleteSaExample::~CompleteSaExample()
 {
-	//dSpaceDestroy(m_ODESpace);
-	//dWorldDestroy(m_ODEWorld);
-	//dCloseODE();
+	dSpaceDestroy(m_ODESpace);
+	dWorldDestroy(m_ODEWorld);
+	dCloseODE();
 }
 
 int CompleteSaExample::fill_parts()
@@ -144,7 +133,7 @@ int CompleteSaExample::fill_parts()
 
 	// cube density half water density
 	const double water_density_fraction = 0.5F;
-	const double cube_density = 1000.0 * water_density_fraction; // 1000 = water
+	const double cube_density = m_physparams.rho0[0] * water_density_fraction; // 1000 = water
 	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density); // only dynamics
 	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
 	cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density, m_ODESpace); // dynamics + collisions
@@ -188,13 +177,13 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 
 	for (uint i = 0; i<h5File.getNParts(); i++) {
 		switch(h5File.buf[i].ParticleType) {
-			case 1:
+			case 1: // AM-TODO call this CRIXUS_FLUID
 				n_parts++;
 				break;
-			case 2:
+			case 2: // AM-TODO call this CRIXUS_VERTEX
 				n_vparts++;
 				break;
-			case 3:
+			case 3: // AM-TODO call this CRIXUS_BOUNDARY
 				n_bparts++;
 				break;
 		}
@@ -241,7 +230,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
-				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
 				m_physparams.rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
@@ -276,7 +265,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				// this vertex is part of a moving object
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
-				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 				//numOdeObjParts++;
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);

@@ -53,6 +53,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
 		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
+		m_simparams.maxneibsnum = 240;
 	//*************************************************************************************
 
 	//Box (Dambreak)
@@ -282,7 +283,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsxsph = 0.5f;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 1e-2f);
 
 	// Name of problem used for directory creation
 	m_name = "InputProblem";
