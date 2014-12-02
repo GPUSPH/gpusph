@@ -65,7 +65,8 @@ enum WriterType
 	VTKWRITER,
 	VTKLEGACYWRITER,
 	CUSTOMTEXTWRITER,
-	UDPWRITER
+	UDPWRITER,
+	HOTWRITER
 };
 
 // list of writer type, write freq pairs

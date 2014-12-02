@@ -105,6 +105,7 @@ class Problem {
 		Object		**m_ODE_bodies;						// array of floating ODE objects
 		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
 		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
+		dQuaternion m_bodies_quaternion[MAXBODIES];		// orientation of the rigid bodies
 		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
 		float3		m_bodies_linearvel[MAXBODIES];		// Linear velocity of rigid bodies
 		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
@@ -287,6 +288,7 @@ class Problem {
 
 		void get_ODE_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		float3* get_ODE_bodies_cg(void);
+		dQuaternion *get_ODE_bodies_quaternion(void);
 		float* get_ODE_bodies_steprot(void);
 		float3* get_ODE_bodies_linearvel(void);
 		float3* get_ODE_bodies_angularvel(void);
@@ -302,6 +304,9 @@ class Problem {
 									float3 * &, float3 * &);
 		size_t	get_ODE_bodies_numparts(void) const;
 		size_t	get_ODE_body_numparts(const int) const;
+
+		void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
+			const float *linvel, const float *angvel);
 
 		void init_keps(float*, float*, uint, particleinfo*);
 
