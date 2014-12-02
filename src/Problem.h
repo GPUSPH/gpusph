@@ -230,12 +230,12 @@ class Problem {
 		{ add_gage(make_double3(x, y, z)); }
 
 		// set the timer tick
-		// DEPRECATED: use ad_writer() with the frequency in seconds
+		// DEPRECATED: use add_writer() with the frequency in seconds
 		void set_timer_tick(double t) DEPRECATED;
 
 		// add a new writer
-		// DEPRECATED: use ad_writer() with the frequency in seconds
 		// by passing as argument the product of freq and the timer tick
+		// DEPRECATED: use add_writer() with the frequency in seconds
 		void add_writer(WriterType wt, int freq = 1) DEPRECATED_MSG("use add_writer(WriterType, double)");
 
 		// add a new writer, with the given write frequency in (fractions of) seconds
