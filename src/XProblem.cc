@@ -142,7 +142,10 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	double minor_radius = side / 8;
 	double major_radius = radius - minor_radius;
 
-	addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, minor_radius + m_deltap), major_radius, minor_radius);
+	//addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, minor_radius + m_deltap), major_radius, minor_radius);
+	GeometryID gid =
+		addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig), major_radius, minor_radius);
+	rotateGeometry(gid, EulerParameters(0, M_PI/4, 0));
 
 	addSphere(GT_FLUID, FT_SOLID, Point(orig, orig, orig), minor_radius);
 
