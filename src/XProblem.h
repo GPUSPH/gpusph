@@ -82,6 +82,10 @@ class XProblem: public Problem {
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double major_radius, const double minor_radius);
 
+		// methods for rotating an existing object
+		void rotateGeometry(const GeometryID geometry, const EulerParameters &ep);
+		void rotateGeometry(const GeometryID geometry, const dQuaternion quat);
+
 	public:
 		XProblem(const GlobalData *);
 		~XProblem(void);

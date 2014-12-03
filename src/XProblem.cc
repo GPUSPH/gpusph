@@ -252,6 +252,16 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 	return (m_geometries.size() - 1);
 }
 
+void XProblem::rotateGeometry(const GeometryID gid, const EulerParameters &ep)
+{
+	m_geometries[gid]->ptr->setEulerParameters(ep);
+}
+
+void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
+{
+	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
+}
+
 int XProblem::fill_parts()
 {
 	/* If we needed an accurate collision detection between the container and the cube (i.e.
