@@ -81,6 +81,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem->check_dt();
 	problem->check_maxneibsnum();
 	problem->create_problem_dir();
+	problem->calculateFerrariCoefficient();
 
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();

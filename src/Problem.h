@@ -181,6 +181,9 @@ class Problem {
 		double get_deltap() const
 		{ return m_deltap; }
 
+		// Compute the ferrari coefficient based on a lengthscale
+		void calculateFerrariCoefficient();
+
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
 		{

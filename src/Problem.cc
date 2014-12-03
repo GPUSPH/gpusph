@@ -641,6 +641,20 @@ Problem::max_parts(uint numParts)
 	return wparts;
 }
 
+// This function computes the Ferrari coefficient based on a length-scale. The formula for the coefficient
+// is L/(1000 * deltap), see Mayrhofer et al., 2013. If the length scale is not set then the ferrari coefficient
+// will be taken as it is, regardless of whether it is set or not (default value = 0)
+void
+Problem::calculateFerrariCoefficient()
+{
+	if (m_simparams.ferrariLengthScale < 0.0f) {
+		printf("Ferrari coefficient: %e\n", m_simparams.ferrari);
+		return;
+	}
+	m_simparams.ferrari = m_simparams.ferrariLengthScale*1e-3f/m_deltap;
+	printf("Ferrari coefficient: %e (computed from length scale: %e)\n", m_simparams.ferrari, m_simparams.ferrariLengthScale);
+}
+
 // input: force, torque, step number (why?), dt
 // output: cg, trans, steprot (can be input uninitialized)
 void

@@ -31,6 +31,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		//periodic boundaries
 		m_simparams.periodicbound = PERIODIC_X;
 		m_origin = make_double3(0.0, 0.0, 0.0);
+		m_simparams.ferrariLengthScale = 2.0f;
 		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	//*************************************************************************************
 
@@ -52,6 +53,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 0.55;
 		l = 3.5+0.02; w = 1.0+0.02; h = 2.0;
 		m_origin = make_double3(-0.01, -0.01, -0.01);
+		m_simparams.ferrariLengthScale = 0.161f;
 		m_physparams.set_density(0, 1000.0, 7.0f, 130.0f);
 		m_simparams.maxneibsnum = 240;
 	//*************************************************************************************
@@ -78,6 +80,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 1.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
+		m_simparams.ferrariLengthScale = 1.0f;
 		m_physparams.set_density(0, 1000.0, 7.0f, 45.0f);
 		m_simparams.calcPrivate = true;
 	//*************************************************************************************
@@ -101,6 +104,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.savenormals = false;
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
+		m_simparams.ferrariLengthScale = 0.5f;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
 		m_simparams.calcPrivate = true;
 	//*************************************************************************************
@@ -127,6 +131,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.savenormals = false;
 		H = 2.0;
 		l = 0.8; w = 0.8; h = 2.02;
+		m_simparams.ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
 		m_simparams.calcPrivate = false;
 	//*************************************************************************************
@@ -150,6 +155,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.1; w = 2.1; h = 2.1;
 		m_origin = make_double3(-1.05, -1.05, -1.05);
+		m_simparams.ferrariLengthScale = 1.0f;
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
@@ -174,6 +180,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.periodicbound = PERIODIC_Y;
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
+		m_simparams.ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
@@ -199,6 +206,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.periodicbound = PERIODIC_Y;
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
+		m_simparams.ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
@@ -224,6 +232,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.2; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.1, -1.0, -1.0);
+		m_simparams.ferrariLengthScale = 1.0f;
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
@@ -247,6 +256,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 4.0;
 		l = 10.8; w = 2.2; h = 4.2;
 		m_origin = make_double3(-5.4, -1.1, -2.1);
+		m_simparams.ferrariLengthScale = 0.2f;
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
 		m_simparams.ioWaterdepthComputation = true;
@@ -262,7 +272,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.buildneibsfreq = 1;
 	m_simparams.shepardfreq = 0;
 	m_simparams.mlsfreq = 0;
-	m_simparams.ferrari = 0.1;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;

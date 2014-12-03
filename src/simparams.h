@@ -65,6 +65,7 @@ typedef struct SimParams {
 	uint			shepardfreq;			// frequency (in iterations) of Shepard density filter
 	uint			mlsfreq;				// frequency (in iterations) of MLS density filter
 	float			ferrari;				// coefficient for Ferrari correction
+	float			ferrariLengthScale;		// length scale for Ferrari correction
 	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
 	bool			mbcallback;				// true if moving boundary velocity varies
 	bool			gcallback;				// true if using a variable gravity in problem
@@ -107,7 +108,8 @@ typedef struct SimParams {
 		buildneibsfreq(10),
 		shepardfreq(0),
 		mlsfreq(15),
-		ferrari(0),
+		ferrari(0.0f),
+		ferrariLengthScale(-1.0f),
 		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
