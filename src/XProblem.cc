@@ -3,7 +3,10 @@
 #include <iostream>
 
 #include "Rect.h"
+#include "Disk.h"
 #include "Cube.h"
+#include "Sphere.h"
+#include "Torus.h"
 
 #include "XProblem.h"
 #include "GlobalData.h"
@@ -155,12 +158,67 @@ XProblem::~XProblem()
 	//dCloseODE();
 }
 
+GeometryID XProblem::addRect(const GeometryType otype, const FillType ftype, const Point &origin,
+	const double side1, const double side2)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Rect( origin, Vector(side1, 0, 0), Vector(0, side2, 0) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
+GeometryID XProblem::addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
+	const double radius)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Disk( origin, radius, Vector(0, 0, 1) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
 GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side)
 {
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = new Cube( origin, Vector(side, 0, 0), Vector(0, side, 0), Vector(0, 0, side) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
+GeometryID XProblem::addBox(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double side1, const double side2, const double side3)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Cube( origin, Vector(side1, 0, 0), Vector(0, side2, 0), Vector(0, 0, side3) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
+GeometryID XProblem::addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
+	const double radius)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Sphere( origin, radius );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
+GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
+	const double major_radius, const double minor_radius)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Torus( origin, Vector(0, 0, 1), major_radius, minor_radius );
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }

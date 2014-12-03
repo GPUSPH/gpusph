@@ -65,8 +65,20 @@ class XProblem: public Problem {
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
 
 	protected:
+		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double side1, const double side2);
+		GeometryID addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double radius);
 		GeometryID addCube(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side);
+		GeometryID addBox(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double side1, const double side2, const double side3);
+		GeometryID addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double radius, const double height);
+		GeometryID addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double radius);
+		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double major_radius, const double minor_radius);
 
 	public:
 		XProblem(const GlobalData *);
