@@ -138,8 +138,8 @@ euler(	const float4*		oldPos,
 
 #define EULER_XSPH_SWITCH(btype, step) \
 	switch(xsphcorr) { \
-		EULER_XSPH_CASE(btype, 1, true); \
-		EULER_XSPH_CASE(btype, 2, false); \
+		EULER_XSPH_CASE(btype, step, true); \
+		EULER_XSPH_CASE(btype, step, false); \
 	}
 
 #define EULER_STEP_CASE(btype, step) \
