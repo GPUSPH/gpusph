@@ -38,8 +38,11 @@
 
 #include "utils.h"
 
+
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+setconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 	idx_t const& allocatedParticles)
 {
@@ -53,15 +56,19 @@ setneibsconstants(const SimParams *simparams, const PhysParams *physparams,
 }
 
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-getneibsconstants(SimParams *simparams, PhysParams *physparams)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+getconstants(SimParams *simparams, PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->maxneibsnum, cuneibs::d_maxneibsnum, sizeof(uint), 0));
 }
 
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-resetneibsinfo(void)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+resetinfo(void)
 {
 	uint temp = 0;
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_numInteractions, &temp, sizeof(int)));
@@ -69,81 +76,44 @@ resetneibsinfo(void)
 }
 
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-getneibsinfo(TimingInfo & timingInfo)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+getinfo(TimingInfo & timingInfo)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibs, cuneibs::d_maxNeibs, sizeof(int), 0));
 }
 
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-calcHash(float4*	pos,
-		 hashKey*	particleHash,
-		 uint*		particleIndex,
-		 const particleinfo* particleInfo,
-		 uint*		compactDeviceMap,
-		 const uint		numParticles,
-		 const Periodicity	periodicbound)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+calcHash(float4		*pos,
+		hashKey		*particleHash,
+		uint		*particleIndex,
+const	particleinfo	*particleInfo,
+		uint		*compactDeviceMap,
+const	uint		numParticles)
 {
 	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
 
-	switch (periodicbound) {
-		case PERIODIC_NONE:
-			cuneibs::calcHashDevice<PERIODIC_NONE><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_X:
-			cuneibs::calcHashDevice<PERIODIC_X><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_Y:
-			cuneibs::calcHashDevice<PERIODIC_Y><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_XY:
-			cuneibs::calcHashDevice<PERIODIC_XY><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_Z:
-			cuneibs::calcHashDevice<PERIODIC_Z><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_XZ:
-			cuneibs::calcHashDevice<PERIODIC_XZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_YZ:
-			cuneibs::calcHashDevice<PERIODIC_YZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		case PERIODIC_XYZ:
-			cuneibs::calcHashDevice<PERIODIC_XYZ><<< numBlocks, numThreads >>>(pos, particleHash, particleIndex,
-						particleInfo, compactDeviceMap, numParticles);
-			break;
-
-		default:
-			throw std::runtime_error("Incorrect value of periodicbound!");
-	}
+	cuneibs::calcHashDevice<periodicbound><<< numBlocks, numThreads >>>
+		(pos, particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-fixHash(hashKey*	particleHash,
-		 uint*		particleIndex,
-		 const particleinfo* particleInfo,
-		 uint*		compactDeviceMap,
-		 const uint		numParticles)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+fixHash(hashKey	*particleHash,
+		uint	*particleIndex,
+const	particleinfo* particleInfo,
+		uint	*compactDeviceMap,
+const	uint	numParticles)
 {
 	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
@@ -155,34 +125,37 @@ fixHash(hashKey*	particleHash,
 	CUT_CHECK_ERROR("FixHash kernel execution failed");
 }
 
-
-void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
-									uint*				cellEnd,			// output: cell end index
-									uint*				segmentStart,
-									float4*				newPos,				// output: sorted positions
-									float4*				newVel,				// output: sorted velocities
-									particleinfo*		newInfo,			// output: sorted info
-									float4*				newBoundElement,	// output: sorted boundary elements
-									float4*				newGradGamma,		// output: sorted gradient gamma
-									vertexinfo*			newVertices,		// output: sorted vertices
-									float*				newTKE,				// output: k for k-e model
-									float*				newEps,				// output: e for k-e model
-									float*				newTurbVisc,		// output: eddy viscosity
-									float4*				newEulerVel,		// output: eulerian velocity
-									const hashKey*		particleHash,		// input: sorted grid hashes
-									const uint*			particleIndex,		// input: sorted particle indices
-									const float4*		oldPos,				// input: unsorted positions
-									const float4*		oldVel,				// input: unsorted velocities
-									const particleinfo*	oldInfo,			// input: unsorted info
-									const float4*		oldBoundElement,	// input: sorted boundary elements
-									const float4*		oldGradGamma,		// input: sorted gradient gamma
-									const vertexinfo*	oldVertices,		// input: sorted vertices
-									const float*		oldTKE,				// input: k for k-e model
-									const float*		oldEps,				// input: e for k-e model
-									const float*		oldTurbVisc,		// input: eddy viscosity
-									const float4*		oldEulerVel,		// input: eulerian velocity
-									const uint			numParticles,
-									uint*				newNumParticles)	// output: number of active particles found
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+void
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+reorderDataAndFindCellStart(
+		uint		*cellStart,			// output: cell start index
+		uint		*cellEnd,			// output: cell end index
+		uint		*segmentStart,
+		float4		*newPos,			// output: sorted positions
+		float4		*newVel,			// output: sorted velocities
+		particleinfo	*newInfo,		// output: sorted info
+		float4		*newBoundElement,	// output: sorted boundary elements
+		float4		*newGradGamma,		// output: sorted gradient gamma
+		vertexinfo	*newVertices,		// output: sorted vertices
+		float		*newTKE,			// output: k for k-e model
+		float		*newEps,			// output: e for k-e model
+		float		*newTurbVisc,		// output: eddy viscosity
+		float4		*newEulerVel,		// output: eulerian velocity
+const	hashKey		*particleHash,		// input: sorted grid hashes
+const	uint		*particleIndex,		// input: sorted particle indices
+const	float4		*oldPos,			// input: unsorted positions
+const	float4		*oldVel,			// input: unsorted velocities
+const	particleinfo	*oldInfo,		// input: unsorted info
+const	float4		*oldBoundElement,	// input: sorted boundary elements
+const	float4		*oldGradGamma,		// input: sorted gradient gamma
+const	vertexinfo	*oldVertices,		// input: sorted vertices
+const	float		*oldTKE,			// input: k for k-e model
+const	float		*oldEps,			// input: e for k-e model
+const	float		*oldTurbVisc,		// input: eddy viscosity
+const	float4		*oldEulerVel,		// input: eulerian velocity
+const	uint		numParticles,
+		uint		*newNumParticles)	// output: number of active particles found
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
@@ -239,10 +212,13 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 }
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-updateVertIDToIndex(particleinfo*	particleInfo,
-					uint*			vertIDToIndex,
-					const uint		numParticles)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+updateVertIDToIndex(
+	particleinfo	*particleInfo,
+			uint	*vertIDToIndex,
+	const	uint	numParticles)
 {
 	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
@@ -250,24 +226,25 @@ updateVertIDToIndex(particleinfo*	particleInfo,
 	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
 }
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-buildNeibsList(	neibdata*			neibsList,
-				const float4*		pos,
-				const particleinfo*	info,
-				vertexinfo*			vertices,
-				const float4		*boundelem,
-				float2*				vertPos[],
-				const uint*			vertIDToIndex,
-				const hashKey*		particleHash,
-				const uint*			cellStart,
-				const uint*			cellEnd,
-				const uint			numParticles,
-				const uint			particleRangeEnd,
-				const uint			gridCells,
-				const float			sqinfluenceradius,
-				const float			boundNlSqInflRad,
-				const BoundaryType	boundarytype,
-				const Periodicity	periodicbound)
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
+buildNeibsList(
+		neibdata	*neibsList,
+const	float4		*pos,
+const	particleinfo*info,
+		vertexinfo	*vertices,
+const	float4		*boundelem,
+		float2		*vertPos[],
+const	uint		*vertIDToIndex,
+const	hashKey		*particleHash,
+const	uint		*cellStart,
+const	uint		*cellEnd,
+const	uint		numParticles,
+const	uint		particleRangeEnd,
+const	uint		gridCells,
+const	float		sqinfluenceradius,
+const	float		boundNlSqInflRad)
 {
 	// vertices, boundeleme and vertPos must be either all NULL or all not-NULL.
 	// throw otherwise
@@ -295,51 +272,23 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellStartTex, cellStart, gridCells*sizeof(uint)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, cellEndTex, cellEnd, gridCells*sizeof(uint)));
 
-#define BUILDNEIBS_CASE(btype, periodic) \
-	case periodic: \
-		cuneibs::buildNeibsListDevice<btype, periodic, true><<<numBlocks, numThreads>>>(params); \
-		break;
-
-#define BUILDNEIBS_SWITCH(btype) \
-	switch(periodicbound) { \
-		BUILDNEIBS_CASE(btype, PERIODIC_NONE); \
-		BUILDNEIBS_CASE(btype, PERIODIC_X); \
-		BUILDNEIBS_CASE(btype, PERIODIC_Y); \
-		BUILDNEIBS_CASE(btype, PERIODIC_XY); \
-		BUILDNEIBS_CASE(btype, PERIODIC_Z); \
-		BUILDNEIBS_CASE(btype, PERIODIC_XZ); \
-		BUILDNEIBS_CASE(btype, PERIODIC_YZ); \
-		BUILDNEIBS_CASE(btype, PERIODIC_XYZ); \
-	}
-
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, vertices, numParticles*sizeof(vertexinfo)));
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
-
-		buildneibs_params<true> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, vertIDToIndex, boundNlSqInflRad);
-
-		BUILDNEIBS_SWITCH(SA_BOUNDARY);
-
-		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
-		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
-	} else {
-		buildneibs_params<false> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
-			vertPos, vertIDToIndex, boundNlSqInflRad);
-
-		// In non-SA boundary case, the only difference is between DYN and non-DYN
-		// boundary (because DYN_BOUNDARY needs to build neib list for boundary particles too).
-		// To avoid building too many variants of the kernels we will collect all
-		// non-SA, non-DYN boundary into the LJ case, since they all behave the same
-		if (boundarytype == DYN_BOUNDARY) {
-			BUILDNEIBS_SWITCH(DYN_BOUNDARY);
-		} else {
-			BUILDNEIBS_SWITCH(LJ_BOUNDARY);
-		}
 	}
+
+	buildneibs_params<boundarytype == SA_BOUNDARY> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
+			vertPos, vertIDToIndex, boundNlSqInflRad);
+
+	cuneibs::buildNeibsListDevice<boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
+
+	if (boundarytype == SA_BOUNDARY) {
+		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));
+		CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
+	}
 
 	#if (__COMPUTE__ < 20)
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
@@ -349,7 +298,9 @@ buildNeibsList(	neibdata*			neibsList,
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
 }
 
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
+CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 {
 	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
@@ -358,6 +309,25 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
 	CUT_CHECK_ERROR("thrust sort failed");
-
 }
 
+// Force the instantiation of all instances
+// TODO this is until the engines are turned into header-only classes
+
+#define DECLARE_NEIBSENGINE_PERIODIC(btype) \
+	template class CUDANeibsEngine<btype, PERIODIC_NONE, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_X, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_Y, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_XY, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_Z, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_XZ, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_YZ, true>; \
+	template class CUDANeibsEngine<btype, PERIODIC_XYZ, true>;
+
+#define DECLARE_NEIBSENGINE \
+	DECLARE_NEIBSENGINE_PERIODIC(LJ_BOUNDARY) \
+	DECLARE_NEIBSENGINE_PERIODIC(MK_BOUNDARY) \
+	DECLARE_NEIBSENGINE_PERIODIC(SA_BOUNDARY) \
+	DECLARE_NEIBSENGINE_PERIODIC(DYN_BOUNDARY) \
+
+DECLARE_NEIBSENGINE
