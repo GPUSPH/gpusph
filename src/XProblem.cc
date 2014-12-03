@@ -133,12 +133,12 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	double orig = m_deltap;
 	double side = 0.5 - 2 * m_deltap;
 
-	addCube(OT_FLUID, FT_SOLID, Point(orig, orig, orig), side/2);
+	addCube(GT_FLUID, FT_SOLID, Point(orig, orig, orig), side/2);
 
 	side = 0.5;
 	orig = 0;
 
-	addCube(OT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
+	addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
 }
 
 void XProblem::release_memory()
@@ -155,14 +155,14 @@ XProblem::~XProblem()
 	//dCloseODE();
 }
 
-ObjectID XProblem::addCube(const ObjectType otype, const FillType ftype, const Point &origin, const double side)
+GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side)
 {
-	ObjectInfo* objinfo = new ObjectInfo();
-	objinfo->type = otype;
-	objinfo->fill_type = ftype;
-	objinfo->ptr = new Cube( origin, Vector(side,0,0), Vector(0,side,0), Vector(0,0,side) );
-	m_objects.push_back(objinfo);
-	return (m_objects.size() - 1);
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Cube( origin, Vector(side,0,0), Vector(0,side,0), Vector(0,0,side) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
 }
 
 int XProblem::fill_parts()
@@ -205,11 +205,11 @@ int XProblem::fill_parts()
 
 	//uint particleCounter = 0;
 
-	for (vsize_t i = 0; i < m_objects.size(); i++) {
+	for (vsize_t i = 0; i < m_geometries.size(); i++) {
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
 
-		if (m_objects[i]->type == OT_FLUID) {
+		if (m_geometries[i]->type == GT_FLUID) {
 			parts_vector = &m_fluidParts;
 			dx = m_deltap;
 		} else {
@@ -217,15 +217,15 @@ int XProblem::fill_parts()
 			dx = m_physparams.r0;
 		}
 
-		m_objects[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
+		m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
 
-		if (m_objects[i]->fill_type == FT_BORDER)
-			m_objects[i]->ptr->FillBorder(*parts_vector, m_deltap);
+		if (m_geometries[i]->fill_type == FT_BORDER)
+			m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
 		else {
-			//const bool fillBorder = (m_objects[i]->fill_type != FT_SOLID_BORDERLESS);
-			if (m_objects[i]->fill_type == FT_SOLID_BORDERLESS)
+			//const bool fillBorder = (m_geometries[i]->fill_type != FT_SOLID_BORDERLESS);
+			if (m_geometries[i]->fill_type == FT_SOLID_BORDERLESS)
 				printf("WARNING: borderless not yet implemented, filling with border\n");
-			m_objects[i]->ptr->Fill(*parts_vector, m_deltap);
+			m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
 		}
 
 	}

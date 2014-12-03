@@ -14,10 +14,10 @@
 //#include "Cylinder.h"
 //#include "STLMesh.h"
 
-enum ObjectType {	OT_FLUID,
-					OT_FIXED_BOUNDARY,
-					OT_MOVING_BOUNDARY,
-					OT_FLOATING_BOUNDARY
+enum GeometryType {	GT_FLUID,
+					GT_FIXED_BOUNDARY,
+					GT_MOVING_BOUNDARY,
+					GT_FLOATING_BOUNDARY
 };
 
 enum FillType {	FT_SOLID,
@@ -25,31 +25,31 @@ enum FillType {	FT_SOLID,
 				FT_BORDER
 };
 
-struct ObjectInfo {
+struct GeometryInfo {
 
 	Object* ptr;
 
-	ObjectType type;
+	GeometryType type;
 	FillType fill_type;
 
 	bool handle_collisions;
 
-	ObjectInfo() {
+	GeometryInfo() {
 		ptr = NULL;
-		type = OT_FLUID;
+		type = GT_FLUID;
 		fill_type = FT_SOLID;
 		handle_collisions = false;
 	}
 };
 
-typedef std::vector<ObjectInfo*> ObjectVector;
+typedef std::vector<GeometryInfo*> GeometryVector;
 
-// ObjectID, aka index of the ObjectInfo in the ObjectVector
-typedef size_t ObjectID;
+// GeometryID, aka index of the GeometryInfo in the GeometryVector
+typedef size_t GeometryID;
 
 class XProblem: public Problem {
 	private:
-		ObjectVector m_objects;
+		GeometryVector m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
 		//PointVect m_vertexParts;
@@ -65,7 +65,7 @@ class XProblem: public Problem {
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
 
 	protected:
-		ObjectID addCube(const ObjectType otype, const FillType ftype, const Point &origin, const double side);
+		GeometryID addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side);
 
 	public:
 		XProblem(const GlobalData *);
