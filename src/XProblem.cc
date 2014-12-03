@@ -133,14 +133,19 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	double orig = m_deltap;
-	double side = 0.5 - 2 * m_deltap;
+	double side = 1;
+	double radius = side / 2 - m_deltap;
+	double orig = side/2;
 
-	addCube(GT_FLUID, FT_SOLID, Point(orig, orig, orig), side/2);
+	double minor_radius = side / 8;
+	double major_radius = radius - minor_radius;
 
-	side = 0.5;
+	addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, minor_radius + m_deltap), major_radius, minor_radius);
+
+	addSphere(GT_FLUID, FT_SOLID, Point(orig, orig, orig), minor_radius);
+
+	side = 1;
 	orig = 0;
-
 	addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
 }
 
