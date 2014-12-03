@@ -65,7 +65,8 @@ class XProblem: public Problem {
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
 
 	protected:
-		GeometryID addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side);
+		GeometryID addCube(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double side);
 
 	public:
 		XProblem(const GlobalData *);

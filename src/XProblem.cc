@@ -2,8 +2,8 @@
 #include <string>
 #include <iostream>
 
-#include "Cube.h"
 #include "Rect.h"
+#include "Cube.h"
 
 #include "XProblem.h"
 #include "GlobalData.h"
@@ -160,7 +160,7 @@ GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, con
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
-	geomInfo->ptr = new Cube( origin, Vector(side,0,0), Vector(0,side,0), Vector(0,0,side) );
+	geomInfo->ptr = new Cube( origin, Vector(side, 0, 0), Vector(0, side, 0), Vector(0, 0, side) );
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
