@@ -187,7 +187,9 @@ eulerDevice(
 		case PT_BOUNDARY:
 			if (boundarytype == DYN_BOUNDARY)
 				vel.w += dt*force.w;
-			// no break allowed here
+			if (boundarytype != SA_BOUNDARY)
+				break;
+			// SA_BOUNDARY: fall-through to VERTEX
 		case PT_VERTEX:
 			if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 				// this is for k-eps only. Normally forces are going to be zero
