@@ -342,11 +342,10 @@ class Problem {
 			const	hashKey*		particleHash);
 
 		virtual void imposeForcedMovingObjects(
-					float3*	gravityCenters,
-					float3*	translations,
+					float3	&gravityCenters,
+					float3	&translations,
 					float*	rotationMatrices,
-			const	uint*	ODEobjectId,
-			const	uint	numObjects,
+			const	uint	ob,
 			const	double	t,
 			const	float	dt);
 
