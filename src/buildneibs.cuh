@@ -26,13 +26,7 @@
 #ifndef _BUILDNEIBS_CUH_
 #define _BUILDNEIBS_CUH_
 
-#include "particledefine.h"
-#include "physparams.h"
-#include "simparams.h"
-#include "timing.h"
 #include "neibsengine.h"
-
-#include "vector_math.h"
 
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK

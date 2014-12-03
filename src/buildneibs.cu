@@ -36,6 +36,8 @@
 #include "buildneibs_params.h"
 #include "buildneibs_kernel.cu"
 
+#include "vector_math.h"
+
 #include "utils.h"
 
 

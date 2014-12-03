@@ -127,6 +127,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 
 	if (m_simparams->calcPrivate)
 		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
+
 #define NEIBSENGINE_CASE(btype, periodic) \
 	case periodic: \
 		neibsEngine = new CUDANeibsEngine<btype, periodic, true>(); \

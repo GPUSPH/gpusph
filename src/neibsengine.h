@@ -32,6 +32,11 @@
  * set of methods that were exposed in buildneibs, with the same
  * signatures, but the design probably needs to be improved. */
 
+#include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
+#include "timing.h"
+
 class AbstractNeibsEngine
 {
 public:
