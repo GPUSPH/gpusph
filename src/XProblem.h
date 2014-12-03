@@ -65,6 +65,7 @@ class XProblem: public Problem {
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
 
 	protected:
+		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2);
 		GeometryID addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
