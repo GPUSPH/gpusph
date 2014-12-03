@@ -41,6 +41,7 @@
 #include "simparams.h"
 
 #include "neibsengine.h"
+#include "integrationengine.h"
 
 // buffers and buffer lists
 #include "buffer.h"
@@ -57,6 +58,7 @@ private:
 	GlobalData* gdata;
 
 	AbstractNeibsEngine *neibsEngine;
+	AbstractIntegrationEngine *integrationEngine;
 
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;

@@ -145,19 +145,23 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 		NEIBSENGINE_CASE(btype, PERIODIC_XYZ); \
 	}
 
+#define INTEGRATIONENGINE_CASE(btype) \
+	if (m_simparams->xsph) \
+		integrationEngine = new CUDAPredCorrEngine<btype, true>(); \
+	else \
+		integrationEngine = new CUDAPredCorrEngine<btype, false>();
+
+#define ENGINE_CASE(btype) \
+	case btype: \
+		INTEGRATIONENGINE_CASE(btype) \
+		NEIBSENGINE_SWITCH(btype) \
+		break;
+
 	switch (m_simparams->boundarytype) {
-	case SA_BOUNDARY:
-		NEIBSENGINE_SWITCH(SA_BOUNDARY)
-		break;
-	case DYN_BOUNDARY:
-		NEIBSENGINE_SWITCH(DYN_BOUNDARY)
-		break;
-	case LJ_BOUNDARY:
-		NEIBSENGINE_SWITCH(LJ_BOUNDARY)
-		break;
-	case MK_BOUNDARY:
-		NEIBSENGINE_SWITCH(MK_BOUNDARY)
-		break;
+	ENGINE_CASE(LJ_BOUNDARY)
+	ENGINE_CASE(MK_BOUNDARY)
+	ENGINE_CASE(DYN_BOUNDARY)
+	ENGINE_CASE(SA_BOUNDARY)
 	default:
 		throw runtime_error("WTF BOUNDARY");
 	}
@@ -1336,7 +1340,7 @@ void GPUWorker::uploadMBData()
 {
 	// check if MB are active and if gdata->s_mbData is not NULL
 	if (m_simparams->mbcallback && gdata->s_mbData)
-		setmbdata(gdata->s_mbData, gdata->mbDataSize);
+		integrationEngine->setmbdata(gdata->s_mbData, gdata->mbDataSize);
 }
 
 // upload gravity (possibily called many times)
@@ -2222,13 +2226,12 @@ void GPUWorker::kernel_euler()
 
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-		euler(
+		integrationEngine->basicstep(
 			// previous pos, vel, k, e, info
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 			m_dBuffers.getData<BUFFER_HASH>(),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
-			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
@@ -2243,6 +2246,7 @@ void GPUWorker::kernel_euler()
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
@@ -2251,9 +2255,7 @@ void GPUWorker::kernel_euler()
 			gdata->dt, // m_dt,
 			gdata->dt/2.0f, // m_dt/2.0,
 			firstStep ? 1 : 2,
-			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
-			m_simparams->xsph,
-			m_simparams->boundarytype);
+			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt));
 }
 
 void GPUWorker::kernel_download_iowaterdepth()
@@ -2630,7 +2632,7 @@ void GPUWorker::uploadConstants()
 	// Setting kernels and kernels derivative factors
 	setforcesconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
-	seteulerconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	if (m_simparams->inoutBoundaries)
@@ -2640,13 +2642,13 @@ void GPUWorker::uploadConstants()
 void GPUWorker::uploadBodiesCentersOfGravity()
 {
 	setforcesrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
-	seteulerrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
+	integrationEngine->setrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
 }
 
 void GPUWorker::uploadBodiesTransRotMatrices()
 {
-	seteulerrbtrans(gdata->s_hMovObjTranslations, m_simparams->numObjects);
-	seteulerrbsteprot(gdata->s_hMovObjRotationMatrices, m_simparams->numObjects);
+	integrationEngine->setrbtrans(gdata->s_hMovObjTranslations, m_simparams->numObjects);
+	integrationEngine->setrbsteprot(gdata->s_hMovObjRotationMatrices, m_simparams->numObjects);
 }
 
 // Auxiliary method for debugging purposes: downloads on the host one or multiple field values of
@@ -2776,6 +2778,6 @@ void GPUWorker::uploadBodiesVelocities()
 {
 	// TODO FIXME should this be only for ODE bodies or all moving objects?
 	// compare uploadBodiesCentersOfGravity() and uploadBodiesTransRotMatrices()
-	seteulerrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numODEbodies);
-	seteulerrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numODEbodies);
+	integrationEngine->setrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numODEbodies);
+	integrationEngine->setrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numODEbodies);
 }

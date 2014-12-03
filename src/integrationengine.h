@@ -1,4 +1,4 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2014 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,42 +23,51 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _EULER_CUH_
-#define _EULER_CUH_
+#ifndef _INTEGRATIONENGINE_H
+#define _INTEGRATIONENGINE_H
 
-#include "integrationengine.h"
+/* Abstract IntegrationEngine base class; it simply defines the interface
+ * of the IntegrationEngine
+ * TODO FIXME in this transition phase it just mirros the exact same
+ * set of methods that were exposed in euler, with the same
+ * signatures, but the design probably needs to be improved. */
 
-#define BLOCK_SIZE_INTEGRATE	256
+#include "particledefine.h"
+#include "physparams.h"
+#include "simparams.h"
 
-template<BoundaryType boundarytype, bool xsphcorr>
-class CUDAPredCorrEngine : public AbstractIntegrationEngine
+class AbstractIntegrationEngine
 {
-	void
+public:
+	virtual void
 	setconstants(const PhysParams *physparams, float3 const& worldOrigin,
-		uint3 const& gridSize, float3 const& cellSize);
+		uint3 const& gridSize, float3 const& cellSize) = 0;
 
-	void
-	getconstants(PhysParams *physparams);
+	virtual void
+	getconstants(PhysParams *physparams) = 0;
 
-	void
-	setmbdata(const float4* MbData, uint size);
+	virtual void
+	setmbdata(const float4* MbData, uint size) = 0;
 
-	void
-	setrbcg(const float3* cg, int numbodies);
+	virtual void
+	setrbcg(const float3* cg, int numbodies) = 0;
 
-	void
-	setrbtrans(const float3* trans, int numbodies);
+	virtual void
+	setrbtrans(const float3* trans, int numbodies) = 0;
 
-	void
-	setrbsteprot(const float* rot, int numbodies);
+	virtual void
+	setrbsteprot(const float* rot, int numbodies) = 0;
 
-	void
-	setrblinearvel(const float3* linearvel, int numbodies);
+	virtual void
+	setrblinearvel(const float3* linearvel, int numbodies) = 0;
 
-	void
-	setrbangularvel(const float3* angularvel, int numbodies);
+	virtual void
+	setrbangularvel(const float3* angularvel, int numbodies) = 0;
 
-	void
+	/// Single integration 
+	// TODO will probably need to be made more generic for other
+	// integration schemes
+	virtual void
 	basicstep(
 		const	float4	*oldPos,
 		const	hashKey	*particleHash,
@@ -78,15 +87,16 @@ class CUDAPredCorrEngine : public AbstractIntegrationEngine
 				float4	*newgGam,
 				float	*newTKE,
 				float	*newEps,
-		// boundary elements are updated in-place, only used for rotation in the second step
+		// TODO these are only updated in-place during the second step for predcorr, but
+		// we will want a more generic API here
 				float4	*newBoundElement,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
 		const	float	dt2,
 		const	int		step,
-		const	float	t);
+		const	float	t)
+	= 0;
 
 };
-
 #endif

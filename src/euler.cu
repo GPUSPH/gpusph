@@ -24,16 +24,17 @@
 */
 
 #include <stdio.h>
+#include <stdexcept>
 
 #include "euler.cuh"
 #include "euler_kernel.cu"
 
 #include "utils.h"
 
-extern "C"
-{
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-seteulerconstants(const PhysParams *physparams,
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+setconstants(const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_epsxsph, &physparams->epsxsph, sizeof(float)));
@@ -43,131 +44,123 @@ seteulerconstants(const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-geteulerconstants(PhysParams *physparams)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+getconstants(PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
 setmbdata(const float4* MbData, uint size)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_mbdata, MbData, size));
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-seteulerrbcg(const float3* cg, int numbodies)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+setrbcg(const float3* cg, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbcg, cg, numbodies*sizeof(float3)));
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-seteulerrbtrans(const float3* trans, int numbodies)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+setrbtrans(const float3* trans, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbtrans, trans, numbodies*sizeof(float3)));
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-seteulerrblinearvel(const float3* linearvel, int numbodies)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+setrblinearvel(const float3* linearvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rblinearvel, linearvel, numbodies*sizeof(float3)));
 	//printf("Upload linear vel: %e %e %e\n", linearvel[0].x, linearvel[0].y, linearvel[0].z);
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-seteulerrbangularvel(const float3* angularvel, int numbodies)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+setrbangularvel(const float3* angularvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbangularvel, angularvel, numbodies*sizeof(float3)));
 	//printf("Upload angular vel: %e %e %e\n", angularvel[0].x, angularvel[0].y, angularvel[0].z);
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-seteulerrbsteprot(const float* rot, int numbodies)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+setrbsteprot(const float* rot, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
 }
 
-
+template<BoundaryType boundarytype, bool xsphcorr>
 void
-euler(	const float4*		oldPos,
-		const hashKey*		particleHash,
-		const float4*		oldVel,
-		const float4*		oldEulerVel,
-		float4*				gGam,
-		const float4*		oldgGam,
-		const float*		oldTKE,
-		const float*		oldEps,
-		const particleinfo* info,
-		const float4*		forces,
-		const float2*		contupd,
-		float3*				keps_dkde,
-		const float4*		xsph,
-		float4*				newPos,
-		float4*				newVel,
-		float4*				newEulerVel,
-		float*				newTKE,
-		float*				newEps,
-		float4*				newBoundElement,
-		const uint			numParticles,
-		const uint			particleRangeEnd,
-		const float			dt,
-		const float			dt2,
-		const int			step,
-		const float			t,
-		const bool			xsphcorr,
-		BoundaryType		boundarytype)
+CUDAPredCorrEngine<boundarytype, xsphcorr>::
+basicstep(
+	const	float4	*oldPos,
+	const	hashKey	*particleHash,
+	const	float4	*oldVel,
+	const	float4	*oldEulerVel,
+	const	float4	*oldgGam,
+	const	float	*oldTKE,
+	const	float	*oldEps,
+	const	particleinfo	*info,
+	const	float4	*forces,
+	const	float2	*contupd,
+	const	float3	*keps_dkde,
+	const	float4	*xsph,
+			float4	*newPos,
+			float4	*newVel,
+			float4	*newEulerVel,
+			float4	*newgGam,
+			float	*newTKE,
+			float	*newEps,
+	// boundary elements are updated in-place, only used for rotation in the second step
+			float4	*newBoundElement,
+	const	uint	numParticles,
+	const	uint	particleRangeEnd,
+	const	float	dt,
+	const	float	dt2,
+	const	int		step,
+	const	float	t)
 {
 	// thread per particle
 	uint numThreads = min(BLOCK_SIZE_INTEGRATE, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-#define ARGS oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps, \
-	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
+#define ARGS oldPos, particleHash, oldVel, oldEulerVel, oldgGam, oldTKE, oldEps, \
+	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
 
-#define EULER_XSPH_CASE(btype, step, xsph) \
-	case xsph: \
-		cueuler::eulerDevice<step, xsph, btype><<< numBlocks, numThreads >>>(ARGS); \
-		break
-
-#define EULER_XSPH_SWITCH(btype, step) \
-	switch(xsphcorr) { \
-		EULER_XSPH_CASE(btype, step, true); \
-		EULER_XSPH_CASE(btype, step, false); \
-	}
-
-#define EULER_STEP_CASE(btype, step) \
-	case step: \
-		EULER_XSPH_SWITCH(btype, step) \
-		break
-
-#define EULER_STEP_SWITCH(btype) \
-	switch(step) { \
-		EULER_STEP_CASE(btype, 1); \
-		EULER_STEP_CASE(btype, 2); \
-	}
-
-	// execute the kernel
-	switch (boundarytype) {
-		case SA_BOUNDARY:
-			EULER_STEP_SWITCH(SA_BOUNDARY)
-			break;
-		case DYN_BOUNDARY:
-			EULER_STEP_SWITCH(DYN_BOUNDARY)
-			break;
-		case LJ_BOUNDARY: // MK and LJ use the same euler so we don't distinguish between the two
-		case MK_BOUNDARY:
-			EULER_STEP_SWITCH(LJ_BOUNDARY)
-			break;
+	if (step == 1) {
+		cueuler::eulerDevice<1, xsphcorr, boundarytype><<< numBlocks, numThreads >>>(ARGS);
+	} else if (step == 2) {
+		cueuler::eulerDevice<2, xsphcorr, boundarytype><<< numBlocks, numThreads >>>(ARGS);
+	} else {
+		throw std::invalid_argument("unsupported predcorr timestep");
 	}
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");
 }
-}
+
+// Force the instantiation of all instances
+// TODO this is until the engines are turned into header-only classes
+
+#define DECLARE_PREDCORRENGINE(btype) \
+	template class CUDAPredCorrEngine<btype, false>; \
+	template class CUDAPredCorrEngine<btype, true>;
+
+DECLARE_PREDCORRENGINE(LJ_BOUNDARY)
+DECLARE_PREDCORRENGINE(MK_BOUNDARY)
+DECLARE_PREDCORRENGINE(SA_BOUNDARY)
+DECLARE_PREDCORRENGINE(DYN_BOUNDARY)
+

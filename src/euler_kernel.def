@@ -52,29 +52,30 @@
 template<int step, bool xsphcorr, BoundaryType boundarytype>
 __global__ void
 eulerDevice(
-	const float4*	oldPos,
-	const hashKey*	particleHash,
-	const float4*	oldVel,
-	const float4*	oldEulerVel,
-	float4*			gGam,
-	const float4*	oldgGam,
-	const float*	oldTKE,
-	const float*	oldEps,
-	const particleinfo* info,
-	const float4*	forces,
-	const float2*	contupd,
-	float3*	keps_dkde,
-	const float4*	xsph,
-	float4*	newPos,
-	float4*	newVel,
-	float4*	newEulerVel,
-	float*	newTKE,
-	float*	newEps,
-	float4*	newBoundElement,
-	const uint	numParticles,
-	const float	full_dt,
-	const float	half_dt, /* full_dt/2 */
-	const float	t)
+	const	float4	*oldPos,
+	const	hashKey	*particleHash,
+	const	float4	*oldVel,
+	const	float4	*oldEulerVel,
+	const	float4	*oldgGam,
+	const	float	*oldTKE,
+	const	float	*oldEps,
+	const	particleinfo	*info,
+	const	float4	*forces,
+	const	float2	*contupd,
+	const	float3	*keps_dkde,
+	const	float4	*xsph,
+			float4	*newPos,
+			float4	*newVel,
+			float4	*newEulerVel,
+			float4	*newgGam,
+			float	*newTKE,
+			float	*newEps,
+	// boundary elements are updated in-place, only used for rotation in the second step
+			float4	*newBoundElement,
+	const	uint	numParticles,
+	const	float	full_dt,
+	const	float	half_dt, /* full_dt/2 */
+	const	float	t)
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -140,12 +141,12 @@ eulerDevice(
 				// Improved continuity equation
 				if (step == 1) {
 					// gamma at time n+1 (gGam.w is gamma at time n)
-					const float gamN = gGam[index].w;
+					const float gamN = newgGam[index].w;
 					const float gamNp1 = gamN + dt*contupd[index].y;
 					vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
 				}
 				else {
-					const float gamNp1o2 = gGam[index].w;
+					const float gamNp1o2 = newgGam[index].w;
 					const float rhoNp1o2 = newVel[index].w;
 					// gamma at time n (gGam.w is gamma at time n+1/2)
 					const float gamN   = oldgGam[index].w;
@@ -186,7 +187,7 @@ eulerDevice(
 				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
 				// remove normal component of eulerian velocity
-				const float4 gradGamma = gGam[index];
+				const float4 gradGamma = newgGam[index];
 				eulerVel -= dot3(gradGamma, eulerVel)/sqlength3(gradGamma)*gradGamma;
 				// move segments and boundary particles if the MOVING flag is set
 				if (MOVING(pinfo) && step == 2) {
@@ -278,7 +279,7 @@ eulerDevice(
 
 	newPos[index] = pos;
 	newVel[index] = vel;
-	if(newEulerVel)
+	if (newEulerVel)
 		newEulerVel[index] = eulerVel;
 	if (newTKE)
 		newTKE[index] = keps_k;
