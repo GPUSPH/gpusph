@@ -192,6 +192,9 @@ eulerDevice(
 			if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
+				// remove normal component of eulerian velocity
+				const float4 gradGamma = gGam[index];
+				eulerVel -= dot3(gradGamma, eulerVel)/sqlength3(gradGamma)*gradGamma;
 				// move segments and boundary particles if the MOVING flag is set
 				if (MOVING(pinfo) && step == 2) {
 					const uint i = object(pinfo)-1;
