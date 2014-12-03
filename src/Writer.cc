@@ -36,6 +36,7 @@
 #include "VTKLegacyWriter.h"
 #include "VTKWriter.h"
 #include "Writer.h"
+#include "HotWriter.h"
 
 WriterMap Writer::m_writers = WriterMap();
 bool Writer::m_forced = false;
@@ -53,9 +54,16 @@ void
 Writer::Create(GlobalData *_gdata)
 {
 	const Problem *problem = _gdata->problem;
+	const Options *options = _gdata->clOptions;
+
 	WriterList const& wl = problem->get_writers();
 	WriterList::const_iterator it(wl.begin());
 	WriterList::const_iterator end(wl.end());
+
+	/* average writer frequency, used as default frequency for HOTWRITER,
+	 * unless otherwise specified */
+	double avg_freq = 0;
+	int avg_count = 0;
 
 	for (; it != end; ++it) {
 		Writer *writer = NULL;
@@ -87,6 +95,9 @@ Writer::Create(GlobalData *_gdata)
 			case UDPWRITER:
 				writer = new UDPWriter(_gdata);
 				break;
+			case HOTWRITER:
+				writer = new HotWriter(_gdata);
+				break;
 			default:
 				stringstream ss;
 				ss << "Unknown writer type " << wt;
@@ -95,6 +106,7 @@ Writer::Create(GlobalData *_gdata)
 			m_writers[wt] = writer;
 		}
 		writer->set_write_freq(freq);
+
 		if (freq > 0)
 			cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
 		else if (freq == 0)
@@ -105,6 +117,64 @@ Writer::Create(GlobalData *_gdata)
 			cout << WriterName[wt] << " has special treatment" << endl;
 		else
 			cerr << WriterName[wt] << " has unknown writing frequency " << freq << endl;
+
+		avg_freq += freq;
+		++avg_count;
+	}
+
+	avg_freq /= avg_count;
+
+	/* Checkpoint setup: we setup a HOTWRITER if it's missing,
+	 * change its frequency if present, and set the number of checkpoints
+	 * as appropriate
+	 */
+	HotWriter *htwr = NULL;
+	const WriterType wt = HOTWRITER;
+	WriterMap::iterator wm = m_writers.find(wt);
+	double freq = options->checkpoint_freq;
+	int chkpts = options->checkpoints;
+
+	if (wm != m_writers.end()) {
+		htwr = static_cast<HotWriter*>(wm->second);
+		/* found */
+		if (isfinite(freq)) {
+			cerr << "Command-line overrides " << WriterName[wt] << " writing frequency" << endl;
+		}
+	} else if (freq < 0) {
+		cerr << "Command-line disables " << WriterName[wt] << endl;
+		/* don't set htwr, checkpointing is disabled */
+	} else {
+		/* ok, generate a new one */
+		htwr = new HotWriter(_gdata);
+		m_writers[wt] = htwr;
+
+		/* if frequency is not defined, used the average of the writers */
+		if (!isfinite(freq))
+			freq = avg_freq;
+
+		/* still not defined? assume 0.1s TODO FIXME compute from tend or whatever */
+		if (!isfinite(freq))
+			freq = 0.1f;
+	}
+
+	if (htwr) {
+		if (isfinite(freq))
+			htwr->set_write_freq(freq);
+		if (chkpts >= 0)
+			htwr->set_num_files_to_save(chkpts);
+
+		/* retrieve the actual values used, to select message */
+		freq  = htwr->get_write_freq();
+		chkpts = htwr->get_num_files_to_save();
+		if (freq >= 0) {
+			cout << "HotStart checkpoints every " << freq << " (simulated) seconds" << endl;
+			if (chkpts > 0)
+				cout << "\twill keep the last " << chkpts << " checkpoints" << endl;
+			else
+				cout << "\twill keep ALL checkpoints" << endl;
+		} else {
+			cout << "HotStart checkpoints DISABLED" << endl;
+		}
 	}
 
 	// If there is no CommonWriter, create it. It will have the default settings

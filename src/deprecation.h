@@ -25,6 +25,9 @@
 
 /* Macros to mark functions as deprecated */
 
+#ifndef _DEPRECATION_H
+#define _DEPRECATION_H
+
 // Since GPUSPH 3.0 we will try to preserve API between minor version
 // of the software, in the sense that a problem written for GPUSPH M.0
 // should be expected to also compile and run on GPUSPH M.x, up to the
@@ -84,7 +87,10 @@ and_or_assigning_to = obsolete_variables;
 #define GCC_DIAG_DO_PRAGMA(x) _Pragma (#x)
 #define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
 
-#if (__GNUC__*100 + __GNUC_MINOR__) < 406
+// NVCC before version 6.0 also doesn't like the GCC
+#if ((__GNUC__*100 + __GNUC_MINOR__) < 406) || (__NVCC__ > 0 && __NVCC_VERSION__ < 60)
+
+#pragma message("diagnostig mangling disabled")
 
 // no diagnostic mangling
 #define IGNORE_WARNINGS(str)
@@ -98,4 +104,6 @@ and_or_assigning_to = obsolete_variables;
 	GCC_DIAG_PRAGMA(ignored GCC_DIAG_JOINSTR(-W, str))
 #define RESTORE_WARNINGS \
 	GCC_DIAG_PRAGMA(pop)
+#endif
+
 #endif

@@ -125,8 +125,8 @@ int Seiche::fill_parts()
 
 	parts.reserve(14000);
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(l, 0, 0), Vector(0, w, 0), Vector(0, 0, h));
-	Cube fluid = Cube(Point(wd, wd, wd), Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
+	experiment_box = Cube(Point(0, 0, 0), l, w, h);
+	Cube fluid = Cube(Point(wd, wd, wd), l-2*wd, w-2*wd, H-2*wd);
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	// InnerFill puts particle in the center of boxes of step m_deltap, hence at
 	// m_deltap/2 from the sides, so the total distance between particles and walls

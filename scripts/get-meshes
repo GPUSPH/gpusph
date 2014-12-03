@@ -1,0 +1,6 @@
+#!/bin/sh
+
+mkdir -p meshes &&
+cd meshes &&
+wget -N http://www.gpusph.org/downloads/meshes.tar.gz &&
+tar --keep-newer-files vxzf meshes.tar.gz

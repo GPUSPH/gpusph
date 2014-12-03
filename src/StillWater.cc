@@ -138,8 +138,7 @@ int StillWater::fill_parts()
 
 	parts.reserve(14000);
 
-	experiment_box = Cube(Point(m_origin), Vector(m_size.x, 0, 0),
-		Vector(0, m_size.y, 0), Vector(0, 0, m_size.z));
+	experiment_box = Cube(Point(m_origin), m_size.x, m_size.y, m_size.z);
 
 	experiment_box.SetPartMass(wd, m_physparams.rho0[0]);
 
@@ -161,7 +160,7 @@ int StillWater::fill_parts()
 	if (m_simparams.boundarytype == DYN_BOUNDARY) // shift by the extra offset of the experiment box
 		fluid_origin += make_double3((dyn_layers-1)*m_deltap);
 	fluid_origin += make_double3(wd); // one wd space from the boundary
-	Cube fluid = Cube(fluid_origin, Vector(l-2*wd, 0, 0), Vector(0, w-2*wd, 0), Vector(0, 0, H-2*wd));
+	Cube fluid = Cube(fluid_origin, l-2*wd, w-2*wd, H-2*wd);
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap);
 
