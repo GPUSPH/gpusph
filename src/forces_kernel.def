@@ -860,7 +860,7 @@ struct compute_density_derivative {
 		}
 		/* The second formulation takes into consideration the density ratio */
 		if (sph_formulation == SPH_F1)
-			nout.DrDt *= pdata.relVel.w;
+			nout.DrDt *= ndata.relVel.w;
 		else if (sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w;
 	}
@@ -1186,7 +1186,8 @@ struct compute_viscous_contrib {
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout){
 		// in the generic case only the volumic term is of interest
-		visc_volumic_part<visctype>::with(params, pdata, ndata, pout, nout);
+		// TODO inoutBoundaries support --- v --- for non-SA
+		visc_volumic_part<visctype>::with<false>(params, pdata, ndata, pout, nout);
 	}
 
 };
@@ -1272,6 +1273,27 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	pout.dvy += (ndata.relVel.y+ndata.relEulerVelKEPS.y)*dvmul;
 	pout.dvz += (ndata.relVel.z+ndata.relEulerVelKEPS.z)*dvmul;
 }
+
+// Functor to check if water depth computation was requested
+// in the forces params (SA-only)
+template<BoundaryType boundarytype>
+struct
+has_waterdepth_computation
+{
+	template<typename FP>
+	__device__ __forceinline__
+	static bool
+	with(FP const& params) { return false; }
+};
+
+template<>
+template<typename FP>
+__device__ __forceinline__ bool
+has_waterdepth_computation<SA_BOUNDARY>::with(FP const& params)
+{
+	return params.ioWaterdepthComputation;
+}
+
 
 
 /*
@@ -1838,7 +1860,7 @@ forcesDevice(
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (boundarytype == SA_BOUNDARY && params.ioWaterdepthComputation && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
+			else if (boundarytype == SA_BOUNDARY && has_waterdepth_computation<boundarytype>::with(params) && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
 				// Compute the maximum depth at pressure boundaries
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
