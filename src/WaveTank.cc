@@ -185,8 +185,7 @@ int WaveTank::fill_parts()
 	 */
 	const int dynbound_layers = ceil(m_simparams.kernelradius * m_simparams.sfactor);
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(h_length + slope_length, 0, 0),
-		Vector(0, ly, 0), Vector(0, 0, height));
+	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length, ly, height);
 
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	Rect paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),

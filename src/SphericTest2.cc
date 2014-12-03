@@ -140,19 +140,16 @@ int SphericTest2::fill_parts()
 
 	Cube fluid, fluid1;
 
-	experiment_box = Cube(Point(m_origin), Vector(lx, 0, 0),
-						Vector(0, ly, 0), Vector(0, 0, lz));
+	experiment_box = Cube(Point(m_origin), lx, ly, lz);
 
-	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), Vector(0.161, 0, 0),
-				Vector(0, 0.403, 0), Vector(0, 0, 0.161));
+	obstacle = Cube(Point(m_origin + make_double3(2.3955, 0.295, 0.0)), 0.161, 0.403, 0.161);
 
 
-	fluid = Cube(Point(m_origin + r0), Vector(0.4, 0, 0),
-				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
+	fluid = Cube(Point(m_origin + r0), 0.4, ly - 2*r0, H - r0);
 
 	if (wet) {
-		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)), Vector(lx - H - m_deltap - 2*r0, 0, 0),
-					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
+		fluid1 = Cube(Point(m_origin + r0 + make_double3(H + m_deltap, 0, 0)),
+			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
 	}
 
 	boundary_parts.reserve(2000);

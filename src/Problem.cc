@@ -255,6 +255,7 @@ Problem::add_writer(WriterType wt, double freq)
 	m_writers.push_back(make_pair(wt, freq));
 }
 
+
 // override in problems where you want to save
 // at specific times regardless of standard conditions
 bool
@@ -569,6 +570,45 @@ Problem::get_ODE_body_numparts(const int i) const
 	return m_ODE_bodies[i]->GetNumParts();
 }
 
+void
+Problem::restore_ODE_body(const uint i, const float *gravity_center, const float *quaternion,
+	const float *linvel, const float *angvel)
+{
+	Object *obj = m_ODE_bodies[i];
+	dBodyID odeid = obj->m_ODEBody;
+
+	// re-set the position, rotation and velocities in ODE
+	dBodySetAngularVel(odeid, angvel[0], angvel[1], angvel[2]);
+	dBodySetLinearVel(odeid, linvel[0], linvel[1], linvel[2]);
+	dBodySetPosition(odeid, gravity_center[0], gravity_center[1], gravity_center[2]);
+
+	dBodySetQuaternion(odeid, quaternion);
+
+	// After setting the quaternion, ODE does a forced renormalization
+	// that will slightly change the value of the quaternion (except in some
+	// trivial cases). While the final result is within machine precision to
+	// the set value, the (small) difference will propagate through the
+	// simulation, resulting in differences. The following code can be used to
+	// check the amount of absolute and relative error in the set quaternion:
+#if 0
+	dQuaternion rec;
+	dQuaternion abs_err, rel_err;
+	dBodyCopyQuaternion(odeid, rec);
+	for (int i = 0; i < 4; ++i) {
+		abs_err[i] = fabs(rec[i] - quaternion[i]);
+		float normfactor = fabs(rec[i]+quaternion[i])/2;
+		rel_err[i] = normfactor == 0 ? abs_err[i] : abs_err[i]/normfactor;
+	}
+
+	printf("object %u quaternion: recovered (%g, %g, %g, %g), was (%g, %g, %g, %g),\n"
+		"\tdelta (%g, %g, %g, %g), rel err (%g, %g, %g, %g)\n",
+		i, rec[0], rec[1], rec[2], rec[3],
+		quaternion[0], quaternion[1], quaternion[2], quaternion[3],
+		abs_err[0], abs_err[1], abs_err[2], abs_err[3],
+		rel_err[0], rel_err[1], rel_err[2], rel_err[3]);
+#endif
+}
+
 
 void
 Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot, float3 * & linearvel, float3 * & angularvel)
@@ -583,12 +623,23 @@ Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot, float3 * & linear
 float3*
 Problem::get_ODE_bodies_cg(void)
 {
-	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
+	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
 		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
 	}
 
 	return m_bodies_cg;
 }
+
+dQuaternion*
+Problem::get_ODE_bodies_quaternion(void)
+{
+	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
+		dBodyCopyQuaternion(m_ODE_bodies[i]->m_ODEBody, m_bodies_quaternion[i]);
+	}
+
+	return m_bodies_quaternion;
+}
+
 
 
 float3*

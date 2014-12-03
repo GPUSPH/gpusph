@@ -122,24 +122,20 @@ int OdeObjects::fill_parts()
 
 	Cube fluid, fluid1;
 
-	experiment_box = Cube(Point(0, 0, 0), Vector(lx, 0, 0),
-						Vector(0, ly, 0), Vector(0, 0, lz));
+	experiment_box = Cube(Point(0, 0, 0), lx, ly, lz);
 	planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0.0);
 	planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0.0);
 	planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, -lx);
 	planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0.0);
 	planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, -ly);
 
-	obstacle = Cube(Point(0.6, 0.24, 2*r0), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, 0.7*lz - 2*r0));
+	obstacle = Cube(Point(0.6, 0.24, 2*r0), 0.12, 0.12, 0.7*lz - 2*r0);
 
-
-	fluid = Cube(Point(r0, r0, r0), Vector(0.4, 0, 0),
-				Vector(0, ly - 2*r0, 0), Vector(0, 0, H - r0));
+	fluid = Cube(Point(r0, r0, r0), 0.4, ly - 2*r0, H - r0);
 
 	if (wet) {
-		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0), Vector(lx - H - m_deltap - 2*r0, 0, 0),
-					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.1));
+		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0),
+			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
 	}
 
 	boundary_parts.reserve(2000);

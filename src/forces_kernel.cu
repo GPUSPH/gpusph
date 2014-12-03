@@ -649,6 +649,23 @@ wendlandOnSegment(const float q)
 	return make_float2(kernel, intKernel);
 }
 
+/*
+ * Gaussian quadrature
+ */
+
+// 5th order: weights
+__constant__ float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
+
+// 5th order: points, in barycentric coordinates
+__constant__ float GQ_O5_points[3][3] = {
+	{0.333333333333333f, 0.333333333333333f, 0.333333333333333f},
+	{0.059715871789770f, 0.470142064105115f, 0.470142064105115f},
+	{0.797426985353087f, 0.101286507323456f, 0.101286507323456f}
+};
+
+// 5th order: multiplicity of each quadrature point
+__constant__ int GQ_O5_mult[3] = {1, 3, 3};
+
 // Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
 __device__ __forceinline__ float2
 gaussQuadratureO5(	const	float3	vPos0,
@@ -656,25 +673,19 @@ gaussQuadratureO5(	const	float3	vPos0,
 					const	float3	vPos2,
 					const	float3	relPos)
 {
-	// these are the weights of the quadrature points
-	const float weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
-	// these are the quadrature points themselves given in barycentric coordinates
-	const float points[3][3] = {
-		{0.333333333333333f, 0.333333333333333f, 0.333333333333333f},
-		{0.059715871789770f, 0.470142064105115f, 0.470142064105115f},
-		{0.797426985353087f, 0.101286507323456f, 0.101286507323456f}
-	};
-	// this is the multiplicity of the quadrature points
-	const int mult[3] = {1,3,3};
 	float2 val = make_float2(0.0f);
 	// perform the summation
+#pragma unroll
 	for (int i=0; i<3; i++) {
-		for (int j=0; j<mult[i]; j++) {
-			float3 pa =	vPos0*points[i][j]       +
-						vPos1*points[i][(j+1)%3] +
-						vPos2*points[i][(j+2)%3]  ;
+#pragma unroll
+		for (int j=0; j<3; j++) {
+			float3 pa =	vPos0*GQ_O5_points[i][j]       +
+						vPos1*GQ_O5_points[i][(j+1)%3] +
+						vPos2*GQ_O5_points[i][(j+2)%3]  ;
 			pa -= relPos;
-			val += weights[i]*wendlandOnSegment(length(pa));
+			val += GQ_O5_weights[i]*wendlandOnSegment(length(pa));
+			if (j >= GQ_O5_mult[i])
+				break;
 		}
 	}
 	// compute the triangle volume
@@ -683,6 +694,39 @@ gaussQuadratureO5(	const	float3	vPos0,
 	return val*vol;
 }
 
+// 14th order: weights
+__constant__ float GQ_O14_weights[10] = {
+	0.021883581369429f,
+	0.032788353544125f,
+	0.051774104507292f,
+	0.042162588736993f,
+	0.014433699669777f,
+	0.004923403602400f,
+	0.024665753212564f,
+	0.038571510787061f,
+	0.014436308113534f,
+	0.005010228838501f
+};
+
+
+// 14th order: points, in barycentric coordinates
+__constant__ float GQ_O14_points[10][3] = {
+	{0.022072179275643f,0.488963910362179f,0.488963910362179f},
+	{0.164710561319092f,0.417644719340454f,0.417644719340454f},
+	{0.453044943382323f,0.273477528308839f,0.273477528308839f},
+	{0.645588935174913f,0.177205532412543f,0.177205532412543f},
+	{0.876400233818255f,0.061799883090873f,0.061799883090873f},
+	{0.961218077502598f,0.019390961248701f,0.019390961248701f},
+	{0.057124757403648f,0.172266687821356f,0.770608554774996f},
+	{0.092916249356972f,0.336861459796345f,0.570222290846683f},
+	{0.014646950055654f,0.298372882136258f,0.686980167808088f},
+	{0.001268330932872f,0.118974497696957f,0.879757171370171f}
+};
+
+// 14th order: multiplicity of each quadrature point
+__constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
+
+
 // Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
 __device__ __forceinline__ float2
 gaussQuadratureO14(	const	float3	vPos0,
@@ -690,43 +734,19 @@ gaussQuadratureO14(	const	float3	vPos0,
 					const	float3	vPos2,
 					const	float3	relPos)
 {
-	// these are the weights of the quadrature points
-	const float weights[10] = {
-		0.021883581369429f,
-		0.032788353544125f,
-		0.051774104507292f,
-		0.042162588736993f,
-		0.014433699669777f,
-		0.004923403602400f,
-		0.024665753212564f,
-		0.038571510787061f,
-		0.014436308113534f,
-		0.005010228838501f
-	};
-	// these are the quadrature points themselves given in barycentric coordinates
-	const float points[10][3] = {
-		{0.022072179275643f,0.488963910362179f,0.488963910362179f},
-		{0.164710561319092f,0.417644719340454f,0.417644719340454f},
-		{0.453044943382323f,0.273477528308839f,0.273477528308839f},
-		{0.645588935174913f,0.177205532412543f,0.177205532412543f},
-		{0.876400233818255f,0.061799883090873f,0.061799883090873f},
-		{0.961218077502598f,0.019390961248701f,0.019390961248701f},
-		{0.057124757403648f,0.172266687821356f,0.770608554774996f},
-		{0.092916249356972f,0.336861459796345f,0.570222290846683f},
-		{0.014646950055654f,0.298372882136258f,0.686980167808088f},
-		{0.001268330932872f,0.118974497696957f,0.879757171370171f}
-	};
-	// this is the multiplicity of the quadrature points
-	const int mult[10] = {1,3,3,3,3,3,6,6,6,6};
 	float2 val = make_float2(0.0f);
 	// perform the summation
+#pragma unroll
 	for (int i=0; i<10; i++) {
-		for (int j=0; j<mult[i]; j++) {
-			float3 pa =	vPos0*points[i][j%3]       +
-						vPos1*points[i][(j+1+j/3)%3] +
-						vPos2*points[i][(j+2-j/3)%3]  ;
+#pragma unroll
+		for (int j=0; j<6; j++) {
+			float3 pa =	vPos0*GQ_O14_points[i][j%3]       +
+						vPos1*GQ_O14_points[i][(j+1+j/3)%3] +
+						vPos2*GQ_O14_points[i][(j+2-j/3)%3]  ;
 			pa -= relPos;
-			val += weights[i]*wendlandOnSegment(length(pa));
+			val += GQ_O14_weights[i]*wendlandOnSegment(length(pa));
+			if (j >= GQ_O14_mult[i])
+				break;
 		}
 	}
 	// compute the triangle volume
@@ -761,26 +781,21 @@ Gamma(	const	float		&slength,
 	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
 	// local coordinate system for relative positions to vertices
 	uint j = 0;
-	float4 coord1 = make_float4(0.0f);
-	float4 coord2 = make_float4(0.0f);
 	// Get index j for which n_s is minimal
 	if (fabs(boundElement.x) > fabs(boundElement.y))
 		j = 1;
-	if (((float)1-j)*fabs(boundElement.x) + ((float)j)*fabs(boundElement.y) > fabs(boundElement.z))
+	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
 		j = 2;
+
 	// compute second coordinate which is equal to n_s x e_j
-	if (j==0) {
-		coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
-		coord2 = make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f);
-	}
-	else if (j==1) {
-		coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
-		coord2 = make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f);
-	}
-	else {
-		coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-		coord2 = make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f);
-	}
+	const float4 coord1 = make_float4( j == 0, j == 1, j == 2, 0); // set the coordinate j to 1
+	const float4 coord2 = make_float4(
+		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+		-(j==1)*boundElement.z + (j == 2)*boundElement.y, // -z if j == 1, y if j == 2
+		 (j==0)*boundElement.z - (j == 2)*boundElement.x, // z if j == 0, -x if j == 2
+		-(j==0)*boundElement.y + (j == 1)*boundElement.x, // -y if j == 0, x if j == 1
+		0);
+
 	// relative positions of vertices with respect to the segment, normalized by h
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
@@ -861,7 +876,7 @@ Gamma(	const	float		&slength,
 		// Gaussian quadrature of 14th order
 //		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
-		float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		const float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		gradGamma_as += intVal.x;
 		gamma_as += intVal.y*dot3(boundElement,q_aSigma);
 	}
