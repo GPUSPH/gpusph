@@ -64,6 +64,9 @@ class XProblem: public Problem {
 		STLMesh		*cube;
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
 
+	protected:
+		ObjectID addCube(const ObjectType otype, const FillType ftype, const Point &origin, const double side);
+
 	public:
 		XProblem(const GlobalData *);
 		~XProblem(void);

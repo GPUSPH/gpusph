@@ -130,28 +130,15 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	ObjectInfo* objinfo = new ObjectInfo();
-	//ObjectInfo* objinfo2 = new ObjectInfo();
-	//objinfo->handle_collisions = true;
-	//objinfo->handle_dynamics = true;
-
 	double orig = m_deltap;
 	double side = 0.5 - 2 * m_deltap;
 
-	objinfo = new ObjectInfo();
-	objinfo->type = OT_FLUID;
-	objinfo->fill_type = FT_SOLID_BORDERLESS;
-	objinfo->ptr = new Cube( Point(orig,orig,orig), Vector(side/2,0,0), Vector(0,side,0), Vector(0,0,side) );
-	m_objects.push_back(objinfo);
+	addCube(OT_FLUID, FT_SOLID, Point(orig, orig, orig), side/2);
 
 	side = 0.5;
 	orig = 0;
 
-	objinfo = new ObjectInfo();
-	objinfo->type = OT_FIXED_BOUNDARY;
-	objinfo->fill_type = FT_BORDER;
-	objinfo->ptr = new Cube( Point(orig,orig,orig), Vector(side,0,0), Vector(0,side,0), Vector(0,0,side) );
-	m_objects.push_back(objinfo);
+	addCube(OT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
 }
 
 void XProblem::release_memory()
@@ -166,6 +153,16 @@ XProblem::~XProblem()
 	//dSpaceDestroy(m_ODESpace);
 	//dWorldDestroy(m_ODEWorld);
 	//dCloseODE();
+}
+
+ObjectID XProblem::addCube(const ObjectType otype, const FillType ftype, const Point &origin, const double side)
+{
+	ObjectInfo* objinfo = new ObjectInfo();
+	objinfo->type = otype;
+	objinfo->fill_type = ftype;
+	objinfo->ptr = new Cube( origin, Vector(side,0,0), Vector(0,side,0), Vector(0,0,side) );
+	m_objects.push_back(objinfo);
+	return (m_objects.size() - 1);
 }
 
 int XProblem::fill_parts()
