@@ -5,6 +5,8 @@
 #include "Rect.h"
 #include "Disk.h"
 #include "Cube.h"
+#include "Cylinder.h"
+#include "Cone.h"
 #include "Sphere.h"
 #include "Torus.h"
 
@@ -202,6 +204,28 @@ GeometryID XProblem::addBox(const GeometryType otype, const FillType ftype, cons
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = new Cube( origin, Vector(side1, 0, 0), Vector(0, side2, 0), Vector(0, 0, side3) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
+GeometryID XProblem::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double radius, const double height)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Cylinder( origin, Vector(radius, 0, 0), Vector(0, 0, height) );
+	m_geometries.push_back(geomInfo);
+	return (m_geometries.size() - 1);
+}
+
+GeometryID XProblem::addCone(const GeometryType otype, const FillType ftype, const Point &origin,
+	const double bottom_radius, const double top_radius, const double height)
+{
+	GeometryInfo* geomInfo = new GeometryInfo();
+	geomInfo->type = otype;
+	geomInfo->fill_type = ftype;
+	geomInfo->ptr = new Cone( origin, bottom_radius, top_radius, Vector(0, 0, height) );
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }

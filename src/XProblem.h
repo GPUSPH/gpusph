@@ -75,6 +75,8 @@ class XProblem: public Problem {
 			const double side1, const double side2, const double side3);
 		GeometryID addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double radius, const double height);
+		GeometryID addCone(const GeometryType otype, const FillType ftype, const Point &origin,
+			const double bottom_radius, const double top_radius, const double height);
 		GeometryID addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double radius);
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
