@@ -382,6 +382,14 @@ TopoCube::SetPartMass(const double dx, const double rho)
 	return mass;
 }
 
+void TopoCube::setEulerParameters(const EulerParameters &ep)
+{
+	// TODO: do not print a warning if non-zero
+	//m_ep = EulerParameters(ep);
+	//m_ep.ComputeRot();
+	printf("WARNING: trying to applying a rotation to a TopoCube. Ignoring\n");
+}
+
 
 void
 TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, const bool fill_edges)

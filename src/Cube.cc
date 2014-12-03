@@ -62,21 +62,12 @@ Cube::Cube(const Point &origin, const double lx, const double ly, const double l
 {
 	m_origin = origin;
 
-	m_ep = ep;
-	// Before doing any rotation with Euler parameters the rotation matrix associated with
-	// m_ep is computed.
-	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
 	m_lz = lz;
 
-	// Computing the edge vectors according to orientation
-	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
-	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
-	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
-
-	// Computing the center of gravity of the cube
-	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	// set the EulerParameters and update sizes, center
+	setEulerParameters(ep);
 }
 
 
@@ -607,6 +598,23 @@ Cube::IsInside(const Point& p, const double dx) const
 		inside = true;
 
 	return inside;
+}
+
+// set the given EulerParameters
+void Cube::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	// Before doing any rotation with Euler parameters the rotation matrix associated with
+	// m_ep is computed.
+	m_ep.ComputeRot();
+
+	// Computing the edge vectors according to orientation
+	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
+	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
+	m_vz = m_lz*m_ep.Rot(Vector(0, 0, 1));
+
+	// Computing the center of gravity of the cube
+	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
 }
 
 

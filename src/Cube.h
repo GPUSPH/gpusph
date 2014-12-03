@@ -112,6 +112,8 @@ class Cube: public Object {
 		void SetInertia(const double);
 		bool IsInside(const Point&, const double) const;
 
+		void setEulerParameters(const EulerParameters &ep);
+
 		/// \name ODE related  functions
 		//@{
 		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);

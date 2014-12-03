@@ -176,6 +176,17 @@ class Object {
 		 *  This function is pure virtual and then as to be defined at child level
 		 */
 		virtual bool IsInside(const Point& p, const double dx) const = 0;
+
+		/// \name Other functions
+		//@{
+		/// Set the EulerParameters
+		/*! This function sets the EulerParameters and updateds the object accordingly
+		 *  (e.g. bounding box)
+		 *	\param ep : new EulerParameters
+		 *
+		 *	This function is pure virtual and then has to be defined at child level
+		 */
+		virtual void setEulerParameters(const EulerParameters &ep) = 0;
 };
 #endif	/* OBJECT_H */
 

@@ -27,6 +27,8 @@ class Torus: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 
+		void setEulerParameters(const EulerParameters &ep);
+
 		void FillBorder(PointVect&, const double);
 
 		int Fill(PointVect&, const double, const bool fill = true);

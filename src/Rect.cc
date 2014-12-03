@@ -153,16 +153,11 @@ Rect::Rect(const Point &origin, const double lx, const double ly, const EulerPar
 {
 	m_origin = origin;
 
-	m_ep = ep;
-	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
 
-	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
-	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
-	m_vz = m_vx.cross(m_vz);
+	setEulerParameters(ep);
 
-	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 	m_origin.print();
 	m_center.print();
 }
@@ -616,4 +611,16 @@ Rect::IsInside(const Point& p, const double dx) const
 		inside = true;
 
 	return inside;
+}
+
+void Rect::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	m_ep.ComputeRot();
+
+	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
+	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
+	m_vz = m_vx.cross(m_vz);
+
+	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 }

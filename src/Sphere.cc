@@ -64,6 +64,12 @@ Sphere::SetInertia(const double dx)
 	m_inertia[2] = m_inertia[0];
 }
 
+void Sphere::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = EulerParameters(ep);
+	m_ep.ComputeRot();
+}
+
 
 void
 Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

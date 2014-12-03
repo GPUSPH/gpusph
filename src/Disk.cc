@@ -50,6 +50,7 @@ Disk::Disk(const Point& center, double radius, const Vector& normaldir)
 	Vector rotdir = axisdir.cross(v);
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
+	// equivalent to setEulerParameters(EP(...)), but deprecated contructor anyway
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
 }
@@ -60,8 +61,7 @@ Disk::Disk(const Point& center, double radius, const EulerParameters& ep)
 	m_center = center;
 	m_r = radius;
 
-	m_ep = ep;
-	m_ep.ComputeRot();
+	setEulerParameters(ep);
 }
 
 
@@ -105,6 +105,12 @@ Disk::SetInertia(const double dx)
 	m_inertia[0] = m_mass/12.0*(3*r*r + h*h);
 	m_inertia[1] = m_inertia[0];
 	m_inertia[2] = m_mass/2.0*r*r;
+}
+
+void Disk::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	m_ep.ComputeRot();
 }
 
 void

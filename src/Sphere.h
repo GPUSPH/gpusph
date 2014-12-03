@@ -43,6 +43,8 @@ class Sphere: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 
+		void setEulerParameters(const EulerParameters &ep);
+
 		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
 		void ODEGeomCreate(dSpaceID, const double);
 

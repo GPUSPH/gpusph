@@ -52,6 +52,8 @@ class Cone: public Object {
 		double Volume(const double) const;
 		void SetInertia(const double);
 
+		void setEulerParameters(const EulerParameters &ep);
+
 		void FillBorder(PointVect& points, const double, const bool, const bool);
 		void FillBorder(PointVect& points, double dx)
 		{

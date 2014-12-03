@@ -48,14 +48,7 @@ Torus::Torus(const Point& center, const double R, const double r, const EulerPar
 	m_R = R;
 	m_r = r;
 
-	m_ep = ep;
-	m_ep.ComputeRot();
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-
-	dQtoR(q, m_ODERot);
+	setEulerParameters(ep);
 }
 
 
@@ -80,6 +73,18 @@ Torus::SetInertia(const double dx)
 	m_inertia[0] = m_mass*(5.0/8.0*r*r + 1.0/2.0*m_R*m_R);
 	m_inertia[1] = m_inertia[0];
 	m_inertia[2] = m_mass*(3.0/4.0*m_r*m_r + m_R*m_R);
+}
+
+void Torus::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	m_ep.ComputeRot();
+
+	dQuaternion q;
+	for (int i = 0; i < 4; i++)
+		q[i] = m_ep(i);
+
+	dQtoR(q, m_ODERot);
 }
 
 
