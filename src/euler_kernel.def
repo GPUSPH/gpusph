@@ -49,7 +49,7 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
-template<int step, bool xsphcorr, bool dynbounds>
+template<int step, bool xsphcorr, BoundaryType boundarytype>
 __global__ void
 eulerDevice(
 	const float4*	oldPos,
@@ -87,7 +87,7 @@ eulerDevice(
 	// read particle data from sorted arrays
 	// Euler does nothing to boundary particles apart
 	// copying pos and vel in the new arrays, except in DYN_BOUNDARY
-	// case (dynbounds == true)
+	// case (boundarytype == DYN_BOUNDARY)
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 	float4 eulerVel = make_float4(0.0f);
@@ -103,7 +103,7 @@ eulerDevice(
 	do {
 		// we only integrate ACTIVE particles which are not BOUNDARY particles,
 		// unless dynbounds is active (in which case BOUNDARY particles are also integrated)
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !dynbounds))
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && boundarytype != DYN_BOUNDARY))
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
@@ -130,39 +130,43 @@ eulerDevice(
 			pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
 			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
-			// Updating particle velocity and density
-			// For step 1:
-			//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
-			// For step 2:
-			//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-			//if (id(pinfo) == 1690)
-			//	printf("rho: %e | d %e %e %e \n", vel.w, force.w, contupd[index].y, contupd[index].y*vel.w/gGam[index].w);
-			//if (step == 1) {
-			//	// gamma at time n+1 (gGam.w is gamma at time n)
-			//	const float gamN = gGam[index].w;
-			//	const float gamNp1 = gamN + dt*contupd[index].y;
-			//	//if (id(pinfo) == 31350062)
-			//	// previously estimated gamNp1 (now gamN)
-			//	const float gamNest = oldgGam[index].w;
-			//	if (gamNest > 0.05f)
-			//		vel.w *= gamNest/gamN;
-			//	vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
-			//	//if (id(pinfo) == 1690)
-			//	//	printf("gamNp1/2: %e | gamN: %e | old: %e | rho: %e\n", gamNp1, gamN, oldgGam[index].w, vel.w);
-			//}
-			//else {
-			//	const float gamNp1o2 = gGam[index].w;
-			//	const float rhoNp1o2 = newVel[index].w;
-			//	// gamma at time n (gGam.w is gamma at time n+1/2)
-			//	const float gamN   = oldgGam[index].w; //gGam[index].w-dt/2.0f*contupd[index].y;
-			//	// gamma at time n+1
-			//	const float gamNp1 = gamN + dt*contupd[index].y;
-			//	vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
-			//	//if (id(pinfo) == 1690)
-			//	//	printf("gamNp1/2: %e | gamN: %e | gamNp1: %e | old: %e  | rho: %e\n", gGam[index].w, gamN, gamNp1, oldgGam[index].w, vel.w);
-			//	gGam[index].w = gamNp1;
-			//}
-			vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
+			if (boundarytype == SA_BOUNDARY) {
+				// Updating particle velocity and density
+				// For step 1:
+				//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
+				// For step 2:
+				//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
+				//if (id(pinfo) == 1690)
+				//	printf("rho: %e | d %e %e %e \n", vel.w, force.w, contupd[index].y, contupd[index].y*vel.w/gGam[index].w);
+				//if (step == 1) {
+				//	// gamma at time n+1 (gGam.w is gamma at time n)
+				//	const float gamN = gGam[index].w;
+				//	const float gamNp1 = gamN + dt*contupd[index].y;
+				//	//if (id(pinfo) == 31350062)
+				//	// previously estimated gamNp1 (now gamN)
+				//	const float gamNest = oldgGam[index].w;
+				//	if (gamNest > 0.05f)
+				//		vel.w *= gamNest/gamN;
+				//	vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+				//	//if (id(pinfo) == 1690)
+				//	//	printf("gamNp1/2: %e | gamN: %e | old: %e | rho: %e\n", gamNp1, gamN, oldgGam[index].w, vel.w);
+				//}
+				//else {
+				//	const float gamNp1o2 = gGam[index].w;
+				//	const float rhoNp1o2 = newVel[index].w;
+				//	// gamma at time n (gGam.w is gamma at time n+1/2)
+				//	const float gamN   = oldgGam[index].w; //gGam[index].w-dt/2.0f*contupd[index].y;
+				//	// gamma at time n+1
+				//	const float gamNp1 = gamN + dt*contupd[index].y;
+				//	vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
+				//	//if (id(pinfo) == 1690)
+				//	//	printf("gamNp1/2: %e | gamN: %e | gamNp1: %e | old: %e  | rho: %e\n", gGam[index].w, gamN, gamNp1, oldgGam[index].w, vel.w);
+				//	gGam[index].w = gamNp1;
+				//}
+				vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
+			}
+			else
+				vel.w += dt*force.w;
 			// Fixed particles only evolve the density, non-fixed also evolve the velocity
 			if (!FIXED_PART(pinfo)) {
 				vel.x += dt*force.x;
@@ -181,7 +185,7 @@ eulerDevice(
 			break;
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		case PT_BOUNDARY:
-			if (dynbounds)
+			if (boundarytype == DYN_BOUNDARY)
 				vel.w += dt*force.w;
 			// no break allowed here
 		case PT_VERTEX:
