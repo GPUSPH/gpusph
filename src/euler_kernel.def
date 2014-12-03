@@ -162,7 +162,7 @@ eulerDevice(
 			//	//	printf("gamNp1/2: %e | gamN: %e | gamNp1: %e | old: %e  | rho: %e\n", gGam[index].w, gamN, gamNp1, oldgGam[index].w, vel.w);
 			//	gGam[index].w = gamNp1;
 			//}
-			vel.w += dt*force.w + dt*contupd[index].x + dt*vel.w/gGam[index].w*contupd[index].y;
+			vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
 			// Fixed particles only evolve the density, non-fixed also evolve the velocity
 			if (!FIXED_PART(pinfo)) {
 				vel.x += dt*force.x;
