@@ -1113,14 +1113,14 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						oldEulerVel[index] = eulerVel;
 					}
 					// for solid boundaries and pressure imposed boundaries we take dk/dn = 0
-					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
+					oldTKE[index] = sumtke/alpha;
 				}
 				else if (oldEulerVel)
 					oldEulerVel[index] = make_float4(0.0f);
 				if (oldEps)
 					// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
 					// for open boundaries we have dk/dn = 0
-					oldEps[index] = fmax(sumeps/alpha, 1e-5f); // eps should never be 0
+					oldEps[index] = sumeps/alpha; // eps should never be 0
 			}
 			// velocity imposition
 			else {

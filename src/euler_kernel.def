@@ -177,7 +177,7 @@ eulerDevice(
 			// Updating k and e for k-e model
 			if (keps_dkde) {
 				const float3 dkde = keps_dkde[index];
-				const float oldK = fmax(keps_k,1e-6f);
+				const float oldK = keps_k;
 				// implicit formulations of k and e
 				keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
 				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
