@@ -990,29 +990,29 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		if (IO_BOUNDARY(info)) {
 			// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
 			if (VEL_IO(info)) {
-				eulerVel.x =	oldEulerVel[vertXidx].x +
+				eulerVel.x =   (oldEulerVel[vertXidx].x +
 								oldEulerVel[vertYidx].x +
-								oldEulerVel[vertZidx].x;
-				eulerVel.y =	oldEulerVel[vertXidx].y +
+								oldEulerVel[vertZidx].x )/3.0f;
+				eulerVel.y =   (oldEulerVel[vertXidx].y +
 								oldEulerVel[vertYidx].y +
-								oldEulerVel[vertZidx].y;
-				eulerVel.z =	oldEulerVel[vertXidx].z +
+								oldEulerVel[vertZidx].y )/3.0f;
+				eulerVel.z =   (oldEulerVel[vertXidx].z +
 								oldEulerVel[vertYidx].z +
-								oldEulerVel[vertZidx].z;
+								oldEulerVel[vertZidx].z )/3.0f;
 				if (oldTKE)
-					tke =	oldTKE[vertXidx] +
+					tke =  (oldTKE[vertXidx] +
 							oldTKE[vertYidx] +
-							oldTKE[vertZidx];
+							oldTKE[vertZidx] )/3.0f;
 				if (oldEps)
-					eps =	oldEps[vertXidx] +
+					eps =  (oldEps[vertXidx] +
 							oldEps[vertYidx] +
-							oldEps[vertZidx];
+							oldEps[vertZidx] )/3.0f;
 			}
 			// for imposed density only eulerVel.w will be required, the rest will be computed
 			else {
-				eulerVel.w =	oldEulerVel[vertXidx].w +
+				eulerVel.w =   (oldEulerVel[vertXidx].w +
 								oldEulerVel[vertYidx].w +
-								oldEulerVel[vertZidx].w;
+								oldEulerVel[vertZidx].w )/3.0f;
 			}
 		}
 
