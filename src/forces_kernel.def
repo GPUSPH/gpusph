@@ -379,7 +379,7 @@ struct sa_boundary_particle_output
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
 		gGam(make_float4(0, 0, 0, 1)),
-		minlRas(1e10),
+		minlRas(1e10f),
 		alpha(0.0f),
 		gamavg(0.0f)
 	{}
@@ -944,7 +944,7 @@ visc_boundary_part<KEPSVISC>::with
 		float utau = 0.118599857f*d_visccoeff/ndata.r_as;
 		for (int i=0; i<10; i++) {
 			// constant is equal to 1/0.41
-			y_plus = max(ndata.r_as*utau/d_visccoeff, 2.43902439);
+			y_plus = max(ndata.r_as*utau/d_visccoeff, 2.43902439f);
 			// constant is equal to 5.2*0.41+1
 			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
 		}
