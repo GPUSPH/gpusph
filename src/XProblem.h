@@ -16,8 +16,8 @@
 
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
-					GT_MOVING_BOUNDARY,
-					GT_FLOATING_BOUNDARY
+					GT_FLOATING_BODY,
+					GT_MOVING_BODY
 };
 
 enum FillType {	FT_SOLID,
