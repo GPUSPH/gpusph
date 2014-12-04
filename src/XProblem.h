@@ -8,12 +8,6 @@
 // HDF5 reader
 //#include "HDF5SphReader.h"
 
-// Specialized Objects
-//#include "Cube.h"
-//#include "Sphere.h"
-//#include "Cylinder.h"
-//#include "STLMesh.h"
-
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
 					GT_FLOATING_BODY,
@@ -56,21 +50,18 @@ class XProblem: public Problem {
 		GeometryVector m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
+		//PointVect m_vertexParts;
 
 		size_t m_numGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
 		size_t m_numPlanes;
-		//PointVect m_vertexParts;
-		/*string			inputfile;
-		PointVect		test_points;
+
+		/*
+		string			inputfile;
 		double			world_w, world_l, world_h;			// world size (i.e. incl. margins and inlet box)
 		double			box_w, box_l, box_h;	// size of the main box (excl. margins, no inlet box)
-		double			initial_water_level;			// used for initial hydrostatic filling
-		double			expected_final_water_level;		// used to set D constant
 		HDF5SphReader	h5File;
-		STLMesh		*container;
-		STLMesh		*cube;
-		dGeomID		m_box_planes[5];	// planes to model the main tank*/
+		*/
 
 		// initialize ODE
 		void initializeODE();
