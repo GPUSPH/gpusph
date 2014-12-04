@@ -41,10 +41,10 @@ class Plane: public Object {
 		/// \name Constructors and destructor
 		//@{
 		Plane(const double a, const double b, const double c, const double d);
-		virtual ~Plane() {};
+		~Plane() {};
 		//@}
 
-		double Volume(const double dx);
+		double Volume(const double dx) const { return 0.0; }
 		void SetInertia(const double dx);
 
 		/// \name Filling functions
@@ -53,7 +53,7 @@ class Plane: public Object {
 		int Fill(PointVect& points, const double dx, const bool fill);
 		void FillIn(PointVect& points, const double dx, const int layers);
 
-		bool IsInside(const Point& p, const double dx);
+		bool IsInside(const Point& p, const double dx) const;
 		void setEulerParameters(const EulerParameters &ep);
 
 		// getters

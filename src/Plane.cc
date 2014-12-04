@@ -55,7 +55,7 @@ void Plane::FillIn(PointVect& points, const double dx, const int layers)
 	printf("WARNING: FillIn not implemented for planes!\n");
 }
 
-bool Plane::IsInside(const Point& p, const double dx)
+bool Plane::IsInside(const Point& p, const double dx) const
 {
 	const double distance = (m_a * p(0) + m_b * p(1) + m_c * p(2) + m_d) / m_norm;
 	return distance > -dx;
