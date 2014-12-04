@@ -29,7 +29,9 @@
 #define _SIMPARAMS_H
 
 #include <vector>
+#include <stdexcept>
 #include "Point.h"
+#include "deprecation.h"
 
 typedef struct MbCallBack {
 	short			type;
@@ -51,29 +53,21 @@ typedef std::vector<double3> GageList;
 typedef struct SimParams {
 	double			sfactor;				// smoothing factor
 	double			slength;				// smoothing length (smoothing factor * deltap)
-	KernelType		kerneltype;				// kernel type
 	double			kernelradius;			// kernel radius
 	double			influenceRadius;		// influence radius ( = kernelradius * slength)
 	double			nlInfluenceRadius;		// extended radius ( = influence radius * nlexpansionfactor)
 	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;						// initial timestep
 	double			tend;					// simulation end time (0 means run forever)
-	bool			xsph;					// true if XSPH correction
-	bool			dtadapt;				// true if adaptive timestep
 	float			dtadaptfactor;			// safety factor in the adaptive time step formula
 	uint			buildneibsfreq;			// frequency (in iterations) of neib list rebuilding
 	uint			shepardfreq;			// frequency (in iterations) of Shepard density filter
 	uint			mlsfreq;				// frequency (in iterations) of MLS density filter
 	float			ferrari;				// coefficient for Ferrari correction
 	float			ferrariLengthScale;		// length scale for Ferrari correction
-	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
 	bool			mbcallback;				// true if moving boundary velocity varies
 	bool			gcallback;				// true if using a variable gravity in problem
-	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	double			nlexpansionfactor;		// increase influcenradius by nlexpansionfactor for neib list construction
-	bool			usedem;					// true if using a DEM
-	SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
-	BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
 	bool			vorticity;				// true if we want to save vorticity
 	bool			testpoints;				// true if we want to find velocity at testpoints
 	bool			csvtestpoints;			// true to dump the testpoints also in CSV files
@@ -86,38 +80,41 @@ typedef struct SimParams {
 	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	bool			calcPrivate;			// add the private array for debugging / additional calculation
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
+	uint			numObjects;				// number of ODE objects + open boundaries
+
+	// Options that are set via SimFramework.
+	// TODO FIXME mark deprecated, prevent overwrite from users
+	KernelType		kerneltype;				// kernel type
+	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
+	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
+	SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
+	BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
+	bool			xsph;					// true if XSPH correction
+	bool			dtadapt;				// true if adaptive timestep
+	bool			usedem;					// true if using a DEM
 	bool			movingBoundaries;		// defines if moving boundaries are present
 	bool			floatingObjects;		// defines if floating objects are present
 	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
 	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows
-	uint			numObjects;				// number of ODE objects + open boundaries
 
 	SimParams(void) :
 		sfactor(1.3f),
 		slength(0),
-		kerneltype(WENDLAND),
 		kernelradius(2.0f),
 		influenceRadius(0),
 		nlInfluenceRadius(0),
 		nlSqInfluenceRadius(0),
 		dt(0),
 		tend(0),
-		xsph(false),
-		dtadapt(true),
 		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
 		shepardfreq(0),
 		mlsfreq(0),
 		ferrari(NAN),
 		ferrariLengthScale(NAN),
-		visctype(ARTVISC),
 		mbcallback(false),
 		gcallback(false),
-		periodicbound(PERIODIC_NONE),
 		nlexpansionfactor(1.0f),
-		usedem(false),
-		sph_formulation(SPH_F1),
-		boundarytype(LJ_BOUNDARY),
 		vorticity(false),
 		testpoints(false),
 		csvtestpoints(false),
@@ -129,11 +126,20 @@ typedef struct SimParams {
 		maxneibsnum(0),
 		calcPrivate(false),
 		epsilon(5e-5f),
+		numObjects(0),
+
+		kerneltype(WENDLAND),
+		visctype(ARTVISC),
+		periodicbound(PERIODIC_NONE),
+		sph_formulation(SPH_F1),
+		boundarytype(LJ_BOUNDARY),
+		xsph(false),
+		dtadapt(true),
+		usedem(false),
 		movingBoundaries(false),
 		floatingObjects(false),
 		inoutBoundaries(false),
-		ioWaterdepthComputation(false),
-		numObjects(0)
+		ioWaterdepthComputation(false)
 	{};
 
 	inline double
@@ -147,17 +153,28 @@ typedef struct SimParams {
 		return slength;
 	}
 
+	// DEPRECATED, use set_kernel_radius instead
 	inline double
-	set_kernel(KernelType kernel, double radius=0)
+	set_kernel(KernelType kernel, double radius=0) DEPRECATED
 	{
+		if (kernel != kerneltype)
+			throw std::runtime_error("cannot change kernel type this way anymore");
 		kerneltype = kernel;
 		// TODO currently all our kernels have radius 2,
 		// remember to adjust this when we have kernels
 		// with different radii
-		kernelradius = radius ? radius : 2.0;
+		set_kernel_radius(radius ? radius : 2.0);
 
 		return set_influenceradius();
 	}
+
+	inline void
+	set_kernel_radius(double radius)
+	{
+		kernelradius = radius;
+		set_influenceradius();
+	}
+
 
 	// internal: update the influence radius et al
 	inline double

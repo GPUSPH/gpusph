@@ -71,7 +71,7 @@ template<
 	ViscosityType visctype,
 	BoundaryType boundarytype,
 	flag_t simflags>
-class CUDAForces : public AbstractForcesEngine
+class CUDAForcesEngine : public AbstractForcesEngine
 {
 	// a bunch of methods do stuff depending on whether the eulerian velocity
 	// is needed or not; since the conditions are statically determined by the

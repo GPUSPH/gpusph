@@ -23,42 +23,36 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Set of boolean aspects of the simulation, to determine if
- * any of the features is enabled (XSPH, adaptive timestep, moving
- * boundaries, inlet/outlet, DEM, Ferrari correction, etc)
- */
+#ifndef _SIMFRAMEWORK_H
+#define _SIMFRAMEWORK_H
 
-#ifndef _SIMFLAGS_H
-#define _SIMFLAGS_H
+/* The SimFramework encompasses the engines and flags of a simulation */
 
-#include "common_types.h"
+#include "neibsengine.h"
+#include "integrationengine.h"
+#include "forcesengine.h"
 
-// TODO macros to test presence of flag
+// TODO IntegrationScheme, ViscEngine, vector<PostProcessEngine>
 
-// no options
-#define ENABLE_NONE			0UL
+class SimFramework
+{
+protected:
+	AbstractNeibsEngine *m_neibsEngine;
+	AbstractIntegrationEngine *m_integrationEngine;
+	AbstractForcesEngine *m_forcesEngine;
 
-// adaptive timestepping
-#define ENABLE_DTADAPT			1UL
+	SimParams m_simparams;
+public:
+	AbstractNeibsEngine *getNeibsEngine()
+	{ return m_neibsEngine; }
+	AbstractIntegrationEngine *getIntegrationEngine()
+	{ return m_integrationEngine; }
+	AbstractForcesEngine *getForcesEngine()
+	{ return m_forcesEngine; }
 
-// XSPH
-#define ENABLE_XSPH				(ENABLE_DTADAPT << 1)
-
-// DEM
-#define ENABLE_DEM				(ENABLE_XSPH << 1)
-
-// moving boundaries/bodies
-#define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
-
-// floating objects
-#define ENABLE_FLOATING_BODIES	(ENABLE_MOVING_BODIES << 1)
-
-// inlet/outlet
-#define ENABLE_INLET_OUTLET		(ENABLE_FLOATING_BODIES << 1)
-
-// water depth computation
-#define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
-
-// TODO testpoints, rigid bodies, ferrari, planes ...
-
+	SimParams const& get_simparams() const
+	{ return m_simparams; }
+	SimParams& get_simparams()
+	{ return m_simparams; }
+};
 #endif

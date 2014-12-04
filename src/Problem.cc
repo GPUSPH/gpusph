@@ -48,6 +48,7 @@ Problem::Problem(const GlobalData *_gdata)
 {
 	gdata = _gdata;
 	m_options = gdata->clOptions;
+	m_simframework = NULL;
 	m_mbnumber = 0;
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;

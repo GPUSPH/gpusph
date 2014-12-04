@@ -109,7 +109,7 @@ void*	reduce_buffer = NULL;
 	break
 
 
-/// Methods of the CUDAForces class
+/// Methods of the CUDAForcesEngine class
 
 // Since for the time being each method needs a
 //   template<blah blah blah> [return type] class CUDAForces<blahblahblah>::
@@ -127,7 +127,7 @@ template< \
 	flag_t simflags \
 > \
 ret_type \
-CUDAForces<kerneltype, sph_formulation, visctype, boundarytype, simflags>::
+CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>::
 
 FORCES_RET(bool)
 needs_eulerVel = (boundarytype == SA_BOUNDARY &&
@@ -479,21 +479,21 @@ basicstep(
 // TODO this is until the engines are turned into header-only classes
 
 #define DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, simpars1) \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_DTADAPT | ENABLE_XSPH | ENABLE_INLET_OUTLET>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_DTADAPT | ENABLE_XSPH>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_DTADAPT | ENABLE_INLET_OUTLET>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_DTADAPT>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_XSPH | ENABLE_INLET_OUTLET>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_XSPH>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_INLET_OUTLET>; \
-	template class CUDAForces<ktype, sphform, visctype, btype, \
+	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1>;
 
 #define DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, btype) \

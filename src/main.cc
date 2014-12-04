@@ -380,6 +380,11 @@ int main(int argc, char** argv) {
 
 	// the Problem could (should?) be initialized inside GPUSPH::initialize()
 	gdata.problem = new PROBLEM(&gdata);
+	if (gdata.problem->m_simframework)
+		gdata.simframework = gdata.problem->m_simframework;
+	else
+		throw invalid_argument("no simulation framework defined in the problem!");
+
 
 	// get - and actually instantiate - the existing instance of GPUSPH
 	GPUSPH *Simulator = GPUSPH::getInstance();

@@ -180,6 +180,8 @@ struct GlobalData {
 
 	Problem* problem;
 
+	SimFramework *simframework;
+
 	Options* clOptions;
 
 	Synchronizer* threadSynchronizer;
@@ -333,6 +335,7 @@ struct GlobalData {
 		mpi_rank(-1),
 		totDevices(0),
 		problem(NULL),
+		simframework(NULL),
 		clOptions(NULL),
 		threadSynchronizer(NULL),
 		networkManager(NULL),

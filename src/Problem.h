@@ -45,6 +45,7 @@
 #include "vector_math.h"
 #include "Object.h"
 #include "buffer.h"
+#include "simframework.h"
 
 #include "deprecation.h"
 
@@ -100,8 +101,11 @@ class Problem {
 
 		const GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
-		SimParams	m_simparams;
-		PhysParams	m_physparams;
+
+		SimFramework		*m_simframework;			// simulation framework
+		SimParams	m_simparams; // TODO FIXME should become a pointer to the one in the simframework
+		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams
+
 		MbCallBack	m_mbcallbackdata[MAXMOVINGBOUND];	// array of structure for moving boundary data
 		int			m_mbnumber;							// number of moving boundaries
 
@@ -191,10 +195,18 @@ class Problem {
 			return m_simparams.set_smoothing(smooth, m_deltap);
 		}
 
+IGNORE_WARNINGS(deprecated-declarations)
 		/* set kernel type and radius */
-		double set_kernel(KernelType kernel, double radius=0)
+		// DEPRECATED, use set_kernel_radius instead
+		double set_kernel(KernelType kernel, double radius=0) DEPRECATED
 		{
 			return m_simparams.set_kernel(kernel, radius);
+		}
+RESTORE_WARNINGS
+
+		void set_kernel_radius(double radius)
+		{
+			m_simparams.set_kernel_radius(radius);
 		}
 
 		void set_grid_params(void);

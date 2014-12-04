@@ -29,9 +29,7 @@
 #include <float.h>
 
 #include "GPUWorker.h"
-#include "buildneibs.cuh"
 #include "forces.cuh"
-#include "euler.cuh"
 #include "Problem.h"
 
 #include "cudabuffer.h"
@@ -128,162 +126,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 	if (m_simparams->calcPrivate)
 		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
 
-#define NEIBSENGINE_CASE(btype, periodic) \
-	case periodic: \
-		neibsEngine = new CUDANeibsEngine<btype, periodic, true>(); \
-		break;
+	neibsEngine = gdata->simframework->getNeibsEngine();
+	integrationEngine = gdata->simframework->getIntegrationEngine();
+	forcesEngine = gdata->simframework->getForcesEngine();
 
-#define NEIBSENGINE_SWITCH(btype) \
-	switch (m_simparams->periodicbound) { \
-		NEIBSENGINE_CASE(btype, PERIODIC_NONE); \
-		NEIBSENGINE_CASE(btype, PERIODIC_X); \
-		NEIBSENGINE_CASE(btype, PERIODIC_Y); \
-		NEIBSENGINE_CASE(btype, PERIODIC_XY); \
-		NEIBSENGINE_CASE(btype, PERIODIC_Z); \
-		NEIBSENGINE_CASE(btype, PERIODIC_XZ); \
-		NEIBSENGINE_CASE(btype, PERIODIC_YZ); \
-		NEIBSENGINE_CASE(btype, PERIODIC_XYZ); \
-	}
-
-#define INTEGRATIONENGINE_CASE(btype) \
-	if (m_simparams->xsph) \
-		integrationEngine = new CUDAPredCorrEngine<btype, true>(); \
-	else \
-		integrationEngine = new CUDAPredCorrEngine<btype, false>();
-
-// the CUDA forces engine depends on kerneltype, sph formulation,
-// boundarytype, visctype, and a simflag that is an OR of
-// ENABLE_DTADAPT, ENABLE_XSPH, ENABLE_INLET_OUTLET,
-// ENABLE_DEM, ENABLE_MOVING_BOUNDARIES, ENABLE_WATER_DEPTH
-
-#define FORCES_SIMPAR2(btype, kernel, form, visc, simpar1) \
-	if (m_simparams->dtadapt) { \
-		if (m_simparams->xsph) { \
-			if (m_simparams->inoutBoundaries) \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_DTADAPT | ENABLE_XSPH | ENABLE_INLET_OUTLET>(); \
-			else \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_DTADAPT | ENABLE_XSPH>(); \
-		} else { \
-			if (m_simparams->inoutBoundaries) \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_DTADAPT | ENABLE_INLET_OUTLET>(); \
-			else \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_DTADAPT>(); \
-		} \
-	} else { \
-		if (m_simparams->xsph) { \
-			if (m_simparams->inoutBoundaries) \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_XSPH | ENABLE_INLET_OUTLET>(); \
-			else \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_XSPH>(); \
-		} else { \
-			if (m_simparams->inoutBoundaries) \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1 | ENABLE_INLET_OUTLET>(); \
-			else \
-				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
-					simpar1>(); \
-		} \
-	}
-
-#define FORCES_SIMPAR1(btype, kernel, form, visc) \
-	if (m_simparams->usedem) { \
-		if (m_simparams->movingBoundaries) { \
-			if (m_simparams->ioWaterdepthComputation) \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_DEM | ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH) \
-			else \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_DEM | ENABLE_MOVING_BODIES) \
-		} else { \
-			if (m_simparams->ioWaterdepthComputation) \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_DEM | ENABLE_WATER_DEPTH) \
-			else \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_DEM) \
-		} \
-	} else { \
-		if (m_simparams->movingBoundaries) { \
-			if (m_simparams->ioWaterdepthComputation) \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH) \
-			else \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_MOVING_BODIES) \
-		} else { \
-			if (m_simparams->ioWaterdepthComputation) \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_WATER_DEPTH) \
-			else \
-				FORCES_SIMPAR2(btype, kernel, form, visc, \
-					ENABLE_NONE) \
-		} \
-	}
-
-
-#define FORCES_VISC_CASE(btype, kernel, form, visc) \
-	case visc: \
-		FORCES_SIMPAR1(btype, kernel, form, visc) \
-		break
-
-
-#define FORCES_VISC_SWITCH(btype, kernel, form) \
-	switch (m_simparams->visctype) { \
-		FORCES_VISC_CASE(btype, kernel, form, ARTVISC); \
-		FORCES_VISC_CASE(btype, kernel, form, KINEMATICVISC); \
-		FORCES_VISC_CASE(btype, kernel, form, DYNAMICVISC); \
-		FORCES_VISC_CASE(btype, kernel, form, SPSVISC); \
-		FORCES_VISC_CASE(btype, kernel, form, KEPSVISC); \
-	}
-
-#define FORCES_FORMULATION_CASE(btype, kernel, form) \
-	case form: \
-		FORCES_VISC_SWITCH(btype, kernel, form) \
-		break
-
-#define FORCES_FORMULATION_SWITCH(btype, kernel) \
-	switch (m_simparams->sph_formulation) { \
-		FORCES_FORMULATION_CASE(btype, kernel, SPH_F1); \
-		FORCES_FORMULATION_CASE(btype, kernel, SPH_F2); \
-	}
-
-#define FORCES_KERNEL_CASE(btype, kernel) \
-	case kernel: \
-		FORCES_FORMULATION_SWITCH(btype, kernel) \
-		break
-
-#define FORCES_KERNEL_SWITCH(btype) \
-	switch (m_simparams->kerneltype) { \
-		/* \
-		FORCES_KERNEL_CASE(btype, CUBICSPLINE); \
-		FORCES_KERNEL_CASE(btype, QUADRATIC); \
-		*/ \
-		FORCES_KERNEL_CASE(btype, WENDLAND); \
-	}
-
-#define ENGINE_CASE(btype) \
-	case btype: \
-		INTEGRATIONENGINE_CASE(btype) \
-		NEIBSENGINE_SWITCH(btype) \
-		FORCES_KERNEL_SWITCH(btype) \
-		break;
-
-	// TODO set forcesEngine
-
-	switch (m_simparams->boundarytype) {
-	ENGINE_CASE(LJ_BOUNDARY)
-	ENGINE_CASE(MK_BOUNDARY)
-	ENGINE_CASE(DYN_BOUNDARY)
-	ENGINE_CASE(SA_BOUNDARY)
-	default:
-		throw runtime_error("WTF BOUNDARY");
-	}
 }
 
 GPUWorker::~GPUWorker() {
