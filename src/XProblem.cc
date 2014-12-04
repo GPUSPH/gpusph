@@ -181,6 +181,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
+	m_numGeometries++;
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
@@ -251,6 +252,10 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 void XProblem::deleteGeometry(const GeometryID gid)
 {
 	m_geometries[gid]->enabled = false;
+
+	// and this is the reason why m_numGeometries not be used to iterate on m_geometries:
+	m_numGeometries--;
+
 	// TODO: remove from other arrays/counters? (e.g. ODE objs)
 	// TODO: print a warning if deletion is requested after fill_parts
 }

@@ -54,6 +54,7 @@ class XProblem: public Problem {
 		GeometryVector m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
+		size_t m_numGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		//PointVect m_vertexParts;
 		/*string			inputfile;
 		PointVect		test_points;
