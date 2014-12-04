@@ -116,8 +116,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 
-	m_physparams.r0 = m_deltap;
 	set_deltap(0.05f);
+	m_physparams.r0 = m_deltap;
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
