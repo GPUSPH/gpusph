@@ -56,6 +56,13 @@ class Plane: public Object {
 		bool IsInside(const Point& p, const double dx);
 		void setEulerParameters(const EulerParameters &ep);
 
+		// getters
+		double getA() { return m_a; }
+		double getB() { return m_b; }
+		double getC() { return m_c; }
+		double getD() { return m_d; }
+		double getNorm() { return m_norm; }
+
 		/// \name ODE related  functions
 		//@{
 		void ODEBodyCreate(dWorldID world, const double dx, dSpaceID ODESpace);
