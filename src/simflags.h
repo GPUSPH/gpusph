@@ -1,4 +1,4 @@
-/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2014 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,40 +23,37 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Common types used throughout GPUSPH */
+/* Set of boolean aspects of the simulation, to determine if
+ * any of the features is enabled (XSPH, adaptive timestep, moving
+ * boundaries, inlet/outlet, DEM, Ferrari correction, etc)
+ */
 
-#ifndef _COMMON_TYPES_H
-#define _COMMON_TYPES_H
+#ifndef _SIMFLAGS_H
+#define _SIMFLAGS_H
 
-// uint64_t et similia
-#include <stdint.h>
-// size_t
-#include <stddef.h>
+#include "common_types.h"
 
-// define uint, uchar, ulong
-typedef unsigned long ulong; // only used in timing
-typedef unsigned int uint;
-typedef unsigned short ushort;
-typedef unsigned char uchar;
+// no options
+#define ENABLE_NONE			0UL
 
-// neighbor data
-typedef unsigned short neibdata;
+// adaptive timestepping
+#define ENABLE_DTADAPT			1UL
 
-// type for index that iterates on the neighbor list
-typedef size_t idx_t;
+// XSPH
+#define ENABLE_XSPH				(ENABLE_DTADAPT << 1)
 
-// vertex info
-typedef uint4 vertexinfo;
-#define make_vertexinfo make_uint4
+// DEM
+#define ENABLE_DEM				(ENABLE_XSPH << 1)
 
-// particleinfo cum suis
-#include "particleinfo.h"
+// moving boundaries
+#define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 
-// hashKey cum suis
-#include "hashkey.h"
+// inlet/outlet
+#define ENABLE_INLET_OUTLET		(ENABLE_MOVING_BODIES << 1)
 
-// flags type
-// could be made an uint_fast64_t if we were concerned about performance,
-typedef uint64_t flag_t;
+// water depth computation
+#define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
+
+// TODO testpoints, rigid bodies, ferrari, ...
 
 #endif

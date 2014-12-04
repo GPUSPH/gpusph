@@ -42,6 +42,7 @@
 
 #include "neibsengine.h"
 #include "integrationengine.h"
+#include "forcesengine.h"
 
 // buffers and buffer lists
 #include "buffer.h"
@@ -59,6 +60,7 @@ private:
 
 	AbstractNeibsEngine *neibsEngine;
 	AbstractIntegrationEngine *integrationEngine;
+	AbstractForcesEngine *forcesEngine;
 
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;

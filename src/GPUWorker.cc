@@ -151,11 +151,130 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 	else \
 		integrationEngine = new CUDAPredCorrEngine<btype, false>();
 
+// the CUDA forces engine depends on kerneltype, sph formulation,
+// boundarytype, visctype, and a simflag that is an OR of
+// ENABLE_DTADAPT, ENABLE_XSPH, ENABLE_INLET_OUTLET,
+// ENABLE_DEM, ENABLE_MOVING_BOUNDARIES, ENABLE_WATER_DEPTH
+
+#define FORCES_SIMPAR2(btype, kernel, form, visc, simpar1) \
+	if (m_simparams->dtadapt) { \
+		if (m_simparams->xsph) { \
+			if (m_simparams->inoutBoundaries) \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_DTADAPT | ENABLE_XSPH | ENABLE_INLET_OUTLET>(); \
+			else \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_DTADAPT | ENABLE_XSPH>(); \
+		} else { \
+			if (m_simparams->inoutBoundaries) \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_DTADAPT | ENABLE_INLET_OUTLET>(); \
+			else \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_DTADAPT>(); \
+		} \
+	} else { \
+		if (m_simparams->xsph) { \
+			if (m_simparams->inoutBoundaries) \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_XSPH | ENABLE_INLET_OUTLET>(); \
+			else \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_XSPH>(); \
+		} else { \
+			if (m_simparams->inoutBoundaries) \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1 | ENABLE_INLET_OUTLET>(); \
+			else \
+				forcesEngine = new CUDAForces<kernel, form, visc, btype, \
+					simpar1>(); \
+		} \
+	}
+
+#define FORCES_SIMPAR1(btype, kernel, form, visc) \
+	if (m_simparams->usedem) { \
+		if (m_simparams->movingBoundaries) { \
+			if (m_simparams->ioWaterdepthComputation) \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_DEM | ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH) \
+			else \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_DEM | ENABLE_MOVING_BODIES) \
+		} else { \
+			if (m_simparams->ioWaterdepthComputation) \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_DEM | ENABLE_WATER_DEPTH) \
+			else \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_DEM) \
+		} \
+	} else { \
+		if (m_simparams->movingBoundaries) { \
+			if (m_simparams->ioWaterdepthComputation) \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH) \
+			else \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_MOVING_BODIES) \
+		} else { \
+			if (m_simparams->ioWaterdepthComputation) \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_WATER_DEPTH) \
+			else \
+				FORCES_SIMPAR2(btype, kernel, form, visc, \
+					ENABLE_NONE) \
+		} \
+	}
+
+
+#define FORCES_VISC_CASE(btype, kernel, form, visc) \
+	case visc: \
+		FORCES_SIMPAR1(btype, kernel, form, visc) \
+		break
+
+
+#define FORCES_VISC_SWITCH(btype, kernel, form) \
+	switch (m_simparams->visctype) { \
+		FORCES_VISC_CASE(btype, kernel, form, ARTVISC); \
+		FORCES_VISC_CASE(btype, kernel, form, KINEMATICVISC); \
+		FORCES_VISC_CASE(btype, kernel, form, DYNAMICVISC); \
+		FORCES_VISC_CASE(btype, kernel, form, SPSVISC); \
+		FORCES_VISC_CASE(btype, kernel, form, KEPSVISC); \
+	}
+
+#define FORCES_FORMULATION_CASE(btype, kernel, form) \
+	case form: \
+		FORCES_VISC_SWITCH(btype, kernel, form) \
+		break
+
+#define FORCES_FORMULATION_SWITCH(btype, kernel) \
+	switch (m_simparams->sph_formulation) { \
+		FORCES_FORMULATION_CASE(btype, kernel, SPH_F1); \
+		FORCES_FORMULATION_CASE(btype, kernel, SPH_F2); \
+	}
+
+#define FORCES_KERNEL_CASE(btype, kernel) \
+	case kernel: \
+		FORCES_FORMULATION_SWITCH(btype, kernel) \
+		break
+
+#define FORCES_KERNEL_SWITCH(btype) \
+	switch (m_simparams->kerneltype) { \
+		/* \
+		FORCES_KERNEL_CASE(btype, CUBICSPLINE); \
+		FORCES_KERNEL_CASE(btype, QUADRATIC); \
+		*/ \
+		FORCES_KERNEL_CASE(btype, WENDLAND); \
+	}
+
 #define ENGINE_CASE(btype) \
 	case btype: \
 		INTEGRATIONENGINE_CASE(btype) \
 		NEIBSENGINE_SWITCH(btype) \
+		FORCES_KERNEL_SWITCH(btype) \
 		break;
+
+	// TODO set forcesEngine
 
 	switch (m_simparams->boundarytype) {
 	ENGINE_CASE(LJ_BOUNDARY)
@@ -978,7 +1097,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 			else
 				rbfirstindex[i] = rbfirstindex[i-1];
 		}
-		setforcesrbstart(rbfirstindex, m_simparams->numObjects);
+		forcesEngine->setrbstart(rbfirstindex, m_simparams->numObjects);
 
 		int offset = 0;
 		for (uint i = 0; i < m_simparams->numODEbodies; i++) {
@@ -1348,7 +1467,7 @@ void GPUWorker::uploadGravity()
 {
 	// check if variable gravity is enabled
 	if (m_simparams->gcallback)
-		setgravity(gdata->s_varGravity);
+		forcesEngine->setgravity(gdata->s_varGravity);
 }
 
 // upload planes (called once until planes arae constant)
@@ -1356,7 +1475,7 @@ void GPUWorker::uploadPlanes()
 {
 	// check if planes > 0 (already checked before calling?)
 	if (gdata->numPlanes > 0)
-		setplaneconstants(gdata->numPlanes, gdata->s_hPlanesDiv, gdata->s_hPlanes);
+		forcesEngine->setplanes(gdata->numPlanes, gdata->s_hPlanesDiv, gdata->s_hPlanes);
 }
 
 
@@ -1921,7 +2040,7 @@ void GPUWorker::kernel_buildNeibsList()
 // returns numBlocks as computed by forces()
 uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
 {
-	return forces(
+	return forcesEngine->basicstep(
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
 			m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
@@ -1942,17 +2061,10 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			toParticle,
 			gdata->problem->m_deltap,
 			m_simparams->slength,
-			m_simparams->dtadapt,
 			m_simparams->dtadaptfactor,
-			m_simparams->xsph,
-			m_simparams->kerneltype,
 			m_simparams->influenceRadius,
 			m_simparams->epsilon,
-			m_simparams->movingBoundaries,
-			m_simparams->inoutBoundaries,
 			m_dIOwaterdepth,
-			m_simparams->ioWaterdepthComputation,
-			m_simparams->visctype,
 			m_physparams->visccoeff,
 			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
@@ -1961,38 +2073,29 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_dBuffers.getData<BUFFER_CFL>(),
 			m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 			m_dBuffers.getData<BUFFER_CFL_TEMP>(),
-			cflOffset,
-			m_simparams->sph_formulation,
-			m_simparams->boundarytype,
-			m_simparams->usedem);
+			cflOffset);
 }
 
 // Bind the textures needed by forces kernel
 void GPUWorker::bind_textures_forces()
 {
-	forces_bind_textures(
+	forcesEngine->bind_textures(
 		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 		m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),   // eulerVel(n)
 		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-		m_numParticles,
-		m_simparams->visctype,
 		m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),	// k(n)
 		m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),	// e(n)
-		m_simparams->boundarytype
+		m_numParticles
 	);
 }
 
 // Unbind the textures needed by forces kernel
 void GPUWorker::unbind_textures_forces()
 {
-	forces_unbind_textures(
-		m_simparams->visctype,
-		m_simparams->boundarytype,
-		m_simparams->inoutBoundaries
-	);
+	forcesEngine->unbind_textures();
 }
 
 // Reduce array of maximum dt after forces, but only for adaptive timesteps
@@ -2003,10 +2106,9 @@ float GPUWorker::forces_dt_reduce()
 	if (!m_simparams->dtadapt)
 		return m_simparams->dt;
 
-	return forces_dtreduce(
+	return forcesEngine->dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
-		m_simparams->visctype,
 		m_physparams->visccoeff,
 		m_dBuffers.getData<BUFFER_CFL>(),
 		m_dBuffers.getData<BUFFER_CFL_KEPS>(),
@@ -2630,7 +2732,7 @@ void GPUWorker::uploadConstants()
 	// NOTE: visccoeff must be set before uploading the constants. This is done in GPUSPH main cycle
 
 	// Setting kernels and kernels derivative factors
-	setforcesconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+	forcesEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
@@ -2641,7 +2743,7 @@ void GPUWorker::uploadConstants()
 
 void GPUWorker::uploadBodiesCentersOfGravity()
 {
-	setforcesrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
+	forcesEngine->setrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
 	integrationEngine->setrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
 }
 

@@ -26,9 +26,8 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
-#include "particledefine.h"
-#include "physparams.h"
-#include "simparams.h"
+#include "forcesengine.h"
+#include "simflags.h"
 
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
@@ -66,103 +65,104 @@
 	#define MAX_BLOCKS_FMAX			64
 #endif
 
-
-extern "C"
+template<
+	KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	BoundaryType boundarytype,
+	flag_t simflags>
+class CUDAForces : public AbstractForcesEngine
 {
-void
-setforcesconstants(const SimParams *simaprams, const PhysParams *physparams,
-	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
-	idx_t const& allocatedParticles);
+	// a bunch of methods do stuff depending on whether the eulerian velocity
+	// is needed or not; since the conditions are statically determined by the
+	// class template parameters, let's make this a static bool
+	static bool needs_eulerVel;
 
-void
-getforcesconstants(PhysParams *physparams);
+public:
+	void
+	setconstants(const SimParams *simparams, const PhysParams *physparams,
+		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
+		idx_t const& allocatedParticles);
 
-void
-setplaneconstants(int numPlanes, const float* PlanesDiv, const float4* Planes);
+	void
+	getconstants(PhysParams *physparams);
 
-void
-setgravity(float3 const& gravity);
+	void
+	setplanes(int numPlanes, const float *planesDiv, const float4 *planes);
 
-void
-setforcesrbcg(const float3* cg, int numbodies);
+	void
+	setgravity(float3 const& gravity);
 
-void
-setforcesrbstart(const int* rbfirstindex, int numbodies);
+	void
+	setrbcg(const float3* cg, int numbodies);
 
-void
-forces_bind_textures(	const	float4	*pos,
-						const	float4	*vel,
-						const	float4	*eulerVel,
-						const	float4	*oldGGam,
-						const	float4	*boundelem,
-						const	particleinfo	*info,
-						uint	numParticles,
-						ViscosityType	visctype,
-						float	*keps_tke,
-						float	*keps_eps,
-						BoundaryType	boundarytype);
+	void
+	setrbstart(const int* rbfirstindex, int numbodies);
 
-void
-forces_unbind_textures(	ViscosityType	visctype,
-						BoundaryType	boundarytype,
-						bool			inoutBoundaries);
+	void
+	bind_textures(
+		const	float4	*pos,
+		const	float4	*vel,
+		const	float4	*eulerVel,
+		const	float4	*oldGGam,
+		const	float4	*boundelem,
+		const	particleinfo	*info,
+		const	float	*keps_tke,
+		const	float	*keps_eps,
+		uint	numParticles);
 
-float
-forces_dtreduce(	float	slength,
+	void
+	unbind_textures();
+
+	float
+	dtreduce(	float	slength,
 				float	dtadaptfactor,
-		ViscosityType	visctype,
 				float	visccoeff,
 				float	*cfl,
 				float	*cflTVisc,
 				float	*tempCfl,
 				uint	numBlocks);
 
-uint
-forces(
-	const	float4	*pos,
-	const	float2	* const vertPos[],
-	const	float4	*vel,
-			float4	*forces,
-			float2	*contupd,
-	const	float4	*oldGGam,
-			float4	*newGGam,
-	const	float4	*boundelem,
-			float4	*rbforces,
-			float4	*rbtorques,
-			float4	*xsph,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	fromParticle,
-			uint	toParticle,
-			float	deltap,
-			float	slength,
-			bool	dtadapt,
-			float	dtadaptfactor,
-			bool	xsphcorr,
-	KernelType		kerneltype,
-			float	influenceradius,
-	const	float	epsilon,
-	const	bool	movingBoundaries,
-	const	bool	inoutBoundaries,
-			uint	*IOwaterdepth,
-	const	bool	ioWaterdepthCompute,
-	ViscosityType	visctype,
-			float	visccoeff,
-			float	*turbvisc,
-			float	*keps_tke,
-			float	*keps_eps,
-			float3	*keps_dkde,
-			float	*cfl,
-			float	*cflTVisc,
-			float	*tempCfl,
-			uint	cflOffset,
-	SPHFormulation	sph_formulation,
-	BoundaryType	boundarytype,
-			bool	usedem);
+	uint
+	basicstep(
+		const	float4	*pos,
+		const	float2	* const vertPos[],
+		const	float4	*vel,
+				float4	*forces,
+				float2	*contupd,
+		const	float4	*oldGGam,
+				float4	*newGGam,
+		const	float4	*boundelem,
+				float4	*rbforces,
+				float4	*rbtorques,
+				float4	*xsph,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	fromParticle,
+				uint	toParticle,
+				float	deltap,
+				float	slength,
+				float	dtadaptfactor,
+				float	influenceradius,
+		const	float	epsilon,
+				uint	*IOwaterdepth,
+				float	visccoeff,
+				float	*turbvisc,
+				float	*keps_tke,
+				float	*keps_eps,
+				float3	*keps_dkde,
+				float	*cfl,
+				float	*cflTVisc,
+				float	*tempCfl,
+				uint	cflOffset);
 
+};
+
+extern "C"
+{
 void
 sps(		float2*			tau[],
 	const	float4	*pos,
