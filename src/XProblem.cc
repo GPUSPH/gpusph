@@ -434,6 +434,9 @@ int XProblem::fill_parts()
 			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 			add_ODE_body(m_geometries[i]->ptr);
 			bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
+		} else
+		if (m_geometries[i]->type == GT_PLANE) {
+			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 		}
 	}
 
