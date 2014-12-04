@@ -209,10 +209,8 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
 	m_numGeometries++;
-	if (geomInfo->type == GT_FLOATING_BODY) {
+	if (geomInfo->type == GT_FLOATING_BODY)
 		m_numRigidBodies++;
-		geomInfo->ptr->SetMass(m_physparams.r0, m_physparams.rho0[0]*0.5);
-	}
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
@@ -325,6 +323,16 @@ void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const dou
 		printf(" T %g, PSI %g, FI %g\n", theta, psi, phi);
 	}
 	rotateGeometry( gid, EulerParameters(psi, theta, phi) );
+}
+
+void XProblem::setMass(const GeometryID gid, const double mass)
+{
+	m_geometries[gid]->ptr->SetMass(mass);
+}
+
+void XProblem::setMassByDensity(const GeometryID gid, const double density)
+{
+	m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
 }
 
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)

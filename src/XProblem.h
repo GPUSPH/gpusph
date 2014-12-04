@@ -103,6 +103,10 @@ class XProblem: public Problem {
 		void rotateGeometry(const GeometryID gid, const dQuaternion quat);
 		void rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
+		// set mass (only meaningful for floating objects)
+		void setMass(const GeometryID gid, const double mass);
+		void setMassByDensity(const GeometryID gid, const double density);
+
 		// get informations
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
 
