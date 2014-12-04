@@ -20,7 +20,8 @@ enum GeometryType {	GT_FLUID,
 					GT_MOVING_BODY
 };
 
-enum FillType {	FT_SOLID,
+enum FillType {	FT_NOFILL,
+				FT_SOLID,
 				FT_SOLID_BORDERLESS,
 				FT_BORDER
 };

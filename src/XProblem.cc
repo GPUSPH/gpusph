@@ -404,13 +404,17 @@ int XProblem::fill_parts()
 
 		m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
 
-		if (m_geometries[i]->fill_type == FT_BORDER)
-			m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
-		else {
-			//const bool fillBorder = (m_geometries[i]->fill_type != FT_SOLID_BORDERLESS);
-			if (m_geometries[i]->fill_type == FT_SOLID_BORDERLESS)
+		switch (m_geometries[i]->fill_type) {
+			case FT_BORDER:
+				m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
+				break;
+			case FT_SOLID:
+				m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
+				break;
+			case FT_SOLID_BORDERLESS:
 				printf("WARNING: borderless not yet implemented, filling with border\n");
-			m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
+			// case FT_NOFILL: ;
+			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
 		}
 
 		// ODE stuff, anyone?
