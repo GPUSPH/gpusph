@@ -328,6 +328,11 @@ void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const dou
 	rotateGeometry( gid, EulerParameters(psi, theta, phi) );
 }
 
+const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
+{
+	return m_geometries[gid];
+}
+
 int XProblem::fill_parts()
 {
 	/* If we needed an accurate collision detection between the container and the cube (i.e.

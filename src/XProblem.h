@@ -103,6 +103,9 @@ class XProblem: public Problem {
 		void rotateGeometry(const GeometryID gid, const dQuaternion quat);
 		void rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
+		// get informations
+		const GeometryInfo* getGeometryInfo(GeometryID gid);
+
 	public:
 		XProblem(const GlobalData *);
 		~XProblem(void);
