@@ -66,6 +66,8 @@ class XProblem: public Problem {
 		STLMesh		*cube;
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
 
+		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr);
+
 	protected:
 		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
