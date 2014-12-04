@@ -158,6 +158,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.ferrariLengthScale = 1.0f;
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
+		m_simparams.maxneibsnum = 220;
 	//*************************************************************************************
 
 	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
