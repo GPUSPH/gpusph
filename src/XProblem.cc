@@ -265,6 +265,29 @@ void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
 	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
 }
 
+void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
+{
+	double psi, theta, phi;
+	// see http://goo.gl/4LQU9w
+	theta = Yrot;
+	double R11 = cos(Yrot)*cos(Zrot);
+	double R21 = cos(Yrot)* sin(Zrot);
+	double R32 = sin(Xrot)* cos(Yrot);
+	double R33 = cos(Xrot)* cos(Yrot);
+	if (cos(theta) == 0.0F) {
+		// gimbal lock
+		double R12 = sin(Xrot)*sin(Yrot)*cos(Zrot) - cos(Xrot)*sin(Zrot);
+		double R13 = cos(Xrot)*sin(Yrot)*cos(Zrot) + sin(Xrot)*sin(Zrot);
+		phi = 0;
+		psi = atan2(R12, R13);
+	} else {
+		psi = atan2( R32/cos(theta), R33/cos(theta) );
+		phi = atan2( R21/cos(theta), R11/cos(theta) );
+		printf(" T %g, PSI %g, FI %g\n", theta, psi, phi);
+	}
+	rotateGeometry( gid, EulerParameters(psi, theta, phi) );
+}
+
 int XProblem::fill_parts()
 {
 	/* If we needed an accurate collision detection between the container and the cube (i.e.

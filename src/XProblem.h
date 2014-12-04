@@ -86,6 +86,7 @@ class XProblem: public Problem {
 		// methods for rotating an existing object
 		void rotateGeometry(const GeometryID gid, const EulerParameters &ep);
 		void rotateGeometry(const GeometryID gid, const dQuaternion quat);
+		void rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
 	public:
 		XProblem(const GlobalData *);
