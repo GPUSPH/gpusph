@@ -199,13 +199,13 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 
 enum ParticleType {
 	PT_FLUID = 0,
+	PT_VERTEX,
 	PT_BOUNDARY,
 	PT_PISTON,
 	PT_PADDLE,
 	PT_GATE,
 	PT_OBJECT,
-	PT_TESTPOINT,
-	PT_VERTEX,
+	PT_TESTPOINT
 };
 
 /* The ParticleType enum is rarely used directly, since for storage its value
