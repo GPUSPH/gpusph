@@ -342,6 +342,7 @@ int XProblem::fill_parts()
 		// ignore deleted geometries
 		if (!m_geometries[i]->enabled) continue;
 
+		// set dx and recipient vector according to geometry type
 		if (m_geometries[i]->type == GT_FLUID) {
 			parts_vector = &m_fluidParts;
 			dx = m_deltap;
