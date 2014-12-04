@@ -136,22 +136,29 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_name = "XProblem";
 
 	double side = 1;
-	double radius = side / 2 - m_deltap;
-	double orig = side/2;
+	double oside = 0.2;
+	double wside = 1 - 2 * m_deltap;
+	double wlevel = 0.3 - m_deltap;
+	double orig = 0;
 
+	// container
+	addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
+
+	// water
+	orig = m_deltap;
+	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), wside, wside, wlevel);
+
+	// cube
+	orig = side/2 - oside/2;
+	GeometryID cube = addCube(GT_FIXED_BOUNDARY, FT_SOLID, Point(orig, orig, orig), oside);
+	rotateGeometry(cube, EulerParameters(0, M_PI/4, 0));
+	//rotateGeometry(cube, M_PI/4, 0, 0);
+
+	/*
 	double minor_radius = side / 8;
 	double major_radius = radius - minor_radius;
-
-	//addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, minor_radius + m_deltap), major_radius, minor_radius);
-	GeometryID gid =
-		addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig), major_radius, minor_radius);
-	rotateGeometry(gid, EulerParameters(0, M_PI/4, 0));
-
-	addSphere(GT_FLUID, FT_SOLID, Point(orig, orig, orig), minor_radius);
-
-	side = 1;
-	orig = 0;
-	addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
+	addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig), major_radius, minor_radius);
+	*/
 }
 
 void XProblem::release_memory()
