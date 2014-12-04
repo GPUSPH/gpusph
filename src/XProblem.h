@@ -17,7 +17,8 @@
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
 					GT_FLOATING_BODY,
-					GT_MOVING_BODY
+					GT_MOVING_BODY,
+					GT_PLANE
 };
 
 enum FillType {	FT_NOFILL,
@@ -58,6 +59,7 @@ class XProblem: public Problem {
 
 		size_t m_numGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
+		size_t m_numPlanes;
 		//PointVect m_vertexParts;
 		/*string			inputfile;
 		PointVect		test_points;
@@ -95,6 +97,8 @@ class XProblem: public Problem {
 			const double radius);
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double major_radius, const double minor_radius);
+		GeometryID addPlane(
+			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff);
 
 		// methods for deletin a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);
@@ -120,6 +124,9 @@ class XProblem: public Problem {
 		void initialize();
 
 		int fill_parts();
+		uint fill_planes(void);
+		void copy_planes(float4 *planes, float *planediv);
+
 		void copy_to_array(BufferList &buffers);
 		void release_memory();
 		/*

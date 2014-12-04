@@ -9,6 +9,7 @@
 #include "Cone.h"
 #include "Sphere.h"
 #include "Torus.h"
+#include "Plane.h"
 
 #include "XProblem.h"
 #include "GlobalData.h"
@@ -212,6 +213,8 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	m_numGeometries++;
 	if (geomInfo->type == GT_FLOATING_BODY)
 		m_numRigidBodies++;
+	if (geomInfo->type == GT_PLANE)
+		m_numPlanes++;
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
@@ -276,6 +279,14 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 {
 	return addGeometry(otype, ftype,
 		new Torus( origin, Vector(0, 0, 1), major_radius, minor_radius )
+	);
+}
+
+GeometryID XProblem::addPlane(
+			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff)
+{
+	return addGeometry(GT_PLANE, FT_NOFILL,
+		new Plane( a_coeff, d_coeff, c_coeff, d_coeff )
 	);
 }
 
@@ -427,6 +438,31 @@ int XProblem::fill_parts()
 	}
 
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter;
+}
+
+uint XProblem::fill_planes()
+{
+	return m_numPlanes;
+}
+
+void XProblem::copy_planes(float4 *planes, float *planediv)
+{
+	if (m_numPlanes == 0) return;
+	// look for planes
+	uint currPlaneIdx = 0;
+	// NOTE: could iterate on planes only with a map plane_index -> gid
+	for (uint gid = 0; gid < m_numGeometries; gid++) {
+
+		// not a plane?
+		if (m_geometries[gid]->type != GT_PLANE) continue;
+
+		Plane *plane = (Plane*)(m_geometries[gid]->ptr);
+
+		planes[currPlaneIdx] = make_float4( plane->getA(), plane->getB(), plane->getC(), plane->getD() );
+		planediv[currPlaneIdx] = plane->getNorm();
+
+		currPlaneIdx++;
+	}
 }
 
 void XProblem::copy_to_array(BufferList &buffers)
