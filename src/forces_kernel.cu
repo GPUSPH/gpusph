@@ -791,9 +791,9 @@ Gamma(	const	float		&slength,
 	const float4 coord1 = make_float4( j == 0, j == 1, j == 2, 0); // set the coordinate j to 1
 	const float4 coord2 = make_float4(
 		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-		-(j==1)*boundElement.z + (j == 2)*boundElement.y, // -z if j == 1, y if j == 2
-		 (j==0)*boundElement.z - (j == 2)*boundElement.x, // z if j == 0, -x if j == 2
-		-(j==0)*boundElement.y + (j == 1)*boundElement.x, // -y if j == 0, x if j == 1
+		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y, // -z if j == 1, y if j == 2
+		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
+		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x, // -y if j == 0, x if j == 1
 		0);
 
 	// relative positions of vertices with respect to the segment, normalized by h
