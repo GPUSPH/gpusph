@@ -381,6 +381,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	uint n_fparts = 0;
 	uint n_vparts = 0;
 	uint n_bparts = 0;
+	uint elaborated_parts = 0;
 
 	n_fparts = m_fluidParts.size();
 	n_bparts = m_boundaryParts.size();
@@ -408,19 +409,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
 	}
-	//j += parts.size();
-	std::cout << "Fluid part mass: " << pos[m_fluidParts.size() - 1].w << "\n";
+	elaborated_parts += n_fparts;
+	std::cout << "Fluid part mass: " << pos[elaborated_parts - 1].w << "\n";
 	std::flush(std::cout);
 
 	std::cout << "Boundary parts: " << n_bparts << "\n";
-	for (uint i = n_fparts; i < n_fparts + n_bparts; i++) {
+	for (uint i = elaborated_parts; i < elaborated_parts + n_bparts; i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		//if (eulerVel)
 		//	eulerVel[i] = make_float4(0);
 		//int specialBoundType = h5File.buf[i].KENT;
 		//info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
-		calc_localpos_and_hash(m_boundaryParts[i - n_fparts], info[i], pos[i], hash[i]);
+		calc_localpos_and_hash(m_boundaryParts[i - elaborated_parts], info[i], pos[i], hash[i]);
 		// Save the id of the first boundary particle that belongs to an ODE object
 		/*if (m_firstODEobjectPartId == 0 && specialBoundType != 0 &&  m_ODEobjectId[specialBoundType-1] != UINT_MAX)
 			m_firstODEobjectPartId = i;
@@ -449,8 +450,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		boundelm[i].z = h5File.buf[i].Normal_2;
 		boundelm[i].w = h5File.buf[i].Surface;*/
 	}
-	//j += n_bparts;
-	std::cout << "Boundary part mass: " << pos[n_fparts].w << "\n";
+	elaborated_parts += n_bparts;
+	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
+
 
 	/*std::cout << "Fluid parts: " << n_fparts << "\n";
 	for (uint i = 0; i < n_fparts; i++) {
