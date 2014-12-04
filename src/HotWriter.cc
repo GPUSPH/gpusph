@@ -34,8 +34,6 @@ bool HotWriter::need_write(double t) const {
 void HotWriter::write(uint numParts, const BufferList &buffers,
 	uint node_offset, double t, const bool testpoints) {
 
-	cout << "KAG: write()" << endl;
-
 	// generate filename with iterative integer
 	ofstream out;
 	string filename = open_data_file(out, "hot", next_filenum());

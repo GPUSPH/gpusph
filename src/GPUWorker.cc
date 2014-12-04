@@ -2737,6 +2737,8 @@ void GPUWorker::checkPartValById(const char* printID, const uint pid)
 
 void GPUWorker::uploadBodiesVelocities()
 {
+	// TODO FIXME should this be only for ODE bodies or all moving objects?
+	// compare uploadBodiesCentersOfGravity() and uploadBodiesTransRotMatrices()
 	seteulerrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numODEbodies);
 	seteulerrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numODEbodies);
 }
