@@ -88,6 +88,7 @@ typedef struct PhysParams {
 IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		partsurf(0),
+		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
