@@ -29,13 +29,18 @@ struct GeometryInfo {
 	FillType fill_type;
 
 	bool handle_collisions;
+	bool handle_dynamics;
 	bool enabled;
 
 	GeometryInfo() {
 		ptr = NULL;
+
 		type = GT_FLUID;
 		fill_type = FT_SOLID;
+
 		handle_collisions = false;
+		handle_dynamics = false;
+
 		enabled = true;
 	}
 };
