@@ -20,6 +20,10 @@ typedef std::vector<int>::size_type vsize_t;
 
 XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
+	m_numGeometries = 0;
+	m_numRigidBodies = 0;
+	m_numPlanes = 0;
+
 	/*h5File.setFilename("meshes/0.complete_sa_example.h5sph");
 
 	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
