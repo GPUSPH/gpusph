@@ -112,6 +112,9 @@ class Problem {
 
 		Problem(const GlobalData *_gdata);
 
+		// comment here
+		virtual void initialize() {};
+
 		virtual ~Problem(void);
 
 		/* a function to check if the (initial or fixed) timestep

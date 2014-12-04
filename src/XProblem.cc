@@ -170,9 +170,37 @@ void XProblem::release_memory()
 XProblem::~XProblem()
 {
 	release_memory();
-	//dSpaceDestroy(m_ODESpace);
-	//dWorldDestroy(m_ODEWorld);
-	//dCloseODE();
+	if (m_numRigidBodies)
+		cleanupODE();
+}
+
+void XProblem::initialize()
+{
+	// only init ODE if m_numRigidBodies
+	if (m_numRigidBodies > 0)
+		initializeODE();
+}
+
+void XProblem::initializeODE()
+{
+	printf("hi here, num %u\n", m_numRigidBodies);
+	allocate_ODE_bodies(m_numRigidBodies);
+	dInitODE();
+	// world setup
+	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
+	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
+	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
+	// Set gravity（x, y, z)
+	dWorldSetGravity(m_ODEWorld,
+		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);
+}
+
+void XProblem::cleanupODE()
+{
+	dJointGroupDestroy(m_ODEJointGroup);
+	dSpaceDestroy(m_ODESpace);
+	dWorldDestroy(m_ODEWorld);
+	dCloseODE();
 }
 
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr)
@@ -182,6 +210,10 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
 	m_numGeometries++;
+	if (geomInfo->type == GT_FLOATING_BODY) {
+		m_numRigidBodies++;
+		geomInfo->ptr->SetMass(m_physparams.r0, m_physparams.rho0[0]*0.5);
+	}
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
@@ -255,6 +287,9 @@ void XProblem::deleteGeometry(const GeometryID gid)
 
 	// and this is the reason why m_numGeometries not be used to iterate on m_geometries:
 	m_numGeometries--;
+
+	if (m_geometries[gid]->ptr->m_ODEBody || m_geometries[gid]->ptr->m_ODEGeom)
+		m_numRigidBodies--;
 
 	// TODO: remove from other arrays/counters? (e.g. ODE objs)
 	// TODO: print a warning if deletion is requested after fill_parts
@@ -332,6 +367,7 @@ int XProblem::fill_parts()
 	//return h5File.getNParts();
 
 	//uint particleCounter = 0;
+	uint bodies_parts_counter = 0;
 
 	for (vsize_t i = 0; i < m_geometries.size(); i++) {
 		PointVect* parts_vector = NULL;
@@ -344,6 +380,10 @@ int XProblem::fill_parts()
 		if (m_geometries[i]->type == GT_FLUID) {
 			parts_vector = &m_fluidParts;
 			dx = m_deltap;
+		} else
+		if (m_geometries[i]->type == GT_FLOATING_BODY) {
+			parts_vector = &(m_geometries[i]->ptr->GetParts());
+			dx = m_physparams.r0;
 		} else {
 			parts_vector = &m_boundaryParts;
 			dx = m_physparams.r0;
@@ -360,9 +400,16 @@ int XProblem::fill_parts()
 			m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
 		}
 
+		// ODE stuff, anyone?
+		if (m_geometries[i]->type == GT_FLOATING_BODY) {
+			m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
+			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
+			add_ODE_body(m_geometries[i]->ptr);
+			bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
+		}
 	}
 
-	return m_fluidParts.size() + m_boundaryParts.size();
+	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter;
 }
 
 void XProblem::copy_to_array(BufferList &buffers)
@@ -453,6 +500,18 @@ void XProblem::copy_to_array(BufferList &buffers)
 	elaborated_parts += n_bparts;
 	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
 
+
+	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
+		PointVect & rbparts = get_ODE_body(k)->GetParts();
+		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		for (uint i = elaborated_parts; i < elaborated_parts + rbparts.size(); i++) {
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i] = make_particleinfo(OBJECTPART, k, i - elaborated_parts);
+			calc_localpos_and_hash(rbparts[i - elaborated_parts], info[i], pos[i], hash[i]);
+		}
+		elaborated_parts += rbparts.size();
+		std::cout << ", part mass: " << pos[elaborated_parts-1].w << "\n";
+	}
 
 	/*std::cout << "Fluid parts: " << n_fparts << "\n";
 	for (uint i = 0; i < n_fparts; i++) {

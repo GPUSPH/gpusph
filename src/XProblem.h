@@ -54,7 +54,9 @@ class XProblem: public Problem {
 		GeometryVector m_geometries;
 		PointVect m_fluidParts;
 		PointVect m_boundaryParts;
+
 		size_t m_numGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
+		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
 		//PointVect m_vertexParts;
 		/*string			inputfile;
 		PointVect		test_points;
@@ -66,6 +68,11 @@ class XProblem: public Problem {
 		STLMesh		*container;
 		STLMesh		*cube;
 		dGeomID		m_box_planes[5];	// planes to model the main tank*/
+
+		// initialize ODE
+		void initializeODE();
+		// guess what
+		void cleanupODE();
 
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr);
 
@@ -99,6 +106,10 @@ class XProblem: public Problem {
 	public:
 		XProblem(const GlobalData *);
 		~XProblem(void);
+
+		// initialize world size, ODE if necessary
+		// public, since GPUSPH will call it
+		void initialize();
 
 		int fill_parts();
 		void copy_to_array(BufferList &buffers);

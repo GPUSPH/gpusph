@@ -77,6 +77,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
+	// needed for the new problem interface (compute worldorigin, init ODE)
+	problem->initialize();
+
 	// run post-construction functions
 	problem->check_dt();
 	problem->check_maxneibsnum();
