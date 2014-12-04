@@ -33,12 +33,14 @@ struct GeometryInfo {
 	FillType fill_type;
 
 	bool handle_collisions;
+	bool enabled;
 
 	GeometryInfo() {
 		ptr = NULL;
 		type = GT_FLUID;
 		fill_type = FT_SOLID;
 		handle_collisions = false;
+		enabled = true;
 	}
 };
 
@@ -82,6 +84,9 @@ class XProblem: public Problem {
 			const double radius);
 		GeometryID addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double major_radius, const double minor_radius);
+
+		// methods for deletin a geometry (actually disabling)
+		void deleteGeometry(const GeometryID gid);
 
 		// methods for rotating an existing object
 		void rotateGeometry(const GeometryID gid, const EulerParameters &ep);

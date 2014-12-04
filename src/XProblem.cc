@@ -255,6 +255,13 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 	return (m_geometries.size() - 1);
 }
 
+void XProblem::deleteGeometry(const GeometryID gid)
+{
+	m_geometries[gid]->enabled = false;
+	// TODO: remove from other arrays/counters? (e.g. ODE objs)
+	// TODO: print a warning if deletion is requested after fill_parts
+}
+
 void XProblem::rotateGeometry(const GeometryID gid, const EulerParameters &ep)
 {
 	m_geometries[gid]->ptr->setEulerParameters(ep);
@@ -331,6 +338,9 @@ int XProblem::fill_parts()
 	for (vsize_t i = 0; i < m_geometries.size(); i++) {
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
+
+		// ignore deleted geometries
+		if (!m_geometries[i]->enabled) continue;
 
 		if (m_geometries[i]->type == GT_FLUID) {
 			parts_vector = &m_fluidParts;
