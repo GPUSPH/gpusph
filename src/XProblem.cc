@@ -183,7 +183,6 @@ void XProblem::initialize()
 
 void XProblem::initializeODE()
 {
-	printf("hi here, num %u\n", m_numRigidBodies);
 	allocate_ODE_bodies(m_numRigidBodies);
 	dInitODE();
 	// world setup
