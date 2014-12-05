@@ -428,20 +428,21 @@ int XProblem::fill_parts()
 				break;
 			case FT_SOLID_BORDERLESS:
 				printf("WARNING: borderless not yet implemented, filling with border\n");
+				break;
 			// case FT_NOFILL: ;
 			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
 		}
 
-		// ODE stuff, anyone?
-		if (m_geometries[i]->type == GT_FLOATING_BODY) {
+		// create ODE body if requested
+		if (m_geometries[i]->handle_dynamics) {
 			m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
-			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 			add_ODE_body(m_geometries[i]->ptr);
 			bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
-		} else
-		if (m_geometries[i]->type == GT_PLANE) {
-			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 		}
+
+		// create ODE geometry if requested
+		if (m_geometries[i]->handle_collisions)
+			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 	}
 
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter;
