@@ -577,7 +577,11 @@ int XProblem::fill_parts()
 			dx = m_physparams.r0;
 		}
 
-		m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
+		if (m_geometries[i]->type == GT_FLUID)
+			m_geometries[i]->ptr->SetPartMass(dx, m_deltap);
+		else
+		if (m_geometries[i]->type != GT_PLANE)
+			m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
 
 		switch (m_geometries[i]->fill_type) {
 			case FT_BORDER:
