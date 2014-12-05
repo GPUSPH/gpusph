@@ -132,8 +132,6 @@ class XProblem: public Problem {
 		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 		uint max_parts(uint);
 
-		void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
-
 		void
 		setboundconstants(
 			const	PhysParams	*physparams,
