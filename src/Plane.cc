@@ -66,6 +66,26 @@ void Plane::setEulerParameters(const EulerParameters &ep)
 	throw std::runtime_error("Trying to set EulerParameters on a plane!");
 }
 
+// It is not really meaningful to GPUSPH to have a bounding box with infinities,
+// but at least it is correct...
+void Plane::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	if (m_a == 0 && m_b == 0) {
+		output_min = make_double3(INFINITY, INFINITY, m_c/m_d);
+		output_max = make_double3(INFINITY, INFINITY, m_c/m_d);
+	} else
+	if (m_a == 0 && m_c == 0) {
+		output_min = make_double3(INFINITY, m_b/m_d, INFINITY);
+		output_max = make_double3(INFINITY, m_b/m_d, INFINITY);
+	} else
+	if (m_b == 0 && m_c == 0) {
+		output_min = make_double3(m_a/m_d, INFINITY, INFINITY);
+		output_max = make_double3(m_a/m_d, INFINITY, INFINITY);
+	} else
+		output_min = make_double3(INFINITY, INFINITY, INFINITY);
+		output_max = make_double3(INFINITY, INFINITY, INFINITY);
+}
+
 void Plane::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {
 	throw std::runtime_error("Trying to instantiate an ODEBody for a plane!");

@@ -113,6 +113,7 @@ class Cube: public Object {
 		bool IsInside(const Point&, const double) const;
 
 		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(double3 &output_min, double3 &output_max);
 
 		/// \name ODE related  functions
 		//@{

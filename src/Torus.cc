@@ -87,6 +87,14 @@ void Torus::setEulerParameters(const EulerParameters &ep)
 	dQtoR(q, m_ODERot);
 }
 
+// TODO: now returning cubic container, should return minimum parallelepiped instead
+// by taking into account the EulerParameters
+void Torus::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	Point corner_origin = m_center + Point(-m_R, -m_R, -m_R);
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(m_R, 0, 0), Vector(0, m_R, 0), Vector(0, 0, m_R));
+}
 
 void
 Torus::FillBorder(PointVect& points, const double dx)

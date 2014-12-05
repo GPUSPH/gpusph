@@ -66,5 +66,6 @@ class Rect: public Object {
 		bool IsInside(const Point&, const double) const;
 
 		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(double3 &output_min, double3 &output_max);
 };
 #endif	/* _RECT_H */

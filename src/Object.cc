@@ -281,3 +281,27 @@ void Object::Unfill(PointVect& points, const double dx) const
 	points = new_points;
 }
 
+// auxiliary function for computing the bounding box
+void Object::getBoundingBoxOfCube(double3 &out_min, double3 &out_max,
+	Point &origin, Vector v1, Vector v2, Vector v3)
+{
+	// init min and max to origin
+	Point currMin = origin;
+	Point currMax = origin;
+	// compare to corners adjacent to origin
+	setMinMaxPerElement(currMin, currMax, origin + v1);
+	setMinMaxPerElement(currMin, currMax, origin + v2);
+	setMinMaxPerElement(currMin, currMax, origin + v3);
+	// compare to other corners
+	setMinMaxPerElement(currMin, currMax, origin + v1 + v2);
+	setMinMaxPerElement(currMin, currMax, origin + v1 + v3);
+	setMinMaxPerElement(currMin, currMax, origin + v2 + v3);
+	setMinMaxPerElement(currMin, currMax, origin + v1 + v2 + v3);
+	// output in double3
+	out_min.x = currMin(0);
+	out_min.y = currMin(1);
+	out_min.z = currMin(2);
+	out_max.x = currMax(0);
+	out_max.y = currMax(1);
+	out_max.z = currMax(2);
+}

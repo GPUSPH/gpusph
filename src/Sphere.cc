@@ -70,6 +70,12 @@ void Sphere::setEulerParameters(const EulerParameters &ep)
 	m_ep.ComputeRot();
 }
 
+void Sphere::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	Point corner_origin = m_center + Point(-m_r, -m_r, -m_r);
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(m_r, 0, 0), Vector(0, m_r, 0), Vector(0, 0, m_r));
+}
 
 void
 Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

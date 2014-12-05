@@ -390,6 +390,10 @@ void TopoCube::setEulerParameters(const EulerParameters &ep)
 	printf("WARNING: trying to applying a rotation to a TopoCube. Ignoring\n");
 }
 
+void TopoCube::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	getBoundingBoxOfCube(output_min, output_max, m_origin, m_vx, m_vy, m_vz );
+}
 
 void
 TopoCube::FillBorder(PointVect& points, const double dx, const int face_num, const bool fill_edges)

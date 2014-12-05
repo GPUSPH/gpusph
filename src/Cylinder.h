@@ -48,6 +48,7 @@ class Cylinder: public Object {
 		void SetInertia(const double);
 
 		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(double3 &output_min, double3 &output_max);
 
 		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
 		void ODEGeomCreate(dSpaceID, const double);

@@ -53,6 +53,10 @@ class Object {
 		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;			///< Mass of the object
 		PointVect			m_parts;		///< Particles belonging to the object
+
+		// auxiliary function for computing the bounding box
+		void getBoundingBoxOfCube(double3 &out_min, double3 &out_max,
+			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
 		dGeomID				m_ODEGeom;		///< ODE geometry ID associated with the object
@@ -181,12 +185,21 @@ class Object {
 		//@{
 		/// Set the EulerParameters
 		/*! This function sets the EulerParameters and updateds the object accordingly
-		 *  (e.g. bounding box)
 		 *	\param ep : new EulerParameters
 		 *
 		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual void setEulerParameters(const EulerParameters &ep) = 0;
+
+		/// Get the bounding box
+		/*! This function writes the bounding box of the object in the given parameters,
+		 *  taking into account also the object rotation
+		 *  \param min : minimum coodinates
+		 *  \param min : maximum coodinates
+		 *
+		 *  This function is pure virtual and then has to be defined at child level.
+		 */
+		virtual void getBoundingBox(double3 &output_min, double3 &output_max) = 0;
 };
 #endif	/* OBJECT_H */
 

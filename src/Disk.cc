@@ -113,6 +113,15 @@ void Disk::setEulerParameters(const EulerParameters &ep)
 	m_ep.ComputeRot();
 }
 
+// TODO: now returning cubic container, should return minimum parallelepiped instead
+// (of delta_p thickness, altough automatic world size will add) by using a vector radius
+void Disk::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	Point corner_origin = m_center - Vector( -m_r, -m_r, -m_r );
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, -2*m_r) );
+}
+
 void
 Disk::FillBorder(PointVect& points, const double dx)
 {

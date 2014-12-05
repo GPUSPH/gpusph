@@ -124,6 +124,12 @@ void Cylinder::setEulerParameters(const EulerParameters &ep)
 	dQtoR(q, m_ODERot);
 }
 
+void Cylinder::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	Point corner_origin = m_origin - Vector( -m_r, -m_r, 0.0 );
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, m_h) );
+}
 
 void
 Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

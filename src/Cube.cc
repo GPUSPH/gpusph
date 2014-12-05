@@ -617,6 +617,12 @@ void Cube::setEulerParameters(const EulerParameters &ep)
 	m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
 }
 
+// get the object bounding box
+void Cube::getBoundingBox(double3 &output_min, double3 &output_max)
+{
+	getBoundingBoxOfCube(output_min, output_max, m_origin,
+		m_vx, m_vy, m_vz);
+}
 
 /// Create an ODE body associated to the cube
 /* Create a cube ODE body inside a specified ODE world. If

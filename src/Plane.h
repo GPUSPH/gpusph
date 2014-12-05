@@ -55,6 +55,7 @@ class Plane: public Object {
 
 		bool IsInside(const Point& p, const double dx) const;
 		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(double3 &output_min, double3 &output_max);
 
 		// getters
 		double getA() { return m_a; }
