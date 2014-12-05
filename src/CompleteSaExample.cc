@@ -46,7 +46,6 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
 	m_simparams.movingBoundaries = true;
-	m_simparams.floatingObjects = true;
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
