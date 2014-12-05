@@ -40,8 +40,14 @@
 // UINT_MAX
 #include "limits.h"
 
-GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
-	gdata = _gdata;
+GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
+	gdata(_gdata),
+	neibsEngine(gdata->simframework->getNeibsEngine()),
+	filterEngines(gdata->simframework->getFilterEngines()),
+	integrationEngine(gdata->simframework->getIntegrationEngine()),
+	viscEngine(gdata->simframework->getViscEngine()),
+	forcesEngine(gdata->simframework->getForcesEngine())
+{
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
 
@@ -125,12 +131,6 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 
 	if (m_simparams->calcPrivate)
 		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
-
-	neibsEngine = gdata->simframework->getNeibsEngine();
-	integrationEngine = gdata->simframework->getIntegrationEngine();
-	viscEngine = gdata->simframework->getViscEngine();
-	forcesEngine = gdata->simframework->getForcesEngine();
-
 }
 
 GPUWorker::~GPUWorker() {
@@ -1635,13 +1635,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_EXTERNAL\n", deviceIndex);
 				instance->importExternalCells();
 				break;
-			case MLS:
-				if (dbg_step_printf) printf(" T %d issuing MLS\n", deviceIndex);
-				instance->kernel_mls();
-				break;
-			case SHEPARD:
-				if (dbg_step_printf) printf(" T %d issuing SHEPARD\n", deviceIndex);
-				instance->kernel_shepard();
+			case FILTER:
+				if (dbg_step_printf) printf(" T %d issuing FILTER\n", deviceIndex);
+				instance->kernel_filter();
 				break;
 			case VORTICITY:
 				if (dbg_step_printf) printf(" T %d issuing VORTICITY\n", deviceIndex);
@@ -2258,14 +2254,22 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 
 }
 
-void GPUWorker::kernel_mls()
+void GPUWorker::kernel_filter()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	mls(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+	FilterType filtertype = FilterType(gdata->extraCommandArg);
+	FilterEngineSet::const_iterator filterpair(filterEngines.find(filtertype));
+	// make sure we're going to call an instantiated filter
+	if (filterpair == filterEngines.end()) {
+		throw invalid_argument("non-existing filter invoked");
+	}
+
+	filterpair->second->process(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -2275,29 +2279,7 @@ void GPUWorker::kernel_mls()
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
-		m_simparams->kerneltype,
 		m_simparams->influenceRadius);
-}
-
-void GPUWorker::kernel_shepard()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	shepard(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
-			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-			m_dBuffers.getData<BUFFER_HASH>(),
-			m_dCellStart,
-			m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-			m_numParticles,
-			numPartsToElaborate,
-			m_simparams->slength,
-			m_simparams->kerneltype,
-			m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_vorticity()

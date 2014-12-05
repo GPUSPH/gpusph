@@ -436,28 +436,57 @@ bool GPUSPH::runSimulation() {
 
 	buildNeibList();
 
+	// Filters are run at the beginning of each iteration whose number is an exact
+	// multiple of the filter frequency. We also want to ensure that filters are run
+	// in order (from lowest-valued type to highest-valued type), so one approach would
+	// be to iterate over all filter types in order, query the filter list to see if the
+	// corresponding filter is there, query for the frequency, check the frequency, etc.
+	// This is needlessly expensive, since the frequencies are fixed before the simulation
+	// starts. Hence, we create an order list of filters to run (and their frequency)
+	// here now, and then iterate over that for each iteration
+
+	FilterFreqList enabledFilters;
+
+	{
+		// fill the enabledFilters vector by iterating over all filter types
+		// and checking if the corresponding filter is in the filter list,
+		// with a potive frequency
+		FilterEngineSet const& filters = gdata->simframework->getFilterEngines();
+		FilterEngineSet::const_iterator nofilter(filters.end());
+
+		for (FilterType filtertype = FIRST_FILTER; filtertype < INVALID_FILTER;
+			filtertype = FilterType(filtertype + 1)) {
+			FilterEngineSet::const_iterator filter(filters.find(filtertype));
+			if (filter == nofilter)
+				continue;
+			uint freq = filter->second->frequency();
+			if ( freq > 0)
+				enabledFilters.push_back(make_pair(filtertype, freq));
+		}
+	}
+
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
-		uint shepardfreq = problem->get_simparams()->shepardfreq;
-		if (shepardfreq > 0 && gdata->iterations > 0 && (gdata->iterations % shepardfreq == 0)) {
-			gdata->only_internal = true;
-			doCommand(SHEPARD);
-			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-			gdata->swapDeviceBuffers(BUFFER_VEL);
-		}
-
-		uint mlsfreq = problem->get_simparams()->mlsfreq;
-		if (mlsfreq > 0 && gdata->iterations > 0 && (gdata->iterations % mlsfreq == 0)) {
-			gdata->only_internal = true;
-			doCommand(MLS);
-			// update before swapping, since UPDATE_EXTERNAL works on write buffers
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-			gdata->swapDeviceBuffers(BUFFER_VEL);
+		// run enabled filters
+		if (gdata->iterations > 0) {
+			FilterFreqList::const_iterator flt(enabledFilters.begin());
+			FilterFreqList::const_iterator flt_end(enabledFilters.end());
+			while (flt != flt_end) {
+				FilterType filter = flt->first;
+				uint freq = flt->second; // known to be > 0
+				if (gdata->iterations % freq == 0) {
+					gdata->only_internal = true;
+					gdata->extraCommandArg = float(filter);
+					doCommand(FILTER);
+					// update before swapping, since UPDATE_EXTERNAL works on write buffers
+					if (MULTI_DEVICE)
+						doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
+					gdata->swapDeviceBuffers(BUFFER_VEL);
+				}
+				++flt;
+			}
 		}
 
 		//			//(init bodies)

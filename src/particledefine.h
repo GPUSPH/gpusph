@@ -162,6 +162,28 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 #endif
 ;
 
+/* Density filters */
+// we define FIRST and INVALID filters to make iterating over all filters easier
+enum FilterType {
+	FIRST_FILTER = 0,
+	SHEPARD_FILTER = FIRST_FILTER,
+	MLS_FILTER,
+	INVALID_FILTER
+};
+
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char *FilterName[MLS_FILTER+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Shepard",
+	"MLS"
+	"(invalid)"
+}
+#endif
+;
+
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
 

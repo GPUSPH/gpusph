@@ -41,6 +41,7 @@
 #include "simparams.h"
 
 #include "neibsengine.h"
+#include "filterengine.h"
 #include "integrationengine.h"
 #include "viscengine.h"
 #include "forcesengine.h"
@@ -55,14 +56,16 @@
 // Only the methods which need to be called by GPUSPH are declared public.
 class GPUWorker {
 private:
-	pthread_t pthread_id;
-	static void* simulationThread(void *ptr);
 	GlobalData* gdata;
 
 	AbstractNeibsEngine *neibsEngine;
-	AbstractIntegrationEngine *integrationEngine;
+	FilterEngineSet const& filterEngines;
 	AbstractViscEngine *viscEngine;
 	AbstractForcesEngine *forcesEngine;
+	AbstractIntegrationEngine *integrationEngine;
+
+	pthread_t pthread_id;
+	static void* simulationThread(void *ptr);
 
 	unsigned int m_cudaDeviceNumber;
 	devcount_t m_deviceIndex;
@@ -228,8 +231,7 @@ private:
 	void kernel_buildNeibsList();
 	void kernel_forces();
 	void kernel_euler();
-	void kernel_mls();
-	void kernel_shepard();
+	void kernel_filter();
 	void kernel_vorticity();
 	void kernel_surfaceParticles();
 	void kernel_sps();

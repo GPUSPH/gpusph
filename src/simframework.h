@@ -28,17 +28,25 @@
 
 /* The SimFramework encompasses the engines and flags of a simulation */
 
+#include <map>
+#include <vector>
+
 #include "neibsengine.h"
+#include "filterengine.h"
 #include "integrationengine.h"
 #include "viscengine.h"
 #include "forcesengine.h"
 
-// TODO IntegrationScheme, vector<PostProcessEngine>
+typedef std::map<FilterType, AbstractFilterEngine *> FilterEngineSet;
+
+// (ordered) list of filters and frequencies pairs
+typedef std::vector< std::pair<FilterType, uint> > FilterFreqList;
 
 class SimFramework
 {
 protected:
 	AbstractNeibsEngine *m_neibsEngine;
+	FilterEngineSet m_filterEngines;
 	AbstractIntegrationEngine *m_integrationEngine;
 	AbstractViscEngine *m_viscEngine;
 	AbstractForcesEngine *m_forcesEngine;
@@ -47,12 +55,19 @@ protected:
 public:
 	AbstractNeibsEngine *getNeibsEngine()
 	{ return m_neibsEngine; }
+	FilterEngineSet const& getFilterEngines() const
+	{ return m_filterEngines; }
 	AbstractIntegrationEngine *getIntegrationEngine()
 	{ return m_integrationEngine; }
 	AbstractViscEngine *getViscEngine()
 	{ return m_viscEngine; }
 	AbstractForcesEngine *getForcesEngine()
 	{ return m_forcesEngine; }
+
+	// add a filter engine, and keep the frequency in the
+	// simparams in sync
+	template<FilterType filtertype> AbstractFilterEngine*
+	addFilterEngine(int frequency);
 
 	SimParams const& get_simparams() const
 	{ return m_simparams; }

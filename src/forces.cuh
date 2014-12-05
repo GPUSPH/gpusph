@@ -28,6 +28,7 @@
 
 #include "forcesengine.h"
 #include "viscengine.h"
+#include "filterengine.h"
 #include "simflags.h"
 
 /* Important notes on block sizes:
@@ -223,37 +224,60 @@ class CUDAViscEngine : public AbstractViscEngine
 template class CUDAViscEngine<ARTVISC, WENDLAND, LJ_BOUNDARY>;
 template struct CUDAViscEngineHelper<ARTVISC, WENDLAND, LJ_BOUNDARY>;
 
+/// Preprocessing engines (Shepard, MLS)
+
+// As with the viscengine, we need a helper struct for the partial
+// specialization of process
+
+template<FilterType filtertype, KernelType kerneltype, BoundaryType boundarytype>
+struct CUDAFilterEngineHelper
+{
+	static void process(
+		const	float4	*pos,
+		const	float4	*oldVel,
+				float4	*newVel,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius);
+};
+
+template<FilterType filtertype, KernelType kerneltype, BoundaryType boundarytype>
+class CUDAFilterEngine : public AbstractFilterEngine
+{
+public:
+	CUDAFilterEngine(uint _frequency) : AbstractFilterEngine(_frequency)
+	{}
+
+	void setconstants() {} // TODO
+	void getconstants() {} // TODO
+
+	void
+	process(
+		const	float4	*pos,
+		const	float4	*oldVel,
+				float4	*newVel,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
+	{
+		CUDAFilterEngineHelper<filtertype, kerneltype, boundarytype>::process
+			(pos, oldVel, newVel, info, particleHash, cellStart, neibsList,
+			 numParticles, particleRangeEnd, slength, influenceradius);
+	}
+};
+
 extern "C"
 {
-
-void
-shepard(float4*		pos,
-		float4*		oldVel,
-		float4*		newVel,
-		particleinfo	*info,
-		hashKey*		particleHash,
-		uint*		cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		slength,
-		int			kerneltype,
-		float		influenceradius);
-
-void
-mls(float4*		pos,
-	float4*		oldVel,
-	float4*		newVel,
-	particleinfo	*info,
-	hashKey*		particleHash,
-	uint*		cellStart,
-	neibdata*	neibsList,
-	uint		numParticles,
-	uint		particleRangeEnd,
-	float		slength,
-	int			kerneltype,
-	float		influenceradius);
-
 
 void
 vorticity(	float4*		pos,

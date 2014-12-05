@@ -86,8 +86,7 @@ enum CommandType {
 	UPLOAD_NEWNUMPARTS,		// update the "newNumParts" on device with the host value
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
-	MLS,				// MLS correction
-	SHEPARD,			// SHEPARD correction
+	FILTER,				// Filters (Shepard, MLS)
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
 	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)

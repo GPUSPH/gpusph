@@ -231,8 +231,10 @@ CommonWriter::write_simparams(ostream &out)
 	out << " initial dt = " << SP->dt << endl;
 	out << " simulation end time = " << SP->tend << endl;
 	out << " neib list construction every " << SP->buildneibsfreq << " iterations" << endl;
+	/* TODO FIXME iterate over filters
 	out << " Shepard filter every " << SP->shepardfreq << " iterations" << endl;
 	out << " MLS filter every " << SP->mlsfreq << " iterations" << endl;
+	*/
 	out << " adaptive time stepping " << ED[SP->dtadapt] << endl;
 	if (SP->dtadapt)
 		out << " safety factor for adaptive time step = " << SP->dtadaptfactor << endl;

@@ -54,18 +54,6 @@ void*	reduce_buffer = NULL;
 			fprintf(stderr, #what " %s (%u) not implemented\n", what##Name[arg], arg); \
 			exit(1)
 
-#define SHEPARD_CHECK(kernel) \
-	case kernel: \
-		cuforces::shepardDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				 (pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
-	break
-
-#define MLS_CHECK(kernel) \
-	case kernel: \
-		cuforces::MlsDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
-	break
-
 #define VORT_CHECK(kernel) \
 	case kernel: \
 		cuforces::calcVortDevice<kernel><<< numBlocks, numThreads >>> \
@@ -604,23 +592,21 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 
 /// Other methods TODO will need to move elsewhere
 
-
-extern "C"
+template<KernelType kerneltype, BoundaryType boundarytype>
+struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 {
-
-void
-shepard(float4*		pos,
-		float4*		oldVel,
-		float4*		newVel,
-		particleinfo	*info,
-		hashKey*		particleHash,
-		uint*		cellStart,
-		neibdata*	neibsList,
-		uint		numParticles,
-		uint		particleRangeEnd,
-		float		slength,
-		int			kerneltype,
-		float		influenceradius)
+	static void process(
+		const	float4	*pos,
+		const	float4	*oldVel,
+				float4	*newVel,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
 {
 	int dummy_shared = 0;
 	// thread per particle
@@ -637,11 +623,9 @@ shepard(float4*		pos,
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
-	switch (kerneltype) {
-//		SHEPARD_CHECK(CUBICSPLINE);
-//		SHEPARD_CHECK(QUADRATIC);
-		SHEPARD_CHECK(WENDLAND);
-	}
+
+	cuforces::shepardDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Shepard kernel execution failed");
@@ -651,23 +635,24 @@ shepard(float4*		pos,
 	#endif
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
-
 }
+};
 
-
-void
-mls(float4*		pos,
-	float4*		oldVel,
-	float4*		newVel,
-	particleinfo	*info,
-	hashKey*		particleHash,
-	uint*		cellStart,
-	neibdata*	neibsList,
-	uint		numParticles,
-	uint		particleRangeEnd,
-	float		slength,
-	int			kerneltype,
-	float		influenceradius)
+template<KernelType kerneltype, BoundaryType boundarytype>
+struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
+{
+	static void process(
+		const	float4	*pos,
+		const	float4	*oldVel,
+				float4	*newVel,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
 {
 	int dummy_shared = 0;
 	// thread per particle
@@ -684,11 +669,9 @@ mls(float4*		pos,
 	#if (__COMPUTE__ >= 20)
 	dummy_shared = 2560;
 	#endif
-	switch (kerneltype) {
-//		MLS_CHECK(CUBICSPLINE);
-//		MLS_CHECK(QUADRATIC);
-		MLS_CHECK(WENDLAND);
-	}
+
+	cuforces::MlsDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Mls kernel execution failed");
@@ -699,6 +682,10 @@ mls(float4*		pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
+};
+
+extern "C"
+{
 
 void
 vorticity(	float4*		pos,
