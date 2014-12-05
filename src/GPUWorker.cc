@@ -2208,7 +2208,7 @@ void GPUWorker::kernel_download_iowaterdepth()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	downloadIOwaterdepth(
+	bcEngine->downloadIOwaterdepth(
 			gdata->h_IOwaterdepth[m_deviceIndex],
 			m_dIOwaterdepth,
 			m_simparams->numObjects);
@@ -2222,7 +2222,7 @@ void GPUWorker::kernel_upload_iowaterdepth()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	uploadIOwaterdepth(
+	bcEngine->uploadIOwaterdepth(
 			gdata->h_IOwaterdepth[0],
 			m_dIOwaterdepth,
 			m_simparams->numObjects);
@@ -2288,18 +2288,18 @@ void GPUWorker::kernel_vorticity()
 	if (numPartsToElaborate == 0) return;
 
 	// Calling vorticity computation kernel
-	vorticity(	m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-				m_dBuffers.getData<BUFFER_VORTICITY>(),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate,
-				m_simparams->slength,
-				m_simparams->kerneltype,
-				m_simparams->influenceRadius);
+	postprocEngine->vorticity(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_VORTICITY>(),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
+		m_dCellStart,
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_surfaceParticles()
@@ -2309,20 +2309,20 @@ void GPUWorker::kernel_surfaceParticles()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	surfaceparticle(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-					m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-					m_dBuffers.getData<BUFFER_NORMALS>(),
-					m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-					m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
-					m_dBuffers.getData<BUFFER_HASH>(),
-					m_dCellStart,
-					m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-					m_numParticles,
-					numPartsToElaborate,
-					m_simparams->slength,
-					m_simparams->kerneltype,
-					m_simparams->influenceRadius,
-					m_simparams->savenormals);
+	postprocEngine->surfaceparticle(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_NORMALS>(),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
+		m_dCellStart,
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->influenceRadius,
+		m_simparams->savenormals);
 }
 
 // TODO FIXME RENAME METHOD
@@ -2377,7 +2377,7 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
-	saSegmentBoundaryConditions(
+	bcEngine->saSegmentBoundaryConditions(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
@@ -2396,10 +2396,8 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
 				m_simparams->slength,
-				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
-				initStep,
-				m_simparams->inoutBoundaries);
+				initStep);
 }
 
 void GPUWorker::kernel_updateVertIdIndexBuffer()
@@ -2428,7 +2426,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-	saVertexBoundaryConditions(
+	bcEngine->saVertexBoundaryConditions(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
@@ -2451,7 +2449,6 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				initStep ? 0 : (firstStep ? 1 : 2),
 				gdata->problem->m_deltap,
 				m_simparams->slength,
-				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
 				gdata->newIDsOffset,
 				initStep);
@@ -2464,7 +2461,7 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	saIdentifyCornerVertices(
+	bcEngine->saIdentifyCornerVertices(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
@@ -2484,7 +2481,7 @@ void GPUWorker::kernel_saFindClosestVertex()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	saFindClosestVertex(
+	bcEngine->saFindClosestVertex(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
@@ -2503,7 +2500,7 @@ void GPUWorker::kernel_disableOutgoingParts()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	disableOutgoingParts(
+	bcEngine->disableOutgoingParts(
 				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -2518,17 +2515,18 @@ void GPUWorker::kernel_calcPrivate()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	calcPrivate(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getData<BUFFER_PRIVATE>(),
-				m_dBuffers.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-				m_simparams->slength,
-				m_simparams->influenceRadius,
-				m_numParticles,
-				numPartsToElaborate);
+	postprocEngine->calcPrivate(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_PRIVATE>(),
+		m_dBuffers.getData<BUFFER_HASH>(),
+		m_dCellStart,
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_simparams->slength,
+		m_simparams->influenceRadius,
+		m_numParticles,
+		numPartsToElaborate);
 }
 
 void GPUWorker::kernel_testpoints()
@@ -2538,19 +2536,19 @@ void GPUWorker::kernel_testpoints()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	testpoints(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
-				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
-				m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
-				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
-				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
-				m_dBuffers.getData<BUFFER_HASH>(),
-				m_dCellStart,
-				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
-				m_numParticles,
-				numPartsToElaborate,
-				m_simparams->slength,
-				m_simparams->kerneltype,
-				m_simparams->influenceRadius);
+	postprocEngine->testpoints(
+		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+		m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+		m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
+		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+		m_dBuffers.getData<BUFFER_HASH>(),
+		m_dCellStart,
+		m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		m_numParticles,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
 }
 
 void GPUWorker::uploadConstants()

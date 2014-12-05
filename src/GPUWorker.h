@@ -63,6 +63,8 @@ private:
 	AbstractViscEngine *viscEngine;
 	AbstractForcesEngine *forcesEngine;
 	AbstractIntegrationEngine *integrationEngine;
+	AbstractBoundaryConditionsEngine *bcEngine;
+	AbstractPostProcessEngine *postprocEngine;
 
 	pthread_t pthread_id;
 	static void* simulationThread(void *ptr);

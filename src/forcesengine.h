@@ -153,4 +153,182 @@ public:
 				uint	numBlocks) = 0;
 
 };
+
+/// TODO AbstractPostProcessEngine and AbstractBoundaryConditionsEngine
+/// are presently just horrible hacks to speed up the transition to header-only
+/// engine definitions
+//
+class AbstractPostProcessEngine
+{
+public:
+
+virtual void
+vorticity(	float4*		pos,
+			float4*		vel,
+			float3*		vort,
+			particleinfo*	info,
+			hashKey*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
+			uint		numParticles,
+			uint		particleRangeEnd,
+			float		slength,
+			float		influenceradius) = 0;
+
+//Testpoints
+virtual void
+testpoints(	const float4*	pos,
+			float4*			newVel,
+			float*			newTke,
+			float*			newEpsilon,
+			particleinfo*	info,
+			hashKey*		particleHash,
+			uint*			cellStart,
+			neibdata*		neibsList,
+			uint			numParticles,
+			uint			particleRangeEnd,
+			float			slength,
+			float			influenceradius) = 0;
+
+// Free surface detection
+virtual void
+surfaceparticle(	float4*		pos,
+			float4*		vel,
+		    float4*     normals,
+			particleinfo*	info,
+			particleinfo*  newInfo,
+			hashKey*		particleHash,
+			uint*		cellStart,
+			neibdata*	neibsList,
+			uint		numParticles,
+			uint		particleRangeEnd,
+			float		slength,
+			float		influenceradius,
+			bool        savenormals) = 0;
+
+// calculate a private scalar for debugging or a passive value
+virtual void
+calcPrivate(const	float4*			pos,
+			const	float4*			vel,
+			const	particleinfo*	info,
+					float*			priv,
+			const	hashKey*		particleHash,
+			const	uint*			cellStart,
+					neibdata*		neibsList,
+					float			slength,
+					float			inflRadius,
+					uint			numParticles,
+					uint			particleRangeEnd) = 0;
+};
+
+class AbstractBoundaryConditionsEngine
+{
+public:
+
+// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
+virtual void
+saSegmentBoundaryConditions(
+			float4*			oldPos,
+			float4*			oldVel,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			oldEulerVel,
+			float4*			oldGGam,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	float2	* const vertPos[],
+	const	float4*			boundelement,
+	const	particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	const	bool			initStep) = 0;
+
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+virtual void
+saVertexBoundaryConditions(
+			float4*			oldPos,
+			float4*			oldVel,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			oldGGam,
+			float4*			oldEulerVel,
+			float4*			forces,
+			float2*			contupd,
+	const	float4*			boundelement,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+			particleinfo*	info,
+			hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+			uint*			newNumParticles,
+	const	uint			particleRangeEnd,
+	const	float			dt,
+	const	int				step,
+	const	float			deltap,
+	const	float			slength,
+	const	float			influenceradius,
+	const	uint&			newIDsOffset,
+	const	bool			initStep) = 0;
+
+// disables particles that went through boundaries when open boundaries are used
+virtual void
+disableOutgoingParts(		float4*			pos,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd) = 0;
+
+// downloads the per device waterdepth from the GPU
+virtual void
+downloadIOwaterdepth(
+			uint*	h_IOwaterdepth,
+	const	uint*	d_IOwaterdepth,
+	const	uint	numObjects) = 0;
+
+// upload the global waterdepth to the GPU
+virtual void
+uploadIOwaterdepth(
+	const	uint*	h_IOwaterdepth,
+			uint*	d_IOwaterdepth,
+	const	uint	numObjects) = 0;
+
+// identifies vertices at the corners of open boundaries
+virtual void
+saIdentifyCornerVertices(
+	const	float4*			oldPos,
+	const	float4*			boundelement,
+			particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			eps) = 0;
+
+// finds the closest vertex particles for segments which have no vertices themselves that are of
+// the same object type and are no corner particles
+virtual void
+saFindClosestVertex(
+	const	float4*			oldPos,
+			particleinfo*	info,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd) = 0;
+
+};
 #endif

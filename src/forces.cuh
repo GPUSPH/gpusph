@@ -293,8 +293,16 @@ public:
 	}
 };
 
-extern "C"
+
+/// Post-processing engines
+
+// TODO FIXME post-processing should be handled by SEPARATE post-processing engines
+// For the time being, we hack everything into one to speed up our grouping of methods
+
+template<KernelType kerneltype>
+class CUDAPostProcessEngine : public AbstractPostProcessEngine
 {
+public:
 
 void
 vorticity(	float4*		pos,
@@ -307,7 +315,6 @@ vorticity(	float4*		pos,
 			uint		numParticles,
 			uint		particleRangeEnd,
 			float		slength,
-			int			kerneltype,
 			float		influenceradius);
 
 //Testpoints
@@ -323,7 +330,6 @@ testpoints(	const float4*	pos,
 			uint			numParticles,
 			uint			particleRangeEnd,
 			float			slength,
-			int				kerneltype,
 			float			influenceradius);
 
 // Free surface detection
@@ -339,24 +345,8 @@ surfaceparticle(	float4*		pos,
 			uint		numParticles,
 			uint		particleRangeEnd,
 			float		slength,
-			int			kerneltype,
 			float		influenceradius,
 			bool        savenormals);
-
-/* Reductions */
-void set_reduction_params(void* buffer, size_t blocks,
-		size_t blocksize_max, size_t shmem_max);
-void unset_reduction_params();
-
-// Compute system energy
-void calc_energy(
-			float4			*output,
-	const	float4			*pos,
-	const	float4			*vel,
-	const	particleinfo	*pinfo,
-	const	hashKey			*particleHash,
-			uint			numParticles,
-			uint			numFluids);
 
 // calculate a private scalar for debugging or a passive value
 void
@@ -371,6 +361,34 @@ calcPrivate(const	float4*			pos,
 					float			inflRadius,
 					uint			numParticles,
 					uint			particleRangeEnd);
+};
+
+/// TODO FIXME make this into a proper post-processing filter
+/// /* Reductions */
+/// void set_reduction_params(void* buffer, size_t blocks,
+/// 		size_t blocksize_max, size_t shmem_max);
+/// void unset_reduction_params();
+/// 
+/// // Compute system energy
+/// void calc_energy(
+/// 			float4			*output,
+/// 	const	float4			*pos,
+/// 	const	float4			*vel,
+/// 	const	particleinfo	*pinfo,
+/// 	const	hashKey			*particleHash,
+/// 			uint			numParticles,
+/// 			uint			numFluids);
+
+/// Boundary conditions engines
+
+// TODO FIXME at this time this is just a horrible hack to group the boundary-conditions
+// methods needed for SA, it needs a heavy-duty refactoring of course
+
+template<KernelType kerneltype, ViscosityType visctype,
+	BoundaryType boundarytype, flag_t simparam>
+class CUDABoundaryConditionsEngine : public AbstractBoundaryConditionsEngine
+{
+public:
 
 // Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 void
@@ -393,10 +411,8 @@ saSegmentBoundaryConditions(
 	const	uint			particleRangeEnd,
 	const	float			deltap,
 	const	float			slength,
-	const	int				kerneltype,
 	const	float			influenceradius,
-	const	bool			initStep,
-	const	bool			inoutBoundaries);
+	const	bool			initStep);
 
 // There is no need to use two velocity arrays (read and write) and swap them after.
 // Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
@@ -425,7 +441,6 @@ saVertexBoundaryConditions(
 	const	int				step,
 	const	float			deltap,
 	const	float			slength,
-	const	int				kerneltype,
 	const	float			influenceradius,
 	const	uint&			newIDsOffset,
 	const	bool			initStep);
@@ -480,5 +495,5 @@ saFindClosestVertex(
 	const	uint			numParticles,
 	const	uint			particleRangeEnd);
 
-}
+};
 #endif
