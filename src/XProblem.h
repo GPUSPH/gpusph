@@ -99,6 +99,12 @@ class XProblem: public Problem {
 		// method for deleting a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);
 
+		// methods to enable/disable handling of dynamics/collisions for a specific geometry
+		void enableDynamics(const GeometryID gid);
+		void enableCollisions(const GeometryID gid);
+		void disableDynamics(const GeometryID gid);
+		void disableCollisions(const GeometryID gid);
+
 		// methods for rotating an existing object
 		void rotateGeometry(const GeometryID gid, const EulerParameters &ep);
 		void rotateGeometry(const GeometryID gid, const dQuaternion quat);

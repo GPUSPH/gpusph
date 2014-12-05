@@ -375,6 +375,65 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	// TODO: print a warning if deletion is requested after fill_parts
 }
 
+void XProblem::enableDynamics(const GeometryID gid)
+{
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to enable dynamics on a deleted geometry!\n");
+		return;
+	}
+	// ensure dynamics are consistent with geometry type
+	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
+		m_geometries[gid]->type != GT_MOVING_BODY) {
+		printf("WARNING: dynamics only available for rigid bodies!\n");
+		return;
+	}
+	m_geometries[gid]->handle_dynamics = true;
+}
+
+void XProblem::enableCollisions(const GeometryID gid)
+{
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to enable collisions on a deleted geometry!\n");
+		return;
+	}
+	// ensure collisions are consistent with geometry type
+	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
+		m_geometries[gid]->type != GT_MOVING_BODY &&
+		m_geometries[gid]->type != GT_PLANE) {
+		printf("WARNING: collisions only available for rigid bodies and planes!\n");
+		return;
+	}
+	m_geometries[gid]->handle_collisions = true;
+}
+
+void XProblem::disableDynamics(const GeometryID gid)
+{
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to disable dynamics on a deleted geometry!\n");
+		return;
+	}
+	// ensure no-dynamics is consistent with geometry type
+	if (m_geometries[gid]->type == GT_FLOATING_BODY) {
+		printf("WARNING: dynamics are mandatory for floating bodies!\n");
+		return;
+	}
+	m_geometries[gid]->handle_dynamics = false;
+}
+
+void XProblem::disableCollisions(const GeometryID gid)
+{
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to disable collisions on a deleted geometry!\n");
+		return;
+	}
+	// it is possible to disable collisions for any geometry type, so no need to check it
+	m_geometries[gid]->handle_collisions = false;
+}
+
 void XProblem::rotateGeometry(const GeometryID gid, const EulerParameters &ep)
 {
 	m_geometries[gid]->ptr->setEulerParameters(ep);
