@@ -176,13 +176,13 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 
 	for (uint i = 0; i<h5File.getNParts(); i++) {
 		switch(h5File.buf[i].ParticleType) {
-			case 1: // AM-TODO call this CRIXUS_FLUID
+			case CRIXUS_FLUID:
 				n_parts++;
 				break;
-			case 2: // AM-TODO call this CRIXUS_VERTEX
+			case CRIXUS_VERTEX:
 				n_vparts++;
 				break;
-			case 3: // AM-TODO call this CRIXUS_BOUNDARY
+			case CRIXUS_BOUNDARY:
 				n_bparts++;
 				break;
 		}

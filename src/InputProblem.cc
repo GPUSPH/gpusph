@@ -363,13 +363,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 
 	for (uint i = 0; i<h5File.getNParts(); i++) {
 		switch(h5File.buf[i].ParticleType) {
-			case 1:
+			case CRIXUS_FLUID:
 				n_parts++;
 				break;
-			case 2:
+			case CRIXUS_VERTEX:
 				n_vparts++;
 				break;
-			case 3:
+			case CRIXUS_BOUNDARY:
 				n_bparts++;
 				break;
 		}
