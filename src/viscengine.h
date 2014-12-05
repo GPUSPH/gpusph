@@ -23,40 +23,36 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _SIMFRAMEWORK_H
-#define _SIMFRAMEWORK_H
+#ifndef _VISCENGINE_H
+#define _VISCENGINE_H
 
-/* The SimFramework encompasses the engines and flags of a simulation */
+/* Abstract ViscEngine base class; it simply defines the interface
+ * of the ViscEngine.
+ * ViscEngines handle the pre-computation of viscosity before the forces.
+ * (e.g. SPS, temperature- or rheology-dependent viscosity, etc)
+ */
 
-#include "neibsengine.h"
-#include "integrationengine.h"
-#include "viscengine.h"
-#include "forcesengine.h"
+#include "particledefine.h"
 
-// TODO IntegrationScheme, vector<PostProcessEngine>
-
-class SimFramework
+// TODO as usual, the API needs to be redesigned properly
+class AbstractViscEngine
 {
-protected:
-	AbstractNeibsEngine *m_neibsEngine;
-	AbstractIntegrationEngine *m_integrationEngine;
-	AbstractViscEngine *m_viscEngine;
-	AbstractForcesEngine *m_forcesEngine;
-
-	SimParams m_simparams;
 public:
-	AbstractNeibsEngine *getNeibsEngine()
-	{ return m_neibsEngine; }
-	AbstractIntegrationEngine *getIntegrationEngine()
-	{ return m_integrationEngine; }
-	AbstractViscEngine *getViscEngine()
-	{ return m_viscEngine; }
-	AbstractForcesEngine *getForcesEngine()
-	{ return m_forcesEngine; }
+	virtual void setconstants() = 0 ; // TODO
+	virtual void getconstants() = 0 ; // TODO
 
-	SimParams const& get_simparams() const
-	{ return m_simparams; }
-	SimParams& get_simparams()
-	{ return m_simparams; }
+	virtual void
+	process(float2	*tau[],
+	const	float4	*pos,
+	const	float4	*vel,
+	const	particleinfo	*info,
+	const	hashKey	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	slength,
+			float	influenceradius) = 0;
+
 };
 #endif

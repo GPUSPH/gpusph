@@ -49,6 +49,7 @@ public:
 	CUDASimFramework() {
 		m_neibsEngine = new CUDANeibsEngine<boundarytype, periodicbound, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<boundarytype, simflags & ENABLE_XSPH>();
+		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
 
 		m_simparams.kerneltype = kerneltype;

@@ -128,6 +128,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 
 	neibsEngine = gdata->simframework->getNeibsEngine();
 	integrationEngine = gdata->simframework->getIntegrationEngine();
+	viscEngine = gdata->simframework->getViscEngine();
 	forcesEngine = gdata->simframework->getForcesEngine();
 
 }
@@ -2344,6 +2345,7 @@ void GPUWorker::kernel_surfaceParticles()
 					m_simparams->savenormals);
 }
 
+// TODO FIXME RENAME METHOD
 void GPUWorker::kernel_sps()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
@@ -2351,7 +2353,7 @@ void GPUWorker::kernel_sps()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	sps(m_dBuffers.getRawPtr<BUFFER_TAU>(),
+	viscEngine->process(m_dBuffers.getRawPtr<BUFFER_TAU>(),
 		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -2361,8 +2363,6 @@ void GPUWorker::kernel_sps()
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
-		m_simparams->kerneltype,
-		m_simparams->boundarytype,
 		m_simparams->influenceRadius);
 }
 

@@ -54,16 +54,6 @@ void*	reduce_buffer = NULL;
 			fprintf(stderr, #what " %s (%u) not implemented\n", what##Name[arg], arg); \
 			exit(1)
 
-#define SPS_CHECK(kernel) \
-	case kernel: \
-		if (boundarytype == DYN_BOUNDARY) \
-		cuforces::SPSstressMatrixDevice<kernel, true><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
-		else \
-		cuforces::SPSstressMatrixDevice<kernel, false><<< numBlocks, numThreads, dummy_shared >>> \
-				(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius); \
-		break
-
 #define SHEPARD_CHECK(kernel) \
 	case kernel: \
 		cuforces::shepardDevice<kernel><<< numBlocks, numThreads, dummy_shared >>> \
@@ -537,24 +527,45 @@ DECLARE_FORCESENGINE_SPH(QUADRATIC)
 */
 DECLARE_FORCESENGINE_SPH(WENDLAND)
 
-/// Other methods TODO will need to move elsewhere
+/// CUDAViscEngine should be moved elsewhere
 
-extern "C"
-{
-
+template<ViscosityType visctype,
+	KernelType kerneltype,
+	BoundaryType boundarytype>
 void
-sps(		float2*			tau[],
+CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process(
+			float2	*tau[],
 	const	float4	*pos,
 	const	float4	*vel,
-const	particleinfo	*info,
+	const	particleinfo	*info,
 	const	hashKey	*particleHash,
 	const	uint	*cellStart,
 	const	neibdata*neibsList,
 			uint	numParticles,
 			uint	particleRangeEnd,
 			float	slength,
-		KernelType	kerneltype,
-		BoundaryType	boundarytype,
+			float	influenceradius)
+{ /* default, does nothing */ }
+
+/// Partial specialization for SPSVISC. Partial specializations
+/// redefine the whole helper struct, not just the method, since
+/// C++ does not allow partial function/method template specializations
+/// (which is why we have the Helper struct in the first place
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
+struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
+{
+	static void
+	process(float2	*tau[],
+	const	float4	*pos,
+	const	float4	*vel,
+	const	particleinfo	*info,
+	const	hashKey	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	slength,
 			float	influenceradius)
 {
 	int dummy_shared = 0;
@@ -572,12 +583,9 @@ const	particleinfo	*info,
 	dummy_shared = 2560;
 	#endif
 
-	switch (kerneltype) {
-		// SPS_CHECK(CUBICSPLINE);
-		// SPS_CHECK(QUADRATIC);
-		SPS_CHECK(WENDLAND);
-		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype);
-	}
+	cuforces::SPSstressMatrixDevice<kerneltype, boundarytype == DYN_BOUNDARY>
+		<<<numBlocks, numThreads, dummy_shared>>>
+		(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("SPS kernel execution failed");
@@ -592,7 +600,13 @@ const	particleinfo	*info,
 	CUDA_SAFE_CALL(cudaBindTexture(0, tau1Tex, tau[1], numParticles*sizeof(float2)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 }
+};
 
+/// Other methods TODO will need to move elsewhere
+
+
+extern "C"
+{
 
 void
 shepard(float4*		pos,

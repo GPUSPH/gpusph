@@ -96,7 +96,7 @@ enum CommandType {
 	IDENTIFY_CORNER_VERTICES,	// identify the vertices at a corner of an open boundary so that no parts are created there
 	FIND_CLOSEST_VERTEX,	// Finds closest vertex for boundaries that have no proper IO vertex themselves
 	DISABLE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
-	SPS,				// SPS stress matrix computation kernel
+	SPS,				// SPS stress matrix computation kernel TODO FIXME RENAME COMMAND (generic viscEngine processing)
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback

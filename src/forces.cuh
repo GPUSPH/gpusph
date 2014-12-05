@@ -27,6 +27,7 @@
 #define _FORCES_CUH_
 
 #include "forcesengine.h"
+#include "viscengine.h"
 #include "simflags.h"
 
 /* Important notes on block sizes:
@@ -161,22 +162,69 @@ public:
 
 };
 
-extern "C"
+
+/// CUDAViscEngine TODO should be moved elsewhere
+
+/// Generally, the kernel and boundary type will be passed through to the
+/// process() to call the appropriate kernels, and the main selector would be
+/// just the ViscosityType. We cannot have partial function/method template
+/// specialization, so our CUDAViscEngine actually delegates to a helper functor,
+/// which should be partially specialized as a whole class
+
+template<ViscosityType visctype,
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+struct CUDAViscEngineHelper
 {
-void
-sps(		float2*			tau[],
+	static void
+	process(float2	*tau[],
 	const	float4	*pos,
 	const	float4	*vel,
-const	particleinfo	*info,
+	const	particleinfo	*info,
 	const	hashKey	*particleHash,
 	const	uint	*cellStart,
 	const	neibdata*neibsList,
 			uint	numParticles,
 			uint	particleRangeEnd,
 			float	slength,
-		KernelType	kerneltype,
-	BoundaryType	boundarytype,
 			float	influenceradius);
+};
+
+template<ViscosityType visctype,
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+class CUDAViscEngine : public AbstractViscEngine
+{
+	// TODO when we will be in a separate namespace from forces
+	void setconstants() {}
+	void getconstants() {}
+
+	void
+	process(float2	*tau[],
+	const	float4	*pos,
+	const	float4	*vel,
+	const	particleinfo	*info,
+	const	hashKey	*particleHash,
+	const	uint	*cellStart,
+	const	neibdata*neibsList,
+			uint	numParticles,
+			uint	particleRangeEnd,
+			float	slength,
+			float	influenceradius)
+	{
+		CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process
+		(tau, pos, vel, info, particleHash, cellStart, neibsList, numParticles,
+		 particleRangeEnd, slength, influenceradius);
+	}
+
+};
+
+// TODO provisional instantiation before the header-only shift
+template class CUDAViscEngine<ARTVISC, WENDLAND, LJ_BOUNDARY>;
+template struct CUDAViscEngineHelper<ARTVISC, WENDLAND, LJ_BOUNDARY>;
+
+extern "C"
+{
 
 void
 shepard(float4*		pos,
