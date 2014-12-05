@@ -133,6 +133,9 @@ public:
 	unsetDEM();
 
 	uint
+	round_particles(uint numparts);
+
+	uint
 	basicstep(
 		const	float4	*pos,
 		const	float2	* const vertPos[],

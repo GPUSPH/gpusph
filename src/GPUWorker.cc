@@ -29,7 +29,6 @@
 #include <float.h>
 
 #include "GPUWorker.h"
-#include "forces.cuh"
 #include "Problem.h"
 
 #include "cudabuffer.h"
@@ -2055,7 +2054,7 @@ void GPUWorker::kernel_forces_async_enqueue()
 
 	// round
 	uint nonEdgingStripeSize = numPartsToElaborate - edgingStripeSize;
-	nonEdgingStripeSize = (nonEdgingStripeSize / BLOCK_SIZE_FORCES) * BLOCK_SIZE_FORCES;
+	nonEdgingStripeSize = forcesEngine->round_particles(nonEdgingStripeSize);
 	edgingStripeSize = numPartsToElaborate - nonEdgingStripeSize;
 
 	if (numPartsToElaborate > 0 ) {

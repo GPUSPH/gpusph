@@ -97,6 +97,11 @@ public:
 	virtual void
 	unsetDEM() = 0;
 
+	// Striping support: round a number of particles down to the largest multiple
+	// of the block size that is not greater than it
+	virtual uint
+	round_particles(uint numparts) = 0;
+
 	// basic forces step. returns the number of blocks launched
 	// (which is the number of blocks to launch dtreduce on
 	virtual uint

@@ -601,6 +601,12 @@ unsetDEM()
 	CUDA_SAFE_CALL(cudaFreeArray(dDem));
 }
 
+FORCES_RET(uint)
+round_particles(uint numparts)
+{
+	return (numparts/BLOCK_SIZE_FORCES)*BLOCK_SIZE_FORCES;
+}
+
 FORCES_RET(void)
 reduceRbForces(	float4	*forces,
 				float4	*torques,
