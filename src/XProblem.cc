@@ -162,6 +162,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//rotateGeometry(cube, M_PI/4, 0, 0);
 	setMassByDensity(cube, m_physparams.rho0[0]*0.5);
 
+	addPlane(0, 0, 1, 0);
+
 	/*
 	double minor_radius = side / 8;
 	double major_radius = radius - minor_radius;
