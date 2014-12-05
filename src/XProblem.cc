@@ -262,19 +262,19 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->handle_dynamics = false;
 			break;
 		case GT_FIXED_BOUNDARY:
-			geomInfo->handle_collisions = true;
+			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
 			break;
 		case GT_FLOATING_BODY:
-			geomInfo->handle_collisions = true;
+			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = true;
 			break;
 		case GT_MOVING_BODY:
-			geomInfo->handle_collisions = true;
+			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false; // optional
 			break;
 		case GT_PLANE:
-			geomInfo->handle_collisions = true;
+			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
 			break;
 	}
