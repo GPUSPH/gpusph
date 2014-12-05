@@ -154,7 +154,7 @@ void Cone::setEulerParameters(const EulerParameters &ep)
 }
 
 // TODO: here assuming the cone is right (i.e. height == length(height_vector))
-void Cone::getBoundingBox(double3 &output_min, double3 &output_max)
+void Cone::getBoundingBox(Point &output_min, Point &output_max)
 {
 	double radius = max(m_rt, m_rb);
 	Point corner_origin = m_origin - Vector( -radius, -radius, 0.0 );

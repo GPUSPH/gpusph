@@ -53,7 +53,7 @@ class Cone: public Object {
 		void SetInertia(const double);
 
 		void setEulerParameters(const EulerParameters &ep);
-		void getBoundingBox(double3 &output_min, double3 &output_max);
+		void getBoundingBox(Point &output_min, Point &output_max);
 
 		void FillBorder(PointVect& points, const double, const bool, const bool);
 		void FillBorder(PointVect& points, double dx)

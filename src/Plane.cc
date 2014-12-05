@@ -68,22 +68,22 @@ void Plane::setEulerParameters(const EulerParameters &ep)
 
 // It is not really meaningful to GPUSPH to have a bounding box with infinities,
 // but at least it is correct...
-void Plane::getBoundingBox(double3 &output_min, double3 &output_max)
+void Plane::getBoundingBox(Point &output_min, Point &output_max)
 {
 	if (m_a == 0 && m_b == 0) {
-		output_min = make_double3(INFINITY, INFINITY, m_c/m_d);
-		output_max = make_double3(INFINITY, INFINITY, m_c/m_d);
+		output_min = Point(INFINITY, INFINITY, m_c/m_d);
+		output_max = Point(INFINITY, INFINITY, m_c/m_d);
 	} else
 	if (m_a == 0 && m_c == 0) {
-		output_min = make_double3(INFINITY, m_b/m_d, INFINITY);
-		output_max = make_double3(INFINITY, m_b/m_d, INFINITY);
+		output_min = Point(INFINITY, m_b/m_d, INFINITY);
+		output_max = Point(INFINITY, m_b/m_d, INFINITY);
 	} else
 	if (m_b == 0 && m_c == 0) {
-		output_min = make_double3(m_a/m_d, INFINITY, INFINITY);
-		output_max = make_double3(m_a/m_d, INFINITY, INFINITY);
+		output_min = Point(m_a/m_d, INFINITY, INFINITY);
+		output_max = Point(m_a/m_d, INFINITY, INFINITY);
 	} else
-		output_min = make_double3(INFINITY, INFINITY, INFINITY);
-		output_max = make_double3(INFINITY, INFINITY, INFINITY);
+		output_min = Point(INFINITY, INFINITY, INFINITY);
+		output_max = Point(INFINITY, INFINITY, INFINITY);
 }
 
 void Plane::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

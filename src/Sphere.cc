@@ -70,7 +70,7 @@ void Sphere::setEulerParameters(const EulerParameters &ep)
 	m_ep.ComputeRot();
 }
 
-void Sphere::getBoundingBox(double3 &output_min, double3 &output_max)
+void Sphere::getBoundingBox(Point &output_min, Point &output_max)
 {
 	Point corner_origin = m_center + Point(-m_r, -m_r, -m_r);
 	getBoundingBoxOfCube(output_min, output_max, corner_origin,

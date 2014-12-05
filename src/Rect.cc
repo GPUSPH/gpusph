@@ -625,7 +625,7 @@ void Rect::setEulerParameters(const EulerParameters &ep)
 	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 }
 
-void Rect::getBoundingBox(double3 &output_min, double3 &output_max)
+void Rect::getBoundingBox(Point &output_min, Point &output_max)
 {
 	getBoundingBoxOfCube(output_min, output_max, m_origin,
 		m_vx, m_vy, Vector(0, 0, 0) );

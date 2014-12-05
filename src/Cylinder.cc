@@ -124,7 +124,7 @@ void Cylinder::setEulerParameters(const EulerParameters &ep)
 	dQtoR(q, m_ODERot);
 }
 
-void Cylinder::getBoundingBox(double3 &output_min, double3 &output_max)
+void Cylinder::getBoundingBox(Point &output_min, Point &output_max)
 {
 	Point corner_origin = m_origin - Vector( -m_r, -m_r, 0.0 );
 	getBoundingBoxOfCube(output_min, output_max, corner_origin,

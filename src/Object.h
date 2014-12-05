@@ -55,7 +55,7 @@ class Object {
 		PointVect			m_parts;		///< Particles belonging to the object
 
 		// auxiliary function for computing the bounding box
-		void getBoundingBoxOfCube(double3 &out_min, double3 &out_max,
+		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
 			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
@@ -199,7 +199,7 @@ class Object {
 		 *
 		 *  This function is pure virtual and then has to be defined at child level.
 		 */
-		virtual void getBoundingBox(double3 &output_min, double3 &output_max) = 0;
+		virtual void getBoundingBox(Point &output_min, Point &output_max) = 0;
 };
 #endif	/* OBJECT_H */
 

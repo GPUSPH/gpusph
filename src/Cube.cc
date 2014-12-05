@@ -618,7 +618,7 @@ void Cube::setEulerParameters(const EulerParameters &ep)
 }
 
 // get the object bounding box
-void Cube::getBoundingBox(double3 &output_min, double3 &output_max)
+void Cube::getBoundingBox(Point &output_min, Point &output_max)
 {
 	getBoundingBoxOfCube(output_min, output_max, m_origin,
 		m_vx, m_vy, m_vz);
