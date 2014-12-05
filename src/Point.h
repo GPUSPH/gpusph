@@ -137,21 +137,21 @@ typedef std::vector<Point> PointVect;
 inline void setMinMaxPerElement(Point &pmin, Point &pmax, Point a)
 {
 	for (uint elem = 0; elem < 3; elem++) {
-		pmin(elem) = min( pmin(elem), a(elem));
-		pmax(elem) = max( pmax(elem), a(elem));
+		pmin(elem) = fmin( pmin(elem), a(elem));
+		pmax(elem) = fmax( pmax(elem), a(elem));
 	}
 }
 // Writes in pmin the per-element minima
 inline void setMinPerElement(Point &pmin, Point a)
 {
 	for (uint elem = 0; elem < 3; elem++)
-		pmin(elem) = min( pmin(elem), a(elem));
+		pmin(elem) = fmin( pmin(elem), a(elem));
 }
 // Writes in pmax the per-element maxima
 inline void setMaxPerElement(Point &pmax, Point a)
 {
 	for (uint elem = 0; elem < 3; elem++)
-		pmax(elem) = max( pmax(elem), a(elem));
+		pmax(elem) = fmax( pmax(elem), a(elem));
 }
 
 #endif

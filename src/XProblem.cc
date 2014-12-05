@@ -187,8 +187,8 @@ XProblem::~XProblem()
 void XProblem::initialize()
 {
 	// compute bounding box
-	Point globalMin = Point (0, 0, 0);
-	Point globalMax = Point (0, 0, 0);
+	Point globalMin = Point (NAN, NAN, NAN);
+	Point globalMax = Point (NAN, NAN, NAN);
 	for (vsize_t i = 0; i < m_geometries.size(); i++) {
 		// ignore planes for bbox
 		if (m_geometries[i]->type == GT_PLANE)
