@@ -132,14 +132,26 @@ void make_dvector4(const Point &, dVector4);
 
 typedef std::vector<Point> PointVect;
 
-// Small utility function, useful for bbox and world size computation; writes
-// in pmin and pmax the per-element minima and maxima
+// Small utility functions, useful for bbox and world size computation
+// Writes in pmin and pmax the per-element minima and maxima
 inline void setMinMaxPerElement(Point &pmin, Point &pmax, Point a)
 {
 	for (uint elem = 0; elem < 3; elem++) {
 		pmin(elem) = min( pmin(elem), a(elem));
 		pmax(elem) = max( pmax(elem), a(elem));
 	}
+}
+// Writes in pmin the per-element minima
+inline void setMinPerElement(Point &pmin, Point a)
+{
+	for (uint elem = 0; elem < 3; elem++)
+		pmin(elem) = min( pmin(elem), a(elem));
+}
+// Writes in pmax the per-element maxima
+inline void setMaxPerElement(Point &pmax, Point a)
+{
+	for (uint elem = 0; elem < 3; elem++)
+		pmax(elem) = max( pmax(elem), a(elem));
 }
 
 #endif
