@@ -1717,6 +1717,9 @@ void GPUSPH::initializeObjectsCGs()
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
+	if (gdata->simframework->getBCEngine() == NULL)
+		throw runtime_error("no boundary conditions engine loaded");
+
 	// initially data is in read so swap to write
 	if (cFlag & INITIALIZATION_STEP) {
 		gdata->swapDeviceBuffers(BUFFER_INFO);

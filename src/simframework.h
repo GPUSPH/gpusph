@@ -51,6 +51,8 @@ protected:
 	AbstractIntegrationEngine *m_integrationEngine;
 	AbstractViscEngine *m_viscEngine;
 	AbstractForcesEngine *m_forcesEngine;
+	AbstractBoundaryConditionsEngine *m_bcEngine;
+	AbstractPostProcessEngine *m_postprocEngine; // TODO should become a List
 
 	SimParams m_simparams;
 public:
@@ -64,6 +66,10 @@ public:
 	{ return m_viscEngine; }
 	AbstractForcesEngine *getForcesEngine()
 	{ return m_forcesEngine; }
+	AbstractBoundaryConditionsEngine *getBCEngine()
+	{ return m_bcEngine; }
+	AbstractPostProcessEngine *getPostProcEngine()
+	{ return m_postprocEngine; }
 
 	// add a filter engine, and keep the frequency in the
 	// simparams in sync

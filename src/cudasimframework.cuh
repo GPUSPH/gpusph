@@ -34,7 +34,29 @@
 #include "forces.cuh"
 
 // TODO FIXME find a way to make template parameters optional / not order dependent,
-// most likely with an auxiliry (set of) constructors
+// most likely with an auxiliary (set of) constructors
+
+// Auxiliary functor to select a BoundaryConditionsEngine, currently
+// simply selects the CUDABoundaryConditionsEngine (which is only for SA) in the
+// SA_BOUNDARY case, NULL otherwise
+
+template<KernelType kerneltype, ViscosityType visctype,
+	BoundaryType boundarytype, flag_t simflags>
+struct CUDABoundaryConditionsSelector
+{
+	typedef CUDABoundaryConditionsEngine<kerneltype, visctype, boundarytype, simflags> BCEtype;
+	static BCEtype* select()
+	{ return NULL; } // default, no BCE
+};
+
+template<KernelType kerneltype, ViscosityType visctype, flag_t simflags>
+struct CUDABoundaryConditionsSelector<kerneltype, visctype, SA_BOUNDARY, simflags>
+{
+	typedef CUDABoundaryConditionsEngine<kerneltype, visctype, SA_BOUNDARY, simflags> BCEtype;
+	static BCEtype* select()
+	{ return new BCEtype(); } // TODO fix when we have proper BCEs
+};
+
 
 template<
 	KernelType kerneltype,
@@ -50,7 +72,12 @@ public:
 		m_neibsEngine = new CUDANeibsEngine<boundarytype, periodicbound, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<boundarytype, simflags & ENABLE_XSPH>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
-		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
+		m_forcesEngine = new CUDAForcesEngine
+			<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
+
+		m_bcEngine = CUDABoundaryConditionsSelector
+			<kerneltype, visctype, boundarytype, simflags>::select();
+		m_postprocEngine = NULL; // TODO
 
 		m_simparams.kerneltype = kerneltype;
 		m_simparams.sph_formulation = sph_formulation;
@@ -84,3 +111,5 @@ public:
 };
 
 #endif
+
+/* vim: set ft=cuda sw=4 ts=4 : */

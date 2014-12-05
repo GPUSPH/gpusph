@@ -43,9 +43,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	gdata(_gdata),
 	neibsEngine(gdata->simframework->getNeibsEngine()),
 	filterEngines(gdata->simframework->getFilterEngines()),
-	integrationEngine(gdata->simframework->getIntegrationEngine()),
 	viscEngine(gdata->simframework->getViscEngine()),
-	forcesEngine(gdata->simframework->getForcesEngine())
+	forcesEngine(gdata->simframework->getForcesEngine()),
+	integrationEngine(gdata->simframework->getIntegrationEngine()),
+	bcEngine(gdata->simframework->getBCEngine()),
+	postprocEngine(gdata->simframework->getPostProcEngine())
 {
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
