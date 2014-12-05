@@ -96,7 +96,7 @@ class XProblem: public Problem {
 		GeometryID addPlane(
 			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff);
 
-		// methods for deletin a geometry (actually disabling)
+		// method for deleting a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);
 
 		// methods for rotating an existing object
