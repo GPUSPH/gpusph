@@ -207,6 +207,46 @@ void XProblem::cleanupODE()
 	dWorldDestroy(m_ODEWorld);
 	dCloseODE();
 }
+// for an exaple ODE_nearCallback see
+// http://ode-wiki.org/wiki/index.php?title=Manual:_Collision_Detection#Collision_detection
+void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
+{
+	// ODE generates multiple candidate contact points. We should use at least 3 for cube-plane
+	// interaction, the more the better (probably).
+	// CHECK: any significant correlation between performance and MAX_CONTACTS?
+	const int MAX_CONTACTS = 10;
+	dContact contact[MAX_CONTACTS];
+
+	// offset between dContactGeom-s of consecutive dContact-s in contact araray
+	const uint skip_offset = sizeof(dContact);
+
+	// consider collisions where at least one of the two bodies is a floating body...
+	bool isOneFloating = false;
+	for (uint gid = 0; gid < m_numGeometries && !isOneFloating; gid++) {
+		// ignore deleted geometries
+		if (!m_geometries[gid]->enabled)
+			continue;
+		dGeomID curr = m_geometries[gid]->ptr->m_ODEGeom;
+		if (curr == o1 || curr == o2)
+			isOneFloating = true;
+	}
+
+	// ...ignore otherwise
+	if (!isOneFloating) return;
+
+	// collide the candidate pair o1, o2
+	int num_contacts = dCollide(o1, o2, MAX_CONTACTS, &contact[0].geom, skip_offset);
+
+	// resulting collision points are treated by ODE as joints. We use them all
+	for (int i = 0; i < num_contacts; i++) {
+		contact[i].surface.mode = dContactBounce;
+		contact[i].surface.mu = 1.0; // min 1, max dInfinity (min-max friction)
+		contact[i].surface.bounce = 0.0; // (0.0~1.0) restitution parameter
+		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
+		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
+		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
+	}
+}
 
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr)
 {

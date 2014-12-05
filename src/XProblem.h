@@ -125,6 +125,9 @@ class XProblem: public Problem {
 
 		void copy_to_array(BufferList &buffers);
 		void release_memory();
+
+		void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
+
 		/*
 		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 		uint max_parts(uint);
