@@ -388,7 +388,7 @@ calcPrivate(const	float4*			pos,
 // methods needed for SA, it needs a heavy-duty refactoring of course
 
 template<KernelType kerneltype, ViscosityType visctype,
-	BoundaryType boundarytype, flag_t simparam>
+	BoundaryType boundarytype, flag_t simflags>
 class CUDABoundaryConditionsEngine : public AbstractBoundaryConditionsEngine
 {
 public:
