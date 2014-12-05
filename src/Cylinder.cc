@@ -131,6 +131,13 @@ void Cylinder::getBoundingBox(Point &output_min, Point &output_max)
 		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, m_h) );
 }
 
+void Cylinder::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_origin += poff;
+	m_center += poff;
+}
+
 void
 Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {

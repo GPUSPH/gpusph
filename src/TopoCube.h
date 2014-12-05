@@ -103,6 +103,7 @@ class TopoCube: public Object {
 
 		void setEulerParameters(const EulerParameters &ep);
 		void getBoundingBox(Point &output_min, Point &output_max);
+		void shift(const double3 &offset);
 
 		void FillBorder(PointVect&, const double, const int, const bool);
 		void FillBorder(PointVect& points, const double dx)

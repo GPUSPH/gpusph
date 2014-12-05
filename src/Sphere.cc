@@ -77,6 +77,12 @@ void Sphere::getBoundingBox(Point &output_min, Point &output_max)
 		Vector(m_r, 0, 0), Vector(0, m_r, 0), Vector(0, 0, m_r));
 }
 
+void Sphere::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+}
+
 void
 Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {

@@ -162,6 +162,13 @@ void Cone::getBoundingBox(Point &output_min, Point &output_max)
 		Vector(2*radius, 0, 0), Vector(0, 2*radius, 0), Vector(0, 0, m_h) );
 }
 
+void Cone::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_origin += poff;
+	m_center += poff;
+}
+
 void
 Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bool top)
 {

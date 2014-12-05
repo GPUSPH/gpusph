@@ -96,6 +96,12 @@ void Torus::getBoundingBox(Point &output_min, Point &output_max)
 		Vector(m_R, 0, 0), Vector(0, m_R, 0), Vector(0, 0, m_R));
 }
 
+void Torus::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+}
+
 void
 Torus::FillBorder(PointVect& points, const double dx)
 {

@@ -200,6 +200,15 @@ class Object {
 		 *  This function is pure virtual and then has to be defined at child level.
 		 */
 		virtual void getBoundingBox(Point &output_min, Point &output_max) = 0;
+
+		/// Shift the object (center, origin, etc.) with the given offset
+		/*! This function shifts the object with the given offset. The object
+		 *  internally updates everything necessary.
+		 *  \param double3 : offset
+		 *
+		 *  This function is pure virtual and then has to be defined at child level.
+		 */
+		virtual void shift(const double3 &offset) = 0;
 };
 #endif	/* OBJECT_H */
 

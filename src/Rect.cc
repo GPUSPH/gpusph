@@ -630,3 +630,10 @@ void Rect::getBoundingBox(Point &output_min, Point &output_max)
 	getBoundingBoxOfCube(output_min, output_max, m_origin,
 		m_vx, m_vy, Vector(0, 0, 0) );
 }
+
+void Rect::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+	m_origin += poff;
+}

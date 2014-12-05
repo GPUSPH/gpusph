@@ -122,6 +122,12 @@ void Disk::getBoundingBox(Point &output_min, Point &output_max)
 		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, -2*m_r) );
 }
 
+void Disk::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+}
+
 void
 Disk::FillBorder(PointVect& points, const double dx)
 {

@@ -86,6 +86,16 @@ void Plane::getBoundingBox(Point &output_min, Point &output_max)
 		output_max = Point(INFINITY, INFINITY, INFINITY);
 }
 
+void Plane::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	// also update center altough it has little meaning for a plane
+	m_center += poff;
+	printf("m_d was %g, off %g %g %g\n", m_d, offset.x, offset.y, offset.z);
+	m_d += m_a * offset.x + m_b * offset.y + m_c * offset.z;
+	printf("m_d now is %g\n", m_d);
+}
+
 void Plane::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {
 	throw std::runtime_error("Trying to instantiate an ODEBody for a plane!");

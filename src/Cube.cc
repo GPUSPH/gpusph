@@ -624,6 +624,13 @@ void Cube::getBoundingBox(Point &output_min, Point &output_max)
 		m_vx, m_vy, m_vz);
 }
 
+void Cube::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_origin += poff;
+	m_center += poff;
+}
+
 /// Create an ODE body associated to the cube
 /* Create a cube ODE body inside a specified ODE world. If
  * a space (used for handling collision detection) has been defined

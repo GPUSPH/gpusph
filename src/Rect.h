@@ -67,5 +67,6 @@ class Rect: public Object {
 
 		void setEulerParameters(const EulerParameters &ep);
 		void getBoundingBox(Point &output_min, Point &output_max);
+		void shift(const double3 &offset);
 };
 #endif	/* _RECT_H */
