@@ -272,8 +272,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 1;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 0;
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;

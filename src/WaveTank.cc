@@ -26,6 +26,8 @@
 #include <cmath>
 #include <iostream>
 
+#include "cudasimframework.cuh"
+
 #include "WaveTank.h"
 #include "GlobalData.h"
 
@@ -41,6 +43,18 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
+
+	m_simframework = new CUDASimFramework<
+		WENDLAND,
+		SPH_F1,
+		KINEMATICVISC,
+		LJ_BOUNDARY,
+		PERIODIC_NONE,
+		ENABLE_DTADAPT>();
+
+	m_simframework->addFilterEngine<SHEPARD_FILTER>(20);
+
+	m_simparams = m_simframework->get_simparams();
 
 	// Data for problem setup
 	slope_length = 8.5;
@@ -66,8 +80,6 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 20;
-	m_simparams.mlsfreq = 0;
 	//m_simparams.visctype = ARTVISC;
 	m_simparams.visctype = KINEMATICVISC;
 	//m_simparams.visctype = SPSVISC;

@@ -62,13 +62,6 @@ typedef struct SimParams {
 	float			dtadaptfactor;			// safety factor in the adaptive time step formula
 	uint			buildneibsfreq;			// frequency (in iterations) of neib list rebuilding
 
-	// frequency (in iterations) of Shepard density filter
-	// DEPRECATED: should be set using the filter list in SimFramework
-	uint			shepardfreq DEPRECATED_MSG("set the filter frequency instead");
-	// frequency (in iterations) of MLS density filter
-	// DEPRECATED: should be set using the filter list in SimFramework
-	uint			mlsfreq DEPRECATED_MSG("set the filter frequency instead");
-
 	float			ferrari;				// coefficient for Ferrari correction
 	float			ferrariLengthScale;		// length scale for Ferrari correction
 	bool			mbcallback;				// true if moving boundary velocity varies
@@ -103,7 +96,6 @@ typedef struct SimParams {
 	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
 	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows
 
-IGNORE_WARNINGS(deprecated-declarations)
 	SimParams(void) :
 		sfactor(1.3f),
 		slength(0),
@@ -115,8 +107,6 @@ IGNORE_WARNINGS(deprecated-declarations)
 		tend(0),
 		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
-		shepardfreq(0),
-		mlsfreq(0),
 		ferrari(NAN),
 		ferrariLengthScale(NAN),
 		mbcallback(false),
@@ -148,7 +138,6 @@ IGNORE_WARNINGS(deprecated-declarations)
 		inoutBoundaries(false),
 		ioWaterdepthComputation(false)
 	{};
-RESTORE_WARNINGS
 
 	inline double
 	set_smoothing(double smooth, double deltap)

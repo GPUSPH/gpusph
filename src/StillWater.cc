@@ -57,8 +57,6 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 20;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 0;
 	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
 	// length of the problem
 	m_simparams.ferrari = H/(m_deltap*1000);

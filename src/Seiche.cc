@@ -27,6 +27,9 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+
+#include "cudasimframework.cuh"
+
 #include "Seiche.h"
 #include "particledefine.h"
 #include "GlobalData.h"
@@ -44,14 +47,25 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(l, w ,h);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
+	m_simframework = new CUDASimFramework<
+		WENDLAND,
+		SPH_F1,
+		SPSVISC,
+		LJ_BOUNDARY,
+		PERIODIC_NONE,
+		ENABLE_DTADAPT>();
+
+	m_simframework->addFilterEngine<MLS_FILTER>(20);
+
+	m_simparams = m_simframework->get_simparams();
+
+
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 20;
 	m_simparams.visctype = SPSVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.gcallback = true;

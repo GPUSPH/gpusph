@@ -70,8 +70,6 @@ SphericTest2::SphericTest2(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 0;
 	m_simparams.ferrari = 0.1;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = SPSVISC;

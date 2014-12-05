@@ -50,7 +50,6 @@ DynBoundsExample::DynBoundsExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(W, W, H + 2*w);
 	m_origin = -m_size/2;
 
-	m_simparams.mlsfreq = 0;
 	m_simparams.tend = 2;
 
 	m_simparams.boundarytype = DYN_BOUNDARY;

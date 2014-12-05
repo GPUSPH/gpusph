@@ -27,6 +27,8 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "cudasimframework.cuh"
+
 #include "SolitaryWave.h"
 #include "particledefine.h"
 #include "GlobalData.h"
@@ -62,6 +64,19 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 
 	i_use_bottom_plane = 1; // 1 for real plane instead of boundary parts
 
+	m_simframework = new CUDASimFramework<
+		WENDLAND,
+		SPH_F1,
+		SPSVISC,
+		LJ_BOUNDARY,
+		PERIODIC_NONE,
+		ENABLE_DTADAPT>();
+
+	m_simframework->addFilterEngine<SHEPARD_FILTER>(20);
+
+	m_simparams = m_simframework->get_simparams();
+
+
 	// SPH parameters
 	set_deltap(0.04f);  //0.005f;
 	m_simparams.dt = 0.00013f;
@@ -69,8 +84,6 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 20;
-	m_simparams.mlsfreq = 0;
 	//m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = KINEMATICVISC;
 	m_simparams.visctype = SPSVISC;

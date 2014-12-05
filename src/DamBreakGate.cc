@@ -26,6 +26,8 @@
 #include <cmath>
 #include <iostream>
 
+#include "cudasimframework.cuh"
+
 #include "DamBreakGate.h"
 #include "Cube.h"
 #include "Point.h"
@@ -52,6 +54,18 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
 	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
+	m_simframework = new CUDASimFramework<
+		WENDLAND,
+		SPH_F1,
+		ARTVISC,//DYNAMICVISC//SPSVISC
+		LJ_BOUNDARY,
+		PERIODIC_NONE,
+		ENABLE_DTADAPT>();
+
+	m_simframework->addFilterEngine<MLS_FILTER>(10);
+
+	m_simparams = m_simframework->get_simparams();
+
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.dt = 0.0001f;
@@ -59,8 +73,6 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 10;
 	m_simparams.visctype = ARTVISC;//DYNAMICVISC//SPSVISC;
 	m_simparams.mbcallback = true;
 	m_simparams.boundarytype= LJ_BOUNDARY;

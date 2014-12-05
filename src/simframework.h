@@ -30,6 +30,7 @@
 
 #include <map>
 #include <vector>
+#include <stdexcept>
 
 #include "neibsengine.h"
 #include "filterengine.h"
@@ -67,7 +68,10 @@ public:
 	// add a filter engine, and keep the frequency in the
 	// simparams in sync
 	template<FilterType filtertype> AbstractFilterEngine*
-	addFilterEngine(int frequency);
+	addFilterEngine(int frequency)
+	{
+		throw std::runtime_error("Abstract addFilterEngine called!?");
+	}
 
 	SimParams const& get_simparams() const
 	{ return m_simparams; }

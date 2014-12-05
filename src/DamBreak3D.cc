@@ -74,8 +74,6 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dt = 0.0003f;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 0;
 	m_simparams.tend = 1.5f;
 
 	// Free surface detection

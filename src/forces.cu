@@ -465,17 +465,17 @@ basicstep(
 		simpars1 | ENABLE_DTADAPT | ENABLE_INLET_OUTLET>; \
 	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_DTADAPT>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
+	/* template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_XSPH | ENABLE_INLET_OUTLET>; \
 	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_XSPH>; \
 	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
 		simpars1 | ENABLE_INLET_OUTLET>; \
 	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1>;
+		simpars1>; */
 
 #define DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, btype) \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
+	/* DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
 		ENABLE_DEM | ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH); \
 	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
 		ENABLE_DEM | ENABLE_MOVING_BODIES); \
@@ -488,7 +488,7 @@ basicstep(
 	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
 		ENABLE_MOVING_BODIES); \
 	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_WATER_DEPTH); \
+		ENABLE_WATER_DEPTH); */ \
 	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
 		ENABLE_NONE);
 
@@ -500,10 +500,10 @@ basicstep(
 
 #define DECLARE_FORCESENGINE_VISC(ktype, sphform) \
 	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, ARTVISC) \
-	/* DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, KINEMATICVISC) \
+	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, KINEMATICVISC) \
 	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, DYNAMICVISC) \
 	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, SPSVISC) \
-	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, KEPSVISC) */
+	/* DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, KEPSVISC) */
 
 #define DECLARE_FORCESENGINE_SPH(ktype) \
 	DECLARE_FORCESENGINE_VISC(ktype, SPH_F1) \
@@ -589,6 +589,15 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 	CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 }
 };
+
+// TODO provisional instantiation before the header-only shift
+template class CUDAViscEngine<ARTVISC, WENDLAND, LJ_BOUNDARY>;
+template struct CUDAViscEngineHelper<ARTVISC, WENDLAND, LJ_BOUNDARY>;
+template class CUDAViscEngine<KINEMATICVISC, WENDLAND, LJ_BOUNDARY>;
+template struct CUDAViscEngineHelper<KINEMATICVISC, WENDLAND, LJ_BOUNDARY>;
+template class CUDAViscEngine<SPSVISC, WENDLAND, LJ_BOUNDARY>;
+template struct CUDAViscEngineHelper<SPSVISC, WENDLAND, LJ_BOUNDARY>;
+
 
 /// Other methods TODO will need to move elsewhere
 

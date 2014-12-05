@@ -220,10 +220,6 @@ class CUDAViscEngine : public AbstractViscEngine
 
 };
 
-// TODO provisional instantiation before the header-only shift
-template class CUDAViscEngine<ARTVISC, WENDLAND, LJ_BOUNDARY>;
-template struct CUDAViscEngineHelper<ARTVISC, WENDLAND, LJ_BOUNDARY>;
-
 /// Preprocessing engines (Shepard, MLS)
 
 // As with the viscengine, we need a helper struct for the partial
