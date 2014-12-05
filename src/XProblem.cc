@@ -147,7 +147,9 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	double orig = 0;
 
 	// container
-	addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
+	GeometryID container = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
+	// anything inside a cube collides with the cube, so disable collisions
+	disableCollisions(container);
 
 	// water
 	orig = m_deltap;
