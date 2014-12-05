@@ -86,6 +86,109 @@ void*	reduce_buffer = NULL;
 				 (oldPos, oldVel, oldTKE, oldEps, oldGGam, oldEulerVel, forces, contupd, vertices, vertIDToIndex, info, particleHash, cellStart, neibsList, particleRangeEnd, newNumParticles, dt, step, deltap, slength, influenceradius, initStep); \
 	break
 
+/// static inline methods for fmax reduction
+
+static inline void
+reducefmax(	const int	size,
+			const int	threads,
+			const int	blocks,
+			float		*d_idata,
+			float		*d_odata)
+{
+	dim3 dimBlock(threads, 1, 1);
+	dim3 dimGrid(blocks, 1, 1);
+
+	// when there is only one warp per block, we need to allocate two warps
+	// worth of shared memory so that we don't index shared memory out of bounds
+	int smemSize = (threads <= 32) ? 2 * threads * sizeof(float) : threads * sizeof(float);
+
+	switch (threads)
+	{
+		case 512:
+			cuforces::fmaxDevice<512><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case 256:
+			cuforces::fmaxDevice<256><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case 128:
+			cuforces::fmaxDevice<128><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case 64:
+			cuforces::fmaxDevice<64><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case 32:
+			cuforces::fmaxDevice<32><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case 16:
+			cuforces::fmaxDevice<16><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case  8:
+			cuforces::fmaxDevice<8><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case  4:
+			cuforces::fmaxDevice<4><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case  2:
+			cuforces::fmaxDevice<2><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+		case  1:
+			cuforces::fmaxDevice<1><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
+	}
+}
+
+
+static inline uint nextPow2(uint x )
+{
+    --x;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    return ++x;
+}
+
+
+#define MIN(x,y) ((x < y) ? x : y)
+static inline void
+getNumBlocksAndThreads(	const uint	n,
+						const uint	maxBlocks,
+						const uint	maxThreads,
+						uint		&blocks,
+						uint		&threads)
+{
+	threads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
+	blocks = (n + (threads * 2 - 1)) / (threads * 2);
+	blocks = MIN(maxBlocks, blocks);
+}
+
+static inline float
+cflmax( const uint	n,
+		float*		cfl,
+		float*		tempCfl)
+{
+	uint numBlocks = 0;
+	uint numThreads = 0;
+	float max = 0.0f;
+
+	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
+
+	// execute the kernel
+	reducefmax(n, numThreads, numBlocks, cfl, tempCfl);
+
+	// check if kernel execution generated an error
+	CUT_CHECK_ERROR("fmax kernel execution failed");
+
+	// TODO this can be done in just two calls
+	uint s = numBlocks;
+	while(s > 1)
+	{
+		uint threads = 0, blocks = 0;
+		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
+
+		reducefmax(s, threads, blocks, tempCfl, tempCfl);
+		CUT_CHECK_ERROR("fmax kernel execution failed");
+
+		s = (s + (threads*2-1)) / (threads*2);
+	}
+
+	CUDA_SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
+
+	return max;
+}
+
+
 
 /// Methods of the CUDAForcesEngine class
 
@@ -335,6 +438,28 @@ unbind_textures()
 	#endif
 }
 
+// returns the number of elements in the (starting) fmax array, assuming n particles.
+// this is _exactly_ the number of blocks in the grid launch for the forces kernel over n
+// particles, since the forces kernel pre-reduces the cfl values, producing one value
+// per block instead of one per particle
+// TODO FIXME reorganize this reduction stuff
+FORCES_RET(uint)
+getFmaxElements(const uint n)
+{
+	return div_up(n, min(BLOCK_SIZE_FORCES, n));
+}
+
+
+FORCES_RET(uint)
+getFmaxTempElements(const uint n)
+{
+	uint numBlocks, numThreads;
+	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
+	return numBlocks;
+}
+
+
+
 FORCES_RET(float)
 dtreduce(	float	slength,
 			float	dtadaptfactor,
@@ -452,6 +577,69 @@ basicstep(
 
 	return numBlocks;
 }
+
+FORCES_RET(void)
+setDEM(const float *hDem, int width, int height)
+{
+	// Allocating, reading and copying DEM
+	unsigned int size = width*height*sizeof(float);
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+	CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
+	CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
+
+	demTex.addressMode[0] = cudaAddressModeClamp;
+	demTex.addressMode[1] = cudaAddressModeClamp;
+	demTex.filterMode = cudaFilterModeLinear;
+	demTex.normalized = false;
+
+	CUDA_SAFE_CALL( cudaBindTextureToArray(demTex, dDem, channelDesc));
+}
+
+FORCES_RET(void)
+unsetDEM()
+{
+	CUDA_SAFE_CALL(cudaFreeArray(dDem));
+}
+
+FORCES_RET(void)
+reduceRbForces(	float4	*forces,
+				float4	*torques,
+				uint	*rbnum,
+				uint	*lastindex,
+				float3	*totalforce,
+				float3	*totaltorque,
+				uint	numbodies,
+				uint	numBodiesParticles)
+{
+	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
+	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
+	thrust::device_ptr<uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
+	thrust::equal_to<uint> binary_pred;
+	thrust::plus<float4> binary_op;
+
+	// For the segmented scan, we use rbnum (number of object per object particle) as key (first and second parameters
+	// of inclusive_scan_by_key are the begin and the end of the array of keys); forces or torques as input and output
+	// the scan is in place); equal_to as data-key operator and plus as scan operator. The sums are in the last position
+	// of each segment (thus we retrieve them by using lastindex values).
+
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
+				forces_devptr, forces_devptr, binary_pred, binary_op);
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
+				torques_devptr, torques_devptr, binary_pred, binary_op);
+
+	for (uint i = 0; i < numbodies; i++) {
+		float4 temp;
+		void * ddata = (void *) (forces + lastindex[i]);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
+		totalforce[i] = as_float3(temp);
+
+		ddata = (void *) (torques + lastindex[i]);
+		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
+		totaltorque[i] = as_float3(temp);
+		}
+}
+
+
 
 // Force the instantiation of all instances
 // TODO this is until the engines are turned into header-only classes
@@ -841,185 +1029,6 @@ surfaceparticle(	float4*		pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 
-
-void setDemTexture(const float *hDem, int width, int height)
-{
-	// Allocating, reading and copying DEM
-	unsigned int size = width*height*sizeof(float);
-	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-	CUDA_SAFE_CALL( cudaMallocArray( &dDem, &channelDesc, width, height ));
-	CUDA_SAFE_CALL( cudaMemcpyToArray( dDem, 0, 0, hDem, size, cudaMemcpyHostToDevice));
-
-	demTex.addressMode[0] = cudaAddressModeClamp;
-	demTex.addressMode[1] = cudaAddressModeClamp;
-	demTex.filterMode = cudaFilterModeLinear;
-	demTex.normalized = false;
-
-	CUDA_SAFE_CALL( cudaBindTextureToArray(demTex, dDem, channelDesc));
-}
-
-
-void releaseDemTexture()
-{
-	CUDA_SAFE_CALL(cudaFreeArray(dDem));
-}
-
-
-void reduceRbForces(float4*		forces,
-					float4*		torques,
-					uint*		rbnum,
-					uint*		lastindex,
-					float3*		totalforce,
-					float3*		totaltorque,
-					uint		numbodies,
-					uint		numBodiesParticles)
-{
-	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
-	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
-	thrust::device_ptr<uint> rbnum_devptr = thrust::device_pointer_cast(rbnum);
-	thrust::equal_to<uint> binary_pred;
-	thrust::plus<float4> binary_op;
-
-	// For the segmented scan, we use rbnum (number of object per object particle) as key (first and second parameters
-	// of inclusive_scan_by_key are the begin and the end of the array of keys); forces or torques as input and output
-	// the scan is in place); equal_to as data-key operator and plus as scan operator. The sums are in the last position
-	// of each segment (thus we retrieve them by using lastindex values).
-
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
-				forces_devptr, forces_devptr, binary_pred, binary_op);
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
-				torques_devptr, torques_devptr, binary_pred, binary_op);
-
-	for (uint i = 0; i < numbodies; i++) {
-		float4 temp;
-		void * ddata = (void *) (forces + lastindex[i]);
-		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
-		totalforce[i] = as_float3(temp);
-
-		ddata = (void *) (torques + lastindex[i]);
-		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));
-		totaltorque[i] = as_float3(temp);
-		}
-}
-
-
-void
-reducefmax(	const int	size,
-			const int	threads,
-			const int	blocks,
-			float		*d_idata,
-			float		*d_odata)
-{
-	dim3 dimBlock(threads, 1, 1);
-	dim3 dimGrid(blocks, 1, 1);
-
-	// when there is only one warp per block, we need to allocate two warps
-	// worth of shared memory so that we don't index shared memory out of bounds
-	int smemSize = (threads <= 32) ? 2 * threads * sizeof(float) : threads * sizeof(float);
-
-	switch (threads)
-	{
-		case 512:
-			cuforces::fmaxDevice<512><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 256:
-			cuforces::fmaxDevice<256><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 128:
-			cuforces::fmaxDevice<128><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 64:
-			cuforces::fmaxDevice<64><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 32:
-			cuforces::fmaxDevice<32><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case 16:
-			cuforces::fmaxDevice<16><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  8:
-			cuforces::fmaxDevice<8><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  4:
-			cuforces::fmaxDevice<4><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  2:
-			cuforces::fmaxDevice<2><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-		case  1:
-			cuforces::fmaxDevice<1><<< dimGrid, dimBlock, smemSize >>>(d_idata, d_odata, size); break;
-	}
-}
-
-
-uint nextPow2(uint x )
-{
-    --x;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    return ++x;
-}
-
-
-#define MIN(x,y) ((x < y) ? x : y)
-void getNumBlocksAndThreads(const uint	n,
-							const uint	maxBlocks,
-							const uint	maxThreads,
-							uint		&blocks,
-							uint		&threads)
-{
-	threads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
-	blocks = (n + (threads * 2 - 1)) / (threads * 2);
-	blocks = MIN(maxBlocks, blocks);
-}
-
-// returns the number of elements in the (starting) fmax array, assuming n particles.
-// this is _exactly_ the number of blocks in the grid launch for the forces kernel over n
-// particles, since the forces kernel pre-reduces the cfl values, producing one value
-// per block instead of one per particle
-uint
-getFmaxElements(const uint n)
-{
-	return div_up(n, min(BLOCK_SIZE_FORCES, n));
-}
-
-
-uint
-getFmaxTempElements(const uint n)
-{
-	uint numBlocks, numThreads;
-	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
-	return numBlocks;
-}
-
-
-float
-cflmax( const uint	n,
-		float*		cfl,
-		float*		tempCfl)
-{
-	uint numBlocks = 0;
-	uint numThreads = 0;
-	float max = 0.0f;
-
-	getNumBlocksAndThreads(n, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, numBlocks, numThreads);
-
-	// execute the kernel
-	reducefmax(n, numThreads, numBlocks, cfl, tempCfl);
-
-	// check if kernel execution generated an error
-	CUT_CHECK_ERROR("fmax kernel execution failed");
-
-	uint s = numBlocks;
-	while(s > 1)
-	{
-		uint threads = 0, blocks = 0;
-		getNumBlocksAndThreads(s, MAX_BLOCKS_FMAX, BLOCK_SIZE_FMAX, blocks, threads);
-
-		reducefmax(s, threads, blocks, tempCfl, tempCfl);
-		CUT_CHECK_ERROR("fmax kernel execution failed");
-
-		s = (s + (threads*2-1)) / (threads*2);
-	}
-
-	CUDA_SAFE_CALL(cudaMemcpy(&max, tempCfl, sizeof(float), cudaMemcpyDeviceToHost));
-
-	return max;
-}
 
 /* Reductions */
 void set_reduction_params(void* buffer, size_t blocks,

@@ -867,8 +867,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	// used to set up the number of elements in CFL arrays,
 	// will only actually be used if adaptive timestepping is enabled
 
-	uint fmaxElements = getFmaxElements(m_numAllocatedParticles);
-	uint tempCflEls = getFmaxTempElements(fmaxElements);
+	uint fmaxElements = forcesEngine->getFmaxElements(m_numAllocatedParticles);
+	uint tempCflEls = forcesEngine->getFmaxTempElements(fmaxElements);
 	BufferList::iterator iter = m_dBuffers.begin();
 	while (iter != m_dBuffers.end()) {
 		// number of elements to allocate
@@ -966,7 +966,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int ncols = gdata->problem->get_dem_ncols();
 		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
 				m_deviceIndex, ncols, nrows);
-		setDemTexture(gdata->problem->get_dem(), ncols, nrows);
+		forcesEngine->setDEM(gdata->problem->get_dem(), ncols, nrows);
 	}
 
 	m_deviceMemory += allocated;
@@ -1538,8 +1538,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 	}
 
 	// TODO: here set_reduction_params() will be called (to be implemented in this class). These parameters can be device-specific.
-
-	// TODO: here setDemTexture() will be called. It is device-wide, but reading the DEM file is process wide and will be in GPUSPH class
 
 	// init streams for async memcpys (only useful for multigpu?)
 	instance->createEventsAndStreams();
@@ -2365,7 +2363,7 @@ void GPUWorker::kernel_reduceRBForces()
 	// (possible? e.g. vector objects?)
 	if (m_numBodiesParticles == 0) return;
 
-	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbDeviceTotalForce[m_deviceIndex],
+	forcesEngine->reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbDeviceTotalForce[m_deviceIndex],
 					gdata->s_hRbDeviceTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
 
 }

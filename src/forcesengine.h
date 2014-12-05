@@ -53,11 +53,24 @@ public:
 	virtual void
 	setgravity(float3 const& gravity) = 0;
 
+	// Rigit Body methods
+
 	virtual void
 	setrbcg(const float3* cg, int numbodies) = 0;
 
 	virtual void
 	setrbstart(const int* rbfirstindex, int numbodies) = 0;
+
+	virtual void
+	reduceRbForces(	float4	*forces,
+					float4	*torques,
+					uint	*rbnum,
+					uint	*lastindex,
+					float3	*totalforce,
+					float3	*totaltorque,
+					uint	numbodies,
+					uint	numBodiesParticles) = 0;
+
 
 	// TODO texture bind/unbind and dtreduce for forces should be handled in a different way:
 	// they are sets of operations to be done before/after the forces kernel, which are
@@ -78,14 +91,11 @@ public:
 	virtual void
 	unbind_textures() = 0;
 
-	virtual float
-	dtreduce(	float	slength,
-				float	dtadaptfactor,
-				float	visccoeff,
-				float	*cfl,
-				float	*cflTVisc,
-				float	*tempCfl,
-				uint	numBlocks) = 0;
+	virtual void
+	setDEM(const float *hDem, int width, int height) = 0;
+
+	virtual void
+	unsetDEM() = 0;
 
 	// basic forces step. returns the number of blocks launched
 	// (which is the number of blocks to launch dtreduce on
@@ -124,5 +134,23 @@ public:
 				float	*cflTVisc,
 				float	*tempCfl,
 				uint	cflOffset) = 0;
+
+	// Reduction methods
+
+	virtual uint
+	getFmaxElements(const uint n) = 0;
+
+	virtual uint
+	getFmaxTempElements(const uint n) = 0;
+
+	virtual float
+	dtreduce(	float	slength,
+				float	dtadaptfactor,
+				float	visccoeff,
+				float	*cfl,
+				float	*cflTVisc,
+				float	*tempCfl,
+				uint	numBlocks) = 0;
+
 };
 #endif

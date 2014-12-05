@@ -102,6 +102,16 @@ public:
 	setrbstart(const int* rbfirstindex, int numbodies);
 
 	void
+	reduceRbForces(	float4	*forces,
+					float4	*torques,
+					uint	*rbnum,
+					uint	*lastindex,
+					float3	*totalforce,
+					float3	*totaltorque,
+					uint	numbodies,
+					uint	numBodiesParticles);
+
+	void
 	bind_textures(
 		const	float4	*pos,
 		const	float4	*vel,
@@ -116,14 +126,11 @@ public:
 	void
 	unbind_textures();
 
-	float
-	dtreduce(	float	slength,
-				float	dtadaptfactor,
-				float	visccoeff,
-				float	*cfl,
-				float	*cflTVisc,
-				float	*tempCfl,
-				uint	numBlocks);
+	void
+	setDEM(const float *hDem, int width, int height);
+
+	void
+	unsetDEM();
 
 	uint
 	basicstep(
@@ -161,6 +168,20 @@ public:
 				float	*tempCfl,
 				uint	cflOffset);
 
+	uint
+	getFmaxElements(const uint n);
+
+	uint
+	getFmaxTempElements(const uint n);
+
+	float
+	dtreduce(	float	slength,
+				float	dtadaptfactor,
+				float	visccoeff,
+				float	*cfl,
+				float	*cflTVisc,
+				float	*tempCfl,
+				uint	numBlocks);
 };
 
 
@@ -321,33 +342,6 @@ surfaceparticle(	float4*		pos,
 			int			kerneltype,
 			float		influenceradius,
 			bool        savenormals);
-
-void
-setDemTexture(const float *hDem, int width, int height);
-
-void
-releaseDemTexture();
-
-void
-reduceRbForces(	float4*		forces,
-				float4*		torques,
-				uint*		rbnum,
-				uint*		lastindex,
-				float3*		totalforce,
-				float3*		totaltorque,
-				uint		numbodies,
-				uint		numBodiesParticles);
-
-uint
-getFmaxElements(const uint n);
-
-uint
-getFmaxTempElements(const uint n);
-
-float
-cflmax( const uint	n,
-		float*		cfl,
-		float*		tempCfl);
 
 /* Reductions */
 void set_reduction_params(void* buffer, size_t blocks,
