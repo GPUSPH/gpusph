@@ -158,7 +158,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// cube
 	orig = side/2 - oside/2;
 	GeometryID cube = addCube(GT_FLOATING_BODY, FT_SOLID, Point(orig, orig, orig), oside);
-	rotateGeometry(cube, EulerParameters(0, M_PI/4, 0));
+	rotateGeometry(cube, EulerParameters(0, M_PI/5, 0));
 	//rotateGeometry(cube, M_PI/4, 0, 0);
 	setMassByDensity(cube, m_physparams.rho0[0]*0.5);
 
