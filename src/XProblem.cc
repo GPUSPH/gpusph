@@ -194,6 +194,10 @@ void XProblem::initialize()
 		if (m_geometries[i]->type == GT_PLANE)
 			continue;
 
+		// ignore deleted geometries
+		if (!m_geometries[i]->enabled)
+			continue;
+
 		Point currMin, currMax;
 
 		// get bbox of curr geometry
