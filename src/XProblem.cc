@@ -133,8 +133,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//m_physparams.kinematicvisc = 1.0e-2f;
 	m_simparams.visctype = ARTVISC;
 	add_writer(VTKWRITER, 1e-2f);
-	m_origin = make_double3(0,0,0);
-	m_size = make_double3(2,2,2);
+	m_origin = make_double3(NAN, NAN, NAN);
+	m_size = make_double3(NAN, NAN, NAN);
 	m_simparams.maxneibsnum = 128;
 
 	// Name of problem used for directory creation
@@ -186,6 +186,32 @@ XProblem::~XProblem()
 
 void XProblem::initialize()
 {
+	// compute bounding box
+	Point globalMin = Point (0, 0, 0);
+	Point globalMax = Point (0, 0, 0);
+	for (vsize_t i = 0; i < m_geometries.size(); i++) {
+		// ignore planes for bbox
+		if (m_geometries[i]->type == GT_PLANE)
+			continue;
+
+		Point currMin, currMax;
+
+		// get bbox of curr geometry
+		m_geometries[i]->ptr->getBoundingBox(currMin, currMax);
+
+		// global min and max
+		setMinPerElement(globalMin, currMin);
+		setMaxPerElement(globalMax, currMax);
+	}
+
+	// set computed world origin and size without overriding possible user choices
+	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
+	if (!isfinite(m_origin.y)) m_origin.y = globalMin(1);
+	if (!isfinite(m_origin.z)) m_origin.z = globalMin(2);
+	if (!isfinite(m_size.x)) m_size.x = globalMax(0) - globalMin(0);
+	if (!isfinite(m_size.y)) m_size.y = globalMax(1) - globalMin(1);
+	if (!isfinite(m_size.z)) m_size.z = globalMax(2) - globalMin(2);
+
 	// only init ODE if m_numRigidBodies
 	if (m_numRigidBodies > 0)
 		initializeODE();
