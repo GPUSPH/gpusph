@@ -215,10 +215,37 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
 	m_numGeometries++;
-	if (geomInfo->type == GT_FLOATING_BODY)
+
+	switch (geomInfo->type) {
+		case GT_FLUID:
+			geomInfo->handle_collisions = false;
+			geomInfo->handle_dynamics = false;
+			break;
+		case GT_FIXED_BOUNDARY:
+			geomInfo->handle_collisions = true;
+			geomInfo->handle_dynamics = false;
+			break;
+		case GT_FLOATING_BODY:
+			geomInfo->handle_collisions = true;
+			geomInfo->handle_dynamics = true;
+			break;
+		case GT_MOVING_BODY:
+			geomInfo->handle_collisions = true;
+			geomInfo->handle_dynamics = false; // optional
+			break;
+		case GT_PLANE:
+			geomInfo->handle_collisions = true;
+			geomInfo->handle_dynamics = false;
+			break;
+	}
+
+	// TODO: CHECK: if handle_collisions, no need to add an ODE body, right?
+	if (geomInfo->handle_dynamics)
 		m_numRigidBodies++;
+
 	if (geomInfo->type == GT_PLANE)
 		m_numPlanes++;
+
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
 }
