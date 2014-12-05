@@ -102,8 +102,9 @@ eulerDevice(
 
 	do {
 		// we only integrate ACTIVE particles which are not BOUNDARY particles,
-		// unless dynbounds is active (in which case BOUNDARY particles are also integrated)
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && boundarytype != DYN_BOUNDARY))
+		// unless dynbounds or sa_boundary is active (in which case BOUNDARY particles are also integrated)
+		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary))
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
