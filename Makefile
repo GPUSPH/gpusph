@@ -75,13 +75,13 @@ else
 endif
 
 # directories: binary, objects, sources, expanded sources
-DISTDIR = ./dist/$(platform_lcase)/$(arch)
-OBJDIR = ./build
-SRCDIR = ./src
+DISTDIR = dist/$(platform_lcase)/$(arch)
+OBJDIR = build
+SRCDIR = src
 EXPDIR = $(SRCDIR)/expanded
-SCRIPTSDIR = ./scripts
-DOCSDIR = ./docs
-OPTSDIR = ./options
+SCRIPTSDIR = scripts
+DOCSDIR = docs
+OPTSDIR = options
 
 # target binary
 TARGETNAME := GPUSPH$(TARGET_SFX)
@@ -102,22 +102,28 @@ MPICXXFILES = $(SRCDIR)/NetworkManager.cc
 ifeq ($(USE_HDF5),2)
 	MPICXXFILES += $(SRCDIR)/HDF5SphReader.cc
 endif
-CCFILES = $(filter-out $(MPICXXFILES),$(wildcard $(SRCDIR)/*.cc))
+
+SRCSUBS=$(sort $(filter %/,$(wildcard $(SRCDIR)/*/)))
+SRCSUBS:=$(SRCSUBS:/=)
+OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS))
+CCFILES = $(foreach adir, $(SRCDIR) $(SRCSUBS),\
+	  $(filter-out $(MPICXXFILES),$(wildcard $(adir)/*.cc)))
 
 # .cu source files (GPU), excluding *_kernel.cu
-CUFILES = $(filter-out %_kernel.cu,$(wildcard $(SRCDIR)/*.cu))
+CUFILES = $(filter-out %_kernel.cu,$(foreach adir, $(SRCDIR) $(SRCSUBS),\
+	  $(filter-out $(MPICXXFILES),$(wildcard $(adir)/*.cu))))
 
 # headers
-HEADERS = $(wildcard $(SRCDIR)/*.h)
+HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 
 # object files via filename replacement
 MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
-CCOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(CCFILES)))
-CUOBJS = $(patsubst %.cu,$(OBJDIR)/%.o,$(notdir $(CUFILES)))
+CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
+CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
 
-PROBLEM_LIST = $(basename $(notdir $(shell egrep -l 'class.*:.*Problem' $(HEADERS))))
+PROBLEM_LIST = $(notdir $(basename $(wildcard $(SRCDIR)/problem/*.h)))
 
 # data files needed by some problems
 EXTRA_PROBLEM_FILES ?=
@@ -466,7 +472,7 @@ LDLIBS ?=
 
 # INCPATH
 # make GPUSph.cc find problem_select.opt, and problem_select.opt find the problem header
-INCPATH += -I$(SRCDIR) -I$(OPTSDIR)
+INCPATH += -I$(SRCDIR) $(foreach adir,$(SRCSUBS),-I$(adir)) -I$(OPTSDIR)
 
 # access the CUDA include files from the C++ compiler too, but mark their path as a system include path
 # so that they can be skipped when generating dependencies. This must only be done for the host compiler,
@@ -718,16 +724,16 @@ $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
-$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJDIR)
+$(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(call show_stage,MPI,$(@F))
 	$(CMDECHO)$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJDIR)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -742,9 +748,9 @@ $(LIST_CUDA_CC): $(LIST_CUDA_CC).cu
 $(DISTDIR):
 	$(CMDECHO)mkdir -p $(DISTDIR)
 
-# create objdir
-$(OBJDIR):
-	$(CMDECHO)mkdir -p $(OBJDIR)
+# create objdir and subs
+$(OBJDIR) $(OBJSUBS):
+	$(CMDECHO)mkdir -p $(OBJDIR) $(OBJSUBS)
 
 # create optsdir
 $(OPTSDIR):
@@ -806,9 +812,9 @@ show:
 #	@echo "   last:         $(LAST_PROBLEM)"
 	@echo "Snapshot file:   $(SNAPSHOT_FILE)"
 	@echo "Target binary:   $(TARGET)"
-	@echo "Sources dir:     $(SRCDIR)"
+	@echo "Sources dir:     $(SRCDIR) $(SRCSUBS)"
 	@echo "Options dir:     $(OPTSDIR)"
-	@echo "Objects dir:     $(OBJDIR)"
+	@echo "Objects dir:     $(OBJDIR) $(OBJSUBS)"
 	@echo "Scripts dir:     $(SCRIPTSDIR)"
 	@echo "Docs dir:        $(DOCSDIR)"
 	@echo "Doxygen conf:    $(DOXYCONF)"
