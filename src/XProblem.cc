@@ -143,8 +143,9 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	double side = 1;
 	double oside = 0.2;
 	double wside = 1 - 2 * m_deltap;
-	double wlevel = 0.3 - m_deltap;
-	double orig = 0;
+	double wlevel = 3 * m_deltap;
+	double test_offset = -3;
+	double orig = test_offset;
 
 	// container
 	GeometryID container = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), side);
@@ -152,17 +153,17 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	disableCollisions(container);
 
 	// water
-	orig = m_deltap;
+	orig += m_deltap;
 	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), wside, wside, wlevel);
 
 	// cube
-	orig = side/2 - oside/2;
+	orig = side/2 - oside/2 + test_offset;
 	GeometryID cube = addCube(GT_FLOATING_BODY, FT_SOLID, Point(orig, orig, orig), oside);
 	rotateGeometry(cube, EulerParameters(0, M_PI/5, 0));
 	//rotateGeometry(cube, M_PI/4, 0, 0);
 	setMassByDensity(cube, m_physparams.rho0[0]*0.5);
 
-	addPlane(0, 0, 1, 0);
+	addPlane(0, 0, 1, -test_offset);
 
 	/*
 	double minor_radius = side / 8;
