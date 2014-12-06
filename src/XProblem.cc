@@ -507,9 +507,9 @@ void XProblem::setMass(const GeometryID gid, const double mass)
 	m_geometries[gid]->ptr->SetMass(mass);
 }
 
-void XProblem::setMassByDensity(const GeometryID gid, const double density)
+double XProblem::setMassByDensity(const GeometryID gid, const double density)
 {
-	m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
+	return m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
 }
 
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
