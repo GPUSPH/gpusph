@@ -578,7 +578,7 @@ int XProblem::fill_parts()
 		}
 
 		if (m_geometries[i]->type == GT_FLUID)
-			m_geometries[i]->ptr->SetPartMass(dx, m_deltap);
+			m_geometries[i]->ptr->SetPartMass(m_deltap, m_physparams.rho0[0]);
 		else
 		if (m_geometries[i]->type != GT_PLANE)
 			m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
