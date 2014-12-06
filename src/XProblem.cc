@@ -276,7 +276,7 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	for (int i = 0; i < num_contacts; i++) {
 		contact[i].surface.mode = dContactBounce;
 		contact[i].surface.mu = 1.0; // min 1, max dInfinity (min-max friction)
-		contact[i].surface.bounce = 0.0; // (0.0~1.0) restitution parameter
+		contact[i].surface.bounce = 0.5; // (0.0~1.0) restitution parameter
 		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
 		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
 		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
