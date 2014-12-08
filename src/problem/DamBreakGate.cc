@@ -55,12 +55,8 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	m_simframework = new CUDASimFramework<
-		WENDLAND,
-		SPH_F1,
-		ARTVISC,//DYNAMICVISC//SPSVISC
-		LJ_BOUNDARY,
-		PERIODIC_NONE,
-		ENABLE_DTADAPT>();
+		viscosity<ARTVISC>//DYNAMICVISC//SPSVISC
+	>();
 
 	m_simframework->addFilterEngine<MLS_FILTER>(10);
 

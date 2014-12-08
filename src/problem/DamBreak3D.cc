@@ -60,12 +60,8 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	m_simframework = new CUDASimFramework<
-		WENDLAND,
-		SPH_F1,
-		ARTVISC, // or SPSVISC
-		LJ_BOUNDARY,
-		PERIODIC_NONE,
-		ENABLE_DTADAPT>();
+		viscosity<ARTVISC> // or SPSVISC
+	>();
 
 	m_simparams = m_simframework->get_simparams();
 

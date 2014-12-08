@@ -65,12 +65,8 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	i_use_bottom_plane = 1; // 1 for real plane instead of boundary parts
 
 	m_simframework = new CUDASimFramework<
-		WENDLAND,
-		SPH_F1,
-		SPSVISC,
-		LJ_BOUNDARY,
-		PERIODIC_NONE,
-		ENABLE_DTADAPT>();
+		viscosity<SPSVISC>
+	>();
 
 	m_simframework->addFilterEngine<SHEPARD_FILTER>(20);
 

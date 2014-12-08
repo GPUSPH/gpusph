@@ -48,12 +48,8 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	m_simframework = new CUDASimFramework<
-		WENDLAND,
-		SPH_F1,
-		SPSVISC,
-		LJ_BOUNDARY,
-		PERIODIC_NONE,
-		ENABLE_DTADAPT>();
+		viscosity<SPSVISC>
+	>();
 
 	m_simframework->addFilterEngine<MLS_FILTER>(20);
 
