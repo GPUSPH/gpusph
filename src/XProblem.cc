@@ -257,7 +257,7 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 
 	// consider collisions where at least one of the two bodies is a floating body...
 	bool isOneFloating = false;
-	for (uint gid = 0; gid < m_numGeometries && !isOneFloating; gid++) {
+	for (uint gid = 0; gid < m_geometries.size() && !isOneFloating; gid++) {
 		// ignore deleted geometries
 		if (!m_geometries[gid]->enabled)
 			continue;
@@ -649,7 +649,7 @@ void XProblem::copy_planes(float4 *planes, float *planediv)
 	// look for planes
 	uint currPlaneIdx = 0;
 	// NOTE: could iterate on planes only with a map plane_index -> gid
-	for (uint gid = 0; gid < m_numGeometries; gid++) {
+	for (uint gid = 0; gid < m_geometries.size(); gid++) {
 
 		// not a plane?
 		if (m_geometries[gid]->type != GT_PLANE) continue;
