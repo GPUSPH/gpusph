@@ -633,6 +633,7 @@ int XProblem::fill_parts()
 			const Vector v1 = Vector(m_size.x / xpn, 0, 0);
 			const Vector v2 = Vector(0, m_size.x / ypn, 0);
 			// fill
+			parts_vector = &m_boundaryParts;
 			for (uint xp = 0; xp <= xpn; xp++)
 				for (uint yp = 0; yp <= ypn; yp++)
 					parts_vector->push_back( Point( start + xp * v1 + yp*v2 ) );
