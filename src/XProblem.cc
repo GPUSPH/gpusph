@@ -264,6 +264,7 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	const uint skip_offset = sizeof(dContact);
 
 	// consider collisions where at least one of the two bodies is a floating body...
+	// TODO: planes also have geoms, fix this
 	bool isOneFloating = false;
 	for (uint gid = 0; gid < m_geometries.size() && !isOneFloating; gid++) {
 		// ignore deleted geometries
