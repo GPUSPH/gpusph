@@ -167,6 +167,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	addPlane(0, 0, 1, -test_offset);
 
+	addExtraWorldMargin(1.0);
+
 	/*
 	double minor_radius = side / 8;
 	double major_radius = radius - minor_radius;
