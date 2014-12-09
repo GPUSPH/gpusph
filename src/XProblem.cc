@@ -145,7 +145,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	double side = 1;
 	double oside = 0.2;
 	double wside = 1 - 2 * m_deltap;
-	double wlevel = 3 * m_deltap;
+	double wlevel = 6 * m_deltap;
 	double test_offset = -3;
 	double orig = test_offset;
 
