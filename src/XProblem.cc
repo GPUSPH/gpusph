@@ -24,6 +24,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_numRigidBodies = 0;
 	m_numPlanes = 0;
 
+	m_extra_world_margin = 0.0;
+
 	/*h5File.setFilename("meshes/0.complete_sa_example.h5sph");
 
 	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
@@ -216,6 +218,12 @@ void XProblem::initialize()
 	if (!isfinite(m_size.x)) m_size.x = globalMax(0) - globalMin(0);
 	if (!isfinite(m_size.y)) m_size.y = globalMax(1) - globalMin(1);
 	if (!isfinite(m_size.z)) m_size.z = globalMax(2) - globalMin(2);
+
+	// add user-defined world margin, if any
+	if (m_extra_world_margin > 0.0) {
+		m_origin -= m_extra_world_margin;
+		m_size += 2 * m_extra_world_margin;
+	}
 
 	// only init ODE if m_numRigidBodies
 	if (m_numRigidBodies > 0)
@@ -515,6 +523,14 @@ double XProblem::setMassByDensity(const GeometryID gid, const double density)
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	return m_geometries[gid];
+}
+
+void XProblem::addExtraWorldMargin(const double margin)
+{
+	if (margin >= 0.0)
+		m_extra_world_margin = margin;
+	else
+		printf("WARNING: tried to add negative world margin, ignoring\n");
 }
 
 int XProblem::fill_parts()

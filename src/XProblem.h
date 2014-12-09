@@ -61,6 +61,9 @@ class XProblem: public Problem {
 		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
 		size_t m_numPlanes;
 
+		// extra margin to be added to computed world size
+		double m_extra_world_margin;
+
 		/*
 		string			inputfile;
 		double			world_w, world_l, world_h;			// world size (i.e. incl. margins and inlet box)
@@ -116,6 +119,9 @@ class XProblem: public Problem {
 
 		// get informations
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
+
+		// world size will be increased by the given margin in each dimension and direction
+		void addExtraWorldMargin(const double margin);
 
 	public:
 		XProblem(const GlobalData *);
