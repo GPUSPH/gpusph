@@ -598,6 +598,31 @@ int XProblem::fill_parts()
 			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
 		}
 
+#if 0
+		// dbg: fill horizontal XY planes with particles, only within the world domain
+		if (m_geometries[i]->type == GT_PLANE) {
+			Plane *plane = (Plane*)(m_geometries[i]->ptr);
+			// only XY planes planes
+			if (! (plane->getA() == 0 && plane->getB() == 0) )
+				break;
+			// fill will print a warning
+			plane->SetPartMass(dx, m_physparams.rho0[0]);
+			// will round r0 to fit each dimension
+			const uint xpn = (uint) trunc(m_size.x / m_physparams.r0 + 0.5);
+			const uint ypn = (uint) trunc(m_size.y / m_physparams.r0 + 0.5);
+			// compute Z
+			const double z_coord = - plane->getD() / plane->getC();
+			// aux vectors
+			const Point start = Point(m_origin.x, m_origin.y, z_coord);
+			const Vector v1 = Vector(m_size.x / xpn, 0, 0);
+			const Vector v2 = Vector(0, m_size.x / ypn, 0);
+			// fill
+			for (uint xp = 0; xp <= xpn; xp++)
+				for (uint yp = 0; yp <= ypn; yp++)
+					parts_vector->push_back( Point( start + xp * v1 + yp*v2 ) );
+		}
+#endif
+
 		// create ODE body if requested
 		if (m_geometries[i]->handle_dynamics) {
 			m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
