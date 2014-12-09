@@ -20,7 +20,7 @@ typedef std::vector<int>::size_type vsize_t;
 
 XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
-	m_numGeometries = 0;
+	m_numActiveGeometries = 0;
 	m_numRigidBodies = 0;
 	m_numPlanes = 0;
 
@@ -289,7 +289,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
-	m_numGeometries++;
+	m_numActiveGeometries++;
 
 	switch (geomInfo->type) {
 		case GT_FLUID:
@@ -400,8 +400,8 @@ void XProblem::deleteGeometry(const GeometryID gid)
 {
 	m_geometries[gid]->enabled = false;
 
-	// and this is the reason why m_numGeometries not be used to iterate on m_geometries:
-	m_numGeometries--;
+	// and this is the reason why m_numActiveGeometries not be used to iterate on m_geometries:
+	m_numActiveGeometries--;
 
 	if (m_geometries[gid]->ptr->m_ODEBody || m_geometries[gid]->ptr->m_ODEGeom)
 		m_numRigidBodies--;

@@ -57,7 +57,7 @@ class XProblem: public Problem {
 		PointVect m_boundaryParts;
 		//PointVect m_vertexParts;
 
-		size_t m_numGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
+		size_t m_numActiveGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
 		size_t m_numPlanes;
 
