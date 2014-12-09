@@ -33,3 +33,8 @@ seewaves/
 *.csv
 profiling/
 scripts/list-cuda-cc
+*.h5sph
+*.vtk
+meshes/
+sa/
+
