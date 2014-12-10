@@ -417,7 +417,7 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	if (m_geometries[gid]->ptr->m_ODEBody || m_geometries[gid]->ptr->m_ODEGeom)
 		m_numRigidBodies--;
 
-	// TODO: remove from other arrays/counters? (e.g. ODE objs)
+	// TODO: remove from other arrays/counters? (not necessary from ODE objs, they are created only if enabled)
 	// TODO: print a warning if deletion is requested after fill_parts
 }
 
@@ -480,6 +480,7 @@ void XProblem::disableCollisions(const GeometryID gid)
 	m_geometries[gid]->handle_collisions = false;
 }
 
+// NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
 void XProblem::rotateGeometry(const GeometryID gid, const EulerParameters &ep)
 {
 	m_geometries[gid]->ptr->setEulerParameters(ep);
@@ -490,6 +491,7 @@ void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
 	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
 }
 
+// TODO: fix. Could even pass through ODE for a proper conversion
 void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
 	double psi, theta, phi;
