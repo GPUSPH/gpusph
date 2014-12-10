@@ -646,14 +646,14 @@ int XProblem::fill_parts()
 		}
 #endif
 
-		// create ODE body if requested
+		// create ODE body if required
 		if (m_geometries[i]->handle_dynamics) {
 			m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
 			add_ODE_body(m_geometries[i]->ptr);
 			bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
 		}
 
-		// create ODE geometry if requested
+		// create ODE geometry if required
 		if (m_geometries[i]->handle_collisions)
 			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 
