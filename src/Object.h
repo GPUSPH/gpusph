@@ -191,6 +191,9 @@ class Object {
 		 */
 		virtual void setEulerParameters(const EulerParameters &ep) = 0;
 
+		/// Update the ODE rotation matrix according to the EulerParameters
+		void updateODERotMatrix();
+
 		/// Get the bounding box
 		/*! This function writes the bounding box of the object in the given parameters,
 		 *  taking into account also the object rotation

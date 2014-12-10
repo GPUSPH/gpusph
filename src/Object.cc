@@ -305,3 +305,23 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 	out_max(1) = currMax(1);
 	out_max(2) = currMax(2);
 }
+
+// Update the ODE rotation matrix according to m_ep (EulerParameters)
+// NOTE: should not be called for planes, since they are "non-placeable" objects
+// in ODE and ODE does not support isPlaceable() or similar
+void Object::updateODERotMatrix()
+{
+	// alternative way:
+	//double phi, theta, psi;
+	//m_ep.ExtractEulerZXZ(psi, theta, phi);
+	//dRFromEulerAngles(m_ODERot, -phi, -theta, -psi);
+
+	dQuaternion quaternion;
+	m_ep.ToODEQuaternion(quaternion);
+	// if obj has body *and* geom, one setQuaternion() is enough - that's why "else"
+	if (m_ODEBody)
+		dBodySetQuaternion(m_ODEBody, quaternion);
+	else
+	if (m_ODEGeom)
+		dGeomSetQuaternion(m_ODEGeom, quaternion);
+}

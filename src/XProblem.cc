@@ -655,6 +655,11 @@ int XProblem::fill_parts()
 		// create ODE geometry if requested
 		if (m_geometries[i]->handle_collisions)
 			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
+
+		// update ODE rotation matrix according to possible rotation - excl. planes!
+		if ((m_geometries[i]->handle_collisions || m_geometries[i]->handle_dynamics) &&
+			m_geometries[i]->type != GT_PLANE)
+			m_geometries[i]->ptr->updateODERotMatrix();
 	}
 
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter;
