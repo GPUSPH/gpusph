@@ -672,7 +672,7 @@ Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 	// If an ODE body has been defined, associate the geometry with the ODE body
 	if (m_ODEBody)
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	// Otherwise move and rotate the geometry to match current cube position and orientration
+	// Otherwise move and rotate the geometry to match current cube position and orientation
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
 		dGeomSetRotation(m_ODEGeom, m_ODERot);
