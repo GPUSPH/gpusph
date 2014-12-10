@@ -494,6 +494,7 @@ void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
 // TODO: fix. Could even pass through ODE for a proper conversion
 void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
+	printf("WARNING: using buggy cartesian-axis rotation!\n");
 	double psi, theta, phi;
 	// see http://goo.gl/4LQU9w
 	theta = Yrot;
