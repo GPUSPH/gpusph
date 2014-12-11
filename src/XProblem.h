@@ -21,12 +21,27 @@ enum FillType {	FT_NOFILL,
 				FT_BORDER
 };
 
+enum IntersectionType {	IT_INTERSECT,
+						IT_SUBTRACT
+};
+
+// NOTE: erasing is always done with fluid or boundary point vectors.
+// It is *not* done with moving or floating objects, which erase but
+// are not erased. ET_ERASE_ALL does not erase moving/floating objects.
+enum EraseOperation {	ET_ERASE_NOTHING,
+						ET_ERASE_FLUID,
+						ET_ERASE_BOUNDARY,
+						ET_ERASE_ALL
+};
+
 struct GeometryInfo {
 
 	Object* ptr;
 
 	GeometryType type;
 	FillType fill_type;
+	IntersectionType intersection_type;
+	EraseOperation erase_operation;
 
 	bool handle_collisions;
 	bool handle_dynamics;
@@ -37,6 +52,8 @@ struct GeometryInfo {
 
 		type = GT_FLUID;
 		fill_type = FT_SOLID;
+		intersection_type = IT_SUBTRACT;
+		erase_operation = ET_ERASE_NOTHING;
 
 		handle_collisions = false;
 		handle_dynamics = false;

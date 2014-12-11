@@ -334,6 +334,25 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			break;
 	}
 
+	// --- Default intersection type
+	// It is IT_SUBTRACT by default, except for planes: they are usually used
+	// to delimit the boundaries of the domain, so we likely want to intersect
+	if (geomInfo->type == GT_PLANE)
+		geomInfo->intersection_type = IT_INTERSECT;
+	else
+		geomInfo->intersection_type = IT_SUBTRACT;
+
+	// --- Default erase operation
+	// Upon intersection or subtraction we can choose to interact with fluid
+	// or boundaries. By default, water erases only other water, while boundaries
+	// erase water and other boundaries.
+	// TODO: ensure floating/moving objects erase but are not erased?
+	if (geomInfo->type == GT_FLUID)
+		geomInfo->erase_operation = ET_ERASE_FLUID;
+	else
+		geomInfo->erase_operation = ET_ERASE_ALL;
+
+
 	// TODO: CHECK: if handle_collisions, no need to add an ODE body, right?
 	if (geomInfo->handle_dynamics)
 		m_numRigidBodies++;
@@ -616,13 +635,26 @@ int XProblem::fill_parts()
 		if (m_geometries[i]->type != GT_PLANE)
 			m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
 
-		// every geometry "erases" any fluid particle that was intersecting its space...
-		m_geometries[i]->ptr->Unfill(m_fluidParts, dx);
+		// prepare for erase operations
+		bool del_fluid = (m_geometries[i]->erase_operation == ET_ERASE_FLUID);
+		bool del_bound = (m_geometries[i]->erase_operation == ET_ERASE_BOUNDARY);
+		if (m_geometries[i]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
-		// ...and anything but fluid erases fixed boundary as welll
-		if (m_geometries[i]->type != GT_FLUID)
-			m_geometries[i]->ptr->Unfill(m_boundaryParts, dx);
+		// erase operations with existent geometries
+		if (del_fluid) {
+			if (m_geometries[i]->intersection_type == IT_SUBTRACT)
+				m_geometries[i]->ptr->Unfill(m_fluidParts, dx);
+			else
+				m_geometries[i]->ptr->Intersect(m_fluidParts, dx);
+		}
+		if (del_bound) {
+			if (m_geometries[i]->intersection_type == IT_SUBTRACT)
+				m_geometries[i]->ptr->Unfill(m_boundaryParts, dx);
+			else
+				m_geometries[i]->ptr->Intersect(m_boundaryParts, dx);
+		}
 
+		// after making some space, fill
 		switch (m_geometries[i]->fill_type) {
 			case FT_BORDER:
 				m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
