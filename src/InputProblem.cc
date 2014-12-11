@@ -419,8 +419,10 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
 				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
-#else
+#elif SPECIFIC_PROBLEM == IOWithoutWalls
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]+2.0f);
+#else
+				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
@@ -467,8 +469,10 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				const float lvel = log(fmax(1.0f-fabs(h5File.buf[i].Coords_2), 0.5*m_deltap)/0.0015625f)/0.41f+5.2f;
 				vel[i] = make_float4(0.0f, 0.0f, 0.0f, m_physparams.rho0[0]);
 				eulerVel[i] = make_float4(lvel, 0.0f, 0.0f, m_physparams.rho0[0]);
-#else
+#elif SPECIFIC_PROBLEM == IOWithoutWalls
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]+2.0f);
+#else
+				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
