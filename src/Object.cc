@@ -281,6 +281,30 @@ void Object::Unfill(PointVect& points, const double dx) const
 	points = new_points;
 }
 
+/// Remove particles from particle vector
+/*! Remove the particles of particles vector lying outside the object,
+ * 	within a tolerance off dx.
+ *  This method uses IsInside().
+ *	\param points : particle vector
+ *	\param dx : tolerance
+ */
+void Object::Intersect(PointVect& points, const double dx) const
+{
+	PointVect new_points;
+	new_points.reserve(points.size());
+
+	for (uint i = 0; i < points.size(); i++) {
+		const Point & p = points[i];
+
+		if (IsInside(p, -dx))
+			new_points.push_back(p);
+	}
+
+	points.clear();
+
+	points = new_points;
+}
+
 // auxiliary function for computing the bounding box
 void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 	Point &origin, Vector v1, Vector v2, Vector v3)

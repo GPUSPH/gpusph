@@ -169,6 +169,7 @@ class Object {
 		 */
 		virtual void FillIn(PointVect& points, const double dx, const int layers) = 0;
 		void Unfill(PointVect&, const double) const;
+		void Intersect(PointVect&, const double) const;
 		//@}
 
 		/// Detect if a particle is inside an object
