@@ -261,6 +261,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.calcPrivate = false;
 		m_simparams.inoutBoundaries = true;
 		m_simparams.ioWaterdepthComputation = true;
+		m_simparams.maxneibsnum = 240;
 	//*************************************************************************************
 
 #endif
