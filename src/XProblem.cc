@@ -310,6 +310,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->ptr = obj_ptr;
 	m_numActiveGeometries++;
 
+	// --- Default collision and dynamics
 	switch (geomInfo->type) {
 		case GT_FLUID:
 			geomInfo->handle_collisions = false;
@@ -608,6 +609,7 @@ int XProblem::fill_parts()
 			dx = m_physparams.r0;
 		}
 
+		// set part mass
 		if (m_geometries[i]->type == GT_FLUID)
 			m_geometries[i]->ptr->SetPartMass(m_deltap, m_physparams.rho0[0]);
 		else

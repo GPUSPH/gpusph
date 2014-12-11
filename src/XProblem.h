@@ -117,7 +117,7 @@ class XProblem: public Problem {
 		void setMass(const GeometryID gid, const double mass);
 		double setMassByDensity(const GeometryID gid, const double density);
 
-		// get informations
+		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
 
 		// world size will be increased by the given margin in each dimension and direction
