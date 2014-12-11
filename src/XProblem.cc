@@ -144,41 +144,51 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	double container_side = 1;				// container (cube or virtual)
 	double cube_side = 0.2;					// little floating cubes
-	double water_side = 1 - 2 * m_deltap;	// water cube length and width
+	double water_side = 1.5;				// water cube length and width
 	double water_depth = 6 * m_deltap;		// water height
 	double test_offset = -3.2;				// rather random
+	//test_offset = 0;
 	double orig = test_offset;				// origin = ~(orig, orig, orig)
+
+
+	// water
+	//orig += m_deltap;
+	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side, water_depth);
+	rotateGeometry(water, EulerParameters(0, M_PI/5, M_PI/10));
 
 	// container
 	GeometryID container = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), container_side);
 	// anything inside a cube collides with the cube, so disable collisions
 	disableCollisions(container);
+	setEraseOperation(container, ET_ERASE_FLUID);
+	setIntersectionType(container, IT_INTERSECT);
+
 	// now let's delete it... to test deleteGeometry() !
-	deleteGeometry(container);
+	//deleteGeometry(container);
 
-	// ok, add a bottom plane instead
-	addPlane(0, 0, 1, -test_offset);
-
-	// water
-	orig += m_deltap;
-	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side, water_depth);
+	//GeometryID obst = addBox(GT_FLUID, FT_BORDER, Point(test_offset + container_side/2,
+	//	test_offset + container_side/2, test_offset), cube_side, cube_side, container_side/2);
 
 	// cube 1
 	orig = test_offset + container_side/2 - cube_side/2; // center in the (virtual) box
-	GeometryID cube1 = addCube(GT_FLOATING_BODY, FT_BORDER, Point(orig, orig, m_deltap + test_offset), cube_side);
+	GeometryID cube1 = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), cube_side*2);
 	setMassByDensity(cube1, m_physparams.rho0[0]*0.5);
 
 	// cube 2 - same position but higher
+	/*
 	GeometryID cube2 = addCube(GT_FLOATING_BODY, FT_BORDER,
 		Point(orig, orig, m_deltap + test_offset + cube_side + m_deltap), cube_side);
 	setMassByDensity(cube2, m_physparams.rho0[0]*0.5);
-	rotateGeometry(cube2, EulerParameters(0, M_PI/10, M_PI/10));
+	rotateGeometry(cube2, EulerParameters(0, M_PI/10, M_PI/10)); // */
+
+	// ok, add a bottom plane instead
+	addPlane(0, 0, 1, -test_offset + 3*m_deltap);
 
 	// torus
 	orig = test_offset + container_side/2; // center in the (virtual) box
 	const double major_radius = container_side / 4;
 	const double minor_radius = major_radius / 4;
-	addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig + cube_side), major_radius, minor_radius);
+	//addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig + cube_side), major_radius, minor_radius);
 
 	// do not limit the world size to the bbox of water and small cubes
 	addExtraWorldMargin(1.0);
