@@ -212,7 +212,7 @@ void XProblem::initialize()
 	// compute bounding box
 	Point globalMin = Point (NAN, NAN, NAN);
 	Point globalMax = Point (NAN, NAN, NAN);
-	for (vsize_t i = 0; i < m_geometries.size(); i++) {
+	for (vsize_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
 		// ignore planes for bbox
 		if (m_geometries[i]->type == GT_PLANE)
 			continue;
@@ -286,7 +286,7 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	// consider collisions where at least one of the two bodies is a floating body...
 	// TODO: planes also have geoms, fix this
 	bool isOneFloating = false;
-	for (uint gid = 0; gid < m_geometries.size() && !isOneFloating; gid++) {
+	for (uint gid = 0, num_geoms = m_geometries.size(); gid < num_geoms && !isOneFloating; gid++) {
 		// ignore deleted geometries
 		if (!m_geometries[gid]->enabled)
 			continue;
@@ -666,7 +666,7 @@ int XProblem::fill_parts()
 	//uint particleCounter = 0;
 	uint bodies_parts_counter = 0;
 
-	for (vsize_t i = 0; i < m_geometries.size(); i++) {
+	for (vsize_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
 
@@ -784,7 +784,7 @@ void XProblem::copy_planes(float4 *planes, float *planediv)
 	// look for planes
 	uint currPlaneIdx = 0;
 	// NOTE: could iterate on planes only with a map plane_index -> gid
-	for (uint gid = 0; gid < m_geometries.size(); gid++) {
+	for (uint gid = 0, num_geoms = m_geometries.size(); gid < num_geoms; gid++) {
 
 		// not a plane?
 		if (m_geometries[gid]->type != GT_PLANE) continue;
@@ -889,13 +889,14 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
-		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
-		for (uint i = elaborated_parts; i < elaborated_parts + rbparts.size(); i++) {
+		const uint num_rbparts = rbparts.size();
+		std::cout << "Rigid body " << k << ": " << num_rbparts << " particles ";
+		for (uint i = elaborated_parts; i < elaborated_parts + num_rbparts; i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i] = make_particleinfo(OBJECTPART, k, i - elaborated_parts);
 			calc_localpos_and_hash(rbparts[i - elaborated_parts], info[i], pos[i], hash[i]);
 		}
-		elaborated_parts += rbparts.size();
+		elaborated_parts += num_rbparts;
 		std::cout << ", part mass: " << pos[elaborated_parts-1].w << "\n";
 	}
 
