@@ -422,6 +422,10 @@ GeometryID XProblem::addSphere(const GeometryType otype, const FillType ftype, c
 GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double major_radius, const double minor_radius)
 {
+	if (otype == GT_FLOATING_BODY) {
+		printf("WARNING: torus not yet supported as floating body, use mesh instead. Ignoring\n");
+		return GEOMETRY_ERROR;
+	}
 	return addGeometry(otype, ftype,
 		new Torus( origin, Vector(0, 0, 1), major_radius, minor_radius )
 	);
