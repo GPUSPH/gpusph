@@ -360,7 +360,6 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	// Upon intersection or subtraction we can choose to interact with fluid
 	// or boundaries. By default, water erases only other water, while boundaries
 	// erase water and other boundaries.
-	// TODO: ensure floating/moving objects erase but are not erased?
 	if (geomInfo->type == GT_FLUID)
 		geomInfo->erase_operation = ET_ERASE_FLUID;
 	else
