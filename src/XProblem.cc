@@ -381,7 +381,7 @@ GeometryID XProblem::addRect(const GeometryType otype, const FillType ftype, con
 	const double side1, const double side2)
 {
 	return addGeometry(otype, ftype,
-		new Rect( origin, Vector(side1, 0, 0), Vector(0, side2, 0) )
+		new Rect( origin, side1, side2, EulerParameters() )
 	);
 }
 
@@ -389,14 +389,14 @@ GeometryID XProblem::addDisk(const GeometryType otype, const FillType ftype, con
 	const double radius)
 {
 	return addGeometry(otype, ftype,
-		new Disk( origin, radius, Vector(0, 0, 1) )
+		new Disk( origin, radius, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side)
 {
 	return addGeometry(otype, ftype,
-		new Cube( origin, Vector(side, 0, 0), Vector(0, side, 0), Vector(0, 0, side) )
+		new Cube( origin, side, side, side, EulerParameters() )
 	);
 }
 
@@ -404,7 +404,7 @@ GeometryID XProblem::addBox(const GeometryType otype, const FillType ftype, cons
 			const double side1, const double side2, const double side3)
 {
 	return addGeometry(otype, ftype,
-		new Cube( origin, Vector(side1, 0, 0), Vector(0, side2, 0), Vector(0, 0, side3) )
+		new Cube( origin, side1, side2, side3, EulerParameters() )
 	);
 }
 
@@ -412,7 +412,7 @@ GeometryID XProblem::addCylinder(const GeometryType otype, const FillType ftype,
 			const double radius, const double height)
 {
 	return addGeometry(otype, ftype,
-		new Cylinder( origin, Vector(radius, 0, 0), Vector(0, 0, height) )
+		new Cylinder( origin, radius, height, EulerParameters() )
 	);
 }
 
@@ -420,7 +420,7 @@ GeometryID XProblem::addCone(const GeometryType otype, const FillType ftype, con
 	const double bottom_radius, const double top_radius, const double height)
 {
 	return addGeometry(otype, ftype,
-		new Cone( origin, bottom_radius, top_radius, Vector(0, 0, height) )
+		new Cone( origin, bottom_radius, top_radius, height, EulerParameters() )
 	);
 }
 
@@ -440,7 +440,7 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 		return GEOMETRY_ERROR;
 	}
 	return addGeometry(otype, ftype,
-		new Torus( origin, Vector(0, 0, 1), major_radius, minor_radius )
+		new Torus( origin, major_radius, minor_radius, EulerParameters() )
 	);
 }
 
