@@ -467,13 +467,13 @@ void XProblem::enableDynamics(const GeometryID gid)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to enable dynamics on a deleted geometry!\n");
+		printf("WARNING: trying to enable dynamics on a deleted geometry! Ignoring\n");
 		return;
 	}
 	// ensure dynamics are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY) {
-		printf("WARNING: dynamics only available for rigid bodies!\n");
+		printf("WARNING: dynamics only available for rigid bodies! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->handle_dynamics = true;
@@ -483,14 +483,14 @@ void XProblem::enableCollisions(const GeometryID gid)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to enable collisions on a deleted geometry!\n");
+		printf("WARNING: trying to enable collisions on a deleted geometry! Ignoring\n");
 		return;
 	}
 	// ensure collisions are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY &&
 		m_geometries[gid]->type != GT_PLANE) {
-		printf("WARNING: collisions only available for rigid bodies and planes!\n");
+		printf("WARNING: collisions only available for rigid bodies and planes! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->handle_collisions = true;
@@ -500,12 +500,12 @@ void XProblem::disableDynamics(const GeometryID gid)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to disable dynamics on a deleted geometry!\n");
+		printf("WARNING: trying to disable dynamics on a deleted geometry! Ignoring\n");
 		return;
 	}
 	// ensure no-dynamics is consistent with geometry type
 	if (m_geometries[gid]->type == GT_FLOATING_BODY) {
-		printf("WARNING: dynamics are mandatory for floating bodies!\n");
+		printf("WARNING: dynamics are mandatory for floating bodies! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->handle_dynamics = false;
@@ -515,7 +515,7 @@ void XProblem::disableCollisions(const GeometryID gid)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to disable collisions on a deleted geometry!\n");
+		printf("WARNING: trying to disable collisions on a deleted geometry! Ignoring\n");
 		return;
 	}
 	// it is possible to disable collisions for any geometry type, so no need to check it
@@ -525,11 +525,21 @@ void XProblem::disableCollisions(const GeometryID gid)
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
 void XProblem::rotateGeometry(const GeometryID gid, const EulerParameters &ep)
 {
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
+		return;
+	}
 	m_geometries[gid]->ptr->setEulerParameters(ep);
 }
 
 void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
 {
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
+		return;
+	}
 	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
 }
 
@@ -562,7 +572,7 @@ void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set IntersectionType on a deleted geometry!\n");
+		printf("WARNING: trying to set IntersectionType on a deleted geometry! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->intersection_type = i_type;
@@ -572,7 +582,7 @@ void XProblem::setEraseOperation(const GeometryID gid, EraseOperation e_operatio
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set EraseOperation on a deleted geometry!\n");
+		printf("WARNING: trying to set EraseOperation on a deleted geometry! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->erase_operation = e_operation;
@@ -580,11 +590,25 @@ void XProblem::setEraseOperation(const GeometryID gid, EraseOperation e_operatio
 
 void XProblem::setMass(const GeometryID gid, const double mass)
 {
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to set mass on a deleted geometry! Ignoring\n");
+		return;
+	}
+	if (m_geometries[gid]->type != GT_FLOATING_BODY)
+		printf("WARNING: setting mass of a non-floating body\n");
 	m_geometries[gid]->ptr->SetMass(mass);
 }
 
 double XProblem::setMassByDensity(const GeometryID gid, const double density)
 {
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to enable dynamics on a deleted geometry! Ignoring\n");
+		return NAN;
+	}
+	if (m_geometries[gid]->type != GT_FLOATING_BODY)
+		printf("WARNING: setting mass of a non-floating body\n");
 	return m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
 }
 
@@ -598,7 +622,7 @@ void XProblem::addExtraWorldMargin(const double margin)
 	if (margin >= 0.0)
 		m_extra_world_margin = margin;
 	else
-		printf("WARNING: tried to add negative world margin, ignoring\n");
+		printf("WARNING: tried to add negative world margin! Ignoring\n");
 }
 
 int XProblem::fill_parts()
