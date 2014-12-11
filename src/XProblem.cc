@@ -614,6 +614,13 @@ int XProblem::fill_parts()
 		if (m_geometries[i]->type != GT_PLANE)
 			m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
 
+		// every geometry "erases" any fluid particle that was intersecting its space...
+		m_geometries[i]->ptr->Unfill(m_fluidParts, dx);
+
+		// ...and anything but fluid erases fixed boundary as welll
+		if (m_geometries[i]->type != GT_FLUID)
+			m_geometries[i]->ptr->Unfill(m_boundaryParts, dx);
+
 		switch (m_geometries[i]->fill_type) {
 			case FT_BORDER:
 				m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
