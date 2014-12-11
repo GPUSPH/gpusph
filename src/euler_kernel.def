@@ -132,39 +132,29 @@ eulerDevice(
 			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
 			if (boundarytype == SA_BOUNDARY) {
-				// Updating particle velocity and density
+				// Updating particle density
 				// For step 1:
 				//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
 				// For step 2:
 				//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-				//if (id(pinfo) == 1690)
-				//	printf("rho: %e | d %e %e %e \n", vel.w, force.w, contupd[index].y, contupd[index].y*vel.w/gGam[index].w);
-				//if (step == 1) {
-				//	// gamma at time n+1 (gGam.w is gamma at time n)
-				//	const float gamN = gGam[index].w;
-				//	const float gamNp1 = gamN + dt*contupd[index].y;
-				//	//if (id(pinfo) == 31350062)
-				//	// previously estimated gamNp1 (now gamN)
-				//	const float gamNest = oldgGam[index].w;
-				//	if (gamNest > 0.05f)
-				//		vel.w *= gamNest/gamN;
-				//	vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
-				//	//if (id(pinfo) == 1690)
-				//	//	printf("gamNp1/2: %e | gamN: %e | old: %e | rho: %e\n", gamNp1, gamN, oldgGam[index].w, vel.w);
-				//}
-				//else {
-				//	const float gamNp1o2 = gGam[index].w;
-				//	const float rhoNp1o2 = newVel[index].w;
-				//	// gamma at time n (gGam.w is gamma at time n+1/2)
-				//	const float gamN   = oldgGam[index].w; //gGam[index].w-dt/2.0f*contupd[index].y;
-				//	// gamma at time n+1
-				//	const float gamNp1 = gamN + dt*contupd[index].y;
-				//	vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
-				//	//if (id(pinfo) == 1690)
-				//	//	printf("gamNp1/2: %e | gamN: %e | gamNp1: %e | old: %e  | rho: %e\n", gGam[index].w, gamN, gamNp1, oldgGam[index].w, vel.w);
-				//	gGam[index].w = gamNp1;
-				//}
-				vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
+				// Improved continuity equation
+				if (step == 1) {
+					// gamma at time n+1 (gGam.w is gamma at time n)
+					const float gamN = gGam[index].w;
+					const float gamNp1 = gamN + dt*contupd[index].y;
+					vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+				}
+				else {
+					const float gamNp1o2 = gGam[index].w;
+					const float rhoNp1o2 = newVel[index].w;
+					// gamma at time n (gGam.w is gamma at time n+1/2)
+					const float gamN   = oldgGam[index].w;
+					// gamma at time n+1
+					const float gamNp1 = gamN + dt*contupd[index].y;
+					vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
+				}
+				// Classical continuity equation
+				//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
 			}
 			else
 				vel.w += dt*force.w;
