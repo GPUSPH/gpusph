@@ -203,7 +203,7 @@ void XProblem::release_memory()
 XProblem::~XProblem()
 {
 	release_memory();
-	if (m_numRigidBodies)
+	if (m_numRigidBodies > 0)
 		cleanupODE();
 }
 
@@ -365,8 +365,8 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	else
 		geomInfo->erase_operation = ET_ERASE_ALL;
 
-
-	// TODO: CHECK: if handle_collisions, no need to add an ODE body, right?
+	// NOTE: we don't need to check handle_collisions at all, since if there are no bodies
+	// we don't need collisions nor ODE at all
 	if (geomInfo->handle_dynamics)
 		m_numRigidBodies++;
 
@@ -462,7 +462,6 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	if (m_geometries[gid]->ptr->m_ODEBody || m_geometries[gid]->ptr->m_ODEGeom)
 		m_numRigidBodies--;
 
-	// TODO: remove from other arrays/counters? (not necessary from ODE objs, they are created only if enabled)
 	// TODO: print a warning if deletion is requested after fill_parts
 }
 
@@ -756,21 +755,24 @@ int XProblem::fill_parts()
 		}
 #endif
 
-		// create ODE body if required
-		if (m_geometries[i]->handle_dynamics) {
-			m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
-			add_ODE_body(m_geometries[i]->ptr);
-			bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
-		}
+		// ODE-related operations - only if we have at least one floating body
+		if (m_numRigidBodies > 0) {
+			// create ODE body if required
+			if (m_geometries[i]->handle_dynamics) {
+				m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
+				add_ODE_body(m_geometries[i]->ptr);
+				bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
+			}
 
-		// create ODE geometry if required
-		if (m_geometries[i]->handle_collisions)
-			m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
+			// create ODE geometry if required
+			if (m_geometries[i]->handle_collisions)
+				m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 
-		// update ODE rotation matrix according to possible rotation - excl. planes!
-		if ((m_geometries[i]->handle_collisions || m_geometries[i]->handle_dynamics) &&
-			m_geometries[i]->type != GT_PLANE)
-			m_geometries[i]->ptr->updateODERotMatrix();
+			// update ODE rotation matrix according to possible rotation - excl. planes!
+			if ((m_geometries[i]->handle_collisions || m_geometries[i]->handle_dynamics) &&
+				m_geometries[i]->type != GT_PLANE)
+				m_geometries[i]->ptr->updateODERotMatrix();
+		} // if m_numRigidBodies > 0
 	}
 
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter;
