@@ -5,10 +5,6 @@
  *      Author: rustico
  */
 
-#include "NetworkManager.h"
-// for GlobalData::RANK()
-#include <GlobalData.h>
-
 #include "mpi_select.opt"
 
 #if USE_MPI
@@ -17,6 +13,10 @@
 #define MPI_MAX_PROCESSOR_NAME 256
 #define NO_MPI_ERR throw runtime_error("MPI support not compiled in")
 #endif
+
+#include "NetworkManager.h"
+// for GlobalData::RANK()
+#include <GlobalData.h>
 
 #if USE_MPI
 static MPI_Request* m_requestsList;
