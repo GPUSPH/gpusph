@@ -284,16 +284,20 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	const uint skip_offset = sizeof(dContact);
 
 	// consider collisions where at least one of the two bodies is a floating body...
-	// TODO: planes also have geoms, fix this
 	bool isOneFloating = false;
 	for (uint gid = 0, num_geoms = m_geometries.size(); gid < num_geoms && !isOneFloating; gid++) {
 		// ignore deleted geometries
 		if (!m_geometries[gid]->enabled)
 			continue;
-		dGeomID curr = m_geometries[gid]->ptr->m_ODEGeom;
-		if (curr == o1 || curr == o2)
-			isOneFloating = true;
-	}
+		// is the current geometry a floating body?
+		if (m_geometries[gid]->type == GT_FLOATING_BODY) {
+			// read ODE geom ID
+			const dGeomID curr_odegeom_id = m_geometries[gid]->ptr->m_ODEGeom;
+			// check if this is one of the two colliding
+			if (curr_odegeom_id == o1 || curr_odegeom_id == o2)
+				isOneFloating = true;
+		} // if current geom is floating
+	} // iterating on all geometries
 
 	// ...ignore otherwise
 	if (!isOneFloating) return;
