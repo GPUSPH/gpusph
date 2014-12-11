@@ -237,7 +237,7 @@ struct keps_particle_data
 	keps_particle_data(const uint index, particleinfo const& info) :
 		keps_k(tex1Dfetch(keps_kTex, index)),
 		keps_e( tex1Dfetch(keps_eTex, index)),
-		turbVisc(0.09f*keps_k*keps_k/fmax(keps_e, 1e-6f)),
+		turbVisc(0.09f*keps_k*keps_k/keps_e),
 		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
 	{}
 };
@@ -540,15 +540,11 @@ struct eulerVel_neib_data
 	// Define shorthands for their data type
 	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
 
-	const float4 relEulerVelRho;
-	const float4 relEulerVelVisc;
-	const float4 relEulerVelKEPS;
+	const float4 relEulerVel;
 
 	__device__ __forceinline__
 	eulerVel_neib_data(pdata_t const& pdata, const uint _index, const particleinfo _info) :
-		relEulerVelRho(as_float3(pdata.eulerVel) - ((VERTEX(_info) || BOUNDARY(_info)) && (IO_BOUNDARY(_info) && !CORNER(_info)) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
-		relEulerVelVisc(as_float3(pdata.eulerVel) - (!BOUNDARY(_info) ? tex1Dfetch(eulerVelTex, _index) : make_float4(0.0f))),
-		relEulerVelKEPS(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
+		relEulerVel(as_float3(pdata.eulerVel) - tex1Dfetch(eulerVelTex, _index))
 	{}
 };
 
@@ -757,23 +753,29 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
-		const float ndist = sqlength3(ndata.relPos)/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
-		const float wVol = ndata.r < params.slength ? 1.0f/max(ndist,1e-3f) : 0.0f;//W<kerneltype>(ndata.r, params.slength);
+		const float ndist = sqlength3(ndata.relPos)/params.slength/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
+		const float wVol = ndata.r < params.influenceradius ? 1.0f/max(ndist,1e-3f) : 0.0f;//W<kerneltype>(ndata.r, params.slength);
 		pout.gamavg += (neib_gam.w + dotRGG)*wVol;
 		pout.alpha += wVol;
 	}
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
+		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.5f);
+		const float sx = fmax(x*4.0f - 1.0f,0.0f);
+		// smootherstep function
+		const float smooth = pdata.ptype == PT_VERTEX ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
 				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 				ndata.belem, pdata.oldGGam,
 				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
 				pout.minlRas);
+		if (smooth < params.epsilon)
+			nout.gamAS.y = 0.0f;
 		pout.gGam.x += nout.gamAS.x*ndata.belem.x;
 		pout.gGam.y += nout.gamAS.x*ndata.belem.y;
 		pout.gGam.z += nout.gamAS.x*ndata.belem.z;
-		pout.gGam.w -= nout.gamAS.y;
+		pout.gGam.w -= nout.gamAS.y*smooth;
 	}
 }
 
@@ -800,7 +802,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt -= dot3(ndata.relEulerVelRho, ndata.belem)*nout.gamAS.x;
+	nout.DrDt -= dot3(ndata.relEulerVel, ndata.belem)*nout.gamAS.x;
 }
 
 template<>
@@ -808,7 +810,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt += ndata.relPos.w/ndata.relVel.w*dot3(ndata.relEulerVelRho, ndata.relPos)*ndata.f;
+	nout.DrDt += ndata.relPos.w/ndata.relVel.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
 }
 
 /// A functor that computes the time derivative of rho
@@ -1024,7 +1026,7 @@ compute_repulsive_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N c
 
 // Functor that returns the relative Eulerian velocity for viscous computations
 template<bool eulerVelPresent>
-struct getRelEulerVelVisc
+struct getRelEulerVel
 {
 	template<typename N>
 	__device__ __forceinline__
@@ -1036,9 +1038,9 @@ struct getRelEulerVelVisc
 template<>
 template<typename N>
 __device__ __forceinline__ float4
-getRelEulerVelVisc<true>::with(N const& ndata)
+getRelEulerVel<true>::with(N const& ndata)
 {
-	return ndata.relEulerVelVisc;
+	return ndata.relEulerVel;
 }
 
 // auxiliary functor computing boundary contribution to the viscous term
@@ -1072,7 +1074,7 @@ visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// a component of fluid paricle velocity tangential to the wall
-	const float3 u_t = as_float3(ndata.relVel+ndata.relEulerVelVisc) - dot(as_float3(ndata.relVel+ndata.relEulerVelVisc), ndata.normal_s)*ndata.normal_s;
+	const float3 u_t = as_float3(ndata.relVel+pdata.eulerVel) - dot(as_float3(ndata.relVel+pdata.eulerVel), ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);
 
 	// we solve iteratively the wall law equation to obtain y+ value
@@ -1114,7 +1116,7 @@ visc_volumic_part<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& 
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<inoutBoundaries>::with(ndata));
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<inoutBoundaries>::with(ndata));
 }
 
 template<>
@@ -1123,7 +1125,7 @@ __device__ __forceinline__ void
 visc_volumic_part<KINEMATICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_kinematic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f));
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<inoutBoundaries>::with(ndata));
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<inoutBoundaries>::with(ndata));
 }
 
 // SPS viscosity is just kinematic + a contribution based on the strain rate
@@ -1157,8 +1159,8 @@ visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& nda
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
 		(d_visccoeff+pdata.turbViscForViscTerm)*pdata.vel.w,
 		(d_visccoeff+ndata.turbViscForViscTerm)*ndata.relVel.w));
-	// call getRelEulerVelVisc always with true as in keps we always have that value
-	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVelVisc<true>::with(ndata));
+	// call getRelEulerVel always with true as in keps we always have that value
+	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<true>::with(ndata));
 }
 
 // artificial viscosity
@@ -1268,10 +1270,9 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
 	//	dvz = -∑mb vzab ∇(ra - rb)/r ∂Wab/∂r
 
-
-	pout.dvx += (ndata.relVel.x+ndata.relEulerVelKEPS.x)*dvmul;
-	pout.dvy += (ndata.relVel.y+ndata.relEulerVelKEPS.y)*dvmul;
-	pout.dvz += (ndata.relVel.z+ndata.relEulerVelKEPS.z)*dvmul;
+	pout.dvx += (ndata.relVel.x+ndata.relEulerVel.x)*dvmul;
+	pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
+	pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
 }
 
 // Functor to check if water depth computation was requested
@@ -1375,7 +1376,7 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 
 	// Variation terms for Dk/Dt and De/Dt for the partially implicit time integration in euler
 	const float dkdt = Pturb + pout.diff_term_k;
-	const float dedt = pdata.keps_e*1.44f*Pturb/fmax(pdata.keps_k,1e-6f) + pout.diff_term_e;
+	const float dedt = pdata.keps_e*1.44f*Pturb/pdata.keps_k + pout.diff_term_e;
 
 	params.keps_dkde[pdata.index].x = dkdt;
 	params.keps_dkde[pdata.index].y = dedt;

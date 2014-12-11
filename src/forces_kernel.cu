@@ -642,7 +642,7 @@ wendlandOnSegment(const float q)
 		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
 
 		// integrated Wendland kernel
-		const float uq = 1/q;
+		const float uq = 1.0f/q;
 		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8*uq + 20)*uq + 30)*uq) + 21);
 	}
 
@@ -800,10 +800,6 @@ Gamma(	const	float		&slength,
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
 	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
 	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
-	// set minlRas only if we are deltap/2 far from a vertex
-	if (q_aSigma.w < 0.5f && length3(relPos) < deltap/2.0f/slength) {
-		minlRas = min(minlRas, q_aSigma.w);
-	}
 	// calculate if the projection of a (with respect to n) is inside the segment
 	const float4 ba = v1 - v0; // vector from v0 to v1
 	const float4 ca = v2 - v0; // vector from v0 to v2
@@ -817,6 +813,11 @@ Gamma(	const	float		&slength,
 	const float u = (uv*wv-vv*wu)*invdet;
 	const float v = (uv*wu-uu*wv)*invdet;
 	//const float w = 1.0f - u - v;
+	// set minlRas only if the projection is close enough to the triangle and if the normal
+	// distance is close
+	if (q_aSigma.w < 0.5f && (u > -1.0f && v > -1.0f && 1.0f - u - v > -1.0f && u < 2.0f && v < 2.0f && 1.0f - u - v < 2.0f)) {
+		minlRas = min(minlRas, q_aSigma.w);
+	}
 	float gradGamma_as = 0.0f;
 	float gamma_as = 0.0f;
 	float gamma_vs = 0.0f;
@@ -990,29 +991,29 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		if (IO_BOUNDARY(info)) {
 			// for imposed velocity the velocity, tke and eps are required and only rho will be calculated
 			if (VEL_IO(info)) {
-				eulerVel.x =	oldEulerVel[vertXidx].x +
+				eulerVel.x =   (oldEulerVel[vertXidx].x +
 								oldEulerVel[vertYidx].x +
-								oldEulerVel[vertZidx].x;
-				eulerVel.y =	oldEulerVel[vertXidx].y +
+								oldEulerVel[vertZidx].x )/3.0f;
+				eulerVel.y =   (oldEulerVel[vertXidx].y +
 								oldEulerVel[vertYidx].y +
-								oldEulerVel[vertZidx].y;
-				eulerVel.z =	oldEulerVel[vertXidx].z +
+								oldEulerVel[vertZidx].y )/3.0f;
+				eulerVel.z =   (oldEulerVel[vertXidx].z +
 								oldEulerVel[vertYidx].z +
-								oldEulerVel[vertZidx].z;
+								oldEulerVel[vertZidx].z )/3.0f;
 				if (oldTKE)
-					tke =	oldTKE[vertXidx] +
+					tke =  (oldTKE[vertXidx] +
 							oldTKE[vertYidx] +
-							oldTKE[vertZidx];
+							oldTKE[vertZidx] )/3.0f;
 				if (oldEps)
-					eps =	oldEps[vertXidx] +
+					eps =  (oldEps[vertXidx] +
 							oldEps[vertYidx] +
-							oldEps[vertZidx];
+							oldEps[vertZidx] )/3.0f;
 			}
 			// for imposed density only eulerVel.w will be required, the rest will be computed
 			else {
-				eulerVel.w =	oldEulerVel[vertXidx].w +
+				eulerVel.w =   (oldEulerVel[vertXidx].w +
 								oldEulerVel[vertYidx].w +
-								oldEulerVel[vertZidx].w;
+								oldEulerVel[vertZidx].w )/3.0f;
 			}
 		}
 
@@ -1113,14 +1114,14 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 						oldEulerVel[index] = eulerVel;
 					}
 					// for solid boundaries and pressure imposed boundaries we take dk/dn = 0
-					oldTKE[index] = fmax(sumtke/alpha, 1e-5f);
+					oldTKE[index] = sumtke/alpha;
 				}
 				else if (oldEulerVel)
 					oldEulerVel[index] = make_float4(0.0f);
 				if (oldEps)
 					// for solid boundaries we have de/dn = 4 0.09^0.075 k^1.5/(0.41 r)
 					// for open boundaries we have dk/dn = 0
-					oldEps[index] = fmax(sumeps/alpha, 1e-5f); // eps should never be 0
+					oldEps[index] = sumeps/alpha; // eps should never be 0
 			}
 			// velocity imposition
 			else {
@@ -1528,12 +1529,8 @@ saVertexBoundaryConditions(
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	oldVel[index].w = sumrho/numseg;
-	if (oldTKE) {
+	if (oldTKE)
 		oldTKE[index] = sumtke/numseg;
-		// adjust Eulerian velocity so that it is tangential to the fixed wall
-		if ((!IO_BOUNDARY(info) || CORNER(info)) && !initStep)
-			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
-	}
 	if (oldEps)
 		oldEps[index] = sumeps/numseg;
 	// open boundaries

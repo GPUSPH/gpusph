@@ -604,15 +604,20 @@ bool GPUSPH::runSimulation() {
 			}
 
 			// Impose translation & rotation for forced movement of objects
-			problem->imposeForcedMovingObjects(
-				gdata->s_hMovObjGravityCenters,
-				gdata->s_hMovObjTranslations,
-				gdata->s_hMovObjRotationMatrices,
-				problem->m_ODEobjectId,
-				problem->get_simparams()->numObjects,
-				gdata->t,
-				gdata->dt
-				);
+			for (uint ob=0; ob < problem->get_simparams()->numObjects; ob++) {
+				// if ODEobjectId[id] is not equal to UINT_MAX we have a floating object
+				if(problem->m_ODEobjectId[ob] == UINT_MAX) {
+					// TODO call imposeForcedMovingObjects even though the object might be an open boundary
+					problem->imposeForcedMovingObjects(
+						gdata->s_hMovObjGravityCenters[ob],
+						gdata->s_hMovObjTranslations[ob],
+						&gdata->s_hMovObjRotationMatrices[ob*9],
+						ob+1,
+						gdata->t,
+						gdata->dt
+						);
+				}
+			}
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);

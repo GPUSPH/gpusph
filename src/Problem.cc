@@ -698,12 +698,20 @@ Problem::max_parts(uint numParts)
 void
 Problem::calculateFerrariCoefficient()
 {
-	if (m_simparams.ferrariLengthScale < 0.0f) {
-		printf("Ferrari coefficient: %e\n", m_simparams.ferrari);
-		return;
+	if (isnan(m_simparams.ferrari)) {
+		if (isnan(m_simparams.ferrariLengthScale)) {
+			m_simparams.ferrari = 0.0f;
+			printf("Ferrari coefficient: %e (default value, disabled)\n", m_simparams.ferrari);
+			return;
+		}
+		else {
+			m_simparams.ferrari = m_simparams.ferrariLengthScale*1e-3f/m_deltap;
+			printf("Ferrari coefficient: %e (computed from length scale: %e)\n", m_simparams.ferrari, m_simparams.ferrariLengthScale);
+			return;
+		}
 	}
-	m_simparams.ferrari = m_simparams.ferrariLengthScale*1e-3f/m_deltap;
-	printf("Ferrari coefficient: %e (computed from length scale: %e)\n", m_simparams.ferrari, m_simparams.ferrariLengthScale);
+	printf("Ferrari coefficient: %e\n", m_simparams.ferrari);
+	return;
 }
 
 // input: force, torque, step number (why?), dt
@@ -942,11 +950,10 @@ Problem::imposeBoundaryConditionHost(
 }
 
 void Problem::imposeForcedMovingObjects(
-			float3*	gravityCenters,
-			float3*	translations,
+			float3	&gravityCenters,
+			float3	&translations,
 			float*	rotationMatrices,
-	const	uint*	ODEobjectId,
-	const	uint	numObjects,
+	const	uint	ob,
 	const	double	t,
 	const	float	dt)
 {

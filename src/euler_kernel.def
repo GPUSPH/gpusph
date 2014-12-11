@@ -102,8 +102,9 @@ eulerDevice(
 
 	do {
 		// we only integrate ACTIVE particles which are not BOUNDARY particles,
-		// unless dynbounds is active (in which case BOUNDARY particles are also integrated)
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && boundarytype != DYN_BOUNDARY))
+		// unless dynbounds or sa_boundary is active (in which case BOUNDARY particles are also integrated)
+		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary))
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
@@ -131,39 +132,29 @@ eulerDevice(
 			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
 			if (boundarytype == SA_BOUNDARY) {
-				// Updating particle velocity and density
+				// Updating particle density
 				// For step 1:
 				//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
 				// For step 2:
 				//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-				//if (id(pinfo) == 1690)
-				//	printf("rho: %e | d %e %e %e \n", vel.w, force.w, contupd[index].y, contupd[index].y*vel.w/gGam[index].w);
-				//if (step == 1) {
-				//	// gamma at time n+1 (gGam.w is gamma at time n)
-				//	const float gamN = gGam[index].w;
-				//	const float gamNp1 = gamN + dt*contupd[index].y;
-				//	//if (id(pinfo) == 31350062)
-				//	// previously estimated gamNp1 (now gamN)
-				//	const float gamNest = oldgGam[index].w;
-				//	if (gamNest > 0.05f)
-				//		vel.w *= gamNest/gamN;
-				//	vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
-				//	//if (id(pinfo) == 1690)
-				//	//	printf("gamNp1/2: %e | gamN: %e | old: %e | rho: %e\n", gamNp1, gamN, oldgGam[index].w, vel.w);
-				//}
-				//else {
-				//	const float gamNp1o2 = gGam[index].w;
-				//	const float rhoNp1o2 = newVel[index].w;
-				//	// gamma at time n (gGam.w is gamma at time n+1/2)
-				//	const float gamN   = oldgGam[index].w; //gGam[index].w-dt/2.0f*contupd[index].y;
-				//	// gamma at time n+1
-				//	const float gamNp1 = gamN + dt*contupd[index].y;
-				//	vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
-				//	//if (id(pinfo) == 1690)
-				//	//	printf("gamNp1/2: %e | gamN: %e | gamNp1: %e | old: %e  | rho: %e\n", gGam[index].w, gamN, gamNp1, oldgGam[index].w, vel.w);
-				//	gGam[index].w = gamNp1;
-				//}
-				vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
+				// Improved continuity equation
+				if (step == 1) {
+					// gamma at time n+1 (gGam.w is gamma at time n)
+					const float gamN = gGam[index].w;
+					const float gamNp1 = gamN + dt*contupd[index].y;
+					vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+				}
+				else {
+					const float gamNp1o2 = gGam[index].w;
+					const float rhoNp1o2 = newVel[index].w;
+					// gamma at time n (gGam.w is gamma at time n+1/2)
+					const float gamN   = oldgGam[index].w;
+					// gamma at time n+1
+					const float gamNp1 = gamN + dt*contupd[index].y;
+					vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
+				}
+				// Classical continuity equation
+				//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
 			}
 			else
 				vel.w += dt*force.w;
@@ -177,7 +168,7 @@ eulerDevice(
 			// Updating k and e for k-e model
 			if (keps_dkde) {
 				const float3 dkde = keps_dkde[index];
-				const float oldK = fmax(keps_k,1e-6f);
+				const float oldK = keps_k;
 				// implicit formulations of k and e
 				keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
 				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
@@ -194,6 +185,9 @@ eulerDevice(
 			if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 				// this is for k-eps only. Normally forces are going to be zero
 				eulerVel += dt*force;
+				// remove normal component of eulerian velocity
+				const float4 gradGamma = gGam[index];
+				eulerVel -= dot3(gradGamma, eulerVel)/sqlength3(gradGamma)*gradGamma;
 				// move segments and boundary particles if the MOVING flag is set
 				if (MOVING(pinfo) && step == 2) {
 					const uint i = object(pinfo)-1;

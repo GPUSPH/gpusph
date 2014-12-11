@@ -262,7 +262,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
 				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-				//numOdeObjParts++;
+				numOdeObjParts++;
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
@@ -320,21 +320,21 @@ void CompleteSaExample::fillDeviceMap()
 }
 
 void CompleteSaExample::imposeForcedMovingObjects(
-			float3*	gravityCenters,
-			float3*	translations,
-			float*	rotationMatrices,
-	const	uint*	ODEobjectId,
-	const	uint	numObjects,
+			float3	&centerOfGravity,
+			float3	&translation,
+			float*	rotationMatrix,
+	const	uint	ob,
 	const	double	t,
 	const	float	dt)
 {
-	// for object(info)==n we need to access array index n-1
-	uint id = 2-1;
-	// if ODEobjectId[id] is not equal to UINT_MAX we have a floating object
-	if (ODEobjectId[id] == UINT_MAX) {
-		gravityCenters[id] = make_float3(0.0f, 0.0f, 0.0f);
-		translations[id] = make_float3(0.2f*dt, 0.0f, 0.0f);
-		for (uint i=0; i<9; i++)
-			rotationMatrices[id*9+i] = (i==0 || i==4 || i==8) ? 1.0f : 0.0f;
+	switch (ob) {
+		case 2:
+			centerOfGravity = make_float3(0.0f, 0.0f, 0.0f);
+			translation = make_float3(0.2f*dt, 0.0f, 0.0f);
+			for (uint i=0; i<9; i++)
+				rotationMatrix[i] = (i%4==0) ? 1.0f : 0.0f;
+			break;
+		default:
+			break;
 	}
 }
