@@ -161,7 +161,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	// water
 	orig += m_deltap;
-	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side/4, water_depth);
+	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side, water_depth);
 
 	// cube 1
 	orig = test_offset + container_side/2 - cube_side/2; // center in the (virtual) box
