@@ -544,6 +544,26 @@ void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const dou
 	rotateGeometry( gid, EulerParameters(psi, theta, phi) );
 }
 
+void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
+{
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to set IntersectionType on a deleted geometry!\n");
+		return;
+	}
+	m_geometries[gid]->intersection_type = i_type;
+}
+
+void XProblem::setEraseOperation(const GeometryID gid, EraseOperation e_operation)
+{
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to set EraseOperation on a deleted geometry!\n");
+		return;
+	}
+	m_geometries[gid]->erase_operation = e_operation;
+}
+
 void XProblem::setMass(const GeometryID gid, const double mass)
 {
 	m_geometries[gid]->ptr->SetMass(mass);
