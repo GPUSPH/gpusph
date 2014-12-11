@@ -642,7 +642,7 @@ wendlandOnSegment(const float q)
 		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
 
 		// integrated Wendland kernel
-		const float uq = 1/q;
+		const float uq = 1.0f/q;
 		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8*uq + 20)*uq + 30)*uq) + 21);
 	}
 
@@ -815,7 +815,7 @@ Gamma(	const	float		&slength,
 	//const float w = 1.0f - u - v;
 	// set minlRas only if the projection is close enough to the triangle and if the normal
 	// distance is close
-	if (q_aSigma.w < 0.5f && (u > -1.0f && v > -1.0f && 1.0f - u - v > -1.0f)) {
+	if (q_aSigma.w < 0.5f && (u > -1.0f && v > -1.0f && 1.0f - u - v > -1.0f && u < 2.0f && v < 2.0f && 1.0f - u - v < 2.0f)) {
 		minlRas = min(minlRas, q_aSigma.w);
 	}
 	float gradGamma_as = 0.0f;

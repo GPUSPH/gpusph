@@ -753,23 +753,29 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
-		const float ndist = sqlength3(ndata.relPos)/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
-		const float wVol = ndata.r < params.slength ? 1.0f/max(ndist,1e-3f) : 0.0f;//W<kerneltype>(ndata.r, params.slength);
+		const float ndist = sqlength3(ndata.relPos)/params.slength/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
+		const float wVol = ndata.r < params.influenceradius ? 1.0f/max(ndist,1e-3f) : 0.0f;//W<kerneltype>(ndata.r, params.slength);
 		pout.gamavg += (neib_gam.w + dotRGG)*wVol;
 		pout.alpha += wVol;
 	}
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
+		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.5f);
+		const float sx = fmax(x*4.0f - 1.0f,0.0f);
+		// smootherstep function
+		const float smooth = pdata.ptype == PT_VERTEX ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
 				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 				ndata.belem, pdata.oldGGam,
 				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
 				pout.minlRas);
+		if (smooth < params.epsilon)
+			nout.gamAS.y = 0.0f;
 		pout.gGam.x += nout.gamAS.x*ndata.belem.x;
 		pout.gGam.y += nout.gamAS.x*ndata.belem.y;
 		pout.gGam.z += nout.gamAS.x*ndata.belem.z;
-		pout.gGam.w -= nout.gamAS.y;
+		pout.gGam.w -= nout.gamAS.y*smooth;
 	}
 }
 
