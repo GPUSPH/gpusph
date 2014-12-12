@@ -1086,7 +1086,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				sumtke += w*neib_k;
 				if (IO_BOUNDARY(info)) {
 					// for open boundaries compute dv/dn = 0
-					sumvel += w*as_float3(oldVel[neib_index]);
+					sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 					// and de/dn = 0
 					sumeps += w*neib_eps;
 				}
