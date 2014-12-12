@@ -130,9 +130,9 @@ class XProblem: public Problem {
 		void disableCollisions(const GeometryID gid);
 
 		// methods for rotating an existing object
-		void rotateGeometry(const GeometryID gid, const EulerParameters &ep);
-		void rotateGeometry(const GeometryID gid, const dQuaternion quat);
-		void rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
+		void setOrientation(const GeometryID gid, const EulerParameters &ep);
+		void setOrientation(const GeometryID gid, const dQuaternion quat);
+		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
 		// get and customize the unfilling policy
 		IntersectionType getIntersectionType(const GeometryID gid) { return m_geometries[gid]->intersection_type; }
@@ -148,7 +148,7 @@ class XProblem: public Problem {
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
 
 		// define 6 planes delimiting the box with given corners; update word size and origin; write their IDs in planesIds
-		void universeBox(const double3 corner1, const double3 corner2, GeometryID *planesIds = NULL);
+		void makeUniverseBox(const double3 corner1, const double3 corner2, GeometryID *planesIds = NULL);
 
 		// world size will be increased by the given margin in each dimension and direction
 		void addExtraWorldMargin(const double margin);

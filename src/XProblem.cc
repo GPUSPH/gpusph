@@ -153,19 +153,20 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// water
 	//orig += m_deltap; // not needed anymore!
 	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side, water_depth);
-	rotateGeometry(water, EulerParameters(M_PI/4, 0, 0));
+	//rotateGeometry(water, EulerParameters(M_PI/4, 0, 0));
 
 	orig += 0.5;
 	GeometryID obst = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig - 0.5), cube_side, cube_side, cube_side*2);
 
 	orig -= 0.3;
 	GeometryID cube = addCube(GT_FLOATING_BODY, FT_BORDER, Point(orig, orig + container_side - cube_side*2.5, orig+cube_side), cube_side);
-	rotateGeometry(cube, EulerParameters(0, -M_PI/4, -M_PI/8));
+	rotate(cube, M_PI/8, M_PI/8, M_PI/8);
 	setMassByDensity(cube, m_physparams.rho0[0]*0.1);
 
 	orig -= 0.2;
 	GeometryID res_planes[6];
-	universeBox( make_double3(orig,orig,orig), make_double3(orig+container_side,orig+container_side,orig+container_side), res_planes);
+	makeUniverseBox( make_double3(orig,orig,orig),
+		make_double3(orig+container_side,orig+container_side,orig+container_side), res_planes);
 	deleteGeometry(res_planes[5]); // delete lid
 
 	// container
@@ -524,28 +525,28 @@ void XProblem::disableCollisions(const GeometryID gid)
 }
 
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
-void XProblem::rotateGeometry(const GeometryID gid, const EulerParameters &ep)
+void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
+		printf("WARNING: trying to set the orientation of a deleted geometry! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->ptr->setEulerParameters(ep);
 }
 
-void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
+void XProblem::setOrientation(const GeometryID gid, const dQuaternion quat)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
+		printf("WARNING: trying to set the orientation of a deleted geometry! Ignoring\n");
 		return;
 	}
 	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
 }
 
 // NOTE: rotates X first, then Y, then Z
-void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
+void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
@@ -579,7 +580,7 @@ void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const dou
 	// dQMultiply0(qNewOrientation, qXYZ, qCurrentOrientation);
 
 	// set new orientation
-	rotateGeometry( gid, qNewOrientation );
+	setOrientation( gid, qXYZ );
 }
 
 void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
@@ -633,7 +634,7 @@ const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
 // Write their GeometryIDs in planesIds, if given, so that it is possible to delete one or more of them afterwards.
-void XProblem::universeBox(const double3 corner1, const double3 corner2, GeometryID *planesIds)
+void XProblem::makeUniverseBox(const double3 corner1, const double3 corner2, GeometryID *planesIds)
 {
 	// compute min and max
 	double3 min, max;
