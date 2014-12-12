@@ -382,6 +382,9 @@ int STLMesh::Fill(PointVect&, double, bool)
 void STLMesh::Fill(PointVect&, const double)
 {}
 
+void STLMesh::FillIn(PointVect&, double, int)
+{ }
+
 bool STLMesh::IsInside(const Point&, double) const
 {}
 
@@ -393,3 +396,31 @@ void STLMesh::SetInertia(double)
 
 void STLMesh::SetInertia(const double*)
 {}
+
+// set the given EulerParameters
+void STLMesh::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	// Before doing any rotation with Euler parameters the rotation matrix associated with
+	// m_ep is computed.
+	m_ep.ComputeRot();
+
+	// TODO FIXME: check if here should make something, or applying m_ODERot upon body creation is enough
+	// Should probably update m_center and m_barycenter
+	// m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	printf("WARNING: STLMesh::setEulerParameters() is incomplete, rotation might be wrong\n");
+}
+
+// get the object bounding box
+void STLMesh::getBoundingBox(Point &output_min, Point &output_max)
+{
+	output_min = m_minbounds;
+	output_max = m_maxbounds;
+}
+
+void STLMesh::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_barycenter += poff;
+	m_center += poff;
+}

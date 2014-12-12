@@ -148,7 +148,12 @@ public:
 	void FillBorder(PointVect&, double);
 	int Fill(PointVect&, double, bool);
 	void Fill(PointVect&, const double);
+	void FillIn(PointVect&, double, int);
 	bool IsInside(const Point&, double) const;
+
+	void setEulerParameters(const EulerParameters &ep);
+	void getBoundingBox(Point &output_min, Point &output_max);
+	void shift(const double3 &offset);
 
 	double SetPartMass(const double, const double);
 	void SetPartMass(const double);
