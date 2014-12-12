@@ -142,47 +142,39 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	double container_side = 1;				// container (cube or virtual)
+	double container_side = 1.5;				// container (cube or virtual)
 	double cube_side = 0.2;					// little floating cubes
 	double water_side = 1.5;				// water cube length and width
-	double water_depth = 6 * m_deltap;		// water height
+	double water_depth = 0.5;			// water height
 	double test_offset = -3.2;				// rather random
 	//test_offset = 0;
 	double orig = test_offset;				// origin = ~(orig, orig, orig)
 
-
 	// water
-	//orig += m_deltap;
+	//orig += m_deltap; // not needed anymore!
 	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side, water_depth);
-	rotateGeometry(water, EulerParameters(0, M_PI/5, M_PI/10));
+	rotateGeometry(water, EulerParameters(M_PI/4, 0, 0));
+
+	orig += 0.5;
+	GeometryID obst = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig - 0.5), cube_side, cube_side, cube_side*2);
+
+	orig -= 0.3;
+	GeometryID cube = addCube(GT_FLOATING_BODY, FT_BORDER, Point(orig, orig + container_side - cube_side*2.5, orig+cube_side), cube_side);
+	rotateGeometry(cube, EulerParameters(0, -M_PI/4, -M_PI/8));
+	setMassByDensity(cube, m_physparams.rho0[0]*0.1);
+
+	orig -= 0.2;
+	GeometryID res_planes[6];
+	universeBox( make_double3(orig,orig,orig), make_double3(orig+container_side,orig+container_side,orig+container_side), res_planes);
+	deleteGeometry(res_planes[5]); // delete lid
 
 	// container
-	GeometryID container = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), container_side);
+	/*GeometryID container = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), container_side);
 	// anything inside a cube collides with the cube, so disable collisions
 	disableCollisions(container);
 	setEraseOperation(container, ET_ERASE_FLUID);
 	setIntersectionType(container, IT_INTERSECT);
-
-	// now let's delete it... to test deleteGeometry() !
-	//deleteGeometry(container);
-
-	//GeometryID obst = addBox(GT_FLUID, FT_BORDER, Point(test_offset + container_side/2,
-	//	test_offset + container_side/2, test_offset), cube_side, cube_side, container_side/2);
-
-	// cube 1
-	orig = test_offset + container_side/2 - cube_side/2; // center in the (virtual) box
-	GeometryID cube1 = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), cube_side*2);
-	setMassByDensity(cube1, m_physparams.rho0[0]*0.5);
-
-	// cube 2 - same position but higher
-	/*
-	GeometryID cube2 = addCube(GT_FLOATING_BODY, FT_BORDER,
-		Point(orig, orig, m_deltap + test_offset + cube_side + m_deltap), cube_side);
-	setMassByDensity(cube2, m_physparams.rho0[0]*0.5);
-	rotateGeometry(cube2, EulerParameters(0, M_PI/10, M_PI/10)); // */
-
-	// ok, add a bottom plane instead
-	addPlane(0, 0, 1, -test_offset + 3*m_deltap);
+	*/
 
 	// torus
 	orig = test_offset + container_side/2; // center in the (virtual) box
@@ -191,7 +183,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig + cube_side), major_radius, minor_radius);
 
 	// do not limit the world size to the bbox of water and small cubes
-	addExtraWorldMargin(1.0);
+	//addExtraWorldMargin(1.0);
 }
 
 void XProblem::release_memory()
