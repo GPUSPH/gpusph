@@ -132,6 +132,7 @@ class XProblem: public Problem {
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);
 		void setOrientation(const GeometryID gid, const dQuaternion quat);
+		void rotate(const GeometryID gid, const dQuaternion quat);
 		void rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot);
 
 		// get and customize the unfilling policy
