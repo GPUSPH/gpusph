@@ -192,6 +192,14 @@ class Object {
 		 */
 		virtual void setEulerParameters(const EulerParameters &ep) = 0;
 
+		/// Get the EulerParameters
+		/*! This function returns the EulerParameters
+		 *	\return EulerParameters
+		 *
+		 *	This function is pure virtual and then has to be defined at child level
+		 */
+		const EulerParameters* getEulerParameters() {return &m_ep; }
+
 		/// Update the ODE rotation matrix according to the EulerParameters
 		void updateODERotMatrix();
 
