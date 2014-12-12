@@ -544,29 +544,42 @@ void XProblem::rotateGeometry(const GeometryID gid, const dQuaternion quat)
 	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
 }
 
-// TODO: fix. Could even pass through ODE for a proper conversion
+// NOTE: rotates X first, then Y, then Z
 void XProblem::rotateGeometry(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
-	printf("WARNING: using buggy cartesian-axis rotation!\n");
-	double psi, theta, phi;
-	// see http://goo.gl/4LQU9w
-	theta = Yrot;
-	double R11 = cos(Yrot)*cos(Zrot);
-	double R21 = cos(Yrot)* sin(Zrot);
-	double R32 = sin(Xrot)* cos(Yrot);
-	double R33 = cos(Xrot)* cos(Yrot);
-	if (cos(theta) == 0.0F) {
-		// gimbal lock
-		double R12 = sin(Xrot)*sin(Yrot)*cos(Zrot) - cos(Xrot)*sin(Zrot);
-		double R13 = cos(Xrot)*sin(Yrot)*cos(Zrot) + sin(Xrot)*sin(Zrot);
-		phi = 0;
-		psi = atan2(R12, R13);
-	} else {
-		psi = atan2( R32/cos(theta), R33/cos(theta) );
-		phi = atan2( R21/cos(theta), R11/cos(theta) );
-		printf(" T %g, PSI %g, FI %g\n", theta, psi, phi);
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
+		return;
 	}
-	rotateGeometry( gid, EulerParameters(psi, theta, phi) );
+
+	// we need many temporary variables to keep code readable
+	dQuaternion qCurrentOrientation, qX, qY, qZ, qXY, qXYZ, qNewOrientation;
+
+	// get current rotation
+	m_geometries[gid]->ptr->getEulerParameters()->ToODEQuaternion(qCurrentOrientation);
+
+	// compute single-axes rotations
+	// NOTE: ODE uses clockwise angles, thus we invert them
+	dQFromAxisAndAngle(qX, 1.0, 0.0, 0.0, -Xrot);
+	dQFromAxisAndAngle(qY, 0.0, 1.0, 0.0, -Yrot);
+	dQFromAxisAndAngle(qZ, 0.0, 0.0, 1.0, -Zrot);
+
+	// concatenate rotations: currentRotaion + X + Y + Z
+	dQMultiply0(qXY, qY, qX);
+	dQMultiply0(qXYZ, qZ, qXY);
+	dQMultiply0(qNewOrientation, qXYZ, qCurrentOrientation);
+
+	// NOTE: we could use the unified ODE method dRFromEulerAngles(); however, it
+	// is poorly documented and it is not clear what is the order of the rotations.
+	// It would have been:
+	// dMatrix3 Rotation;
+	// dRFromEulerAngles(Rotation, Xrot, Yrot, Zrot);
+	// dRtoQ(Rotation, qXYZ);
+	// dQMultiply0(qNewOrientation, qXYZ, qCurrentOrientation);
+
+	// set new orientation
+	rotateGeometry( gid, qNewOrientation );
 }
 
 void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
