@@ -442,7 +442,7 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 }
 
 GeometryID XProblem::addPlane(
-			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff)
+	const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff)
 {
 	return addGeometry(GT_PLANE, FT_NOFILL,
 		new Plane( a_coeff, b_coeff, c_coeff, d_coeff )
