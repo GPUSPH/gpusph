@@ -119,6 +119,8 @@ class XProblem: public Problem {
 			const double major_radius, const double minor_radius);
 		GeometryID addPlane(
 			const double a_coeff, const double b_coeff, const double c_coeff, const double d_coeff);
+		GeometryID addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
+			const char *fname);
 
 		// method for deleting a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);

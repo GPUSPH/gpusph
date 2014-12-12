@@ -10,6 +10,7 @@
 #include "Sphere.h"
 #include "Torus.h"
 #include "Plane.h"
+#include "STLMesh.h"
 
 #include "XProblem.h"
 #include "GlobalData.h"
@@ -446,6 +447,14 @@ GeometryID XProblem::addPlane(
 {
 	return addGeometry(GT_PLANE, FT_NOFILL,
 		new Plane( a_coeff, b_coeff, c_coeff, d_coeff )
+	);
+}
+
+GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
+	const char *filename)
+{
+	return addGeometry(otype, ftype,
+		STLMesh::load_stl(filename)
 	);
 }
 
