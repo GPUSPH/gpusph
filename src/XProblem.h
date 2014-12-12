@@ -147,6 +147,9 @@ class XProblem: public Problem {
 		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
 
+		// define 6 planes delimiting the box with given corners; update word size and origin; write their IDs in planesIds
+		void universeBox(const double3 corner1, const double3 corner2, GeometryID *planesIds = NULL);
+
 		// world size will be increased by the given margin in each dimension and direction
 		void addExtraWorldMargin(const double margin);
 
