@@ -190,6 +190,10 @@ void XProblem::release_memory()
 {
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
+	// also cleanup object parts
+	for (vsize_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++)
+		if (m_geometries[i]->enabled)
+			m_geometries[i]->ptr->GetParts().clear();
 }
 
 XProblem::~XProblem()
