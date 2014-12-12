@@ -774,8 +774,9 @@ int XProblem::fill_parts()
 			Plane *plane = (Plane*)(m_geometries[i]->ptr);
 			// only XY planes planes
 			if (! (plane->getA() == 0 && plane->getB() == 0) )
-				break;
+				continue;
 			// fill will print a warning
+			// NOTE: since parts are added to m_boundaryParts, setting part mass is probably pointless
 			plane->SetPartMass(dx, m_physparams.rho0[0]);
 			// will round r0 to fit each dimension
 			const uint xpn = (uint) trunc(m_size.x / m_physparams.r0 + 0.5);
