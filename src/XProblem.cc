@@ -462,6 +462,9 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	if (m_geometries[gid]->ptr->m_ODEBody || m_geometries[gid]->ptr->m_ODEGeom)
 		m_numRigidBodies--;
 
+	if (m_geometries[gid]->type == GT_PLANE)
+		m_numPlanes--;
+
 	// TODO: print a warning if deletion is requested after fill_parts
 }
 
@@ -826,6 +829,9 @@ void XProblem::copy_planes(float4 *planes, float *planediv)
 	uint currPlaneIdx = 0;
 	// NOTE: could iterate on planes only with a map plane_index -> gid
 	for (uint gid = 0, num_geoms = m_geometries.size(); gid < num_geoms; gid++) {
+
+		// skip deleted
+		if (! m_geometries[gid]->enabled) continue;
 
 		// not a plane?
 		if (m_geometries[gid]->type != GT_PLANE) continue;
