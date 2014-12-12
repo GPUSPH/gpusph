@@ -82,7 +82,7 @@ EulerParameters::EulerParameters(const EulerParameters &source)
  */
 EulerParameters::EulerParameters(const dQuaternion &quat)
 {
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 4; i++)
 		m_ep[i] = quat[i];
 }
 
