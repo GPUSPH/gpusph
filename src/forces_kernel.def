@@ -810,7 +810,12 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt += ndata.relPos.w/ndata.relVel.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
+	// this should be divided by the neib density (ndata.relVel.w),
+	// but would be multiplied by the same quantity in SPH_F1 formulation,
+	// so we delegate the division to the caller, when needed
+	// TODO this should be handled more intelligently, might require some
+	// restructuring
+	nout.DrDt += ndata.relPos.w*dot3(ndata.relEulerVel, ndata.relPos)*ndata.f;
 }
 
 /// A functor that computes the time derivative of rho
@@ -844,7 +849,12 @@ struct compute_density_derivative {
 	static void
 	common_with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		nout.DrDt = ndata.relPos.w/ndata.relVel.w*ndata.vel_dot_pos*ndata.f;
+		// this should be divided by the neib density (ndata.relVel.w),
+		// but would be multiplied by the same quantity in SPH_F1 formulation,
+		// so we delegate the division to the caller, when needed
+		// TODO this should be handled more intelligently, might require some
+		// restructuring
+		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
 	}
 
 	// actual method
@@ -861,10 +871,8 @@ struct compute_density_derivative {
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
 		/* The second formulation takes into consideration the density ratio */
-		if (sph_formulation == SPH_F1)
-			nout.DrDt *= ndata.relVel.w;
-		else if (sph_formulation == SPH_F2)
-			nout.DrDt *= pdata.vel.w;
+		if (sph_formulation == SPH_F2)
+			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 	}
 };
 
@@ -890,6 +898,9 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 			// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
 			nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.gamAS.x;
 		}
+		if (sph_formulation == SPH_F1) {
+			nout.DrDt *= ndata.relVel.w;
+		}
 	} else {
 		// volumic term of div(v)
 		common_with(params, pdata, ndata, pout, nout);
@@ -900,9 +911,8 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
 		/* The second formulation takes into consideration the density ratio */
-	}
-	if (sph_formulation == SPH_F1) {
-		nout.DrDt *= ndata.relVel.w;
+		if (sph_formulation == SPH_F2)
+			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 	}
 }
 
