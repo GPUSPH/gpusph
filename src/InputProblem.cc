@@ -195,7 +195,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.sfactor=1.3f;
 		set_deltap(0.05f);
 
-		m_physparams.kinematicvisc = 1.0e-1f;
+		m_physparams.kinematicvisc = 1.5625e-3f;
 		m_simparams.visctype = KEPSVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
