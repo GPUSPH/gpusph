@@ -30,7 +30,6 @@ LaPalisse::LaPalisse(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
 	m_simparams.movingBoundaries = false;
-	m_simparams.floatingObjects = false;
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
