@@ -78,7 +78,7 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		// open boundaries and forced moving objects
-		if (VERTEX(info) && IO_BOUNDARY(info)) {
+		if (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)) {
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
