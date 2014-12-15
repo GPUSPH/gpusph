@@ -254,7 +254,7 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 	m_barycenter(1) = avg_pos.y/get_meshsize();
 	m_barycenter(2) = avg_pos.z/get_meshsize();
 
-	// here assigne m_minbounds to m_origin to make the lower corner of the bbox align with world origin
+	// here assign m_minbounds to m_origin to make the lower corner of the bbox align with world origin
 	// m_origin = Point(m_minbounds);
 	m_center = m_origin + Point(m_minbounds + (m_maxbounds - m_minbounds) / 2.0);
 }
