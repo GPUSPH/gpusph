@@ -129,7 +129,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
-	double H = 1;
+	double H = 3;
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	m_simparams.dtadapt = true;
@@ -143,46 +143,19 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	double container_side = 1.5;				// container (cube or virtual)
-	double cube_side = 0.2;					// little floating cubes
-	double water_side = 1.5;				// water cube length and width
-	double water_depth = 0.5;			// water height
-	double test_offset = -3.2;				// rather random
-	//test_offset = 0;
-	double orig = test_offset;				// origin = ~(orig, orig, orig)
+	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(-1.5, -0.5, 1), 3, 1.5, 1.5);
 
-	// water
-	//orig += m_deltap; // not needed anymore!
-	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(orig, orig, orig), water_side, water_side, water_depth);
-	//rotateGeometry(water, EulerParameters(M_PI/4, 0, 0));
+	GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), "./meshes/monkey.stl");
 
-	orig += 0.5;
-	GeometryID obst = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig - 0.5), cube_side, cube_side, cube_side*2);
+	m_simparams.maxneibsnum = 256;
 
-	orig -= 0.3;
-	GeometryID cube = addCube(GT_FLOATING_BODY, FT_BORDER, Point(orig, orig + container_side - cube_side*2.5, orig+cube_side), cube_side);
-	rotate(cube, M_PI/8, M_PI/8, M_PI/8);
-	setMassByDensity(cube, m_physparams.rho0[0]*0.1);
+	setEraseOperation(mesh, ET_ERASE_NOTHING);
 
-	orig -= 0.2;
-	GeometryID res_planes[6];
-	makeUniverseBox( make_double3(orig,orig,orig),
-		make_double3(orig+container_side,orig+container_side,orig+container_side), res_planes);
-	deleteGeometry(res_planes[5]); // delete lid
+	m_origin.x = m_origin.y = m_origin.z = -2;
+	m_size.x = m_size.y = m_size.z = 4;
 
-	// container
-	/*GeometryID container = addCube(GT_FIXED_BOUNDARY, FT_BORDER, Point(orig, orig, orig), container_side);
-	// anything inside a cube collides with the cube, so disable collisions
-	disableCollisions(container);
-	setEraseOperation(container, ET_ERASE_FLUID);
-	setIntersectionType(container, IT_INTERSECT);
-	*/
-
-	// torus
-	orig = test_offset + container_side/2; // center in the (virtual) box
-	const double major_radius = container_side / 4;
-	const double minor_radius = major_radius / 4;
-	//addTorus(GT_FLUID, FT_SOLID, Point(orig, orig, orig + cube_side), major_radius, minor_radius);
+	// NOTE: makeUniverseBox will recompute them
+	makeUniverseBox( m_origin, m_origin + m_size );
 
 	// do not limit the world size to the bbox of water and small cubes
 	//addExtraWorldMargin(1.0);
