@@ -787,14 +787,15 @@ Gamma(	const	float		&slength,
 	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
 		j = 2;
 
-	// compute second coordinate which is equal to n_s x e_j
-	const float4 coord1 = make_float4( j == 0, j == 1, j == 2, 0); // set the coordinate j to 1
-	const float4 coord2 = make_float4(
+	// compute the first coordinate which is a 2-D rotated version of the normal
+	const float4 coord1 = normalize(make_float4(
 		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y, // -z if j == 1, y if j == 2
+		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
 		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
-		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x, // -y if j == 0, x if j == 1
-		0);
+		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
+		0));
+	// the second coordinate is the cross product between the normal and the first coordinate
+	const float4 coord2 = cross3(boundElement, coord1);
 
 	// relative positions of vertices with respect to the segment, normalized by h
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
