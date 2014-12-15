@@ -256,7 +256,7 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 
 	// here assigne m_minbounds to m_origin to make the lower corner of the bbox align with world origin
 	// m_origin = Point(m_minbounds);
-	m_center = Point(m_origin + (m_maxbounds - m_minbounds) / 2.0);
+	m_center = m_origin + Point(m_minbounds + (m_maxbounds - m_minbounds) / 2.0);
 }
 
 /* FIXME might need something more sophisticated  */
