@@ -440,12 +440,13 @@ void NetworkManager::networkIntReduction(int *buffer, const unsigned int bufferE
 void NetworkManager::networkBoolReduction(bool *buffer, const unsigned int bufferElements)
 {
 #if USE_MPI
-	// we need a char buffer since MPI doesn't have a bool type
-	char ibuffer[bufferElements];
+	// we need a int buffer since MPI doesn't have a bool type
+	// Note: We need to use MPI_INT and not MPI_CHAR as MPI_CHAR cannot be applied to the MPI_MAX operator
+	int ibuffer[bufferElements];
 	for (uint i=0; i<bufferElements; i++)
 		ibuffer[i] = buffer[i] ? 1 : 0;
 
-	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_CHAR, MPI_BAND, MPI_COMM_WORLD);
+	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
 	for (uint i=0; i<bufferElements; i++)
 		buffer[i] = ibuffer[i] > 0;
