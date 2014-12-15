@@ -17,6 +17,13 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #if SPECIFIC_PROBLEM == StillWater
 		h5File.setFilename("/home/vorobyev/Crixus/geometries/plane_periodicity/0.plane_0.1_sym.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>,
+			periodicity<PERIODIC_X>
+		);
+
 		set_deltap(0.1f);
 
 		m_simparams.testpoints = false;
@@ -24,12 +31,10 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		l = 2.0; w = 2.0; h = 2.2;
 
 		m_physparams.kinematicvisc = 3.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 		m_simparams.tend = 5.0;
 
 		//periodic boundaries
-		m_simparams.periodicbound = PERIODIC_X;
 		m_origin = make_double3(0.0, 0.0, 0.0);
 		m_simparams.ferrariLengthScale = 2.0f;
 		m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
@@ -40,10 +45,15 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == Spheric2
 		h5File.setFilename("meshes/0.spheric2.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>
+		);
+
 		set_deltap(0.01833f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
@@ -67,10 +77,15 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 			h5File.setFilename("meshes/0.box_blend_16.h5sph");
 #endif
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>
+		);
+
 		set_deltap(0.125f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 
 		m_simparams.tend = 5.0;
@@ -92,13 +107,18 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.0625f);
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>
+			periodicity<PERIODIC_XY>
+		);
+
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
 		m_simparams.tend = 100.0;
-		m_simparams.periodicbound = PERIODIC_XY;
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
@@ -114,17 +134,22 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<KEPSVISC>,
+			periodicity<PERIODIC_XY>
+		);
+
 		m_simparams.sfactor=2.0f;
 		set_deltap(0.05f);
 
 		// turbulent (as in agnes' paper)
 		m_physparams.kinematicvisc = 1.5625e-3f;
-		m_simparams.visctype = KEPSVISC;
 		m_physparams.gravity = make_float3(1.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 
 		m_simparams.tend = 100.0;
-		m_simparams.periodicbound = PERIODIC_XY;
 		m_simparams.testpoints = true;
 		m_simparams.csvtestpoints = true;
 		m_simparams.surfaceparticle = false;
@@ -141,10 +166,16 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 		h5File.setFilename("meshes/0.small_channel_io_walls.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>,
+			flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
+		);
+
 		set_deltap(0.2f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
@@ -157,7 +188,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-1.05, -1.05, -1.05);
 		m_simparams.ferrariLengthScale = 1.0f;
 		m_simparams.calcPrivate = false;
-		m_simparams.inoutBoundaries = true;
 		m_simparams.maxneibsnum = 220;
 	//*************************************************************************************
 
@@ -166,11 +196,19 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>,
+			periodicity<PERIODIC_Y>,
+			flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
+		);
+
+
 		m_simparams.sfactor=1.3f;
 		set_deltap(0.05f);
 
 		m_physparams.kinematicvisc = 1.0e-1f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
@@ -178,13 +216,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
-		m_simparams.periodicbound = PERIODIC_Y;
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
 		m_simparams.ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
 		m_simparams.calcPrivate = false;
-		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
 
 	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
@@ -192,11 +228,18 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<KEPSVISC>,
+			periodicity<PERIODIC_Y>,
+			flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
+		);
+
 		m_simparams.sfactor=1.3f;
 		set_deltap(0.05f);
 
 		m_physparams.kinematicvisc = 1.0e-1f;
-		m_simparams.visctype = KEPSVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 
@@ -204,13 +247,11 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
-		m_simparams.periodicbound = PERIODIC_Y;
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
 		m_simparams.ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
 		m_simparams.calcPrivate = false;
-		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
 
 	//IOWithoutWalls (i/o between two plates without walls)
@@ -218,15 +259,21 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
 		h5File.setFilename("meshes/0.io_without_walls.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>,
+			periodicity<PERIODIC_YZ>,
+			flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
+		);
+
 		set_deltap(0.2f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, 0.0);
 		m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
 		m_simparams.tend = 100.0;
-		m_simparams.periodicbound = PERIODIC_YZ;
 		m_simparams.testpoints = false;
 		m_simparams.surfaceparticle = false;
 		m_simparams.savenormals = false;
@@ -235,7 +282,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-1.1, -1.0, -1.0);
 		m_simparams.ferrariLengthScale = 1.0f;
 		m_simparams.calcPrivate = false;
-		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
 
 	//IOWithoutWalls (i/o between two plates without walls)
@@ -243,10 +289,16 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 		h5File.setFilename("meshes/0.la_palisse_small_test.h5sph");
 
+		SETUP_FRAMEWORK(
+			boundary<SA_BOUNDARY>,
+			formulation<SPH_F2>,
+			viscosity<DYNAMICVISC>,
+			flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH>
+		);
+
 		set_deltap(0.1f);
 
 		m_physparams.kinematicvisc = 1.0e-2f;
-		m_simparams.visctype = DYNAMICVISC;
 		m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 		m_physparams.set_density(0, 1000.0, 7.0f, 110.0f);
 
@@ -259,8 +311,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-5.4, -1.1, -2.1);
 		m_simparams.ferrariLengthScale = 0.2f;
 		m_simparams.calcPrivate = false;
-		m_simparams.inoutBoundaries = true;
-		m_simparams.ioWaterdepthComputation = true;
 		m_simparams.maxneibsnum = 240;
 	//*************************************************************************************
 
@@ -268,14 +318,10 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 1;
 	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
-	m_simparams.sph_formulation = SPH_F2;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);

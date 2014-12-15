@@ -27,20 +27,21 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
+	SETUP_FRAMEWORK(
+		kernel<WENDLAND>,
+		viscosity<ARTVISC>,
+		//viscosity<SPSVISC>,
+		boundary<DYN_BOUNDARY>
+	);
+
 	// SPH parameters
 	set_deltap(0.02); //0.008
 	m_simparams.slength = 1.3*m_deltap;
 	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0003f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.ferrari = 0;
-	m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = SPSVISC;
-	m_simparams.boundarytype= DYN_BOUNDARY;
 	m_simparams.tend = 20.0f; //0.00036f
 
 	// Free surface detection

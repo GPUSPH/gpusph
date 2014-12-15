@@ -32,15 +32,16 @@
 
 OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
 {
+	SETUP_FRAMEWORK(
+		//viscosity<ARTVISC>,
+		viscosity<KINEMATICVISC>
+	);
+
 	// SPH parameters
 	set_deltap(0.05f);
 	m_simparams.dt = 0.00004f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	//m_simparams.visctype = ARTVISC;
-	m_simparams.visctype = KINEMATICVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.tend = 20;
 

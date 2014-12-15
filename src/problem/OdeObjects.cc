@@ -43,16 +43,17 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
+	SETUP_FRAMEWORK(
+		viscosity<ARTVISC>,
+		//viscosity<DYNAMICVISC>,
+		boundary<LJ_BOUNDARY>
+	);
+
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.dt = 0.0001f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = DYNAMICVISC;
-	m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.5;
 
 	// Free surface detection

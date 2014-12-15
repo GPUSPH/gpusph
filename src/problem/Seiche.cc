@@ -47,28 +47,20 @@ Seiche::Seiche(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(l, w ,h);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
-	m_simframework = new CUDASimFramework<
+	SETUP_FRAMEWORK(
 		viscosity<SPSVISC>
-	>();
+	);
 
-	m_simframework->addFilterEngine<MLS_FILTER>(20);
-
-	m_simparams = m_simframework->get_simparams();
-
+	addFilter(MLS_FILTER, 20);
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.visctype = SPSVISC;
 	m_simparams.mbcallback = false;
 	m_simparams.gcallback = true;
-	m_simparams.usedem=false;
 	m_simparams.tend=10.0f;
 	m_simparams.vorticity = false;
-	//m_simparams.boundarytype=LJ_BOUNDARY;
 
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f); //must be set first

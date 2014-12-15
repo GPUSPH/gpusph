@@ -58,6 +58,14 @@ SphericTest2::SphericTest2(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
+	SETUP_FRAMEWORK(
+		kernel<WENDLAND>,
+		viscosity<ARTVISC>,
+		//viscosity<SPSVISC>,
+		//viscosity<DYNAMICVISC>,
+		boundary<LJ_BOUNDARY>
+	);
+
 	// SPH parameters
 	// ratio h / deltap (needs to be defined before calling set_deltap)
 	m_simparams.sfactor = 1.3;
@@ -66,15 +74,9 @@ SphericTest2::SphericTest2(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0003f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.ferrari = 0.1;
-	m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = SPSVISC;
-	//m_simparams.visctype = DYNAMICVISC;
-	m_simparams.boundarytype= LJ_BOUNDARY;
 	m_simparams.tend = 1.0f;
 
 	// Free surface detection

@@ -76,7 +76,7 @@ struct CUDABoundaryConditionsSelector<kerneltype, visctype, SA_BOUNDARY, simflag
 /* CUDASimFrameworkImpl */
 
 // Here we define the implementation for the CUDASimFramework. The use of *Impl is
-// to allow the user-facing CUDSimFramework to be the one that allows named and optional
+// to allow the user-facing CUDASimFramework to be the one that allows named and optional
 // template parameters
 
 template<

@@ -51,6 +51,8 @@
 
 #include "ode/ode.h"
 
+#include "cudasimframework.cuh"
+
 #define BLOCK_SIZE_IOBOUND	256
 
 typedef std::vector<vertexinfo> VertexVect;
@@ -103,6 +105,23 @@ class Problem {
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
 		SimFramework		*m_simframework;			// simulation framework
+
+		// Set up the simulation framework. This must be done before the rest of the simulation parameters, and it sets
+		// * SPH kernel
+		// * SPH formulation
+		// * viscosity model
+		// * boundary model
+		// * periodicity
+		// * flags (see simflags.h)
+
+#define	SETUP_FRAMEWORK(...) do { \
+	m_simframework = new CUDASimFramework< __VA_ARGS__ >(); \
+	m_simparams = m_simframework->get_simparams(); \
+} while (0)
+
+		// add a filter (MLS, SHEPARD), with given frequency
+#define	addFilter(fltr, freq) m_simframework->addFilterEngine< fltr >(freq)
+
 		SimParams	m_simparams; // TODO FIXME should become a pointer to the one in the simframework
 		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams
 

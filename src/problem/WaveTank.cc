@@ -44,13 +44,19 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
 
-	m_simframework = new CUDASimFramework<
-		viscosity<KINEMATICVISC>
-	>();
+	SETUP_FRAMEWORK(
+		//viscosity<ARTVISC>,
+		viscosity<KINEMATICVISC>,
+		//viscosity<SPSVISC>,
 
-	m_simframework->addFilterEngine<SHEPARD_FILTER>(20);
+		/* Uncomment preferred boundary type, comment the others */
+		// TODO easier way to switch
+		boundary<LJ_BOUNDARY>
+		//boundary<MK_BOUNDARY>
+		//boundary<DYN_BOUNDARY>
+	);
 
-	m_simparams = m_simframework->get_simparams();
+	addFilter(SHEPARD_FILTER, 20);
 
 	// Data for problem setup
 	slope_length = 8.5;
@@ -72,14 +78,8 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	// SPH parameters
 	set_deltap(0.04);  //0.005f;
 	m_simparams.dt = 0.00013;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.2;
 	m_simparams.buildneibsfreq = 10;
-	//m_simparams.visctype = ARTVISC;
-	m_simparams.visctype = KINEMATICVISC;
-	//m_simparams.visctype = SPSVISC;
-	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
 
 	m_simparams.vorticity = false;
@@ -93,12 +93,6 @@ WaveTank::WaveTank(const GlobalData *_gdata) : Problem(_gdata)
 	//WaveGage
 	add_gage(1, 0.3);
 	add_gage(0.5, 0.3);
-
-	/* Uncomment preferred boundary type, comment the others */
-	// TODO easier way to switch
-	m_simparams.boundarytype = LJ_BOUNDARY;
-	// m_simparams.boundarytype = MK_BOUNDARY;
-	// m_simparams.boundarytype = DYN_BOUNDARY;
 
 	// Physical parameters
 	H = 0.45;

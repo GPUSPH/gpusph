@@ -26,8 +26,6 @@
 #include <cmath>
 #include <iostream>
 
-#include "cudasimframework.cuh"
-
 #include "DamBreakGate.h"
 #include "Cube.h"
 #include "Point.h"
@@ -54,25 +52,19 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
 	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
-	m_simframework = new CUDASimFramework<
-		viscosity<ARTVISC>//DYNAMICVISC//SPSVISC
-	>();
+	SETUP_FRAMEWORK(
+		viscosity<ARTVISC>,//DYNAMICVISC//SPSVISC
+		boundary<LJ_BOUNDARY>
+	);
 
-	m_simframework->addFilterEngine<MLS_FILTER>(10);
-
-	m_simparams = m_simframework->get_simparams();
+	addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.dt = 0.0001f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.visctype = ARTVISC;//DYNAMICVISC//SPSVISC;
 	m_simparams.mbcallback = true;
-	m_simparams.boundarytype= LJ_BOUNDARY;
-	m_simparams.usedem= false;
 	m_simparams.tend = 10.f;
 
 	// Free surface detection

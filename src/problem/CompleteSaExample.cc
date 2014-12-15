@@ -14,13 +14,20 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
 	cube = STLMesh::load_stl("./meshes/CompleteSaExample_cube_coarse.stl");
 
+	SETUP_FRAMEWORK(
+		boundary<SA_BOUNDARY>,
+		viscosity<DYNAMICVISC>,
+		flags<	ENABLE_DTADAPT |
+			ENABLE_INLET_OUTLET |
+			ENABLE_MOVING_BODIES |
+			ENABLE_FLOATING_BODIES>);
+
 	m_simparams.numObjects = 2;
 
 	m_simparams.sfactor=1.3f;
 	set_deltap(0.02f);
 
 	m_physparams.kinematicvisc = 1.0e-2f;
-	m_simparams.visctype = DYNAMICVISC;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
 
@@ -44,19 +51,14 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	world_h = box_h + 2 * MARGIN;
 	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_simparams.calcPrivate = false;
-	m_simparams.inoutBoundaries = true;
-	m_simparams.movingBoundaries = true;
-	m_simparams.floatingObjects = true;
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 1;
 	m_simparams.ferrariLengthScale = 0.25f;
 	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain

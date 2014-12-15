@@ -50,6 +50,17 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	height = .63f;
 	beta = 4.2364*M_PI/180.0;
 
+	SETUP_FRAMEWORK(
+		//viscosity<ARTVISC>,
+		//viscosity<KINEMATICVISC>,
+		viscosity<SPSVISC>,
+		boundary<LJ_BOUNDARY>
+		//boundary<MK_BOUNDARY>
+	);
+
+	addFilter(SHEPARD_FILTER, 20);
+
+
 	// We have at least 1 moving boundary, the paddle
 	m_mbnumber = 1;
 	m_simparams.mbcallback = true;
@@ -64,30 +75,14 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 
 	i_use_bottom_plane = 1; // 1 for real plane instead of boundary parts
 
-	m_simframework = new CUDASimFramework<
-		viscosity<SPSVISC>
-	>();
-
-	m_simframework->addFilterEngine<SHEPARD_FILTER>(20);
-
-	m_simparams = m_simframework->get_simparams();
-
-
 	// SPH parameters
 	set_deltap(0.04f);  //0.005f;
 	m_simparams.dt = 0.00013f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	//m_simparams.visctype = ARTVISC;
-	//m_simparams.visctype = KINEMATICVISC;
-	m_simparams.visctype = SPSVISC;
-	m_simparams.usedem = false;
 	m_simparams.tend = 10.0;
 
 	m_simparams.vorticity = true;
-	m_simparams.boundarytype = LJ_BOUNDARY;  //LJ_BOUNDARY or MK_BOUNDARY
 
 	// Physical parameters
 	H = 0.45f;

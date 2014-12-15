@@ -26,7 +26,6 @@
 #include <cmath>
 #include <iostream>
 
-#include "cudasimframework.cuh"
 #include "DamBreak3D.h"
 #include "Cube.h"
 #include "Point.h"
@@ -59,11 +58,9 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
-	m_simframework = new CUDASimFramework<
+	SETUP_FRAMEWORK(
 		viscosity<ARTVISC> // or SPSVISC
-	>();
-
-	m_simparams = m_simframework->get_simparams();
+	);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008

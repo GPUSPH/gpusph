@@ -59,17 +59,20 @@ TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
 	// Size and origin of the simulation domain
 	set_dem(EB->get_dem(), EB->get_ncols(), EB->get_nrows());
 
+	SETUP_FRAMEWORK(
+		viscosity<ARTVISC>,
+		//viscosity<KINEMATICVISC>,
+		flags<ENABLE_DTADAPT | ENABLE_DEM>
+	);
+
 	// SPH parameters
 	set_deltap(0.05);
 	m_simparams.dt = 0.00001f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.visctype = ARTVISC;
 	//m_simparams.visctype = KINEMATICVISC;
 	m_simparams.mbcallback = false;
-	m_simparams.usedem = true;
 
 	// Physical parameters
 	H = 2.0;

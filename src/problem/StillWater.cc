@@ -51,22 +51,23 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 	l = sqrt(2)*H; w = l; h = 1.1*H;
 	m_usePlanes = false;
 
+	SETUP_FRAMEWORK(
+		//viscosity<KINEMATICVISC>,
+		viscosity<DYNAMICVISC>,
+		//viscosity<ARTVISC>,
+		boundary<DYN_BOUNDARY>
+		//boundary<SA_BOUNDARY>
+		//boundary<LJ_BOUNDARY>
+	);
+
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 20;
 	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
 	// length of the problem
 	m_simparams.ferrari = H/(m_deltap*1000);
-	//m_simparams.visctype = KINEMATICVISC;
-	m_simparams.visctype = DYNAMICVISC;
-	//m_simparams.visctype = ARTVISC;
 	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = DYN_BOUNDARY;
-	//m_simparams.boundarytype = SA_BOUNDARY;
-	//m_simparams.boundarytype = LJ_BOUNDARY;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
