@@ -88,6 +88,7 @@ STLMesh::STLMesh(uint meshsize) :
 	m_vertices.reserve(meshsize/2);
 	m_triangles.reserve(meshsize);
 	m_normals.reserve(meshsize);
+	m_center = Point(0,0,0);
 }
 
 STLMesh::~STLMesh(void)
@@ -249,6 +250,7 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 	m_barycenter(0) = avg_pos.x/get_meshsize();
 	m_barycenter(1) = avg_pos.y/get_meshsize();
 	m_barycenter(2) = avg_pos.z/get_meshsize();
+	m_center = Point(m_origin + (m_maxbounds - m_minbounds) / 2.0);
 }
 
 /* FIXME might need something more sophisticated  */
