@@ -91,6 +91,7 @@ STLMesh::STLMesh(uint meshsize) :
 
 	m_origin = Point(0,0,0);
 	m_center = Point(0,0,0);
+	m_ep.ComputeRot();
 }
 
 STLMesh::~STLMesh(void)
@@ -277,12 +278,15 @@ void STLMesh::SetPartMass(const double mass)
 
 void STLMesh::FillBorder(PointVect& parts, double)
 {
-	// start by placing a particle on each vertex
-
+	// place a particle on each vertex
 	F4Vect::const_iterator f = m_vertices.begin();
 	F4Vect::const_iterator e = m_vertices.end();
 	for (; f != e; ++f) {
-		parts.push_back(Point(*f));
+		// translate from STL coords to GPUSPH ones
+		Point p_in_global_coords = Point(*f) - m_origin;
+		// rotate around m_center
+		Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
+		parts.push_back(rotated);
 	}
 }
 
@@ -341,6 +345,9 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 
 		// once the inertia matrix is correctly computed, we can move back the ODE obj to its global position
 		dBodySetPosition(m_ODEBody,m_center(0), m_center(1), m_center(2));
+		// apply rotation
+		// NOTE: if the problem is calling updateODERotMatrix(), this should be redundant but not harmful
+		dBodySetRotation(m_ODEBody, m_ODERot);
 
 		// store inertia and mass in local class members
 		m_inertia[0] = m_ODEMass.I[0];
