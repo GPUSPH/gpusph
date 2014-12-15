@@ -283,7 +283,7 @@ void STLMesh::FillBorder(PointVect& parts, double)
 	F4Vect::const_iterator e = m_vertices.end();
 	for (; f != e; ++f) {
 		// translate from STL coords to GPUSPH ones
-		Point p_in_global_coords = Point(*f) - m_origin;
+		Point p_in_global_coords = Point(*f) + m_origin;
 		// rotate around m_center
 		Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
 		parts.push_back(rotated);
