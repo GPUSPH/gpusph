@@ -102,11 +102,15 @@ private:
 	// to get the actual barycenter, divide by the
 	// number of triangles
 	float3 m_barysum;
+
 	// actual barycenter
+	// NOTE: barycenter is in mesh coordinates
 	Point m_barycenter;
 
 	// origin = position of the smallest corner in world coordinates
+	// NOTE: m_origin and m_center are in GPUSPH world coordinates
 	Point m_origin;
+
 	// minimum coordinates
 	double3	m_minbounds, m_maxbounds;
 
