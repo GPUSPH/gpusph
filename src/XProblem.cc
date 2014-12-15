@@ -423,11 +423,21 @@ GeometryID XProblem::addPlane(
 	);
 }
 
+// NOTE: "origin" has a slightly different meaning than for the other primitives: here it is actually
+// an offset to shift the STL coordinates. Use 0 to import STL coords as they are.
 GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 	const char *filename)
 {
+	STLMesh *stlmesh = STLMesh::load_stl(filename);
+
+	// uncomment the following shift to make the origin coincide with the lower corner of the mesh bbox
+	// stlmesh->shift( - stlmesh->get_minbounds() );
+
+	// shift STL origin to given point
+	stlmesh->shift( make_double3(origin(0), origin(1), origin(2)) );
+
 	return addGeometry(otype, ftype,
-		STLMesh::load_stl(filename)
+		stlmesh
 	);
 }
 
