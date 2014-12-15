@@ -432,7 +432,7 @@ void STLMesh::getBoundingBox(Point &output_min, Point &output_max)
 void STLMesh::shift(const double3 &offset)
 {
 	const Point poff = Point(offset);
-	m_barycenter += poff;
 	m_center += poff;
 	m_origin += poff;
+	// NOTE: not shifting m_barycenter, since it is in mesh coordinates
 }
