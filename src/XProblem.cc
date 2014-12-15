@@ -143,7 +143,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(0, 0, 1.5), 6, 1.5, 0.5);
+	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(0, 0, 0.5), 6, 1.5, 0.5);
 
 	//GeometryID mesh = addSTLMesh(GT_FLOATING_BODY, FT_BORDER, Point(0, 0, 0), "./meshes/monkey.stl");
 	for (uint i=0; i<4; i++) {
@@ -151,7 +151,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 		rotate(mesh, - M_PI/8 * i, 0, 0);
 		rotate(mesh, 0, M_PI/8 * i, 0);
 		//rotate(mesh, 0, 0, M_PI/4 * i);
-		setEraseOperation(mesh, ET_ERASE_NOTHING);
+		//setEraseOperation(mesh, ET_ERASE_NOTHING);
 		//setMass(mesh, 10);
 	}
 
