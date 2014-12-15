@@ -114,7 +114,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 			float rho = density(initial_water_level - 1.08f - h5File.buf[i].Coords_2, 0);
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
-				eulerVel[i] = make_float4(0);
+				eulerVel[i] = vel[i];
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
 			// Define the type of boundaries
@@ -136,7 +136,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 		for (uint i = j; i < j + n_bparts; i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			if (eulerVel)
-				eulerVel[i] = make_float4(0);
+				eulerVel[i] = vel[i];
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
 			// Define the type of boundaries
