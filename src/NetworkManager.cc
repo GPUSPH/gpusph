@@ -445,7 +445,7 @@ void NetworkManager::networkBoolReduction(bool *buffer, const unsigned int buffe
 	for (uint i=0; i<bufferElements; i++)
 		ibuffer[i] = buffer[i] ? 1 : 0;
 
-	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_CHAR, MPI_MAX, MPI_COMM_WORLD);
+	int mpi_err = MPI_Allreduce(MPI_IN_PLACE, &ibuffer, bufferElements, MPI_CHAR, MPI_BAND, MPI_COMM_WORLD);
 
 	for (uint i=0; i<bufferElements; i++)
 		buffer[i] = ibuffer[i] > 0;
