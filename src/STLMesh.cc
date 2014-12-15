@@ -88,6 +88,8 @@ STLMesh::STLMesh(uint meshsize) :
 	m_vertices.reserve(meshsize/2);
 	m_triangles.reserve(meshsize);
 	m_normals.reserve(meshsize);
+
+	m_origin = Point(0,0,0);
 	m_center = Point(0,0,0);
 }
 
@@ -250,6 +252,9 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 	m_barycenter(0) = avg_pos.x/get_meshsize();
 	m_barycenter(1) = avg_pos.y/get_meshsize();
 	m_barycenter(2) = avg_pos.z/get_meshsize();
+
+	// here assigne m_minbounds to m_origin to make the lower corner of the bbox align with world origin
+	// m_origin = Point(m_minbounds);
 	m_center = Point(m_origin + (m_maxbounds - m_minbounds) / 2.0);
 }
 
@@ -429,4 +434,5 @@ void STLMesh::shift(const double3 &offset)
 	const Point poff = Point(offset);
 	m_barycenter += poff;
 	m_center += poff;
+	m_origin += poff;
 }

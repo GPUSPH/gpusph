@@ -105,6 +105,8 @@ private:
 	// actual barycenter
 	Point m_barycenter;
 
+	// origin = position of the smallest corner in world coordinates
+	Point m_origin;
 	// minimum coordinates
 	double3	m_minbounds, m_maxbounds;
 
