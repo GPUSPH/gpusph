@@ -895,8 +895,9 @@ Makefile.conf: Makefile $(OPTFILES)
 # more sophisticated -MM and -MT dependency generation options.
 # The -MM flag is used to not include system includes.
 # The -MG flag is used to add missing includes (useful to depend on the .opt files).
-# The sed expression adds $(OBJDIR) to all lines matching a literal '.o:',
-# thereby correcting the path of the would-be output of compilation.
+# The -MT flag is used to define the object file.
+#
+# We need to process each source file independently because of the way -MT works.
 #
 # When generating the dependencies for the .cu files, we must specify that they are
 # to be interpeted as C++ files and not some other funky format. We also need
@@ -909,13 +910,24 @@ Makefile.conf: Makefile $(OPTFILES)
 $(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	$(show_stage DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)$(CXX) -x c++ -D__CUDA_INTERNAL_COMPILATION__ \
-		$(CC_INCPATH) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
+	$(CMDECHO)for srcfile in $^ ; do \
+		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
+		objfile="$${objfile%.*}.o" ; \
+		$(CXX) -x c++ \
+			-D__CUDA_INTERNAL_COMPILATION__ $(CC_INCPATH) $(CPPFLAGS) \
+			$(filter -D%,$(CUFLAGS)) \
+		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
+		done
 
 $(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	$(show_stage DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) -MG -MM $^ | sed '/\.o:/ s!^!$(OBJDIR)/!' >> $@
+	$(CMDECHO)for srcfile in $^ ; do \
+		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
+		objfile="$${objfile%.*}.o" ; \
+		$(CXX) $(CC_INCPATH) $(CPPFLAGS) \
+		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
+		done
 
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
 # target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
