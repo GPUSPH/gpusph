@@ -403,8 +403,19 @@ void STLMesh::Fill(PointVect&, const double)
 void STLMesh::FillIn(PointVect&, double, int)
 { }
 
-bool STLMesh::IsInside(const Point&, double) const
-{}
+// NOTE: checking the bounding box (incl. orientation), not the actual mesh space
+bool STLMesh::IsInside(const Point& p, double dx) const
+{
+	const Point rotated_point = m_ep.TransposeRot(p - m_center);
+	const Point half_size = Point( (m_maxbounds - m_minbounds) / 2.0 + dx );
+
+	bool inside = true;
+	for (uint coord = 0; coord < 3; coord++)
+		if ( abs(rotated_point(coord)) >= half_size(coord) )
+			inside =  false;
+
+	return inside;
+}
 
 double STLMesh::Volume(const double dx) const
 {}
