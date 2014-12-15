@@ -143,19 +143,19 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(-1.5, -0.5, 1), 3, 1.5, 1.5);
+	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(0, 0, 1.5), 6, 1.5, 0.5);
 
-	GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(0, 0, 0), "./meshes/monkey.stl");
+	//GeometryID mesh = addSTLMesh(GT_FLOATING_BODY, FT_BORDER, Point(0, 0, 0), "./meshes/monkey.stl");
+	for (uint i=0; i<4; i++) {
+		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(2.0 * i, 0, 0), "./meshes/monkey.stl");
+		rotate(mesh, - M_PI/8 * i, 0, 0);
+		rotate(mesh, 0, M_PI/8 * i, 0);
+		//rotate(mesh, 0, 0, M_PI/4 * i);
+		setEraseOperation(mesh, ET_ERASE_NOTHING);
+		//setMass(mesh, 10);
+	}
 
-	m_simparams.maxneibsnum = 256;
-
-	setEraseOperation(mesh, ET_ERASE_NOTHING);
-
-	m_origin.x = m_origin.y = m_origin.z = -2;
-	m_size.x = m_size.y = m_size.z = 4;
-
-	// NOTE: makeUniverseBox will recompute them
-	makeUniverseBox( m_origin, m_origin + m_size );
+	//makeUniverseBox( m_origin, m_origin + m_size );
 
 	// do not limit the world size to the bbox of water and small cubes
 	//addExtraWorldMargin(1.0);
