@@ -432,8 +432,8 @@ void STLMesh::setEulerParameters(const EulerParameters &ep)
 // get the object bounding box
 void STLMesh::getBoundingBox(Point &output_min, Point &output_max)
 {
-	output_min = m_minbounds;
-	output_max = m_maxbounds;
+	output_min = m_minbounds - make_double3(m_origin(0), m_origin(1), m_origin(2));
+	output_max = output_min + (m_maxbounds - m_minbounds);
 }
 
 void STLMesh::shift(const double3 &offset)
