@@ -161,8 +161,8 @@ public:
 	void SetInertia(double);
 	void SetInertia(const double*);
 
-	void ODEGeomCreate(dSpaceID ODESpace, const double dx, const double density = 1.0);
-	void ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace = 0);
+	void ODEGeomCreate(dSpaceID ODESpace, const double dx);
+	void ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace = 0);
 };
 
 #endif // _STLMESH_H

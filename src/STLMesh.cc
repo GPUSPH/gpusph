@@ -279,7 +279,7 @@ void STLMesh::FillBorder(PointVect& parts, double)
 	}
 }
 
-void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double density)
+void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 {
 	m_ODETriMeshData = dGeomTriMeshDataCreate();
 	// TODO FIXME sanity checks on data type (use *Single1 if data is floats,
@@ -308,7 +308,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
 
 		// here we are interested only in the CG; inertia is wrong
-		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+		dMassSetTrimeshTotal(&m_ODEMass, (dReal)m_mass, m_ODEGeom);
 
 		// save the CG in the local m_center class member
 		m_center(0) = m_ODEMass.c[0];
@@ -320,7 +320,11 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		dGeomSetOffsetPosition(m_ODEGeom, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
 
 		// compute again CG, mass, inertia (correct this time)
-		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+		dMassSetTrimeshTotal(&m_ODEMass, (dReal)m_mass, m_ODEGeom);
+		// NOTE: dMassSetTrimeshTotal() is not documented in ODE docs. However, we can use
+		// the equivalent:
+		// dMassSetTrimesh(&m_ODEMass, 1.0, m_ODEGeom);
+		// dMassAdjust(&m_ODEMass, m_mass);
 
 		// CG is now very close to zero, except for numerical leftovers which we manually reset
 		m_ODEMass.c[0] = m_ODEMass.c[1] = m_ODEMass.c[2] = 0;
@@ -350,7 +354,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 	}
 }
 
-void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace)
+void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {
 	const double m_lx = m_maxbounds.x - m_minbounds.x;
 	const double m_ly = m_maxbounds.y - m_minbounds.y;
@@ -361,7 +365,7 @@ void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double den
 	dMassSetZero(&m_ODEMass);
 
 	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx, density);
+		ODEGeomCreate(ODESpace, dx);
 	else {
 		// In case we don't have a geometry we can make ODE believe it is a box.
 		// This works because all we need in this case are center of gravity and the
