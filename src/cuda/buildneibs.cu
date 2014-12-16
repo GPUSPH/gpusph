@@ -313,23 +313,12 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 	CUT_CHECK_ERROR("thrust sort failed");
 }
 
-// Force the instantiation of all instances
-// TODO this is until the engines are turned into header-only classes
+// The instances that we want to actually instantiates are defined
+// in a programmatically-generated file:
 
-#define DECLARE_NEIBSENGINE_PERIODIC(btype) \
-	template class CUDANeibsEngine<btype, PERIODIC_NONE, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_X, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_Y, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_XY, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_Z, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_XZ, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_YZ, true>; \
-	template class CUDANeibsEngine<btype, PERIODIC_XYZ, true>;
+#ifndef BUILDNEIBS_INSTANCE_FILE
+#error "No instance file defined for buildneibs!"
+#else
+#include BUILDNEIBS_INSTANCE_FILE
+#endif
 
-#define DECLARE_NEIBSENGINE \
-	DECLARE_NEIBSENGINE_PERIODIC(LJ_BOUNDARY) \
-	DECLARE_NEIBSENGINE_PERIODIC(MK_BOUNDARY) \
-	DECLARE_NEIBSENGINE_PERIODIC(SA_BOUNDARY) \
-	DECLARE_NEIBSENGINE_PERIODIC(DYN_BOUNDARY)
-
-DECLARE_NEIBSENGINE
