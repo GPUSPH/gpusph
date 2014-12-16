@@ -30,7 +30,6 @@ LaPalisse_imposeBoundaryCondition(
 			float&			eps)
 {
 	vel = make_float4(0.0f);
-	eulerVel = make_float4(0.0f);
 	tke = 0.0f;
 	eps = 0.0f;
 
@@ -74,7 +73,10 @@ LaPalisse_imposeBoundaryConditionDevice(
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		// open boundaries and forced moving objects
-		if (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)) {
+		if (VERTEX(info) && IO_BOUNDARY(info)) {
+			// For corners we need to get eulerVel in case of k-eps and pressure outlet
+			if (CORNER(info) && newTke && !VEL_IO(info))
+				eulerVel = newEulerVel[index];
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
