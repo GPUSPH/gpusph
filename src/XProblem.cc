@@ -145,10 +145,40 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	GeometryID water = addBox(GT_FLUID, FT_SOLID, Point(0, 0, 0.5), 6, 1.5, 0.5);
+	double x = 0.0;
+	double y = 0.0;
+	double z = 0.0;
+	double distance = 5.0;
+	const uint objs = 4;
+
+	for (uint i=0; i<objs; i++) {
+		GeometryID water = addCube(GT_FLUID, FT_SOLID, Point(x + distance*i, y, z), i+1);
+	}
+
+	z = 4;
+	setPositioning(PP_BOTTOM_CENTER);
+
+	for (uint i=0; i<objs; i++) {
+		GeometryID water = addTorus(GT_FIXED_BOUNDARY, FT_SOLID, Point(x + distance*i, y, z), i * 1, i * 1.0 / 3 );
+	}
+
+	z = 8;
+	setPositioning(PP_CORNER);
+
+	for (uint i=0; i<2; i++) {
+		//GeometryID water = addSphere(GT_FLUID, FT_SOLID, Point(x + distance*i, y, z), i);
+		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(x + distance*i, y, z), "./meshes/monkey.stl");
+	}
+
+	setPositioning(PP_CENTER);
+
+	for (uint i=2; i<objs; i++) {
+		//GeometryID water = addSphere(GT_FLUID, FT_SOLID, Point(x + distance*i, y, z), i);
+		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(x + distance*i, y, z), "./meshes/monkey.stl");
+	}
 
 	//GeometryID mesh = addSTLMesh(GT_FLOATING_BODY, FT_BORDER, Point(0, 0, 0), "./meshes/monkey.stl");
-	for (uint i=0; i<4; i++) {
+	for (uint i=0; i<4 && false; i++) {
 		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(2.0 * i, 0, 0), "./meshes/monkey.stl");
 		rotate(mesh, - M_PI/8 * i, 0, 0);
 		rotate(mesh, 0, M_PI/8 * i, 0);
