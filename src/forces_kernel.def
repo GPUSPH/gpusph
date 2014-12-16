@@ -1073,6 +1073,9 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	// for boundary particles without neighbouring fluid particle k is 0 so skip
+	if(pdata.keps_k < params.epsilon)
+		return;
 	// a component of fluid paricle velocity tangential to the wall
 	const float3 u_t = as_float3(ndata.relVel+pdata.eulerVel) - dot(as_float3(ndata.relVel+pdata.eulerVel), ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);

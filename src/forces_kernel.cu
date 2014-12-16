@@ -1148,7 +1148,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 
 		// Compute the Riemann Invariants for I/O conditions
-		if (IO_BOUNDARY(info)) {
+		if (IO_BOUNDARY(info) && !CORNER(info)) {
 			const float unInt = dot(sumvel, as_float3(normal));
 			const float unExt = dot3(eulerVel, normal);
 			const float rhoInt = oldVel[index].w;
@@ -1485,9 +1485,12 @@ saVertexBoundaryConditions(
 					// for the computation of gamma, in general we need a sort of normal as well
 					// for open boundaries to decide whether or not particles are created at a
 					// vertex or not
-					if ((IO_BOUNDARY(info) && !CORNER(info)) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info))) {
+					if ((IO_BOUNDARY(info) && !CORNER(info)) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info) && !CORNER(info))) {
 						avgNorm += as_float3(boundElement);
 					}
+				}
+				if (oldTKE && !initStep && !IO_BOUNDARY(neib_info) && CORNER(info)) {
+					avgNorm += as_float3(boundElement)*boundElement.w;
 				}
 				// AM TODO FIXME the following code should work, but doesn't for some obscure reason
 				//if (CORNER(neib_info) && neibVerts.w == id(info)) {
