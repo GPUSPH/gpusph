@@ -99,6 +99,9 @@ class XProblem: public Problem {
 
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr);
 
+		// check validity of given GeometryID
+		bool validGeometry(GeometryID gid);
+
 	protected:
 		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,

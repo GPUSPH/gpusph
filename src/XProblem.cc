@@ -348,6 +348,23 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	return (m_geometries.size() - 1);
 }
 
+bool XProblem::validGeometry(GeometryID gid)
+{
+	// ensure gid refers to a valid position
+	if (gid >= m_geometries.size()) {
+		printf("WARNING: invalid GeometryID %u\n");
+		return false;
+	}
+
+	// ensure geometry was not deleted
+	if (!m_geometries[gid]->enabled) {
+		printf("WARNING: GeometryID %u refers to a deleted geometry!\n");
+		return false;
+	}
+
+	return true;
+}
+
 GeometryID XProblem::addRect(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double side1, const double side2)
 {
@@ -475,11 +492,8 @@ void XProblem::enableDynamics(const GeometryID gid)
 
 void XProblem::enableCollisions(const GeometryID gid)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to enable collisions on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	// ensure collisions are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY &&
@@ -492,11 +506,8 @@ void XProblem::enableCollisions(const GeometryID gid)
 
 void XProblem::disableDynamics(const GeometryID gid)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to disable dynamics on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	// ensure no-dynamics is consistent with geometry type
 	if (m_geometries[gid]->type == GT_FLOATING_BODY) {
 		printf("WARNING: dynamics are mandatory for floating bodies! Ignoring\n");
@@ -507,11 +518,8 @@ void XProblem::disableDynamics(const GeometryID gid)
 
 void XProblem::disableCollisions(const GeometryID gid)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to disable collisions on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	// it is possible to disable collisions for any geometry type, so no need to check it
 	m_geometries[gid]->handle_collisions = false;
 }
@@ -519,31 +527,21 @@ void XProblem::disableCollisions(const GeometryID gid)
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
 void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set the orientation of a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	m_geometries[gid]->ptr->setEulerParameters(ep);
 }
 
 void XProblem::setOrientation(const GeometryID gid, const dQuaternion quat)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set the orientation of a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	m_geometries[gid]->ptr->setEulerParameters( EulerParameters(quat) );
 }
 
 void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
 
 	// will compute qNewOrientation as qCurrentOrientation + requested rotation (quat)
 	dQuaternion qCurrentOrientation, qNewOrientation;
@@ -562,11 +560,7 @@ void XProblem::rotate(const GeometryID gid, const dQuaternion quat)
 // NOTE: rotates X first, then Y, then Z
 void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot, const double Zrot)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to rotate a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
 
 	// multiple temporary variables to keep code readable
 	dQuaternion qX, qY, qZ, qXY, qXYZ;
@@ -595,31 +589,22 @@ void XProblem::rotate(const GeometryID gid, const double Xrot, const double Yrot
 
 void XProblem::setIntersectionType(const GeometryID gid, IntersectionType i_type)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set IntersectionType on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	m_geometries[gid]->intersection_type = i_type;
 }
 
 void XProblem::setEraseOperation(const GeometryID gid, EraseOperation e_operation)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set EraseOperation on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	m_geometries[gid]->erase_operation = e_operation;
 }
 
 void XProblem::setMass(const GeometryID gid, const double mass)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to set mass on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	if (m_geometries[gid]->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
 	m_geometries[gid]->ptr->SetMass(mass);
@@ -627,11 +612,8 @@ void XProblem::setMass(const GeometryID gid, const double mass)
 
 double XProblem::setMassByDensity(const GeometryID gid, const double density)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to enable dynamics on a deleted geometry! Ignoring\n");
-		return NAN;
-	}
+	if (!validGeometry(gid)) return NAN;
+
 	if (m_geometries[gid]->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
 	return m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
@@ -639,6 +621,13 @@ double XProblem::setMassByDensity(const GeometryID gid, const double density)
 
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
+	// ensure gid refers to a valid position
+	if (gid >= m_geometries.size()) {
+		printf("WARNING: invalid GeometryID %u\n");
+		return NULL;
+	}
+
+	// return geometry even if deleted
 	return m_geometries[gid];
 }
 
