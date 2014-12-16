@@ -79,6 +79,11 @@ LaPalisse_imposeBoundaryConditionDevice(
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
 			float waterdepth = 0.0f;
+			if (!VEL_IO(info) && IOwaterdepth) {
+				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
+				waterdepth += d_worldOrigin.z; // now absolute z position
+			}
 			// this now calls the virtual function that is problem specific
 			LaPalisse_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays

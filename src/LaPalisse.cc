@@ -43,6 +43,7 @@ LaPalisse::LaPalisse(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
+	m_simparams.ioWaterdepthComputation = true;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(5.8f, 7.6f, 2.4f);
@@ -116,6 +117,11 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 			if (eulerVel)
 				eulerVel[i] = vel[i];
 			int specialBoundType = h5File.buf[i].KENT;
+			// count the number of different objects
+			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
+			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
+			// in cases of ODE objects this array is allocated as well, even though it is not needed.
+			m_simparams.numObjects = max(specialBoundType, m_simparams.numObjects);
 			info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
 			// Define the type of boundaries
 			if (specialBoundType != 0) {
