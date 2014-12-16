@@ -37,6 +37,13 @@ enum EraseOperation {	ET_ERASE_NOTHING,
 						ET_ERASE_ALL
 };
 
+// position of the solids with respect to the point given by user. PP_NONE is geometry-dependent
+enum PositioningPolicy {	PP_NONE,
+							PP_CENTER,
+							PP_BOTTOM_CENTER,
+							PP_CORNER
+};
+
 struct GeometryInfo {
 
 	Object* ptr;
@@ -84,6 +91,8 @@ class XProblem: public Problem {
 
 		// extra margin to be added to computed world size
 		double m_extra_world_margin;
+
+		PositioningPolicy m_positioning;
 
 		/*
 		string			inputfile;
@@ -152,6 +161,9 @@ class XProblem: public Problem {
 
 		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
+
+		// set the positioning policy for geometries added after the call
+		void setPositioning(PositioningPolicy positioning);
 
 		// define 6 planes delimiting the box with given corners; update word size and origin; write their IDs in planesIds
 		void makeUniverseBox(const double3 corner1, const double3 corner2, GeometryID *planesIds = NULL);

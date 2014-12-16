@@ -27,6 +27,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	m_extra_world_margin = 0.0;
 
+	m_positioning = PP_CENTER;
+
 	/*h5File.setFilename("meshes/0.complete_sa_example.h5sph");
 
 	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
@@ -368,55 +370,112 @@ bool XProblem::validGeometry(GeometryID gid)
 GeometryID XProblem::addRect(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double side1, const double side2)
 {
+	double offsetX = 0, offsetY = 0;
+	if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
+		offsetX = - side1 / 2.0;
+		offsetY = - side2 / 2.0;
+	}
+
 	return addGeometry(otype, ftype,
-		new Rect( origin, side1, side2, EulerParameters() )
+		new Rect( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
+			side1, side2, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addDisk(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double radius)
 {
+	double offsetX = 0, offsetY = 0;
+	if (m_positioning == PP_CORNER)
+		offsetX = offsetY = radius;
+
 	return addGeometry(otype, ftype,
-		new Disk( origin, radius, EulerParameters() )
+		new Disk( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) ),
+			radius, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addCube(const GeometryType otype, const FillType ftype, const Point &origin, const double side)
 {
+	double offsetXY = 0, offsetZ = 0;
+	if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER)
+		offsetXY = - side / 2.0;
+	if (m_positioning == PP_CENTER)
+		offsetZ = - side / 2.0;
+
 	return addGeometry(otype, ftype,
-		new Cube( origin, side, side, side, EulerParameters() )
+		new Cube( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+			side, side, side, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addBox(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double side1, const double side2, const double side3)
 {
+	double offsetX = 0, offsetY = 0, offsetZ = 0;
+	if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
+		offsetX = - side1 / 2.0;
+		offsetY = - side2 / 2.0;
+	}
+	if (m_positioning == PP_CENTER)
+		offsetZ = - side3 / 2.0;
+
 	return addGeometry(otype, ftype,
-		new Cube( origin, side1, side2, side3, EulerParameters() )
+		new Cube( Point( origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ ),
+			side1, side2, side3, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addCylinder(const GeometryType otype, const FillType ftype, const Point &origin,
 			const double radius, const double height)
 {
+	double offsetXY = 0, offsetZ = 0;
+	if (m_positioning == PP_CORNER)
+		offsetXY = radius;
+	else
+	if (m_positioning == PP_CENTER)
+		offsetZ = - height / 2.0;
+
 	return addGeometry(otype, ftype,
-		new Cylinder( origin, radius, height, EulerParameters() )
+		new Cylinder( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+			radius, height, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addCone(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double bottom_radius, const double top_radius, const double height)
 {
+	double offsetXY = 0, offsetZ = 0;
+	if (m_positioning == PP_CORNER)
+		offsetXY = bottom_radius;
+	else
+	if (m_positioning == PP_CENTER) {
+		// height of the geometrical center of the truncated cone (round frustum)
+		offsetZ = - height *
+			(bottom_radius * bottom_radius + 2.0 * bottom_radius * top_radius + 3.0 * top_radius * top_radius)/
+			(4.0 * (bottom_radius * bottom_radius + bottom_radius * top_radius + top_radius * top_radius));
+		// center of the bounding box
+		// offsetZ = height / 2.0;
+	}
+
 	return addGeometry(otype, ftype,
-		new Cone( origin, bottom_radius, top_radius, height, EulerParameters() )
+		new Cone( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+			bottom_radius, top_radius, height, EulerParameters() )
 	);
 }
 
 GeometryID XProblem::addSphere(const GeometryType otype, const FillType ftype, const Point &origin,
 	const double radius)
 {
+	double offsetXY = 0, offsetZ = 0;
+	if (m_positioning == PP_CORNER || m_positioning == PP_BOTTOM_CENTER)
+		offsetZ = radius;
+	if (m_positioning == PP_CORNER)
+		offsetXY = radius;
+
 	return addGeometry(otype, ftype,
-		new Sphere( origin, radius )
+		new Sphere( Point( origin(0) + offsetXY, origin(1) + offsetXY, origin(2) + offsetZ ),
+			radius )
 	);
 }
 
@@ -427,6 +486,13 @@ GeometryID XProblem::addTorus(const GeometryType otype, const FillType ftype, co
 		printf("WARNING: torus not yet supported as floating body, use mesh instead. Ignoring\n");
 		return GEOMETRY_ERROR;
 	}
+
+	double offsetXY = 0, offsetZ = 0;
+	if (m_positioning == PP_CORNER || m_positioning == PP_BOTTOM_CENTER)
+		offsetZ = minor_radius;
+	if (m_positioning == PP_CORNER)
+		offsetXY = (major_radius + minor_radius);
+
 	return addGeometry(otype, ftype,
 		new Torus( origin, major_radius, minor_radius, EulerParameters() )
 	);
@@ -442,16 +508,37 @@ GeometryID XProblem::addPlane(
 
 // NOTE: "origin" has a slightly different meaning than for the other primitives: here it is actually
 // an offset to shift the STL coordinates. Use 0 to import STL coords as they are.
+// If positioning is PP_NONE and origin is (0,0,0), mesh coordinates are imported unaltered.
 GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, const Point &origin,
 	const char *filename)
 {
 	STLMesh *stlmesh = STLMesh::load_stl(filename);
 
-	// uncomment the following shift to make the origin coincide with the lower corner of the mesh bbox
-	// stlmesh->shift( - stlmesh->get_minbounds() );
+	double offsetX = 0, offsetY = 0, offsetZ = 0;
+
+	// handle positioning
+	if (m_positioning != PP_NONE) {
+
+		// Make the origin coincide with the lower corner of the mesh bbox.
+		// Now the positioning is PP_CORNER
+		stlmesh->shift( - stlmesh->get_minbounds() );
+
+		// NOTE: STLMesh::get_meshsize() returns #triangles instead
+		const double3 mesh_size = stlmesh->get_maxbounds() - stlmesh->get_minbounds();
+
+		if (m_positioning == PP_CENTER || m_positioning == PP_BOTTOM_CENTER) {
+			offsetX = - mesh_size.x / 2.0;
+			offsetY = - mesh_size.y / 2.0;
+		}
+
+		if (m_positioning == PP_CENTER) {
+			offsetZ = - mesh_size.z / 2.0;
+		}
+
+	} // if positioning is PP_NONE
 
 	// shift STL origin to given point
-	stlmesh->shift( make_double3(origin(0), origin(1), origin(2)) );
+	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
 
 	return addGeometry(otype, ftype,
 		stlmesh
@@ -629,6 +716,12 @@ const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 
 	// return geometry even if deleted
 	return m_geometries[gid];
+}
+
+// set the positioning policy for geometries added after the call
+void XProblem::setPositioning(PositioningPolicy positioning)
+{
+	m_positioning = positioning;
 }
 
 // Create 6 planes delimiting the box defined by the two points and update (overwrite) the world origin and size.
