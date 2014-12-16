@@ -34,6 +34,8 @@ add_instance() {
 	# DEBUG
 	# echo "adding '$instance' to '$file' because of '$context'"
 
+	test -z "$file" && { echo "No file !!!" ; exit 1 ; }
+
 	# make sure directory exists
 	mkdir -p "$(dirname "$file")"
 
@@ -65,8 +67,13 @@ add_instances() {
 
 	# neibs engine
 	file="$BUILDNEIBS_INSTANCE_FILE"
-	test -z "$file" && { echo "No file !!!" ; exit 1 ; }
 	instance="template class CUDANeibsEngine<${boundary}, ${periodicity}, true>;"
+	add_instance
+
+	# integration engine
+	file="$EULER_INSTANCE_FILE"
+	xsphcorr=$(echo ${flags} | grep -q ENABLE_XSPH && echo true || echo false)
+	instance="template class CUDAPredCorrEngine<${boundary}, ${xsphcorr}>;"
 	add_instance
 }
 

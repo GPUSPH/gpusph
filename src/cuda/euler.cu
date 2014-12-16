@@ -152,15 +152,12 @@ basicstep(
 	CUT_CHECK_ERROR("Euler kernel execution failed");
 }
 
-// Force the instantiation of all instances
-// TODO this is until the engines are turned into header-only classes
+// The instances that we want to actually instantiates are defined
+// in a programmatically-generated file:
 
-#define DECLARE_PREDCORRENGINE(btype) \
-	template class CUDAPredCorrEngine<btype, false>; \
-	template class CUDAPredCorrEngine<btype, true>;
-
-DECLARE_PREDCORRENGINE(LJ_BOUNDARY)
-DECLARE_PREDCORRENGINE(MK_BOUNDARY)
-DECLARE_PREDCORRENGINE(SA_BOUNDARY)
-DECLARE_PREDCORRENGINE(DYN_BOUNDARY)
+#ifndef EULER_INSTANCE_FILE
+#error "No instance file defined for euler!"
+#else
+#include EULER_INSTANCE_FILE
+#endif
 
