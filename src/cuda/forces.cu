@@ -609,69 +609,14 @@ reduceRbForces(	float4	*forces,
 		}
 }
 
+// The instances that we want to actually instantiate are defined
+// in a programmatically-generated file:
 
-
-// Force the instantiation of all instances
-// TODO this is until the engines are turned into header-only classes
-
-#define DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, simpars1) \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_DTADAPT | ENABLE_XSPH | ENABLE_INLET_OUTLET>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_DTADAPT | ENABLE_XSPH>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_DTADAPT | ENABLE_INLET_OUTLET>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_DTADAPT>; \
-	/* template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_XSPH | ENABLE_INLET_OUTLET>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_XSPH>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1 | ENABLE_INLET_OUTLET>; \
-	template class CUDAForcesEngine<ktype, sphform, visctype, btype, \
-		simpars1>; */
-
-#define DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, btype) \
-	/* DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_DEM | ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH); \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_DEM | ENABLE_MOVING_BODIES); \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_DEM | ENABLE_WATER_DEPTH); \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_DEM); \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_MOVING_BODIES | ENABLE_WATER_DEPTH); \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_MOVING_BODIES); \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_WATER_DEPTH); */ \
-	DECLARE_FORCESENGINE_SIMPARS2(ktype, sphform, visctype, btype, \
-		ENABLE_NONE);
-
-#define DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, visctype) \
-	DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, LJ_BOUNDARY) \
-	/* DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, MK_BOUNDARY) \
-	DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, SA_BOUNDARY) \
-	DECLARE_FORCESENGINE_SIMPARS1(ktype, sphform, visctype, DYN_BOUNDARY) */
-
-#define DECLARE_FORCESENGINE_VISC(ktype, sphform) \
-	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, ARTVISC) \
-	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, KINEMATICVISC) \
-	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, DYNAMICVISC) \
-	DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, SPSVISC) \
-	/* DECLARE_FORCESENGINE_BOUNDARY(ktype, sphform, KEPSVISC) */
-
-#define DECLARE_FORCESENGINE_SPH(ktype) \
-	DECLARE_FORCESENGINE_VISC(ktype, SPH_F1) \
-	/* DECLARE_FORCESENGINE_VISC(ktype, SPH_F2) */
-
-/*
-DECLARE_FORCESENGINE_SPH(CUBICSPLINE)
-DECLARE_FORCESENGINE_SPH(QUADRATIC)
-*/
-DECLARE_FORCESENGINE_SPH(WENDLAND)
+#ifndef FORCES_INSTANCE_FILE
+#error "No instance file defined for forces!"
+#else
+#include FORCES_INSTANCE_FILE
+#endif
 
 /// CUDAViscEngine should be moved elsewhere
 
@@ -748,14 +693,14 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 }
 };
 
-// TODO provisional instantiation before the header-only shift
-template class CUDAViscEngine<ARTVISC, WENDLAND, LJ_BOUNDARY>;
-template struct CUDAViscEngineHelper<ARTVISC, WENDLAND, LJ_BOUNDARY>;
-template class CUDAViscEngine<KINEMATICVISC, WENDLAND, LJ_BOUNDARY>;
-template struct CUDAViscEngineHelper<KINEMATICVISC, WENDLAND, LJ_BOUNDARY>;
-template class CUDAViscEngine<SPSVISC, WENDLAND, LJ_BOUNDARY>;
-template struct CUDAViscEngineHelper<SPSVISC, WENDLAND, LJ_BOUNDARY>;
+// The instances that we want to actually instantiate are defined
+// in a programmatically-generated file:
 
+#ifndef VISC_INSTANCE_FILE
+#error "No instance file defined for viscosities!"
+#else
+#include VISC_INSTANCE_FILE
+#endif
 
 /// Other methods TODO will need to move elsewhere
 
@@ -1315,6 +1260,12 @@ saFindClosestVertex(
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 
-/* These were defined in forces_kernel.cu */
-#undef _FORCES_KERNEL_NAME
-#undef FORCES_KERNEL_NAME
+// The instances that we want to actually instantiate are defined
+// in a programmatically-generated file:
+
+#ifndef BOUND_INSTANCE_FILE
+#error "No instance file defined for boundary conditions!"
+#else
+#include BOUND_INSTANCE_FILE
+#endif
+

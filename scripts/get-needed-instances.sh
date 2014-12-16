@@ -65,6 +65,10 @@ add_instance() {
 add_instances() {
 	context="$1"
 
+	# sort flags so that they are always in the same sequence:
+	# split flags into one per line, sort, join lines together again
+	sortflags=$(echo ${flags} | sed 's/\s*|\s*/\n/g' | sort | sed -n -e ':a' -e '$!N ; s/\n/ | /g ; ta ; p')
+
 	# neibs engine
 	file="$BUILDNEIBS_INSTANCE_FILE"
 	instance="template class CUDANeibsEngine<${boundary}, ${periodicity}, true>;"
@@ -75,6 +79,24 @@ add_instances() {
 	xsphcorr=$(echo ${flags} | grep -q ENABLE_XSPH && echo true || echo false)
 	instance="template class CUDAPredCorrEngine<${boundary}, ${xsphcorr}>;"
 	add_instance
+
+	# forces engine
+	file="$FORCES_INSTANCE_FILE"
+	instance="template class CUDAForcesEngine<${kernel}, ${formulation}, ${viscosity}, ${boundary}, ${sortflags}>;"
+	add_instance
+
+	# viscosity engine
+	file="$VISC_INSTANCE_FILE"
+	instance="template struct CUDAViscEngineHelper<${viscosity}, ${kernel}, ${boundary}>;"
+	add_instance
+
+	# boundary conditions engine
+	file="$BOUND_INSTANCE_FILE"
+	# currently only needed if boundary == SA_BOUNDARY
+	if [ $boundary = SA_BOUNDARY ] ; then
+		instance="template class CUDABoundaryConditionsEngine<${kernel}, ${viscosity}, ${boundary}, ${sortflags}>;"
+		add_instance
+	fi
 }
 
 # Process a single source file, overriding the defaults as needed
