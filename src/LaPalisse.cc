@@ -14,8 +14,9 @@ LaPalisse::LaPalisse(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.sfactor=1.3f;
 	set_deltap(0.015f);
 
-	m_physparams.kinematicvisc = 1.0e-6f;
-	m_simparams.visctype = KEPSVISC;
+	m_physparams.kinematicvisc = 1.0e-2f;
+	//m_simparams.visctype = KEPSVISC;
+	m_simparams.visctype = DYNAMICVISC;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
 
