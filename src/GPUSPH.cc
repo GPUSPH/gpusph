@@ -104,7 +104,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// copy the options passed by command line to GlobalData
 	if (isfinite(clOptions->tend))
-		_sp-> tend = clOptions->tend;
+		_sp->tend = clOptions->tend;
 
 	// update the GlobalData copies of the sizes of the domain
 	gdata->worldOrigin = make_float3(problem->get_worldorigin());
@@ -138,7 +138,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf(" - R0:   %g\n", gdata->problem->get_physparams()->r0);
 
 
-	// initial dt (or, just dt in case adaptive is enabled)
+	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
 
 	// double buffer indexing (READ vs WRITE)
@@ -166,15 +166,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// create the Writers according to the WriterType
 	createWriter();
-
-	// we should need no PS anymore
-	//		> new PS
-	// psystem = new ParticleSystem(gdata);
-	//			PS constructor updates cellSize, worldSize, nCells, etc. in gdata
-	//			PS creates new writer. Do it outside?
-
-	// no: done
-	//		> new Problem
 
 	printf("Generating problem particles...\n");
 	// allocate the particles of the *whole* simulation
@@ -324,8 +315,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// TODO
 	//		// > new Integrator
-
-	// TODO: read DEM file. setDemTexture() will be called from the GPUWokers instead
 
 	// new Synchronizer; it will be waiting on #devices+1 threads (GPUWorkers + main)
 	gdata->threadSynchronizer = new Synchronizer(gdata->devices + 1);
