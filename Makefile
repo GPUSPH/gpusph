@@ -123,8 +123,8 @@ CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
 
-PROBLEM_SRCS = $(wildcard $(SRCDIR)/problem/*.cc)
-PROBLEM_LIST = $(notdir $(basename $(wildcard $(SRCDIR)/problem/*.h)))
+PROBLEM_SRCS = $(wildcard $(SRCDIR)/problems/*.cc)
+PROBLEM_LIST = $(notdir $(basename $(wildcard $(SRCDIR)/problems/*.h)))
 
 # data files needed by some problems
 EXTRA_PROBLEM_FILES ?=
