@@ -40,11 +40,11 @@
 #include "physparams.h"
 #include "simparams.h"
 
-#include "neibsengine.h"
-#include "filterengine.h"
-#include "integrationengine.h"
-#include "viscengine.h"
-#include "forcesengine.h"
+#include "engine_neibs.h"
+#include "engine_filter.h"
+#include "engine_integration.h"
+#include "engine_visc.h"
+#include "engine_forces.h"
 
 // buffers and buffer lists
 #include "buffer.h"

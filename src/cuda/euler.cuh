@@ -26,7 +26,7 @@
 #ifndef _EULER_CUH_
 #define _EULER_CUH_
 
-#include "integrationengine.h"
+#include "engine_integration.h"
 
 #define BLOCK_SIZE_INTEGRATE	256
 

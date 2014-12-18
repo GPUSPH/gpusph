@@ -26,9 +26,9 @@
 #ifndef _FORCES_CUH_
 #define _FORCES_CUH_
 
-#include "forcesengine.h"
-#include "viscengine.h"
-#include "filterengine.h"
+#include "engine_forces.h"
+#include "engine_visc.h"
+#include "engine_filter.h"
 #include "simflags.h"
 
 /* Important notes on block sizes:

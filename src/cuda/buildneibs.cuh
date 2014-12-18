@@ -26,7 +26,7 @@
 #ifndef _BUILDNEIBS_CUH_
 #define _BUILDNEIBS_CUH_
 
-#include "neibsengine.h"
+#include "engine_neibs.h"
 
 /* Important notes on block sizes:
 	- all kernels accessing the neighbor list MUST HAVE A BLOCK
