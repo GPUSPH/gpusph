@@ -1242,42 +1242,43 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				const float4 relPos = pos_corr - oldPos[neib_index];
 
-				const float3 normal = as_float3(tex1Dfetch(boundTex, neib_index));
+				const float4 normal = tex1Dfetch(boundTex, neib_index);
 
 				const float3 relVel = as_float3(vel - oldVel[neib_index]);
 
 				// quick check if we are behind a segment and if the segment is reasonably close by
 				// (max distance vertex to segment is deltap/2)
-				if (dot(normal, as_float3(relPos)) <= 0.0f &&
+				if (dot3(normal, relPos) <= 0.0f &&
 					sqlength3(relPos) < deltap &&
-					dot(relVel, normal) < 0.0f) {
+					dot(relVel, as_float3(normal)) < 0.0f) {
 					// now check whether the normal projection is inside the triangle
 					// first get the position of the vertices local coordinate system for relative positions to vertices
 					uint j = 0;
-					float4 coord1 = make_float4(0.0f);
-					float4 coord2 = make_float4(0.0f);
 					// Get index j for which n_s is minimal
 					if (fabs(normal.x) > fabs(normal.y))
 						j = 1;
-					if (((float)1-j)*fabs(normal.x) + ((float)j)*fabs(normal.y) > fabs(normal.z))
+					if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
 						j = 2;
-					// compute second coordinate which is equal to n_s x e_j
-					if (j==0) {
-						coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
-						coord2 = make_float4(0.0f, normal.z, -normal.y, 0.0f);
-					}
-					else if (j==1) {
-						coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
-						coord2 = make_float4(-normal.z, 0.0f, normal.x, 0.0f);
-					}
-					else {
-						coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-						coord2 = make_float4(normal.y, -normal.x, 0.0f, 0.0f);
-					}
+
+					// compute the first coordinate which is a 2-D rotated version of the normal
+					const float4 coord1 = normalize(make_float4(
+						// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+						-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
+						  (j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
+						-((j==0)*normal.y) +  (j == 1)*normal.x , // -y if j == 0, x if j == 1
+						0));
+					// the second coordinate is the cross product between the normal and the first coordinate
+					const float4 coord2 = cross3(normal, coord1);
+
+					const float2 vPos0 = vertPos0[neib_index];
+					const float2 vPos1 = vertPos1[neib_index];
+					const float2 vPos2 = vertPos2[neib_index];
+
 					// relative positions of vertices with respect to the segment, normalized by h
-					const float4 v0 = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2); // e.g. v0 = r_{v0} - r_s
-					const float4 v1 = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2);
-					const float4 v2 = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2);
+					float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
+					float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
+					float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
+
 					const float4 relPosV0 = relPos - v0;
 					const float4 relPosV10 = v1 - v0;
 					const float4 relPosV20 = v2 - v0;
