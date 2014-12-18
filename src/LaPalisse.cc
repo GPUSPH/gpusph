@@ -45,6 +45,7 @@ LaPalisse::LaPalisse(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
 	m_simparams.ioWaterdepthComputation = true;
+	m_simparams.sph_formulation = SPH_F2;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(5.8f, 7.6f, 2.4f);
