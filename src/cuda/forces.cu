@@ -615,7 +615,7 @@ reduceRbForces(	float4	*forces,
 #ifndef FORCES_INSTANCE_FILE
 #error "No instance file defined for forces!"
 #else
-#include FORCES_INSTANCE_FILE
+#include STR(FORCES_INSTANCE_FILE)
 #endif
 
 /// CUDAViscEngine should be moved elsewhere
@@ -699,7 +699,7 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 #ifndef VISC_INSTANCE_FILE
 #error "No instance file defined for viscosities!"
 #else
-#include VISC_INSTANCE_FILE
+#include STR(VISC_INSTANCE_FILE)
 #endif
 
 /// Other methods TODO will need to move elsewhere
@@ -1266,6 +1266,6 @@ saFindClosestVertex(
 #ifndef BOUND_INSTANCE_FILE
 #error "No instance file defined for boundary conditions!"
 #else
-#include BOUND_INSTANCE_FILE
+#include STR(BOUND_INSTANCE_FILE)
 #endif
 

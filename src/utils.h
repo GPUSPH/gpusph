@@ -23,10 +23,14 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Common host-side utility functions */
+/* Common host-side utility functions and macros */
 
 #ifndef _UTILS_H
 #define _UTILS_H
+
+// use STR(SOMEMACRO) to turn the content of SOMEMACRO into a string
+#define _STR(x) #x
+#define STR(x) _STR(x)
 
 // Compute a/b rounding up instead of down. The type T is supposed to be an
 // integer, since the code behaves as expected only for integer division.

@@ -319,6 +319,6 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 #ifndef BUILDNEIBS_INSTANCE_FILE
 #error "No instance file defined for buildneibs!"
 #else
-#include BUILDNEIBS_INSTANCE_FILE
+#include STR(BUILDNEIBS_INSTANCE_FILE)
 #endif
 

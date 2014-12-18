@@ -158,6 +158,6 @@ basicstep(
 #ifndef EULER_INSTANCE_FILE
 #error "No instance file defined for euler!"
 #else
-#include EULER_INSTANCE_FILE
+#include STR(EULER_INSTANCE_FILE)
 #endif
 
