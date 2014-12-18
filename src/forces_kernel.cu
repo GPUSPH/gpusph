@@ -2713,9 +2713,11 @@ saFindClosestVertex(
 		}
 	}
 	if (minVertId == UINT_MAX) {
-		// make sure we get a nice crash here
-		printf("-- ERROR -- Could not find a non-corner vertex for segment id: %d with object type: %d\n", id(info), obj);
-		return;
+		SET_FLAG(info, CORNER_PARTICLE_FLAG);
+		pinfo[index] = info;
+		//// make sure we get a nice crash here
+		//printf("-- ERROR -- Could not find a non-corner vertex for segment id: %d with object type: %d\n", id(info), obj);
+		//return;
 	} else {
 		vertices[index].w = minVertId;
 		SET_FLAG(info, CORNER_PARTICLE_FLAG);
