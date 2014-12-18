@@ -84,54 +84,54 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_forcesKernelTotalNumBlocks = 0;
 
-	m_dBuffers << new CUDABuffer<BUFFER_POS>();
-	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
-	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
-	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
-	m_dBuffers << new CUDABuffer<BUFFER_CONTUPD>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_POS>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_VEL>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_INFO>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_FORCES>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_CONTUPD>();
 
-	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
-	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
-	m_dBuffers << new CUDABuffer<BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_HASH>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
+	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
 	if (m_simparams->xsph)
-		m_dBuffers << new CUDABuffer<BUFFER_XSPH>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>();
 
 	if (m_simparams->visctype == SPSVISC)
-		m_dBuffers << new CUDABuffer<BUFFER_TAU>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>();
 
 	if (m_simparams->savenormals)
-		m_dBuffers << new CUDABuffer<BUFFER_NORMALS>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
 	if (m_simparams->vorticity)
-		m_dBuffers << new CUDABuffer<BUFFER_VORTICITY>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
 
 	if (m_simparams->dtadapt) {
-		m_dBuffers << new CUDABuffer<BUFFER_CFL>();
-		m_dBuffers << new CUDABuffer<BUFFER_CFL_TEMP>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
 		if (m_simparams->visctype == KEPSVISC)
-			m_dBuffers << new CUDABuffer<BUFFER_CFL_KEPS>();
+			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
 	}
 
 	if (m_simparams->boundarytype == SA_BOUNDARY) {
-		m_dBuffers << new CUDABuffer<BUFFER_VERTIDINDEX>();
-		m_dBuffers << new CUDABuffer<BUFFER_GRADGAMMA>();
-		m_dBuffers << new CUDABuffer<BUFFER_BOUNDELEMENTS>();
-		m_dBuffers << new CUDABuffer<BUFFER_VERTICES>();
-		m_dBuffers << new CUDABuffer<BUFFER_VERTPOS>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTIDINDEX>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_GRADGAMMA>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_BOUNDELEMENTS>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTICES>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VERTPOS>();
 	}
 
 	if (m_simparams->visctype == KEPSVISC) {
-		m_dBuffers << new CUDABuffer<BUFFER_TKE>();
-		m_dBuffers << new CUDABuffer<BUFFER_EPSILON>();
-		m_dBuffers << new CUDABuffer<BUFFER_TURBVISC>();
-		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TKE>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EPSILON>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TURBVISC>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>();
 	}
 
 	if (m_simparams->inoutBoundaries || m_simparams->visctype == KEPSVISC)
-		m_dBuffers << new CUDABuffer<BUFFER_EULERVEL>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
 	if (m_simparams->calcPrivate)
-		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE>();
 }
 
 GPUWorker::~GPUWorker() {

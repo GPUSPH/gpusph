@@ -218,11 +218,17 @@ public:
  * instead of an actual list to allow non-consecutive keys as well as
  * to allow limiting iterations to Buffers actually in use.
  *
- * Entries should be added to the list using the << operator:
+ * Entries should be added to the list using the .addBuffer<>() template
+ * function:
  *
  *     BufferList bufs;
- *     bufs << new Buffer<BUFFER_POS>();
- *     bufs << new Buffer<BUFFER_VEL>();
+ *     bufs.addBuffer<Buffer, BUFFER_POS>();
+ *     bufs.addBuffer<Buffer, BUFFER_VEL>();
+ *
+ * The first template parameter is the (template) class of the Buffer
+ * to add (e.g. HostBuffer, CUDABuffer, etc), the second is the key.
+ * An optional initializer value for the array can be specified as
+ * argument to the function (default to 0).
  *
  * Three getters are defined, to work around the limitations of C++
  * overloading and subclassing:
@@ -340,17 +346,18 @@ public:
 	}
 
 
-	/* Add a new array for position Key, with the provided initalization value
-	 * as initializer. The position is automatically deduced by the Key of the
-	 * buffer.
+	/* Add a new buffer of the given BufferClass for position Key, with the provided
+	 * initalization value as initializer. The position is automatically deduced by
+	 * the Key of the buffer.
 	 */
-	template<flag_t Key>
-	BufferList& operator<< (Buffer<Key> * buf) {
+	template<template<flag_t> class BufferClass, flag_t Key>
+	BufferList& addBuffer(int _init=0)
+	{
 		iterator exists = find(Key);
 		if (exists != this->end()) {
 			throw runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			baseclass::operator[](Key) = buf;
+			baseclass::operator[](Key) = new BufferClass<Key>(_init);
 		}
 		return *this;
 	}

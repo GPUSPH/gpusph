@@ -878,38 +878,38 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 {
 
 	// define host buffers
-	gdata->s_hBuffers << new HostBuffer<BUFFER_POS_GLOBAL>();
-	gdata->s_hBuffers << new HostBuffer<BUFFER_POS>();
-	gdata->s_hBuffers << new HostBuffer<BUFFER_HASH>();
-	gdata->s_hBuffers << new HostBuffer<BUFFER_VEL>();
-	gdata->s_hBuffers << new HostBuffer<BUFFER_INFO>();
+	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_POS_GLOBAL>();
+	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_POS>();
+	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_HASH>();
+	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VEL>();
+	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_INFO>();
 
 #if _DEBUG_
-	gdata->s_hBuffers << new HostBuffer<BUFFER_FORCES>();
+	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 #endif
 
 	if (problem->m_simparams.savenormals)
-		gdata->s_hBuffers << new HostBuffer<BUFFER_NORMALS>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
 	if (problem->m_simparams.vorticity)
-		gdata->s_hBuffers << new HostBuffer<BUFFER_VORTICITY>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VORTICITY>();
 
 	if (problem->m_simparams.boundarytype == SA_BOUNDARY) {
-		gdata->s_hBuffers << new HostBuffer<BUFFER_BOUNDELEMENTS>();
-		gdata->s_hBuffers << new HostBuffer<BUFFER_VERTICES>();
-		gdata->s_hBuffers << new HostBuffer<BUFFER_GRADGAMMA>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_BOUNDELEMENTS>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VERTICES>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_GRADGAMMA>();
 	}
 
 	if (problem->m_simparams.visctype == KEPSVISC) {
-		gdata->s_hBuffers << new HostBuffer<BUFFER_TKE>();
-		gdata->s_hBuffers << new HostBuffer<BUFFER_EPSILON>();
-		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TKE>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EPSILON>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
 	if (problem->m_simparams.inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
-		gdata->s_hBuffers << new HostBuffer<BUFFER_EULERVEL>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
 	if (problem->m_simparams.calcPrivate)
-		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();
 
 	// number of elements to allocate
 	const size_t numparts = gdata->allocatedParticles;
