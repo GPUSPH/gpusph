@@ -39,8 +39,7 @@ class HotFile {
 public:
 	HotFile(ifstream &fp, const GlobalData *gdata);
 	HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
-		const BufferList &buffers, uint node_offset, double t,
-		const bool testpoints);
+		uint node_offset, double t, const bool testpoints);
 	~HotFile();
 	ulong get_iterations() { return _header.iterations; }
 	float get_dt() { return _header.dt; }
@@ -53,14 +52,13 @@ private:
 		ofstream		*out;
 	}					_fp;
 	uint				_particle_count;
-	BufferList			_buffers;
 	uint				_node_offset;
 	double				_t;
 	bool				_testpoints;
 	const GlobalData	*_gdata;
 	header_t			_header;
 
-	void writeBuffer(ofstream *fp, AbstractBuffer *buffer, version_t version);
+	void writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version);
 	void writeBody(ofstream *fp, uint index, const float3 *cg, const dQuaternion quaternion,
 		const float3 *linvel, const float3 *angvel, version_t version);
 	void writeHeader(ofstream *fp, version_t version);

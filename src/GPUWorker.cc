@@ -1072,8 +1072,8 @@ void GPUWorker::uploadSubdomain() {
 
 	// iterate over each array in the _host_ buffer list, and upload data
 	// if it is not in the skip list
-	BufferList::iterator onhost = gdata->s_hBuffers.begin();
-	const BufferList::iterator stop = gdata->s_hBuffers.end();
+	BufferList::const_iterator onhost = gdata->s_hBuffers.begin();
+	const BufferList::const_iterator stop = gdata->s_hBuffers.end();
 	for ( ; onhost != stop ; ++onhost) {
 		flag_t buf_to_up = onhost->first;
 		if (buf_to_up & skip_bufs)

@@ -214,7 +214,7 @@ public:
 	}
 };
 
-/* Specialized list of Buffers of any type. It is implemented as a map
+/* Specialized list of Buffers of any type. Internally it's implemented as a map
  * instead of an actual list to allow non-consecutive keys as well as
  * to allow limiting iterations to Buffers actually in use.
  *
@@ -244,37 +244,42 @@ public:
  *  (this is necessary because the return type must be known at compile time
  *  too).
  */
-class BufferList : public std::map<flag_t, AbstractBuffer*>
+class BufferList
 {
-	typedef std::map<flag_t, AbstractBuffer*> baseclass;
+	typedef std::map<flag_t, AbstractBuffer*> map_type;
+
+	map_type m_map;
 
 public:
-	BufferList() : baseclass() {};
+	BufferList() : m_map() {};
+
+	~BufferList() {
+		clear();
+	}
 
 	// delete all buffers before clearing the hash
 	void clear() {
-		iterator buf = this->begin();
-		const iterator done = this->end();
+		map_type::iterator buf = m_map.begin();
+		const map_type::iterator done = m_map.end();
 		while (buf != done) {
 			delete buf->second;
 			++buf;
 		}
-		baseclass::clear();
+		m_map.clear();
 	}
 
-	/* We overload the [] accessor, to guarantee const correctness
-	 * and to prevent insertion of buffers through assignment to
-	 * specific keys. Use the << operator to fill the buffer list instead.
+	/* Read-only [] accessor. Insertion of buffers should be done via the
+	 * addBuffer<>() method template.
 	 */
 	AbstractBuffer* operator[](const flag_t& Key) {
-		const_iterator exists = this->find(Key);
-		if (exists != this->end())
+		map_type::const_iterator exists = m_map.find(Key);
+		if (exists != m_map.end())
 			return exists->second;
 		else return NULL;
 	}
 	const AbstractBuffer* operator[](const flag_t& Key) const {
-		const_iterator exists = this->find(Key);
-		if (exists != this->end())
+		map_type::const_iterator exists = m_map.find(Key);
+		if (exists != m_map.end())
 			return exists->second;
 		else return NULL;
 	}
@@ -285,16 +290,16 @@ public:
 	 */
 	template<flag_t Key>
 	Buffer<Key> *get() {
-		iterator exists = this->find(Key);
-		if (exists != this->end())
+		map_type::iterator exists = m_map.find(Key);
+		if (exists != m_map.end())
 			return static_cast<Buffer<Key>*>(exists->second);
 		else return NULL;
 	}
 	// const version
 	template<flag_t Key>
 	const Buffer<Key> *get() const {
-		const_iterator exists = this->find(Key);
-		if (exists != this->end())
+		map_type::const_iterator exists = m_map.find(Key);
+		if (exists != m_map.end())
 			return static_cast<const Buffer<Key>*>(exists->second);
 		else return NULL;
 	}
@@ -309,16 +314,16 @@ public:
 	 */
 	template<flag_t Key>
 	DATA_TYPE(Key) *getData(uint num=0) {
-		iterator exists = this->find(Key);
-		if (exists != this->end())
+		map_type::iterator exists = m_map.find(Key);
+		if (exists != m_map.end())
 			return static_cast<DATA_TYPE(Key)*>(exists->second->get_buffer(num));
 		else return NULL;
 	}
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key) *getData(uint num=0) const {
-		const_iterator exists = this->find(Key);
-		if (exists != this->end())
+		map_type::const_iterator exists = m_map.find(Key);
+		if (exists != m_map.end())
 			return static_cast<const DATA_TYPE(Key)*>(exists->second->get_buffer(num));
 		else return NULL;
 	}
@@ -353,14 +358,38 @@ public:
 	template<template<flag_t> class BufferClass, flag_t Key>
 	BufferList& addBuffer(int _init=0)
 	{
-		iterator exists = find(Key);
-		if (exists != this->end()) {
+		map_type::iterator exists = m_map.find(Key);
+		if (exists != m_map.end()) {
 			throw runtime_error("trying to add a buffer for an already-available key!");
 		} else {
-			baseclass::operator[](Key) = new BufferClass<Key>(_init);
+			m_map[Key] = new BufferClass<Key>;
 		}
 		return *this;
 	}
+
+
+	/* map-like interface */
+	// Add more methods/types here as needed
+
+	typedef map_type::iterator iterator;
+	typedef map_type::const_iterator const_iterator;
+	typedef map_type::size_type size_type;
+
+	iterator begin()
+	{ return m_map.begin(); }
+
+	const_iterator begin() const
+	{ return m_map.begin(); }
+
+	iterator end()
+	{ return m_map.end(); }
+
+	const_iterator end() const
+	{ return m_map.end(); }
+
+	size_type size() const
+	{ return m_map.size(); }
+
 
 };
 

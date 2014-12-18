@@ -42,8 +42,7 @@ void HotWriter::write(uint numParts, const BufferList &buffers,
 	_current_filenames.push_back(m_dirname + "/" + filename);
 
 	// create and save the hot file
-	HotFile *hf = new HotFile(out, gdata, numParts, buffers, node_offset,
-		t, testpoints);
+	HotFile *hf = new HotFile(out, gdata, numParts, node_offset, t, testpoints);
 	hf->save();
 	delete hf;
 

@@ -36,12 +36,10 @@ typedef struct {
 } encoded_body_t;
 
 HotFile::HotFile(ofstream &fp, const GlobalData *gdata, uint numParts,
-	const BufferList &buffers, uint node_offset, double t,
-	const bool testpoints) {
+	uint node_offset, double t, const bool testpoints) {
 	_fp.out = &fp;
 	_gdata = gdata;
 	_particle_count = numParts;
-	_buffers = buffers;
 	_node_offset = node_offset;
 	_t = t;
 	_testpoints = testpoints;
@@ -59,7 +57,7 @@ void HotFile::save() {
 	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
 	while (iter != _gdata->s_hBuffers.end()) {
-		writeBuffer(_fp.out, (AbstractBuffer*)iter->second, VERSION_1);
+		writeBuffer(_fp.out, iter->second, VERSION_1);
 		iter++;
 	}
 
@@ -161,7 +159,7 @@ void HotFile::readHeader(ifstream *fp) {
 	_particle_count = _header.particle_count;
 }
 
-void HotFile::writeBuffer(ofstream *fp, AbstractBuffer *buffer, version_t version) {
+void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t version) {
 	switch (version) {
 	case VERSION_1:
 		encoded_buffer_t eb;

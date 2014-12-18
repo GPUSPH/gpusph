@@ -38,11 +38,8 @@
 
 #include "buffer.h"
 
-/* a specialization of buffers, for the host.
- * NOTE: currently, this assumes that all Host buffers
- * are _single-buffered_, and will explictly only allocate
- * the first one.
- */
+/* a specialization of buffers, for the host */
+
 template<flag_t Key>
 class HostBuffer : public Buffer<Key>
 {
@@ -55,7 +52,7 @@ public:
 
 	// destructor: free allocated memory
 	virtual ~HostBuffer() {
-		const int N = 1; // see NOTE for this class
+		const int N = baseclass::array_count; // see NOTE for this class
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
 #if _DEBUG_
@@ -71,7 +68,7 @@ public:
 	// allocate and clear buffer on device
 	virtual size_t alloc(size_t elems) {
 		size_t bufmem = elems*sizeof(element_type);
-		const int N = 1; // see NOTE for this class
+		const int N = baseclass::array_count; // see NOTE for this class
 		element_type **bufs = baseclass::get_raw_ptr();
 		for (int i = 0; i < N; ++i) {
 			// malloc instead of calloc since the init
