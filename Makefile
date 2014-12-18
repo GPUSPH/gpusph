@@ -1,8 +1,5 @@
 # GPUSPH Makefile
 #
-# TODO:
-# - Improve list-problems problem detection (move problems to separate dir?)
-#
 # Notes:
 # - When adding a target, comment it with "# target: name - desc" and help
 #   will always be up-to-date
