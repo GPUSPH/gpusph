@@ -130,7 +130,7 @@ private:
 	// TODO: CPU arrays used for debugging
 
 	// GPU arrays
-	BufferList	m_dBuffers;
+	MultiBufferList	m_dBuffers;
 
 	uint*		m_dCellStart;			// index of cell start in sorted order
 	uint*		m_dCellEnd;				// index of cell end in sorted order
@@ -203,6 +203,7 @@ private:
 
 	void uploadSubdomain();
 	void dumpBuffers();
+	void swapBuffers();
 	void setDeviceCellsAsEmpty();
 	void downloadCellsIndices();
 	void downloadSegments();
@@ -298,8 +299,8 @@ public:
 	cudaDeviceProp getDeviceProperties();
 	size_t getHostMemory();
 	size_t getDeviceMemory();
-	// for peer transfers
-	const AbstractBuffer* getBuffer(flag_t) const;
+	// for peer transfers: get the buffer `key` from the buffer list `list_idx`
+	const AbstractBuffer* getBuffer(size_t list_idx, flag_t key) const;
 };
 
 #endif /* GPUWORKER_H_ */

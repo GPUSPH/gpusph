@@ -114,7 +114,7 @@ public:
 									uint*				newNumParticles);	// output: number of active particles found
 
 	void
-	updateVertIDToIndex(particleinfo*	particleInfo,	// input: particle's information
+	updateVertIDToIndex(const particleinfo*	particleInfo,	// input: particle's information
 						uint*			vertIDToIndex,	// output: vertIDToIndex array
 						const uint		numParticles);	// input: total number of particles
 

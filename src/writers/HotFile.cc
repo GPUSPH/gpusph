@@ -171,6 +171,14 @@ void HotFile::writeBuffer(ofstream *fp, const AbstractBuffer *buffer, version_t 
 		fp->write((char*)&eb, sizeof(eb));
 
 		// Guiseppe says we need only write the first buffer
+		// TODO FIXME this is not true anymore since we now properly support
+		// multi-component buffers vs doulbe-buffering properly, so if one
+		// buffer has an array_count > 1 we should dump/restore all of them;
+		// but this will lead to a hotfile version change, and we only need to
+		// implement it when we will have multi-component buffers on host.
+		// The only caveat is that presently the number of components
+		// may be 1 or 2 for the same buffer depending on whether the hotfile
+		// was saved after or before the introduction of the multibufferlist.
 		for(int i = 0; i < 1 /*buffer->get_array_count()*/; i++) {
 			const void *data = buffer->get_buffer(i);
 			const size_t size = buffer->get_element_size()*_particle_count;

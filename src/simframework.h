@@ -38,6 +38,9 @@
 #include "engine_visc.h"
 #include "engine_forces.h"
 
+// TODO this should be set by the integration scheme, when we have it
+#include "buffer_alloc_policy.h"
+
 typedef std::map<FilterType, AbstractFilterEngine *> FilterEngineSet;
 
 // (ordered) list of filters and frequencies pairs
@@ -53,6 +56,8 @@ protected:
 	AbstractForcesEngine *m_forcesEngine;
 	AbstractBoundaryConditionsEngine *m_bcEngine;
 	AbstractPostProcessEngine *m_postprocEngine; // TODO should become a List
+
+	BufferAllocPolicy *m_allocPolicy;
 
 	SimParams m_simparams;
 protected:
@@ -75,6 +80,8 @@ public:
 	{ return m_bcEngine; }
 	AbstractPostProcessEngine *getPostProcEngine()
 	{ return m_postprocEngine; }
+	BufferAllocPolicy *getAllocPolicy()
+	{ return m_allocPolicy; }
 
 	// add a filter engine with the given frequency (in iterations)
 	AbstractFilterEngine* addFilterEngine(FilterType filtertype, int frequency)

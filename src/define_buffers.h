@@ -46,11 +46,11 @@
 SET_BUFFER_TRAITS(BUFFER_POS_GLOBAL, double4, 1, "Position (double precision)");
 
 #define BUFFER_POS			(BUFFER_POS_GLOBAL << 1)
-SET_BUFFER_TRAITS(BUFFER_POS, float4, 2, "Position");
+SET_BUFFER_TRAITS(BUFFER_POS, float4, 1, "Position");
 #define BUFFER_VEL			(BUFFER_POS << 1)
-SET_BUFFER_TRAITS(BUFFER_VEL, float4, 2, "Velocity");
+SET_BUFFER_TRAITS(BUFFER_VEL, float4, 1, "Velocity");
 #define BUFFER_INFO			(BUFFER_VEL << 1)
-SET_BUFFER_TRAITS(BUFFER_INFO, particleinfo, 2, "Info");
+SET_BUFFER_TRAITS(BUFFER_INFO, particleinfo, 1, "Info");
 #define BUFFER_HASH			(BUFFER_INFO << 1)
 SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 
@@ -87,25 +87,25 @@ SET_BUFFER_TRAITS(BUFFER_VORTICITY, float3, 1, "Vorticity");
 SET_BUFFER_TRAITS(BUFFER_NORMALS, float4, 1, "Normals");
 
 #define BUFFER_BOUNDELEMENTS	(BUFFER_NORMALS << 1)
-SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 2, "Boundary Elements");
+SET_BUFFER_TRAITS(BUFFER_BOUNDELEMENTS, float4, 1, "Boundary Elements");
 #define BUFFER_GRADGAMMA		(BUFFER_BOUNDELEMENTS << 1)
-SET_BUFFER_TRAITS(BUFFER_GRADGAMMA, float4, 2, "Gamma Gradient");
+SET_BUFFER_TRAITS(BUFFER_GRADGAMMA, float4, 1, "Gamma Gradient");
 #define BUFFER_VERTICES			(BUFFER_GRADGAMMA << 1)
-SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 2, "Vertices");
+SET_BUFFER_TRAITS(BUFFER_VERTICES, vertexinfo, 1, "Vertices");
 #define BUFFER_VERTPOS			(BUFFER_VERTICES << 1)
 SET_BUFFER_TRAITS(BUFFER_VERTPOS, float2, 3, "Vertex positions relative to s");
 
 #define BUFFER_TKE			(BUFFER_VERTPOS << 1)
-SET_BUFFER_TRAITS(BUFFER_TKE, float, 2, "Turbulent Kinetic Energy [k]");
+SET_BUFFER_TRAITS(BUFFER_TKE, float, 1, "Turbulent Kinetic Energy [k]");
 #define BUFFER_EPSILON		(BUFFER_TKE << 1)
-SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 2, "Turbulent Dissipation Rate [e]");
+SET_BUFFER_TRAITS(BUFFER_EPSILON, float, 1, "Turbulent Dissipation Rate [e]");
 #define BUFFER_TURBVISC		(BUFFER_EPSILON << 1)
-SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 2, "Eddy Viscosity");
+SET_BUFFER_TRAITS(BUFFER_TURBVISC, float, 1, "Eddy Viscosity");
 #define BUFFER_DKDE			(BUFFER_TURBVISC << 1)
 SET_BUFFER_TRAITS(BUFFER_DKDE, float3, 1, "[k]-[e] derivatives");
 
 #define BUFFER_EULERVEL			(BUFFER_DKDE << 1)
-SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 2, "Eulerian velocity");
+SET_BUFFER_TRAITS(BUFFER_EULERVEL, float4, 1, "Eulerian velocity");
 
 #define BUFFER_CFL			(BUFFER_EULERVEL << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL, float, 1, "CFL array");
@@ -183,15 +183,6 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 		BUFFER_EULERVEL | \
 		BUFFER_GRADGAMMA | \
 		BUFFER_VERTICES)
-
-// all double buffers TODO some template metaprogramming would help here
-#define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
-	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
-	BUFFER_TKE | BUFFER_EPSILON | \
-	BUFFER_TURBVISC | BUFFER_EULERVEL)
-
-// all buffers which need to transfer more than one array
-#define BUFFER_BIG		(BUFFER_TAU | BUFFER_VERTPOS)
 
 #endif
 

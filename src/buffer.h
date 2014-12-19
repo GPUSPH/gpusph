@@ -26,12 +26,15 @@
 #ifndef _BUFFER_H
 #define _BUFFER_H
 
+#include <vector>
 #include <map>
+#include <set>
 
 #include <stdexcept>
 
 #include "common_types.h"
 #include "buffer_traits.h"
+#include "buffer_alloc_policy.h"
 
 using namespace std;
 
@@ -214,6 +217,10 @@ public:
 	}
 };
 
+// Forward declaration of the MultiBufferList, which we want to make friend
+// with the BufferList
+class MultiBufferList;
+
 /* Specialized list of Buffers of any type. Internally it's implemented as a map
  * instead of an actual list to allow non-consecutive keys as well as
  * to allow limiting iterations to Buffers actually in use.
@@ -222,8 +229,8 @@ public:
  * function:
  *
  *     BufferList bufs;
- *     bufs.addBuffer<Buffer, BUFFER_POS>();
- *     bufs.addBuffer<Buffer, BUFFER_VEL>();
+ *     bufs.addBuffer<SomeBufferClass, BUFFER_POS>();
+ *     bufs.addBuffer<SomeBufferClass, BUFFER_VEL>();
  *
  * The first template parameter is the (template) class of the Buffer
  * to add (e.g. HostBuffer, CUDABuffer, etc), the second is the key.
@@ -250,6 +257,28 @@ class BufferList
 
 	map_type m_map;
 
+protected:
+	void addExistingBuffer(flag_t Key, AbstractBuffer* buf)
+	{ m_map[Key] = buf; }
+
+	// replace the buffer at position Key with buf, returning the
+	// old one
+	AbstractBuffer *replaceBuffer(flag_t Key, AbstractBuffer *buf)
+	{
+		AbstractBuffer *old = m_map[Key];
+		m_map[Key] = buf;
+		return old;
+	}
+
+	// remove a buffer without deallocating it
+	// used by the MultiBufferList to remove buffers shared
+	// by multiple lists
+	// TODO this would be all oh su much better using C++11 shared_ptr ...
+	void removeBuffer(flag_t Key)
+	{ m_map.erase(Key); }
+
+
+	friend class MultiBufferList;
 public:
 	BufferList() : m_map() {};
 
@@ -344,7 +373,7 @@ public:
 	// const version
 	template<flag_t Key>
 	const DATA_TYPE(Key)* const* getRawPtr() const {
-		Buffer<Key> *exists = this->get<Key>();
+		const Buffer<Key> *exists = this->get<Key>();
 		if (exists)
 			return exists->get_raw_ptr();
 		else return NULL;
@@ -352,7 +381,7 @@ public:
 
 
 	/* Add a new buffer of the given BufferClass for position Key, with the provided
-	 * initalization value as initializer. The position is automatically deduced by
+	 * initialization value as initializer. The position is automatically deduced by
 	 * the Key of the buffer.
 	 */
 	template<template<flag_t> class BufferClass, flag_t Key>
@@ -390,7 +419,230 @@ public:
 	size_type size() const
 	{ return m_map.size(); }
 
+};
 
+/* A MultiBufferList takes into account that some of the buffers are needed
+ * in multiple copies (double-buffered or more.) It relies on a BufferAllocPolicy
+ * object to determine which ones need multiple copies and which ones
+ * do not.
+ *
+ */
+class MultiBufferList
+{
+public:
+	// buffer allocation policy
+	const BufferAllocPolicy *m_policy;
+
+	// list of BufferLists
+	vector<BufferList> m_lists;
+
+	// iterators are returned by the getters
+	typedef vector<BufferList>::iterator iterator;
+	typedef vector<BufferList>::const_iterator const_iterator;
+
+	// Keys of Buffers added so far
+	// It's a set instead of a single flag_t to allow iteration on it
+	// without bit-shuffling. Might change.
+	set<flag_t> m_buffer_keys;
+
+	// TODO FIXME this is for double-buffered lists only
+	// In general we would have N writable list (N=1 usually)
+	// and M read-only lists (M >= 1), with the number of each
+	// determined by the BufferAllocPolicy.
+#define READ_LIST 1
+#define WRITE_LIST 0
+
+public:
+
+	MultiBufferList(): m_policy(NULL)
+	{}
+
+	~MultiBufferList() {
+		clear();
+	}
+
+	void clear() {
+		// nothing to do, if the policy was never set
+		if (m_policy == NULL)
+			return;
+
+		// we cannot just clear() the lists, because that would
+		// lead to a double-free of the shared pointers. In C++11
+		// this could be fixed with shared_ptrs, but we can't rely
+		// on C++11, so we have to do the management manually.
+
+		// To avoid the double free, first do a manual deallocation
+		// and removal of the shared buffers:
+		set<flag_t>::const_iterator iter = m_buffer_keys.begin();
+		const set<flag_t>::const_iterator end = m_buffer_keys.end();
+		for ( ; iter != end ; ++iter) {
+			const flag_t key = *iter;
+			const size_t count = m_policy->get_buffer_count(key);
+			if (count != 1)
+				continue;
+			// ok, the buffer had a count of 1, so it was not
+			// double buffered, and is shared among lists:
+			// we deallocated it ourselves, and remove it
+			// from the lists, in order to avoid double deletions
+			AbstractBuffer *buf = m_lists[0][key];
+
+			vector<BufferList>::iterator list = m_lists.begin();
+			const vector<BufferList>::iterator list_end = m_lists.end();
+			for ( ; list != list_end; ++list)
+				list->removeBuffer(key);
+			delete buf;
+		}
+		// now clear the lists
+		m_lists.clear();
+		// and purge the list of keys too
+		m_buffer_keys.clear();
+	}
+
+	void setAllocPolicy(const BufferAllocPolicy* _policy)
+	{
+		if (m_policy != NULL)
+			throw runtime_error("cannot change buffer allocation policy");
+		m_policy = _policy;
+
+		// add as many BufferLists as needed at most
+		m_lists.resize(m_policy->get_max_buffer_count());
+	}
+
+	/* Add a new buffer of the given BufferClass for position Key, with the provided
+	 * initalization value as initializer.
+	 */
+	template<template<flag_t> class BufferClass, flag_t Key>
+	void addBuffer(int _init=0)
+	{
+		if (m_policy == NULL)
+			throw runtime_error("trying to add buffers before setting policy");
+		if (m_buffer_keys.find(Key) != m_buffer_keys.end())
+			throw runtime_error("trying to re-add buffer");
+
+		m_buffer_keys.insert(Key);
+
+		// number of copies of this buffer
+		const size_t count = m_policy->get_buffer_count(Key);
+
+		// We currently support only two possibilities for buffers:
+		// either there is a single instance, or there are as many instances
+		// as the maximum (e.g. if the alloc policy is triple-buffered,
+		// then a buffer has a count of either three or one)
+		// TODO redesign as appropriate when the need arises
+		if (count > 1) {
+			// multi-buffered, allocate one instance in each buffer list
+			vector<BufferList>::iterator it(m_lists.begin());
+			vector<BufferList>::iterator end(m_lists.end());
+			while (it != end) {
+				it->addBuffer<BufferClass, Key>(_init);
+				++it;
+			}
+		} else {
+			// single-buffered, allocate once and put in all lists
+			AbstractBuffer *buff = new BufferClass<Key>;
+
+			vector<BufferList>::iterator it(m_lists.begin());
+			vector<BufferList>::iterator end(m_lists.end());
+			while (it != end) {
+				it->addExistingBuffer(Key, buff);
+				++it;
+			}
+		}
+	}
+
+	/* Swap the lists the given buffers belong to */
+	void swapBuffers(flag_t keys) {
+		set<flag_t>::const_iterator iter = m_buffer_keys.begin();
+		const set<flag_t>::const_iterator end = m_buffer_keys.end();
+		for (; iter != end ; ++iter) {
+			const flag_t key = *iter;
+			if (!(key & keys))
+				continue;
+
+			// get the old READ buffer, replace the one in WRITE
+			// with it and the one in READ with the old WRITE one
+			AbstractBuffer *oldread = m_lists[READ_LIST][key];
+			AbstractBuffer *oldwrite = m_lists[WRITE_LIST].replaceBuffer(key, oldread);
+			m_lists[READ_LIST].replaceBuffer(key, oldwrite);
+		}
+
+	}
+
+	/* Get the set of Keys for which buffers have been added */
+	const set<flag_t>& get_keys() const
+	{ return m_buffer_keys; }
+
+	/* Get the amount of memory that would be taken by the given buffer
+	 * if it was allocated with the given number of elements */
+	size_t get_memory_occupation(flag_t Key, size_t nels) const
+	{
+		// return 0 unless the buffer was actually added
+		if (m_buffer_keys.find(Key) == m_buffer_keys.end())
+			return 0;
+
+		// get the corresponding buffer
+		const AbstractBuffer *buf = m_lists[0][Key];
+
+		size_t single = buf->get_element_size();
+		single *= buf->get_array_count();
+		single *= m_policy->get_buffer_count(Key);
+
+		return single*nels;
+	}
+
+	/* Allocate all the necessary copies of the given buffer,
+	 * returning the total amount of memory used */
+	size_t alloc(flag_t Key, size_t nels)
+	{
+		// number of actual instances of the buffer
+		const size_t count = m_policy->get_buffer_count(Key);
+		size_t list_idx = 0;
+		size_t allocated = 0;
+		while (list_idx < count) {
+			allocated += m_lists[list_idx][Key]->alloc(nels);
+			++list_idx;
+		}
+		return allocated;
+	}
+
+	/* Get a specific buffer list */
+	iterator getBufferList(size_t idx)
+	{
+		if (idx > m_lists.size())
+			throw runtime_error("asked for non-existing buffer list");
+		return m_lists.begin() + idx;
+	}
+
+	/* Get a specific buffer list (const) */
+	const_iterator getBufferList(size_t idx) const
+	{
+		if (idx > m_lists.size())
+			throw runtime_error("asked for non-existing buffer list");
+		return m_lists.begin() + idx;
+	}
+
+	/* Get the ith read-only buffer list */
+	iterator getReadBufferList(size_t i = 0)
+	{ return getBufferList(READ_LIST + i); }
+	const_iterator getReadBufferList(size_t i = 0) const
+	{ return getBufferList(READ_LIST + i); }
+
+	/* Get the ith read-write buffer list */
+	iterator getWriteBufferList(size_t i = 0)
+	{
+		if (i >= READ_LIST - WRITE_LIST)
+			throw runtime_error("no such writeable buffer");
+		return getBufferList(WRITE_LIST + i);
+	}
+	const_iterator getWriteBufferList(size_t i = 0) const
+	{
+		if (i >= READ_LIST - WRITE_LIST)
+			throw runtime_error("no such writeable buffer");
+		return getBufferList(WRITE_LIST + i);
+	}
+
+#undef READ_LIST
+#undef WRITE_LIST
 };
 
 #undef DATA_TYPE

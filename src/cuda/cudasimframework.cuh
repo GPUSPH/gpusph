@@ -28,6 +28,8 @@
 
 #include "simframework.h"
 
+#include "predcorr_alloc_policy.h"
+
 #include "simflags.h"
 #include "buildneibs.cuh"
 #include "euler.cuh"
@@ -99,6 +101,9 @@ public:
 		m_bcEngine = CUDABoundaryConditionsSelector
 			<kerneltype, visctype, boundarytype, simflags>::select();
 		m_postprocEngine = NULL; // TODO
+
+		// TODO should be allocated by the integration scheme
+		m_allocPolicy = new PredCorrAllocPolicy();
 
 		m_simparams.kerneltype = kerneltype;
 		m_simparams.sph_formulation = sph_formulation;

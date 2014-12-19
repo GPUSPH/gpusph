@@ -70,6 +70,7 @@ class GPUWorker;
 // requests to download cellStart and cellEnd
 enum CommandType {
 	IDLE,				// do a dummy cycle
+	SWAP_BUFFERS,		// swap double-buffered buffers
 	CALCHASH,			// run calcHash kernel
 	SORT,				// run thrust::sort
 	CROP,				// crop out all the external particles
@@ -151,11 +152,6 @@ class Writer;
 
 class Problem;
 
-// maps buffer keys to indices. used for currentRead and currentWrite:
-// currentRead[BUFFER_SOMETHING] is the current array to be read in the double-buffered
-// set BUFFER_SOMETHING
-typedef std::map<flag_t, uint> BufferIndexMap;
-
 // The GlobalData struct can be considered as a set of pointers. Different pointers may be initialized
 // by different classes in different phases of the initialization. Pointers should be used in the code
 // only where we are sure they were already initialized.
@@ -180,6 +176,7 @@ struct GlobalData {
 	Problem* problem;
 
 	SimFramework *simframework;
+	BufferAllocPolicy *allocPolicy;
 
 	Options* clOptions;
 
@@ -245,11 +242,6 @@ struct GlobalData {
 	uint	createdParticlesIterations;
 	// offset used for ID cloning
 	uint	newIDsOffset;
-
-	// indices for double-buffered device arrays (0 or 1)
-
-	BufferIndexMap		currentRead;
-	BufferIndexMap		currentWrite;
 
 	// moving boundaries
 	float4	*s_mbData;
@@ -472,21 +464,6 @@ struct GlobalData {
 		uint linearizedCellIdx = calcGridHashHost( cellCoords );
 		// read which device number was assigned
 		return s_hDeviceMap[linearizedCellIdx];
-	}
-
-	// swap (indices of) double buffered arrays
-	void swapDeviceBuffers(flag_t buffers) {
-		BufferIndexMap::iterator idxset = currentRead.begin();
-		const BufferIndexMap::iterator stop = currentRead.end();
-		for (; idxset != stop; ++idxset) {
-			flag_t bufkey = idxset->first;
-			if (!(bufkey & buffers))
-				continue; // don't swap unselected buffers
-			// manual swap, eh
-			uint prv = idxset->second;
-			currentRead[bufkey] = currentWrite[bufkey];
-			currentWrite[bufkey] = prv;
-		}
 	}
 
 	// pretty-print memory amounts

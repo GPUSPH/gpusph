@@ -1,4 +1,4 @@
-/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2014 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,38 +23,26 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Common types used throughout GPUSPH */
+#include "predcorr_alloc_policy.h"
 
-#ifndef _COMMON_TYPES_H
-#define _COMMON_TYPES_H
+#include "GlobalData.h" // for FIRST_DEFINED_BUFFER etc
+#include "define_buffers.h"
 
-// uint64_t et similia
-#define __STDC_LIMIT_MACROS
-#include <stdint.h>
-// size_t
-#include <stddef.h>
+// all double buffers (for the predictor-corrector integration scheme)
+// TODO move to predcor_alloc_policy.cc
+#define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
+	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
+	BUFFER_TKE | BUFFER_EPSILON | \
+	BUFFER_TURBVISC | BUFFER_EULERVEL)
 
-// define uint, uchar, ulong
-typedef unsigned long ulong; // only used in timing
-typedef unsigned int uint;
-typedef unsigned short ushort;
-typedef unsigned char uchar;
+size_t
+PredCorrAllocPolicy::get_max_buffer_count(flag_t Keys) const
+{ return (Keys & BUFFERS_ALL_DBL ? 2 : 1); }
 
-// neighbor data
-typedef unsigned short neibdata;
+size_t
+PredCorrAllocPolicy::get_buffer_count(flag_t Key) const
+{ return (Key & BUFFERS_ALL_DBL ? 2 : 1); }
 
-// type for index that iterates on the neighbor list
-typedef size_t idx_t;
-
-// particleinfo cum suis
-#include "particleinfo.h"
-
-// hashKey cum suis
-#include "hashkey.h"
-
-// flags type
-// could be made an uint_fast64_t if we were concerned about performance,
-typedef uint64_t flag_t;
-#define FLAG_MAX UINT64_MAX
-
-#endif
+size_t
+PredCorrAllocPolicy::get_multi_buffered(flag_t Keys) const
+{ return (Keys & BUFFERS_ALL_DBL); }

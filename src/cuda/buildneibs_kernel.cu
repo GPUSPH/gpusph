@@ -424,7 +424,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,		///< index of cells 
  */
 __global__
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
-void updateVertIDToIndexDevice(	particleinfo*	particleInfo,	///< particle's informations
+void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< particle's informations
 								uint*			vertIDToIndex,	///< vertIDToIndex array (out)
 								const uint		numParticles)	///< total number of particles
 {

@@ -384,6 +384,7 @@ int main(int argc, char** argv) {
 		gdata.simframework = gdata.problem->m_simframework;
 	else
 		throw invalid_argument("no simulation framework defined in the problem!");
+	gdata.allocPolicy = gdata.simframework->getAllocPolicy();
 
 
 	// get - and actually instantiate - the existing instance of GPUSPH

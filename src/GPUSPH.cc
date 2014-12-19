@@ -141,20 +141,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
 
-	// double buffer indexing (READ vs WRITE)
-	// the initial assignment is arbitrary, just need to be complementary
-	// (caveat: as long as these pointers, and not just 0 and 1 values, are always used)
-
-	// TODO this can be done more elegantly using TMP, relying on the BufferTraits
-	// to iterate automatically over all double-buffered arrays. Presently we depend on
-	// there being a _correct_ define in define_buffers
-	for (flag_t bufkey = FIRST_DEFINED_BUFFER; bufkey <= LAST_DEFINED_BUFFER; bufkey <<= 1) {
-		if (bufkey & BUFFERS_ALL_DBL) {
-			gdata->currentRead[bufkey] = 0;
-			gdata->currentWrite[bufkey] = 1;
-		}
-	}
-
 	// check the number of moving boundaries
 	if (problem->m_mbnumber > MAXMOVINGBOUND) {
 		printf("FATAL: unsupported number of moving boundaries (%u > %u)\n", problem->m_mbnumber, MAXMOVINGBOUND);
@@ -472,7 +458,7 @@ bool GPUSPH::runSimulation() {
 					// update before swapping, since UPDATE_EXTERNAL works on write buffers
 					if (MULTI_DEVICE)
 						doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
-					gdata->swapDeviceBuffers(BUFFER_VEL);
+					doCommand(SWAP_BUFFERS, BUFFER_VEL);
 				}
 				++flt;
 			}
@@ -525,13 +511,13 @@ bool GPUSPH::runSimulation() {
 		//			//reduce bodies
 
 		// boundelements is swapped because the normals are updated in the moving objects case
-		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		//			//reduce bodies
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -549,7 +535,7 @@ bool GPUSPH::runSimulation() {
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
 			saBoundaryConditions(INTEGRATOR_STEP_1);
 
-		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
+		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
 
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again.
@@ -645,13 +631,13 @@ bool GPUSPH::runSimulation() {
 
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
-		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// euler needs the previous centers of gravity, so we upload CGs only here
 		if (problem->get_simparams()->numObjects > 0)
@@ -680,7 +666,7 @@ bool GPUSPH::runSimulation() {
 				gdata->createdParticlesIterations++;
 		}
 
-		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
+		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
 
 		// Here the second part of our time integration scheme is complete, i.e. the time-step is
 		// fully computed. All updated values are now in the read buffers again.
@@ -782,7 +768,7 @@ bool GPUSPH::runSimulation() {
 				// to know the surface flag for the external particles (in case we will ever care).
 				if (MULTI_DEVICE)
 					doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
-				gdata->swapDeviceBuffers(BUFFER_INFO);
+				doCommand(SWAP_BUFFERS, BUFFER_INFO);
 				which_buffers |= BUFFER_NORMALS;
 			}
 
@@ -1216,6 +1202,7 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 	 memset(gdata->s_hVel, 0, float4Size);
 	 memset(gdata->s_hInfo, 0, infoSize);
 	 } */
+
 	gdata->nextCommand = cmd;
 	gdata->commandFlags = flags;
 	gdata->extraCommandArg = arg;
@@ -1399,8 +1386,8 @@ void GPUSPH::buildNeibList()
 	// out of the domain
 	doCommand(DOWNLOAD_NEWNUMPARTS);
 
-	// swap pos, vel and info double buffers
-	gdata->swapDeviceBuffers(BUFFERS_ALL_DBL);
+	// swap all double buffers
+	doCommand(SWAP_BUFFERS, gdata->simframework->getAllocPolicy()->get_multi_buffered());
 
 	// if running on multiple GPUs, update the external cells
 	if (MULTI_DEVICE) {
@@ -1711,17 +1698,17 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	// initially data is in read so swap to write
 	if (cFlag & INITIALIZATION_STEP) {
-		gdata->swapDeviceBuffers(BUFFER_INFO);
+		doCommand(SWAP_BUFFERS, BUFFER_INFO);
 		doCommand(IDENTIFY_CORNER_VERTICES);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
 
-		gdata->swapDeviceBuffers(BUFFER_VERTICES);
+		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 		doCommand(FIND_CLOSEST_VERTEX);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_VERTICES | DBLBUFFER_WRITE);
 
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO);
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO);
 	}
 
 	// impose open boundary conditions
@@ -1749,15 +1736,15 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			doCommand(UPLOAD_IOWATERDEPTH);
 		}
 		gdata->only_internal = false;
-		gdata->swapDeviceBuffers(BUFFER_POS);
+		doCommand(SWAP_BUFFERS, BUFFER_POS);
 		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
-		gdata->swapDeviceBuffers(BUFFER_POS);
+		doCommand(SWAP_BUFFERS, BUFFER_POS);
 	}
 
 	gdata->only_internal = true;
 
 	if (!(cFlag & INITIALIZATION_STEP))
-		gdata->swapDeviceBuffers(BUFFER_VERTICES);
+		doCommand(SWAP_BUFFERS, BUFFER_VERTICES);
 
 	// compute boundary conditions on segments and detect outgoing particles at open boundaries
 	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
@@ -1797,7 +1784,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 
 	// swap changed buffers back so that read contains the new data
 	if (cFlag & INITIALIZATION_STEP)
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
+		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 }
 
 // initialize the centers of gravity of objects

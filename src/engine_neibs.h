@@ -101,7 +101,7 @@ public:
 										= 0;
 
 	virtual void
-	updateVertIDToIndex(particleinfo*	particleInfo,	// input: particle's information
+	updateVertIDToIndex(const particleinfo*	particleInfo,	// input: particle's information
 						uint*			vertIDToIndex,	// output: vertIDToIndex array
 						const uint		numParticles)	// input: total number of particles
 	= 0;

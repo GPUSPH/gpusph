@@ -1,4 +1,4 @@
-/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2014 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
 
     Istituto Nazionale di Geofisica e Vulcanologia
         Sezione di Catania, Catania, Italy
@@ -23,38 +23,20 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* Common types used throughout GPUSPH */
+#ifndef _PREDCORR_ALLOC_POLICY_H
+#define _PREDCORR_ALLOC_POLICY_H
 
-#ifndef _COMMON_TYPES_H
-#define _COMMON_TYPES_H
+#include "buffer_alloc_policy.h"
 
-// uint64_t et similia
-#define __STDC_LIMIT_MACROS
-#include <stdint.h>
-// size_t
-#include <stddef.h>
+/* Predictor-corrector buffer allocation policy */
 
-// define uint, uchar, ulong
-typedef unsigned long ulong; // only used in timing
-typedef unsigned int uint;
-typedef unsigned short ushort;
-typedef unsigned char uchar;
+struct PredCorrAllocPolicy : public BufferAllocPolicy {
+	virtual size_t get_max_buffer_count(flag_t Keys = FLAG_MAX) const;
 
-// neighbor data
-typedef unsigned short neibdata;
+	virtual size_t get_buffer_count(flag_t Key) const;
 
-// type for index that iterates on the neighbor list
-typedef size_t idx_t;
-
-// particleinfo cum suis
-#include "particleinfo.h"
-
-// hashKey cum suis
-#include "hashkey.h"
-
-// flags type
-// could be made an uint_fast64_t if we were concerned about performance,
-typedef uint64_t flag_t;
-#define FLAG_MAX UINT64_MAX
+	virtual flag_t get_multi_buffered(flag_t Keys = FLAG_MAX) const;
+};
 
 #endif
+

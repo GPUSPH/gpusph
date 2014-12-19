@@ -218,7 +218,7 @@ template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 updateVertIDToIndex(
-	particleinfo	*particleInfo,
+	const particleinfo	*particleInfo,
 			uint	*vertIDToIndex,
 	const	uint	numParticles)
 {

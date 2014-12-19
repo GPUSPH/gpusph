@@ -31,6 +31,13 @@
 // for memcpy
 #include <cstring>
 
+// we use CUDA types and host/device specifications here
+#include "cuda_runtime.h"
+
+// vertex info
+typedef uint4 vertexinfo;
+#define make_vertexinfo make_uint4
+
 
 /* Particle information. ushort4 with fields:
    .x: particle type (for multifluid)
