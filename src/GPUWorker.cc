@@ -49,6 +49,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
 
+	printf("Global device id: %d (%d)\n", m_globalDeviceIdx, gdata->totDevices);
+
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->get_simparams();
 	m_physparams = gdata->problem->get_physparams();
@@ -1265,6 +1267,7 @@ void GPUWorker::downloadNewNumParticles()
 	if (activeParticles != m_numParticles) {
 		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
+		gdata->highestDevId[m_deviceIndex] += (activeParticles-m_numParticles)*gdata->totDevices;
 		m_numParticles = activeParticles;
 		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
 		// it should not be updated here. Single-device simulations, instead, have it updated here.
@@ -2486,8 +2489,10 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_simparams->slength,
 				m_simparams->kerneltype,
 				m_simparams->influenceRadius,
-				gdata->newIDsOffset,
-				initStep);
+				gdata->highestDevId[m_deviceIndex],
+				initStep,
+				m_globalDeviceIdx,
+				gdata->totDevices);
 }
 
 void GPUWorker::kernel_saIdentifyCornerVertices()

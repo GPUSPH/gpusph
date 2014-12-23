@@ -180,6 +180,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
+	for (uint d=0; d < gdata->devices; d++)
+		gdata->highestDevId[d] = gdata->totParticles + GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+
 	// the number of allocated particles will be bigger, to be sure it can contain particles being created
 	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
 	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);

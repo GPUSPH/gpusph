@@ -1396,7 +1396,9 @@ saVertexBoundaryConditions(
 				const	float			deltap,
 				const	float			slength,
 				const	float			influenceradius,
-				const	bool			initStep)
+				const	bool			initStep,
+				const	uint			deviceId,
+				const	uint			numDevices)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1580,17 +1582,22 @@ saVertexBoundaryConditions(
 			// only, so it's bound to break on other archs. I'm seriously starting to think
 			// that we can drop the stupid particleinfo ushort4 typedef and we should just
 			// define particleinfo as a ushort ushort uint struct, with proper alignment.
+
+			const uint clone_idx = atomicAdd(newNumParticles, 1);
+			// number of new particles that were created on this device in this
+			// time step
+			const uint newNumPartsOnDevice = clone_idx + 1 - numParticles;
+			// the i-th device can only allocate an id that satisfies id%n == i, where
+			// n = number of total devices
+			const uint nextId = newNumPartsOnDevice*numDevices;
+
 			// FIXME endianness
-			uint clone_id = id(info) + d_newIDsOffset;
+			uint clone_id = nextId + d_newIDsOffset;
 			particleinfo clone_info = info;
 			clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
 			clone_info.y = 0; // reset object to 0
 			clone_info.z = (clone_id & 0xffff); // set the id of the object
 			clone_info.w = ((clone_id >> 16) & 0xffff);
-
-			// TODO optimize by having only one thread calling atomicAdd,
-			// adding enough for all threads in the block
-			int clone_idx = atomicAdd(newNumParticles, 1);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle
