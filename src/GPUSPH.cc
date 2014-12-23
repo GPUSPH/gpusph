@@ -1752,11 +1752,11 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
 		if (problem->get_simparams()->inoutBoundaries) {
 
-			gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-				(gdata->numVertices * gdata->createdParticlesIterations);
+			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
+			//	(gdata->numVertices * gdata->createdParticlesIterations);
 
-			if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
-				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
+			if (UINT_MAX - gdata->numVertices < gdata->heighestDevId[m_deviceIndex]) {
+				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, m_deviceIndex);
 				gdata->quit_request = true;
 			}
 		}
