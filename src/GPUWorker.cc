@@ -700,21 +700,11 @@ void GPUWorker::transferBursts()
 	// The MultiBufferList::iterator works like a BufferList* , with the
 	// advantage that we can get the index of the BufferList by subtracting the
 	// iterator returned by getting the first BufferList
-	MultiBufferList::iterator buflist;
+	MultiBufferList::iterator buflist = getBufferListByCommandFlags(gdata->commandFlags);
 
-	// actual index of the buffer list in the multibufferlist
-	size_t buflist_idx;
-
-	if (gdata->commandFlags & DBLBUFFER_READ)
-		buflist = m_dBuffers.getReadBufferList();
-	else if (gdata->commandFlags & DBLBUFFER_WRITE)
-		buflist = m_dBuffers.getWriteBufferList();
-	else
-		buflist = m_dBuffers.getBufferList(0);
-
-	// since we work with iterators, subtracting the first BufferList
-	// gives us the index of the BufferList in the MultiBufferList
-	buflist_idx = buflist - m_dBuffers.getBufferList(0);
+	// actual index of the buffer list in the multibufferlist (used to get the same
+	// buffer list from the peer)
+	const size_t buflist_idx = buflist - m_dBuffers.getBufferList(0);
 
 	// Sanity check: if any of the buffers to transfer is double-buffered, then
 	// which of the copies needs to be transferred _must_ have been specified
@@ -1056,6 +1046,14 @@ void GPUWorker::printAllocatedMemory()
 			gdata->addSeparators(m_numParticles).c_str(), gdata->addSeparators(m_numAllocatedParticles).c_str());
 }
 
+MultiBufferList::iterator
+GPUWorker::getBufferListByCommandFlags(flag_t flags)
+{
+	return (flags & DBLBUFFER_READ ?
+		m_dBuffers.getReadBufferList() : flags & DBLBUFFER_WRITE ?
+		m_dBuffers.getWriteBufferList() : m_dBuffers.getBufferList(0));
+}
+
 // upload subdomain, just allocated and sorted by main thread
 void GPUWorker::uploadSubdomain() {
 	// indices
@@ -1092,7 +1090,7 @@ void GPUWorker::uploadSubdomain() {
 				m_deviceIndex, howManyParticles, buf->get_buffer_name(),
 				gdata->memString(_size).c_str(), m_cudaDeviceNumber, firstInnerParticle);
 
-		// send all the arrays of which this buffer is composed
+		// get all the arrays of which this buffer is composed
 		// (actually currently all arrays are simple, since the only complex arrays (TAU
 		// and VERTPOS) have no host counterpart)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {
@@ -1118,10 +1116,7 @@ void GPUWorker::dumpBuffers() {
 	const flag_t flags = gdata->commandFlags;
 
 	// get the bufferlist to download data from
-	const BufferList& buflist = *(flags & DBLBUFFER_READ ?
-		m_dBuffers.getReadBufferList() : flags & DBLBUFFER_WRITE ?
-		m_dBuffers.getWriteBufferList() :
-		m_dBuffers.getBufferList(0));
+	const BufferList& buflist = *getBufferListByCommandFlags(flags);
 
 	// iterate over each array in the _host_ buffer list, and download data
 	// if it was requested
@@ -1135,7 +1130,7 @@ void GPUWorker::dumpBuffers() {
 		const AbstractBuffer *buf = buflist[buf_to_get];
 		size_t _size = howManyParticles * buf->get_element_size();
 
-		// send all the arrays of which this buffer is composed
+		// get all the arrays of which this buffer is composed
 		// (actually currently all arrays are simple, since the only complex arrays (TAU
 		// and VERTPOS) have no host counterpart)
 		for (uint ai = 0; ai < buf->get_array_count(); ++ai) {

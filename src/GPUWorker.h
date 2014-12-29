@@ -201,6 +201,10 @@ private:
 
 	void printAllocatedMemory();
 
+	// select a BufferList based on the DBLBUFFER_* specification
+	// in the command flags
+	MultiBufferList::iterator getBufferListByCommandFlags(flag_t flags);
+
 	void uploadSubdomain();
 	void dumpBuffers();
 	void swapBuffers();
