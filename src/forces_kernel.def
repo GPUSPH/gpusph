@@ -761,8 +761,8 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
-		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.5f);
-		const float sx = fmax(x*4.0f - 1.0f,0.0f);
+		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
+		const float sx = fmax(x*8.0f - 1.0f,0.0f);
 		// smootherstep function
 		const float smooth = pdata.ptype == PT_VERTEX ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
