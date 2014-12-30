@@ -1755,9 +1755,11 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
 			//	(gdata->numVertices * gdata->createdParticlesIterations);
 
-			if (UINT_MAX - gdata->numVertices < gdata->heighestDevId[m_deviceIndex]) {
-				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, m_deviceIndex);
-				gdata->quit_request = true;
+			for (uint d = 0; d < gdata->devices; d++) {
+				if (UINT_MAX - gdata->numVertices < gdata->highestDevId[d]) {
+					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, d);
+					gdata->quit_request = true;
+				}
 			}
 		}
 	}
