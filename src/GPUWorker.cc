@@ -1267,7 +1267,8 @@ void GPUWorker::downloadNewNumParticles()
 	if (activeParticles != m_numParticles) {
 		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
-		gdata->highestDevId[m_deviceIndex] += (activeParticles-m_numParticles)*gdata->totDevices;
+		if (activeParticles > m_numParticles)
+			gdata->highestDevId[m_deviceIndex] += (activeParticles-m_numParticles)*gdata->totDevices;
 		m_numParticles = activeParticles;
 		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
 		// it should not be updated here. Single-device simulations, instead, have it updated here.
