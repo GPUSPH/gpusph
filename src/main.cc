@@ -96,7 +96,7 @@ void print_usage() {
 	cout << "\tGPUSPH [--device n[,n...]] [--dem dem_file] [--deltap VAL] [--tend VAL]\n";
 	cout << "\t       [--resume fname] [--checkpoint-every VAL] [--checkpoints VAL]\n";
 	cout << "\t       [--dir directory] [--nosave] [--striping] [--gpudirect [--asyncmpi]]\n";
-	cout << "\t       [--num_hosts VAL [--byslot_scheduling]]\n";
+	cout << "\t       [--num-hosts VAL [--byslot-scheduling]]\n";
 	cout << "\tGPUSPH --help\n\n";
 	cout << " --resume : resume from the given file (HotStart file saved by HotWriter)\n";
 	cout << " --checkpoint-every : HotStart checkpoints will be created every VAL seconds\n";
@@ -111,8 +111,8 @@ void print_usage() {
 	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
 	cout << " --striping : Enable computation/transfer overlap  in multi-GPU (usually convenient for 3+ devices)\n";
 	cout << " --asyncmpi : Enable asynchronous network transfers (requires GPUDirect and 1 process per device)\n";
-	cout << " --num_hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
-	cout << " --byslot_scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
+	cout << " --num-hosts : Uses multiple processes per node by specifying the number of nodes (VAL is cast to uint)\n";
+	cout << " --byslot-scheduling : MPI scheduler is filling hosts first, as opposite to round robin scheduling\n";
 	//cout << " --nobalance : Disable dynamic load balancing\n";
 	//cout << " --lb-threshold : Set custom LB activation threshold (VAL is cast to float)\n";
 	cout << " --help: Show this help and exit\n";
@@ -199,7 +199,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			_clOptions->striping = true;
 		} else if (!strcmp(arg, "--asyncmpi")) {
 			_clOptions->asyncNetworkTransfers = true;
-		} else if (!strcmp(arg, "--num_hosts")) {
+		} else if (!strcmp(arg, "--num-hosts") || !strcmp(arg, "--num_hosts")) {
 			/* read the next arg as a uint */
 			sscanf(*argv, "%u", &(_clOptions->num_hosts));
 			argv++;
@@ -207,7 +207,7 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 		} else if (!strcmp(arg, "--version")) {
 			show_version();
 			return 0;
-		} else if (!strcmp(arg, "--byslot_scheduling")) {
+		} else if (!strcmp(arg, "--byslot-scheduling") || !strcmp(arg, "--byslot_scheduling")) {
 			_clOptions->byslot_scheduling = true;
 #if 0 // options will be enabled later
 		} else if (!strcmp(arg, "--nobalance")) {
@@ -344,12 +344,12 @@ int main(int argc, char** argv) {
 				gdata.device[d] += devIndexOffset;
 	} else
 		if (gdata.clOptions->byslot_scheduling)
-			printf("WARNING: --byslot_scheduling was enabled, but number of hosts is zero!\n");
+			printf("WARNING: --byslot-scheduling was enabled, but number of hosts is zero!\n");
 
 	gdata.totDevices = gdata.mpi_nodes * gdata.devices;
 	printf(" tot devs = %u (%u * %u)\n",gdata.totDevices, gdata.mpi_nodes, gdata.devices );
 	if (gdata.clOptions->num_hosts > 0)
-		printf(" num_host was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
+		printf(" num-hosts was specified: %u; shifting device numbers with offset %u\n", gdata.clOptions->num_hosts, devIndexOffset);
 
 #if HASH_KEY_SIZE < 64
 	// only single-node single-GPU possible with 32 bits keys
