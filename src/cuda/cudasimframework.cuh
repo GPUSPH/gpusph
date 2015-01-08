@@ -114,19 +114,16 @@ public:
 		m_simparams.ioWaterdepthComputation = simflags & ENABLE_WATER_DEPTH;
 	}
 
-	template<FilterType filtertype> AbstractFilterEngine*
-	addFilterEngine(int frequency)
+protected:
+	AbstractFilterEngine* newFilterEngine(FilterType filtertype, int frequency)
 	{
-		FilterEngineSet::iterator found(m_filterEngines.find(filtertype));
-		if (found == m_filterEngines.end()) {
-			AbstractFilterEngine *flt = new CUDAFilterEngine<filtertype, kerneltype, boundarytype>();
-			m_filterEngines[filtertype] = flt;
-			return flt;
-		} else {
-			// TODO message about override?
-			found->second->set_frequency(frequency);
-			return found->second;
+		switch (filtertype) {
+		case SHEPARD_FILTER:
+			return new CUDAFilterEngine<SHEPARD_FILTER, kerneltype, boundarytype>(frequency);
+		case MLS_FILTER:
+			return new CUDAFilterEngine<MLS_FILTER, kerneltype, boundarytype>(frequency);
 		}
+		throw runtime_error("Unknown filter type");
 	}
 
 };

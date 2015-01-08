@@ -90,6 +90,17 @@ add_instances() {
 	instance="template struct CUDAViscEngineHelper<${viscosity}, ${kernel}, ${boundary}>;"
 	add_instance
 
+	# filters engine
+	file="$FILTERS_INSTANCE_FILE"
+	instance="template class CUDAFilterEngine<SHEPARD_FILTER, ${kernel}, ${boundary}>;"
+	add_instance
+	instance="template class CUDAFilterEngineHelper<SHEPARD_FILTER, ${kernel}, ${boundary}>;"
+	add_instance
+	instance="template class CUDAFilterEngine<MLS_FILTER, ${kernel}, ${boundary}>;"
+	add_instance
+	instance="template class CUDAFilterEngineHelper<MLS_FILTER, ${kernel}, ${boundary}>;"
+	add_instance
+
 	# boundary conditions engine
 	file="$BOUND_INSTANCE_FILE"
 	# currently only needed if boundary == SA_BOUNDARY

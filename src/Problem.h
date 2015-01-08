@@ -120,7 +120,7 @@ class Problem {
 } while (0)
 
 		// add a filter (MLS, SHEPARD), with given frequency
-#define	addFilter(fltr, freq) m_simframework->addFilterEngine< fltr >(freq)
+#define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)
 
 		SimParams	m_simparams; // TODO FIXME should become a pointer to the one in the simframework
 		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams

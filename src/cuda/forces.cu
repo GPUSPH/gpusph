@@ -796,6 +796,15 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 }
 };
 
+// The instances that we want to actually instantiate are defined
+// in a programmatically-generated file:
+
+#ifndef FILTERS_INSTANCE_FILE
+#error "No instance file defined for filters!"
+#else
+#include STR(FILTERS_INSTANCE_FILE)
+#endif
+
 
 template<KernelType kerneltype>
 void

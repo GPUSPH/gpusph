@@ -55,6 +55,11 @@ protected:
 	AbstractPostProcessEngine *m_postprocEngine; // TODO should become a List
 
 	SimParams m_simparams;
+protected:
+	// SimFrameworks should override this to convert a FilterType key into
+	// an actual FilterEngine instance
+	virtual AbstractFilterEngine* newFilterEngine(FilterType filtertpe, int frequency) = 0;
+
 public:
 	AbstractNeibsEngine *getNeibsEngine()
 	{ return m_neibsEngine; }
@@ -71,12 +76,19 @@ public:
 	AbstractPostProcessEngine *getPostProcEngine()
 	{ return m_postprocEngine; }
 
-	// add a filter engine, and keep the frequency in the
-	// simparams in sync
-	template<FilterType filtertype> AbstractFilterEngine*
-	addFilterEngine(int frequency)
+	// add a filter engine with the given frequency (in iterations)
+	AbstractFilterEngine* addFilterEngine(FilterType filtertype, int frequency)
 	{
-		throw std::runtime_error("Abstract addFilterEngine called!?");
+		AbstractFilterEngine *flt = NULL;
+		FilterEngineSet::iterator found(m_filterEngines.find(filtertype));
+		if (found == m_filterEngines.end()) {
+			flt = newFilterEngine(filtertype, frequency);
+			m_filterEngines[filtertype] = flt;
+		} else {
+			flt = found->second;
+		}
+		flt->set_frequency(frequency);
+		return flt;
 	}
 
 	SimParams const& get_simparams() const
