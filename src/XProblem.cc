@@ -17,8 +17,6 @@
 
 //#define USE_PLANES 0
 
-typedef std::vector<int>::size_type vsize_t;
-
 XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
 	m_numActiveGeometries = 0;
@@ -198,7 +196,7 @@ void XProblem::release_memory()
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
 	// also cleanup object parts
-	for (vsize_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++)
+	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++)
 		if (m_geometries[i]->enabled)
 			m_geometries[i]->ptr->GetParts().clear();
 }
@@ -215,7 +213,7 @@ void XProblem::initialize()
 	// compute bounding box
 	Point globalMin = Point (NAN, NAN, NAN);
 	Point globalMax = Point (NAN, NAN, NAN);
-	for (vsize_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
+	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
 		// ignore planes for bbox
 		if (m_geometries[i]->type == GT_PLANE)
 			continue;
@@ -839,7 +837,7 @@ int XProblem::fill_parts()
 	//uint particleCounter = 0;
 	uint bodies_parts_counter = 0;
 
-	for (vsize_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
+	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
 
