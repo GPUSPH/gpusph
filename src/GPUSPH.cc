@@ -1375,8 +1375,11 @@ void GPUSPH::buildNeibList()
 	doCommand(SORT);
 	doCommand(REORDER);
 
-	if (problem->get_simparams()->inoutBoundaries)
-		doCommand(DOWNLOAD_NEWNUMPARTS);
+	// get the new number of particles: with inlet/outlets, they
+	// may have changed because of incoming/outgoing particle, otherwise
+	// some particles might have been disabled (and discarded) for flying
+	// out of the domain
+	doCommand(DOWNLOAD_NEWNUMPARTS);
 
 	// swap pos, vel and info double buffers
 	gdata->swapDeviceBuffers(BUFFERS_ALL_DBL);
