@@ -772,12 +772,13 @@ buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
 		// the neighbor list is only constructed for fluid, testpoint, and object particles.
-		// if we use SA_BOUNDARY, also for vertex and boundary particles
+		// if we use SA_BOUNDARY, also for vertex and boundary particles,
+		// and if we use DYN_BOUNDARY, we build it for everything
 		bool build_nl = FLUID(info) || TESTPOINTS(info) || OBJECT(info);
-		if (boundarytype == DYN_BOUNDARY)
-			build_nl = build_nl || BOUNDARY(info);
 		if (boundarytype == SA_BOUNDARY)
 			build_nl = build_nl || VERTEX(info) || BOUNDARY(info);
+		if (boundarytype == DYN_BOUNDARY)
+			build_nl = true;
 		if (!build_nl)
 			break; // nothing to do for other particles
 
