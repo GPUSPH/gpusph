@@ -43,6 +43,9 @@ public:
 	// frees the buffer
 	void empty(void);
 
+	// free the buffer, reset npart and filename
+	void reset();
+
 	// sets the filename
 	void setFilename(std::string);
 

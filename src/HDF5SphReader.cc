@@ -140,8 +140,18 @@ HDF5SphReader::empty()
 }
 
 void
+HDF5SphReader::reset()
+{
+	empty();
+	filename = "";
+	npart = UINT_MAX;
+}
+
+void
 HDF5SphReader::setFilename(std::string fn)
 {
+	// reset npart
+	npart = UINT_MAX;
 	// copy filename
 	filename = fn;
 	// check whether file exists
