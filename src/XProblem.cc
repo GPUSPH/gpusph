@@ -581,6 +581,9 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 	);
 }
 
+// NOTE: particles loaded from HDF5 files will not be erased!
+// To enable erase-like interaction we need to copy them to the particle vectors, which
+// requires unnecessary memory allocation
 GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 	const char *fname_hdf5, const char *fname_stl)
 {
