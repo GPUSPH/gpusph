@@ -110,7 +110,8 @@ class XProblem: public Problem {
 		// guess what
 		void cleanupODE();
 
-		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr);
+		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
+			const char *hdf5_fname = NULL);
 
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);

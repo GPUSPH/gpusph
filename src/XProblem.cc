@@ -317,12 +317,14 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 	}
 }
 
-GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr)
+GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
+	const char *hdf5_fname)
 {
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
+	geomInfo->hdf5_filename = hdf5_fname;
 	m_numActiveGeometries++;
 
 	// --- Default collision and dynamics
