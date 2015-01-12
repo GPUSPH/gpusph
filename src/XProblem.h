@@ -57,6 +57,8 @@ struct GeometryInfo {
 	bool handle_dynamics;
 	bool enabled;
 
+	const char *hdf5_filename;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -69,6 +71,8 @@ struct GeometryInfo {
 		handle_dynamics = false;
 
 		enabled = true;
+
+		hdf5_filename = NULL;
 	}
 };
 
