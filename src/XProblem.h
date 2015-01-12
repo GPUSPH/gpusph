@@ -112,6 +112,7 @@ class XProblem: public Problem {
 		// guess what
 		void cleanupODE();
 
+		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
 			const char *hdf5_fname = NULL);
 
