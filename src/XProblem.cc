@@ -580,6 +580,24 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 	);
 }
 
+GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
+	const char *fname_hdf5, const char *fname_stl)
+{
+	// NOTES about HDF5 files
+	// - fill type is FT_NOFILL since particles are read from file
+	// - may add a null STLMesh if the hdf5 file is given but not the mesh
+
+	// create an empty STLMesh if the STL filename is not given
+	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
+
+	// TODO: handle positioning like in addSTLMesh()? Better, simply trust the hdf5 file
+
+	return addGeometry(otype, FT_NOFILL,
+		stlmesh,
+		fname_hdf5
+	);
+}
+
 void XProblem::deleteGeometry(const GeometryID gid)
 {
 	m_geometries[gid]->enabled = false;
