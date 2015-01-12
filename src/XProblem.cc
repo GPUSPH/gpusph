@@ -124,7 +124,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 
-	set_deltap(0.05f);
+	set_deltap(0.02f);
 	m_physparams.r0 = m_deltap;
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
@@ -143,52 +143,12 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	double x = 0.0;
-	double y = 0.0;
-	double z = 0.0;
-	double distance = 5.0;
-	const uint objs = 4;
+	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
 
-	for (uint i=0; i<objs; i++) {
-		GeometryID water = addCube(GT_FLUID, FT_SOLID, Point(x + distance*i, y, z), i+1);
-	}
+	m_origin = make_double3(-1, -1, -1);
+	m_size = make_double3(3, 3, 3);
 
-	z = 4;
-	setPositioning(PP_BOTTOM_CENTER);
-
-	for (uint i=0; i<objs; i++) {
-		GeometryID water = addTorus(GT_FIXED_BOUNDARY, FT_SOLID, Point(x + distance*i, y, z), i * 1, i * 1.0 / 3 );
-	}
-
-	z = 8;
-	setPositioning(PP_CORNER);
-
-	for (uint i=0; i<2; i++) {
-		//GeometryID water = addSphere(GT_FLUID, FT_SOLID, Point(x + distance*i, y, z), i);
-		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(x + distance*i, y, z), "./meshes/monkey.stl");
-	}
-
-	setPositioning(PP_CENTER);
-
-	for (uint i=2; i<objs; i++) {
-		//GeometryID water = addSphere(GT_FLUID, FT_SOLID, Point(x + distance*i, y, z), i);
-		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(x + distance*i, y, z), "./meshes/monkey.stl");
-	}
-
-	//GeometryID mesh = addSTLMesh(GT_FLOATING_BODY, FT_BORDER, Point(0, 0, 0), "./meshes/monkey.stl");
-	for (uint i=0; i<4 && false; i++) {
-		GeometryID mesh = addSTLMesh(GT_FIXED_BOUNDARY, FT_BORDER, Point(2.0 * i, 0, 0), "./meshes/monkey.stl");
-		rotate(mesh, - M_PI/8 * i, 0, 0);
-		rotate(mesh, 0, M_PI/8 * i, 0);
-		//rotate(mesh, 0, 0, M_PI/4 * i);
-		//setEraseOperation(mesh, ET_ERASE_NOTHING);
-		//setMass(mesh, 10);
-	}
-
-	//makeUniverseBox( m_origin, m_origin + m_size );
-
-	// do not limit the world size to the bbox of water and small cubes
-	//addExtraWorldMargin(1.0);
+	makeUniverseBox(m_origin, m_origin + m_size );
 }
 
 void XProblem::release_memory()
