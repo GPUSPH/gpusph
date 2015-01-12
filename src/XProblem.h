@@ -9,7 +9,7 @@
 #include "Problem.h"
 
 // HDF5 reader
-//#include "HDF5SphReader.h"
+#include "HDF5SphReader.h"
 
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
@@ -111,6 +111,9 @@ class XProblem: public Problem {
 		void initializeODE();
 		// guess what
 		void cleanupODE();
+
+		// one file reader to read them all
+		HDF5SphReader m_hdf5_reader;
 
 		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
