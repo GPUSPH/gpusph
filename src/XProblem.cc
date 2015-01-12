@@ -1023,9 +1023,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
 	//float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
-	/// put this in initialization instead!
-	//h5File.read();
-
 	uint n_fparts = 0;
 	uint n_vparts = 0;
 	uint n_bparts = 0;
@@ -1057,6 +1054,35 @@ void XProblem::copy_to_array(BufferList &buffers)
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
 	}
+	// iterate on geometries to find HDF5files loaded with FLUID particles
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
+		if (m_geometries[g]->has_hdf5_file) {
+			// set and check filename
+			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
+			// read number of particles
+			const uint num_parts_in_file = m_hdf5_reader.getNParts();
+			// read particles
+			m_hdf5_reader.read();
+			// add every particle
+			for (uint i = n_fparts; i < n_fparts + num_parts_in_file; i++) {
+				// TODO: automatic hydrostatic filling. Or, callback?
+				//float rho = density(initial_water_level - m_hdf5_reader.buf[i].Coords_2, 0); // how to?
+				float rho = m_physparams.rho0[0];
+				vel[i] = make_float4(0, 0, 0, rho);
+				// TODO: eulerVel not here yet
+				//if (eulerVel)
+				//	eulerVel[i] = make_float4(0);
+				info[i] = make_particleinfo(FLUIDPART, 0, i);
+				calc_localpos_and_hash(
+					Point(m_hdf5_reader.buf[i].Coords_0, m_hdf5_reader.buf[i].Coords_1, m_hdf5_reader.buf[i].Coords_2,
+						m_physparams.rho0[0]*m_hdf5_reader.buf[i].Volume),
+					info[i], pos[i], hash[i]);
+			}
+			// free memory and prepare for next file
+			m_hdf5_reader.reset();
+			// update counter of fluid particles
+			n_fparts += num_parts_in_file;
+		}
 	elaborated_parts += n_fparts;
 	std::cout << "Fluid part mass: " << pos[elaborated_parts - 1].w << "\n";
 	std::flush(std::cout);
