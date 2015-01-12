@@ -66,6 +66,9 @@ void
 HDF5SphReader::read()
 {
 #if USE_HDF5
+	// read npart if it was yet uninitialized
+	if (npart == UINT_MAX)
+		getNParts();
 	std::cout << std::endl << "Reading particle data from the input:" << std::endl << filename << std::endl;
 	if(buf == NULL)
 		buf = new ReadParticles[npart];
