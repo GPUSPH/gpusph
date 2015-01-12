@@ -328,6 +328,11 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	m_numActiveGeometries++;
 
 	// --- Default collision and dynamics
+	if (hdf5_fname != NULL) {
+		// currently does not support bounding box for hdf5 files, so...
+		geomInfo->handle_collisions = false;
+		geomInfo->handle_dynamics = false;
+	} else
 	switch (geomInfo->type) {
 		case GT_FLUID:
 			geomInfo->handle_collisions = false;
