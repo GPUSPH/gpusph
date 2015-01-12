@@ -325,6 +325,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
 	geomInfo->hdf5_filename = hdf5_fname;
+	geomInfo->has_hdf5_file = (hdf5_fname != NULL);
 	m_numActiveGeometries++;
 
 	// --- Default collision and dynamics
