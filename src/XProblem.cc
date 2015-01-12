@@ -865,6 +865,7 @@ int XProblem::fill_parts()
 
 	//uint particleCounter = 0;
 	uint bodies_parts_counter = 0;
+	uint hdf5file_parts_counter = 0;
 
 	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
 		PointVect* parts_vector = NULL;
@@ -927,6 +928,13 @@ int XProblem::fill_parts()
 			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
 		}
 
+		// geometries loaded from HDF5file do not undergo filling, but should be counted as well
+		if (m_geometries[i]->has_hdf5_file) {
+			m_hdf5_reader.setFilename(m_geometries[i]->hdf5_filename);
+			hdf5file_parts_counter += m_hdf5_reader.getNParts();
+			// do not reset() file reader: if we load only one, we'll avoid re-reading file header
+		}
+
 #if 0
 		// dbg: fill horizontal XY planes with particles, only within the world domain
 		if (m_geometries[i]->type == GT_PLANE) {
@@ -974,7 +982,7 @@ int XProblem::fill_parts()
 		} // if m_numRigidBodies > 0
 	}
 
-	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter;
+	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter + hdf5file_parts_counter;
 }
 
 uint XProblem::fill_planes()
