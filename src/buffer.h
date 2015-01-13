@@ -553,6 +553,7 @@ public:
 	}
 
 	/* Swap the lists the given buffers belong to */
+	// TODO make this a cyclic rotation for the case > 2
 	void swapBuffers(flag_t keys) {
 		set<flag_t>::const_iterator iter = m_buffer_keys.begin();
 		const set<flag_t>::const_iterator end = m_buffer_keys.end();
