@@ -1833,43 +1833,24 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	MultiBufferList::const_iterator unsorted = m_dBuffers.getReadBufferList();
+	MultiBufferList::iterator sorted = m_dBuffers.getWriteBufferList();
 
 	// TODO this kernel needs a thorough reworking to only pass the needed buffers
 	neibsEngine->reorderDataAndFindCellStart(
 							m_dCellStart,	  // output: cell start index
 							m_dCellEnd,		// output: cell end index
 							m_dSegmentStart,
-							// output: sorted arrays
-							bufwrite.getData<BUFFER_POS>(),
-							bufwrite.getData<BUFFER_VEL>(),
-							bufwrite.getData<BUFFER_INFO>(),
-							bufwrite.getData<BUFFER_BOUNDELEMENTS>(),
-							bufwrite.getData<BUFFER_GRADGAMMA>(),
-							bufwrite.getData<BUFFER_VERTICES>(),
-							bufwrite.getData<BUFFER_TKE>(),
-							bufwrite.getData<BUFFER_EPSILON>(),
-							bufwrite.getData<BUFFER_TURBVISC>(),
-							bufwrite.getData<BUFFER_EULERVEL>(),
 
 							// hash
-							bufwrite.getData<BUFFER_HASH>(),
+							sorted->getData<BUFFER_HASH>(),
 							// sorted particle indices
-							bufwrite.getData<BUFFER_PARTINDEX>(),
+							sorted->getData<BUFFER_PARTINDEX>(),
 
-							// input: arrays to sort
-							bufread.getData<BUFFER_POS>(),
-							bufread.getData<BUFFER_VEL>(),
-							bufread.getData<BUFFER_INFO>(),
-							bufread.getData<BUFFER_BOUNDELEMENTS>(),
-							bufread.getData<BUFFER_GRADGAMMA>(),
-							bufread.getData<BUFFER_VERTICES>(),
-							bufread.getData<BUFFER_TKE>(),
-							bufread.getData<BUFFER_EPSILON>(),
-							bufread.getData<BUFFER_TURBVISC>(),
-							bufread.getData<BUFFER_EULERVEL>(),
-
+							// output: sorted buffers
+							sorted,
+							// input: unsorted buffers
+							unsorted,
 							m_numParticles,
 							m_dNewNumParticles);
 }

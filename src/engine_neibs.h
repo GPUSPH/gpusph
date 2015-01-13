@@ -36,6 +36,7 @@
 #include "physparams.h"
 #include "simparams.h"
 #include "timing.h"
+#include "buffer.h"
 
 class AbstractNeibsEngine
 {
@@ -69,36 +70,21 @@ public:
 			uint*		compactDeviceMap,
 			const uint		numParticles) = 0;
 
-	// TODO FIXME pass bufferlists here instead of this ridiculous list of individual buffers!
 	virtual void
-	reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start index
-									uint*				cellEnd,			// output: cell end index
-									uint*				segmentStart,
-									float4*				newPos,				// output: sorted positions
-									float4*				newVel,				// output: sorted velocities
-									particleinfo*		newInfo,			// output: sorted info
-									float4*				newBoundElement,	// output: sorted boundary elements
-									float4*				newGradGamma,		// output: sorted gradient gamma
-									vertexinfo*			newVertices,		// output: sorted vertices
-									float*				newTKE,				// output: k for k-e model
-									float*				newEps,				// output: e for k-e model
-									float*				newTurbVisc,		// output: eddy viscosity
-									float4*				newEulerVel,		// output: sorted euler vel
-									const hashKey*		particleHash,		// input: sorted grid hashes
-									const uint*			particleIndex,		// input: sorted particle indices
-									const float4*		oldPos,				// input: unsorted positions
-									const float4*		oldVel,				// input: unsorted velocities
-									const particleinfo*	oldInfo,			// input: unsorted info
-									const float4*		oldBoundElement,	// input: sorted boundary elements
-									const float4*		oldGradGamma,		// input: sorted gradient gamma
-									const vertexinfo*	oldVertices,		// input: sorted vertices
-									const float*		oldTKE,				// input: k for k-e model
-									const float*		oldEps,				// input: e for k-e model
-									const float*		oldTurbVisc,		// input: eddy viscosity
-									const float4*		oldEulerVel,		// input: euler vel
-									const uint			numParticles,
-									uint*				newNumParticles)	// output: number of active particles found
-										= 0;
+	reorderDataAndFindCellStart(
+		uint*				cellStart,			// output: cell start index
+		uint*				cellEnd,			// output: cell end index
+		uint*				segmentStart,		// output: segment start
+
+		const hashKey*		particleHash,		// input: sorted grid hashes
+		const uint*			particleIndex,		// input: sorted particle indices
+
+		MultiBufferList::iterator sorted_buffers,		// output: sorted buffers
+		MultiBufferList::const_iterator unsorted_buffers, // input: buffers to sort
+
+		const uint			numParticles,		// input: number of particles in input buffers
+		uint*				newNumParticles)	// output: number of active particles found
+	= 0;
 
 	virtual void
 	updateVertIDToIndex(const particleinfo*	particleInfo,	// input: particle's information

@@ -40,6 +40,8 @@
 
 #include "utils.h"
 
+#include "define_buffers.h"
+
 
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
@@ -131,56 +133,67 @@ template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 reorderDataAndFindCellStart(
-		uint		*cellStart,			// output: cell start index
-		uint		*cellEnd,			// output: cell end index
-		uint		*segmentStart,
-		float4		*newPos,			// output: sorted positions
-		float4		*newVel,			// output: sorted velocities
-		particleinfo	*newInfo,		// output: sorted info
-		float4		*newBoundElement,	// output: sorted boundary elements
-		float4		*newGradGamma,		// output: sorted gradient gamma
-		vertexinfo	*newVertices,		// output: sorted vertices
-		float		*newTKE,			// output: k for k-e model
-		float		*newEps,			// output: e for k-e model
-		float		*newTurbVisc,		// output: eddy viscosity
-		float4		*newEulerVel,		// output: eulerian velocity
-const	hashKey		*particleHash,		// input: sorted grid hashes
-const	uint		*particleIndex,		// input: sorted particle indices
-const	float4		*oldPos,			// input: unsorted positions
-const	float4		*oldVel,			// input: unsorted velocities
-const	particleinfo	*oldInfo,		// input: unsorted info
-const	float4		*oldBoundElement,	// input: sorted boundary elements
-const	float4		*oldGradGamma,		// input: sorted gradient gamma
-const	vertexinfo	*oldVertices,		// input: sorted vertices
-const	float		*oldTKE,			// input: k for k-e model
-const	float		*oldEps,			// input: e for k-e model
-const	float		*oldTurbVisc,		// input: eddy viscosity
-const	float4		*oldEulerVel,		// input: eulerian velocity
-const	uint		numParticles,
-		uint		*newNumParticles)	// output: number of active particles found
-{
-	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
-	uint numBlocks = div_up(numParticles, numThreads);
+		uint*				cellStart,			// output: cell start index
+		uint*				cellEnd,			// output: cell end index
+		uint*				segmentStart,		// output: segment start
 
+		const hashKey*		particleHash,		// input: sorted grid hashes
+		const uint*			particleIndex,		// input: sorted particle indices
+
+		MultiBufferList::iterator sorted_buffers,		// output: sorted buffers
+		MultiBufferList::const_iterator unsorted_buffers, // input: buffers to sort
+
+		const uint			numParticles,		// input: number of particles in input buffers
+		uint*				newNumParticles)	// output: number of active particles found
+{
+	const uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	const uint numBlocks = div_up(numParticles, numThreads);
+
+	// TODO find a smarter way to do this
+	const float4 *oldPos = unsorted_buffers->getData<BUFFER_POS>();
+	float4 *newPos = sorted_buffers->getData<BUFFER_POS>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
+
+	const float4 *oldVel = unsorted_buffers->getData<BUFFER_VEL>();
+	float4 *newVel = sorted_buffers->getData<BUFFER_VEL>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
+
+	const particleinfo *oldInfo = unsorted_buffers->getData<BUFFER_INFO>();
+	particleinfo *newInfo = sorted_buffers->getData<BUFFER_INFO>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
 
-	// TODO reduce these conditionals
-
+	const float4 *oldBoundElement = unsorted_buffers->getData<BUFFER_BOUNDELEMENTS>();
+	float4 *newBoundElement = sorted_buffers->getData<BUFFER_BOUNDELEMENTS>();
 	if (oldBoundElement)
 		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, oldBoundElement, numParticles*sizeof(float4)));
+
+	const float4 *oldGradGamma = unsorted_buffers->getData<BUFFER_GRADGAMMA>();
+	float4 *newGradGamma = sorted_buffers->getData<BUFFER_GRADGAMMA>();
 	if (oldGradGamma)
 		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGradGamma, numParticles*sizeof(float4)));
+
+	const vertexinfo *oldVertices = unsorted_buffers->getData<BUFFER_VERTICES>();
+	vertexinfo *newVertices = sorted_buffers->getData<BUFFER_VERTICES>();
 	if (oldVertices)
 		CUDA_SAFE_CALL(cudaBindTexture(0, vertTex, oldVertices, numParticles*sizeof(vertexinfo)));
 
+	const float *oldTKE = unsorted_buffers->getData<BUFFER_TKE>();
+	float *newTKE = sorted_buffers->getData<BUFFER_TKE>();
 	if (oldTKE)
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, oldTKE, numParticles*sizeof(float)));
+
+	const float *oldEps = unsorted_buffers->getData<BUFFER_EPSILON>();
+	float *newEps = sorted_buffers->getData<BUFFER_EPSILON>();
 	if (oldEps)
 		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, oldEps, numParticles*sizeof(float)));
+
+	const float *oldTurbVisc = unsorted_buffers->getData<BUFFER_TURBVISC>();
+	float *newTurbVisc = sorted_buffers->getData<BUFFER_TURBVISC>();
 	if (oldTurbVisc)
 		CUDA_SAFE_CALL(cudaBindTexture(0, tviscTex, oldTurbVisc, numParticles*sizeof(float)));
+
+	const float4 *oldEulerVel = unsorted_buffers->getData<BUFFER_EULERVEL>();
+	float4 *newEulerVel = sorted_buffers->getData<BUFFER_EULERVEL>();
 	if (oldEulerVel)
 		CUDA_SAFE_CALL(cudaBindTexture(0, eulerVelTex, oldEulerVel, numParticles*sizeof(float4)));
 
