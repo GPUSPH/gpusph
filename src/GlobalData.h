@@ -112,37 +112,8 @@ enum CommandType {
 	QUIT				// quits the simulation cycle
 };
 
-// 0 reserved as "no flags"
-#define NO_FLAGS	((flag_t)0)
-
-// flags for kernels that process arguments differently depending on which
-// step of the simulation we are at
-// (e.g. forces, euler)
-// these grow from the bottom
-#define INITIALIZATION_STEP	((flag_t)1)
-#define INTEGRATOR_STEP_1	(INITIALIZATION_STEP << 1)
-#define INTEGRATOR_STEP_2	(INTEGRATOR_STEP_1 << 1)
-#define	LAST_DEFINED_STEP	INTEGRATOR_STEP_2
-// if new steps are added after INTEGRATOR_STEP_2, remember to update LAST_DEFINED_STEP
-
-// flags to select which buffer to access, in case of double-buffered arrays
-// these grow from the top
-#define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
-#define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
-
-// flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
-// is associated to an open boundary
-#define VERTEX1 ((flag_t)1)
-#define VERTEX2 (VERTEX1 << 1)
-#define VERTEX3 (VERTEX2 << 1)
-#define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
-
-// now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
-// these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available
-// at the top
-
-// start with a generic define that can be used to iterate over all buffers
-#define FIRST_DEFINED_BUFFER	(LAST_DEFINED_STEP << 1)
+// command flags are defined in their own include files
+#include "command_flags.h"
 
 // buffer definitions are set into their own include
 #include "define_buffers.h"

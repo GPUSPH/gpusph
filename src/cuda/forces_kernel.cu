@@ -941,6 +941,13 @@ calcPrivateDevice(	const	float4*		pos_array,
 	}
 }
 
+// flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
+// is associated to an open boundary
+#define VERTEX1 ((flag_t)1)
+#define VERTEX2 (VERTEX1 << 1)
+#define VERTEX3 (VERTEX2 << 1)
+#define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
+
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)

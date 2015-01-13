@@ -28,12 +28,9 @@
 #ifndef DEFINED_BUFFERS
 #define DEFINED_BUFFERS
 
-// sanity check
 #ifndef FIRST_DEFINED_BUFFER
-#error "define_buffers.h was included without specifying starting point"
+#include "command_flags.h"
 #endif
-
-#include "common_types.h"
 
 #ifndef SET_BUFFER_TRAITS
 #include "buffer_traits.h"

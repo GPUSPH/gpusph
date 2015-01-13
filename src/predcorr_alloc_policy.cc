@@ -25,7 +25,6 @@
 
 #include "predcorr_alloc_policy.h"
 
-#include "GlobalData.h" // for FIRST_DEFINED_BUFFER etc
 #include "define_buffers.h"
 
 // all double buffers (for the predictor-corrector integration scheme)

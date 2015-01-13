@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/* This file is only used to keep hold the actual strings
+/* This file is only used to hold the actual strings
  * defining the buffer printable names
  */
 
