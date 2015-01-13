@@ -29,7 +29,6 @@
 #include "define_buffers.h"
 
 // all double buffers (for the predictor-corrector integration scheme)
-// TODO move to predcor_alloc_policy.cc
 #define BUFFERS_ALL_DBL		(BUFFER_POS | BUFFER_VEL | BUFFER_INFO | \
 	BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | BUFFER_VERTICES | \
 	BUFFER_TKE | BUFFER_EPSILON | \
