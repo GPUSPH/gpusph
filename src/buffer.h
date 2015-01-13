@@ -152,7 +152,7 @@ public:
 
 	// As above, plus offset. Useful since we return void
 	// and computing the offset from the result of get_buffer()
-	// would require manual casting to appropiate type and/or
+	// would require manual casting to appropriate type and/or
 	// manual multiplication by the element size
 	virtual void *get_offset_buffer(uint idx, size_t offset) {
 		if (idx >= N || !m_bufs[idx]) return NULL;
@@ -273,7 +273,7 @@ protected:
 	// remove a buffer without deallocating it
 	// used by the MultiBufferList to remove buffers shared
 	// by multiple lists
-	// TODO this would be all oh su much better using C++11 shared_ptr ...
+	// TODO this would be all oh so much better using C++11 shared_ptr ...
 	void removeBuffer(flag_t Key)
 	{ m_map.erase(Key); }
 
@@ -509,7 +509,7 @@ public:
 	}
 
 	/* Add a new buffer of the given BufferClass for position Key, with the provided
-	 * initalization value as initializer.
+	 * initialization value as initializer.
 	 */
 	template<template<flag_t> class BufferClass, flag_t Key>
 	void addBuffer(int _init=0)
