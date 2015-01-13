@@ -524,12 +524,14 @@ public:
 		// number of copies of this buffer
 		const size_t count = m_policy->get_buffer_count(Key);
 
-		// We currently support only two possibilities for buffers:
-		// either there is a single instance, or there are as many instances
-		// as the maximum (e.g. if the alloc policy is triple-buffered,
-		// then a buffer has a count of either three or one)
-		// TODO redesign as appropriate when the need arises
 		if (count > 1) {
+			// We currently support only two possibilities for buffers:
+			// either there is a single instance, or there are as many instances
+			// as the maximum (e.g. if the alloc policy is triple-buffered,
+			// then a buffer has a count of either three or one)
+			// TODO redesign as appropriate when the need arises
+			if (count != m_lists.size())
+				throw runtime_error("buffer count less than max but bigger than 1 not supported");
 			// multi-buffered, allocate one instance in each buffer list
 			vector<BufferList>::iterator it(m_lists.begin());
 			vector<BufferList>::iterator end(m_lists.end());
