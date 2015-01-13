@@ -567,6 +567,14 @@ CUFLAGS  ?=
 # First of all, put the include paths into the CPPFLAGS
 CPPFLAGS += $(INCPATH)
 
+# We use type limits and constants (e.g. UINT64_MAX), which are defined
+# in C99 but not in C++ versions before C++11, so on (very) old compilers
+# (e.g. gcc 4.1) they will not be available. The workaround for this
+# is to define the __STDC_LIMIT_MACROS and __STDC_CONSTANT_MACROS.
+# Put their definition in the command line to ensure it precedes any
+# (direct or indirect) inclusion of stdint.h
+CPPFLAGS += -D__STDC_CONSTANT_MACROS -D__STDC_LIMIT_MACROS
+
 # Define USE_HDF5 according to the availability of the HDF5 library
 CPPFLAGS += -DUSE_HDF5=$(USE_HDF5)
 ifneq ($(USE_HDF5),0)

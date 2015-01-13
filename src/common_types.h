@@ -29,7 +29,6 @@
 #define _COMMON_TYPES_H
 
 // uint64_t et similia
-#define __STDC_LIMIT_MACROS
 #include <stdint.h>
 // size_t
 #include <stddef.h>
