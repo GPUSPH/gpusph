@@ -786,7 +786,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += planeSize4;
 
 		gdata->s_hPlanesDiv = new float[gdata->numPlanes];
-		memset(gdata->s_hPlanes, 0, planeSize);
+		memset(gdata->s_hPlanesDiv, 0, planeSize);
 		totCPUbytes += planeSize;
 	}
 
