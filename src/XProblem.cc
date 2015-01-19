@@ -790,32 +790,6 @@ void XProblem::addExtraWorldMargin(const double margin)
 
 int XProblem::fill_parts()
 {
-	/* If we needed an accurate collision detection between the container and the cube (i.e.
-	 * using the actual container mesh instead of modelling it with 5 infinite planes), we'd
-	 * have to create a geometry for the container as well. However, in this case the mesh
-	 * should be "thick" (2 layers, with volume inside) and not flat. With a flat mesh, ODE
-	 * detects the contained cube as penetrated into the container and thus colliding.
-	 * Long story short: don't uncomment the following.
-	 */ /*
-	//container->ODEGeomCreate(m_ODESpace, m_deltap);
-
-	// cube density half water density
-	const double water_density_fraction = 0.5F;
-	const double cube_density = 1000.0 * water_density_fraction; // 1000 = water
-	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density); // only dynamics
-	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
-	cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density, m_ODESpace); // dynamics + collisions
-	// particles with object(info)-1==1 are associated with ODE object number 0
-	m_ODEobjectId[2-1] = 0;
-	add_ODE_body(cube);
-
-	// planes modelling the tank, for the interaction with the cube
-	m_box_planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0); // floor
-	m_box_planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0); // YZ plane, lower X
-	m_box_planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, - box_l); // YZ plane, higher X
-	m_box_planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0); // XZ plane, lower y
-	m_box_planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, - box_w); // XZ plane, higher Y
-
 	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
 	// compute the distance of a probe point from a plane (positive if penetrated, negative out)
 	/*
@@ -823,8 +797,6 @@ int XProblem::fill_parts()
 	printf("Test: probe point is distant %g from the bottom plane.\n,
 		dGeomPlanePointDepth(m_box_planes[0], probe_point.x, probe_point.y, probe_point.z)
 	*/
-
-	//return h5File.getNParts();
 
 	//uint particleCounter = 0;
 	uint bodies_parts_counter = 0;
