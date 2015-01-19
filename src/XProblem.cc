@@ -1174,6 +1174,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary parts: " << n_bparts << "\n";
 	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
 
+	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
+		PointVect & rbparts = get_ODE_body(k)->GetParts();
+		const uint num_rbparts = rbparts.size();
+		std::cout << "Rigid body " << k << ": " << num_rbparts << " particles ";
+		for (uint i = elaborated_parts; i < elaborated_parts + num_rbparts; i++) {
+			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			info[i] = make_particleinfo(OBJECTPART, k, i - elaborated_parts);
+			calc_localpos_and_hash(rbparts[i - elaborated_parts], info[i], pos[i], hash[i]);
+		}
+		elaborated_parts += num_rbparts;
+		std::cout << ", part mass: " << pos[elaborated_parts-1].w << "\n";
+	}
+
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	if (loaded_parts > 0) {
 		std::cout << "Fixing connectivity..." << std::flush;
@@ -1192,19 +1205,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 			}
 		std::cout << "DONE" << "\n";
-	}
-
-	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
-		PointVect & rbparts = get_ODE_body(k)->GetParts();
-		const uint num_rbparts = rbparts.size();
-		std::cout << "Rigid body " << k << ": " << num_rbparts << " particles ";
-		for (uint i = elaborated_parts; i < elaborated_parts + num_rbparts; i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(OBJECTPART, k, i - elaborated_parts);
-			calc_localpos_and_hash(rbparts[i - elaborated_parts], info[i], pos[i], hash[i]);
-		}
-		elaborated_parts += num_rbparts;
-		std::cout << ", part mass: " << pos[elaborated_parts-1].w << "\n";
 	}
 
 	/*std::cout << "Fluid parts: " << n_fparts << "\n";
