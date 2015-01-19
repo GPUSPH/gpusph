@@ -988,6 +988,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 	uint n_bparts = 0;
 	uint elaborated_parts = 0;
 
+	// count #particles loaded from HDF5 files, to adjust connectivity afterward
+	uint loaded_parts = 0;
+	uint *hdf5idx_to_idx_map = NULL;
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
+		if (m_geometries[g]->has_hdf5_file)
+			loaded_parts += m_hdf5_reader.getNParts();
+	if (loaded_parts > 0) {
+		hdf5idx_to_idx_map = new uint[loaded_parts];
+		for (uint i=0; i< loaded_parts; i++)
+			// init to improbable particle index
+			hdf5idx_to_idx_map[i] = 0xFFFFFFFF;
+	}
+
 	n_fparts = m_fluidParts.size();
 	n_bparts = m_boundaryParts.size();
 
@@ -1036,6 +1049,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 					Point(m_hdf5_reader.buf[i].Coords_0, m_hdf5_reader.buf[i].Coords_1, m_hdf5_reader.buf[i].Coords_2,
 						m_physparams.rho0[0]*m_hdf5_reader.buf[i].Volume),
 					info[i], pos[i], hash[i]);
+				// update hash map, although it could be ignored for fluid parts
+				hdf5idx_to_idx_map[ m_hdf5_reader.buf[i].AbsoluteIndex ] = i;
 			}
 			// free memory and prepare for next file
 			m_hdf5_reader.reset();
@@ -1144,6 +1159,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				boundelm[i].y = m_hdf5_reader.buf[bi].Normal_1;
 				boundelm[i].z = m_hdf5_reader.buf[bi].Normal_2;
 				boundelm[i].w = m_hdf5_reader.buf[bi].Surface;
+				// update hash map
+				hdf5idx_to_idx_map[ m_hdf5_reader.buf[bi].AbsoluteIndex ] = i;
 			}
 			// free memory and prepare for next file
 			m_hdf5_reader.reset();
@@ -1154,6 +1171,25 @@ void XProblem::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary parts: " << n_bparts << "\n";
 	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
 
+	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
+	if (loaded_parts > 0) {
+		std::cout << "Fixing connectivity..." << std::flush;
+		for (uint i=0; i< elaborated_parts; i++)
+			if (BOUNDARY(info[i])) {
+				if (hdf5idx_to_idx_map[ vertices[i].x ] == 0xFFFFFFFF ||
+					hdf5idx_to_idx_map[ vertices[i].y ] == 0xFFFFFFFF ||
+					hdf5idx_to_idx_map[ vertices[i].z ] == 0xFFFFFFFF ) {
+					printf("FATAL: connectivity: particle id %u index %u loaded from HDF5 points to non-existing vertices (%u,%u,%u)!\n",
+						id(info[i]), i, vertices[i].x, vertices[i].y, vertices[i].z );
+					exit(1);
+				} else {
+					vertices[i].x = hdf5idx_to_idx_map[ vertices[i].x ];
+					vertices[i].y = hdf5idx_to_idx_map[ vertices[i].y ];
+					vertices[i].z = hdf5idx_to_idx_map[ vertices[i].z ];
+				}
+			}
+		std::cout << "DONE" << "\n";
+	}
 
 	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
