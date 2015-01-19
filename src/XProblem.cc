@@ -1041,6 +1041,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// add every particle
 			for (uint i = n_fparts; i < n_fparts + num_parts_in_file; i++) {
 				// TODO: automatic hydrostatic filling. Or, callback?
+				// TODO: warning as follows? But should be printed only once
+				// if (m_hdf5_reader.buf[bi].ParticleType != 0) ... warning, filling with different particle type
 				//float rho = density(initial_water_level - m_hdf5_reader.buf[i].Coords_2, 0); // how to?
 				float rho = m_physparams.rho0[0];
 				vel[i] = make_float4(0, 0, 0, rho);
@@ -1123,6 +1125,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 				// in cases of ODE objects this array is allocated as well, even though it is not needed.
 				///m_simparams.numObjects = max(specialBoundType, m_simparams.numObjects);
+
+				// TODO: warning as follows? But should be printed only once
+				// if (m_hdf5_reader.buf[bi].ParticleType != 0) ... warning, filling with different particle type
 
 				//info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
 				if (m_hdf5_reader.buf[bi].ParticleType == 2) // 2 aka CRIXUS_VERTEX
