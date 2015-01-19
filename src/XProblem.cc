@@ -979,23 +979,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 	n_fparts = m_fluidParts.size();
 	n_bparts = m_boundaryParts.size();
 
-	// count types
-	/*
-	for (uint i = 0; i<h5File.getNParts(); i++) {
-		switch(h5File.buf[i].ParticleType) {
-			case 1:
-				n_fparts++;
-				break;
-			case 2:
-				n_vparts++;
-				break;
-			case 3:
-				n_bparts++;
-				break;
-		}
-	}
-	*/
-
 	for (uint i = 0; i < n_fparts; i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
@@ -1041,39 +1024,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	for (uint i = elaborated_parts; i < elaborated_parts + n_bparts; i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		//if (eulerVel)
-		//	eulerVel[i] = make_float4(0);
-		//int specialBoundType = h5File.buf[i].KENT;
-		//info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
+		// TODO: eulerVel
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		calc_localpos_and_hash(m_boundaryParts[i - elaborated_parts], info[i], pos[i], hash[i]);
+
+		// TODO: set IO_PARTICLE_FLAG, VEL_IO_PARTICLE_FLAG, INFLOW_PARTICLE_FLAG, MOVING_PARTICLE_FLAG, FLOATING_PARTICLE_FLAG
+		//   e.g. SET_FLAG(info[i], IO_PARTICLE_FLAG);
 		// Save the id of the first boundary particle that belongs to an ODE object
-		/*if (m_firstODEobjectPartId == 0 && specialBoundType != 0 &&  m_ODEobjectId[specialBoundType-1] != UINT_MAX)
-			m_firstODEobjectPartId = i;
-		// Define the type of boundaries
-		if (specialBoundType == 1) {
-			// this vertex is part of an open boundary
-			SET_FLAG(info[i], IO_PARTICLE_FLAG);
-			// if you need to impose the velocity uncomment the following
-			//// open boundary imposes velocity
-			//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
-			// open boundary is an inflow
-			SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
-		} else if (specialBoundType == 2) {
-			// this vertex is part of a moving object
-			SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
-			// this moving object is also floating
-			//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-			//numOdeObjParts++;
-		}
-		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
-		vertices[i].x = h5File.buf[i].VertexParticle1;
-		vertices[i].y = h5File.buf[i].VertexParticle2;
-		vertices[i].z = h5File.buf[i].VertexParticle3;
-		boundelm[i].x = h5File.buf[i].Normal_0;
-		boundelm[i].y = h5File.buf[i].Normal_1;
-		boundelm[i].z = h5File.buf[i].Normal_2;
-		boundelm[i].w = h5File.buf[i].Surface;*/
 	}
 	// iterate on geometries to find HDF5files loaded with BOUNDARY particles
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
@@ -1107,27 +1064,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				else
 				if (m_hdf5_reader.buf[bi].ParticleType == 3) // 3 aka CRIXUS_BOUNDARY
 					info[i] = make_particleinfo(BOUNDPART, 0, i);
-				/*
-				// Define the type of boundaries
-				if (specialBoundType == 1) {
-					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					// if you need to impose the velocity uncomment the following
-					//// open boundary imposes velocity
-					//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
-				} else if (specialBoundType == 2) {
-					// this vertex is part of a moving object
-					SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
-					// this moving object is also floating
-					SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-				}
-				*/
 				// TODO: eulerVel not here yet
-				//if (eulerVel)
-				//	eulerVel[i] = make_float4(0);
-				/*if (i == elaborated_parts + n_bparts)
-					printf(" P i %u bi %i in file %u - type %u, V %u B %u, rho %g Vol %g\n", i, bi, num_parts_in_file,
-						 m_hdf5_reader.buf[bi].ParticleType, PT_VERTEX, PT_BOUNDARY, m_physparams.rho0[0], m_hdf5_reader.buf[bi].Volume);*/
 				calc_localpos_and_hash(
 					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,
 						m_physparams.rho0[0]*m_hdf5_reader.buf[bi].Volume),
@@ -1188,117 +1125,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 			}
 		std::cout << "DONE" << "\n";
 	}
-
-	/*std::cout << "Fluid parts: " << n_fparts << "\n";
-	for (uint i = 0; i < n_fparts; i++) {
-		float rho = density(initial_water_level - h5File.buf[i].Coords_2, 0);
-		//float rho = m_physparams.rho0[0];
-		vel[i] = make_float4(0, 0, 0, rho);
-		if (eulerVel)
-			eulerVel[i] = make_float4(0);
-		info[i] = make_particleinfo(FLUIDPART, 0, i);
-		calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
-			m_physparams.rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
-	}
-	uint j = n_fparts;
-	std::cout << "Fluid part mass: " << pos[j-1].w << "\n";
-
-	if(n_vparts) {
-		std::cout << "Vertex parts: " << n_vparts << "\n";
-		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(initial_water_level - h5File.buf[i].Coords_2, 0);
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			if (eulerVel)
-				eulerVel[i] = make_float4(0);
-			int specialBoundType = h5File.buf[i].KENT;
-			// count the number of different objects
-			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
-			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
-			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			m_simparams.numObjects = max(specialBoundType, m_simparams.numObjects);
-			info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
-			// Define the type of boundaries
-			if (specialBoundType == 1) {
-				// this vertex is part of an open boundary
-				SET_FLAG(info[i], IO_PARTICLE_FLAG);
-				// if you need to impose the velocity uncomment the following
-				//// open boundary imposes velocity
-				//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
-				// open boundary is an inflow
-				SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
-			} else if (specialBoundType == 2) {
-				// this vertex is part of a moving object
-				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
-				// this moving object is also floating
-				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-			}
-			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2,
-				m_physparams.rho0[0]*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
-		}
-		j += n_vparts;
-		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
-	}
-
-	uint numOdeObjParts = 0;
-
-	if(n_bparts) {
-		std::cout << "Boundary parts: " << n_bparts << "\n";
-		for (uint i = j; i < j + n_bparts; i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			if (eulerVel)
-				eulerVel[i] = make_float4(0);
-			int specialBoundType = h5File.buf[i].KENT;
-			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
-			// Save the id of the first boundary particle that belongs to an ODE object
-			if (m_firstODEobjectPartId == 0 && specialBoundType != 0 &&  m_ODEobjectId[specialBoundType-1] != UINT_MAX)
-				m_firstODEobjectPartId = i;
-			// Define the type of boundaries
-			if (specialBoundType == 1) {
-				// this vertex is part of an open boundary
-				SET_FLAG(info[i], IO_PARTICLE_FLAG);
-				// if you need to impose the velocity uncomment the following
-				//// open boundary imposes velocity
-				//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
-				// open boundary is an inflow
-				SET_FLAG(info[i], INFLOW_PARTICLE_FLAG);
-			} else if (specialBoundType == 2) {
-				// this vertex is part of a moving object
-				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
-				// this moving object is also floating
-				//SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-				//numOdeObjParts++;
-			}
-			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
-			vertices[i].x = h5File.buf[i].VertexParticle1;
-			vertices[i].y = h5File.buf[i].VertexParticle2;
-			vertices[i].z = h5File.buf[i].VertexParticle3;
-			boundelm[i].x = h5File.buf[i].Normal_0;
-			boundelm[i].y = h5File.buf[i].Normal_1;
-			boundelm[i].z = h5File.buf[i].Normal_2;
-			boundelm[i].w = h5File.buf[i].Surface;
-		}
-		j += n_bparts;
-		std::cout << "Boundary part mass: " << pos[j-1].w << "\n";
-	}
-	// Make sure that fluid + vertex + boundaries are done in that order
-	// before adding any other items like testpoints, etc.
-	cube->SetNumParts(numOdeObjParts);
-
-	//Testpoints
-	if (test_points.size()) {
-		std::cout << "\nTest points: " << test_points.size() << "\n";
-		for (uint i = j; i < j+test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, 0.0);
-			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
-			calc_localpos_and_hash(test_points[i-j], info[i], pos[i], hash[i]);
-		}
-		j += test_points.size();
-		std::cout << "Test point mass:" << pos[j-1].w << "\n";
-	}
-
-	std::flush(std::cout); */
-
-	// h5File.empty();
 }
 
 /*
