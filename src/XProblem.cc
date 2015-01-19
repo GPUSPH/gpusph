@@ -138,10 +138,12 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	add_writer(VTKWRITER, 1e-2f);
 	m_origin = make_double3(NAN, NAN, NAN);
 	m_size = make_double3(NAN, NAN, NAN);
-	m_simparams.maxneibsnum = 128;
+	m_simparams.maxneibsnum = 256 + 32;
 
 	// Name of problem used for directory creation
 	m_name = "XProblem";
+
+	m_simparams.boundarytype = SA_BOUNDARY;
 
 	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
 
