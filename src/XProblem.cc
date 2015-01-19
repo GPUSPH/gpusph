@@ -1015,7 +1015,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	}
 	// iterate on geometries to find HDF5files loaded with FLUID particles
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
-		if (m_geometries[g]->has_hdf5_file) {
+		if (m_geometries[g]->has_hdf5_file && m_geometries[g]->type == GT_FLUID) {
 			// set and check filename
 			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
 			// read number of particles
