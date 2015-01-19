@@ -1008,7 +1008,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 	}
 	*/
 
-	std::cout << "Fluid parts: " << n_fparts << "\n";
 	for (uint i = 0; i < n_fparts; i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
@@ -1044,10 +1043,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 			n_fparts += num_parts_in_file;
 		}
 	elaborated_parts += n_fparts;
+	std::cout << "Fluid parts: " << n_fparts << "\n";
 	std::cout << "Fluid part mass: " << pos[elaborated_parts - 1].w << "\n";
 	std::flush(std::cout);
 
-	std::cout << "Boundary parts: " << n_bparts << "\n";
 	for (uint i = elaborated_parts; i < elaborated_parts + n_bparts; i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		//if (eulerVel)
@@ -1085,6 +1084,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		boundelm[i].w = h5File.buf[i].Surface;*/
 	}
 	elaborated_parts += n_bparts;
+	std::cout << "Boundary parts: " << n_bparts << "\n";
 	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
 
 
