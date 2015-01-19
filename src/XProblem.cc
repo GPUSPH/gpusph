@@ -146,6 +146,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.boundarytype = SA_BOUNDARY;
 
 	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
+	addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent0.h5sph", NULL);
 
 	m_origin = make_double3(-1, -1, -1);
 	m_size = make_double3(3, 3, 3);
