@@ -1183,9 +1183,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 						id(info[i]), i, vertices[i].x, vertices[i].y, vertices[i].z );
 					exit(1);
 				} else {
-					vertices[i].x = hdf5idx_to_idx_map[ vertices[i].x ];
-					vertices[i].y = hdf5idx_to_idx_map[ vertices[i].y ];
-					vertices[i].z = hdf5idx_to_idx_map[ vertices[i].z ];
+					vertices[i].x = hdf5idx_to_idx_map[ id(info[ vertices[i].x ]) ];
+					vertices[i].y = hdf5idx_to_idx_map[ id(info[ vertices[i].y ]) ];
+					vertices[i].z = hdf5idx_to_idx_map[ id(info[ vertices[i].z ]) ];
 				}
 			}
 		std::cout << "DONE" << "\n";
