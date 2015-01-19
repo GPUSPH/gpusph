@@ -1083,6 +1083,73 @@ void XProblem::copy_to_array(BufferList &buffers)
 		boundelm[i].z = h5File.buf[i].Normal_2;
 		boundelm[i].w = h5File.buf[i].Surface;*/
 	}
+	// iterate on geometries to find HDF5files loaded with BOUNDARY particles
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
+		if (m_geometries[g]->has_hdf5_file && m_geometries[g]->type == GT_FIXED_BOUNDARY) {
+			// set and check filename
+			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
+			// read number of particles
+			const uint num_parts_in_file = m_hdf5_reader.getNParts();
+			// read particles
+			m_hdf5_reader.read();
+			// add every particle
+			for (uint i = elaborated_parts + n_bparts; i < elaborated_parts + n_bparts + num_parts_in_file; i++) {
+				const uint bi = i - elaborated_parts - n_bparts;
+				// TODO: automatic hydrostatic filling. Or, callback?
+				//float rho = density(initial_water_level - m_hdf5_reader.buf[i].Coords_2, 0); // how to?
+				float rho = m_physparams.rho0[0];
+				vel[i] = make_float4(0, 0, 0, rho);
+
+				// count the number of different objects
+				// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
+				// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
+				// in cases of ODE objects this array is allocated as well, even though it is not needed.
+				///m_simparams.numObjects = max(specialBoundType, m_simparams.numObjects);
+
+				//info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
+				if (m_hdf5_reader.buf[bi].ParticleType == 2) // 2 aka CRIXUS_VERTEX
+					info[i] = make_particleinfo(VERTEXPART, 0, i);
+				else
+				if (m_hdf5_reader.buf[bi].ParticleType == 3) // 3 aka CRIXUS_BOUNDARY
+					info[i] = make_particleinfo(BOUNDPART, 0, i);
+				/*
+				// Define the type of boundaries
+				if (specialBoundType == 1) {
+					// this vertex is part of an open boundary
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					// if you need to impose the velocity uncomment the following
+					//// open boundary imposes velocity
+					//SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+				} else if (specialBoundType == 2) {
+					// this vertex is part of a moving object
+					SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
+					// this moving object is also floating
+					SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				}
+				*/
+				// TODO: eulerVel not here yet
+				//if (eulerVel)
+				//	eulerVel[i] = make_float4(0);
+				/*if (i == elaborated_parts + n_bparts)
+					printf(" P i %u bi %i in file %u - type %u, V %u B %u, rho %g Vol %g\n", i, bi, num_parts_in_file,
+						 m_hdf5_reader.buf[bi].ParticleType, PT_VERTEX, PT_BOUNDARY, m_physparams.rho0[0], m_hdf5_reader.buf[bi].Volume);*/
+				calc_localpos_and_hash(
+					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,
+						m_physparams.rho0[0]*m_hdf5_reader.buf[bi].Volume),
+					info[i], pos[i], hash[i]);
+				vertices[i].x = m_hdf5_reader.buf[bi].VertexParticle1;
+				vertices[i].y = m_hdf5_reader.buf[bi].VertexParticle2;
+				vertices[i].z = m_hdf5_reader.buf[bi].VertexParticle3;
+				boundelm[i].x = m_hdf5_reader.buf[bi].Normal_0;
+				boundelm[i].y = m_hdf5_reader.buf[bi].Normal_1;
+				boundelm[i].z = m_hdf5_reader.buf[bi].Normal_2;
+				boundelm[i].w = m_hdf5_reader.buf[bi].Surface;
+			}
+			// free memory and prepare for next file
+			m_hdf5_reader.reset();
+			// update counter of fluid particles
+			n_bparts += num_parts_in_file;
+		}
 	elaborated_parts += n_bparts;
 	std::cout << "Boundary parts: " << n_bparts << "\n";
 	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
