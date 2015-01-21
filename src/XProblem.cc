@@ -990,8 +990,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// count how many particles will be loaded from file
 	uint *hdf5idx_to_idx_map = NULL;
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
-		if (m_geometries[g]->has_hdf5_file)
+		if (m_geometries[g]->has_hdf5_file) {
+			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
 			loaded_parts += m_hdf5_reader.getNParts();
+		}
 
 	// allocate the HDF5_id->id hashmap, used to fix connectivity, if loading from HDF5 files
 	// TODO: alloc only if SA boundaries are being used, and if we are not loading just fluid
