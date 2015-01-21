@@ -58,7 +58,7 @@ struct GeometryInfo {
 	bool enabled;
 
 	bool has_hdf5_file; // little redundant but clearer
-	const char *hdf5_filename;
+	std::string hdf5_filename;
 
 	GeometryInfo() {
 		ptr = NULL;
@@ -74,7 +74,7 @@ struct GeometryInfo {
 		enabled = true;
 
 		has_hdf5_file = false;
-		hdf5_filename = NULL;
+		hdf5_filename = "";
 	}
 };
 

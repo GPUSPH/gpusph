@@ -287,12 +287,14 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	geomInfo->type = otype;
 	geomInfo->fill_type = ftype;
 	geomInfo->ptr = obj_ptr;
-	geomInfo->hdf5_filename = hdf5_fname;
-	geomInfo->has_hdf5_file = (hdf5_fname != NULL);
+	if (hdf5_fname) {
+		geomInfo->hdf5_filename = std::string(hdf5_fname);
+		geomInfo->has_hdf5_file = true;
+	}
 	m_numActiveGeometries++;
 
 	// --- Default collision and dynamics
-	if (hdf5_fname != NULL) {
+	if (geomInfo->has_hdf5_file) {
 		// currently does not support bounding box for hdf5 files, so...
 		geomInfo->handle_collisions = false;
 		geomInfo->handle_dynamics = false;
