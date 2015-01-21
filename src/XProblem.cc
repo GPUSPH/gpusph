@@ -1122,7 +1122,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				// update hash map. This could be restricted to vertex parts only
-				hdf5idx_to_idx_map[ m_hdf5_reader.buf[bi].AbsoluteIndex ] = i;
+				if (m_hdf5_reader.buf[bi].AbsoluteIndex >= loaded_parts)
+					printf("WARNING: AbsoluteIndex %u of particle index %u is out of bounds! (map size is %u)\n", m_hdf5_reader.buf[bi].AbsoluteIndex, i, loaded_parts);
+				else
+					hdf5idx_to_idx_map[ m_hdf5_reader.buf[bi].AbsoluteIndex ] = i;
 			}
 			// free memory and prepare for next file
 			m_hdf5_reader.reset();
