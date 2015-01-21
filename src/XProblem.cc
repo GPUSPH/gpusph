@@ -1159,6 +1159,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 	} // for each geometry
 
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
+	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
+	// loading them from file, and here iterate only on that vector
 	if (loaded_parts > 0) {
 		std::cout << "Fixing connectivity..." << std::flush;
 		for (uint i=0; i< tot_parts; i++)
