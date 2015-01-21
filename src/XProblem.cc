@@ -1179,6 +1179,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 			}
 		std::cout << "DONE" << "\n";
+		delete [] hdf5idx_to_idx_map;
 	}
 
 	std::cout << "Fluid parts: " << fluid_parts << "\n";
