@@ -990,22 +990,15 @@ void XProblem::copy_to_array(BufferList &buffers)
 	double boundary_part_mass = NAN;
 	double vertex_part_mass = NAN;
 
+	// we use a simple map for the HDF5_id->id map translation (connectivity fix)
+	std::map<uint, uint> hdf5idx_to_idx_map;
+
 	// count how many particles will be loaded from file
-	uint *hdf5idx_to_idx_map = NULL;
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
 		if (m_geometries[g]->has_hdf5_file) {
 			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
 			loaded_parts += m_hdf5_reader.getNParts();
 		}
-
-	// allocate the HDF5_id->id hashmap, used to fix connectivity, if loading from HDF5 files
-	// TODO: alloc only if SA boundaries are being used, and if we are not loading just fluid
-	if (loaded_parts > 0) {
-		hdf5idx_to_idx_map = new uint[loaded_parts];
-		for (uint i=0; i< loaded_parts; i++)
-			// init to improbable particle index
-			hdf5idx_to_idx_map[i] = 0xFFFFFFFF;
-	}
 
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
@@ -1124,10 +1117,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 					boundelm[i].w = m_hdf5_reader.buf[bi].Surface;
 				}
 
-				// update hash map. This could be restricted to vertex parts only
-				if (m_hdf5_reader.buf[bi].AbsoluteIndex >= loaded_parts)
-					printf("WARNING: AbsoluteIndex %u of particle index %u is out of bounds! (map size is %u)\n", m_hdf5_reader.buf[bi].AbsoluteIndex, i, loaded_parts);
-				else
+				// update hash map
+				if (ptype == VERTEXPART)
 					hdf5idx_to_idx_map[ m_hdf5_reader.buf[bi].AbsoluteIndex ] = i;
 			}
 			// free memory and prepare for next file
@@ -1172,20 +1163,20 @@ void XProblem::copy_to_array(BufferList &buffers)
 		std::cout << "Fixing connectivity..." << std::flush;
 		for (uint i=0; i< tot_parts; i++)
 			if (BOUNDARY(info[i])) {
-				if (hdf5idx_to_idx_map[ vertices[i].x ] == 0xFFFFFFFF ||
-					hdf5idx_to_idx_map[ vertices[i].y ] == 0xFFFFFFFF ||
-					hdf5idx_to_idx_map[ vertices[i].z ] == 0xFFFFFFFF ) {
+				if (hdf5idx_to_idx_map.count(vertices[i].x) == 0 ||
+					hdf5idx_to_idx_map.count(vertices[i].y) == 0 ||
+					hdf5idx_to_idx_map.count(vertices[i].z) == 0 ) {
 					printf("FATAL: connectivity: particle id %u index %u loaded from HDF5 points to non-existing vertices (%u,%u,%u)!\n",
 						id(info[i]), i, vertices[i].x, vertices[i].y, vertices[i].z );
 					exit(1);
 				} else {
-					vertices[i].x = id(info[ hdf5idx_to_idx_map[ vertices[i].x ] ]);
-					vertices[i].y = id(info[ hdf5idx_to_idx_map[ vertices[i].y ] ]);
-					vertices[i].z = id(info[ hdf5idx_to_idx_map[ vertices[i].z ] ]);
+					vertices[i].x = id(info[ hdf5idx_to_idx_map.find(vertices[i].x)->second ]);
+					vertices[i].y = id(info[ hdf5idx_to_idx_map.find(vertices[i].y)->second ]);
+					vertices[i].z = id(info[ hdf5idx_to_idx_map.find(vertices[i].z)->second ]);
 				}
 			}
 		std::cout << "DONE" << "\n";
-		delete [] hdf5idx_to_idx_map;
+		hdf5idx_to_idx_map.clear();
 	}
 
 	std::cout << "Fluid parts: " << fluid_parts << "\n";
