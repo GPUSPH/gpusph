@@ -138,7 +138,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	add_writer(VTKWRITER, 1e-2f);
 	m_origin = make_double3(NAN, NAN, NAN);
 	m_size = make_double3(NAN, NAN, NAN);
-	m_simparams.maxneibsnum = 256 + 32;
+	m_simparams.maxneibsnum = 256 + 64;
 
 	// Name of problem used for directory creation
 	m_name = "XProblem";
