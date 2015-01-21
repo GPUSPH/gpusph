@@ -958,17 +958,41 @@ void XProblem::copy_to_array(BufferList &buffers)
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
 	//float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
-	uint n_fparts = 0;
-	uint n_vparts = 0;
-	uint n_bparts = 0;
-	uint elaborated_parts = 0;
+	// NOTEs and TODO
+	// - Automatic hydrostatic filling. Or, callback?
+	// - SA currently supported only from file. Support runtime generation?
+	// - I/O support, inlcuding: setting IO_PARTICLE_FLAG, VEL_IO_PARTICLE_FLAG,
+	//   INFLOW_PARTICLE_FLAG, MOVING_PARTICLE_FLAG, FLOATING_PARTICLE_FLAG.
+	//   E.g. SET_FLAG(info[i], IO_PARTICLE_FLAG);
+	// - Warn if loaded particle has different type than filled, but only once
+	// - Save the id of the first boundary particle that belongs to an ODE object?
+	//   Was in previous code but we probably don't need it
 
-	// count #particles loaded from HDF5 files, to adjust connectivity afterward
+	// particles counters, by type
+	uint fluid_parts = 0;
+	uint boundary_parts = 0;
+	uint vertex_parts = 0;
+	// count #particles loaded from HDF5 files. Needed also to adjust connectivity afterward
 	uint loaded_parts = 0;
+	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded. The following hold:
+	//   total = fluid_parts + boundary_parts + vertex_parts
+	//   total >= loaded_parts
+	//   total >= object_parts
+	uint tot_parts = 0;
+
+	// store mass for each particle type
+	double fluid_part_mass = NAN;
+	double boundary_part_mass = NAN;
+	double vertex_part_mass = NAN;
+
+	// count how many particles will be loaded from file
 	uint *hdf5idx_to_idx_map = NULL;
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
 		if (m_geometries[g]->has_hdf5_file)
 			loaded_parts += m_hdf5_reader.getNParts();
+
+	// allocate the HDF5_id->id hashmap, used to fix connectivity, if loading from HDF5 files
+	// TODO: alloc only if SA boundaries are being used, and if we are not loading just fluid
 	if (loaded_parts > 0) {
 		hdf5idx_to_idx_map = new uint[loaded_parts];
 		for (uint i=0; i< loaded_parts; i++)
@@ -976,140 +1000,167 @@ void XProblem::copy_to_array(BufferList &buffers)
 			hdf5idx_to_idx_map[i] = 0xFFFFFFFF;
 	}
 
-	n_fparts = m_fluidParts.size();
-	n_bparts = m_boundaryParts.size();
-
-	for (uint i = 0; i < n_fparts; i++) {
+	// copy filled fluid parts
+	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
+		if (i == tot_parts)
+			fluid_part_mass = pos[i].w;
 	}
-	// iterate on geometries to find HDF5files loaded with FLUID particles
-	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
-		if (m_geometries[g]->has_hdf5_file && m_geometries[g]->type == GT_FLUID) {
+	tot_parts += m_fluidParts.size();
+	fluid_parts += m_fluidParts.size();
+
+	// copy filled boundary parts
+	for (uint i = tot_parts; i < tot_parts + m_boundaryParts.size(); i++) {
+		// TODO: eulerVel
+		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
+		if (i == tot_parts)
+			boundary_part_mass = pos[i].w;
+	}
+	tot_parts += m_boundaryParts.size();
+	boundary_parts += m_fluidParts.size();
+
+	// count rigid bodies. Used for 1. setting object number 2. printing information
+	uint rigid_body_counter = 0;
+	// store particle mass of last added rigid body
+	double rigid_body_part_mass = NAN;
+
+	// iterate on geometries looking for HDF5 files to be loaded
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
+
+		// planes do not fill particles nor they load from files
+		if (m_geometries[g]->type == GT_PLANE)
+			continue;
+
+		// number of particles loaded or filled by the current geometry
+		uint current_geometry_particles = 0;
+
+		if (m_geometries[g]->has_hdf5_file) {
 			// set and check filename
 			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
 			// read number of particles
-			const uint num_parts_in_file = m_hdf5_reader.getNParts();
+			current_geometry_particles = m_hdf5_reader.getNParts();
 			// read particles
 			m_hdf5_reader.read();
 			// add every particle
-			for (uint i = n_fparts; i < n_fparts + num_parts_in_file; i++) {
-				// TODO: automatic hydrostatic filling. Or, callback?
+			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
+
+				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current HDF5 file)
+				const uint bi = i - tot_parts;
+
 				// TODO: warning as follows? But should be printed only once
 				// if (m_hdf5_reader.buf[bi].ParticleType != 0) ... warning, filling with different particle type
 				//float rho = density(initial_water_level - m_hdf5_reader.buf[i].Coords_2, 0); // how to?
 				float rho = m_physparams.rho0[0];
 				vel[i] = make_float4(0, 0, 0, rho);
-				// TODO: eulerVel not here yet
 				//if (eulerVel)
 				//	eulerVel[i] = make_float4(0);
-				info[i] = make_particleinfo(FLUIDPART, 0, i);
-				calc_localpos_and_hash(
-					Point(m_hdf5_reader.buf[i].Coords_0, m_hdf5_reader.buf[i].Coords_1, m_hdf5_reader.buf[i].Coords_2,
-						m_physparams.rho0[0]*m_hdf5_reader.buf[i].Volume),
-					info[i], pos[i], hash[i]);
-				// update hash map, although it could be ignored for fluid parts
-				hdf5idx_to_idx_map[ m_hdf5_reader.buf[i].AbsoluteIndex ] = i;
-			}
-			// free memory and prepare for next file
-			m_hdf5_reader.reset();
-			// update counter of fluid particles
-			n_fparts += num_parts_in_file;
-		}
-	elaborated_parts += n_fparts;
-	std::cout << "Fluid parts: " << n_fparts << "\n";
-	std::cout << "Fluid part mass: " << pos[elaborated_parts - 1].w << "\n";
-	std::flush(std::cout);
 
-	for (uint i = elaborated_parts; i < elaborated_parts + n_bparts; i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		// TODO: eulerVel
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
-		calc_localpos_and_hash(m_boundaryParts[i - elaborated_parts], info[i], pos[i], hash[i]);
+				// TODO: define an invalid/unknown particle type?
+				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
+				// tot_parts instead is be updated in the outer loop
+				ushort ptype = FLUIDPART;
+				switch (m_hdf5_reader.buf[bi].ParticleType) {
+					case 1: // 2 aka CRIXUS_FLUID
+						// TODO: warn user if (m_geometries[g]->type != GT_FLUID)
+						ptype = FLUIDPART;
+						fluid_parts++;
+						break;
+					case 2: // 2 aka CRIXUS_VERTEX
+						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
+						ptype = VERTEXPART;
+						boundary_parts++;
+						break;
+					case 3: // 3 aka CRIXUS_BOUNDARY
+						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
+						ptype = BOUNDPART;
+						vertex_parts++;
+						break;
+					default:
+						// TODO: print warning or throw fatal
+						break;
+				}
 
-		// TODO: set IO_PARTICLE_FLAG, VEL_IO_PARTICLE_FLAG, INFLOW_PARTICLE_FLAG, MOVING_PARTICLE_FLAG, FLOATING_PARTICLE_FLAG
-		//   e.g. SET_FLAG(info[i], IO_PARTICLE_FLAG);
-		// Save the id of the first boundary particle that belongs to an ODE object
-	}
-	// iterate on geometries to find HDF5files loaded with BOUNDARY particles
-	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
-		if (m_geometries[g]->has_hdf5_file && m_geometries[g]->type == GT_FIXED_BOUNDARY) {
-			// set and check filename
-			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
-			// read number of particles
-			const uint num_parts_in_file = m_hdf5_reader.getNParts();
-			// read particles
-			m_hdf5_reader.read();
-			// add every particle
-			for (uint i = elaborated_parts + n_bparts; i < elaborated_parts + n_bparts + num_parts_in_file; i++) {
-				const uint bi = i - elaborated_parts - n_bparts;
-				// TODO: automatic hydrostatic filling. Or, callback?
-				//float rho = density(initial_water_level - m_hdf5_reader.buf[i].Coords_2, 0); // how to?
-				float rho = m_physparams.rho0[0];
-				vel[i] = make_float4(0, 0, 0, rho);
+				// compute particle info, local pos, cellhash
+				info[i] = make_particleinfo(ptype, 0, i);
 
-				// count the number of different objects
-				// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
-				// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
-				// in cases of ODE objects this array is allocated as well, even though it is not needed.
-				///m_simparams.numObjects = max(specialBoundType, m_simparams.numObjects);
-
-				// TODO: warning as follows? But should be printed only once
-				// if (m_hdf5_reader.buf[bi].ParticleType != 0) ... warning, filling with different particle type
-
-				//info[i] = make_particleinfo(VERTEXPART, specialBoundType, i);
-				if (m_hdf5_reader.buf[bi].ParticleType == 2) // 2 aka CRIXUS_VERTEX
-					info[i] = make_particleinfo(VERTEXPART, 0, i);
-				else
-				if (m_hdf5_reader.buf[bi].ParticleType == 3) // 3 aka CRIXUS_BOUNDARY
-					info[i] = make_particleinfo(BOUNDPART, 0, i);
-				// TODO: eulerVel not here yet
 				calc_localpos_and_hash(
 					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,
 						m_physparams.rho0[0]*m_hdf5_reader.buf[bi].Volume),
 					info[i], pos[i], hash[i]);
-				vertices[i].x = m_hdf5_reader.buf[bi].VertexParticle1;
-				vertices[i].y = m_hdf5_reader.buf[bi].VertexParticle2;
-				vertices[i].z = m_hdf5_reader.buf[bi].VertexParticle3;
-				boundelm[i].x = m_hdf5_reader.buf[bi].Normal_0;
-				boundelm[i].y = m_hdf5_reader.buf[bi].Normal_1;
-				boundelm[i].z = m_hdf5_reader.buf[bi].Normal_2;
-				boundelm[i].w = m_hdf5_reader.buf[bi].Surface;
-				// update hash map
+
+				// store particle mass for current type, if it was not store already
+				if (ptype == FLUIDPART && !isfinite(fluid_part_mass))
+					fluid_part_mass = pos[i].w;
+				else
+				if (ptype == BOUNDPART && !isfinite(boundary_part_mass))
+					boundary_part_mass = pos[i].w;
+				else
+				if (ptype == VERTEXPART && !isfinite(vertex_part_mass))
+					vertex_part_mass = pos[i].w;
+				// also set rigid_body_part_mass, which is orthogonal the the previous values
+				// TODO: with SA bounds, this value has little meaning or should be split
+				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
+					rigid_body_part_mass = pos[i].w;
+
+				// load boundary-specific data (SA bounds only)
+				if (ptype == BOUNDPART) {
+					vertices[i].x = m_hdf5_reader.buf[bi].VertexParticle1;
+					vertices[i].y = m_hdf5_reader.buf[bi].VertexParticle2;
+					vertices[i].z = m_hdf5_reader.buf[bi].VertexParticle3;
+					boundelm[i].x = m_hdf5_reader.buf[bi].Normal_0;
+					boundelm[i].y = m_hdf5_reader.buf[bi].Normal_1;
+					boundelm[i].z = m_hdf5_reader.buf[bi].Normal_2;
+					boundelm[i].w = m_hdf5_reader.buf[bi].Surface;
+				}
+
+				// update hash map. This could be restricted to vertex parts only
 				hdf5idx_to_idx_map[ m_hdf5_reader.buf[bi].AbsoluteIndex ] = i;
 			}
 			// free memory and prepare for next file
 			m_hdf5_reader.reset();
-			// update counter of fluid particles
-			n_bparts += num_parts_in_file;
-		}
-	elaborated_parts += n_bparts;
-	std::cout << "Boundary parts: " << n_bparts << "\n";
-	std::cout << "Boundary part mass: " << pos[elaborated_parts - 1].w << "\n";
 
-	uint rigid_body_counter = 0; // just for printing info
-	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
-		if (m_geometries[g]->has_hdf5_file && m_geometries[g]->type == GT_FLOATING_BODY) {
+		} // if (m_geometries[g]->has_hdf5_file)
 
+		// copy particles for objects not loaded from file
+		// FIXME: here assuming non-SA?
+		if (m_geometries[g]->type == GT_FLOATING_BODY && !(m_geometries[g]->has_hdf5_file)) {
+			// not loading from file: take object vector
 			PointVect & rbparts = m_geometries[g]->ptr->GetParts();
-			const uint num_rbparts = rbparts.size();
-			std::cout << "Rigid body " << rigid_body_counter << ": " << num_rbparts << " particles ";
-			for (uint i = elaborated_parts; i < elaborated_parts + num_rbparts; i++) {
+			current_geometry_particles = rbparts.size();
+			// copy particles
+			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-				info[i] = make_particleinfo(OBJECTPART, rigid_body_counter, i - elaborated_parts);
-				calc_localpos_and_hash(rbparts[i - elaborated_parts], info[i], pos[i], hash[i]);
+				info[i] = make_particleinfo(OBJECTPART, rigid_body_counter, i - tot_parts);
+				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
+				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
+				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
+					rigid_body_part_mass = pos[i].w;
 			}
-			elaborated_parts += num_rbparts;
-			std::cout << ", part mass: " << pos[elaborated_parts-1].w << "\n";
+		}
 
+		// increas rigid_body_counter, recap current object particles
+		if (m_geometries[g]->type == GT_FLOATING_BODY) {
+			std::cout << " - Rigid body " << rigid_body_counter << ": " << current_geometry_particles << " particles";
+			std::cout << ", part mass: " << rigid_body_part_mass << "\n";
+			// reset value to spot possible anomalies in next bodies
+			rigid_body_part_mass = NAN;
+			// update counter
 			rigid_body_counter++;
 		}
+
+		// update global particle counter
+		tot_parts += current_geometry_particles;
+
+	} // for each geometry
 
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	if (loaded_parts > 0) {
 		std::cout << "Fixing connectivity..." << std::flush;
-		for (uint i=0; i< elaborated_parts; i++)
+		for (uint i=0; i< tot_parts; i++)
 			if (BOUNDARY(info[i])) {
 				if (hdf5idx_to_idx_map[ vertices[i].x ] == 0xFFFFFFFF ||
 					hdf5idx_to_idx_map[ vertices[i].y ] == 0xFFFFFFFF ||
@@ -1125,6 +1176,17 @@ void XProblem::copy_to_array(BufferList &buffers)
 			}
 		std::cout << "DONE" << "\n";
 	}
+
+	std::cout << "Fluid parts: " << fluid_parts << "\n";
+	std::cout << "Fluid part mass: " << fluid_part_mass << "\n";
+	std::cout << "Boundary parts: " << boundary_parts << "\n";
+	std::cout << "Boundary part mass: " << boundary_part_mass << "\n";
+	if (m_simparams.boundarytype == SA_BOUNDARY) {
+		std::cout << "Vertex parts: " << vertex_parts << "\n";
+		std::cout << "Vertex part mass: " << vertex_part_mass << "\n";
+	}
+	std::cout << "Tot parts: " << tot_parts << "\n";
+	std::flush(std::cout);
 }
 
 /*void
