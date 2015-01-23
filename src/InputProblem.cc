@@ -238,7 +238,7 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.inoutBoundaries = true;
 	//*************************************************************************************
 
-	//IOWithoutWalls (i/o between two plates without walls)
+	//Small test case with similar features to La Palisse
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 		h5File.setFilename("meshes/0.la_palisse_small_test.h5sph");
