@@ -264,6 +264,36 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		m_simparams.maxneibsnum = 240;
 	//*************************************************************************************
 
+	//Periodic wave with IO
+	//*************************************************************************************
+#elif SPECIFIC_PROBLEM == PeriodicWave
+		h5File.setFilename("meshes/0.periodic_wave_0.02.h5sph");
+
+		set_deltap(0.02f);
+
+		m_physparams.kinematicvisc = 1.0e-2f;
+		m_simparams.visctype = DYNAMICVISC;
+		m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
+		m_physparams.set_density(0, 1000.0, 7.0f, 25.0f);
+
+		m_simparams.tend = 10.0;
+		//m_simparams.tend = 0.2;
+		m_simparams.testpoints = false;
+		m_simparams.periodicbound = PERIODIC_Y;
+		m_simparams.surfaceparticle = false;
+		m_simparams.savenormals = false;
+		H = 0.5;
+		l = 2.7; w = 0.5; h = 1.2;
+		m_simparams.sfactor=1.3f;
+		m_origin = make_double3(-1.35, -0.25, -0.1);
+		//m_simparams.ferrari= 1.0f;
+		m_simparams.ferrari = 1.0f;
+		m_simparams.calcPrivate = false;
+		m_simparams.inoutBoundaries = true;
+		m_simparams.ioWaterdepthComputation = false;
+		m_simparams.maxneibsnum = 240;
+	//*************************************************************************************
+
 #endif
 
 	// SPH parameters
@@ -355,6 +385,17 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
 	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
+#if SPECIFIC_PROBLEM == PeriodicWave
+	// define some constants
+	const float L = 2.5f;
+	const float k = 2.0f*M_PI/L;
+	const float D = 0.5f;
+	const float A = 0.05f;
+	const float phi = M_PI/2.0f;
+	const float omega = sqrt(9.807f*k*tanh(k*D));
+	printf("Periodic Wave: Wave period: %e\n", 2.0f*M_PI/omega);
+#endif
+
 	h5File.read();
 
 	uint n_parts = 0;
@@ -399,6 +440,17 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			vel[i] = make_float4(lvel, 0, 0, m_physparams.rho0[0]);
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
 			vel[i] = make_float4(1.0f, 0.0f, 0.0f, (m_physparams.rho0[0]+2.0f));//+1.0f-1.0f*h5File.buf[i].Coords_0));
+#elif SPECIFIC_PROBLEM == PeriodicWave
+			const float x = h5File.buf[i].Coords_0;
+			const float z = h5File.buf[i].Coords_2;
+			const float eta = A*cos(k*x+phi);
+			const float h = D + eta;
+			//const float p = rho*9.807f*(z-h) + cosh(k*z)/cosh(k*D)*rho*9.807f*eta;
+			const float p = rho*-9.807f*(z-h) + cosh(k*z)/cosh(k*D)*rho*9.807f*eta;
+			const float _rho = powf(p/(625.0f*rho/7.0f) + 1.0f, 1.0f/7.0f)*rho;
+			const float u = A*omega*cosh(k*z)/sinh(k*D)*cos(k*x+phi);
+			const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x+phi);
+			vel[i] = make_float4(u, 0, w, _rho);
 #else
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 #endif
@@ -451,6 +503,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
 					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
 				}
+#elif SPECIFIC_PROBLEM == PeriodicWave
+				// two pressure boundaries
+				if (openBoundType != 0) {
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+				}
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 				// two pressure boundaries
 				if (openBoundType != 0)
@@ -495,6 +553,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], IO_PARTICLE_FLAG);
 					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+				}
+#elif SPECIFIC_PROBLEM == PeriodicWave
+				// two pressure boundaries
+				if (openBoundType != 0) {
+					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
 				}
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 				// two pressure boundaries
@@ -554,7 +618,8 @@ InputProblem::max_parts(uint numpart)
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
-    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
+    SPECIFIC_PROBLEM == SmallChannelFlowIOKeps || \
+    SPECIFIC_PROBLEM == PeriodicWave
 		return (uint)((float)numpart*1.2f);
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 		return (uint)((float)numpart*2.0f);
