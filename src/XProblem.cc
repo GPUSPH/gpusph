@@ -19,6 +19,7 @@
 
 XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 {
+	// *** XProblem initialization
 	m_numActiveGeometries = 0;
 	m_numRigidBodies = 0;
 	m_numPlanes = 0;
@@ -27,123 +28,68 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	m_positioning = PP_CENTER;
 
-	/*h5File.setFilename("meshes/0.complete_sa_example.h5sph");
+	// *** Optional simulation parameters (defaults?)
 
-	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
-	cube = STLMesh::load_stl("./meshes/CompleteSaExample_cube_coarse.stl");
-
-	m_simparams.numObjects = 2;
-
-	m_simparams.sfactor=1.3f;
-	set_deltap(0.02f);
-
-	m_physparams.kinematicvisc = 1.0e-2f;
-	m_simparams.visctype = DYNAMICVISC;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
-
-	// ugh (cit.)
-	m_simparams.maxneibsnum = 384;
-
-	m_simparams.tend = 10.0;
-	m_simparams.testpoints = false;
-	m_simparams.surfaceparticle = false;
-	m_simparams.savenormals = false;
-	initial_water_level = 0.5;
-	expected_final_water_level = INLET_WATER_LEVEL;
-	// extra margin around the domain size
-	const double MARGIN = 0.1;
-	const double INLET_BOX_LENGTH = 0.25;
-	// size of the main cube, exlcuding the inlet and any margin
-	box_l = box_w = box_h = 1.0;
-	// world size
-	world_l = box_l + INLET_BOX_LENGTH + 2 * MARGIN; // length is 1 (box) + 0.2 (inlet box length)
-	world_w = box_w + 2 * MARGIN;
-	world_h = box_h + 2 * MARGIN;
-	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
-	m_simparams.calcPrivate = false;
-	m_simparams.inoutBoundaries = true;
-	m_simparams.movingBoundaries = true;
+	//m_simparams.tend = 10.0;
+	//m_simparams.testpoints = false;
+	//m_simparams.surfaceparticle = false;
+	//m_simparams.savenormals = false;
+	//m_simparams.calcPrivate = false;
+	// TODO: check: do we need the following 4 as well?
+	//m_simparams.inoutBoundaries = true;
+	//m_simparams.movingBoundaries = true;
 	//m_simparams.floatingObjects = true;
+	//m_simparams.numObjects = 2;
 
-	// SPH parameters
-	m_simparams.dt = 0.00004f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
-	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 1;
-	m_simparams.shepardfreq = 0;
-	m_simparams.mlsfreq = 0;
-	m_simparams.ferrari = 0.1;
-	m_simparams.mbcallback = false;
-	m_simparams.boundarytype = SA_BOUNDARY;
-	m_simparams.nlexpansionfactor = 1.1;
+	// NOTE: no need to set m_simparams.numODEbodies, since it will be set by allocate_ODE_bodies()
 
-	// Size and origin of the simulation domain
-	m_size = make_double3(world_l, world_w ,world_h);
-
-	// Physical parameters
-	float g = length(m_physparams.gravity);
-
-	m_physparams.dcoeff = 5.0f*g*expected_final_water_level;
-
-	m_physparams.r0 = m_deltap;
-
-	m_physparams.artvisccoeff = 0.3f;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
-	m_physparams.epsxsph = 0.5f;
-
-	// Drawing and saving times
-
-	// will use only 1 ODE body: the floating/moving cube (container is fixed)
-	allocate_ODE_bodies(1);
-	dInitODE();
-	// world setup
-	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
-	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
-	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
-	// Set gravity（x, y, z)
-	dWorldSetGravity(m_ODEWorld,
-		m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z); */
+	// *** Optional SPH parameters
 
 	//m_simparams.dt = 0.00004f;
 	//m_simparams.xsph = false;
-	//m_simparams.dtadapt = true;
+	//m_simparams.dtadapt = true; // default?
 	//m_simparams.dtadaptfactor = 0.3;
 	//m_simparams.buildneibsfreq = 1;
 	//m_simparams.shepardfreq = 0;
 	//m_simparams.mlsfreq = 0;
 	//m_simparams.ferrari = 0.1;
 	//m_simparams.mbcallback = false;
-	//m_simparams.boundarytype = SA_BOUNDARY;
 	//m_simparams.nlexpansionfactor = 1.1;
-	//m_physparams.artvisccoeff = 0.3f;
 	//m_simparams.sfactor=1.3f;
 
-	//m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
+	// *** Optional physical parameters
+	//m_physparams.artvisccoeff = 0.3f;
+	//m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	//m_physparams.epsxsph = 0.5f;
+	// TODO: following comment: still makes sense?
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
-
+	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	m_physparams.r0 = m_deltap;
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);
 	double H = 3;
 	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
-	m_simparams.dtadapt = true;
 	//m_physparams.kinematicvisc = 1.0e-2f;
+
+	// *** Initialization of minimal simulation parameters
+	m_simparams.maxneibsnum = 256 + 64;
+	m_simparams.dtadapt = true;
+	// viscositys: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
 	m_simparams.visctype = ARTVISC;
+	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
+	m_simparams.boundarytype = SA_BOUNDARY;
+	// also init formulation (SPH_F1, SPH_F2) & kernel type (WENDLAND, CUBICSPLINE)?
+
+	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
 	m_origin = make_double3(NAN, NAN, NAN);
 	m_size = make_double3(NAN, NAN, NAN);
-	m_simparams.maxneibsnum = 256 + 64;
-
-	// Name of problem used for directory creation
 	m_name = "XProblem";
 
-	m_simparams.boundarytype = SA_BOUNDARY;
+	// example usage
 
 	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
 	// main container
@@ -155,9 +101,11 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 	// floating box
 	addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent2.h5sph", "./sa/sa_box_sbgrid_2.stl");
 
+	// manually set world size and origin while HDF5 file loading does not support bbox detection yet
 	m_origin = make_double3(-1, -1, -1);
 	m_size = make_double3(3, 3, 3);
 
+	// add "universe box" of planes. TODO: check: what happens with LJ planes in SA simulation?
 	makeUniverseBox(m_origin, m_origin + m_size );
 }
 
@@ -241,6 +189,7 @@ void XProblem::cleanupODE()
 	dWorldDestroy(m_ODEWorld);
 	dCloseODE();
 }
+
 // for an exaple ODE_nearCallback see
 // http://ode-wiki.org/wiki/index.php?title=Manual:_Collision_Detection#Collision_detection
 void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
@@ -1089,7 +1038,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				// compute particle info, local pos, cellhash
-				info[i] = make_particleinfo(ptype, 0, i);
+				const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? rigid_body_counter : 0 );
+				info[i] = make_particleinfo(ptype, object_id, i);
+				// not yet enabled?
+				// if (m_geometries[g]->type == GT_FLOATING_BODY)
+				//	SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 
 				calc_localpos_and_hash(
 					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,

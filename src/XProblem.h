@@ -100,13 +100,6 @@ class XProblem: public Problem {
 
 		PositioningPolicy m_positioning;
 
-		/*
-		string			inputfile;
-		double			world_w, world_l, world_h;			// world size (i.e. incl. margins and inlet box)
-		double			box_w, box_l, box_h;	// size of the main box (excl. margins, no inlet box)
-		HDF5SphReader	h5File;
-		*/
-
 		// initialize ODE
 		void initializeODE();
 		// guess what
@@ -201,6 +194,7 @@ class XProblem: public Problem {
 
 		void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
 
+		// methods related to SA bounds yet to be implemented
 		/*
 		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 		uint max_parts(uint);
@@ -235,9 +229,10 @@ class XProblem: public Problem {
 			const	uint	numObjects,
 			const	double	t,
 			const	float	dt);
-
-		void fillDeviceMap();
 		*/
+
+		// will probably implement a smart, general purpose one
+		// void fillDeviceMap();
 };
 
 #endif	/* _XPROBLEM_H */
