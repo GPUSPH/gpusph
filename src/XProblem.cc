@@ -151,6 +151,10 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	// inflow square
 	addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent1.h5sph", NULL);
+
+	// floating box
+	addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent2.h5sph", "./sa/sa_box_sbgrid_2.stl");
+
 	m_origin = make_double3(-1, -1, -1);
 	m_size = make_double3(3, 3, 3);
 
