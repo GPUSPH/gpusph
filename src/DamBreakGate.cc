@@ -147,32 +147,29 @@ int DamBreakGate::fill_parts()
 
 	Cube fluid, fluid1, fluid2, fluid3, fluid4;
 
-	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(1.6, 0, 0),
-						Vector(0, 0.67, 0), Vector(0, 0, 0.4));
+	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
 
 	MbCallBack& mbgatedata = m_mbcallbackdata[0];
 	Rect gate = Rect (Point(mbgatedata.origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
-	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
-					Vector(0, 0.12, 0), Vector(0, 0, 0.4 - r0));
+	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
 
-	fluid = Cube(Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.4, 0, 0),
-				Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.4 - r0));
+	fluid = Cube(Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, 0.4 - r0);
 
 	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
-		fluid1 = Cube(Point(0.4 + m_deltap + r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.5 - m_deltap - 2*r0, 0, 0),
-					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
+		fluid1 = Cube(Point(0.4 + m_deltap + r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.5 - m_deltap - 2*r0, 0.67 - 2*r0, 0.03);
 
-		fluid2 = Cube(Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.58 - 2*r0, 0, 0),
-					Vector(0, 0.67 - 2*r0, 0), Vector(0, 0, 0.03));
+		fluid2 = Cube(Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.58 - 2*r0, 0.67 - 2*r0, 0.03);
 
-		fluid3 = Cube(Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
-					Vector(0, 0.24 - 2*r0, 0), Vector(0, 0, 0.03));
+		fluid3 = Cube(Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.12, 0.24 - 2*r0, 0.03);
 
-		fluid4 = Cube(Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z), Vector(0.12, 0, 0),
-					Vector(0, 0.31 - 2*r0, 0), Vector(0, 0, 0.03));
+		fluid4 = Cube(Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.12, 0.31 - 2*r0, 0.03);
 	}
 
 	boundary_parts.reserve(2000);

@@ -37,6 +37,8 @@
 #include "Point.h"
 #include "Vector.h"
 
+#include "deprecation.h"
+
 //! Cube object class
 /*!
  *	The cube class defines the cube object and implements all the
@@ -62,19 +64,19 @@ class Cube: public Object {
 	private:
 		Point	m_origin;	///< origin of the cube (bottom left corner in the body frame) expressed in the global reference frame
 		Vector	m_vx;		///< vector representing the edge along x'
-		Vector 	m_vy;		///< vector representing the edge along y'
-		Vector 	m_vz;		///< vector representing the edge along z'
+		Vector	m_vy;		///< vector representing the edge along y'
+		Vector	m_vz;		///< vector representing the edge along z'
 		double	m_lx;		///< length along x' axis
-		double 	m_ly;		///< length along y' axis
-		double 	m_lz;		///< length along z' axis
+		double	m_ly;		///< length along y' axis
+		double	m_lz;		///< length along z' axis
 
 	public:
 		/// \name Constructors and destructor
 		//@{
 		Cube(void);
-		Cube(const Point&, const double, const double, const double, const EulerParameters&);
+		Cube(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
 		Cube(const Point&, const double, const double, const double, const dQuaternion);
-		Cube(const Point&, const Vector&, const Vector&, const Vector&);
+		Cube(const Point&, const Vector&, const Vector&, const Vector&) DEPRECATED;
 		virtual ~Cube(void) {};
 		//@}
 

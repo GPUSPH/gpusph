@@ -33,11 +33,14 @@ using namespace std;
 
 struct Options {
 	string	problem; // problem name
+	string	resume_fname; // file to resume simulation from
 	int		device;  // which device to use
 	string	dem; // DEM file to use
 	string	dir; // directory where data will be saved
 	double	deltap; // deltap
 	float	tend; // simulation end
+	float	checkpoint_freq; // frequency of hotstart checkpoints (in simulated seconds)
+	int	checkpoints; // number of hotstart checkpoints to keep
 	bool	nosave; // disable saving
 	bool	gpudirect; // enable GPUDirect
 	bool	striping; // enable striping (i.e. compute/transfer overlap)
@@ -46,10 +49,13 @@ struct Options {
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
 	Options(void) :
 		problem(),
+		resume_fname(),
 		device(-1),
 		dem(),
 		dir(),
 		deltap(NAN),
+		checkpoint_freq(NAN),
+		checkpoints(-1),
 		tend(NAN),
 		nosave(false),
 		gpudirect(false),

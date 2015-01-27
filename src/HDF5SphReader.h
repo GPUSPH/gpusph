@@ -47,7 +47,7 @@ public:
 	void reset();
 
 	// sets the filename
-	void setFilename(std::string);
+	void setFilename(std::string const&);
 
 	ReadParticles *buf;
 };

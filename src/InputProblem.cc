@@ -107,11 +107,13 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		//m_physparams.kinematicvisc = 1.0e-2f;
 		//m_simparams.visctype = DYNAMICVISC;
 		//m_physparams.gravity = make_float3(8.0*m_physparams.kinematicvisc, 0.0, 0.0);
+		//m_physparams.set_density(0, 1000.0, 7.0f, 10.0f);
 
 		// turbulent (as in agnes' paper)
 		m_physparams.kinematicvisc = 1.5625e-3f;
 		m_simparams.visctype = KEPSVISC;
 		m_physparams.gravity = make_float3(1.0, 0.0, 0.0);
+		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 
 		m_simparams.tend = 100.0;
 		m_simparams.periodicbound = PERIODIC_XY;
@@ -121,7 +123,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_physparams.set_density(0, 1000.0, 7.0f, 200.0f);
 		m_simparams.calcPrivate = true;
 	}
 	//*************************************************************************************
@@ -197,7 +198,6 @@ InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(l, w ,h);
 
 	// Physical parameters
-	//m_physparams.gravity = make_float3(0.8, 0.0, 0.0); //body forse for plane Poiseuille flow
 	float g = length(m_physparams.gravity);
 
 	m_physparams.dcoeff = 5.0f*g*H;
@@ -343,4 +343,18 @@ void InputProblem::copy_to_array(BufferList &buffers)
 	std::flush(std::cout);
 
 	h5File.empty();
+}
+
+void
+InputProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+{
+	const float k0 = 1.0f/sqrtf(0.09f);
+
+	for (uint i = 0; i < numpart; i++) {
+		const unsigned int cellHash = cellHashFromParticleHash(hash[i]);
+		const float gridPosZ = float((cellHash % (m_gridsize.COORD2*m_gridsize.COORD1)) / m_gridsize.COORD1);
+		const float z = pos[i].z + m_origin.z + (gridPosZ + 0.5f)*m_cellsize.z;
+		k[i] = k0;
+		e[i] = 1.0f/0.41f/fmax(1.0f-fabs(z),0.5f*m_deltap);
+	}
 }

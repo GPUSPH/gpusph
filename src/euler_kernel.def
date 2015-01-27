@@ -146,6 +146,7 @@ eulerDevice(
 
 		// Moving boundaries
 		case PT_PISTON:
+			vel.w += dt*force.w;
 			// Updating positions for piston particles.
 			// Now d_mbdata.x contains the piston velocity
 			pos.x += d_mbdata[obj].x*dt;
@@ -153,6 +154,7 @@ eulerDevice(
 			break;
 		case PT_PADDLE:
 			{
+			vel.w += dt*force.w;
 			// Updating postions for paddle particles
 			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
 			const float2 relPos = make_float2(absPos.x - d_mbdata[obj].x, absPos.z - d_mbdata[obj].y);
@@ -167,6 +169,7 @@ eulerDevice(
 			}
 			break;
 		case PT_GATE:
+			vel.w += dt*force.w;
 			// Updating positions for gate particles
 			// mbdata.x,y,z contains gate velocity
 			as_float3(pos) += as_float3(d_mbdata[obj])*dt;

@@ -42,6 +42,9 @@
 /* Include only the problem selected at compile time */
 #include "problem_select.opt"
 
+// HotFile
+#include "HotFile.h"
+
 /* Include all other opt file for show_version */
 #include "gpusph_version.opt"
 #include "fastmath_select.opt"
@@ -163,7 +166,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// compute mbdata size
 	gdata->mbDataSize = problem->m_mbnumber * sizeof(float4);
 
-	// create the Writer according to the WriterType
+	// create the Writers according to the WriterType
 	createWriter();
 
 	// we should need no PS anymore
@@ -181,10 +184,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
-
-	// initialize CGs (or, the problem could directly write on gdata)
-	initializeObjectsCGs();
-	initializeObjectsVelocities();
 
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
@@ -239,15 +238,54 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
 	}
 
-	printf("Copying the particles to shared arrays...\n");
-	printf("---\n");
-	// copy particles from problem to GPUSPH buffers
-	// TODO FIXME copying data from the problem doubles the host memory requirements
-	// find some smart way to have the host fill the shared buffer directly.
+	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
+	 * or, if it was requested, we load buffers from a HotStart file
+	 */
+	/* TODO FIXME copying data from the Problem doubles the host memory
+	 * requirements, find some smart way to have the host fill the shared
+	 * buffer directly.
+	 */
 
-	problem->copy_to_array(gdata->s_hBuffers);
+	if (clOptions->resume_fname.empty()) {
+		printf("Copying the particles to shared arrays...\n");
+		printf("---\n");
+		problem->copy_to_array(gdata->s_hBuffers);
+		printf("---\n");
+	} else {
+		struct stat statbuf;
+		ifstream hot_in;
+		ostringstream err_msg;
+		HotFile *hf = NULL;
+		const char *fname = clOptions->resume_fname.c_str();
+		cout << "Hot starting from " << fname << "..." << endl;
+		if (stat(fname, &statbuf)) {
+			// stat failed
+			err_msg << "Hot start file " << fname << " not found";
+			throw runtime_error(err_msg.str());
+		}
+		/* enable automatic exception handling on failure */
+		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
+		hot_in.open(fname);
+		hf = new HotFile(hot_in, gdata);
+		hf->load();
+		cerr << "Successfully restored hot start file" << endl;
+		cerr << *hf << endl;
+		cerr << "Restarting from t=" << hf->get_t()
+			<< ", iteration=" << hf->get_iterations()
+			<< ", dt=" << hf->get_dt() << endl;
+		// warn about possible discrepancies in case of ODE objects
+		if (problem->get_simparams()->numODEbodies) {
+			cerr << "WARNING: simulation has rigid bodies, resume will not give identical results" << endl;
+		}
+		gdata->iterations = hf->get_iterations();
+		gdata->dt = hf->get_dt();
+		gdata->t = hf->get_t();
+		hot_in.close();
+	}
 
-	printf("---\n");
+	// initialize CGs (or, the problem could directly write on gdata)
+	initializeObjectsCGs();
+	initializeObjectsVelocities();
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
@@ -255,7 +293,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			gdata->s_hBuffers.getData<BUFFER_TKE>(),
 			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
 			gdata->totParticles,
-			gdata->s_hBuffers.getData<BUFFER_INFO>());
+			gdata->s_hBuffers.getData<BUFFER_INFO>(),
+			gdata->s_hBuffers.getData<BUFFER_POS>(),
+			gdata->s_hBuffers.getData<BUFFER_HASH>());
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
@@ -823,7 +863,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += planeSize4;
 
 		gdata->s_hPlanesDiv = new float[gdata->numPlanes];
-		memset(gdata->s_hPlanes, 0, planeSize);
+		memset(gdata->s_hPlanesDiv, 0, planeSize);
 		totCPUbytes += planeSize;
 	}
 

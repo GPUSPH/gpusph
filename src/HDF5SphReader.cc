@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fstream>
+#include <limits.h> // UINT_MAX
 
 #include "hdf5_select.opt"
 
@@ -148,7 +149,7 @@ HDF5SphReader::reset()
 }
 
 void
-HDF5SphReader::setFilename(std::string fn)
+HDF5SphReader::setFilename(std::string const& fn)
 {
 	// reset npart
 	npart = UINT_MAX;
@@ -157,6 +158,6 @@ HDF5SphReader::setFilename(std::string fn)
 	// check whether file exists
 	std::ifstream f(filename.c_str());
 	if(!f.good())
-		fprintf(stderr, "WARNING: Could not open H5SPH file: %s", filename.c_str());
+		throw std::invalid_argument(std::string("could not open ") + fn);
 	f.close();
 }
