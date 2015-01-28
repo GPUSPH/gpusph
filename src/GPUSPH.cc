@@ -183,6 +183,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
+	for (uint d=0; d < gdata->devices; d++)
+		gdata->highestDevId[d] = gdata->totParticles + GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
+
 	// the number of allocated particles will be bigger, to be sure it can contain particles being created
 	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
 	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
@@ -1755,12 +1758,14 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
 		if (problem->get_simparams()->inoutBoundaries) {
 
-			gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-				(gdata->numVertices * gdata->createdParticlesIterations);
+			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
+			//	(gdata->numVertices * gdata->createdParticlesIterations);
 
-			if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
-				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
-				gdata->quit_request = true;
+			for (uint d = 0; d < gdata->devices; d++) {
+				if (UINT_MAX - gdata->numVertices < gdata->highestDevId[d]) {
+					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, d);
+					gdata->quit_request = true;
+				}
 			}
 		}
 	}

@@ -6,6 +6,10 @@
 #include <string>
 #include <iostream>
 
+#define CRIXUS_FLUID 1
+#define CRIXUS_VERTEX 2
+#define CRIXUS_BOUNDARY 3
+
 class HDF5SphReader {
 private:
 	std::string	filename;

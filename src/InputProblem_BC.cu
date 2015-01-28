@@ -30,7 +30,6 @@ InputProblem_imposeBoundaryCondition(
 			float&			eps)
 {
 	vel = make_float4(0.0f);
-	eulerVel = make_float4(0.0f);
 	tke = 0.0f;
 	eps = 0.0f;
 
@@ -55,6 +54,24 @@ InputProblem_imposeBoundaryCondition(
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 			// the 0.025 is deltap*0.5 = 0.05*0.5
 			eulerVel.x = log(fmax(1.0f-fabs(absPos.z), 0.025f)/0.0015625f)/0.41f+5.2f;
+#elif SPECIFIC_PROBLEM == PeriodicWave
+			// define some constants
+			const float L = 2.5f;
+			const float k = 2.0f*M_PI/L;
+			const float D = 0.5f;
+			const float A = 0.05f;
+			const float phi = M_PI/2.0f;
+			const float omega = sqrt(9.807f*k*tanh(k*D));
+			const float x = absPos.x;
+			const float z = absPos.z;
+			const float eta = A*cos(k*x-omega*t+phi);
+			const float h = D + eta;
+			if (z-0.005 <= h) {
+				const float u = A*omega*cosh(k*z)/sinh(k*D)*cos(k*x-omega*t+phi);
+				const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x-omega*t+phi);
+				eulerVel.x = u;
+				eulerVel.z = w;
+			}
 #else
 			eulerVel.x = 0.0f;
 #endif
@@ -100,10 +117,6 @@ InputProblem_imposeBoundaryCondition(
 		}
 	}
 
-	// forced moving boundaries
-	else if (MOVING(info) && !FLOATING(info)) {
-		;// placeholder if only
-	}
 }
 
 __global__ void
@@ -132,6 +145,9 @@ InputProblem_imposeBoundaryConditionDevice(
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		// open boundaries and forced moving objects
 		if (VERTEX(info) && IO_BOUNDARY(info)) {
+			// For corners we need to get eulerVel in case of k-eps and pressure outlet
+			if (CORNER(info) && newTke && !VEL_IO(info))
+				eulerVel = newEulerVel[index];
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;

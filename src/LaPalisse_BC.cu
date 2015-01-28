@@ -5,13 +5,13 @@
 #include <string>
 #include <iostream>
 
-#include "CompleteSaExample.h"
+#include "LaPalisse.h"
 #include "GlobalData.h"
 #include "textures.cuh"
 #include "utils.h"
 #include "Problem.h"
 
-namespace cuCompleteSaExample
+namespace cuLaPalisse
 {
 #include "cellgrid.h"
 // Core SPH functions
@@ -19,7 +19,7 @@ namespace cuCompleteSaExample
 
 __device__
 void
-CompleteSaExample_imposeBoundaryCondition(
+LaPalisse_imposeBoundaryCondition(
 	const	particleinfo	info,
 	const	float3			absPos,
 			float			waterdepth,
@@ -30,7 +30,6 @@ CompleteSaExample_imposeBoundaryCondition(
 			float&			eps)
 {
 	vel = make_float4(0.0f);
-	eulerVel = make_float4(0.0f);
 	tke = 0.0f;
 	eps = 0.0f;
 
@@ -38,14 +37,10 @@ CompleteSaExample_imposeBoundaryCondition(
 	if (IO_BOUNDARY(info)) {
 		// impose pressure
 		if (!VEL_IO(info)) {
-			/*
-			if (t < 1.0)
-				// inlet pressure grows to target in 1s settling time
-				waterdepth = 0.5 + t * (INLET_WATER_LEVEL - 0.5F);
-			else
-			*/
+			if (object(info)==1) {
 				// set inflow waterdepth
-				waterdepth = INLET_WATER_LEVEL;
+				waterdepth = INLET_WATER_LEVEL - 1.08f;
+			}
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
@@ -54,7 +49,7 @@ CompleteSaExample_imposeBoundaryCondition(
 }
 
 __global__ void
-CompleteSaExample_imposeBoundaryConditionDevice(
+LaPalisse_imposeBoundaryConditionDevice(
 			float4*		newVel,
 			float4*		newEulerVel,
 			float*		newTke,
@@ -78,13 +73,21 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		// open boundaries and forced moving objects
-		if (VERTEX(info) && IO_BOUNDARY(info) && !CORNER(info)) {
+		if (VERTEX(info) && IO_BOUNDARY(info)) {
+			// For corners we need to get eulerVel in case of k-eps and pressure outlet
+			if (CORNER(info) && newTke && !VEL_IO(info))
+				eulerVel = newEulerVel[index];
 			const float3 absPos = d_worldOrigin + as_float3(oldPos[index])
 									+ calcGridPosFromParticleHash(particleHash[index])*d_cellSize
 									+ 0.5f*d_cellSize;
 			float waterdepth = 0.0f;
+			if (!VEL_IO(info) && IOwaterdepth) {
+				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
+				waterdepth += d_worldOrigin.z; // now absolute z position
+			}
 			// this now calls the virtual function that is problem specific
-			CompleteSaExample_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
+			LaPalisse_imposeBoundaryCondition(info, absPos, waterdepth, t, vel, eulerVel, tke, eps);
 			// copy values to arrays
 			newVel[index] = vel;
 			newEulerVel[index] = eulerVel;
@@ -96,32 +99,32 @@ CompleteSaExample_imposeBoundaryConditionDevice(
 	}
 }
 
-} // end of cuCompleteSaExample namespace
+} // end of cuLaPalisse namespace
 
 extern "C"
 {
 
 void
-CompleteSaExample::setboundconstants(
+LaPalisse::setboundconstants(
 	const	PhysParams	*physparams,
 	float3	const&		worldOrigin,
 	uint3	const&		gridSize,
 	float3	const&		cellSize)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_cellSize, &cellSize, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuCompleteSaExample::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_worldOrigin, &worldOrigin, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_gridSize, &gridSize, sizeof(uint3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuLaPalisse::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
 
 }
 
 }
 
 void
-CompleteSaExample::imposeBoundaryConditionHost(
+LaPalisse::imposeBoundaryConditionHost(
 			float4*			newVel,
 			float4*			newEulerVel,
 			float*			newTke,
@@ -146,7 +149,7 @@ CompleteSaExample::imposeBoundaryConditionHost(
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	cuCompleteSaExample::CompleteSaExample_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
+	cuLaPalisse::LaPalisse_imposeBoundaryConditionDevice<<< numBlocks, numThreads, dummy_shared >>>
 		(newVel, newEulerVel, newTke, newEpsilon, oldPos, IOwaterdepth, t, numParticles, particleHash);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

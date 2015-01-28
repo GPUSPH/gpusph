@@ -4,19 +4,19 @@
   It contains a class for reading *.h5sph files - input files in hdf5 format.
 */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <fstream>
-#include <limits.h> // UINT_MAX
-
-#include "hdf5_select.opt"
-
 #if USE_HDF5
 #include <hdf5.h>
 #else
 #include <stdexcept>
 #define NO_HDF5_ERR throw std::runtime_error("HDF5 support not compiled in")
 #endif
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <fstream>
+#include <limits.h> // UINT_MAX
+
+#include "hdf5_select.opt"
 
 #include <stdexcept>
 

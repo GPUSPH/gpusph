@@ -787,14 +787,15 @@ Gamma(	const	float		&slength,
 	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
 		j = 2;
 
-	// compute second coordinate which is equal to n_s x e_j
-	const float4 coord1 = make_float4( j == 0, j == 1, j == 2, 0); // set the coordinate j to 1
-	const float4 coord2 = make_float4(
+	// compute the first coordinate which is a 2-D rotated version of the normal
+	const float4 coord1 = normalize(make_float4(
 		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y, // -z if j == 1, y if j == 2
+		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
 		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
-		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x, // -y if j == 0, x if j == 1
-		0);
+		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
+		0));
+	// the second coordinate is the cross product between the normal and the first coordinate
+	const float4 coord2 = cross3(boundElement, coord1);
 
 	// relative positions of vertices with respect to the segment, normalized by h
 	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
@@ -1086,7 +1087,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				sumtke += w*neib_k;
 				if (IO_BOUNDARY(info)) {
 					// for open boundaries compute dv/dn = 0
-					sumvel += w*as_float3(oldVel[neib_index]);
+					sumvel += w*as_float3(oldVel[neib_index] + oldEulerVel[neib_index]);
 					// and de/dn = 0
 					sumeps += w*neib_eps;
 				}
@@ -1147,7 +1148,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		}
 
 		// Compute the Riemann Invariants for I/O conditions
-		if (IO_BOUNDARY(info)) {
+		if (IO_BOUNDARY(info) && !CORNER(info)) {
 			const float unInt = dot(sumvel, as_float3(normal));
 			const float unExt = dot3(eulerVel, normal);
 			const float rhoInt = oldVel[index].w;
@@ -1241,42 +1242,43 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// Now relPos is a float4 and neib mass is stored in relPos.w
 				const float4 relPos = pos_corr - oldPos[neib_index];
 
-				const float3 normal = as_float3(tex1Dfetch(boundTex, neib_index));
+				const float4 normal = tex1Dfetch(boundTex, neib_index);
 
 				const float3 relVel = as_float3(vel - oldVel[neib_index]);
 
 				// quick check if we are behind a segment and if the segment is reasonably close by
 				// (max distance vertex to segment is deltap/2)
-				if (dot(normal, as_float3(relPos)) <= 0.0f &&
+				if (dot3(normal, relPos) <= 0.0f &&
 					sqlength3(relPos) < deltap &&
-					dot(relVel, normal) < 0.0f) {
+					dot(relVel, as_float3(normal)) < 0.0f) {
 					// now check whether the normal projection is inside the triangle
 					// first get the position of the vertices local coordinate system for relative positions to vertices
 					uint j = 0;
-					float4 coord1 = make_float4(0.0f);
-					float4 coord2 = make_float4(0.0f);
 					// Get index j for which n_s is minimal
 					if (fabs(normal.x) > fabs(normal.y))
 						j = 1;
-					if (((float)1-j)*fabs(normal.x) + ((float)j)*fabs(normal.y) > fabs(normal.z))
+					if ((1-j)*fabs(normal.x) + j*fabs(normal.y) > fabs(normal.z))
 						j = 2;
-					// compute second coordinate which is equal to n_s x e_j
-					if (j==0) {
-						coord1 = make_float4(1.0f, 0.0f, 0.0f, 0.0f);
-						coord2 = make_float4(0.0f, normal.z, -normal.y, 0.0f);
-					}
-					else if (j==1) {
-						coord1 = make_float4(0.0f, 1.0f, 0.0f, 0.0f);
-						coord2 = make_float4(-normal.z, 0.0f, normal.x, 0.0f);
-					}
-					else {
-						coord1 = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-						coord2 = make_float4(normal.y, -normal.x, 0.0f, 0.0f);
-					}
+
+					// compute the first coordinate which is a 2-D rotated version of the normal
+					const float4 coord1 = normalize(make_float4(
+						// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+						-((j==1)*normal.z) +  (j == 2)*normal.y , // -z if j == 1, y if j == 2
+						  (j==0)*normal.z  - ((j == 2)*normal.x), // z if j == 0, -x if j == 2
+						-((j==0)*normal.y) +  (j == 1)*normal.x , // -y if j == 0, x if j == 1
+						0));
+					// the second coordinate is the cross product between the normal and the first coordinate
+					const float4 coord2 = cross3(normal, coord1);
+
+					const float2 vPos0 = vertPos0[neib_index];
+					const float2 vPos1 = vertPos1[neib_index];
+					const float2 vPos2 = vertPos2[neib_index];
+
 					// relative positions of vertices with respect to the segment, normalized by h
-					const float4 v0 = -(vertPos0[neib_index].x*coord1 + vertPos0[neib_index].y*coord2); // e.g. v0 = r_{v0} - r_s
-					const float4 v1 = -(vertPos1[neib_index].x*coord1 + vertPos1[neib_index].y*coord2);
-					const float4 v2 = -(vertPos2[neib_index].x*coord1 + vertPos2[neib_index].y*coord2);
+					float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
+					float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
+					float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
+
 					const float4 relPosV0 = relPos - v0;
 					const float4 relPosV10 = v1 - v0;
 					const float4 relPosV20 = v2 - v0;
@@ -1394,7 +1396,9 @@ saVertexBoundaryConditions(
 				const	float			deltap,
 				const	float			slength,
 				const	float			influenceradius,
-				const	bool			initStep)
+				const	bool			initStep,
+				const	uint			deviceId,
+				const	uint			numDevices)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -1484,9 +1488,12 @@ saVertexBoundaryConditions(
 					// for the computation of gamma, in general we need a sort of normal as well
 					// for open boundaries to decide whether or not particles are created at a
 					// vertex or not
-					if ((IO_BOUNDARY(info) && !CORNER(info)) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info))) {
+					if ((IO_BOUNDARY(info) && !CORNER(info)) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info) && !CORNER(info))) {
 						avgNorm += as_float3(boundElement);
 					}
+				}
+				if (oldTKE && !initStep && !IO_BOUNDARY(neib_info) && CORNER(info)) {
+					avgNorm += as_float3(boundElement)*boundElement.w;
 				}
 				// AM TODO FIXME the following code should work, but doesn't for some obscure reason
 				//if (CORNER(neib_info) && neibVerts.w == id(info)) {
@@ -1529,8 +1536,12 @@ saVertexBoundaryConditions(
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	oldVel[index].w = sumrho/numseg;
-	if (oldTKE)
+	if (oldTKE) {
 		oldTKE[index] = sumtke/numseg;
+		// adjust Eulerian velocity so that it is tangential to the fixed wall
+		if ((!IO_BOUNDARY(info) || CORNER(info)) && !initStep)
+			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
+	}
 	if (oldEps)
 		oldEps[index] = sumeps/numseg;
 	// open boundaries
@@ -1571,17 +1582,22 @@ saVertexBoundaryConditions(
 			// only, so it's bound to break on other archs. I'm seriously starting to think
 			// that we can drop the stupid particleinfo ushort4 typedef and we should just
 			// define particleinfo as a ushort ushort uint struct, with proper alignment.
+
+			const uint clone_idx = atomicAdd(newNumParticles, 1);
+			// number of new particles that were created on this device in this
+			// time step
+			const uint newNumPartsOnDevice = clone_idx + 1 - numParticles;
+			// the i-th device can only allocate an id that satisfies id%n == i, where
+			// n = number of total devices
+			const uint nextId = newNumPartsOnDevice*numDevices;
+
 			// FIXME endianness
-			uint clone_id = id(info) + d_newIDsOffset;
+			uint clone_id = nextId + d_newIDsOffset;
 			particleinfo clone_info = info;
 			clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
 			clone_info.y = 0; // reset object to 0
 			clone_info.z = (clone_id & 0xffff); // set the id of the object
 			clone_info.w = ((clone_id >> 16) & 0xffff);
-
-			// TODO optimize by having only one thread calling atomicAdd,
-			// adding enough for all threads in the block
-			int clone_idx = atomicAdd(newNumParticles, 1);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle
@@ -2704,9 +2720,11 @@ saFindClosestVertex(
 		}
 	}
 	if (minVertId == UINT_MAX) {
-		// make sure we get a nice crash here
-		printf("-- ERROR -- Could not find a non-corner vertex for segment id: %d with object type: %d\n", id(info), obj);
-		return;
+		SET_FLAG(info, CORNER_PARTICLE_FLAG);
+		pinfo[index] = info;
+		//// make sure we get a nice crash here
+		//printf("-- ERROR -- Could not find a non-corner vertex for segment id: %d with object type: %d\n", id(info), obj);
+		//return;
 	} else {
 		vertices[index].w = minVertId;
 		SET_FLAG(info, CORNER_PARTICLE_FLAG);
