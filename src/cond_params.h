@@ -85,6 +85,14 @@ struct empty
 	template<typename T1, typename T2, typename T3, typename T4>
 	__host__ __device__ __forceinline__
 	empty(T1, T2, T3, T4) {}
+
+	template<typename T1, typename T2, typename T3, typename T4, typename T5>
+	__host__ __device__ __forceinline__
+	empty(T1, T2, T3, T4, T5) {}
+
+	template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
+	__host__ __device__ __forceinline__
+	empty(T1, T2, T3, T4, T5, T6) {}
 };
 
 

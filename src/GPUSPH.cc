@@ -87,6 +87,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	problem->check_dt();
 	problem->check_maxneibsnum();
 	problem->create_problem_dir();
+	problem->calculateFerrariCoefficient();
 
 	printf("Problem calling set grid params\n");
 	problem->set_grid_params();
@@ -182,13 +183,17 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
+	// the number of allocated particles will be bigger, to be sure it can contain particles being created
+	// WARNING: particle creation in inlets also relies on this, do not disable if using inlets
+	gdata->allocatedParticles = problem->max_parts(gdata->totParticles);
+
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
 
 	// allocate aux arrays for rollCallParticles()
-	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->totParticles );
-	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->totParticles );
-	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->totParticles );
+	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
+	m_rcNotified = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
+	m_rcAddrs = (uint*) calloc( sizeof(uint) , gdata->allocatedParticles );
 
 	if (!m_rcBitmap) {
 		fprintf(stderr,"FATAL: failed to allocate roll call bitmap\n");
@@ -211,8 +216,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	size_t totCPUbytes = allocateGlobalHostBuffers();
 
 	// pretty print
-	printf("  allocated %s on host for %s particles\n",
+	printf("  allocated %s on host for %s particles (%s active)\n",
 		gdata->memString(totCPUbytes).c_str(),
+		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
 
 	// copy planes from the problem to the shared array
@@ -286,6 +292,14 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// initialize CGs (or, the problem could directly write on gdata)
 	initializeObjectsCGs();
 	initializeObjectsVelocities();
+
+	// initialize CGs (or, the problem could directly write on gdata)
+	initializeObjectsCGs();
+	initializeObjectsVelocities();
+
+	// if any SA open bounds is enabled, we need to update the counters for correct id creation
+	if (problem->get_simparams()->inoutBoundaries)
+		countVertexAndNonFluidParticles();
 
 	// initialize values of k and e for k-e model
 	if (_sp->visctype == KEPSVISC)
@@ -408,7 +422,7 @@ bool GPUSPH::runSimulation() {
 		buildNeibList();
 
 		// set density and other values for segments and vertices
-		initializeBoundaryConditions();
+		saBoundaryConditions(INITIALIZATION_STEP);
 
 	}
 
@@ -423,14 +437,11 @@ bool GPUSPH::runSimulation() {
 	// write some info. This could replace "Entering the main simulation cycle"
 	printStatus();
 
+	buildNeibList();
+
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
-
-		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0) {
-			buildNeibList();
-		}
 
 		uint shepardfreq = problem->get_simparams()->shepardfreq;
 		if (shepardfreq > 0 && gdata->iterations > 0 && (gdata->iterations % shepardfreq == 0)) {
@@ -488,8 +499,7 @@ bool GPUSPH::runSimulation() {
 
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
-		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+			doCommand(UPDATE_EXTERNAL, POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)
@@ -499,11 +509,14 @@ bool GPUSPH::runSimulation() {
 		//				initially done trivial and slow: stop and read
 		//			//reduce bodies
 
+		// boundelements is swapped because the normals are updated in the moving objects case
+		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
 
-		gdata->swapDeviceBuffers(BUFFER_POS);
+		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
 
 		//			//reduce bodies
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
@@ -517,19 +530,14 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
-		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-			gdata->only_internal = true;
+		// semi-analytical boundary conditions
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
+			saBoundaryConditions(INTEGRATOR_STEP_1);
 
-			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
-			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_1);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
-		}
+		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
 
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+		// Here the first part of our time integration scheme is complete. All updated values
+		// are now in the read buffers again.
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
@@ -547,44 +555,72 @@ bool GPUSPH::runSimulation() {
 
 		// update forces of external particles
 		if (MULTI_DEVICE)
-			doCommand(UPDATE_EXTERNAL, BUFFER_FORCES | BUFFER_GRADGAMMA | BUFFER_XSPH | DBLBUFFER_WRITE);
-		gdata->swapDeviceBuffers(BUFFER_GRADGAMMA);
+			doCommand(UPDATE_EXTERNAL, POST_FORCES_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 		// if striping was active, now we want the kernels to complete
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
 		// reduce bodies
-		size_t numBodies = problem->get_simparams()->numODEbodies;
-		if (numBodies > 0) {
-			doCommand(REDUCE_BODIES_FORCES);
+		if (problem->get_simparams()->numObjects > 0) {
+			size_t numBodies = problem->get_simparams()->numODEbodies;
+			if (numBodies > 0) {
+				doCommand(REDUCE_BODIES_FORCES);
 
-			// now sum up the partial forces and momenta computed in each gpu
-			for (uint ob = 0; ob < numBodies; ob ++) {
-				gdata->s_hRbTotalForce[ob] = make_float3( 0.0F );
-				gdata->s_hRbTotalTorque[ob] = make_float3( 0.0F );
+				// now sum up the partial forces and momenta computed in each gpu
+				for (uint ob = 0; ob < numBodies; ob ++) {
+					gdata->s_hRbTotalForce[ob] = make_float3( 0.0F );
+					gdata->s_hRbTotalTorque[ob] = make_float3( 0.0F );
 
-				for (uint d = 0; d < gdata->devices; d++) {
-					gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d][ob];
-					gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d][ob];
-				} // iterate on devices
-			} // iterate on objects
+					for (uint d = 0; d < gdata->devices; d++) {
+						gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d][ob];
+						gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d][ob];
+					} // iterate on devices
+				} // iterate on objects
 
-			// if running multinode, also reduce across nodes
-			if (MULTI_NODE) {
-				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numBodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numBodies, SUM_REDUCTION);
+				// if running multinode, also reduce across nodes
+				if (MULTI_NODE) {
+					// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
+					gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numBodies, SUM_REDUCTION);
+					gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numBodies, SUM_REDUCTION);
+				}
+
+				/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
+				memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numBodies*sizeof(float3));
+				memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numBodies*sizeof(float3));
+
+				problem->object_forces_callback(gdata->t, 2, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+
+				problem->ODE_bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
+						gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 			}
 
-			/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
-			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numBodies*sizeof(float3));
-			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numBodies*sizeof(float3));
+			// copy values into the moving object arrays
+			for (uint ob=0; ob < problem->get_simparams()->numObjects; ob++) {
+				const uint curODEobjectId = problem->m_ODEobjectId[ob];
+				if (curODEobjectId != UINT_MAX) {
+					gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[curODEobjectId];
+					gdata->s_hMovObjTranslations[ob] = gdata->s_hRbTranslations[curODEobjectId];
+					for (uint i=0; i<9; i++)
+						gdata->s_hMovObjRotationMatrices[ob*9+i] = gdata->s_hRbRotationMatrices[curODEobjectId*9+i];
+				}
+			}
 
-			problem->object_forces_callback(gdata->t, 2, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
-
-			problem->ODE_bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, 2, gdata->dt, gdata->s_hRbGravityCenters, gdata->s_hRbTranslations,
-					gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
+			// Impose translation & rotation for forced movement of objects
+			for (uint ob=0; ob < problem->get_simparams()->numObjects; ob++) {
+				// if ODEobjectId[id] is not equal to UINT_MAX we have a floating object
+				if(problem->m_ODEobjectId[ob] == UINT_MAX) {
+					// TODO call imposeForcedMovingObjects even though the object might be an open boundary
+					problem->imposeForcedMovingObjects(
+						gdata->s_hMovObjGravityCenters[ob],
+						gdata->s_hMovObjTranslations[ob],
+						&gdata->s_hMovObjRotationMatrices[ob*9],
+						ob+1,
+						gdata->t,
+						gdata->dt
+						);
+				}
+			}
 
 			// upload translation vectors and rotation matrices; will upload CGs after euler
 			doCommand(UPLOAD_OBJECTS_MATRICES);
@@ -593,33 +629,46 @@ bool GPUSPH::runSimulation() {
 		} // if there are objects
 
 		// swap read and writes again because the write contains the variables at time n
-		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+		// boundelements is swapped because the normals are updated in the moving objects case
+		gdata->swapDeviceBuffers(BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
 
+		gdata->swapDeviceBuffers(BUFFER_BOUNDELEMENTS);
+
 		// euler needs the previous centers of gravity, so we upload CGs only here
-		if (problem->get_simparams()->numODEbodies > 0)
+		if (problem->get_simparams()->numObjects > 0)
 			doCommand(UPLOAD_OBJECTS_CG);
 
 		//			//reduce bodies
 
-		gdata->swapDeviceBuffers(BUFFER_POS);
+		// semi-analytical boundary conditions
+		if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
+			saBoundaryConditions(INTEGRATOR_STEP_2);
 
-		// semi-analytical boundary update
-		if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
-			gdata->only_internal = true;
+		// update inlet/outlet changes only after step 2
+		// and check if a forced buildneibs is required (i.e. if particles were created)
+		if (problem->get_simparams()->inoutBoundaries){
+			doCommand(DOWNLOAD_NEWNUMPARTS);
 
-			doCommand(SA_CALC_BOUND_CONDITIONS, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
-			doCommand(SA_UPDATE_BOUND_VALUES, INTEGRATOR_STEP_2);
-			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
+			gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
+			for (uint d = 1; d < gdata->devices; d++)
+				gdata->particlesCreated |= gdata->particlesCreatedOnNode[d];
+			// if runnign multinode, should also find the network minimum
+			if (MULTI_NODE)
+				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
+
+			// update the it counter if new particles are created
+			if (gdata->particlesCreated)
+				gdata->createdParticlesIterations++;
 		}
 
-		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
+		gdata->swapDeviceBuffers(POST_COMPUTE_SWAP_BUFFERS);
+
+		// Here the second part of our time integration scheme is complete, i.e. the time-step is
+		// fully computed. All updated values are now in the read buffers again.
 
 		// increase counters
 		gdata->iterations++;
@@ -676,6 +725,12 @@ bool GPUSPH::runSimulation() {
 		if (finished || gdata->quit_request)
 			force_write = true;
 
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
+			buildNeibList();
+		}
+
 		// Launch specific post processing kernels (vorticity, free surface detection , ...)
 		// before writing to disk
 		if (need_write || force_write) {
@@ -698,7 +753,7 @@ bool GPUSPH::runSimulation() {
 
 			// get GradGamma
 			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
-				which_buffers |= BUFFER_GRADGAMMA;
+				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
 
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
@@ -719,6 +774,10 @@ bool GPUSPH::runSimulation() {
 			// get k and epsilon
 			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
 				which_buffers |= BUFFER_TKE | BUFFER_EPSILON | BUFFER_TURBVISC;
+
+			// get Eulerian velocity
+			if (gdata->problem->get_simparams()->inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
+				which_buffers |= BUFFER_EULERVEL;
 
 			// get private array
 			if (gdata->problem->get_simparams()->calcPrivate) {
@@ -831,11 +890,14 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers << new HostBuffer<BUFFER_TURBVISC>();
 	}
 
+	if (problem->m_simparams.inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
+		gdata->s_hBuffers << new HostBuffer<BUFFER_EULERVEL>();
+
 	if (problem->m_simparams.calcPrivate)
 		gdata->s_hBuffers << new HostBuffer<BUFFER_PRIVATE>();
 
 	// number of elements to allocate
-	const size_t numparts = gdata->totParticles;
+	const size_t numparts = gdata->allocatedParticles;
 
 	const uint numcells = gdata->nGridCells;
 	const size_t devcountCellSize = sizeof(devcount_t) * numcells;
@@ -936,6 +998,19 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete[] gdata->s_dCellEnds;
 		delete[] gdata->s_dCellStarts;
 		delete[] gdata->s_dSegmentsStart;
+	}
+}
+
+void GPUSPH::countVertexAndNonFluidParticles()
+{
+	for (uint p = 0; p < gdata->totParticles; p++) {
+		particleinfo info = gdata->s_hBuffers.getData<BUFFER_INFO>()[p];
+
+		if ( !FLUID(info) ) {
+			gdata->numInitialNonFluidParticles++;
+			if ( VERTEX(info) )
+				gdata->numVertices++;
+		}
 	}
 }
 
@@ -1226,7 +1301,7 @@ void GPUSPH::doWrite(bool force)
 		dpos.w = pos.w;
 
 		if (!warned_nan_pos && !(isfinite(dpos.x) && isfinite(dpos.y) && isfinite(dpos.z))) {
-			fprintf(stderr, "WARNING: particle %u (%u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",
+			fprintf(stderr, "WARNING: particle %u (id %u) has NAN position! (%g, %g, %g) @ (%u, %u, %u) = (%g, %g, %g)\n",
 				i, id(info[i]),
 				pos.x, pos.y, pos.z,
 				gridPos.x, gridPos.y, gridPos.z,
@@ -1303,6 +1378,12 @@ void GPUSPH::buildNeibList()
 	doCommand(SORT);
 	doCommand(REORDER);
 
+	// get the new number of particles: with inlet/outlets, they
+	// may have changed because of incoming/outgoing particle, otherwise
+	// some particles might have been disabled (and discarded) for flying
+	// out of the domain
+	doCommand(DOWNLOAD_NEWNUMPARTS);
+
 	// swap pos, vel and info double buffers
 	gdata->swapDeviceBuffers(BUFFERS_ALL_DBL);
 
@@ -1323,7 +1404,11 @@ void GPUSPH::buildNeibList()
 		// NOTE: this imports also particle hashes without resetting the high bits, which are wrong
 		// until next calchash; however, they are filtered out when using the particle hashes.
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
-	}
+		// update the newNumParticles device counter
+		if (problem->get_simparams()->inoutBoundaries)
+			doCommand(UPLOAD_NEWNUMPARTS);
+	} else
+		updateArrayIndices();
 
 	// update vertID->particleIndex lookup table for vertex connectivity, on *all* particles
 	if (problem->get_simparams()->boundarytype == SA_BOUNDARY) {
@@ -1366,26 +1451,6 @@ void GPUSPH::doCallBacks()
 
 	if (pb->m_simparams.gcallback)
 		gdata->s_varGravity = pb->g_callback(gdata->t);
-}
-
-void GPUSPH::initializeBoundaryConditions()
-{
-	// initially data is in read so swap to write
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON);
-
-	gdata->only_internal = true;
-	// compute values for vertices plus initial estimate for gradgamma direction
-	doCommand(SA_CALC_BOUND_CONDITIONS, INITIALIZATION_STEP);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
-
-	// compute values for segments
-	doCommand(SA_UPDATE_BOUND_VALUES, INITIALIZATION_STEP);
-	if (MULTI_DEVICE)
-		doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | DBLBUFFER_WRITE);
-
-	// swap changed buffers back so that read contains the new data
-	gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_GRADGAMMA);
 }
 
 void GPUSPH::printStatus()
@@ -1547,13 +1612,21 @@ void GPUSPH::updateArrayIndices() {
 	for (uint d = 1; d < gdata->devices; d++) // ...then shift the other devices by means of the previous devices
 		gdata->s_hStartPerDevice[d] = gdata->s_hStartPerDevice[d-1] + gdata->s_hPartsPerDevice[d-1];
 
-	// process 0 checks if total number of particles varied in the simulation
-	if (gdata->mpi_rank == 0) {
+	/* Checking the total number of particles can be done by rank 0 process only if there are no inlets/outlets,
+	 * since its aim is just error checking. However, in presence of inlets every process should have the
+	 * updated number of active particles, at least for coherent status printing; thus, every process counts
+	 * the particles and only rank 0 checks for correctness. */
+	if (gdata->mpi_rank == 0 || gdata->problem->get_simparams()->inoutBoundaries) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
 
-		if (newSimulationTotal != gdata->totParticles) {
+		// number of particle may increase or decrease if there are respectively inlets or outlets
+		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_simparams()->inoutBoundaries) ||
+			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_simparams()->inoutBoundaries) ) {
+			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
+			gdata->totParticles = newSimulationTotal;
+		} else if (newSimulationTotal != gdata->totParticles && gdata->mpi_rank == 0) {
 			printf("WARNING: at iteration %lu the number of particles changed from %u to %u for no known reason!\n",
 				gdata->iterations, gdata->totParticles, newSimulationTotal);
 
@@ -1568,6 +1641,14 @@ void GPUSPH::updateArrayIndices() {
 			gdata->totParticles = newSimulationTotal;
 		}
 	}
+
+	// in case estimateMaxInletsIncome() was slightly in defect (unlikely)
+	// FIXME: like in other methods, we should avoid quitting only one process
+	if (processCount > gdata->allocatedParticles) {
+		printf( "FATAL: Number of total particles at iteration %lu (%u) exceeding allocated buffers (%u). Requesting immediate quit\n",
+				gdata->iterations, processCount, gdata->allocatedParticles);
+		gdata->quit_request = true;
+	}
 }
 
 // initialize the centers of gravity of objects
@@ -1581,11 +1662,124 @@ void GPUSPH::initializeObjectsCGs()
 			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
 		}
 		uint rbfirstindex[MAXBODIES];
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(uint)));
+		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(int)));
 		for (int i=0; i < m_simparams->numbodies; i++) {
 			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
 		} */
 	}
+
+	// allocate centers of gravity
+	uint numObj = gdata->problem->get_simparams()->numObjects;
+	printf("alloc: %d\n", numObj);
+	if (numObj > 0) {
+		gdata->s_hMovObjGravityCenters = new float3 [numObj];
+		gdata->s_hMovObjTranslations = new float3 [numObj];
+		gdata->s_hMovObjRotationMatrices = new float [numObj*9];
+	}
+
+	// copy values into the moving object arrays
+	for (uint ob=0; ob < numObj; ob++) {
+		const uint curODEobjectId = gdata->problem->m_ODEobjectId[ob];
+		if (curODEobjectId != UINT_MAX)
+			// this is the gravity center for floating ODE objects
+			gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[curODEobjectId];
+		else
+			// we don't need a center of gravity just yet for forced moving objects (non-ODE)
+			gdata->s_hMovObjGravityCenters[ob] = make_float3(0.0f);
+	}
+}
+
+void GPUSPH::saBoundaryConditions(flag_t cFlag)
+{
+	// initially data is in read so swap to write
+	if (cFlag & INITIALIZATION_STEP) {
+		gdata->swapDeviceBuffers(BUFFER_INFO);
+		doCommand(IDENTIFY_CORNER_VERTICES);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
+
+		gdata->swapDeviceBuffers(BUFFER_VERTICES);
+		doCommand(FIND_CLOSEST_VERTEX);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_VERTICES | DBLBUFFER_WRITE);
+
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_INFO);
+	}
+
+	// impose open boundary conditions
+	if (problem->get_simparams()->inoutBoundaries) {
+		// reduce the water depth at pressure outlets if required
+		// if we have multiple devices then we need to run a global max on the different gpus / nodes
+		if (MULTI_DEVICE && problem->get_simparams()->ioWaterdepthComputation) {
+			// each device gets his waterdepth array from the gpu
+			doCommand(DOWNLOAD_IOWATERDEPTH);
+			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
+			// max over all devices per node
+			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
+				n_IOwaterdepth[ob] = 0;
+				for (uint d = 0; d < gdata->devices; d++)
+					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
+			}
+			// if we are in multi-node mode we need to run an mpi reduction over all nodes
+			if (MULTI_NODE) {
+				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
+			}
+			// copy global value back to one array so that we can upload it again
+			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
+				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
+			// upload the global max value to the devices
+			doCommand(UPLOAD_IOWATERDEPTH);
+		}
+		gdata->only_internal = false;
+		gdata->swapDeviceBuffers(BUFFER_POS);
+		doCommand(IMPOSE_OPEN_BOUNDARY_CONDITION);
+		gdata->swapDeviceBuffers(BUFFER_POS);
+	}
+
+	gdata->only_internal = true;
+
+	if (!(cFlag & INITIALIZATION_STEP))
+		gdata->swapDeviceBuffers(BUFFER_VERTICES);
+
+	// compute boundary conditions on segments and detect outgoing particles at open boundaries
+	doCommand(SA_CALC_SEGMENT_BOUNDARY_CONDITIONS, cFlag);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	// check if new particles were created and check for ID overflow
+	if (cFlag & INTEGRATOR_STEP_2) {
+		// compute the offset for id cloning and check for possible overflows
+		// NOTE: the formula is
+		//    new_id = vertex_id + initial_parts - initial_fluid_parts +
+		//             (num_iterations_with_part_creations * numVertexParticles)
+		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
+		if (problem->get_simparams()->inoutBoundaries) {
+
+			gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
+				(gdata->numVertices * gdata->createdParticlesIterations);
+
+			if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
+				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
+				gdata->quit_request = true;
+			}
+		}
+	}
+
+	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
+	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
+	if (MULTI_DEVICE)
+		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
+
+	// check if we need to delete some particles which passed through open boundaries
+	if (problem->get_simparams()->inoutBoundaries && !(cFlag & INITIALIZATION_STEP)) {
+		doCommand(DISABLE_OUTGOING_PARTS);
+		if (MULTI_DEVICE)
+			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);
+	}
+
+	// swap changed buffers back so that read contains the new data
+	if (cFlag & INITIALIZATION_STEP)
+		gdata->swapDeviceBuffers(BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
 }
 
 // initialize the centers of gravity of objects

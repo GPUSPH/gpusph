@@ -199,13 +199,13 @@ const char* PeriodicityName[PERIODIC_XYZ+1]
 
 enum ParticleType {
 	PT_FLUID = 0,
+	PT_VERTEX,
 	PT_BOUNDARY,
 	PT_PISTON,
 	PT_PADDLE,
 	PT_GATE,
 	PT_OBJECT,
-	PT_TESTPOINT,
-	PT_VERTEX,
+	PT_TESTPOINT
 };
 
 /* The ParticleType enum is rarely used directly, since for storage its value
@@ -230,6 +230,12 @@ enum ParticleType {
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 
 #define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
+#define FIXED_PARTICLE_FLAG		(PART_FLAG_START<<1)
+#define IO_PARTICLE_FLAG		(PART_FLAG_START<<2)
+#define VEL_IO_PARTICLE_FLAG	(PART_FLAG_START<<3)
+#define CORNER_PARTICLE_FLAG	(PART_FLAG_START<<5)
+#define MOVING_PARTICLE_FLAG	(PART_FLAG_START<<6)
+#define FLOATING_PARTICLE_FLAG	(PART_FLAG_START<<7)
 
 /* A bitmask to select only the fluid number */
 #define FLUID_NUM_MASK	((1<<MAX_FLUID_BITS)-1)
@@ -261,17 +267,34 @@ disable_particle(float4 &pos) {
 
 /* Tests for particle types */
 // Testpoints
-#define TESTPOINTS(f)	(type(f) == TESTPOINTSPART)
+#define TESTPOINTS(f)	((type(f) & PART_TYPE_MASK) == TESTPOINTSPART)
 // Particle belonging to an object
-#define OBJECT(f)		(type(f) == OBJECTPART)
+#define OBJECT(f)		((type(f) & PART_TYPE_MASK) == OBJECTPART)
 // Boundary particle
-#define BOUNDARY(f)		(type(f) == BOUNDPART)
+#define BOUNDARY(f)		((type(f) & PART_TYPE_MASK) == BOUNDPART)
 // Vertex particle
-#define VERTEX(f)		(type(f) == VERTEXPART)
+#define VERTEX(f)		((type(f) & PART_TYPE_MASK) == VERTEXPART)
 
 /* Tests for particle flags */
 // Free surface detection
 #define SURFACE(f)		(type(f) & SURFACE_PARTICLE_FLAG)
+// Fixed particle (e.g. Dalrymple's dynamic bounary particles)
+#define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
+// If this flag is set the object is and open boundary
+#define IO_BOUNDARY(f)	(type(f) & IO_PARTICLE_FLAG)
+// If this flag is set the normal velocity is imposed at an open boundary
+// if it is not set the pressure is imposed instead
+#define VEL_IO(f)		(type(f) & VEL_IO_PARTICLE_FLAG)
+// If vel_io is not set then we have a pressure inlet
+#define PRES_IO(f)		(!VEL_IO(f))
+// If this flag is set then a particle at an open boundary will have a non-varying mass but still
+// be treated like an open boundary particle apart from that. This avoids having to span new particles
+// very close to the side wall which causes problems
+#define CORNER(f)		(type(f) & CORNER_PARTICLE_FLAG)
+// This flag is set for moving vertices / segments either forced or free (floating)
+#define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
+// If the floating flag is set then the particles 
+#define FLOATING(f)		(type(f) & FLOATING_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
  * this is used when saving data

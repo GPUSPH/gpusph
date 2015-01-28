@@ -50,6 +50,8 @@
 
 #include "ode/ode.h"
 
+#define BLOCK_SIZE_IOBOUND	256
+
 typedef std::vector<vertexinfo> VertexVect;
 
 // not including GlobalData.h since it needs the complete definition of the Problem class
@@ -66,6 +68,7 @@ class Problem {
 		int			m_ncols, m_nrows;
 
 		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
+
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
 		enum SplitAxis
@@ -110,6 +113,8 @@ class Problem {
 		float3		m_bodies_linearvel[MAXBODIES];		// Linear velocity of rigid bodies
 		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
+		uint		m_ODEobjectId[MAXBODIES];			// ODE object id
+		uint		m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
 		Problem(const GlobalData *_gdata);
 
@@ -179,6 +184,9 @@ class Problem {
 
 		double get_deltap() const
 		{ return m_deltap; }
+
+		// Compute the ferrari coefficient based on a lengthscale
+		void calculateFerrariCoefficient();
 
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
@@ -256,6 +264,8 @@ class Problem {
 		bool finished(double) const;
 
 		virtual int fill_parts(void) = 0;
+		// maximum number of particles that may be generated
+		virtual uint max_parts(uint numParts);
 		virtual uint fill_planes(void);
 		virtual void copy_to_array(BufferList & ) = 0;
 		virtual void copy_planes(float4*, float*);
@@ -312,6 +322,35 @@ class Problem {
 			const float *linvel, const float *angvel);
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+
+		virtual void
+		setboundconstants(
+			const	PhysParams	*physparams,
+			float3	const&		worldOrigin,
+			uint3	const&		gridSize,
+			float3	const&		cellSize) {};
+
+		virtual void imposeBoundaryConditionHost(
+					float4*			newVel,
+					float4*			newEulerVel,
+					float*			newTke,
+					float*			newEpsilon,
+			const	particleinfo*	info,
+			const	float4*			oldPos,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numObjects,
+			const	uint			particleRangeEnd,
+			const	hashKey*		particleHash);
+
+		virtual void imposeForcedMovingObjects(
+					float3	&gravityCenters,
+					float3	&translations,
+					float*	rotationMatrices,
+			const	uint	ob,
+			const	double	t,
+			const	float	dt);
 
 		// Partition the grid in numDevices parts - virtual to allow problem or topology-specific implementations
 		virtual void fillDeviceMap();

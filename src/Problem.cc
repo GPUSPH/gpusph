@@ -52,6 +52,9 @@ Problem::Problem(const GlobalData *_gdata)
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
+	for (uint i=0; i<MAXBODIES; i++)
+		m_ODEobjectId[i] = UINT_MAX;
+	m_firstODEobjectPartId = 0;
 }
 
 
@@ -551,7 +554,7 @@ Problem::get_ODE_bodies_numparts(void) const
 {
 	size_t total_parts = 0;
 	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
-		total_parts += m_ODE_bodies[i]->GetParts().size();
+		total_parts += m_ODE_bodies[i]->GetNumParts();
 	}
 
 	return total_parts;
@@ -564,7 +567,7 @@ Problem::get_ODE_body_numparts(const int i) const
 	if (!m_simparams.numODEbodies)
 		return 0;
 
-	return m_ODE_bodies[i]->GetParts().size();
+	return m_ODE_bodies[i]->GetNumParts();
 }
 
 void
@@ -672,6 +675,47 @@ Problem::object_forces_callback(double t, int step, float3 *forces, float3 *torq
 { /* default does nothing */ }
 
 
+uint
+Problem::max_parts(uint numParts)
+{
+	if (!m_simparams.inoutBoundaries)
+		return numParts;
+
+	// we assume that we can't have more particles than by filling the whole domain:
+	// if the user knows how many particles there are going to be he should implement
+	// his own version of this function
+	double3 range = get_worldsize();
+	range /= m_deltap; // regular fill
+	uint wparts = max(range.x,1)*max(range.y,1)*max(range.z,1);
+	printf("  estimating %u particles to fill the world\n", wparts);
+
+	return wparts;
+}
+
+// This function computes the Ferrari coefficient based on a length-scale. The formula for the coefficient
+// is L/(1000 * deltap), see Mayrhofer et al., 2013. If the length scale is not set then the ferrari coefficient
+// will be taken as it is, regardless of whether it is set or not (default value = 0)
+void
+Problem::calculateFerrariCoefficient()
+{
+	if (isnan(m_simparams.ferrari)) {
+		if (isnan(m_simparams.ferrariLengthScale)) {
+			m_simparams.ferrari = 0.0f;
+			printf("Ferrari coefficient: %e (default value, disabled)\n", m_simparams.ferrari);
+			return;
+		}
+		else {
+			m_simparams.ferrari = m_simparams.ferrariLengthScale*1e-3f/m_deltap;
+			printf("Ferrari coefficient: %e (computed from length scale: %e)\n", m_simparams.ferrari, m_simparams.ferrariLengthScale);
+			return;
+		}
+	}
+	printf("Ferrari coefficient: %e\n", m_simparams.ferrari);
+	return;
+}
+
+// input: force, torque, step number (why?), dt
+// output: cg, trans, steprot (can be input uninitialized)
 void
 Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
 		const double dt, float3 * & cg, float3 * & trans, float * & steprot,
@@ -884,4 +928,35 @@ Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4*
 		k[i] = k0;
 		e[i] = e0;
 	}
+}
+
+void
+Problem::imposeBoundaryConditionHost(
+			float4*			newVel,
+			float4*			newEulerVel,
+			float*			newTke,
+			float*			newEpsilon,
+	const	particleinfo*	info,
+	const	float4*			oldPos,
+			uint*			IOwaterdepth,
+	const	float			t,
+	const	uint			numParticles,
+	const	uint			numObjects,
+	const	uint			particleRangeEnd,
+	const	hashKey*		particleHash)
+{
+	// not implemented
+	return;
+}
+
+void Problem::imposeForcedMovingObjects(
+			float3	&gravityCenters,
+			float3	&translations,
+			float*	rotationMatrices,
+	const	uint	ob,
+	const	double	t,
+	const	float	dt)
+{
+	// not implemented
+	return;
 }

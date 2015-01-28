@@ -32,6 +32,7 @@
 #include "buildneibs.cuh"
 #include "forces.cuh"
 #include "euler.cuh"
+#include "Problem.h"
 
 #include "cudabuffer.h"
 
@@ -82,6 +83,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 	m_dBuffers << new CUDABuffer<BUFFER_VEL>();
 	m_dBuffers << new CUDABuffer<BUFFER_INFO>();
 	m_dBuffers << new CUDABuffer<BUFFER_FORCES>();
+	m_dBuffers << new CUDABuffer<BUFFER_CONTUPD>();
 
 	m_dBuffers << new CUDABuffer<BUFFER_HASH>();
 	m_dBuffers << new CUDABuffer<BUFFER_PARTINDEX>();
@@ -120,6 +122,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) {
 		m_dBuffers << new CUDABuffer<BUFFER_DKDE>();
 	}
 
+	if (m_simparams->inoutBoundaries || m_simparams->visctype == KEPSVISC)
+		m_dBuffers << new CUDABuffer<BUFFER_EULERVEL>();
+
 	if (m_simparams->calcPrivate)
 		m_dBuffers << new CUDABuffer<BUFFER_PRIVATE>();
 }
@@ -133,6 +138,12 @@ GPUWorker::~GPUWorker() {
 uint GPUWorker::getNumParticles()
 {
 	return m_numParticles;
+}
+
+// Return the number of allocated particles
+uint GPUWorker::getNumAllocatedParticles()
+{
+	return m_numAllocatedParticles;
 }
 
 uint GPUWorker::getNumInternalParticles() {
@@ -228,12 +239,12 @@ void GPUWorker::computeAndSetAllocableParticles()
 
 	uint numAllocableParticles = (freeMemory / computeMemoryPerParticle());
 
-	if (numAllocableParticles < gdata->totParticles)
+	if (numAllocableParticles < gdata->allocatedParticles)
 		printf("NOTE: device %u can allocate %u particles, while the whole simulation might require %u\n",
-			m_deviceIndex, numAllocableParticles, gdata->totParticles);
+			m_deviceIndex, numAllocableParticles, gdata->allocatedParticles);
 
 	// allocate at most the number of particles required for the whole simulation
-	m_numAllocatedParticles = min( numAllocableParticles, gdata->totParticles );
+	m_numAllocatedParticles = min( numAllocableParticles, gdata->allocatedParticles );
 
 	if (m_numAllocatedParticles < m_numParticles) {
 		fprintf(stderr, "FATAL: thread %u needs %u particles, but we can only store %u in %s available of %s total with %s safety margin\n",
@@ -338,7 +349,7 @@ void GPUWorker::computeCellBursts()
 	uint network_bursts = 0;
 	uint node_bursts = 0;
 
-	// Auxiliary macros. Use with parentheses when possibile
+	// Auxiliary macros. Use with parentheses when possible
 #define BURST_IS_EMPTY(peer, direction) \
 	(burst_vector_index[peer][direction] == -1)
 	// closing a burst means dropping the associated pointer index
@@ -356,7 +367,7 @@ void GPUWorker::computeCellBursts()
 	// iterate on all cells
 	for (uint lin_curr_cell = 0; lin_curr_cell < m_nGridCells; lin_curr_cell++) {
 
-		// We want to send the current cell to the neigbor processes only once, but multiple neib cells could
+		// We want to send the current cell to the neighbor processes only once, but multiple neib cells could
 		// belong the the same process. Therefore we keep a list of recipient gidx who already received the
 		// current cell. We will also use this list as a "recipient list", esp. to check which bursts need to
 		// be closed. The list is reset for every cell, before iterating the neighbors.
@@ -399,11 +410,16 @@ void GPUWorker::computeCellBursts()
 					// skip self (also implicit with dev id check, later)
 					if (dx == 0 && dy == 0 && dz == 0) continue;
 
-					// ensure we are inside the grid
-					// TODO: fix for periodicity. ImportPeer* as well?
-					if (coords_curr_cell.x + dx < 0 || coords_curr_cell.x + dx >= gdata->gridSize.x) continue;
-					if (coords_curr_cell.y + dy < 0 || coords_curr_cell.y + dy >= gdata->gridSize.y) continue;
-					if (coords_curr_cell.z + dz < 0 || coords_curr_cell.z + dz >= gdata->gridSize.z) continue;
+					// neighbor cell coords
+					int ncx = coords_curr_cell.x + dx;
+					int ncy = coords_curr_cell.y + dy;
+					int ncz = coords_curr_cell.z + dz;
+
+					// warp cell coordinates if any periodicity is enabled
+					periodicityWarp(ncx, ncy, ncz);
+
+					// ensure we are inside the domain
+					if ( !isCellInsideProblemDomain(ncx, ncy, ncz) ) continue;
 
 					// NOTE: we could skip empty cells if all the nodes in the network knew the content of all the cells.
 					// Instead, each process only knows the empty cells of its workers, so empty cells still break bursts
@@ -411,9 +427,9 @@ void GPUWorker::computeCellBursts()
 					// cells (possibly in bursts).
 
 					// now compute the linearized hash of the neib cell and other properties
-					const uint lin_neib_cell = gdata->calcGridHashHost(coords_curr_cell.x + dx, coords_curr_cell.y + dy, coords_curr_cell.z + dz);
-					const devcount_t neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
-					const devcount_t neib_cell_rank = gdata->RANK( neib_cell_gidx );
+					const uint lin_neib_cell = gdata->calcGridHashHost(ncx, ncy, ncz);
+					const uchar neib_cell_gidx = gdata->s_hDeviceMap[lin_neib_cell];
+					const uchar neib_cell_rank = gdata->RANK( neib_cell_gidx );
 
 					// is this neib mine?
 					const bool neib_mine = (neib_cell_gidx == m_globalDeviceIdx);
@@ -438,7 +454,7 @@ void GPUWorker::computeCellBursts()
 					// simple peer copy or mpi transfer?
 					const TransferScope transfer_scope = (curr_cell_rank == neib_cell_rank ? NODE_SCOPE : NETWORK_SCOPE);
 
-					// devices fecth peers' memory with any intervention from the sender (aka: only RCV bursts in same node)
+					// devices fetch peers' memory with any intervention from the sender (aka: only RCV bursts in same node)
 					if (transfer_scope == NODE_SCOPE && transfer_direction == SND)
 						continue;
 
@@ -451,12 +467,12 @@ void GPUWorker::computeCellBursts()
 						if (! BURST_IS_EMPTY(other_device_gidx,transfer_direction)) {
 
 							// cell index is higher than the last enqueued; it is edging as well; no other cell
-							// interrrupted the burst until now. So cell is consecutive with previous in both
+							// interrupted the burst until now. So cell is consecutive with previous in both
 							// the sending the the receiving device
 							m_bursts[ burst_vector_index[other_device_gidx][transfer_direction] ].cells.push_back(lin_curr_cell);
 
 						} else {
-							// if we are here, either the burst was empty or not compatabile. In both cases, create a new one
+							// if we are here, either the burst was empty or not compatible. In both cases, create a new one
 							CellList list;
 							list.push_back(lin_curr_cell);
 
@@ -468,7 +484,7 @@ void GPUWorker::computeCellBursts()
 								0, 0, 0
 							};
 
-							// store (ovewrite, if was non-empty) its forthcoming index
+							// store (overwrite, if was non-empty) its forthcoming index
 							burst_vector_index[other_device_gidx][transfer_direction] = m_bursts.size();
 							// append it
 							m_bursts.push_back(burst);
@@ -481,6 +497,9 @@ void GPUWorker::computeCellBursts()
 								node_bursts++;
 							else
 								network_bursts++;
+
+							// to disable bursts, we close every burst as soon as it was created
+							//CLOSE_BURST(other_device_gidx, transfer_direction)
 						}
 					}
 
@@ -515,8 +534,8 @@ void GPUWorker::computeCellBursts()
 
 				} // iterate on neibs of current cells
 
-		// There was no neib cell (i.e. it was an internal cell for every device), so skip burst-breaking conditinals.
-		// NOTE: comment the following line to allow bursts only along linearization (e.g. with Y-split and XYZ linearizazion,
+		// There was no neib cell (i.e. it was an internal cell for every device), so skip burst-breaking conditionals.
+		// NOTE: comment the following line to allow bursts only along linearization (e.g. with Y-split and XYZ linearization,
 		// only one burst will be used with the following line active; several, aka one per Y line, will be used with the
 		// following commented). This can useful only for debugging or profiling purposes
 		if (!edging) continue;
@@ -884,6 +903,16 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		allocated += segmentsSize;
 	}
 
+	// water depth at open boundaries
+	if (m_simparams->inoutBoundaries && m_simparams->ioWaterdepthComputation) {
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numObjects*sizeof(uint)));
+		allocated += m_simparams->numObjects*sizeof(uint);
+	}
+
+	// newNumParticles for inlets
+	CUDA_SAFE_CALL(cudaMalloc((void**)&m_dNewNumParticles, sizeof(uint)));
+	allocated += sizeof(uint);
+
 	if (m_simparams->numODEbodies) {
 		m_numBodiesParticles = gdata->problem->get_ODE_bodies_numparts();
 		printf("number of rigid bodies particles = %d\n", m_numBodiesParticles);
@@ -901,14 +930,17 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		// m_hRbForces = new float4[m_numBodiesParticles];
 		// m_hRbTorques = new float4[m_numBodiesParticles];
 
-		uint rbfirstindex[MAXBODIES];
+		int rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
 
-		rbfirstindex[0] = 0;
-		for (uint i = 1; i < m_simparams->numODEbodies; i++) {
-			rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(i - 1);
+		rbfirstindex[0] = -gdata->problem->m_firstODEobjectPartId;
+		for (uint i = 1; i < m_simparams->numObjects; i++) {
+			if (gdata->problem->m_ODEobjectId[i-1] != UINT_MAX)
+				rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(gdata->problem->m_ODEobjectId[i-1]);
+			else
+				rbfirstindex[i] = rbfirstindex[i-1];
 		}
-		setforcesrbstart(rbfirstindex, m_simparams->numODEbodies);
+		setforcesrbstart(rbfirstindex, m_simparams->numObjects);
 
 		int offset = 0;
 		for (uint i = 0; i < m_simparams->numODEbodies; i++) {
@@ -961,6 +993,11 @@ void GPUWorker::deallocateDeviceBuffers() {
 		CUDA_SAFE_CALL(cudaFree(m_dCompactDeviceMap));
 		CUDA_SAFE_CALL(cudaFree(m_dSegmentStart));
 	}
+
+	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
+
+	if (m_simparams->inoutBoundaries && m_simparams->ioWaterdepthComputation)
+		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
 	if (m_simparams->numODEbodies) {
 		CUDA_SAFE_CALL(cudaFree(m_dRbTorques));
@@ -1208,6 +1245,58 @@ void GPUWorker::resetSegments()
 	uploadSegments();
 }
 
+// download the updated number of particles (update by reorder and euler)
+void GPUWorker::downloadNewNumParticles()
+{
+	// is the device empty? (unlikely but possible before LB kicks in)
+	// if so, neither reorder nor euler did actually perform anything
+	if (m_numParticles == 0) return;
+
+	uint activeParticles;
+	CUDA_SAFE_CALL(cudaMemcpy(&activeParticles, m_dNewNumParticles, sizeof(uint), cudaMemcpyDeviceToHost));
+
+	if (activeParticles > m_numAllocatedParticles) {
+		fprintf(stderr, "ERROR: Number of particles grew too much: %u > %u\n", activeParticles, m_numAllocatedParticles);
+		gdata->quit_request = true;
+	}
+
+	gdata->particlesCreatedOnNode[m_deviceIndex] = false;
+
+	if (activeParticles != m_numParticles) {
+		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
+		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
+		m_numParticles = activeParticles;
+		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
+		// it should not be updated here. Single-device simulations, instead, have it updated here.
+		if (SINGLE_DEVICE)
+			m_particleRangeEnd = m_numInternalParticles = activeParticles;
+		// As a consequence, single-device simulations will run the forces kernel on newly cloned particles as well, while
+		// multi-device simulations will not. We want to make this harmless. There are at least two possibilies:
+		// 1. Reset the neighbor list buffer before building it. Doing so, the clones will always have an empty list and
+		//    the forces kernel will only add gravity. Note that the clones are usually inside the vel field until next
+		//    buildneibs, so the output of forces should be irrelevant; the problem, however, is that the forces kernel
+		//    might find trash there and crash. This is currently implemented.
+		// 2. This method is called in two phases: after the reorder and after euler. If we can distinguish between the two
+		//    phases, then we can update the m_particleRangeEnd/m_numInternalParticles only after the reorder and
+		//    m_numParticles in both. One way to do this is to use a command flag or to reuse gdata->only_internal. This
+		//    would avoid calling forces and euler on the clones and might be undesired, since we will not apply the vel
+		//    field until next bneibs.
+		// Note: we would love to reset only the neibslists of the clones, but lists are interlaced and this would mean
+		// multiple memory stores. TODO: check if this is more convenient than resetting the whole list
+		//
+		// The particlesCreatedOnNode array indicates whether or not the particle count on a device changed an causes in
+		// turn a forced buildneibs
+		gdata->particlesCreatedOnNode[m_deviceIndex] = true;
+	}
+}
+
+// upload the value m_numParticles to "newNumParticles" on device
+void GPUWorker::uploadNewNumParticles()
+{
+	// uploading even if empty (usually not, right after append)
+	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
+}
+
 // upload mbData for moving boundaries (possibily called many times)
 void GPUWorker::uploadMBData()
 {
@@ -1282,38 +1371,13 @@ void GPUWorker::createCompactDeviceMap() {
 							int cy = iy + dy;
 							int cz = iz + dz;
 
-							// warp periodic boundaries
+							// warp cell coords if any periodicity is enabled
+							periodicityWarp(cx, cy, cz);
 
-							// periodicity along X
-							if (m_simparams->periodicbound & PERIODIC_X) {
-								// WARNING: checking if c* is negative MUST be done before checking if it's greater than
-								// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize
-								if (cx < 0) {
-									cx = gdata->gridSize.x - 1;
-								} else if (cx >= gdata->gridSize.x) {
-									cx = 0;
-								}
-							}
-							// periodicity along Y
-							if (m_simparams->periodicbound & PERIODIC_Y) {
-								if (cy < 0) {
-									cy = gdata->gridSize.y - 1;
-								} else if (cy >= gdata->gridSize.y) {
-									cy = 0;
-								}
-							}
-							// periodicity along Z
-							if (m_simparams->periodicbound & PERIODIC_Z) {
-								if (cz < 0) {
-									cz = gdata->gridSize.z - 1;
-								} else if (cz >= gdata->gridSize.z) {
-									cz = 0;
-								}
-							}
-							// if not periodic, or if still out-of-bounds after periodicity warp, skip it
-							if (cx < 0 || cx >= gdata->gridSize.x ||
-								cy < 0 || cy >= gdata->gridSize.y ||
-								cz < 0 || cz >= gdata->gridSize.z) continue;
+							// if not periodic, or if still out-of-bounds after periodicity warp (which is
+							// currently not possibly but might be if periodicity warps will be reduced to
+							// 1-cell distance), skip it
+							if ( !isCellInsideProblemDomain(cx, cy, cz) ) continue;
 
 							// Read data of neib cell
 							uint neib_lin_idx = gdata->calcGridHashHost(cx, cy, cz);
@@ -1486,7 +1550,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 
 	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-	const bool dbg_step_printf = false;
+	bool dbg_step_printf = false;
 
 	// TODO
 	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
@@ -1543,6 +1607,22 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing UPDATE_SEGMENTS\n", deviceIndex);
 				instance->updateSegments();
 				break;
+			case DOWNLOAD_IOWATERDEPTH:
+				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_IOWATERDEPTH\n", deviceIndex);
+				instance->kernel_download_iowaterdepth();
+				break;
+			case UPLOAD_IOWATERDEPTH:
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_IOWATERDEPTH\n", deviceIndex);
+				instance->kernel_upload_iowaterdepth();
+				break;
+			case DOWNLOAD_NEWNUMPARTS:
+				if (dbg_step_printf) printf(" T %d issuing DOWNLOAD_NEWNUMPARTS\n", deviceIndex);
+				instance->downloadNewNumParticles();
+				break;
+			case UPLOAD_NEWNUMPARTS:
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_NEWNUMPARTS\n", deviceIndex);
+				instance->uploadNewNumParticles();
+				break;
 			case APPEND_EXTERNAL:
 				if (dbg_step_printf) printf(" T %d issuing APPEND_EXTERNAL\n", deviceIndex);
 				instance->importExternalCells();
@@ -1567,17 +1647,29 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
 				instance->kernel_surfaceParticles();
 				break;
-			case SA_CALC_BOUND_CONDITIONS:
-				if (dbg_step_printf) printf(" T %d issuing SA_CALC_BOUND_CONDITIONS\n", deviceIndex);
-				instance->kernel_dynamicBoundaryConditions();
+			case DISABLE_OUTGOING_PARTS:
+				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
+				instance->kernel_disableOutgoingParts();
 				break;
-			case SA_UPDATE_BOUND_VALUES:
-				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_BOUND_VALUES\n", deviceIndex);
-				instance->kernel_updateValuesAtBoundaryElements();
+			case SA_CALC_SEGMENT_BOUNDARY_CONDITIONS:
+				if (dbg_step_printf) printf(" T %d issuing SA_CALC_SEGMENT_BOUNDARY_CONDITIONS\n", deviceIndex);
+				instance->kernel_saSegmentBoundaryConditions();
+				break;
+			case SA_CALC_VERTEX_BOUNDARY_CONDITIONS:
+				if (dbg_step_printf) printf(" T %d issuing SA_CALC_VERTEX_BOUNDARY_CONDITIONS\n", deviceIndex);
+				instance->kernel_saVertexBoundaryConditions();
 				break;
 			case SA_UPDATE_VERTIDINDEX:
 				if (dbg_step_printf) printf(" T %d issuing SA_UPDATE_VERTIDINDEX\n", deviceIndex);
 				instance->kernel_updateVertIdIndexBuffer();
+				break;
+			case IDENTIFY_CORNER_VERTICES:
+				if (dbg_step_printf) printf(" T %d issuing IDENTIFY_CORNER_VERTICES\n", deviceIndex);
+				instance->kernel_saIdentifyCornerVertices();
+				break;
+			case FIND_CLOSEST_VERTEX:
+				if (dbg_step_printf) printf(" T %d issuing FIND_CLOSEST_VERTEX\n", deviceIndex);
+				instance->kernel_saFindClosestVertex();
 				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
@@ -1604,7 +1696,7 @@ void* GPUWorker::simulationThread(void *ptr) {
 				instance->uploadBodiesCentersOfGravity();
 				break;
 			case UPLOAD_OBJECTS_MATRICES:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_CG\n", deviceIndex);
+				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_MATRICES\n", deviceIndex);
 				instance->uploadBodiesTransRotMatrices();
 				break;
 			case UPLOAD_OBJECTS_VELOCITIES:
@@ -1615,6 +1707,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
 				instance->kernel_calcPrivate();
 				break;
+			case IMPOSE_OPEN_BOUNDARY_CONDITION:
+				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
+				instance->kernel_imposeBoundaryCondition();
+				break;
 			case COMPUTE_TESTPOINTS:
 				if (dbg_step_printf) printf(" T %d issuing COMPUTE_TESTPOINTS\n", deviceIndex);
 				instance->kernel_testpoints();
@@ -1623,8 +1719,19 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
 				// actually, setting keep_going to false and unlocking the barrier should be enough to quit the cycle
 				break;
+			default:
+				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
+				exit(1);
 		}
 		if (gdata->keep_going) {
+			/*
+			// example usage of checkPartValBy*()
+			// alternatively, can be used in the previous switch construct, to check who changes what
+			if (gdata->iterations >= 10) {
+				dbg_step_printf = true; // optional
+				instance->checkPartValByIndex("test", 0);
+			}
+			*/
 			// the first barrier waits for the main thread to set the next command; the second is to unlock
 			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 1
 			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
@@ -1708,6 +1815,7 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentWrite[BUFFER_TURBVISC]),
+							m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 
 							// hash
 							m_dBuffers.getData<BUFFER_HASH>(),
@@ -1724,9 +1832,10 @@ void GPUWorker::kernel_reorderDataAndFindCellStart()
 							m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 							m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 							m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),
+							m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
 
 							m_numParticles,
-							m_nGridCells);
+							m_dNewNumParticles);
 }
 
 void GPUWorker::kernel_buildNeibsList()
@@ -1737,6 +1846,10 @@ void GPUWorker::kernel_buildNeibsList()
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
+
+	// reset the neighbor list
+	CUDA_SAFE_CALL(cudaMemset(m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+		0xff, numPartsToElaborate * sizeof(neibdata) * m_simparams->maxneibsnum));
 
 	// this is the square the distance used for neighboursearching of boundaries
 	// it is delta p / 2 bigger than the standard radius
@@ -1773,6 +1886,7 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
 			m_dBuffers.getData<BUFFER_FORCES>(),					// f(n
+			m_dBuffers.getData<BUFFER_CONTUPD>(),					// f(n
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
@@ -1795,6 +1909,9 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 			m_simparams->influenceRadius,
 			m_simparams->epsilon,
 			m_simparams->movingBoundaries,
+			m_simparams->inoutBoundaries,
+			m_dIOwaterdepth,
+			m_simparams->ioWaterdepthComputation,
 			m_simparams->visctype,
 			m_physparams->visccoeff,
 			m_dBuffers.getData<BUFFER_TURBVISC>(gdata->currentRead[BUFFER_TURBVISC]),	// nu_t(n)
@@ -1816,6 +1933,7 @@ void GPUWorker::bind_textures_forces()
 	forces_bind_textures(
 		m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),   // pos(n)
 		m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),   // vel(n)
+		m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),   // eulerVel(n)
 		m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 		m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 		m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
@@ -1830,7 +1948,11 @@ void GPUWorker::bind_textures_forces()
 // Unbind the textures needed by forces kernel
 void GPUWorker::unbind_textures_forces()
 {
-	forces_unbind_textures(m_simparams->visctype, m_simparams->boundarytype);
+	forces_unbind_textures(
+		m_simparams->visctype,
+		m_simparams->boundarytype,
+		m_simparams->inoutBoundaries
+	);
 }
 
 // Reduce array of maximum dt after forces, but only for adaptive timesteps
@@ -1850,6 +1972,53 @@ float GPUWorker::forces_dt_reduce()
 		m_dBuffers.getData<BUFFER_CFL_KEPS>(),
 		m_dBuffers.getData<BUFFER_CFL_TEMP>(),
 		m_forcesKernelTotalNumBlocks);
+}
+
+// Aux method to warp signed cell coordinates if periodicity is enabled.
+// Cell coordinates are passed by reference; they are left unchanged if periodicity
+// is not enabled.
+void GPUWorker::periodicityWarp(int &cx, int &cy, int &cz)
+{
+	// NOTE: checking if c* is negative MUST be done before checking if it's greater than
+	// the grid, otherwise it will be cast to uint and "-1" will be "greater" than the gridSize!
+
+	// checking X periodicity
+	if (m_simparams->periodicbound & PERIODIC_X) {
+		if (cx < 0) {
+			cx = gdata->gridSize.x - 1;
+		} else
+		if (cx >= gdata->gridSize.x) {
+			cx = 0;
+		}
+	}
+
+	// checking Y periodicity
+	if (m_simparams->periodicbound & PERIODIC_Y) {
+		if (cy < 0) {
+			cy = gdata->gridSize.y - 1;
+		} else
+		if (cy >= gdata->gridSize.y) {
+			cy = 0;
+		}
+	}
+
+	// checking Z periodicity
+	if (m_simparams->periodicbound & PERIODIC_Z) {
+		if (cz < 0) {
+			cz = gdata->gridSize.z - 1;
+		} else
+		if (cz >= gdata->gridSize.z) {
+			cz = 0;
+		}
+	}
+}
+
+// aux method to check wether cell coords are inside the domain (does NOT take into account periodicity)
+bool GPUWorker::isCellInsideProblemDomain(int cx, int cy, int cz)
+{
+	return ((cx >= 0 && cx <= gdata->gridSize.x) &&
+			(cy >= 0 && cy <= gdata->gridSize.y) &&
+			(cz >= 0 && cz <= gdata->gridSize.z));
 }
 
 void GPUWorker::kernel_forces_async_enqueue()
@@ -1935,7 +2104,7 @@ void GPUWorker::kernel_forces_async_complete()
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	if (numPartsToElaborate > 0 ) {
 		// wait for the completion of the kernel
@@ -1970,7 +2139,7 @@ void GPUWorker::kernel_forces()
 	// FLOAT_MAX is returned if kernels are not run (e.g. numPartsToElaborate == 0)
 	float returned_dt = FLT_MAX;
 
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	// if we have objects potentially shared across different devices, must reset their forces
 	// and torques to avoid spurious contributions
@@ -2015,26 +2184,32 @@ void GPUWorker::kernel_euler()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	bool firstStep = (gdata->commandFlags == INTEGRATOR_STEP_1);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 		euler(
 			// previous pos, vel, k, e, info
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 			m_dBuffers.getData<BUFFER_HASH>(),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentRead[BUFFER_EULERVEL]),
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+			m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 			// f(n+1/2)
 			m_dBuffers.getData<BUFFER_FORCES>(),
+			m_dBuffers.getData<BUFFER_CONTUPD>(),
 			// dkde(n)
 			m_dBuffers.getData<BUFFER_DKDE>(),
 			m_dBuffers.getData<BUFFER_XSPH>(),
 			// integrated pos vel, k, e
 			m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
 			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+			m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentWrite[BUFFER_BOUNDELEMENTS]),
 			m_numParticles,
 			numPartsToElaborate,
 			gdata->dt, // m_dt,
@@ -2043,6 +2218,57 @@ void GPUWorker::kernel_euler()
 			gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
 			m_simparams->xsph,
 			m_simparams->boundarytype);
+}
+
+void GPUWorker::kernel_download_iowaterdepth()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	downloadIOwaterdepth(
+			gdata->h_IOwaterdepth[m_deviceIndex],
+			m_dIOwaterdepth,
+			m_simparams->numObjects);
+
+}
+
+void GPUWorker::kernel_upload_iowaterdepth()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	uploadIOwaterdepth(
+			gdata->h_IOwaterdepth[0],
+			m_dIOwaterdepth,
+			m_simparams->numObjects);
+
+}
+
+void GPUWorker::kernel_imposeBoundaryCondition()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	gdata->problem->imposeBoundaryConditionHost(
+			m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
+			m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+			m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
+			m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
+			m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+			m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+			m_simparams->ioWaterdepthComputation ? m_dIOwaterdepth : NULL,
+			gdata->t,
+			m_numParticles,
+			m_simparams->numObjects,
+			numPartsToElaborate,
+			m_dBuffers.getData<BUFFER_HASH>());
+
 }
 
 void GPUWorker::kernel_mls()
@@ -2167,37 +2393,47 @@ void GPUWorker::kernel_reduceRBForces()
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (m_numParticles == 0) return;
 
+	// if we have ODE objects but not particles on them, do not reduce
+	// (possible? e.g. vector objects?)
+	if (m_numBodiesParticles == 0) return;
+
 	reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbDeviceTotalForce[m_deviceIndex],
 					gdata->s_hRbDeviceTotalTorque[m_deviceIndex], m_simparams->numODEbodies, m_numBodiesParticles);
 
-	// TODO Debug (remove)
-	/*printf("objects %d, F(%e, %e, %e) M(%e, %e, %e) \n", (int) m_simparams->numODEbodies, gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].x,
-			gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].y, gdata->s_hRbDeviceTotalForce[m_deviceIndex][0].z,
-			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].x, gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].y,
-			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][0].z);*/
 }
 
-void GPUWorker::kernel_updateValuesAtBoundaryElements()
+void GPUWorker::kernel_saSegmentBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	// vel, tke, eps are read from current*Read, except
-	// on the second step, whe they are read from current*Write
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 
-	updateBoundValues(
+	saSegmentBoundaryConditions(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
-				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentRead[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
 				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
+				m_dBuffers.getRawPtr<BUFFER_VERTPOS>(),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
-				initStep);
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius,
+				initStep,
+				m_simparams->inoutBoundaries);
 }
 
 void GPUWorker::kernel_updateVertIdIndexBuffer()
@@ -2213,7 +2449,7 @@ void GPUWorker::kernel_updateVertIdIndexBuffer()
 						numPartsToElaborate);
 }
 
-void GPUWorker::kernel_dynamicBoundaryConditions()
+void GPUWorker::kernel_saVertexBoundaryConditions()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
@@ -2223,25 +2459,89 @@ void GPUWorker::kernel_dynamicBoundaryConditions()
 	// pos, vel, tke, eps are read from current*Read, except
 	// on the second step, whe they are read from current*Write
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-	dynamicBoundConditions(
-				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+	saVertexBoundaryConditions(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]),
 				m_dBuffers.getData<BUFFER_TKE>(gdata->currentWrite[BUFFER_TKE]),
 				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentWrite[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]),
+				m_dBuffers.getData<BUFFER_EULERVEL>(gdata->currentWrite[BUFFER_EULERVEL]),
+				m_dBuffers.getData<BUFFER_FORCES>(),
+				m_dBuffers.getData<BUFFER_CONTUPD>(),
 				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				(firstStep ? NULL : m_dNewNumParticles),	// no m_dNewNumParticles at first step
+				numPartsToElaborate,
+				firstStep ? gdata->dt / 2.0f : gdata->dt,
+				initStep ? 0 : (firstStep ? 1 : 2),
+				gdata->problem->m_deltap,
+				m_simparams->slength,
+				m_simparams->kerneltype,
+				m_simparams->influenceRadius,
+				gdata->newIDsOffset,
+				initStep);
+}
+
+void GPUWorker::kernel_saIdentifyCornerVertices()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	saIdentifyCornerVertices(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_BOUNDELEMENTS>(gdata->currentRead[BUFFER_BOUNDELEMENTS]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
 				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
 				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,
 				numPartsToElaborate,
 				gdata->problem->m_deltap,
-				m_simparams->slength,
-				m_simparams->kerneltype,
-				m_simparams->influenceRadius,
-				initStep);
+				m_simparams->epsilon);
+}
+
+void GPUWorker::kernel_saFindClosestVertex()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	saFindClosestVertex(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentWrite[BUFFER_INFO]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_VERTIDINDEX>(),
+				m_dBuffers.getData<BUFFER_HASH>(),
+				m_dCellStart,
+				m_dBuffers.getData<BUFFER_NEIBSLIST>(),
+				m_numParticles,
+				numPartsToElaborate);
+}
+
+void GPUWorker::kernel_disableOutgoingParts()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	disableOutgoingParts(
+				m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]),
+				m_dBuffers.getData<BUFFER_VERTICES>(gdata->currentWrite[BUFFER_VERTICES]),
+				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
+				m_numParticles,
+				numPartsToElaborate);
 }
 
 void GPUWorker::kernel_calcPrivate()
@@ -2273,6 +2573,8 @@ void GPUWorker::kernel_testpoints()
 
 	testpoints(m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]),
 				m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]),
+				m_dBuffers.getData<BUFFER_TKE>(gdata->currentRead[BUFFER_TKE]),
+				m_dBuffers.getData<BUFFER_EPSILON>(gdata->currentRead[BUFFER_EPSILON]),
 				m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]),
 				m_dBuffers.getData<BUFFER_HASH>(),
 				m_dCellStart,
@@ -2294,22 +2596,149 @@ void GPUWorker::uploadConstants()
 	seteulerconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 	setneibsconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
+	if (m_simparams->inoutBoundaries)
+		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
 void GPUWorker::uploadBodiesCentersOfGravity()
 {
-	setforcesrbcg(gdata->s_hRbGravityCenters, m_simparams->numODEbodies);
-	seteulerrbcg(gdata->s_hRbGravityCenters, m_simparams->numODEbodies);
+	setforcesrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
+	seteulerrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
 }
 
 void GPUWorker::uploadBodiesTransRotMatrices()
 {
-	seteulerrbtrans(gdata->s_hRbTranslations, m_simparams->numODEbodies);
-	seteulerrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numODEbodies);
+	seteulerrbtrans(gdata->s_hMovObjTranslations, m_simparams->numObjects);
+	seteulerrbsteprot(gdata->s_hMovObjRotationMatrices, m_simparams->numObjects);
+}
+
+// Auxiliary method for debugging purposes: downloads on the host one or multiple field values of
+// a single particle of given INDEX. It should be considered a canvas for writing more complex,
+// context-dependent checks. It replaces a minimal subset of capabilities of a proper debugger
+// (like cuda-dbg) when that is not available or too slow.
+// Parameters:
+// - printID is just a constant string to distinguish method calls in different parts of the code;
+// - pindex is the current index of the particle being investigated (to be found with BUFFER_VERTIDINDEX
+//   (when available) or in doWrite() after saving (if a save was performed after last reorder).
+// Possible improvement: make it accept buffer flags. But is it worth the time?
+void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
+{
+	// here it is possible to set a condition on the simulation state, device number, e.g.:
+	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
+	// if (m_deviceIndex == 1) return;
+
+	// get particle info
+	particleinfo pinfo;
+	CUDA_SAFE_CALL(cudaMemcpy(&pinfo, m_dBuffers.getData<BUFFER_INFO>(gdata->currentRead[BUFFER_INFO]) + pindex, sizeof(particleinfo),
+		cudaMemcpyDeviceToHost));
+
+	// this is the right place to filter for particle type, e.g.:
+	// if (!FLUID(pinfo)) return;
+
+	/*
+	// get hash
+	hashKey phash;
+	CUDA_SAFE_CALL(cudaMemcpy(&phash, m_dBuffers.getData<BUFFER_HASH>() + pindex,
+		sizeof(hashKey), cudaMemcpyDeviceToHost));
+	uint3 gridpos = gdata->calcGridPosFromCellHash(cellHashFromParticleHash(phash));
+	printf("HHd%u_%s: id %u (%s) idx %u IT %u, phash %lx, cell %u (%d,%d,%d)\n",
+		m_deviceIndex, printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations, phash, cellHashFromParticleHash(phash),
+		gridpos.x, gridpos.y, gridpos.z);
+	*/
+
+	// get vel(s)
+	float4 rVel, wVel;
+	CUDA_SAFE_CALL(cudaMemcpy(&rVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentRead[BUFFER_VEL]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(&wVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
+		m_deviceIndex, printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations,
+		rVel.x, rVel.y, rVel.z, rVel.w, wVel.x, wVel.y, wVel.z, wVel.w );
+
+	/*
+	// get pos(s)
+	// WARNING: it is a *local* pos! It is only useful if we are checking for relative distances of clearly wrong values
+	float4 rPos, wPos;
+	CUDA_SAFE_CALL(cudaMemcpy(&rPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	CUDA_SAFE_CALL(cudaMemcpy(&wPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]) + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readPos (%g,%g,%g %g) writePos (%g,%g,%g %g)\n",
+		m_deviceIndex, printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations,
+		rPos.x, rPos.y, rPos.z, rPos.w, wPos.x, wPos.y, wPos.z, wPos.w );
+	*/
+
+	/*
+	// get force
+	float4 force;
+	CUDA_SAFE_CALL(cudaMemcpy(&force, m_dBuffers.getData<BUFFER_FORCES>() + pindex,
+		sizeof(float4), cudaMemcpyDeviceToHost));
+	printf("XXd%u_%s: id %u (%s) idx %u IT %u, force (%g,%g,%g %g)\n",
+		m_deviceIndex, printID, id(pinfo),
+		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+		pindex, gdata->iterations,
+		force.x, force.y, force.z, force.w);
+	*/
+
+	/*
+	// example of additional values
+	if (m_simparams->boundarytype == SA_BOUNDARY) {
+		// get grad_gammas
+		float4 rGgam, wGgam;
+		CUDA_SAFE_CALL(cudaMemcpy(&rGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentRead[BUFFER_GRADGAMMA]) + pindex,
+			sizeof(float4), cudaMemcpyDeviceToHost));
+		CUDA_SAFE_CALL(cudaMemcpy(&wGgam, m_dBuffers.getData<BUFFER_GRADGAMMA>(gdata->currentWrite[BUFFER_GRADGAMMA]) + pindex,
+			sizeof(float4), cudaMemcpyDeviceToHost));
+		printf("XXd%u_%s: id %u (%s) idx %u IT %u, rGGam (%g,%g,%g %g) wGGam (%g,%g,%g %g)\n",
+			m_deviceIndex, printID, id(pinfo),
+			(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
+			pindex, gdata->iterations,
+			rGgam.x, rGgam.y, rGgam.z, rGgam.w, wGgam.x, wGgam.y, wGgam.z, wGgam.w );
+
+		if (BOUNDARY(pinfo)) {
+			// get vert pos
+			float2 vPos0, vPos1, vPos2;
+			CUDA_SAFE_CALL(cudaMemcpy(&vPos0, m_dBuffers.getData<BUFFER_VERTPOS>(0) + pindex,
+				sizeof(float2), cudaMemcpyDeviceToHost));
+			CUDA_SAFE_CALL(cudaMemcpy(&vPos1, m_dBuffers.getData<BUFFER_VERTPOS>(1) + pindex,
+				sizeof(float2), cudaMemcpyDeviceToHost));
+			CUDA_SAFE_CALL(cudaMemcpy(&vPos2, m_dBuffers.getData<BUFFER_VERTPOS>(2) + pindex,
+				sizeof(float2), cudaMemcpyDeviceToHost));
+			// printf...
+		}
+	}
+	*/
+}
+
+// Analogous to checkPartValByIndex(), but locates the particle by ID through the BUFFER_VERTIDINDEX
+// hash table. This is available only when SA_BOUNDARY is being used and only for VERTEX particles,
+// unless updateVertIDToIndexDevice() is changed to update also non-vertex particles.
+// WARNING: fixing updateVertIDToIndexDevice() for fluid particles is dangerous if there is an inlet,
+// since the ID of generate parts easily overflows the number of allocated particles!
+void GPUWorker::checkPartValById(const char* printID, const uint pid)
+{
+	// here it is possible to set a condition, e.g.:
+	// if (gdata->iterations <= 900 || gdata->iterations >= 1000) return;
+
+	uint pidx = 0;
+
+	// retrieve part index, if BUFFER_VERTIDINDEX was set also for this particle
+	CUDA_SAFE_CALL(cudaMemcpy(&pidx, m_dBuffers.getData<BUFFER_VERTIDINDEX>() + pid, sizeof(uint), cudaMemcpyDeviceToHost));
+
+	checkPartValByIndex(printID, pidx);
 }
 
 void GPUWorker::uploadBodiesVelocities()
 {
+	// TODO FIXME should this be only for ODE bodies or all moving objects?
+	// compare uploadBodiesCentersOfGravity() and uploadBodiesTransRotMatrices()
 	seteulerrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numODEbodies);
 	seteulerrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numODEbodies);
 }

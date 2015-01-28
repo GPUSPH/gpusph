@@ -140,6 +140,12 @@ private:
 	// where sequences of cells of the same type begin
 	uint*		m_dSegmentStart;
 
+	// water depth at open boundaries
+	uint*		m_dIOwaterdepth;
+
+	// "new" number of particles for open boundaries
+	uint*		m_dNewNumParticles;
+
 	// number of blocks used in forces kernel runs (for delayed cfl reduction)
 	uint		m_forcesKernelTotalNumBlocks;
 
@@ -188,6 +194,8 @@ private:
 	void uploadSegments();
 	void updateSegments();
 	void resetSegments();
+	void uploadNewNumParticles();
+	void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
 	void uploadMBData();
@@ -217,16 +225,25 @@ private:
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
-	void kernel_dynamicBoundaryConditions();
-	void kernel_updateValuesAtBoundaryElements();
 	void kernel_updateVertIdIndexBuffer();
+	void kernel_saSegmentBoundaryConditions();
+	void kernel_saVertexBoundaryConditions();
+	void kernel_saIdentifyCornerVertices();
+	void kernel_saFindClosestVertex();
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();
 	void kernel_calcPrivate();
 	void kernel_testpoints();
+	void kernel_disableOutgoingParts();
+	void kernel_imposeBoundaryCondition();
+	void kernel_download_iowaterdepth();
+	void kernel_upload_iowaterdepth();
 	/*void uploadMbData();
 	void uploadGravity();*/
+
+	void checkPartValByIndex(const char* printID, const uint pindex);
+	void checkPartValById(const char* printID, const uint pid);
 
 	// asynchronous alternative to kernel_force
 	void kernel_forces_async_enqueue();
@@ -237,6 +254,11 @@ private:
 	void bind_textures_forces();
 	void unbind_textures_forces();
 	float forces_dt_reduce();
+
+	// aux method to warp signed cell coordinates when periodicity is enabled
+	void periodicityWarp(int &cx, int &cy, int &cz);
+	// aux method to check wether cell coords are inside the domain
+	bool isCellInsideProblemDomain(int cx, int cy, int cz);
 public:
 	// constructor & destructor
 	GPUWorker(GlobalData* _gdata, devcount_t _devnum);
@@ -244,6 +266,7 @@ public:
 
 	// getters of the number of particles
 	uint getNumParticles();
+	uint getNumAllocatedParticles();
 	uint getNumInternalParticles();
 	uint getMaxParticles();
 

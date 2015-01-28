@@ -99,16 +99,22 @@ void
 euler(	const float4*		oldPos,
 		const hashKey*		particleHash,
 		const float4*		oldVel,
+		const float4*		oldEulerVel,
+		float4*				gGam,
+		const float4*		oldgGam,
 		const float*		oldTKE,
 		const float*		oldEps,
 		const particleinfo* info,
 		const float4*		forces,
-		float2*				keps_dkde,
+		const float2*		contupd,
+		float3*				keps_dkde,
 		const float4*		xsph,
 		float4*				newPos,
 		float4*				newVel,
+		float4*				newEulerVel,
 		float*				newTKE,
 		float*				newEps,
+		float4*				newBoundElement,
 		const uint			numParticles,
 		const uint			particleRangeEnd,
 		const float			dt,
@@ -122,34 +128,43 @@ euler(	const float4*		oldPos,
 	uint numThreads = min(BLOCK_SIZE_INTEGRATE, particleRangeEnd);
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-#define ARGS oldPos, particleHash, oldVel, oldTKE, oldEps, \
-	info, forces, keps_dkde, xsph, newPos, newVel, newTKE, newEps, particleRangeEnd, dt, dt2, t
+#define ARGS oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps, \
+	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
+
+#define EULER_XSPH_CASE(btype, step, xsph) \
+	case xsph: \
+		cueuler::eulerDevice<step, xsph, btype><<< numBlocks, numThreads >>>(ARGS); \
+		break
+
+#define EULER_XSPH_SWITCH(btype, step) \
+	switch(xsphcorr) { \
+		EULER_XSPH_CASE(btype, step, true); \
+		EULER_XSPH_CASE(btype, step, false); \
+	}
+
+#define EULER_STEP_CASE(btype, step) \
+	case step: \
+		EULER_XSPH_SWITCH(btype, step) \
+		break
+
+#define EULER_STEP_SWITCH(btype) \
+	switch(step) { \
+		EULER_STEP_CASE(btype, 1); \
+		EULER_STEP_CASE(btype, 2); \
+	}
 
 	// execute the kernel
-	if (boundarytype == DYN_BOUNDARY) {
-		if (step == 1) {
-			if (xsphcorr)
-				cueuler::eulerDevice<1, true, true><<< numBlocks, numThreads >>>(ARGS);
-			else
-				cueuler::eulerDevice<1, false, true><<< numBlocks, numThreads >>>(ARGS);
-		} else if (step == 2) {
-			if (xsphcorr)
-				cueuler::eulerDevice<2, true, true><<< numBlocks, numThreads >>>(ARGS);
-			else
-				cueuler::eulerDevice<2, false, true><<< numBlocks, numThreads >>>(ARGS);
-		}
-	} else {
-		if (step == 1) {
-			if (xsphcorr)
-				cueuler::eulerDevice<1, true, false><<< numBlocks, numThreads >>>(ARGS);
-			else
-				cueuler::eulerDevice<1, false, false><<< numBlocks, numThreads >>>(ARGS);
-		} else if (step == 2) {
-			if (xsphcorr)
-				cueuler::eulerDevice<2, true, false><<< numBlocks, numThreads >>>(ARGS);
-			else
-				cueuler::eulerDevice<2, false, false><<< numBlocks, numThreads >>>(ARGS);
-		}
+	switch (boundarytype) {
+		case SA_BOUNDARY:
+			EULER_STEP_SWITCH(SA_BOUNDARY)
+			break;
+		case DYN_BOUNDARY:
+			EULER_STEP_SWITCH(DYN_BOUNDARY)
+			break;
+		case LJ_BOUNDARY: // MK and LJ use the same euler so we don't distinguish between the two
+		case MK_BOUNDARY:
+			EULER_STEP_SWITCH(LJ_BOUNDARY)
+			break;
 	}
 
 	// check if kernel invocation generated an error

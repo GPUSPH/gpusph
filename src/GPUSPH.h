@@ -68,6 +68,9 @@ private:
 	size_t allocateGlobalHostBuffers();
 	void deallocateGlobalHostBuffers();
 
+	// udpated the correspondent fields in gdata
+	void countVertexAndNonFluidParticles();
+
 	// sort particles by device before uploading
 	void sortParticlesByHash();
 	// aux function for sorting; swaps particles in s_hPos, s_hVel, s_hInfo
@@ -95,8 +98,8 @@ private:
 	// rebuild the neighbor list
 	void buildNeibList();
 
-	// initialization of semi-analytic boundary arrays
-	void initializeBoundaryConditions();
+	// setting of boundary conditions for the semi-analytical boundaries
+	void saBoundaryConditions(flag_t cFlag);
 
 	// print information about the status of the simulation
 	void printStatus();

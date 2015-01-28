@@ -87,11 +87,12 @@ void
 setforcesrbcg(const float3* cg, int numbodies);
 
 void
-setforcesrbstart(const uint* rbfirstindex, int numbodies);
+setforcesrbstart(const int* rbfirstindex, int numbodies);
 
 void
 forces_bind_textures(	const	float4	*pos,
 						const	float4	*vel,
+						const	float4	*eulerVel,
 						const	float4	*oldGGam,
 						const	float4	*boundelem,
 						const	particleinfo	*info,
@@ -103,7 +104,8 @@ forces_bind_textures(	const	float4	*pos,
 
 void
 forces_unbind_textures(	ViscosityType	visctype,
-						BoundaryType	boundarytype);
+						BoundaryType	boundarytype,
+						bool			inoutBoundaries);
 
 float
 forces_dtreduce(	float	slength,
@@ -121,6 +123,7 @@ forces(
 	const	float2	* const vertPos[],
 	const	float4	*vel,
 			float4	*forces,
+			float2	*contupd,
 	const	float4	*oldGGam,
 			float4	*newGGam,
 	const	float4	*boundelem,
@@ -143,12 +146,15 @@ forces(
 			float	influenceradius,
 	const	float	epsilon,
 	const	bool	movingBoundaries,
+	const	bool	inoutBoundaries,
+			uint	*IOwaterdepth,
+	const	bool	ioWaterdepthCompute,
 	ViscosityType	visctype,
 			float	visccoeff,
 			float	*turbvisc,
 			float	*keps_tke,
 			float	*keps_eps,
-			float2	*keps_dkde,
+			float3	*keps_dkde,
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,
@@ -217,17 +223,19 @@ vorticity(	float4*		pos,
 
 //Testpoints
 void
-testpoints(	const float4*		pos,
-			float4*		newVel,
+testpoints(	const float4*	pos,
+			float4*			newVel,
+			float*			newTke,
+			float*			newEpsilon,
 			particleinfo*	info,
 			hashKey*		particleHash,
-			uint*		cellStart,
-			neibdata*	neibsList,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			float		slength,
-			int			kerneltype,
-			float		influenceradius);
+			uint*			cellStart,
+			neibdata*		neibsList,
+			uint			numParticles,
+			uint			particleRangeEnd,
+			float			slength,
+			int				kerneltype,
+			float			influenceradius);
 
 // Free surface detection
 void
@@ -302,42 +310,113 @@ calcPrivate(const	float4*			pos,
 					uint			numParticles,
 					uint			particleRangeEnd);
 
-// Recomputes values at the boundary elements (currently only density) as an average
-// over three vertices of this element
+// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
 void
-updateBoundValues(	float4*		oldVel,
-			float*		oldTKE,
-			float*		oldEps,
-			vertexinfo*	vertices,
-			uint*		vertIDToIndex,
-			particleinfo*	info,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			bool		initStep);
-
-// Recomputes values at the vertex particles, following procedure similar to Shepard filter.
-// Only fluid particles are taken into summation
-// oldVel array is used to read density of fluid particles and to write density of vertex particles.
-// There is no need to use two velocity arrays (read and write) and swap them after.
-void
-dynamicBoundConditions(	const float4*		oldPos,
+saSegmentBoundaryConditions(
+			float4*			oldPos,
 			float4*			oldVel,
 			float*			oldTKE,
 			float*			oldEps,
-			float4*			newGam,
-			const float4*	boundelement,
-			const particleinfo*	info,
-			const hashKey*		particleHash,
-			const uint*		cellStart,
-			const neibdata*	neibsList,
-			const uint		numParticles,
-			const uint		particleRangeEnd,
-			const float		deltap,
-			const float		slength,
-			const int		kerneltype,
-			const float		influenceradius,
-			const bool		initStep);
+			float4*			oldEulerVel,
+			float4*			oldGGam,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	float2	* const vertPos[],
+	const	float4*			boundelement,
+	const	particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			slength,
+	const	int				kerneltype,
+	const	float			influenceradius,
+	const	bool			initStep,
+	const	bool			inoutBoundaries);
+
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+void
+saVertexBoundaryConditions(
+			float4*			oldPos,
+			float4*			oldVel,
+			float*			oldTKE,
+			float*			oldEps,
+			float4*			oldGGam,
+			float4*			oldEulerVel,
+			float4*			forces,
+			float2*			contupd,
+	const	float4*			boundelement,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+			particleinfo*	info,
+			hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+			uint*			newNumParticles,
+	const	uint			particleRangeEnd,
+	const	float			dt,
+	const	int				step,
+	const	float			deltap,
+	const	float			slength,
+	const	int				kerneltype,
+	const	float			influenceradius,
+	const	uint&			newIDsOffset,
+	const	bool			initStep);
+
+// disables particles that went through boundaries when open boundaries are used
+void
+disableOutgoingParts(		float4*			pos,
+							vertexinfo*		vertices,
+					const	particleinfo*	info,
+					const	uint			numParticles,
+					const	uint			particleRangeEnd);
+
+// downloads the per device waterdepth from the GPU
+void
+downloadIOwaterdepth(
+			uint*	h_IOwaterdepth,
+	const	uint*	d_IOwaterdepth,
+	const	uint	numObjects);
+
+// upload the global waterdepth to the GPU
+void
+uploadIOwaterdepth(
+	const	uint*	h_IOwaterdepth,
+			uint*	d_IOwaterdepth,
+	const	uint	numObjects);
+
+// identifies vertices at the corners of open boundaries
+void
+saIdentifyCornerVertices(
+	const	float4*			oldPos,
+	const	float4*			boundelement,
+			particleinfo*	info,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd,
+	const	float			deltap,
+	const	float			eps);
+
+// finds the closest vertex particles for segments which have no vertices themselves that are of
+// the same object type and are no corner particles
+void
+saFindClosestVertex(
+	const	float4*			oldPos,
+			particleinfo*	info,
+			vertexinfo*		vertices,
+	const	uint*			vertIDToIndex,
+	const	hashKey*		particleHash,
+	const	uint*			cellStart,
+	const	neibdata*		neibsList,
+	const	uint			numParticles,
+	const	uint			particleRangeEnd);
 
 }
-
 #endif

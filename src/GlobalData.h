@@ -82,15 +82,20 @@ enum CommandType {
 	DUMP,				// dump all pos, vel and info to shared host arrays
 	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
 	UPDATE_SEGMENTS,	// dump segments to shared host array, then update the number of internal parts
+	DOWNLOAD_NEWNUMPARTS,	// dump the updated number of particles (in case of inlets/outlets)
+	UPLOAD_NEWNUMPARTS,		// update the "newNumParts" on device with the host value
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	MLS,				// MLS correction
 	SHEPARD,			// SHEPARD correction
 	VORTICITY,			// vorticity computation
 	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
-	SA_CALC_BOUND_CONDITIONS, // compute new boundary conditions
-	SA_UPDATE_BOUND_VALUES, // update bounary values
 	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)
+	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,	// compute segment boundary conditions and identify fluid particles that leave open boundaries
+	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,		// compute vertex boundary conditions including mass update and create new fluid particles at open boundaries; at the init step this routine also computes a preliminary grad gamma direction vector
+	IDENTIFY_CORNER_VERTICES,	// identify the vertices at a corner of an open boundary so that no parts are created there
+	FIND_CLOSEST_VERTEX,	// Finds closest vertex for boundaries that have no proper IO vertex themselves
+	DISABLE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
 	SPS,				// SPS stress matrix computation kernel
 	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
@@ -101,6 +106,9 @@ enum CommandType {
 	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
 	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
+	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
+	DOWNLOAD_IOWATERDEPTH,		// gets the IOwaterdepth array from the GPU
+	UPLOAD_IOWATERDEPTH,	// uploads the IOwaterdepth array to the GPU
 	QUIT				// quits the simulation cycle
 };
 
@@ -121,6 +129,13 @@ enum CommandType {
 // these grow from the top
 #define DBLBUFFER_WRITE		((flag_t)1 << (sizeof(flag_t)*8 - 1)) // last bit of the type
 #define DBLBUFFER_READ		(DBLBUFFER_WRITE >> 1)
+
+// flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
+// is associated to an open boundary
+#define VERTEX1 ((flag_t)1)
+#define VERTEX2 (VERTEX1 << 1)
+#define VERTEX3 (VERTEX2 << 1)
+#define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
 
 // now, flags used to specify the buffers to access for swaps, uploads, updates, etc.
 // these start from the next available bit from the bottom and SHOULD NOT get past the highest bit available
@@ -172,17 +187,25 @@ struct GlobalData {
 	NetworkManager* networkManager;
 
 	// NOTE: the following holds
-	// s_hPartsPerDevice[x] <= processParticles[d] <= totParticles <= processParticles
+	// s_hPartsPerDevice[x] <= processParticles[d] <= totParticles <= allocatedParticles
 	// - s_hPartsPerDevice[x] is the number of particles currently being handled by the GPU
 	//   (only useful in multigpu to keep track of the number of particles to dump; varies according to the fluid displacemente in the domain)
 	// - processParticles[d] is the sum of all the internal particles of all the GPUs in the process of rank d
 	//   (only useful in multinode to keep track of the number of particles and offset to dump them on host; varies according to the fluid displacement in the domain)
 	// - totParticles is the sum of all the internal particles of all the network
+	//   (equal to the sum of all the processParticles, can vary if there are inlets/outlets)
+	// - allocatedParticles is the number of allocations
+	//   (can be higher when there are inlets)
 
 	// global number of particles - whole simulation
 	uint totParticles;
 	// number of particles of each process
 	uint processParticles[MAX_NODES_PER_CLUSTER];
+	// number of allocated particles *in the process*
+	uint allocatedParticles;
+	// number of SA vertices and non fluid parts, used for id cloning
+	uint numVertices;
+	uint numInitialNonFluidParticles;
 	// global number of planes (same as local ones)
 	//uint numPlanes;
 	// grid size, for particle hash computation
@@ -213,6 +236,14 @@ struct GlobalData {
 
 	// last dt for each PS
 	float dts[MAX_DEVICES_PER_NODE];
+
+	// indicates whether particles were created at open boundaries
+	bool	particlesCreatedOnNode[MAX_DEVICES_PER_NODE];
+	bool	particlesCreated;
+	// keep track of #iterations in which at particlesCreated holds
+	uint	createdParticlesIterations;
+	// offset used for ID cloning
+	uint	newIDsOffset;
 
 	// indices for double-buffered device arrays (0 or 1)
 
@@ -285,6 +316,14 @@ struct GlobalData {
 	float3* s_hRbLinearVelocities;
 	float3*	s_hRbAngularVelocities;
 
+	// moving objects
+	float3* s_hMovObjGravityCenters;
+	float3* s_hMovObjTranslations;
+	float* s_hMovObjRotationMatrices;
+
+	// waterdepth at pressure outflows
+	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAXBODIES];
+
 	// peer accessibility table (indexed with device indices, not CUDA dev nums)
 	bool s_hDeviceCanAccessPeer[MAX_DEVICES_PER_NODE][MAX_DEVICES_PER_NODE];
 
@@ -298,6 +337,9 @@ struct GlobalData {
 		threadSynchronizer(NULL),
 		networkManager(NULL),
 		totParticles(0),
+		allocatedParticles(0),
+		numVertices(0),
+		numInitialNonFluidParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),
 		s_dCellStarts(NULL),
@@ -312,8 +354,11 @@ struct GlobalData {
 		quit_request(false),
 		save_request(false),
 		iterations(0),
-		t(0.0f),
+		t(0.0),
 		dt(0.0f),
+		particlesCreated(false),
+		createdParticlesIterations(0),
+		newIDsOffset(0),
 		lastGlobalPeakNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
@@ -324,12 +369,19 @@ struct GlobalData {
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
+		s_hMovObjGravityCenters(NULL),
+		s_hMovObjTranslations(NULL),
+		s_hMovObjRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
 		s_hRbAngularVelocities(NULL)
 	{
 		// init dts
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			dts[d] = 0.0F;
+
+		// init particlesCreatedOnNode
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
+			particlesCreatedOnNode[d] = false;
 
 		// init partial forces and torques
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
@@ -352,6 +404,11 @@ struct GlobalData {
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
 				s_hDeviceCanAccessPeer[d][p] = false;
 
+		// init h_IOwaterdepth
+		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++) {
+			for (uint ob=0; ob < MAXBODIES; ob++)
+				h_IOwaterdepth[d][ob] = 0;
+		}
 	};
 
 	// compute the coordinates of the cell which contains the particle located at pos

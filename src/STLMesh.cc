@@ -400,7 +400,7 @@ int STLMesh::Fill(PointVect&, double, bool)
 void STLMesh::Fill(PointVect&, const double)
 {}
 
-void STLMesh::FillIn(PointVect&, double, int)
+void STLMesh::FillIn(PointVect&, const double, const int)
 { }
 
 // NOTE: checking the bounding box (incl. orientation), not the actual mesh space

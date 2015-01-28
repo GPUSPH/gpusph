@@ -39,7 +39,7 @@
    done using additional information, such as the particle id, too).
    We therefore make the hash key size configurable, with HASH_KEY_SIZE
    bits in the key.
- */
+*/
 
 #ifndef HASH_KEY_SIZE
 #error "undefined hash key size"
@@ -61,6 +61,9 @@ typedef unsigned long hashKey;
    hash should be shifted when inserted in the particle hash key.
  */
 #define GRIDHASH_BITSHIFT (HASH_KEY_SIZE - 32)
+
+// CELL_HASH_MAX replaces HASH_KEY_MAX. It is always 32 bits long since it is used only as a cellHash.
+#define CELL_HASH_MAX	UINT_MAX
 
 // now follow a few utility functions to convert between cellHash <-> particleHash, defined with the same compiler directives ___spec
 #define __spec static inline __host__ __device__

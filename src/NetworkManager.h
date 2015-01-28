@@ -13,6 +13,7 @@ typedef unsigned int uint;
 enum ReductionType
 {
 	MIN_REDUCTION,
+	MAX_REDUCTION,
 	SUM_REDUCTION
 };
 
@@ -53,8 +54,12 @@ public:
 	void sendShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *src_data);
 	void receiveShorts(unsigned char src_globalDevIdx, unsigned char dst_globalDevIdx, unsigned int count, unsigned short *dst_data);
 #endif
+	// network reduction on bool buffer across the network
+	void networkBoolReduction(bool *buffer, const unsigned int bufferElements);
+	// network reduction on int buffer across the network
+	void networkIntReduction(int *buffer, const unsigned int bufferElements, ReductionType rtype);
 	// network reduction on float buffer across the network
-	void networkFloatReduction(float *buffer, unsigned int bufferElements, ReductionType rtype);
+	void networkFloatReduction(float *buffer, const unsigned int bufferElements, ReductionType rtype);
 	// send one int, gather the int from all nodes (allgather)
 	void allGatherUints(unsigned int *datum, unsigned int *recv_buffer);
 	// synchronization barrier among all the nodes of the network
