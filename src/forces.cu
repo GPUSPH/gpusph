@@ -84,7 +84,7 @@ void*	reduce_buffer = NULL;
 
 #define KERNEL_SWITCH(formulation, boundarytype, visc, inoutBoundaries) \
 	switch (kerneltype) { \
-		KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, inoutBoundaries); \
+		/*KERNEL_CHECK(CUBICSPLINE,	boundarytype, formulation, visc, inoutBoundaries);*/ \
 		KERNEL_CHECK(WENDLAND,		boundarytype, formulation, visc, inoutBoundaries); \
 		NOT_IMPLEMENTED_CHECK(Kernel, kerneltype); \
 	}
@@ -97,7 +97,7 @@ void*	reduce_buffer = NULL;
 #define FORMULATION_SWITCH(boundarytype, visc, inoutBoundaries) \
 	switch (sph_formulation) { \
 		FORMULATION_CHECK(SPH_F1, boundarytype, visc, inoutBoundaries); \
-		FORMULATION_CHECK(SPH_F2, boundarytype, visc, inoutBoundaries); \
+		/*FORMULATION_CHECK(SPH_F2, boundarytype, visc, inoutBoundaries);*/ \
 		NOT_IMPLEMENTED_CHECK(SPHFormulation, sph_formulation); \
 	}
 
@@ -108,10 +108,10 @@ void*	reduce_buffer = NULL;
 
 #define VISC_CHECK_STANDARD(boundarytype, inoutBoundaries) \
 		VISC_CHECK(boundarytype, ARTVISC, inoutBoundaries); \
-		VISC_CHECK(boundarytype, DYNAMICVISC, inoutBoundaries); \
+		/*VISC_CHECK(boundarytype, DYNAMICVISC, inoutBoundaries); \
 		VISC_CHECK(boundarytype, KINEMATICVISC, inoutBoundaries);\
 		VISC_CHECK(boundarytype, SPSVISC, inoutBoundaries); \
-		VISC_CHECK(boundarytype, KEPSVISC, inoutBoundaries);
+		VISC_CHECK(boundarytype, KEPSVISC, inoutBoundaries);*/
 
 #define VISC_SWITCH(boundarytype, inoutBoundaries) \
 	switch (visctype) { \
@@ -127,9 +127,9 @@ void*	reduce_buffer = NULL;
 #define IO_BOUNDARY_SWITCH(inoutBoundaries) \
 	switch (boundarytype) { \
 		BOUNDARY_CHECK(LJ_BOUNDARY, inoutBoundaries); \
-		BOUNDARY_CHECK(MK_BOUNDARY, inoutBoundaries); \
+		/*BOUNDARY_CHECK(MK_BOUNDARY, inoutBoundaries);*/ \
 		BOUNDARY_CHECK(SA_BOUNDARY, inoutBoundaries); \
-		BOUNDARY_CHECK(DYN_BOUNDARY, inoutBoundaries); \
+		/*BOUNDARY_CHECK(DYN_BOUNDARY, inoutBoundaries);*/ \
 		NOT_IMPLEMENTED_CHECK(Boundary, boundarytype); \
 	}
 
