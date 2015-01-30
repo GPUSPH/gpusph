@@ -1036,7 +1036,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		// special attention to number of boundary particles, used for rb buffers of floating objs
 		uint current_geometry_boundary_particles = 0;
 
-		const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? rigid_body_counter : 0 );
+		const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? object_counter : 0 );
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
