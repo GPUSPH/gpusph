@@ -1009,6 +1009,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
+		// special attention to number of boundary particles, used for rb buffers of floating objs
+		uint current_geometry_boundary_particles = 0;
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
@@ -1051,6 +1053,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = BOUNDPART;
 						boundary_parts++;
+						current_geometry_boundary_particles++;
 						break;
 					default:
 						// TODO: print warning or throw fatal
@@ -1105,6 +1108,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 			}
 			// free memory and prepare for next file
 			m_hdf5_reader.reset();
+
+			// set numParts, which will be read while allocating device buffers for obj parts
+			m_geometries[g]->ptr->SetNumParts(current_geometry_boundary_particles);
 
 		} // if (m_geometries[g]->has_hdf5_file)
 
