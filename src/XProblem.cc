@@ -1055,7 +1055,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// TODO: define an invalid/unknown particle type?
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
-				// tot_parts instead is be updated in the outer loop
+				// tot_parts instead is updated in the outer loop
 				ushort ptype = FLUIDPART;
 				switch (m_hdf5_reader.buf[bi].ParticleType) {
 					case 1: // 2 aka CRIXUS_FLUID
