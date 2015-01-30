@@ -1036,6 +1036,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		// special attention to number of boundary particles, used for rb buffers of floating objs
 		uint current_geometry_boundary_particles = 0;
 
+		const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? rigid_body_counter : 0 );
+
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
 			// set and check filename
@@ -1085,9 +1087,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				// compute particle info, local pos, cellhash
-				// TODO: assign object_counter instead of rigid_body_counter
-				const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? rigid_body_counter + 1 : 0 );
-				info[i] = make_particleinfo(ptype, object_id, i);
+				// Remember: +1 since object 0 means no object (ugh)
+				info[i] = make_particleinfo(ptype, object_id + 1, i);
 				// not yet enabled?
 				if (m_geometries[g]->type == GT_FLOATING_BODY) {
 					SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
@@ -1147,8 +1148,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// copy particles
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-				// TODO: assign object_counter instead of rigid_body_counter
-				info[i] = make_particleinfo(OBJECTPART, rigid_body_counter + 1, i);
+				info[i] = make_particleinfo(OBJECTPART, object_id + 1, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
 				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
