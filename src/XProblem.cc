@@ -858,16 +858,27 @@ int XProblem::fill_parts()
 
 		// ODE-related operations - only if we have at least one floating body
 		if (m_numRigidBodies > 0) {
-			// create ODE body if required
+
+			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
+			// calls the latter in a dummy way if no ODE space is passed and this messes
+			// up the position for the actual later ODEGeomCreate() call.
+			// Thus, special call if both are active, individual calls otherwise.
+			if (m_geometries[i]->handle_dynamics && m_geometries[i]->handle_collisions)
+				// both body and geom
+				m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace);
+			else {
+				// only one is active
+				if (m_geometries[i]->handle_dynamics)
+					m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
+				if (m_geometries[i]->handle_collisions)
+					m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
+			}
+
+			// dynamics-only stuff
 			if (m_geometries[i]->handle_dynamics) {
-				m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
 				add_ODE_body(m_geometries[i]->ptr);
 				bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
 			}
-
-			// create ODE geometry if required
-			if (m_geometries[i]->handle_collisions)
-				m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 
 			// update ODE rotation matrix according to possible rotation - excl. planes!
 			if ((m_geometries[i]->handle_collisions || m_geometries[i]->handle_dynamics) &&
