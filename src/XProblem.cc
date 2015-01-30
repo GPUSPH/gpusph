@@ -91,6 +91,8 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	// example usage
 
+	/*
+
 	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
 	// main container
 	GeometryID container =
@@ -113,6 +115,7 @@ XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
 
 	// add "universe box" of planes. TODO: check: what happens with LJ planes in SA simulation?
 	makeUniverseBox(m_origin, m_origin + m_size );
+	*/
 }
 
 void XProblem::release_memory()
