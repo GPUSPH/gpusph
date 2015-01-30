@@ -1657,23 +1657,11 @@ void GPUSPH::updateArrayIndices() {
 // initialize the centers of gravity of objects
 void GPUSPH::initializeObjectsCGs()
 {
-	if (gdata->problem->get_simparams()->numODEbodies > 0) {
+	if (gdata->problem->get_simparams()->numODEbodies > 0)
 		gdata->s_hRbGravityCenters = gdata->problem->get_ODE_bodies_cg();
-
-		// Debug
-		/* for (int i=0; i < m_simparams->numbodies; i++) {
-			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
-		}
-		uint rbfirstindex[MAXBODIES];
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(int)));
-		for (int i=0; i < m_simparams->numbodies; i++) {
-			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
-		} */
-	}
 
 	// allocate centers of gravity
 	uint numObj = gdata->problem->get_simparams()->numObjects;
-	printf("alloc: %d\n", numObj);
 	if (numObj > 0) {
 		gdata->s_hMovObjGravityCenters = new float3 [numObj];
 		gdata->s_hMovObjTranslations = new float3 [numObj];
