@@ -137,19 +137,19 @@ void XProblem::initialize()
 	// compute bounding box
 	Point globalMin = Point (NAN, NAN, NAN);
 	Point globalMax = Point (NAN, NAN, NAN);
-	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		// ignore planes for bbox
-		if (m_geometries[i]->type == GT_PLANE)
+		if (m_geometries[g]->type == GT_PLANE)
 			continue;
 
 		// ignore deleted geometries
-		if (!m_geometries[i]->enabled)
+		if (!m_geometries[g]->enabled)
 			continue;
 
 		Point currMin, currMax;
 
 		// get bbox of curr geometry
-		m_geometries[i]->ptr->getBoundingBox(currMin, currMax);
+		m_geometries[g]->ptr->getBoundingBox(currMin, currMax);
 
 		// global min and max
 		setMinPerElement(globalMin, currMin);
