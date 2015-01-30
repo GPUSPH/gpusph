@@ -160,6 +160,11 @@ void XProblem::initialize()
 		setMinPerElement(globalMin, currMin);
 		setMaxPerElement(globalMax, currMax);
 
+		// update m_ODEobjectId map
+		// (recall: from object index in particleinfo, incl. I/O, to floating object index, excl. I/O)
+		if (m_geometries[g]->type == GT_FLOATING_BODY)
+			m_ODEobjectId[ object_counter ] = rigid_body_counter;
+
 		// update object counters
 		if (m_geometries[g]->type == GT_FLOATING_BODY)
 			rigid_body_counter++;
@@ -1153,10 +1158,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// floating-objects-related settings, regardless they were loaded from file or not
 		if (m_geometries[g]->type == GT_FLOATING_BODY) {
-
-			// update m_ODEobjectId map
-			// (recall: from object index in particleinfo, incl. I/O, to floating object index, excl. I/O)
-			m_ODEobjectId[ object_counter ] = rigid_body_counter;
 
 			// store index (currently identical to id) of first object particle in m_firstODEobjectPartId
 			// NOTE: relies on tot_parts not being updated yet
