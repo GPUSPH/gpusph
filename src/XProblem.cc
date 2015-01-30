@@ -1058,7 +1058,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				// compute particle info, local pos, cellhash
-				const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? rigid_body_counter : 0 );
+				// TODO: assign object_counter instead of rigid_body_counter
+				const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? rigid_body_counter + 1 : 0 );
 				info[i] = make_particleinfo(ptype, object_id, i);
 				// not yet enabled?
 				if (m_geometries[g]->type == GT_FLOATING_BODY) {
@@ -1116,7 +1117,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// copy particles
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-				info[i] = make_particleinfo(OBJECTPART, rigid_body_counter, i - tot_parts);
+				// TODO: assign object_counter instead of rigid_body_counter
+				info[i] = make_particleinfo(OBJECTPART, rigid_body_counter + 1, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
 				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
