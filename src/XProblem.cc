@@ -1043,12 +1043,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 					case 2: // 2 aka CRIXUS_VERTEX
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = VERTEXPART;
-						boundary_parts++;
+						vertex_parts++;
 						break;
 					case 3: // 3 aka CRIXUS_BOUNDARY
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = BOUNDPART;
-						vertex_parts++;
+						boundary_parts++;
 						break;
 					default:
 						// TODO: print warning or throw fatal
