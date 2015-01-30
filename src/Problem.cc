@@ -730,6 +730,10 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		prev_quat[i][3] = quat[3];
 		dBodyAddForce(m_ODE_bodies[i]->m_ODEBody, force[i].x, force[i].y, force[i].z);
 		dBodyAddTorque(m_ODE_bodies[i]->m_ODEBody, torque[i].x, torque[i].y, torque[i].z);
+		/* printf("dbg: IT %lu body %d: F(%g,%g,%g) T(%g,%g,%g) Q(%g,%g,%g,%g)\n",
+			gdata->iterations, force[i].x, force[i].y, force[i].z,
+			torque[i].x, torque[i].y, torque[i].z,
+			quat[0], quat[1], quat[2], quat[3]); // */
 	}
 
 	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
