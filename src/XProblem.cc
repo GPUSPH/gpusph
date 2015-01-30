@@ -981,7 +981,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
 
-	// iterate on geometries looking for HDF5 files to be loaded
+	// Until now we copied fluid and boundary particles not belonging to floating objects and/or not to be loaded
+	// from HDF5 files. Now we iterate on the geometries with the aim to
+	// - load and copy HDF5 files (they are not copied to the global particle vectors, and that's the reason why
+	//   currently no erase operations are supported with HDF5-loaded geometries);
+	// - copy particles of floating objects, since they fill their own point vector;
+	// - setup stuff related to floating objects (e.g. object particle count).
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 
 		// planes do not fill particles nor they load from files
@@ -991,6 +996,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
 
+		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
 			// set and check filename
 			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
@@ -1083,8 +1089,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		} // if (m_geometries[g]->has_hdf5_file)
 
-		// copy particles for objects not loaded from file
-		// FIXME: here assuming non-SA?
+		// copy particles from the point vector of objects which have not been loaded from file
+		// FIXME: should include MOVING, maybe I/O; also, check: here assuming non-SA?
 		if (m_geometries[g]->type == GT_FLOATING_BODY && !(m_geometries[g]->has_hdf5_file)) {
 			// not loading from file: take object vector
 			PointVect & rbparts = m_geometries[g]->ptr->GetParts();
@@ -1102,8 +1108,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// increas rigid_body_counter, recap current object particles
 		if (m_geometries[g]->type == GT_FLOATING_BODY) {
+			// recap on stdout
 			std::cout << " - Rigid body " << rigid_body_counter << ": " << current_geometry_particles << " particles";
 			std::cout << ", part mass: " << rigid_body_part_mass << "\n";
+
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
 			// update counter
