@@ -134,9 +134,14 @@ XProblem::~XProblem()
 
 void XProblem::initialize()
 {
-	// compute bounding box
+	// aux vars to compute bounding box
 	Point globalMin = Point (NAN, NAN, NAN);
 	Point globalMax = Point (NAN, NAN, NAN);
+
+	// counters of floating objects and generic objects (floating + moving + open bounds)
+	uint rigid_body_counter = 0;
+	uint object_counter = 0;
+
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		// ignore planes for bbox
 		if (m_geometries[g]->type == GT_PLANE)
@@ -154,7 +159,21 @@ void XProblem::initialize()
 		// global min and max
 		setMinPerElement(globalMin, currMin);
 		setMaxPerElement(globalMax, currMax);
+
+		// update object counters
+		if (m_geometries[g]->type == GT_FLOATING_BODY)
+			rigid_body_counter++;
+		if (m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY   ||
+			m_geometries[g]->type == GT_OPENBOUNDARY )
+			object_counter++;
 	}
+
+	// store number of floating objects (aka ODE bodies)
+	// NOTE: allocate_ODE_bodies() sets it again, but we will get rid of that
+	m_simparams.numODEbodies = rigid_body_counter;
+	// store number of objects (floating + moving + I/O)
+	m_simparams.numObjects = object_counter;
 
 	// set computed world origin and size without overriding possible user choices
 	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
@@ -988,9 +1007,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 	tot_parts += m_boundaryParts.size();
 	boundary_parts += m_fluidParts.size();
 
-	// Count all objects: rigid bodies + moving boundaries + open boundaries. Used to set m_ODEobjectId
+	// We've already counted the objects in initialize(), but now we need incremental counters
+	// to set the association objId->floatingObjId (m_ODEobjectId) and possibly print information
 	uint object_counter = 0;
-	// Count rigid bodies only. Used for 1. setting object number 2. printing information
 	uint rigid_body_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
@@ -1165,8 +1184,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	} // for each geometry
 
-	// store number of objects (floating + moving + I/O)
-	m_simparams.numObjects = object_counter;
+
 
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
