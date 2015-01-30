@@ -1134,6 +1134,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// increas rigid_body_counter, recap current object particles
 		if (m_geometries[g]->type == GT_FLOATING_BODY) {
+
+			// store index (currently identical to id) of first object particle in m_firstODEobjectPartId
+			// NOTE: relies on tot_parts not being updated yet
+			if (current_geometry_particles > 0 && m_firstODEobjectPartId == 0)
+				m_firstODEobjectPartId = tot_parts + current_geometry_particles - current_geometry_boundary_particles;
+
 			// recap on stdout
 			std::cout << " - Rigid body " << rigid_body_counter << ": " << current_geometry_particles << " particles";
 			std::cout << ", part mass: " << rigid_body_part_mass << "\n";
