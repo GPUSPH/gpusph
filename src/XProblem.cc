@@ -988,7 +988,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 	tot_parts += m_boundaryParts.size();
 	boundary_parts += m_fluidParts.size();
 
-	// count rigid bodies. Used for 1. setting object number 2. printing information
+	// Count all objects: rigid bodies + moving boundaries + open boundaries. Used to set m_ODEobjectId
+	uint object_counter = 0;
+	// Count rigid bodies only. Used for 1. setting object number 2. printing information
 	uint rigid_body_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
@@ -1134,10 +1136,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 			rigid_body_counter++;
 		}
 
+		// update counter of objects
+		if (m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY   ||
+			m_geometries[g]->type == GT_OPENBOUNDARY )
+			object_counter++;
+
 		// update global particle counter
 		tot_parts += current_geometry_particles;
 
 	} // for each geometry
+
+	// store number of objects (floating + moving + I/O)
+	m_simparams.numObjects = object_counter;
 
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
