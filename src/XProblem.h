@@ -13,6 +13,7 @@
 
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
+					GT_OPENBOUNDARY,
 					GT_FLOATING_BODY,
 					GT_MOVING_BODY,
 					GT_PLANE

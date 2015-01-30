@@ -1063,8 +1063,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 					SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 					SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				}
-				// if (m_geometries[g]->type == GT_OPENBOUNDARY) SET_FLAG(info[i], IO_PARTICLE_FLAG);
-				// VEL_IO_PARTICLE_FLAG
+				// if (m_geometries[g]->type == GT_FLOATING_BODY)
+				//	SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 
 				calc_localpos_and_hash(
 					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,
