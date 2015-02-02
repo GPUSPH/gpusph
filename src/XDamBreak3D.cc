@@ -61,13 +61,12 @@ XDamBreak3D::XDamBreak3D(const GlobalData *_gdata) : XProblem(_gdata)
 	const double dimZ = 2;
 	const double obstacle_side = 0.2;
 	const double water_length = dimX / 4;
-	const double water_height = dimZ / 4;
+	const double water_height = dimZ / 2;
 
 	// set positioning policy
 	setPositioning(PP_CORNER);
 
-	GeometryID water =
-		addBox(GT_FLUID, FT_SOLID, Point(0,0,0), water_length, dimY, water_height);
+	addBox(GT_FLUID, FT_SOLID, Point(0,0,0), water_length, dimY, water_height);
 
 	setPositioning(PP_BOTTOM_CENTER);
 
@@ -78,12 +77,13 @@ XDamBreak3D::XDamBreak3D(const GlobalData *_gdata) : XProblem(_gdata)
 	//setPositioning(PP_CENTER);
 
 	GeometryID floating_obj =
-		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length,dimY/2,m_deltap), obstacle_side);
+		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, m_deltap), obstacle_side);
 	setMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
 
 	// limit domain with 6 planes
 	m_origin = make_double3(0, 0, 0);
 	m_size = make_double3(dimX, dimY, dimZ);
+
 	// note: if we do not use makeUniverseBox(), origin and size will be computed automatically
 	makeUniverseBox(m_origin, m_origin + m_size);
 }
