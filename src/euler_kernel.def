@@ -40,7 +40,7 @@
 //	  v(n+1) = 2vc(n+1/2) - v(n) = v(n) + f(n+1/2)*dt
 //	  pos(n+1) = 2posc(n+1/2) - pos(n) = pos(n) + vc(n+1/2)*dt
 //
-//	 Whe have oldVel = v(n), oldPos = pos(n), force = f(n+1/2),
+//	  Whe have oldVel = v(n), oldPos = pos(n), force = f(n+1/2),
 //	  newVel = vel(n+1/2), newPos = pos(n+1/2) so
 //	  we store velc = v(n) + f(n+1/2)*dt/2 then
 //	  newPos = pos(n+1) = oldPos + velc*dt
