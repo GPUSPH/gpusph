@@ -935,6 +935,10 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		int rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
 
+		// initialize rbfirstindex
+		for (uint i = 1; i < MAXBODIES; i++)
+			rbfirstindex[i] = 0; // or UINT_MAX, to spot bugs faster?
+
 		rbfirstindex[0] = -gdata->problem->m_firstODEobjectPartId;
 		for (uint i = 1; i < m_simparams->numObjects; i++) {
 			if (gdata->problem->m_ODEobjectId[i-1] != UINT_MAX)
