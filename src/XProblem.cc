@@ -1200,10 +1200,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// when numparts==0, Object uses rbparts.size()
 			m_geometries[g]->ptr->SetNumParts(current_geometry_boundary_particles);
 
-
 			// recap on stdout
 			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
-				" parts, mass " << rigid_body_part_mass << "\n";
+				" parts, mass " << rigid_body_part_mass << ", object mass " << m_geometries[g]->ptr->GetMass() << "\n";
 
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
