@@ -296,10 +296,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	initializeObjectsCGs();
 	initializeObjectsVelocities();
 
-	// initialize CGs (or, the problem could directly write on gdata)
-	initializeObjectsCGs();
-	initializeObjectsVelocities();
-
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
 	if (problem->get_simparams()->inoutBoundaries)
 		countVertexAndNonFluidParticles();
