@@ -1094,17 +1094,17 @@ void XProblem::copy_to_array(BufferList &buffers)
 				// tot_parts instead is updated in the outer loop
 				ushort ptype = FLUIDPART;
 				switch (m_hdf5_reader.buf[bi].ParticleType) {
-					case 1: // 2 aka CRIXUS_FLUID
+					case CRIXUS_FLUID:
 						// TODO: warn user if (m_geometries[g]->type != GT_FLUID)
 						ptype = FLUIDPART;
 						fluid_parts++;
 						break;
-					case 2: // 2 aka CRIXUS_VERTEX
+					case CRIXUS_VERTEX:
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = VERTEXPART;
 						vertex_parts++;
 						break;
-					case 3: // 3 aka CRIXUS_BOUNDARY
+					case CRIXUS_BOUNDARY:
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = BOUNDPART;
 						boundary_parts++;
