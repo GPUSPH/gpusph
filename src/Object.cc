@@ -168,7 +168,7 @@ void Object::ODEPrintInformation()
 {
 	if (m_ODEBody) {
 		const dReal* cpos = dBodyGetPosition(m_ODEBody);
-		printf("ODE Body ID: %u\n", m_ODEBody);
+		printf("ODE Body ID: %x\n", m_ODEBody);
 		printf("  Mass:     %g\n", m_ODEMass.mass);
 		printf("  Position: %g\t%g\t%g\n", cpos[0], cpos[1], cpos[2]);
 		printf("  CG:       %g\t%g\t%g\n", m_ODEMass.c[0], m_ODEMass.c[1], m_ODEMass.c[2]);
@@ -180,7 +180,7 @@ void Object::ODEPrintInformation()
 		dReal bbox[6];
 		const dReal* gpos = dGeomGetPosition(m_ODEGeom);
 		dGeomGetAABB(m_ODEGeom, bbox);
-		printf("ODE Geom ID: %u\n", m_ODEGeom);
+		printf("ODE Geom ID: %x\n", m_ODEGeom);
 		printf("  Position: %g\t%g\t%g\n", gpos[0], gpos[1], gpos[2]);
 		printf("  B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
 			bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]);
