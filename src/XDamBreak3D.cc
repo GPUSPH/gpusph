@@ -74,12 +74,12 @@ XDamBreak3D::XDamBreak3D(const GlobalData *_gdata) : XProblem(_gdata)
 	GeometryID obstacle =
 		addCylinder(GT_FIXED_BOUNDARY, FT_BORDER, Point(dimX/2, dimY/2, 0), obstacle_side, dimZ);
 
-	setPositioning(PP_CENTER);
+	// cetering policy is still PP_BOTTOM_CENTER
+	//setPositioning(PP_CENTER);
 
 	GeometryID floating_obj =
-		addSphere(GT_FIXED_BOUNDARY, FT_BORDER, Point(water_length,dimY/2,dimZ/2), obstacle_side);
-		//addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length,dimY/2,dimZ/2), obstacle_side);
-	//setMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
+		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length,dimY/2,m_deltap), obstacle_side);
+	setMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
 
 	// limit domain with 6 planes
 	m_origin = make_double3(0, 0, 0);
