@@ -823,12 +823,23 @@ int XProblem::fill_parts()
 			dx = m_physparams.r0;
 		}
 
-		// set part mass
-		if (m_geometries[i]->type == GT_FLUID)
-			m_geometries[i]->ptr->SetPartMass(m_deltap, m_physparams.rho0[0]);
-		else
-		if (m_geometries[i]->type != GT_PLANE)
-			m_geometries[i]->ptr->SetPartMass(dx, m_physparams.rho0[0]);
+		// Now will set the particle and object mass if still unset. We will set
+		// mass by density, using rho of the first fluid.
+		const double DEFAULT_DENSITY = m_physparams.rho0[0];
+
+		// Set part mass, if not set already.
+		if (m_geometries[i]->type != GT_PLANE && m_geometries[i]->ptr->GetPartMass() == 0) {
+			// dx is deltap or r0, according to the geometry type
+			const double dx = (m_geometries[i]->type == GT_FLUID ? m_deltap : m_physparams.r0);
+			m_geometries[i]->ptr->SetPartMass(dx, DEFAULT_DENSITY);
+		}
+
+		// Set object mass for floating objects, if not set already
+		if (m_geometries[i]->type == GT_FLOATING_BODY && m_geometries[i]->ptr->GetMass() == 0) {
+			// dx is r0 for floating bodies
+			// TODO: check if this works also with DYN_BOUNDARY
+			m_geometries[i]->ptr->SetMass(m_physparams.r0, DEFAULT_DENSITY);
+		}
 
 		// prepare for erase operations
 		bool del_fluid = (m_geometries[i]->erase_operation == ET_ERASE_FLUID);
