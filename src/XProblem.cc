@@ -1164,8 +1164,14 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 			// store index (currently identical to id) of first object particle in m_firstODEobjectPartId
 			// NOTE: relies on tot_parts not being updated yet
-			if (current_geometry_particles > 0 && m_firstODEobjectPartId == 0)
-				m_firstODEobjectPartId = tot_parts + current_geometry_particles - current_geometry_boundary_particles;
+			if (current_geometry_particles > 0 && m_firstODEobjectPartId == 0){
+				if (m_simparams.boundarytype == SA_BOUNDARY)
+					// SA bounds: we want the first boundary element and we know vertices are filled first.
+					m_firstODEobjectPartId = tot_parts + current_geometry_particles - current_geometry_boundary_particles;
+				else
+					// Other: the index (thus the id) of the first part of the object will do
+					m_firstODEobjectPartId = tot_parts;
+			}
 
 			// recap on stdout
 			std::cout << " - Rigid body " << rigid_body_counter << ": " << current_geometry_particles << " particles";
