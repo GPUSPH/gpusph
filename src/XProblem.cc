@@ -1136,10 +1136,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 			}
 			// free memory and prepare for next file
 			m_hdf5_reader.reset();
-
-			// set numParts, which will be read while allocating device buffers for obj parts
-			m_geometries[g]->ptr->SetNumParts(current_geometry_boundary_particles);
-
 		} // if (m_geometries[g]->has_hdf5_file)
 
 		// copy particles from the point vector of objects which have not been loaded from file
@@ -1172,6 +1168,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 					// Other: the index (thus the id) of the first part of the object will do
 					m_firstODEobjectPartId = tot_parts;
 			}
+
+			// set numParts, which will be read while allocating device buffers for obj parts
+			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
+			// when numparts==0, Object uses rbparts.size()
+			m_geometries[g]->ptr->SetNumParts(current_geometry_boundary_particles);
+
 
 			// recap on stdout
 			std::cout << " - Rigid body " << rigid_body_counter << ": " << current_geometry_particles << " particles";
