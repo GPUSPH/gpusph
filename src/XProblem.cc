@@ -1176,8 +1176,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 
 			// recap on stdout
-			std::cout << " - Rigid body " << rigid_body_counter << ": " << current_geometry_particles << " particles";
-			std::cout << ", part mass: " << rigid_body_part_mass << "\n";
+			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
+				" parts, mass " << rigid_body_part_mass << "\n";
 
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
@@ -1219,15 +1219,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 		hdf5idx_to_idx_map.clear();
 	}
 
-	std::cout << "Fluid parts: " << fluid_parts << "\n";
-	std::cout << "Fluid part mass: " << fluid_part_mass << "\n";
-	std::cout << "Boundary parts: " << boundary_parts << "\n";
-	std::cout << "Boundary part mass: " << boundary_part_mass << "\n";
-	if (m_simparams.boundarytype == SA_BOUNDARY) {
-		std::cout << "Vertex parts: " << vertex_parts << "\n";
-		std::cout << "Vertex part mass: " << vertex_part_mass << "\n";
-	}
-	std::cout << "Tot parts: " << tot_parts << "\n";
+	std::cout << "Fluid: " << fluid_parts << " parts, mass " << fluid_part_mass << "\n";
+	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
+	if (m_simparams.boundarytype == SA_BOUNDARY)
+		std::cout << "Vertices: " << vertex_parts << " parts, mass " << vertex_part_mass << "\n";
+	std::cout << "Tot: " << tot_parts << " particles\n";
 	std::flush(std::cout);
 }
 
