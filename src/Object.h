@@ -78,8 +78,10 @@ class Object {
 		//@{
 		virtual double SetPartMass(const double, const double);
 		virtual void SetPartMass(const double);
+		double GetPartMass();
 		virtual double SetMass(const double, const double);
 		virtual void SetMass(const double);
+		double GetMass();
 		virtual double Volume(const double dx) const = 0;
 		//@}
 

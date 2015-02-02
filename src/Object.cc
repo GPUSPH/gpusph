@@ -65,6 +65,17 @@ Object::SetPartMass(double mass)
 	m_center(3) = mass;
 }
 
+/// Get the mass of object particles
+/*! Get the mass of object particles.
+ *
+ *	\return mass of the object particles
+ *
+ *  NOTE: in case of SA boundaries, this should refer to boundary particles
+ */
+double Object::GetPartMass()
+{
+	return m_center(3);
+}
 
 /// Compute the object mass according to object volume and density
 /*! The mass of object is computed by multiplying its volume (computed using Volume()) by its density.
@@ -91,6 +102,16 @@ void
 Object::SetMass(const double mass)
 {
 	m_mass = mass;
+}
+
+/// Get the mass of the object
+/*! Get the mass of the object.
+ *
+ *	\return mass of the object
+ */
+double Object::GetMass()
+{
+	return m_mass;
 }
 
 
