@@ -339,13 +339,13 @@ bool XProblem::validGeometry(GeometryID gid)
 {
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
-		printf("WARNING: invalid GeometryID %u\n");
+		printf("WARNING: invalid GeometryID %u\n", gid);
 		return false;
 	}
 
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: GeometryID %u refers to a deleted geometry!\n");
+		printf("WARNING: GeometryID %u refers to a deleted geometry!\n", gid);
 		return false;
 	}
 
@@ -731,7 +731,7 @@ const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
-		printf("WARNING: invalid GeometryID %u\n");
+		printf("WARNING: invalid GeometryID %u\n", gid);
 		return NULL;
 	}
 
