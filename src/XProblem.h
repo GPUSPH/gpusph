@@ -162,6 +162,10 @@ class XProblem: public Problem {
 		void setIntersectionType(const GeometryID gid, const IntersectionType i_type);
 		void setEraseOperation(const GeometryID gid, const EraseOperation e_operation);
 
+		// set particle mass
+		void setParticleMass(const GeometryID gid, const double mass);
+		double setParticleMassByDensity(const GeometryID gid, const double density);
+
 		// set mass (only meaningful for floating objects)
 		void setMass(const GeometryID gid, const double mass);
 		double setMassByDensity(const GeometryID gid, const double density);

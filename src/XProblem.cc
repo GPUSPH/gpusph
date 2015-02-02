@@ -712,6 +712,21 @@ double XProblem::setMassByDensity(const GeometryID gid, const double density)
 	return m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
 }
 
+void XProblem::setParticleMass(const GeometryID gid, const double mass)
+{
+	if (!validGeometry(gid)) return;
+
+	m_geometries[gid]->ptr->SetPartMass(mass);
+}
+
+double XProblem::setParticleMassByDensity(const GeometryID gid, const double density)
+{
+	if (!validGeometry(gid)) return NAN;
+
+	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : m_physparams.r0);
+	return m_geometries[gid]->ptr->SetPartMass(dx, density);
+}
+
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	// ensure gid refers to a valid position
