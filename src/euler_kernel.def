@@ -119,7 +119,7 @@ eulerDevice(
 		const float4 velc = vel + (step - 1)*force*half_dt;
 
 		// object index
-		const int obj = object(pinfo);
+		const int obj = object(pinfo) - 1;
 
 		// Updating particle position
 		switch (ptype) {
