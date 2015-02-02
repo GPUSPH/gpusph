@@ -50,8 +50,8 @@ Rect::Rect(void)
 Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
 	if (fabs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
-		std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
-		exit(1);
+		//std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
+		//exit(1);
 	}
 
 	m_origin = origin;
