@@ -59,32 +59,49 @@ XDamBreak3D::XDamBreak3D(const GlobalData *_gdata) : XProblem(_gdata)
 	const double dimX = 4;
 	const double dimY = 2;
 	const double dimZ = 2;
-	const double obstacle_side = 0.2;
+	const double obstacle_radius = 0.1;
+	const double sphere_radius = 0.2;
 	const double water_length = dimX / 4;
 	const double water_height = dimZ / 2;
 
-	// set positioning policy
+	// set positioning policy to PP_CORNER: given point will be the corner of the geometry
 	setPositioning(PP_CORNER);
 
+	// add water
 	addBox(GT_FLUID, FT_SOLID, Point(0,0,0), water_length, dimY, water_height);
 
+	// set positioning policy to PP_BOTTOM_CENTER: given point will be the center of the base
 	setPositioning(PP_BOTTOM_CENTER);
 
-	GeometryID obstacle =
-		addCylinder(GT_FIXED_BOUNDARY, FT_BORDER, Point(dimX/2, dimY/2, 0), obstacle_side, dimZ);
+	// add a few of obstacles
+	const uint NUM_OBSTACLES = 3;
+	const double Y_DISTANCE = dimY / (NUM_OBSTACLES + 1);
+	// will rotate along Y axis by...
+	const double Y_ANGLE = - M_PI / 8;
 
-	// cetering policy is still PP_BOTTOM_CENTER
-	//setPositioning(PP_CENTER);
+	for (uint i = 0; i < NUM_OBSTACLES; i++) {
+		GeometryID obstacle =
+			addCylinder(GT_FIXED_BOUNDARY, FT_BORDER, Point(dimX/2, Y_DISTANCE * (i+1), 0), obstacle_radius, dimZ);
+		rotate(obstacle, 0, Y_ANGLE, 0);
+	}
 
+	// set positioning policy to PP_CENTER: given point will be the geometrical center of the object
+	setPositioning(PP_CENTER);
+
+	// now add a floating (actually drowning...) object on the floor
 	GeometryID floating_obj =
-		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, m_deltap), obstacle_side);
+		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, water_height), sphere_radius);
+	// half water density to make it float
 	setMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
+	setParticleMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
+	// disable collisions: will only interact with fluid
+	disableCollisions(floating_obj);
 
-	// limit domain with 6 planes
+	// note: if we do not use makeUniverseBox(), origin and size will be computed automatically
 	m_origin = make_double3(0, 0, 0);
 	m_size = make_double3(dimX, dimY, dimZ);
 
-	// note: if we do not use makeUniverseBox(), origin and size will be computed automatically
+	// limit domain with 6 planes
 	makeUniverseBox(m_origin, m_origin + m_size);
 }
 
