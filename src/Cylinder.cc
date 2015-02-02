@@ -63,9 +63,6 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 	m_r = radius;
 
 	setEulerParameters(ep);
-
-	m_origin.print();
-	m_center.print();
 }
 
 
