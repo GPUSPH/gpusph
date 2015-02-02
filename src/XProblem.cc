@@ -1013,7 +1013,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			boundary_part_mass = pos[i].w;
 	}
 	tot_parts += m_boundaryParts.size();
-	boundary_parts += m_fluidParts.size();
+	boundary_parts += m_boundaryParts.size();
 
 	// We've already counted the objects in initialize(), but now we need incremental counters
 	// to set the association objId->floatingObjId (m_ODEobjectId) and possibly print information
