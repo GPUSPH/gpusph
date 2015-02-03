@@ -297,7 +297,10 @@ struct GlobalData {
 	bool nosave;
 
 	// ODE objects
-	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
+	int s_hRbFirstIndex[MAXBODIES]; // first indices: so forces kernel knows where to write rigid body force
+	// NOTE: it is actually used as an offset, so it is typically negative!
+	uint s_hRbLastIndex[MAXBODIES]; // last indices: where reduction writes results.
+	// NOTE: first and last indices are the same for all workers
 	float3 s_hRbDeviceTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
 	float3 s_hRbDeviceTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
 
@@ -397,9 +400,11 @@ struct GlobalData {
 			s_hRbAppliedTorque[ob] = s_hRbTotalTorque[ob] = make_float3(0.0F);
 		}
 
-		// init last indices for segmented scans for objects
-		for (uint ob=0; ob < MAXBODIES; ob++)
+		// init first and last indices for segmented scans for objects
+		for (uint ob=0; ob < MAXBODIES; ob++) {
+			s_hRbFirstIndex[ob] = 0;
 			s_hRbLastIndex[ob] = 0;
+		}
 
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
