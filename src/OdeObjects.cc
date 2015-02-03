@@ -92,6 +92,9 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
 
+	// update numObjects, which is used for allocations
+	m_simparams.numObjects = m_simparams.numODEbodies;
+
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
 
@@ -231,8 +234,9 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
+			if (k==0 && i==j) m_firstODEobjectPartId = i;
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(OBJECTPART, k+1, i - j);
+			info[i] = make_particleinfo(OBJECTPART, k+1, i);
 			calc_localpos_and_hash(rbparts[i - j], info[i], pos[i], hash[i]);
 		}
 		j += rbparts.size();
