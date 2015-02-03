@@ -230,15 +230,18 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
+	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
 		PointVect & rbparts = get_ODE_body(k)->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
-			if (k==0 && i==j) m_firstODEobjectPartId = i;
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 			info[i] = make_particleinfo(OBJECTPART, k+1, i);
 			calc_localpos_and_hash(rbparts[i - j], info[i], pos[i], hash[i]);
 		}
+		gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
+		gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
+		object_particle_counter += rbparts.size();
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
