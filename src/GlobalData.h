@@ -561,7 +561,7 @@ struct GlobalData {
 	}
 
 
-	/* disable -Wconversion warnings in this uchar manipulation sections, since GCC is a bit overeager 
+	/* disable -Wconversion warnings in this uchar manipulation sections, since GCC is a bit overeager
 	 * in signaling potential issues in the upconversion from uchar to (u)int and subsequent downconversion
 	 * that happen on the shifts
 	 */
