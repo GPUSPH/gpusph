@@ -939,12 +939,12 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		for (uint i = 1; i < MAXBODIES; i++)
 			rbfirstindex[i] = 0; // or UINT_MAX, to spot bugs faster?
 
-		rbfirstindex[0] = -gdata->problem->m_firstODEobjectPartId;
-		for (uint i = 1; i < m_simparams->numObjects; i++) {
-			if (gdata->problem->m_ODEobjectId[i-1] != UINT_MAX)
-				rbfirstindex[i] = rbfirstindex[i - 1] + gdata->problem->get_ODE_body_numparts(gdata->problem->m_ODEobjectId[i-1]);
-			else
-				rbfirstindex[i] = rbfirstindex[i-1];
+		// Assuming objects are filled consecutively, we need one value for all.
+		// However, leaving the infrastructure (array of rbfirstindex) since this will
+		// be done in Problem, allowing also for object not filled consecutively (TODO)
+		for (uint i = 0; i < m_simparams->numObjects; i++) {
+			if (gdata->problem->m_ODEobjectId[i] != UINT_MAX)
+				rbfirstindex[i] = -gdata->problem->m_firstODEobjectPartId;
 		}
 		setforcesrbstart(rbfirstindex, m_simparams->numObjects);
 
