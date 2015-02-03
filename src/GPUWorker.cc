@@ -932,29 +932,15 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		// m_hRbForces = new float4[m_numBodiesParticles];
 		// m_hRbTorques = new float4[m_numBodiesParticles];
 
-		int rbfirstindex[MAXBODIES];
 		uint* rbnum = new uint[m_numBodiesParticles];
 
-		// initialize rbfirstindex
-		for (uint i = 1; i < MAXBODIES; i++)
-			rbfirstindex[i] = 0; // or UINT_MAX, to spot bugs faster?
-
-		// Assuming objects are filled consecutively, we need one value for all.
-		// However, leaving the infrastructure (array of rbfirstindex) since this will
-		// be done in Problem, allowing also for object not filled consecutively (TODO)
-		for (uint i = 0; i < m_simparams->numObjects; i++) {
-			if (gdata->problem->m_ODEobjectId[i] != UINT_MAX)
-				rbfirstindex[i] = -gdata->problem->m_firstODEobjectPartId;
-		}
-		setforcesrbstart(rbfirstindex, m_simparams->numObjects);
+		setforcesrbstart(gdata->s_hRbFirstIndex, m_simparams->numObjects);
 
 		int offset = 0;
 		for (uint i = 0; i < m_simparams->numODEbodies; i++) {
-			gdata->s_hRbLastIndex[i] = gdata->problem->get_ODE_body_numparts(i) - 1 + offset;
-
-			for (int j = 0; j < gdata->problem->get_ODE_body_numparts(i); j++) {
+			// set rbnum for each object particle; it is the key for the reduction
+			for (int j = 0; j < gdata->problem->get_ODE_body_numparts(i); j++)
 				rbnum[offset + j] = i;
-			}
 			offset += gdata->problem->get_ODE_body_numparts(i);
 		}
 		size_t  size = m_numBodiesParticles*sizeof(uint);

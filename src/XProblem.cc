@@ -1051,6 +1051,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// to set the association objId->floatingObjId (m_ODEobjectId) and possibly print information
 	uint object_counter = 0;
 	uint rigid_body_counter = 0;
+	// the number of all the particles of rigid bodies will be used to set s_hRbLastIndex
+	uint rigid_body_particles_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
 
@@ -1068,9 +1070,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
-		// special attention to number of boundary particles, used for rb buffers of floating objs
-		uint current_geometry_boundary_particles = 0;
+		// special attention to number of vertex particles, used for rb buffers of floating objs
+		uint current_geometry_vertex_particles = 0;
+		// id of first particle of current geometry
+		uint first_id_in_geometry = UINT_MAX;
 
+		// object id (GPUSPH, not ODE) that will be used in particleinfo
+		// TODO: when we will need segmented scan on moving objs as well, this should be changed
 		const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? object_counter : 0 );
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
@@ -1109,12 +1115,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = VERTEXPART;
 						vertex_parts++;
+						current_geometry_vertex_particles++;
 						break;
 					case CRIXUS_BOUNDARY:
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = BOUNDPART;
 						boundary_parts++;
-						current_geometry_boundary_particles++;
 						break;
 					default:
 						// TODO: print warning or throw fatal
@@ -1187,27 +1193,33 @@ void XProblem::copy_to_array(BufferList &buffers)
 			}
 		}
 
+		// Store id of first particle. Here current_geometry_particles is set, whether the geometry
+		// was filled at runtime or loaded from file, and tot_parts hasn't been incremented yet
+		if (current_geometry_particles > 0)
+			first_id_in_geometry = tot_parts;
+
 		// floating-objects-related settings, regardless they were loaded from file or not
 		if (m_geometries[g]->type == GT_FLOATING_BODY) {
 
-			// store index (currently identical to id) of first object particle in m_firstODEobjectPartId
-			// NOTE: relies on tot_parts not being updated yet
-			// NOTE: the m_firstODEobjectPartId/rbfirstindex approach requires filling all objects consecutively;
-			// if SA boundaries are used, the first ID refers to the first non-vertex particle and rbfirstindices
-			// to the offset for the first boundary part of next objects (excl. vertices)
-			if (current_geometry_particles > 0 && m_firstODEobjectPartId == 0){
-				if (m_simparams.boundarytype == SA_BOUNDARY)
-					// SA bounds: we want the first boundary element and we know vertices are filled first.
-					m_firstODEobjectPartId = tot_parts + current_geometry_particles - current_geometry_boundary_particles;
-				else
-					// Other: the index (thus the id) of the first part of the object will do
-					m_firstODEobjectPartId = tot_parts;
-			}
+			// TODO: when we will need segmented scan on moving objs as well, the update of
+			// s_hRbFirstIndex and s_hRbLastIndex should be moved
 
-			// set numParts, which will be read while allocating device buffers for obj parts
-			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
-			// when numparts==0, Object uses rbparts.size()
-			m_geometries[g]->ptr->SetNumParts(current_geometry_boundary_particles);
+			// Store index (currently identical to id) of first object particle plus the number
+			// of previous object particles, which will be used as offset to compute the index in rbforces/torques.
+			gdata->s_hRbFirstIndex[object_id] = - first_id_in_geometry + rigid_body_particles_counter;
+
+			// We need a little adjustment for SA boundaries: since vertices in Crixus are currently filled
+			// before boundary particles, and for SA objects we only need the latter ones, we want to
+			// shift the offset by the number of vertices in current object.
+			// This can easily made more general, if we need it (i.e. without any assumption on the order)
+			if (m_simparams.boundarytype == SA_BOUNDARY)
+				gdata->s_hRbFirstIndex[object_id] += current_geometry_vertex_particles;
+
+			// update counter of rigid body particles
+			rigid_body_particles_counter += current_geometry_particles;
+
+			// set s_hRbLastIndex after updating rigid_body_particles_counter
+			gdata->s_hRbLastIndex[object_id] = rigid_body_particles_counter - 1;
 
 			// recap on stdout
 			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
@@ -1219,11 +1231,21 @@ void XProblem::copy_to_array(BufferList &buffers)
 			rigid_body_counter++;
 		}
 
-		// update counter of objects
+		// objects-related settings (floating + moving + open bounds)
 		if (m_geometries[g]->type == GT_FLOATING_BODY ||
 			m_geometries[g]->type == GT_MOVING_BODY   ||
-			m_geometries[g]->type == GT_OPENBOUNDARY )
+			m_geometries[g]->type == GT_OPENBOUNDARY ) {
+
+			// set numParts, which will be read while allocating device buffers for obj parts
+			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
+			// when numparts==0, Object uses rbparts.size(). Also, this is probably not
+			// necessary anymore after the update of s_hRbFirstIndex and s_hRbLastIndex
+			// has been moved here
+			m_geometries[g]->ptr->SetNumParts(current_geometry_particles - current_geometry_vertex_particles);
+
+			// update counter
 			object_counter++;
+		}
 
 		// update global particle counter
 		tot_parts += current_geometry_particles;
