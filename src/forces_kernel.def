@@ -1942,14 +1942,16 @@ forcesDevice(
 			// 2. the write of forces and torques is by nature not coalesced so why using float4
 			// 3. params and the kernel should be templatized also on floating bodies presence
 			// AM - GB FIXME
+
+			// DYN_BOUNDARY will store force, other boundaries acceleration. Switch here
+			// NOTE: overwriting pout.force, since it will be used twice below and then reset to 0!
 			if (boundarytype == DYN_BOUNDARY)
-				params.rbforces[pdata.rbindex] = pout.force*pdata.pos.w;
-			else
-				params.rbforces[pdata.rbindex] = pout.force;
+				pout.force *= pdata.pos.w;
+
+			params.rbforces[pdata.rbindex] = pout.force;
 
 			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
 			//       of gravity and the local position of the cg. wrt. that gridPos.
-			// TODO FIXME: should the next pout.force be multiplied by pdata.pos.w for DYN_BOUNDARY?
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)-1], as_float3(pout.force)));
