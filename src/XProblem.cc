@@ -1192,6 +1192,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 			// store index (currently identical to id) of first object particle in m_firstODEobjectPartId
 			// NOTE: relies on tot_parts not being updated yet
+			// NOTE: the m_firstODEobjectPartId/rbfirstindex approach requires filling all objects consecutively;
+			// if SA boundaries are used, the first ID refers to the first non-vertex particle and rbfirstindices
+			// to the offset for the first boundary part of next objects (excl. vertices)
 			if (current_geometry_particles > 0 && m_firstODEobjectPartId == 0){
 				if (m_simparams.boundarytype == SA_BOUNDARY)
 					// SA bounds: we want the first boundary element and we know vertices are filled first.

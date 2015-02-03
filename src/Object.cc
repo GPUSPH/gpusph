@@ -207,7 +207,10 @@ void Object::SetNumParts(const int numParts)
 
 /// Gets the number of particles associated with an object
 /*! This function either returns the set number of particles which is used
- *  in case of a loaded STL mesh or the number of particles set in m_parts
+ *  in case of a loaded STL mesh or the number of particles set in m_parts.
+ *  NOTE: in case of SA_BOUNDARIES, SetNumParts() is called with number of
+ *  boundary parts only, thus GetNumParts() returns the number of particles
+ *  excluding vertices
  */
 uint Object::GetNumParts()
 {
