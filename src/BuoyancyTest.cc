@@ -69,6 +69,8 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
+	m_simparams.numODEbodies = m_simparams.numObjects = 1;
+
 	// Allocate data for floating bodies
 	allocate_ODE_bodies(1);
 	dInitODE();				// Initialize ODE
@@ -160,8 +162,9 @@ int BuoyancyTest::fill_parts()
 	add_ODE_body(floating);
 	dBodySetLinearVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
 	dBodySetAngularVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
+	m_ODEobjectId[0] = 0;
 	PointVect & rbparts = get_ODE_body(0)->GetParts();
-	std::cout << "Rigid body " << 1 << ": " << rbparts.size() << " particles \n";
+	std::cout << "Rigid body " << 0 << ": " << rbparts.size() << " particles \n";
 	std::cout << "totl rb parts:" << get_ODE_bodies_numparts() << "\n";
 	return parts.size() + boundary_parts.size() + get_ODE_bodies_numparts();
 }
@@ -210,13 +213,14 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
+			if (k==0 && i==0) m_firstODEobjectPartId = ij;
 			float ht = H - rbparts[i](2);
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
 			rho = m_physparams.rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
-			info[ij] = make_particleinfo(OBJECTPART, k, i );
+			info[ij] = make_particleinfo(OBJECTPART, k + 1, ij );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
 		j += rbparts.size();
