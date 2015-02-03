@@ -28,7 +28,7 @@ class BuoyancyTest: public Problem {
 		dJointID	joint;
 
 	public:
-		BuoyancyTest(const GlobalData *);
+		BuoyancyTest(GlobalData *);
 		virtual ~BuoyancyTest(void);
 
 		int fill_parts(void);

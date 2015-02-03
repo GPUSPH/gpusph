@@ -36,7 +36,7 @@ class InputProblem: public Problem {
 
 
 	public:
-		InputProblem(const GlobalData *);
+		InputProblem(GlobalData *);
 		~InputProblem(void) {};
 
 		int fill_parts(void);

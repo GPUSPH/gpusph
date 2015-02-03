@@ -44,7 +44,7 @@
 
 uint Problem::m_total_ODE_bodies = 0;
 
-Problem::Problem(const GlobalData *_gdata)
+Problem::Problem(GlobalData *_gdata)
 {
 	gdata = _gdata;
 	m_options = gdata->clOptions;

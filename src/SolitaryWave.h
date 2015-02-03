@@ -69,7 +69,7 @@ class SolitaryWave: public Problem {
 		double		m_S, m_Hoh, m_tau;
 
 	public:
-		SolitaryWave(const GlobalData *);
+		SolitaryWave(GlobalData *);
 		~SolitaryWave(void);
 		int fill_parts(void);
 		uint fill_planes(void);

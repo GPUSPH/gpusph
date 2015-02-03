@@ -7,7 +7,7 @@
 
 #define USE_PLANES 0
 
-InputProblem::InputProblem(const GlobalData *_gdata) : Problem(_gdata)
+InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Error catcher for SPECIFIC_PROBLEM definition
 	// If the value is not defined properly this will throw a compile error

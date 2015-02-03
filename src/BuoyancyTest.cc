@@ -16,7 +16,7 @@
 #include "Vector.h"
 
 
-BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
+BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 1.0;

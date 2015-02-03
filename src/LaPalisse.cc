@@ -7,7 +7,7 @@
 
 #define USE_PLANES 0
 
-LaPalisse::LaPalisse(const GlobalData *_gdata) : Problem(_gdata)
+LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 {
 	h5File.setFilename("meshes/0.LaPalisse.h5sph");
 

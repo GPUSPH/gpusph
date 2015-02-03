@@ -183,7 +183,7 @@ class XProblem: public Problem {
 		void addExtraWorldMargin(const double margin);
 
 	public:
-		XProblem(const GlobalData *);
+		XProblem(GlobalData *);
 		~XProblem(void);
 
 		// initialize world size, ODE if necessary

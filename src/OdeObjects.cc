@@ -31,7 +31,7 @@
 #include "particledefine.h"
 #include "GlobalData.h"
 
-OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
+OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 1.6;

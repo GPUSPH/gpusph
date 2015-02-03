@@ -32,7 +32,7 @@
 #include "Vector.h"
 #include "GlobalData.h"*/
 
-XProblemExample::XProblemExample(const GlobalData *_gdata) : XProblem(_gdata)
+XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);

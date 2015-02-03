@@ -30,7 +30,7 @@
 
 class XProblemExample: public XProblem {
 	public:
-		XProblemExample(const GlobalData *);
+		XProblemExample(GlobalData *);
 };
 #endif	/* _XPROBLEMEXAMPLE_H */
 

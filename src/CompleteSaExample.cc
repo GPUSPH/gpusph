@@ -7,7 +7,7 @@
 
 #define USE_PLANES 0
 
-CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
+CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : Problem(_gdata)
 {
 	h5File.setFilename("meshes/0.complete_sa_example.h5sph");
 

@@ -50,7 +50,7 @@ class DamBreakGate: public Problem {
 		float		H;  // still watr level
 
 	public:
-		DamBreakGate(const GlobalData *);
+		DamBreakGate(GlobalData *);
 		virtual ~DamBreakGate(void);
 
 		int fill_parts(void);

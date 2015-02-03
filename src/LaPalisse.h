@@ -20,7 +20,7 @@ class LaPalisse: public Problem {
 		HDF5SphReader	h5File;
 
 	public:
-		LaPalisse(const GlobalData *);
+		LaPalisse(GlobalData *);
 		~LaPalisse(void);
 
 		int fill_parts(void);

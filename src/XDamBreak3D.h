@@ -31,7 +31,7 @@
 class XDamBreak3D: public XProblem {
 	private:
 	public:
-		XDamBreak3D(const GlobalData *);
+		XDamBreak3D(GlobalData *);
 		//virtual ~XDamBreak3D(void);
 		// override standard split
 		void fillDeviceMap();

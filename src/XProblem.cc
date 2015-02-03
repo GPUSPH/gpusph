@@ -17,7 +17,7 @@
 
 //#define USE_PLANES 0
 
-XProblem::XProblem(const GlobalData *_gdata) : Problem(_gdata)
+XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** XProblem initialization
 	m_numActiveGeometries = 0;

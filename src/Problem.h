@@ -98,7 +98,7 @@ class Problem {
 
 		string	m_name;
 
-		const GlobalData	*gdata;
+		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 		SimParams	m_simparams;
 		PhysParams	m_physparams;
@@ -116,7 +116,7 @@ class Problem {
 		uint		m_ODEobjectId[MAXBODIES];			// ODE object id
 		uint		m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
-		Problem(const GlobalData *_gdata);
+		Problem(GlobalData *_gdata);
 
 		// comment here
 		virtual void initialize() {};

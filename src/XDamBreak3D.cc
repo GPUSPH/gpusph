@@ -32,7 +32,7 @@
 #include "Vector.h"
 #include "GlobalData.h"
 
-XDamBreak3D::XDamBreak3D(const GlobalData *_gdata) : XProblem(_gdata)
+XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 {
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);

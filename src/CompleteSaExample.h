@@ -26,7 +26,7 @@ class CompleteSaExample: public Problem {
 		dGeomID		m_box_planes[5];	// planes to model the main tank
 
 	public:
-		CompleteSaExample(const GlobalData *);
+		CompleteSaExample(GlobalData *);
 		~CompleteSaExample(void);
 
 		int fill_parts(void);

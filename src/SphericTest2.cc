@@ -45,7 +45,7 @@
 #define OFFSET_Z 0
 #endif
 
-SphericTest2::SphericTest2(const GlobalData *_gdata) : Problem(_gdata)
+SphericTest2::SphericTest2(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 3.22;

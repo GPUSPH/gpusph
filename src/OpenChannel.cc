@@ -30,7 +30,7 @@
 #include "GlobalData.h"
 
 
-OpenChannel::OpenChannel(const GlobalData *_gdata) : Problem(_gdata)
+OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 {
 	// SPH parameters
 	set_deltap(0.05f);
