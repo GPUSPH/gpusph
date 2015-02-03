@@ -580,6 +580,9 @@ void XProblem::enableDynamics(const GeometryID gid)
 		printf("WARNING: dynamics only available for rigid bodies! Ignoring\n");
 		return;
 	}
+	// update counter of rigid bodies if needed
+	if (!m_geometries[gid]->handle_dynamics)
+		m_numRigidBodies++;
 	m_geometries[gid]->handle_dynamics = true;
 }
 
@@ -606,6 +609,9 @@ void XProblem::disableDynamics(const GeometryID gid)
 		printf("WARNING: dynamics are mandatory for floating bodies! Ignoring\n");
 		return;
 	}
+	// update counter of rigid bodies if needed
+	if (m_geometries[gid]->handle_dynamics)
+		m_numRigidBodies--;
 	m_geometries[gid]->handle_dynamics = false;
 }
 
