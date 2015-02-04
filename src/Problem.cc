@@ -54,7 +54,6 @@ Problem::Problem(GlobalData *_gdata)
 	m_problem_dir = m_options->dir;
 	for (uint i=0; i<MAXBODIES; i++)
 		m_ODEobjectId[i] = UINT_MAX;
-	m_firstODEobjectPartId = 0;
 }
 
 

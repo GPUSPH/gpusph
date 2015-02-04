@@ -114,7 +114,6 @@ class Problem {
 		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
 		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
 		uint		m_ODEobjectId[MAXBODIES];			// ODE object id
-		uint		m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
 		Problem(GlobalData *_gdata);
 
