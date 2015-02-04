@@ -238,6 +238,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
 
+	// NOTE: this actually counts only boundary parts
 	uint numOdeObjParts = 0;
 
 	if(n_bparts) {
@@ -248,9 +249,6 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				eulerVel[i] = make_float4(0);
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
-			// Save the id of the first boundary particle that belongs to an ODE object
-			if (m_firstODEobjectPartId == 0 && specialBoundType != 0 &&  m_ODEobjectId[specialBoundType-1] != UINT_MAX)
-				m_firstODEobjectPartId = i;
 			// Define the type of boundaries
 			if (specialBoundType == 1) {
 				// this vertex is part of an open boundary
@@ -263,6 +261,9 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
 				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				if (numOdeObjParts == 0)
+					// first part of floating body, write it as offset for rbforces
+					gdata->s_hRbFirstIndex[2-1] = - i;
 				numOdeObjParts++;
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
@@ -280,6 +281,8 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 	// Make sure that fluid + vertex + boundaries are done in that order
 	// before adding any other items like testpoints, etc.
 	cube->SetNumParts(numOdeObjParts);
+	// set last index for rbforces
+	gdata->s_hRbLastIndex[2-1] = numOdeObjParts - 1;
 
 	//Testpoints
 	if (test_points.size()) {
