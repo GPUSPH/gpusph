@@ -213,7 +213,6 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
-			if (k==0 && i==0) m_firstODEobjectPartId = ij;
 			float ht = H - rbparts[i](2);
 			if (ht < 0)
 				ht = 0.0;
@@ -223,6 +222,8 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(OBJECTPART, k + 1, ij );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
+		gdata->s_hRbFirstIndex[0] = -j; // offset for rbforces indexing
+		gdata->s_hRbLastIndex[0] = rbparts.size() - 1; // index of last part in rbforces
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
