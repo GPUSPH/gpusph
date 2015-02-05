@@ -1068,6 +1068,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		if (m_geometries[g]->type == GT_PLANE)
 			continue;
 
+		// skip deleted geometries
+		if (!m_geometries[g]->enabled) continue;
+
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
 		// special attention to number of vertex particles, used for rb buffers of floating objs
