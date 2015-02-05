@@ -49,8 +49,11 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	m_simparams.dtadapt = true;
 	// viscositys: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
 	m_simparams.visctype = DYNAMICVISC;
+	m_physparams.kinematicvisc = 1.0e-2f;
 	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
 	m_simparams.boundarytype = SA_BOUNDARY;
+	// ferrari correction
+	m_simparams.ferrariLengthScale = 0.25f;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
