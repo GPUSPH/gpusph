@@ -1214,23 +1214,26 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// s_hRbFirstIndex and s_hRbLastIndex should be moved
 
 			// Store index (currently identical to id) of first object particle plus the number
-			// of previous object particles, which will be used as offset to compute the index in rbforces/torques.
+			// of previously filled object particles. This, summed to the particle id, will be used
+			// as offset to compute the index in rbforces/torques.
 			gdata->s_hRbFirstIndex[object_id] = - first_id_in_geometry + rigid_body_particles_counter;
-
-			// We need a little adjustment for SA boundaries: since vertices in Crixus are currently filled
-			// before boundary particles, and for SA objects we only need the latter ones, we want to
-			// shift the offset by the number of vertices in current object.
-			// This can easily made more general, if we need it (i.e. without any assumption on the order)
-			if (m_simparams.boundarytype == SA_BOUNDARY)
-				gdata->s_hRbFirstIndex[object_id] -= current_geometry_vertex_particles;
 
 			// update counter of rigid body particles
 			rigid_body_particles_counter += current_geometry_particles;
 
 			// set s_hRbLastIndex after updating rigid_body_particles_counter
 			gdata->s_hRbLastIndex[object_id] = rigid_body_particles_counter - 1;
-			if (m_simparams.boundarytype == SA_BOUNDARY)
+
+			// We need two little adjustments for SA boundaries:
+			// 1. Since vertices in Crixus are filled before boundary particles, and for SA objects we only
+			// need the latter ones, we shift the offset ("first index") by #vertices in current object;
+			// 2. Since rbforces is needed and allocated only for #bound_parts, "last index" is updated
+			// similarly, i.e. by subtracting #vertices.
+			// We can go more general if we ever need it (i.e. without any assumption on the filling order).
+			if (m_simparams.boundarytype == SA_BOUNDARY) {
+				gdata->s_hRbFirstIndex[object_id] -= current_geometry_vertex_particles;
 				gdata->s_hRbLastIndex[object_id] -= current_geometry_vertex_particles;
+			}
 
 			// recap on stdout
 			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
