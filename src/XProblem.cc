@@ -1085,7 +1085,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// object id (GPUSPH, not ODE) that will be used in particleinfo
 		// TODO: when we will need segmented scan on moving objs as well, this should be changed
-		const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? object_counter : 0 );
+		const uint object_id = ( curr_geometry_is_object ? object_counter : 0 );
 		// each object particle carries (object_id + 1), since object==0 currently means no object
 		const uint shifted_object_id = ( curr_geometry_is_object ? object_id + 1 : object_id );
 
