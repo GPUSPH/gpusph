@@ -1229,6 +1229,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 			// set s_hRbLastIndex after updating rigid_body_particles_counter
 			gdata->s_hRbLastIndex[object_id] = rigid_body_particles_counter - 1;
+			if (m_simparams.boundarytype == SA_BOUNDARY)
+				gdata->s_hRbLastIndex[object_id] -= current_geometry_vertex_particles;
 
 			// recap on stdout
 			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
