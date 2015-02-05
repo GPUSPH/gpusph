@@ -1071,6 +1071,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 		// skip deleted geometries
 		if (!m_geometries[g]->enabled) continue;
 
+		const bool curr_geometry_is_object =
+			m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY   ||
+			m_geometries[g]->type == GT_OPENBOUNDARY;
+
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
 		// special attention to number of vertex particles, used for rb buffers of floating objs
@@ -1081,6 +1086,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		// object id (GPUSPH, not ODE) that will be used in particleinfo
 		// TODO: when we will need segmented scan on moving objs as well, this should be changed
 		const uint object_id = ( m_geometries[g]->type == GT_FLOATING_BODY ? object_counter : 0 );
+		// each object particle carries (object_id + 1), since object==0 currently means no object
+		const uint shifted_object_id = ( curr_geometry_is_object ? object_id + 1 : object_id );
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
@@ -1131,8 +1138,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				// compute particle info, local pos, cellhash
-				// Remember: +1 since object 0 means no object (ugh)
-				info[i] = make_particleinfo(ptype, object_id + 1, i);
+				info[i] = make_particleinfo(ptype, shifted_object_id, i);
 				// not yet enabled?
 				if (m_geometries[g]->type == GT_FLOATING_BODY) {
 					SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
@@ -1188,7 +1194,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// copy particles
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-				info[i] = make_particleinfo(OBJECTPART, object_id + 1, i);
+				info[i] = make_particleinfo(OBJECTPART, shifted_object_id, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
 				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
@@ -1235,9 +1241,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		}
 
 		// objects-related settings (floating + moving + open bounds)
-		if (m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY   ||
-			m_geometries[g]->type == GT_OPENBOUNDARY ) {
+		if (curr_geometry_is_object) {
 
 			// set numParts, which will be read while allocating device buffers for obj parts
 			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
