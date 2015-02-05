@@ -1222,7 +1222,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// shift the offset by the number of vertices in current object.
 			// This can easily made more general, if we need it (i.e. without any assumption on the order)
 			if (m_simparams.boundarytype == SA_BOUNDARY)
-				gdata->s_hRbFirstIndex[object_id] += current_geometry_vertex_particles;
+				gdata->s_hRbFirstIndex[object_id] -= current_geometry_vertex_particles;
 
 			// update counter of rigid body particles
 			rigid_body_particles_counter += current_geometry_particles;
