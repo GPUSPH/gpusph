@@ -653,6 +653,26 @@ wendlandOnSegment(const float q)
  * Gaussian quadrature
  */
 
+// Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
+__device__ __forceinline__ float2
+gaussQuadratureO1(	const	float3	vPos0,
+					const	float3	vPos1,
+					const	float3	vPos2,
+					const	float3	relPos)
+{
+	float2 val = make_float2(0.0f);
+	// perform the summation
+	float3 pa =	vPos0/3.0f +
+				vPos1/3.0f +
+				vPos2/3.0f  ;
+	pa -= relPos;
+	val += 1.0f*wendlandOnSegment(length(pa));
+	// compute the triangle volume
+	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	// return the summed values times the volume
+	return val*vol;
+}
+
 // 5th order: weights
 __constant__ float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
 
@@ -876,7 +896,9 @@ Gamma(	const	float		&slength,
 	// general formula (also used if particle is on vertex / edge to compute remaining edges)
 	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
 		// Gaussian quadrature of 14th order
-//		float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		//float2 intVal = gaussQuadratureO1(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		// Gaussian quadrature of 14th order
+		//float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		// Gaussian quadrature of 5th order
 		const float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
 		gradGamma_as += intVal.x;
