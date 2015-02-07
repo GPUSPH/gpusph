@@ -643,7 +643,7 @@ wendlandOnSegment(const float q)
 
 		// integrated Wendland kernel
 		const float uq = 1.0f/q;
-		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8*uq + 20)*uq + 30)*uq) + 21);
+		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8.0f*uq + 20.0f)*uq + 30.0f)*uq) + 21.0f);
 	}
 
 	return make_float2(kernel, intKernel);
