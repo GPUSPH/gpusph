@@ -1218,6 +1218,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
 				}*/
 				flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
+				// if p <= 0 is imposed then only outgoing flux is allowed
+				if (rhoExt < d_rho0[PART_FLUID_NUM(info)]*(1.0f+1e-5f))
+					flux = fmin(0.0f, flux);
 				// impose eulerVel according to dv/dn = 0
 				as_float3(eulerVel) = sumvel;
 				// remove normal component of velocity
