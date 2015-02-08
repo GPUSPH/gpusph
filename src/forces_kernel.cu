@@ -1455,9 +1455,10 @@ saVertexBoundaryConditions(
 	float sumtke = 0.0f; // summation for computing tke (k-epsilon model)
 	float sumeps = 0.0f; // summation for computing epsilon (k-epsilon model)
 	float sumMdot = 0.0f; // summation for computing the mass variance based on in/outflow
+	float massFluid = 0.0f; // mass obtained from a outgoing - mass of a new fluid
 	float4 sumEulerVel = make_float4(0.0f); // summation for computing the averages of the Euler velocities
 	float numseg  = 0.0f;  // number of adjacent segments
-	bool foundFluid = false;
+	bool foundFluid = false; // check if a vertex particle has a fluid particle in its support
 	// Average norm used in the intial step to compute grad gamma for vertex particles
 	// During the simulation this is used for open boundaries to determine whether particles are created
 	// For all other boundaries in the keps case this is the average normal of all non-open boundaries used to ensure that the
@@ -1557,7 +1558,7 @@ saVertexBoundaryConditions(
 					if(betaAV > 0.0f){
 						// add mass from fluid particle to vertex particle
 						// note that the mass was transfered from pos to gam
-						pos.w += betaAV*vertexWeights.w;
+						massFluid += betaAV*vertexWeights.w;
 					}
 				}
 			}
@@ -1610,7 +1611,7 @@ saVertexBoundaryConditions(
 			// corner vertices are not allowed to create new particles
 			!CORNER(info))
 		{
-			pos.w -= refMass;
+			massFluid -= refMass;
 			// Create new particle
 			// TODO of course make_particleinfo doesn't work on GPU due to the memcpy(),
 			// so we need a GPU-safe way to do this. The current code is little-endian
@@ -1660,8 +1661,13 @@ saVertexBoundaryConditions(
 			sumMdot = 0.0f;
 		// time stepping
 		pos.w += dt*sumMdot;
-		pos.w = fmax(-refMass, fmin(refMass, pos.w));
-		if (!foundFluid)
+		pos.w = fmax(-2.0f*refMass, fmin(2.0f*refMass, pos.w));
+		if (sumMdot < 0.0f)
+			pos.w = fmax(-0.5f*refMass, fmin(0.5f*refMass, pos.w));
+		// add contribution from newly created fluid or outgoing fluid particles
+		pos.w += massFluid;
+		// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
+		if (!foundFluid && sumMdot < 1e-5f*dt*refMass)
 			pos.w = 0.0f;
 		oldPos[index].w = pos.w;
 	}
