@@ -1216,6 +1216,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				as_float3(eulerVel) = sumvel;
 				// remove normal component of velocity
 				eulerVel = eulerVel - dot3(eulerVel, normal)*normal;
+				// if a pressure boundary has a positive flux set the tangential velocity to 0
+				// otherwise the tangential velocity is taken from the interior of the fluid
+				if (flux > 0)
+					eulerVel = make_float4(0.0f);
 				// add calculated normal velocity
 				eulerVel += normal*flux;
 				// set density to the imposed one
