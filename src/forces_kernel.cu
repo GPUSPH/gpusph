@@ -1165,8 +1165,14 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				oldTKE[index] = 1e-5f;
 			if (oldEps)
 				oldEps[index] = 1e-5f;
-			if (IO_BOUNDARY(info))
-				sumvel = make_float3(0.0f);
+			if (IO_BOUNDARY(info)) {
+				if (VEL_IO(info)) {
+					sumvel = eulerVel;
+				}
+				else {
+					sumvel = make_float3(0.0f);
+				}
+			}
 		}
 
 		// Compute the Riemann Invariants for I/O conditions
