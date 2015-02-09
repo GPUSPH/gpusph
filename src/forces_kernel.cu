@@ -1167,7 +1167,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				oldEps[index] = 1e-5f;
 			if (IO_BOUNDARY(info)) {
 				if (VEL_IO(info)) {
-					sumvel = eulerVel;
+					sumvel = as_float3(eulerVel);
 				}
 				else {
 					sumvel = make_float3(0.0f);
