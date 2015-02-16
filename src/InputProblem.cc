@@ -307,7 +307,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.mbcallback = false;
 	m_simparams.boundarytype = SA_BOUNDARY;
 	m_simparams.nlexpansionfactor = 1.1;
-	m_simparams.sph_formulation = SPH_F2;
+	// TODO: debug why SPH_F2 messes up everything
+	m_simparams.sph_formulation = SPH_F1;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
