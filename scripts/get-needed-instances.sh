@@ -15,7 +15,7 @@ fi
 # Sets variables in the form default_{typename}, e.g. default_KernelType or
 # default_flag_t
 get_defaults() {
-	eval $(sed -n -e '/struct TypeDefaults/,/};/ p' src/cuda/cudasimframework.cuh | grep typedef | sed -e 's/\ttypedef TypeValue</default_/' -e 's/, /="/' -e 's/>.*/"/')
+	eval $(sed -n -e '/struct TypeDefaults/,/};/ p' src/cuda/cudasimframework.cuh | grep typedef | sed -e 's/	typedef TypeValue</default_/' -e 's/, /="/' -e 's/>.*/"/')
 }
 
 # reset kernel, formulation etc to default
