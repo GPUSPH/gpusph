@@ -66,8 +66,12 @@ add_instances() {
 	context="$1"
 
 	# sort flags so that they are always in the same sequence:
-	# split flags into one per line, sort, join lines together again
-	sortflags=$(echo ${flags} | sed 's/\s*|\s*/\n/g' | sort | sed -n -e ':a' -e '$!N ; s/\n/ | /g ; ta ; p')
+	# split flags into one per line, sort, join lines together again.
+	# Since sed in Mac OS X doesn't accept \n for newline, we insert verbatim
+	# newlines
+	sortflags=$(echo ${flags} | sed 's/[ 	]*|[ 	]*/\
+/g' | sort | sed -n -e ':a' -e '$!N ; s/\
+/ | /g ; ta ; p')
 
 	# neibs engine
 	file="$BUILDNEIBS_INSTANCE_FILE"
@@ -119,7 +123,7 @@ process_file() {
 	# remove spaces after < and before >
 	# TODO handle conditionals / ifdefs in the same SETUP_FRAMEWORK
 	sed -n -e '/SETUP_FRAMEWORK/,/);/ p' "$fname" | \
-		sed 's!//.*$!!' | tr '\n' ' ' | tr ';' '\n' | sed 's/\s\+/ /g' | \
+		sed 's!//.*$!!' | tr '\n' ' ' | tr ';' '\n' | sed 's/[ 	]\+/ /g' | \
 		sed -e 's/< /</g' -e 's/ >/>/g' | \
 	while read line ; do
 		# at this point we have one framework setup per line, with normalized whitespace.
