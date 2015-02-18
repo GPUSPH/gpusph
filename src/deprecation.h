@@ -85,12 +85,16 @@ and_or_assigning_to = obsolete_variables;
 #define GCC_DIAG_STR(s) #s
 #define GCC_DIAG_JOINSTR(x,y) GCC_DIAG_STR(x ## y)
 #define GCC_DIAG_DO_PRAGMA(x) _Pragma (#x)
+#if __clang__ > 0
+#define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(clang diagnostic x)
+#else
 #define GCC_DIAG_PRAGMA(x) GCC_DIAG_DO_PRAGMA(GCC diagnostic x)
+#endif
 
 // NVCC before version 6.0 also doesn't like the GCC
-#if ((__GNUC__*100 + __GNUC_MINOR__) < 406) || (__NVCC__ > 0 && __NVCC_VERSION__ < 60)
+#if __clang__ < 1 && (((__GNUC__*100 + __GNUC_MINOR__) < 406) || (__NVCC__ > 0 && __NVCC_VERSION__ < 60))
 
-#pragma message("diagnostig mangling disabled")
+#pragma message("diagnostic mangling disabled")
 
 // no diagnostic mangling
 #define IGNORE_WARNINGS(str)
