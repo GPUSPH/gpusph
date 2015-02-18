@@ -74,7 +74,7 @@ typedef std::vector<uint4> U4Vect;
 // TODO templatize, might be useful in other cases
 class F4Lexical {
 public:
-	bool operator()(float4 const& a, float4 const& b) {
+	bool operator()(float4 const& a, float4 const& b) const {
 		if (a.x < b.x) return true;
 		if (a.x > b.x) return false;
 		if (a.y < b.y) return true;
