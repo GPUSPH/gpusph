@@ -41,6 +41,6 @@ size_t
 PredCorrAllocPolicy::get_buffer_count(flag_t Key) const
 { return (Key & BUFFERS_ALL_DBL ? 2 : 1); }
 
-size_t
+flag_t
 PredCorrAllocPolicy::get_multi_buffered(flag_t Keys) const
 { return (Keys & BUFFERS_ALL_DBL); }
