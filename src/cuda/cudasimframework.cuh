@@ -127,6 +127,8 @@ protected:
 			return new CUDAFilterEngine<SHEPARD_FILTER, kerneltype, boundarytype>(frequency);
 		case MLS_FILTER:
 			return new CUDAFilterEngine<MLS_FILTER, kerneltype, boundarytype>(frequency);
+		case INVALID_FILTER:
+			throw runtime_error("Invalid filter type");
 		}
 		throw runtime_error("Unknown filter type");
 	}
