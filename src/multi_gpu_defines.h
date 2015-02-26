@@ -1,15 +1,43 @@
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+	Conservatoire National des Arts et Metiers, Paris, France
+
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+	This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef _MULTIGPU_DEFINES_
 #define _MULTIGPU_DEFINES_
 
-// for HASH_KEY_SIZE
+// For HASH_KEY_SIZE
 #include "hash_key_size_select.opt"
 
-// we use a byte (uchar) to address a device in the cluster
+// We use a byte (uchar) to address a device in the cluster
 #define MAX_DEVICES_PER_CLUSTER 256
 
 typedef unsigned char devcount_t;
 
-// how many bits [1...8] we reserve to the node rank in the global device index
+// How many bits [1...8] we reserve to the node rank in the global device index
 // default: 8 devices max per node (so 3 bits), and the remaining bits (5)
 // for the nodes, (so 32 nodes)
 #define DEVICE_BITS 3
@@ -18,7 +46,7 @@ typedef unsigned char devcount_t;
 #define MAX_DEVICES_PER_NODE  (1 << DEVICE_BITS)
 #define DEVICE_BITS_MASK (MAX_DEVICES_PER_NODE - 1)
 
-// if hashKey is 64 bits long, the first two bits of the cell hash are reserved; otherwise, the max number of cells is UINT_MAX
+// If hashKey is 64 bits long, the first two bits of the cell hash are reserved; otherwise, the max number of cells is UINT_MAX
 #if HASH_KEY_SIZE == 32
 #define MAX_CELLS			(UINT_MAX)
 #else
@@ -48,14 +76,15 @@ typedef unsigned char devcount_t;
 #define CELLTYPE_BITMASK_LONG	(~( 3LU  << 62 ))
 #endif
 
-// empty segment (uint)
+// Empty segment (uint)
 #define EMPTY_SEGMENT (UINT_MAX)
 // guess?
+// TODO: fix comment (Alexis)
 #define EMPTY_CELL (UINT_MAX)
 
 #endif // _MULTIGPU_DEFINES_
 
-
+// TODO: delete commented stuff ? (Alexis)
 // The spaghetti-inclusion of headers need some tricks
 //#ifdef _JUST_DEVICES_
 
