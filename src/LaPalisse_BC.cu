@@ -73,7 +73,12 @@ LaPalisse_imposeBoundaryConditionDevice(
 	if(index < numParticles) {
 		const particleinfo info = tex1Dfetch(infoTex, index);
 		// open boundaries and forced moving objects
-		if (VERTEX(info) && IO_BOUNDARY(info)) {
+		// the case of a corner needs to be treated as follows:
+		// - for a velocity inlet nothing is imposed (in case of k-eps newEulerVel already contains the info
+		//   from the viscosity
+		// - for a pressure inlet the pressure is imposed on the corners. If we are in the k-epsilon case then
+		//   we need to get the viscosity info from newEulerVel (x,y,z) and add the imposed density in .w
+		if (VERTEX(info) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];
