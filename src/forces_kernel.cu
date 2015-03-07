@@ -1284,7 +1284,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				// quick check if we are behind a segment and if the segment is reasonably close by
 				// (max distance vertex to segment is deltap/2)
 				if (dot3(normal, relPos) <= 0.0f &&
-					sqlength3(relPos) < deltap &&
+					sqlength3(relPos) < deltap*deltap &&
 					dot(relVel, as_float3(normal)) < 0.0f) {
 					// now check whether the normal projection is inside the triangle
 					// first get the position of the vertices local coordinate system for relative positions to vertices
@@ -1310,9 +1310,9 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 					const float2 vPos2 = vertPos2[neib_index];
 
 					// relative positions of vertices with respect to the segment, normalized by h
-					float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
-					float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
-					float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
+					float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2); // e.g. v0 = r_{v0} - r_s
+					float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2);
+					float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2);
 
 					const float4 relPosV0 = relPos - v0;
 					const float4 relPosV10 = v1 - v0;
