@@ -308,7 +308,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			value = vel[i].w;
 		else
 			value = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
@@ -319,7 +319,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			// TODO FIXME: Testpoints compute pressure only
 			// In the future we would like to have a density here
 			// but this needs to be done correctly for multifluids
@@ -380,7 +380,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uchar value = PART_TYPE(info[i]);
-			if (gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
+			if (gdata->problem->get_simparams()->csvtestpoints && TESTPOINT(info[i])) {
 				float tkeVal = 0.0f;
 				float epsVal = 0.0f;
 				if(tke)

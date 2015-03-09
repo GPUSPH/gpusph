@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -53,7 +56,7 @@ Problem::Problem(const GlobalData *_gdata)
 	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
 	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
-	for (uint i=0; i<MAXBODIES; i++)
+	for (uint i=0; i< MAXBODIES; i++)
 		m_ODEobjectId[i] = UINT_MAX;
 	m_firstODEobjectPartId = 0;
 }
@@ -793,12 +796,13 @@ Problem::get_mbdata(const double t, const float dt, const bool forceupdate)
 {
 	bool needupdate = false;
 
+	// TODO: change mb callback situation for new particle types
 	for (int i=0; i < m_mbnumber; i++) {
 		MbCallBack& mbcallbackdata = mb_callback(t, dt, i);
 		float4 data = make_float4(0.0f);
 
 		switch(mbcallbackdata.type) {
-			case PISTONPART:
+			/*case PISTONPART:
 				data.x = mbcallbackdata.vel.x;
 				break;
 
@@ -812,7 +816,9 @@ Problem::get_mbdata(const double t, const float dt, const bool forceupdate)
 				data.x = mbcallbackdata.vel.x;
 				data.y = mbcallbackdata.vel.y;
 				data.z = mbcallbackdata.vel.z;
-				break;
+				break;*/
+		default:
+			break;
 		}
 		if (m_mbdata[i].x != data.x || m_mbdata[i].y != data.y ||
 			m_mbdata[i].z != data.z ||m_mbdata[i].w != data.w) {

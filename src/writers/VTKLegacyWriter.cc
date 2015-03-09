@@ -104,7 +104,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			value = vel[i].w;
 		else
 			value = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
@@ -118,7 +118,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			// TODO FIXME: Testpoints compute pressure only
 			// In the future we would like to have a density here
 			// but this needs to be done correctly for multifluids

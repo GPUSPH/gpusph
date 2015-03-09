@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,7 +42,7 @@
 #include "kahan.h"
 #include "tensor.cu"
 
-// single-precision M_PI
+// Single-precision M_PI
 #define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
 
 // an auxiliary function that fetches the tau tensor
@@ -66,15 +69,14 @@ texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
 
-__constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particles
-__constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
+__constant__ idx_t	d_neiblist_end; 		///< maximum number of neighbors * number of allocated particles
+__constant__ idx_t	d_neiblist_stride; 		///< stride between neighbors of the same particle
 
-__constant__ int	d_numfluids;					// number of different fluids
+__constant__ int	d_numfluids;			///< number of different fluids
 
-// square of sound speed for at-rest density
-__constant__ float	d_sqC0[MAX_FLUID_TYPES];
+__constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-rest density for each fluid
 
-__constant__ float	d_ferrari;						// coefficient for Ferrari correction
+__constant__ float	d_ferrari;				///< coefficient for Ferrari correction
 
 // LJ boundary repusion force comuting
 __constant__ float	d_dcoeff;
@@ -94,14 +96,14 @@ __constant__ float	d_visccoeff;
 __constant__ float	d_epsartvisc;
 
 // Constants used for DEM
-__constant__ float	d_ewres;
-__constant__ float	d_nsres;
+__constant__ float	d_ewres;		///< east-west resolution
+__constant__ float	d_nsres;		///< north-south resolution
 __constant__ float	d_demdx;
 __constant__ float	d_demdy;
 __constant__ float	d_demdxdy;
 __constant__ float	d_demzmin;
 
-__constant__ float	d_partsurf;						// particle surface
+__constant__ float	d_partsurf;		/// particle surface (typically particle spacing suared)
 
 // Definition of planes for geometrical boundaries
 __constant__ uint	d_numplanes;
@@ -136,7 +138,7 @@ __constant__ char3	d_cell_to_offset[27];
 __constant__ uint	d_newIDsOffset;
 
 /************************************************************************************************************/
-/*							  Functions used by the differents CUDA kernels							   */
+/*							  Functions used by the different CUDA kernels							        */
 /************************************************************************************************************/
 
 // Lennard-Jones boundary repulsion force
@@ -179,7 +181,7 @@ MKForce(const float r, const float slength,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
-/*					   Reflect position or velocity wrt to a plane										    */
+/*					   Reflect position or velocity with respect to a plane									*/
 /************************************************************************************************************/
 
 // opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
@@ -557,7 +559,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 		// velocity gradient is contributed by fluid particles only,
 		// except in the DYN_BOUNDARY case where all particles (except TESTPOINTS,
 		// of course) contribute
-		const bool valid_neib_type = FLUID(neib_info) || (dynbounds && !TESTPOINTS(neib_info));
+		const bool valid_neib_type = FLUID(neib_info) || (dynbounds && !TESTPOINT(neib_info));
 
 		if (r < influenceradius && valid_neib_type) {
 			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
@@ -1581,7 +1583,7 @@ saVertexBoundaryConditions(
 			// FIXME endianness
 			uint clone_id = id(info) + d_newIDsOffset;
 			particleinfo clone_info = info;
-			clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
+			clone_info.x = PT_FLUID; // clear all flags and set it to fluid particle
 			clone_info.y = 0; // reset object to 0
 			clone_info.z = (clone_id & 0xffff); // set the id of the object
 			clone_info.w = ((clone_id >> 16) & 0xffff);
@@ -2053,20 +2055,20 @@ void calcEnergiesDevice(
 		const int3 gridPos = calcGridPosFromParticleHash( particleHash[gid] );
 		particleinfo pinfo = pInfo[gid];
 		if (FLUID(pinfo)) {
-			uint fluid_num = PART_FLUID_NUM(pinfo);
+			uint fnum = fluid_num(pinfo);
 			float v2 = kahan_sqlength(as_float3(vel));
 			// TODO improve precision by splitting the float part from the grid part
 			float gh = kahan_dot(d_gravity, as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize);
-			kahan_add(energy[fluid_num].x, pos.w*v2/2, E_k[fluid_num].x);
-			kahan_add(energy[fluid_num].y, -pos.w*gh, E_k[fluid_num].y);
+			kahan_add(energy[fnum].x, pos.w*v2/2, E_k[fnum].x);
+			kahan_add(energy[fnum].y, -pos.w*gh, E_k[fnum].y);
 			// internal elastic energy
-			float gamma = d_gammacoeff[fluid_num];
-			float gm1 = d_gammacoeff[fluid_num]-1;
-			float rho0 = d_rho0[fluid_num];
+			float gamma = d_gammacoeff[fnum];
+			float gm1 = d_gammacoeff[fnum]-1;
+			float rho0 = d_rho0[fnum];
 			float elen = __powf(vel.w/rho0, gm1)/gm1 + rho0/vel.w - gamma/gm1;
-			float ssp = soundSpeed(vel.w, fluid_num);
+			float ssp = soundSpeed(vel.w, fnum);
 			elen *= ssp*ssp/gamma;
-			kahan_add(energy[fluid_num].z, pos.w*elen, E_k[fluid_num].z);
+			kahan_add(energy[fnum].z, pos.w*elen, E_k[fnum].z);
 		}
 		gid += stride;
 	}
@@ -2272,7 +2274,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 	// read particle data from sorted arrays
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if(type(info) != TESTPOINTSPART)
+	if(!TESTPOINT(info))
 		return;
 
 	#if (__COMPUTE__ >= 20)
@@ -2407,7 +2409,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
+	CLEAR_FLAG(info, FG_SURFACE);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// Persistent variables across getNeibData calls
@@ -2511,7 +2513,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	if (!nc)
-		SET_FLAG(info, SURFACE_PARTICLE_FLAG);
+		SET_FLAG(info, FG_SURFACE);
 
 	newInfo[index] = info;
 
@@ -2612,7 +2614,7 @@ saIdentifyCornerVertices(
 			// this implies that the mass of this particle won't vary but it is still treated
 			// like an open boundary in every other aspect
 			if (normDist < deltap - eps){
-				SET_FLAG(info, CORNER_PARTICLE_FLAG);
+				SET_FLAG(info, FG_CORNER);
 				pinfo[index] = info;
 				break;
 			}
@@ -2716,7 +2718,7 @@ saFindClosestVertex(
 		return;
 	} else {
 		vertices[index].w = minVertId;
-		SET_FLAG(info, CORNER_PARTICLE_FLAG);
+		SET_FLAG(info, FG_CORNER);
 		pinfo[index] = info;
 	}
 }

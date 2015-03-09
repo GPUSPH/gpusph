@@ -101,7 +101,7 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.05);
+	add_writer(VTKWRITER, 0.2);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
@@ -202,7 +202,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 		for (uint i = 0; i < boundary_parts.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i]= make_particleinfo(BOUNDPART,0,i);
+			info[i]= make_particleinfo(PT_BOUNDARY, 0, i);
 			calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 		}
 		j = boundary_parts.size();
@@ -214,7 +214,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
@@ -224,7 +224,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,1,i);
+		info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
@@ -233,7 +233,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(FLUIDPART,0,i);
+		info[i]= make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();

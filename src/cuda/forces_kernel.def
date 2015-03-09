@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -60,35 +63,49 @@
  * Auxiliary functions, needed to initialize const members in one go
  */
 
-/// Precompute pressure contribution to the momemntum equation.
+/// Precompute pressure contribution to the momentum equation.
 /// Two versions are available, one in the KEPS viscosity case,
 /// and a generic one
 
-// Generic:
+/// Precompute pressure contribution to momentum equation
+/*! This function precomputes the pressure contribution to the
+ * 	momentum equation according to the chosen SPH formulation.
+ *
+ *	\param[in] rho : particle density
+ *	\param[in] info : particle info (used for fluid number)
+ *
+ * 	\tparam sph_formulation : SPH formulation used
+ *
+ *	\return : pressure contribution
+ */
+ //@{
 template<SPHFormulation sph_formulation>
 __device__ __forceinline__
 float
 precalc_pressure(const float rho, particleinfo const& info);
 
-/* when using SPH formulation 1, the precomputed pressure contribution
-   for the current particle is p/rho^2 */
+/*! When using SPH formulation 1, the precomputed pressure contribution
+*   for the current particle is p/rho^2
+*/
 template<>
 __device__ __forceinline__
 float
 precalc_pressure<SPH_F1>(const float rho, particleinfo const& info)
 {
-	return P(rho, PART_FLUID_NUM(info))/(rho*rho);
+	return P(rho, fluid_num(info))/(rho*rho);
 }
 
-/* when using SPH formulation 2, the precomputed pressure contribution
-   for the current particle is just p */
+/*! When using SPH formulation 2, the precomputed pressure contribution
+*   for the current particle is just p
+*/
 template<>
 __device__ __forceinline__
 float
 precalc_pressure<SPH_F2>(const float rho, particleinfo const& info)
 {
-	return P(rho, PART_FLUID_NUM(info));
+	return P(rho, fluid_num(info));
 }
+//@}
 
 // With KEPS visc:
 template<SPHFormulation sph_formulation>
@@ -750,7 +767,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 {
 	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		return;
-	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
+	if (OBJECT(pdata.info) && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
 		const float ndist = sqlength3(ndata.relPos)/params.slength/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
@@ -760,7 +777,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	}
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
-	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
+	if (!OBJECT(pdata.info) && ndata.ntype == PT_BOUNDARY) {
 		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.5f);
 		const float sx = fmax(x*4.0f - 1.0f,0.0f);
 		// smootherstep function
@@ -1670,7 +1687,7 @@ forcesDevice(
 	__shared__ forces_shared_data<dyndt, visctype> shared;
 	shared.init();
 
-	// the body of this kernel easily gets a lot of indentation. to prevent that,
+	// The body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
 	// if (c1) { if (c2) { if (c3) { stuff } } } we can do
 	// if (!c1) break; if (!c2) break ; if (!c3) break; stuff
@@ -1679,29 +1696,29 @@ forcesDevice(
 	// into one place.
 	// (The alternative would have been a label before the reduction and a
 	// bunch of goto label, but that would skip across initializations, which is an error.
-	// and some people still don't like gotos, so this is actually a better alternative).
+	// and some people still don't like goto's, so this is actually a better alternative).
 #pragma unroll
 	do {
 		if (index >= params.toParticle) break;
 
-		// particle info struct, always stored in a texture
+		// Particle info struct, always stored in a texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-		// Determine if the current particle must act based on the particle type.
+		// Determine how the current particle must act based on it's the particle type.
 		// The particles for which forces are computed are:
 		// * fluid particles
 		// * object particles
 		// * vertex particles (for SA_BOUNDARY)
-		// * evertyhing except TESTPOINTS (for DYN_BOUNDARY)
+		// * everything except TESTPOINTS (for DYN_BOUNDARY)
 
 		bool computes_stuff = FLUID(info) || OBJECT(info);
-		if (boundarytype == SA_BOUNDARY){
+		if (boundarytype == SA_BOUNDARY) {
 			computes_stuff = computes_stuff || VERTEX(info);
 			// floating objects need to compute the force acting on them
 			computes_stuff = computes_stuff || (BOUNDARY(info) && FLOATING(info));
 		}
 		if (boundarytype == DYN_BOUNDARY)
-			computes_stuff = !TESTPOINTS(info);
+			computes_stuff = !TESTPOINT(info);
 
 		// nothing to do if the particle doesn't need to compute forces
 		if (!computes_stuff)
@@ -1774,15 +1791,15 @@ forcesDevice(
 
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// we now check if the current particle interacts with the neighbor.
+			// We now check if the current particle interacts with the neighbor.
 			// We recycle the computes_stuff as boolean
-			computes_stuff = (r < params.influenceradius) && !TESTPOINTS(neib_info);
+			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
 			// Objects only interact with fluid particles, since object-object
 			// and object-boundary forces are computed with ODE
 			// TODO FIXME prevent OBJECT parts from having other OBJECT parts in their
 			// neib list
-			if (pdata.ptype == PT_OBJECT)
+			if (OBJECT(pdata.info))
 				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
 
 			// With SA_BOUNDARY, fluid and vertex particles interact with any
@@ -1793,18 +1810,18 @@ forcesDevice(
 			if (boundarytype == SA_BOUNDARY && (pdata.ptype == PT_FLUID || pdata.ptype == PT_VERTEX))
 				computes_stuff = computes_stuff || BOUNDARY(neib_info);
 
-			// bail out if we do not interact with this neighbor
+			// Bail out if we do not interact with this neighbor
 			if (!computes_stuff)
 				continue;
 
-			// load rest of neib data
+			// Load rest of neib data
 			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
-			/* Contributions from this neighbor */
+			// Contributions from this neighbor
 			forces_neib_output<boundarytype> nout;
 
-			/* Now compute the interactions based on pdata.info and ndata.info */
+			// Now compute the interactions based on pdata.info and ndata.info */
 
 			// Compute gamma_as and |grad gamma_as| and add it to the respective values
 			// of the focal particle
@@ -1870,7 +1887,7 @@ forcesDevice(
 				// Compute the maximum depth at pressure boundaries
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
-			else if (pdata.ptype == PT_OBJECT) {
+			else if (OBJECT(pdata.info)) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
 				nout.DvDt *= ndata.relPos.w;
@@ -1886,12 +1903,12 @@ forcesDevice(
 			gamma_fixup<boundarytype>::with<sph_formulation>(params, pdata, pout);
 		}
 
-		// External forces etc
+		// External forces
 		if (FLUID(pdata.info)) {
-			// post-processing for viscous terms, returns viscous coefficient
+			// Post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 
-			// for KEPS: finalizes computation of strain rate & computes de/dt and dk/dt
+			// For KEPS: finalizes computation of strain rate & computes de/dt and dk/dt
 			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
 
 			// Adding gravity
@@ -1924,13 +1941,15 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		else if (pdata.ptype == PT_BOUNDARY && FLOATING(info)) {
+		else if (pdata.ptype == PT_BOUNDARY && OBJECT(info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
 
 		// Writing out the results
-		if (pdata.ptype == PT_OBJECT || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
+		// TODO: below was the previous test, i don't understand it (Alexis).
+		//if (OBJECT(pdata.info) || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
+		if(OBJECT(pdata.info)) {
 			// The forces computed in the neighbors loop are forces by unit of mass so when
 			// computing the forces (and torques) on an object the force acting on each object
 			// particle must be multiplied by the particle mass.
