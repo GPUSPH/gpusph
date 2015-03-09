@@ -149,3 +149,17 @@ add_instances '(default)'
 for source in "$@" ; do
 	process_file "$source"
 done
+
+# Touch all instance files, to ensure they all exist. This is mostly needed
+# to avoid that the boundary instance file is not generated when no problem
+# has SA_BOUNDARY conditions
+for file in \
+	"$BUILDNEIBS_INSTANCE_FILE" \
+	"$EULER_INSTANCE_FILE" \
+	"$FORCES_INSTANCE_FILE" \
+	"$VISC_INSTANCE_FILE" \
+	"$FILTERS_INSTANCE_FILE" \
+	"$BOUND_INSTANCE_FILE"
+do
+	touch "$file"
+done
