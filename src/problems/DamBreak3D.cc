@@ -59,7 +59,7 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC> // or SPSVISC
+		viscosity< KINEMATICVISC > // or SPSVISC
 	);
 
 	// SPH parameters
