@@ -125,8 +125,13 @@ protected:
 		switch (filtertype) {
 		case SHEPARD_FILTER:
 			return new CUDAFilterEngine<SHEPARD_FILTER, kerneltype, boundarytype>(frequency);
+			break;
 		case MLS_FILTER:
 			return new CUDAFilterEngine<MLS_FILTER, kerneltype, boundarytype>(frequency);
+			break;
+		case INVALID_FILTER:
+			throw runtime_error("Invalid filter type");
+			break;
 		}
 		throw runtime_error("Unknown filter type");
 	}
