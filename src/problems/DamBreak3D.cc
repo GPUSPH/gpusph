@@ -63,6 +63,8 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 		boundary<LJ_BOUNDARY>
 	);
 
+	addFilter(SHEPARD_FILTER, 10);
+
 	// SPH parameters
 	set_deltap(0.02); //0.008
 	m_simparams.dt = 0.0003f;
