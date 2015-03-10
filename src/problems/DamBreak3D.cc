@@ -59,7 +59,7 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	SETUP_FRAMEWORK(
-		viscosity< KINEMATICVISC > // or SPSVISC
+		viscosity< DYNAMICVISC > // or SPSVISC
 	);
 
 	// SPH parameters
@@ -101,7 +101,7 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2);
+	add_writer(VTKWRITER, 0.1);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
