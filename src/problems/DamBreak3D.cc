@@ -59,7 +59,7 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	SETUP_FRAMEWORK(
-		viscosity< DYNAMICVISC > // or SPSVISC
+		viscosity< SPSVISC > // or SPSVISC
 	);
 
 	// SPH parameters
@@ -99,6 +99,8 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
