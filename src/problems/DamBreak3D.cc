@@ -52,14 +52,15 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.67;
 	lz = 0.6;
 	H = 0.4;
-	wet = false;
+	wet = true;
 
-	m_usePlanes = true;
+	m_usePlanes = false;
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	SETUP_FRAMEWORK(
-		viscosity< SPSVISC > // or SPSVISC
+		viscosity< SPSVISC >,
+		boundary<LJ_BOUNDARY>
 	);
 
 	// SPH parameters
