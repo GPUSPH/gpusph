@@ -36,8 +36,6 @@
 #include "buffer_traits.h"
 #include "buffer_alloc_policy.h"
 
-using namespace std;
-
 /* Base class for the Buffer template class.
  * The base pointer is a pointer to pointer to allow easy management
  * of double-(or more)-buffered arrays.
@@ -90,15 +88,15 @@ public:
 
 	// as above, plus offset
 	virtual void *get_offset_buffer(uint idx, size_t offset) {
-		throw runtime_error("can't determine buffer offset in AbstractBuffer");
+		throw std::runtime_error("can't determine buffer offset in AbstractBuffer");
 	}
 	virtual const void *get_offset_buffer(uint idx, size_t offset) const {
-		throw runtime_error("can't determine buffer offset in AbstractBuffer");
+		throw std::runtime_error("can't determine buffer offset in AbstractBuffer");
 	}
 
 	// swap elements at positions idx1, idx2 of buffer _buf
 	virtual void swap_elements(uint idx1, uint idx2, uint _buf=0) {
-		throw runtime_error("can't swap elements in AbstractBuffer");
+		throw std::runtime_error("can't swap elements in AbstractBuffer");
 	};
 };
 
@@ -434,16 +432,16 @@ public:
 	const BufferAllocPolicy *m_policy;
 
 	// list of BufferLists
-	vector<BufferList> m_lists;
+	std::vector<BufferList> m_lists;
 
 	// iterators are returned by the getters
-	typedef vector<BufferList>::iterator iterator;
-	typedef vector<BufferList>::const_iterator const_iterator;
+	typedef std::vector<BufferList>::iterator iterator;
+	typedef std::vector<BufferList>::const_iterator const_iterator;
 
 	// Keys of Buffers added so far
 	// It's a set instead of a single flag_t to allow iteration on it
 	// without bit-shuffling. Might change.
-	set<flag_t> m_buffer_keys;
+	std::set<flag_t> m_buffer_keys;
 
 	// TODO FIXME this is for double-buffered lists only
 	// In general we would have N writable list (N=1 usually)
@@ -473,8 +471,8 @@ public:
 
 		// To avoid the double free, first do a manual deallocation
 		// and removal of the shared buffers:
-		set<flag_t>::const_iterator iter = m_buffer_keys.begin();
-		const set<flag_t>::const_iterator end = m_buffer_keys.end();
+		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
+		const std::set<flag_t>::const_iterator end = m_buffer_keys.end();
 		for ( ; iter != end ; ++iter) {
 			const flag_t key = *iter;
 			const size_t count = m_policy->get_buffer_count(key);
@@ -486,9 +484,8 @@ public:
 			// from the lists, in order to avoid double deletions
 			AbstractBuffer *buf = m_lists[0][key];
 
-			vector<BufferList>::iterator list = m_lists.begin();
-			const vector<BufferList>::iterator list_end = m_lists.end();
-			for ( ; list != list_end; ++list)
+			iterator list = m_lists.begin();
+			for ( ; list != m_lists.end(); ++list)
 				list->removeBuffer(key);
 			delete buf;
 		}
@@ -501,7 +498,7 @@ public:
 	void setAllocPolicy(const BufferAllocPolicy* _policy)
 	{
 		if (m_policy != NULL)
-			throw runtime_error("cannot change buffer allocation policy");
+			throw std::runtime_error("cannot change buffer allocation policy");
 		m_policy = _policy;
 
 		// add as many BufferLists as needed at most
@@ -515,9 +512,9 @@ public:
 	void addBuffer(int _init=0)
 	{
 		if (m_policy == NULL)
-			throw runtime_error("trying to add buffers before setting policy");
+			throw std::runtime_error("trying to add buffers before setting policy");
 		if (m_buffer_keys.find(Key) != m_buffer_keys.end())
-			throw runtime_error("trying to re-add buffer");
+			throw std::runtime_error("trying to re-add buffer");
 
 		m_buffer_keys.insert(Key);
 
@@ -531,11 +528,10 @@ public:
 			// then a buffer has a count of either three or one)
 			// TODO redesign as appropriate when the need arises
 			if (count != m_lists.size())
-				throw runtime_error("buffer count less than max but bigger than 1 not supported");
+				throw std::runtime_error("buffer count less than max but bigger than 1 not supported");
 			// multi-buffered, allocate one instance in each buffer list
-			vector<BufferList>::iterator it(m_lists.begin());
-			vector<BufferList>::iterator end(m_lists.end());
-			while (it != end) {
+			iterator it(m_lists.begin());
+			while (it != m_lists.end()) {
 				it->addBuffer<BufferClass, Key>(_init);
 				++it;
 			}
@@ -543,9 +539,8 @@ public:
 			// single-buffered, allocate once and put in all lists
 			AbstractBuffer *buff = new BufferClass<Key>;
 
-			vector<BufferList>::iterator it(m_lists.begin());
-			vector<BufferList>::iterator end(m_lists.end());
-			while (it != end) {
+			iterator it(m_lists.begin());
+			while (it != m_lists.end()) {
 				it->addExistingBuffer(Key, buff);
 				++it;
 			}
@@ -555,8 +550,8 @@ public:
 	/* Swap the lists the given buffers belong to */
 	// TODO make this a cyclic rotation for the case > 2
 	void swapBuffers(flag_t keys) {
-		set<flag_t>::const_iterator iter = m_buffer_keys.begin();
-		const set<flag_t>::const_iterator end = m_buffer_keys.end();
+		std::set<flag_t>::const_iterator iter = m_buffer_keys.begin();
+		const std::set<flag_t>::const_iterator end = m_buffer_keys.end();
 		for (; iter != end ; ++iter) {
 			const flag_t key = *iter;
 			if (!(key & keys))
@@ -572,7 +567,7 @@ public:
 	}
 
 	/* Get the set of Keys for which buffers have been added */
-	const set<flag_t>& get_keys() const
+	const std::set<flag_t>& get_keys() const
 	{ return m_buffer_keys; }
 
 	/* Get the amount of memory that would be taken by the given buffer
@@ -612,7 +607,7 @@ public:
 	iterator getBufferList(size_t idx)
 	{
 		if (idx > m_lists.size())
-			throw runtime_error("asked for non-existing buffer list");
+			throw std::runtime_error("asked for non-existing buffer list");
 		return m_lists.begin() + idx;
 	}
 
@@ -620,7 +615,7 @@ public:
 	const_iterator getBufferList(size_t idx) const
 	{
 		if (idx > m_lists.size())
-			throw runtime_error("asked for non-existing buffer list");
+			throw std::runtime_error("asked for non-existing buffer list");
 		return m_lists.begin() + idx;
 	}
 
@@ -634,13 +629,13 @@ public:
 	iterator getWriteBufferList(size_t i = 0)
 	{
 		if (i >= READ_LIST - WRITE_LIST)
-			throw runtime_error("no such writeable buffer");
+			throw std::runtime_error("no such writeable buffer");
 		return getBufferList(WRITE_LIST + i);
 	}
 	const_iterator getWriteBufferList(size_t i = 0) const
 	{
 		if (i >= READ_LIST - WRITE_LIST)
-			throw runtime_error("no such writeable buffer");
+			throw std::runtime_error("no such writeable buffer");
 		return getBufferList(WRITE_LIST + i);
 	}
 
