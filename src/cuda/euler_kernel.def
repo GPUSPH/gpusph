@@ -157,11 +157,14 @@ eulerDevice(
 	const ParticleType ptype = static_cast<ParticleType>(PART_TYPE(pinfo));
 
 	do {
-		// We only integrate ACTIVE particles which are not BOUNDARY particles,
-		// unless dynamic  or SA boundary is active (in which case BOUNDARY particles are also integrated)
+
+			// We only integrate ACTIVE particles which are not BOUNDARY particles,
+		// unless dynamic  or SA boundary is active (in which case BOUNDARY
+		// particles are also integrated) or particle belongs to an moving
+		// object
 		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary))
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !OBJECT(pinfo)) )
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
@@ -229,6 +232,21 @@ eulerDevice(
 		case PT_BOUNDARY:
 			if (boundarytype == DYN_BOUNDARY)
 				vel.w += dt*force.w;
+			if (OBJECT(pinfo) && step == 2) {
+			//	printf("obj = %d\n", obj);
+				// Applying center of gravity translation
+				pos.x += d_rbtrans[obj].x;
+				pos.y += d_rbtrans[obj].y;
+				pos.z += d_rbtrans[obj].z;
+
+				// Applying rotation around center of gravity
+				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
+				applyrot(&d_rbsteprot[9*obj], relPos, pos);
+
+				// Computing particles velocity
+				// V(P) = V(Cg) + PCg^omega
+				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
+				}
 			if (boundarytype != SA_BOUNDARY)
 				break;
 			// SA_BOUNDARY: fall-through to VERTEX

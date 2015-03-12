@@ -268,7 +268,7 @@ disable_particle(float4 &pos) {
 // Extract particle type
 #define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
 // Extract particle flag
-#define PART_FLAG(f)		(type(f) >> PART_FLAG_SHIFT)
+#define PART_FLAGS(f)		(type(f) >> PART_FLAG_SHIFT)
 
 
 /* Tests for particle types */

@@ -38,7 +38,7 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.67;
 	lz = 0.6;
 	H = 0.4;
-	wet = false;
+	wet = true;
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
@@ -84,6 +84,8 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 
 	// Allocate data for floating bodies
 	allocate_ODE_bodies(2);
+	m_simparams.numObjects = m_simparams.numODEbodies;
+
 	dInitODE();				// Initialize ODE
 	m_ODEWorld = dWorldCreate();	// Create a dynamic world
 	m_ODESpace = dHashSpaceCreate(0);
@@ -230,13 +232,16 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = j; i < j + rbparts.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(PT_BOUNDARY | FG_FLOATING, k+1, i - j);
+			info[i] = make_particleinfo(PT_BOUNDARY | FG_FLOATING, k, i - j);
 			calc_localpos_and_hash(rbparts[i - j], info[i], pos[i], hash[i]);
 		}
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 
+	particleinfo  pinfo = info[j-1];
+	std::cout << "Object pinfo: type = " << PART_TYPE(pinfo) << " flags = " << PART_FLAGS(pinfo)
+				<< " is object = " << OBJECT(pinfo) << " object num = " << object(pinfo) << "\n\n";
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
