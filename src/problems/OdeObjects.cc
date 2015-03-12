@@ -156,7 +156,7 @@ int OdeObjects::fill_parts()
 	if (wet) {
 		fluid1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
-		obstacle.Unfill(parts, r0);
+		//obstacle.Unfill(parts, r0);
 	}
 
 	// Rigid body #1 : sphere

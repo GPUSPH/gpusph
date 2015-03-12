@@ -203,21 +203,16 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	bool write_part_obj = (gdata->problem->get_simparams()->numODEbodies > 0);
 
 	// particle info
-	// TODO check the highest part type/flag/fluid/object and select the type
-	// appropriately; presently none of it is > 256, so assume UInt8 suffices
 	if (info) {
-		scalar_array(fid, "UInt8", "Part type", offset);
-		offset += sizeof(uchar)*numParts+sizeof(int);
-		// TODO don't write Part flag unless it's needed
-		scalar_array(fid, "UInt8", "Part flag", offset);
-		offset += sizeof(uchar)*numParts+sizeof(int);
+		scalar_array(fid, "UInt16", "Part type+flags", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
 		if (write_fluid_num) {
-			scalar_array(fid, "UInt8", "Fluid number", offset);
-			offset += sizeof(uchar)*numParts+sizeof(int);
+			scalar_array(fid, "UInt16", "Fluid number", offset);
+			offset += sizeof(ushort)*numParts+sizeof(int);
 		}
 		if (write_part_obj) {
-			scalar_array(fid, "UInt8", "Part object", offset);
-			offset += sizeof(uchar)*numParts+sizeof(int);
+			scalar_array(fid, "UInt16", "Part object", offset);
+			offset += sizeof(ushort)*numParts+sizeof(int);
 		}
 		scalar_array(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
@@ -374,12 +369,11 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 
 	// particle info
 	if (info) {
-		numbytes=sizeof(uchar)*numParts;
-
-		// type
+		// type + flags
+		numbytes=sizeof(ushort)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uchar value = PART_TYPE(info[i]);
+			ushort value = type(info[i]);
 			if (gdata->problem->get_simparams()->csvtestpoints && TESTPOINT(info[i])) {
 				float tkeVal = 0.0f;
 				float epsVal = 0.0f;
@@ -405,34 +399,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			write_var(fid, value);
 		}
 
-		// flag
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uchar value = PART_FLAG(info[i]);
-			write_var(fid, value);
-		}
-
 		// fluid number
-		if (write_fluid_num) {
+		if (write_fluid_num || write_part_obj) {
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				uchar value = PART_FLUID_NUM(info[i]);
+				ushort value = object(info[i]);
 				write_var(fid, value);
 			}
 		}
-
-		// object
-		if (write_part_obj) {
-			write_var(fid, numbytes);
-			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				uchar value = object(info[i]);
-				write_var(fid, value);
-			}
-		}
-
-		numbytes=sizeof(uint)*numParts;
 
 		// id
+		numbytes=sizeof(uint)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uint value = id(info[i]);

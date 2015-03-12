@@ -149,24 +149,38 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	}
 
 	// Info
+	/* Fluid number is only included if there are more than 1 */
+	bool write_fluid_num = (gdata->problem->get_physparams()->numFluids > 1);
+
+	/* Object number is only included if there are any */
+	// TODO a better way would be for GPUSPH to expose the highest
+	// object number ever associated with any particle, so that we
+	// could check that
+	bool write_part_obj = (gdata->problem->get_simparams()->numODEbodies > 0);
 	if (info) {
-		fid << "SCALARS Type int" << endl;
+		fid << "SCALARS Type+flags int" << endl;
 		print_lookup(fid);
 		for (uint i=0; i < numParts; ++i)
 			fid << type(info[i]) << endl;
 		fid << endl;
 
-		fid << "SCALARS Object int" << endl;
-		print_lookup(fid);
-		for (uint i=0; i < numParts; ++i)
-			fid << object(info[i]) << endl;
-		fid << endl;
+		if (write_fluid_num || write_part_obj) {
+			if (write_fluid_num)
+				fid << "SCALARS Fluid int" << endl;
+			else
+				fid << "SCALARS Object int" << endl;
+			print_lookup(fid);
+			for (uint i=0; i < numParts; ++i)
+				fid << object(info[i]) << endl;
+			fid << endl;
+		}
 
 		fid << "SCALARS ParticleId int" << endl;
 		print_lookup(fid);
 		for (uint i=0; i < numParts; ++i)
 			fid << id(info[i]) << endl;
 		fid << endl;
+
 	}
 
 	fid.close();
