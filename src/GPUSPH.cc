@@ -453,8 +453,7 @@ bool GPUSPH::runSimulation() {
 				uint freq = flt->second; // known to be > 0
 				if (gdata->iterations % freq == 0) {
 					gdata->only_internal = true;
-					gdata->extraCommandArg = float(filter);
-					doCommand(FILTER);
+					doCommand(FILTER, NO_FLAGS, float(filter));
 					// update before swapping, since UPDATE_EXTERNAL works on write buffers
 					if (MULTI_DEVICE)
 						doCommand(UPDATE_EXTERNAL, BUFFER_VEL | DBLBUFFER_WRITE);
