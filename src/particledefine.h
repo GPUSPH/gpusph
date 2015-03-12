@@ -174,11 +174,11 @@ enum FilterType {
 #ifndef GPUSPH_MAIN
 extern
 #endif
-const char *FilterName[MLS_FILTER+1]
+const char *FilterName[INVALID_FILTER+1]
 #ifdef GPUSPH_MAIN
 = {
 	"Shepard",
-	"MLS"
+	"MLS",
 	"(invalid)"
 }
 #endif
