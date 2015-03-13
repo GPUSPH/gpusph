@@ -418,7 +418,13 @@ bool STLMesh::IsInside(const Point& p, double dx) const
 }
 
 double STLMesh::Volume(const double dx) const
-{}
+{
+	const double dp_offset = 0; // or: dx
+	const double m_lx = m_maxbounds.x - m_minbounds.x + dp_offset;
+	const double m_ly = m_maxbounds.y - m_minbounds.y + dp_offset;
+	const double m_lz = m_maxbounds.z - m_minbounds.z + dp_offset;
+	return (m_lx * m_ly * m_lz);
+}
 
 void STLMesh::SetInertia(double)
 {}
