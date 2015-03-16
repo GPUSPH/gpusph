@@ -282,7 +282,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 	// before adding any other items like testpoints, etc.
 	cube->SetNumParts(numOdeObjParts);
 	// set last index for rbforces
-	gdata->s_hRbLastIndex[2-1] = numOdeObjParts - 1;
+	gdata->s_hRbLastIndex[0] = numOdeObjParts - 1;
 
 	//Testpoints
 	if (test_points.size()) {
