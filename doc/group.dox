@@ -1,0 +1,13 @@
+/*!                                                                         
+\defgroup user_groupp User documentation
+
+\defgroup developper_group Developper documentation
+@{ 
+	\defgroup cuda Device code
+	@{
+		\defgroup neibs Neighbor search
+		\defgroup integration Time integration
+		\defgroup forces Forces computation
+	@}
+@}
+*/
