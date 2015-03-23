@@ -29,6 +29,8 @@
 /*
  * Device code.
  */
+
+
 // TODO :
 // We can also plan to have separate arrays for boundary parts
 // one for the fixed boundary that is sorted only one time in the simulation
@@ -42,26 +44,44 @@
 #include "particledefine.h"
 #include "textures.cuh"
 #include "vector_math.h"
+
 // TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
 // CELLTYPE_MASK_*
 #include "multi_gpu_defines.h"
+/** @addtogroup neibs */
+/** @{ */
 
+/** \namespace cuneibs
+ *  \brief Contains all device functions/kernels/variables used for neighbor list construction
+ *
+ *  The namespace cuneibs contains all the device part of neighbor list construction :
+ *  	- device constants/variables
+ *  	- device functions
+ *  	- kernels
+ */
 namespace cuneibs {
-__constant__ uint d_maxneibsnum;
-__constant__ idx_t d_neiblist_stride;
-__device__ int d_numInteractions;
-__device__ int d_maxNeibs;
+/** \name Device constants
+ *  @{ */
+__constant__ uint d_maxneibsnum;		///< Maximum allowed number of neighbors per particle
+__constant__ idx_t d_neiblist_stride;	///< Stride dimension
+/** @} */
+/** \name Device variables
+ *  @{ */
+__device__ int d_numInteractions;		///< Total number of interactions
+__device__ int d_maxNeibs;				///< Computed maximum number of neighbors per particle
+/** @} */
 
 #include "cellgrid.h"
 
-
+/** \name Device functions
+ *  @{ */
 /// Clamp grid position to edges according to periodicity
 /*! This function clamp grid position to edges according to the chosen
  * periodicity, returns the new grid position and update the grid offset.
  *
  *	\param[in] gridPos : grid position to be clamped
  *	\param[in] gridOffset : grid offset
- *	\param[out] toofar : has the gridPos been clamped when the offset was of more than 1 cell?
+ *	\param[out] toofar : has the gridPos been clamped when the offset was of more than 1 cell ?
  *
  * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  *
@@ -142,8 +162,11 @@ clampGridPos<PERIODIC_NONE>(const int3& gridPos, int3& gridOffset, bool *toofar)
 
 	return newGridPos;
 }
+/** @} */
 
 
+/** \name Kernels
+ *  @{ */
 /// Updates particles hash value of particles and prepare the index table
 /*! This kernel should be called before the sort. It
  * 	- updates hash values and relative positions for fluid and
@@ -161,7 +184,9 @@ clampGridPos<PERIODIC_NONE>(const int3& gridPos, int3& gridOffset, bool *toofar)
 // TODO: document compactMapDevice (Alexis).
 template <Periodicity periodicbound>
 __global__ void
+/*! \cond */
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+/*! \endcond */
 calcHashDevice(float4*			posArray,			///< particle's positions (in, out)
 			   hashKey*			particleHash,		///< particle's hashes (in, out)
 			   uint*			particleIndex,		///< particle's indexes (out)
@@ -240,7 +265,9 @@ calcHashDevice(float4*			posArray,			///< particle's positions (in, out)
  */
 // TODO: document compactDeviceMap. (Alexis).
 __global__ void
+/*! \cond */
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
+/*! \endcond */
 fixHashDevice(hashKey*			particleHash,		///< particle's hashes (in, out)
 			   uint*			particleIndex,		///< particle's indexes (out)
 			   const particleinfo*	particelInfo,	///< particle's informations (in)
@@ -308,7 +335,9 @@ fixHashDevice(hashKey*			particleHash,		///< particle's hashes (in, out)
 // TODO: k goes with e, make it a float2. (Alexis).
 // TODO: document segmentStart (Alexis).
 __global__
+/*! \cond */
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+/*! \endcond */
 void reorderDataAndFindCellStartDevice( uint*			cellStart,			///< index of cells first particle (out)
 										uint*			cellEnd,			///< index of cells last particle (out)
 										uint*			segmentStart,
@@ -453,7 +482,9 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			///< index of cells
  *	\param[in] numParticles : total number of particles
  */
 __global__
+/*! \cond */
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
+/*! \endcond */
 void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< particle's informations (in)
 								uint*			vertIDToIndex,		///< vertex ID to index array (out)
 								const uint		numParticles)		///< total number of particles (in)
@@ -473,8 +504,11 @@ void updateVertIDToIndexDevice(	const particleinfo*	particleInfo,	///< particle'
 		// particle count), this buffer does not overflow
 		vertIDToIndex[ id(info) ] = index;
 }
+/** @} */
 
 
+/** \name Device functions
+ *  @{ */
 /// Compute the grid position for a neighboring cell
 /*! This function computes the grid position for a neighboring cell,
  * 	according to the given offset and periodicity.
@@ -556,16 +590,29 @@ calcNeibCell(
 	return true;
 
 }
+/** @} */
 
 //TODO: Giuseppe write a REAL documentation COMPLYING with Doxygen
 // standards and with OUR DOCUMENTING CONVENTIONS !!!! (Alexis).
 /// variables found in all specializations of neibsInCell
+
+/*!	\struct common_niC_vars
+ * 	\brief Common parameters used in neibsInCell device function
+ *
+ * 	Parameters passed to neibsInCell device function depends on the type of
+ * 	of boundary used. This structure contains the parameters common to all
+ * 	boundary types.
+ */
 struct common_niC_vars
 {
-	const	uint	gridHash;		// hash value of grid position
-	const	uint	bucketStart;	// index of first particle in cell
-	const	uint	bucketEnd;		// index of last particle in cell
+	const	uint	gridHash;		///< Hash value of grid position
+	const	uint	bucketStart;	///< Index of first particle in cell
+	const	uint	bucketEnd;		///< Index of last particle in cell
 
+	/// Constructor
+	/*!	Computes struct member values according to the grid position.
+	 * 	\param[in] gridPos : position in the grid
+	 */
 	__device__ __forceinline__
 	common_niC_vars(int3 const& gridPos) :
 		gridHash(calcGridHash(gridPos)),
@@ -574,14 +621,26 @@ struct common_niC_vars
 	{}
 };
 
-/// variables found in use_sa_boundary specialization of neibsInCell
+
+/*!	\struct sa_boundary_niC_vars
+ * 	\brief Specific parameters used in neibsInCell with SA boundary
+ *
+ * 	This structure contains specific parameters to be passed in plus of the
+ * 	common one to neibsInCell.
+ */
 struct sa_boundary_niC_vars
 {
-	vertexinfo	vertices;
-	const	float4		boundElement;
-	const	uint		j;
-	const	float4		coord2;
+	vertexinfo			vertices; 		///< TODO
+	const	float4		boundElement; 	///< TODO
+	const	uint		j; 				///< TODO
+	const	float4		coord2; 		///< TODO
 
+	/// Constructor
+	/*!	Computes struct variable values according to particle's index
+	 * 	and parameters passed to buildNeibsKernnel
+	 * 	\param[in] index : particle index
+	 * 	\param[in] bparams : TODO
+	 */
 	__device__ __forceinline__
 	sa_boundary_niC_vars(const uint index, buildneibs_params<true> const& bparams) :
 		vertices(tex1Dfetch(vertTex, index)),
@@ -593,7 +652,7 @@ struct sa_boundary_niC_vars
 			fabs(boundElement.z) < fabs(boundElement.x)) ? 2 :
 			(fabs(boundElement.y) < fabs(boundElement.x) ? 1 : 0)
 		 ),
-		// compute second coordinate which is equal to n_s x e_j
+		// Compute second coordinate which is equal to n_s x e_j
 		coord2(
 			j == 0 ?
 			make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f) :
@@ -603,7 +662,7 @@ struct sa_boundary_niC_vars
 			make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f)
 			)
 		{
-			// here local copy of part IDs of vertices are replaced by the correspondent part indices
+			// Here local copy of part IDs of vertices are replaced by the correspondent part indices
 			vertices.x = bparams.vertIDToIndex[vertices.x];
 			vertices.y = bparams.vertIDToIndex[vertices.y];
 			vertices.z = bparams.vertIDToIndex[vertices.z];
@@ -611,12 +670,25 @@ struct sa_boundary_niC_vars
 };
 
 
-/// all neibsInCell variables
+/*!	\struct niC_vars
+ * 	\brief Parameters used in neibsInCell device function
+ *
+ * 	This structure contains all the parameters needed by neibsInCell.
+ * 	The parameters automatically adjust them self in case of use of SA
+ * 	boundary type.
+ * 	\tparam use_sa_boundary : true if simulation use SA boundary
+ */
 template<bool use_sa_boundary>
 struct niC_vars :
 	common_niC_vars,
 	COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)
 {
+	/// Constructor
+	/*!	Computes struct member values according to particle's index
+	 * 	and parameters passed to buildNeibsKernnel
+	 * 	\param[in] index : particle index
+	 * 	\param[in] bparams : TODO
+	 */
 	__device__ __forceinline__
 	niC_vars(int3 const& gridPos, const uint index, buildneibs_params<use_sa_boundary> const& bparams) :
 		common_niC_vars(gridPos),
@@ -624,35 +696,61 @@ struct niC_vars :
 	{}
 };
 
-/// check if a particle at distance relPos is close enough to be considered for neibslist inclusion
+/** \name Device functions
+ *  @{ */
+/// Check if a particle is close enough to be considered for neibslist inclusion
+/*! Compares the squared distance between two particles to the squared influence
+ * 	radius.
+ *
+ * 	\param[in] relPos : relative position vector
+ * 	\return : true if the distance is < to the squared influence radius, false otherwise
+ * 	\tparam use_sa_boundary : true if SA boundaries are used
+ */
 template<bool use_sa_boundary>
 __device__ __forceinline__
 bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo,
 	buildneibs_params<use_sa_boundary> params)
 {
-	return sqlength(relPos) < params.sqinfluenceradius; // default check: against the influence radius
+	// Default : check against the influence radius
+	return sqlength(relPos) < params.sqinfluenceradius;
 }
 
-/// SA_BOUNDARY specialization
+/// Specialization of isCloseEnough for SA boundaries
+/// \see isCloseEnough
 template<>
 __device__ __forceinline__
 bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo,
 	buildneibs_params<true> params)
 {
 	const float rp2(sqlength(relPos));
-	// include BOUNDARY neighbors which are a little further than sqinfluenceradius
+	// Include BOUNDARY neighbors which are a little further than sqinfluenceradius
 	return (rp2 < params.sqinfluenceradius ||
 		(rp2 < params.boundNlSqInflRad && BOUNDARY(neibInfo)));
 }
 
-/// process SA_BOUNDARY segments in neibsInCell
+
+/// Process SA segments in neibsInCell
+/*! Do special treatment for segments when using SA boundaries. Obviously
+ * 	don't do anything at all in th standard case..
+ *
+ * 	\param[in] index : particle index
+ * 	\param[in] neib_index : neighbor index
+ * 	\param[in] relPos : relative position vector
+ * 	\param[in] params : build neibs parameters
+ * 	\param[in] vars : neib in cell variables
+ * 	\return : true if the distance is < to the squared influence radius, false otherwise
+ * 	\tparam use_sa_boundary : true if SA boundaries are used
+ */
 template<bool use_sa_boundary>
 __device__ __forceinline__
 void process_niC_segment(const uint index, const uint neib_index, float3 const& relPos,
 	buildneibs_params<use_sa_boundary> const& params,
 	niC_vars<use_sa_boundary> const& var)
-{ /* do nothing by default */ }
+{ /* Do nothing by default */ }
 
+
+/// Specialization of process_niC_segment for SA boundaries
+/// \see process_niC_segment
 template<>
 __device__ __forceinline__
 void process_niC_segment<true>(const uint index, const uint neib_index, float3 const& relPos,
@@ -790,8 +888,10 @@ neibsInCell(
 
 	return;
 }
+/**  @} */
 
-
+/** \name Kernels
+ *  @{ */
 /// Builds particles neighbors list
 /*! This kernel builds the neighbor's indexes of all particles. The
  * 	parameter params is built on specialized version of
@@ -809,7 +909,9 @@ neibsInCell(
 // use_sa_neibs. (Alexis)
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 __global__ void
+/*! \cond */
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
+/*! \endcond */
 buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
@@ -916,5 +1018,8 @@ buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 	}
 	return;
 }
+/**  @} */
+
+/**  @} */
 }
 #endif

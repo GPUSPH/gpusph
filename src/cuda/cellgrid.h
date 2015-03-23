@@ -39,11 +39,15 @@
 #include "hashkey.h"
 #include "linearization.h"
 
-__constant__ float3 d_worldOrigin;
-__constant__ float3 d_cellSize;
-__constant__ uint3 d_gridSize;
+/** \name Device constants
+ *  @{ */
+__constant__ float3 d_worldOrigin;		///< Origin of the simulation domain
+__constant__ float3 d_cellSize;			///< Size of cells used for the neighbor search
+__constant__ uint3 d_gridSize;			///< Size of the simulation domain expressed in terms of cell number
+/** @} */
 
-
+/** \name Device functions
+ *  @{ */
 /// Compute hash value from grid position
 /*! Compute the hash value from grid position according to the chosen
  * 	linearization (starting from x, y or z direction). The link
@@ -69,7 +73,7 @@ calcGridHash(int3 const& gridPos)
  *
  *	\return grid position
  *
- *	Note : no test is done by this function to ensure that hash value is valid.
+ *	/note no test is done by this function to ensure that hash value is valid.
  */
 __device__ __forceinline__ int3
 calcGridPosFromCellHash(const uint cellHash)
@@ -93,8 +97,9 @@ calcGridPosFromCellHash(const uint cellHash)
  *
  *	\return grid position
  *
- *	Note : no test is done by this function to ensure that hash value is valid.
- *	Note : when hashKey is 32bit long, this is equivalent to calcGridPosFromCellHash()
+ *	\note
+ *		- no test is done by this function to ensure that hash value is valid.
+ *		- when hashKey is 32bit long, this is equivalent to calcGridPosFromCellHash()
  */
 __device__ __forceinline__ int3
 calcGridPosFromParticleHash(const hashKey particleHash)
@@ -103,6 +108,7 @@ calcGridPosFromParticleHash(const hashKey particleHash)
 	const uint cellHash = cellHashFromParticleHash(particleHash);
 	return calcGridPosFromCellHash(cellHash);
 }
+/** @} */
 
 
 /* The neighbor cell num ranges from 1 to 27 (included), so it fits in

@@ -43,6 +43,20 @@
 #include "define_buffers.h"
 
 
+/// Upload constants on the device
+/*! This function upload neighbors search related constants on the device.
+ *
+ *	\param[in] simparams : pointer to simulation parameters structure
+ *	\param[in] physparams : pointer to physical parameters structure
+ *	\param[in] worldOrigin : origin of the simulation domain
+ *	\param[in] gridSize :
+ *	\param[in] cellSize :
+ *	\param[in] allocatedParticles :
+ *
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -53,13 +67,27 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_maxneibsnum, &simparams->maxneibsnum, sizeof(uint)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_neiblist_stride, &allocatedParticles, sizeof(idx_t)));
 
-
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_worldOrigin, &worldOrigin, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_cellSize, &cellSize, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
 
+/// Download maximum number of neighbors
+/*! Download from device the maximum number of neighbors per particle
+ *  computed by buildNeibsDevice kernel.
+ *
+ *	\param[in] simparams : pointer to simulation parameters structure
+ *	\param[in] physparams : pointer to physical parameters structure
+ *	\param[in] worldOrigin : origin of the simulation domain
+ *	\param[in] gridSize :
+ *	\param[in] cellSize :
+ *	\param[in] allocatedParticles :
+ *
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -69,6 +97,12 @@ getconstants(SimParams *simparams, PhysParams *physparams)
 }
 
 
+/// Reset number of neighbors and interaction
+/*! yyyy
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -80,6 +114,12 @@ resetinfo(void)
 }
 
 
+/// Get info
+/*!	info
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -90,6 +130,12 @@ getinfo(TimingInfo & timingInfo)
 }
 
 
+/// Compute hash
+/*!	hash
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -110,6 +156,13 @@ const	uint		numParticles)
 	CUT_CHECK_ERROR("CalcHash kernel execution failed");
 }
 
+
+/// Fix hash
+/*!	fix hash
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -129,6 +182,13 @@ const	uint	numParticles)
 	CUT_CHECK_ERROR("FixHash kernel execution failed");
 }
 
+
+/// Reorder
+/*!	Reorder
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -227,6 +287,13 @@ reorderDataAndFindCellStart(
 		CUDA_SAFE_CALL(cudaUnbindTexture(eulerVelTex));
 }
 
+
+/// Update vertex ID
+/*!	Update vertex ID
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -241,6 +308,13 @@ updateVertIDToIndex(
 	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
 }
 
+
+/// Build neibs list
+/*!	Build neibs list
+ * 	\tparam boundarytype : type of boundary
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam neibcount : true if we want to compute actual neighbors number
+ */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
 CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
@@ -326,12 +400,13 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 	CUT_CHECK_ERROR("thrust sort failed");
 }
 
+/*! \cond */
 // The instances that we want to actually instantiates are defined
 // in a programmatically-generated file:
-
 #ifndef BUILDNEIBS_INSTANCE_FILE
 #error "No instance file defined for buildneibs!"
 #else
 #include STR(BUILDNEIBS_INSTANCE_FILE)
 #endif
+/*! \endcond */
 
