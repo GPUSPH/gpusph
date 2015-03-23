@@ -1,0 +1,65 @@
+\documentclass{article}
+\usepackage[paperheight=9cm,paperwidth=30cm,margin=0cm]{geometry}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import graph3;
+import math;
+
+currentprojection=perspective(4,2,2);
+
+triple Zaxe=(0,0,1);
+triple Xaxe=(1,0,0);
+triple Yaxe=(0,1,0);
+path3 vX = O--Xaxe;
+path3 vY = O--Yaxe;
+path3 vZ = O--Zaxe;
+transform3 rZ=rotate(30,Zaxe);
+transform3 rX1=rotate(30,rZ*Xaxe);
+transform3 rZp=rotate(20, rX1*Zaxe);
+
+
+picture  pic1;
+size(pic1, 8cm, 8cm);
+draw(pic1, scale(1.2)*Label("$X$",1), vX, 1.5bp+heavyred , arrow=Arrow3(8));
+draw(pic1, scale(1.2)*Label("$Y$",1), vY, 1.5bp+deepblue, arrow=Arrow3(8));
+draw(pic1, scale(1.2)*Label("$Z$",1), vZ, 1.5bp+deepgreen, arrow=Arrow3(8));
+draw(pic1, scale(1.2)*"$\Phi$", arc(0.7*Z, 0.25, 90, 70, 90, 45), arrow=ArcArrow3);
+draw(pic1, scale(1.2)*Label("$X_1$",1), rZ*vX, arrow=Arrow3);
+draw(pic1, scale(1.2)*Label("$Y_1$",1), rZ*vY, arrow=Arrow3);
+
+
+picture pic2;
+size(pic2, 8cm, 8cm);
+draw(pic2, scale(1.2)*Label("$X_1$",1),rZ*vX, arrow=Arrow3);
+draw(pic2, scale(1.2)*Label("$Y_1$",1),rZ*vY, arrow=Arrow3);
+draw(pic2, scale(1.2)*Label("$Z$",1), vZ, 1.5bp+deepgreen,arrow=Arrow3(8));
+draw(pic2, rZ*rotate(90,Yaxe)*arc(0.55*Z,0.17,90,70,90,45),  arrow=ArcArrow3);
+label(pic2, "$\Theta$", rZ*(0.7, 0, 0), NE);
+draw(pic2, scale(1.2)*Label("$Z'$",1), rX1*vZ, 1.5bp+deepgreen+dashed, arrow = Arrow3(8));
+draw(pic2, scale(1.2)*Label("$Y_2$",1),rX1*rZ*vY, arrow=Arrow3);
+
+picture pic3;
+size(pic3, 8cm, 8cm);
+draw(pic3, scale(1.2)*Label("$X_1$",1), rZ*vX, arrow=Arrow3);
+draw(pic3, scale(1.2)*Label("$Y_2$",1), rX1*rZ*vY, arrow=Arrow3);
+draw(pic3, scale(1.2)*Label("$Z'$",1), rX1*vZ, 1.5bp+deepgreen+dashed, arrow = Arrow3(8));
+draw(pic3, rX1*arc(0.6*Z,0.25,90,60,90,35), arrow=ArcArrow3);
+label(pic3, "$\Psi$", rX1*(0, 0, 0.8), SW);
+draw(pic3, scale(1.2)*Label("$X'$",1), rZp*rZ*vX, 1.5bp+heavyred+dashed, arrow = Arrow3(8));
+draw(pic3, scale(1.2)*Label("$Y'$",1), rZp*rZ*vY, 1.5bp+deepblue+dashed, arrow = Arrow3(8));
+
+picture pic;
+size(pic, 30cm,8cm);
+add(pic, pic1.fit(), (0,0));
+add(pic, pic2.fit(), (10cm,0));
+add(pic, pic3.fit(), (20cm,0));
+label(pic, "(1)", (-1cm, -4.5cm), NoAlign);
+label(pic, "(2)", (9cm, -4.5cm), NoAlign);
+label(pic, "(3)", (19.5cm, -4.5cm), NoAlign);
+add(pic);
+\end{asy}
+\end{document}
