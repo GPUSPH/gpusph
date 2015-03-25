@@ -38,7 +38,7 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.67;
 	lz = 0.6;
 	H = 0.4;
-	wet = true;
+	wet = false;
 
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(0.0, 0.0, 0.0);
