@@ -1841,6 +1841,7 @@ forcesDevice(
 				//   but acceleration will only be computed by object particles interacting with fluid particles
 
 				// TODO : must be always true. Check and eventually eliminate.
+				// TODO : check how the compiler is dealing with this kind of boolean with part from template
 				const bool computes_NS_drhodt = ndata.ntype == PT_FLUID || boundarytype == DYN_BOUNDARY ||
 					( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) );
 
@@ -1852,9 +1853,9 @@ forcesDevice(
 					pout.contupd.y += nout.DgamDt;
 				}
 
-				// for DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
+				// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
 				// that interact with fluid; however, it's actually slightly faster to make the boolean on
-				// “either us or the neighbor is fluid”: this does not change the behavior of the simulation
+				// "either us or the neighbor is fluid": this does not change the behavior of the simulation
 				// because the xyz components of the forces are ignored anyway by non-OBJECT, non-FLUID
 				// particles
 
@@ -1970,11 +1971,8 @@ forcesDevice(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(pout.force)));
 
-			//if (length(pout.force) != 0)
-			//	printf("Force on object %d part: (%e, %e, %e)\n", object(info), pout.force.x, pout.force.y, pout.force.z);
-
-
 			// set forces to zero for this particle
+			// FIXME : in case of dynbounds why ????
 			pout.force = make_float4(0.0f);
 			write_forces::with(params, pdata, pout);
 		} else {

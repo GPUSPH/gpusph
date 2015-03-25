@@ -43,6 +43,7 @@
 #include "tensor.cu"
 
 // Single-precision M_PI
+// FIXME : ah, ah ! Single precision with 976896587958795795 decimals ....
 #define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
 
 // an auxiliary function that fetches the tau tensor
