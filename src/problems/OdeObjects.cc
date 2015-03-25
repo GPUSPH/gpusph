@@ -201,8 +201,9 @@ void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
 		cout << "Collision between cube and obstacle " << n << "contact points\n";
 	}
 	for (int i = 0; i < n; i++) {
-		contact[i].surface.mode = dContactBounce;
-		contact[i].surface.mu   = dInfinity;
+		contact[i].surface.mode = dContactMu2;
+		contact[i].surface.mu   = 0.0;
+		contact[i].surface.mu2   = 0.0;
 		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
 		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
 		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
