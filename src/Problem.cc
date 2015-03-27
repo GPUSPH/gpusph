@@ -734,6 +734,13 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		prev_quat[i][3] = quat[3];
 		dBodyAddForce(m_ODE_bodies[i]->m_ODEBody, force[i].x, force[i].y, force[i].z);
 		dBodyAddTorque(m_ODE_bodies[i]->m_ODEBody, torque[i].x, torque[i].y, torque[i].z);
+
+		#ifdef _DEBUG_OBJ_FORCES_
+		cout << "Before dWorldStep, object " << i << "\n";
+		m_ODE_bodies[i]->ODEPrintInformation(false);
+		printf("   F:	%e\t%e\t%e\n", force[i].x, force[i].y, force[i].z);
+		printf("   T:	%e\t%e\t%e\n", torque[i].x, torque[i].y, torque[i].z);
+		#endif
 	}
 
 	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
@@ -767,6 +774,19 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		base_addr[6] = R[8];
 		base_addr[7] = R[9];
 		base_addr[8] = R[10];
+
+#ifdef _DEBUG_OBJ_FORCES_
+		cout << "After dWorldStep, object " << i << "\n";
+		m_ODE_bodies[i]->ODEPrintInformation(false);
+		printf("   lvel: %e\t%e\t%e\n", m_bodies_linearvel[i].x, m_bodies_linearvel[i].y, m_bodies_linearvel[i].z);
+		printf("   avel: %e\t%e\t%e\n", m_bodies_angularvel[i].x, m_bodies_angularvel[i].y, m_bodies_angularvel[i].z);
+		printf("   npos: %e\t%e\t%e\n", m_bodies_cg[i].x, m_bodies_cg[i].y, m_bodies_cg[i].z);
+		printf("   trans:%e\t%e\t%e\n", m_bodies_trans[i].x, m_bodies_trans[i].y, m_bodies_trans[i].z);
+		printf("   SQ:   %e\t%e\t%e\t%e\n", step_quat[0], step_quat[1], step_quat[2], step_quat[3]);
+		printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
+		printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
+		printf("         %e\t%e\t%e\n", base_addr[6], base_addr[7], base_addr[8]);
+#endif
 	}
 	cg = m_bodies_cg;
 	steprot = m_bodies_steprot;
