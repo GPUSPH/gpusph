@@ -39,6 +39,7 @@ Cone::Cone(void)
 	m_h = 0.0;
 	m_hg = 0.0;
 	m_halfaperture = 0;
+	m_ep = EulerParameters();
 }
 
 

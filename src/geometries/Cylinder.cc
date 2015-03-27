@@ -35,6 +35,7 @@ Cylinder::Cylinder(void)
 	m_center = Point(0,0,0);
 	m_h = 1;
 	m_r = 1;
+	m_ep = EulerParameters();
 }
 
 
@@ -50,7 +51,7 @@ Cylinder::Cylinder(const Point& origin, const double radius, const Vector& heigh
 	Vector rotdir = -height.cross(v);
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
-	dRFromAxisAndAngle(m_ODERot, rotdir(0), rotdir(1), rotdir(2), angle);
+
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
 }
@@ -66,14 +67,6 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 	m_ep.ComputeRot();
 
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-
-	dQtoR(q, m_ODERot);
-
-	m_origin.print();
-	m_center.print();
 }
 
 
@@ -93,7 +86,7 @@ Cylinder::Cylinder(const Point& origin, const Vector& radius, const Vector& heig
 	Vector rotdir = height.cross(v);
 	if (rotdir.norm() == 0)
 		rotdir = Vector(0, 1, 0);
-	dRFromAxisAndAngle(m_ODERot, rotdir(0), rotdir(1), rotdir(2), angle);
+
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
 }
@@ -128,7 +121,9 @@ Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 	dMassSetCylinderTotal(&m_ODEMass, m_mass, 3, m_r +dx/2.0, m_h + dx);
 	dBodySetMass(m_ODEBody, &m_ODEMass);
 	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dBodySetRotation(m_ODEBody, m_ODERot);
+	dQuaternion q;
+	m_ep.ToODEQuaternion(q);
+	dBodySetQuaternion(m_ODEBody, q);
 	if (ODESpace)
 		ODEGeomCreate(ODESpace, dx);
 }
@@ -141,7 +136,9 @@ Cylinder::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dGeomSetRotation(m_ODEGeom, m_ODERot);
+		dQuaternion q;
+		m_ep.ToODEQuaternion(q);
+		dGeomSetQuaternion(m_ODEGeom, q);
 	}
 }
 

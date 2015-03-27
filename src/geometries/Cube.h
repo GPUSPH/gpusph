@@ -116,7 +116,7 @@ class Cube: public Object {
 
 		/// \name ODE related  functions
 		//@{
-		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
+		void ODEBodyCreate(dWorldID, const double density = 1.0, dSpaceID ODESpace = 0);
 		void ODEGeomCreate(dSpaceID, const double);
 		//@}
 };

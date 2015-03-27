@@ -33,6 +33,7 @@ Sphere::Sphere(void)
 {
 	m_center = Point(0,0,0);
 	m_r = 1.0;
+	m_ep = EulerParameters();
 }
 
 
@@ -40,8 +41,7 @@ Sphere::Sphere(const Point& center, const double radius)
 {
 	m_center = center;
 	m_r = radius;
-	const double ep[4] = {1.0, 0.0, 0.0, 0.0};
-	m_ep = EulerParameters(ep);
+	m_ep = EulerParameters();
 	m_ep.ComputeRot();
 }
 
@@ -73,6 +73,9 @@ Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 	dMassSetSphereTotal(&m_ODEMass, m_mass, m_r + dx/2.0);
 	dBodySetMass(m_ODEBody, &m_ODEMass);
 	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
+	dQuaternion q;
+	m_ep.ToODEQuaternion(q);
+	dBodySetQuaternion(m_ODEBody, q);
 	if (ODESpace)
 		ODEGeomCreate(ODESpace, dx);
 }
@@ -83,8 +86,12 @@ Sphere::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 	m_ODEGeom = dCreateSphere(ODESpace, m_r + dx/2.0);
 	if (m_ODEBody)
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	else
+	else {
 		dGeomSetPosition(m_ODEGeom,  m_center(0), m_center(1), m_center(2));
+		dQuaternion q;
+		m_ep.ToODEQuaternion(q);
+		dGeomSetQuaternion(m_ODEGeom, q);
+	}
 }
 
 
