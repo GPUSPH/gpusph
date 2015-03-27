@@ -29,10 +29,12 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		viscosity<ARTVISC>,
-		//viscosity<SPSVISC>,
+		//viscosity<ARTVISC>,
+		viscosity<SPSVISC>,
 		boundary<DYN_BOUNDARY>
 	);
+
+	addFilter(SHEPARD_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -67,9 +69,12 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Allocate data for floating bodies
 	allocate_ODE_bodies(1);
+	m_simparams.numObjects = m_simparams.numODEbodies;
 	dInitODE();				// Initialize ODE
 	m_ODEWorld = dWorldCreate();	// Create a dynamic world
 	m_ODESpace = dHashSpaceCreate(0);
@@ -77,6 +82,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity(x, y, z)
 
 	add_writer(VTKWRITER, 0.1);
+	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "BuoyancyTest";
@@ -157,6 +163,8 @@ int BuoyancyTest::fill_parts()
 	if (object_type != 2)
 		floating->ODEGeomCreate(m_ODESpace, m_deltap);
 	add_ODE_body(floating);
+	floating->ODEPrintInformation();
+
 	dBodySetLinearVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
 	dBodySetAngularVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
 	PointVect & rbparts = get_ODE_body(0)->GetParts();
@@ -198,7 +206,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			ht = 0.0;
 		float rho = density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	uint j = boundary_parts.size();
@@ -215,7 +223,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			float rho = density(ht, 0);
 			rho = m_physparams.rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
-			info[ij] = make_particleinfo(OBJECTPART, k, i );
+			info[ij] = make_particleinfo(PT_BOUNDARY | FG_FLOATING, k, i );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
 		j += rbparts.size();
@@ -230,7 +238,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			ht = 0.0;
 		float rho = density(ht, 0);
 		vel[ij] = make_float4(0, 0, 0, rho);
-		info[ij] = make_particleinfo(FLUIDPART, 0, ij);
+		info[ij] = make_particleinfo(PT_FLUID, 0, ij);
 		calc_localpos_and_hash(parts[i], info[ij], pos[ij], hash[ij]);
 	}
 	j += parts.size();
