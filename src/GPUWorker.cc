@@ -2642,18 +2642,6 @@ void GPUWorker::uploadConstants()
 		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 
-void GPUWorker::uploadBodiesCentersOfGravity()
-{
-	forcesEngine->setrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
-	integrationEngine->setrbcg(gdata->s_hMovObjGravityCenters, m_simparams->numObjects);
-}
-
-void GPUWorker::uploadBodiesTransRotMatrices()
-{
-	integrationEngine->setrbtrans(gdata->s_hMovObjTranslations, m_simparams->numObjects);
-	integrationEngine->setrbsteprot(gdata->s_hMovObjRotationMatrices, m_simparams->numObjects);
-}
-
 // Auxiliary method for debugging purposes: downloads on the host one or multiple field values of
 // a single particle of given INDEX. It should be considered a canvas for writing more complex,
 // context-dependent checks. It replaces a minimal subset of capabilities of a proper debugger
@@ -2778,6 +2766,19 @@ void GPUWorker::checkPartValById(const char* printID, const uint pid)
 	CUDA_SAFE_CALL(cudaMemcpy(&pidx, m_dBuffers.getReadBufferList()->getData<BUFFER_VERTIDINDEX>() + pid, sizeof(uint), cudaMemcpyDeviceToHost));
 
 	checkPartValByIndex(printID, pidx);
+}
+
+
+void GPUWorker::uploadBodiesCentersOfGravity()
+{
+	forcesEngine->setrbcg(gdata->s_hRbGravityCenters, m_simparams->numObjects);
+	integrationEngine->setrbcg(gdata->s_hRbGravityCenters, m_simparams->numObjects);
+}
+
+void GPUWorker::uploadBodiesTransRotMatrices()
+{
+	integrationEngine->setrbtrans(gdata->s_hRbTranslations, m_simparams->numObjects);
+	integrationEngine->setrbsteprot(gdata->s_hRbRotationMatrices, m_simparams->numObjects);
 }
 
 void GPUWorker::uploadBodiesVelocities()
