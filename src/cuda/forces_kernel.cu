@@ -1649,7 +1649,8 @@ saVertexBoundaryConditions(
 /************************************************************************************************************/
 
 // This kernel computes the Sheppard correction
-template<KernelType kerneltype>
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 shepardDevice(	const float4*	posArray,
@@ -1724,7 +1725,8 @@ shepardDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/) && ACTIVE(relPos)) {
+		//if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/) ) {
+		if (r < influenceradius && (FLUID(neib_info) || boundarytype == DYN_BOUNDARY) ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
