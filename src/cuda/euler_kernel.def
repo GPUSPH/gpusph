@@ -137,13 +137,10 @@ eulerDevice(
 	if (index >= numParticles)
 		return;
 
-	// we use dt/2 on the first step, the actual dt on the second step
+	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (step == 1) ? half_dt : full_dt;
 
-	// read particle data from sorted arrays
-	// Euler does nothing to boundary particles apart
-	// copying pos and vel in the new arrays, except in DYN_BOUNDARY
-	// case (boundarytype == DYN_BOUNDARY)
+	// Read particles data from sorted arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 	float4 eulerVel = make_float4(0.0f);
@@ -157,17 +154,22 @@ eulerDevice(
 	const ParticleType ptype = static_cast<ParticleType>(PART_TYPE(pinfo));
 
 	do {
-
-			// We only integrate ACTIVE particles which are not BOUNDARY particles,
-		// unless dynamic  or SA boundary is active (in which case BOUNDARY
-		// particles are also integrated) or particle belongs to an moving
-		// object
+		// Euler does nothing to boundary particles apart copying pos and vel
+		// in the new arrays except :
+		//		* when boundary part belongs to an object or a moving boundary, in
+		//		  that case particle position and velocity is updated according to
+		//		  the rigid body movement
+		//		* with dynamic boundaries, in that case density of boundary parts is
+		//		  also evolved
+		//		* with SA boundaries and .....
+		// TODO: complete prviouds comment
 		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
 		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !OBJECT(pinfo)) )
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
+
 		// Mean XSPH velocity, only when XSPH is active.
 		// The compiler is smart enough to actually optimize this out
 		// in the xsphcorr == false case
@@ -262,7 +264,7 @@ eulerDevice(
 
 		case PT_VERTEX:
 			if (boundarytype == SA_BOUNDARY) {
-				// TODO/ verify and fix
+				// TODO: verify and fix
 				if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 					// this is for k-eps only. Normally forces are going to be zero
 					eulerVel += dt*force;
