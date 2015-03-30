@@ -736,7 +736,7 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 	dummy_shared = 2560;
 	#endif
 
-	cuforces::shepardDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cuforces::shepardDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
 		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 
 	// check if kernel invocation generated an error
