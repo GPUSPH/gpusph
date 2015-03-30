@@ -30,7 +30,8 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
 		//viscosity<ARTVISC>,
-		viscosity<SPSVISC>,
+		//viscosity<SPSVISC>,
+		viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>
 	);
 
@@ -81,7 +82,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity(x, y, z)
 
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 0.005);
 	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
@@ -126,7 +127,7 @@ int BuoyancyTest::fill_parts()
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 
-	const int object_type = 2;
+	const int object_type = 0;
 	Object *floating;
 	switch (object_type) {
 		case 0: {
