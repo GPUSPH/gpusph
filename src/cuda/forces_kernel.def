@@ -1707,25 +1707,25 @@ forcesDevice(
 
 		// Determine how the current particle must act based on it's the particle type.
 		// The particles for which forces are computed are:
-		// * fluid particles
-		// * object particles
-		// * vertex particles (for SA_BOUNDARY)
-		// * everything except TESTPOINTS (for DYN_BOUNDARY)
+		// 	* fluid particles
+		// 	* object particles
+		// 	* vertex particles (for SA_BOUNDARY)
+		// 	* everything except TESTPOINTS (for DYN_BOUNDARY)
 
 		bool computes_stuff = FLUID(info) || OBJECT(info);
 		if (boundarytype == SA_BOUNDARY) {
 			computes_stuff = computes_stuff || VERTEX(info);
-			// floating objects need to compute the force acting on them
+			// Floating objects need to compute the force acting on them
 			computes_stuff = computes_stuff || (BOUNDARY(info) && FLOATING(info));
 		}
 		if (boundarytype == DYN_BOUNDARY)
 			computes_stuff = !TESTPOINT(info);
 
-		// nothing to do if the particle doesn't need to compute forces
+		// Nothing to do if the particle doesn't need to compute forces
 		if (!computes_stuff)
 			break;
 
-		// cell-local position of the particle, stored in texture
+		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
 		#if( __COMPUTE__ >= 20)
 		const float4 pos = params.posArray[index];
@@ -1733,25 +1733,25 @@ forcesDevice(
 		const float4 pos = tex1Dfetch(posTex, index);
 		#endif
 
-		// nothing to do if the particle is inactive
+		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
 			break;
 
-		// load rest of particle data
+		// Loading the rest of particle data
 		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> const
 			pdata(index, pos, info, params);
 
-		// prepare particle output variables
+		// Preparing particle output variables
 		forces_particle_output<boundarytype, visctype, usexsph> pout;
 
-		/* And finally the neib list transversal support */
+		/* And finally the neighbors list traversal support */
 
-		// persistent variables across getNeibData calls
+		// Persistent variables across getNeibData calls
 		char neib_cellnum = 0;
 		uint neib_cell_base_index = 0;
 		float3 pos_corr;
 
-		// under some conditions, some particles might want to skip the
+		// Under some conditions, some particles might want to skip the
 		// neighbor list traversal. This is checked by the check() function of
 		// the skip_neiblist struct. Any action that needs to be done then is
 		// done by the prepare() function in the same struct.
@@ -1764,10 +1764,10 @@ forcesDevice(
 
 		if (skip.check(params, pdata)) {
 			skip.prepare(pdata, pout);
-			i = d_neiblist_end; // skip neighbors loop
+			i = d_neiblist_end; // Skip neighbors loop
 		}
 
-		// loop over all neighbors
+		// Loop over all neighbors
 		for (; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = params.neibsList[i + index];
 
@@ -1777,14 +1777,14 @@ forcesDevice(
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
 
 			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
+			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
 			#if( __COMPUTE__ >= 20)
 			const float4 relPos = pos_corr - params.posArray[neib_index];
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 
-			// skip inactive particles
+			// Skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
@@ -1832,13 +1832,13 @@ forcesDevice(
 			if (pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) {
 
 				// The Navier-Stokes equations are applied in the following cases:
-				// * for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
-				// * for non-DYN, non-SA boundary, by a fluid particle interacting with a fluid particle;
+				// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
+				// 		* for non-DYN, non-SA boundary, by a fluid particle interacting with a fluid particle;
 				// The DYN boundary case is more complex:
-				// * a fluid particle will compute both density derivative and acceleration interacting
-				//   with any other particle;
-				// * a non-fluid particle will compute density derivative interacting with any other particle,
-				//   but acceleration will only be computed by object particles interacting with fluid particles
+				// 		* a fluid particle will compute both density derivative and acceleration interacting
+				//   	  with any other particle;
+				// 		* a non-fluid particle will compute density derivative interacting with any other particle,
+				//   	  but acceleration will only be computed by object particles interacting with fluid particles
 
 				// TODO : must be always true. Check and eventually eliminate.
 				// TODO : check how the compiler is dealing with this kind of boolean with part from template
@@ -1857,36 +1857,37 @@ forcesDevice(
 				// that interact with fluid; however, it's actually slightly faster to make the boolean on
 				// "either us or the neighbor is fluid": this does not change the behavior of the simulation
 				// because the xyz components of the forces are ignored anyway by non-OBJECT, non-FLUID
-				// particles
-
-				// for other boundary types, accelerations is computed with the NS equations whenever the density
+				// particles.
+				// For other boundary types, accelerations is computed with the NS equations whenever the density
 				// is also computed (using NS), otherwise we just apply the repulsive force
 				const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
 					(FLUID(pdata.info) || FLUID(ndata.info)) :
 					computes_NS_drhodt;
 
 				if (computes_NS_accel) {
-					// compute pressure part of acceleration
+					// Compute pressure part of acceleration
 					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
-					// compute viscous forces
+					// Compute viscous forces
 					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 
-					// compute diffusion terms for k-epsilon and the strain rate tensor
+					// Compute diffusion terms for k-epsilon and the strain rate tensor
 					compute_keps_term<boundarytype, visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
 
-					// compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 				} else {
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
+			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX
+					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 			}
-			else if (boundarytype == SA_BOUNDARY && has_waterdepth_computation<boundarytype>::with(params) && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
+			else if (boundarytype == SA_BOUNDARY && has_waterdepth_computation<boundarytype>::with(params)
+					&& pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
 				// Compute the maximum depth at pressure boundaries
 				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
@@ -1896,10 +1897,10 @@ forcesDevice(
 				nout.DvDt *= ndata.relPos.w;
 			}
 
-			// sum all contributions from the neighbours in the force array
+			// Sum all contributions from the neighbours in the force array
 			as_float3(pout.force) += nout.DvDt;
 
-		} // end of loop over neighbors
+		} // End of loop over neighbors
 
 		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
 		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
@@ -1971,9 +1972,6 @@ forcesDevice(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
 								- d_rbcg[object(info)], as_float3(pout.force)));
 
-			// set forces to zero for this particle
-			// FIXME : in case of dynbounds why ????
-			pout.force = make_float4(0.0f);
 			write_forces::with(params, pdata, pout);
 		} else {
 			write_forces::with(params, pdata, pout);
