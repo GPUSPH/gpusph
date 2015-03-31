@@ -725,6 +725,8 @@ Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const in
 		const double dt, float3 * & cg, float3 * & trans, float * & steprot,
 		float3 * & linearvel, float3 * & angularvel)
 {
+//#define _DEBUG_OBJ_FORCES_
+
 	dReal prev_quat[MAXBODIES][4];
 	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
 		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
