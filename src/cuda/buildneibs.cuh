@@ -64,6 +64,8 @@ template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
+	/** \name Constants upload/download and timing related function
+	 *  @{ */
 	void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -77,8 +79,10 @@ public:
 
 	void
 	getinfo(TimingInfo &timingInfo);
+	/** @} */
 
-	void
+	/** \name Reordering and sort related function
+	 *  @{ */	void
 	calcHash(float4*	pos,
 			hashKey*	particleHash,
 			uint*		particleIndex,
@@ -113,7 +117,10 @@ public:
 	sort(	hashKey	*particleHash,
 			uint	*particleIndex,
 			uint	numParticles);
+	/** @} */
 
+	/** \name Neighbors list building
+	 *  @{ */
 	void
 	buildNeibsList(	neibdata*			neibsList,
 					const float4*		pos,
@@ -130,5 +137,6 @@ public:
 					const uint			gridCells,
 					const float			sqinfluenceradius,
 					const float			boundNlSqInflRad);
+	/** @} */
 };
 #endif

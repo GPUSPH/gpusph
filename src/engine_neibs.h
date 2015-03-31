@@ -39,7 +39,7 @@
 #include "buffer.h"
 
 /// Neighbor engine class virtual container
-/*!	AbstractNeibsEngine is an abstract class containing onmy pure virtual functions.
+/*!	AbstractNeibsEngine is an abstract class containing only pure virtual functions.
  *	Those functions should be implemented in a child class.
 */
 class AbstractNeibsEngine
