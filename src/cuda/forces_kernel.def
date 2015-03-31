@@ -509,7 +509,7 @@ struct common_neib_data
 		relVel(as_float3(pdata.vel) - tex1Dfetch(velTex, _index)),
 		vel_dot_pos(dot3(relVel, relPos)),
 		f(F<kerneltype>(r, params.slength)),
-		sspeed(soundSpeed(relVel.w, PART_FLUID_NUM(_info)))
+		sspeed(soundSpeed(relVel.w, fluid_num(_info)))
 	{}
 };
 
@@ -848,7 +848,7 @@ struct compute_density_derivative {
 	static void
 	ferrari_correction(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		const int fType =  PART_FLUID_NUM(pdata.info);
+		const int fType =  fluid_num(pdata.info);
 		// gravity correction for free-surface flows
 		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
 		// actual diffusion term
@@ -1897,8 +1897,6 @@ forcesDevice(
 			}
 			else if (OBJECT(pdata.info)) {
 				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
-				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
-				nout.DvDt *= ndata.relPos.w;
 			}
 
 			// Sum all contributions from the neighbours in the force array
@@ -1958,18 +1956,17 @@ forcesDevice(
 		// TODO: below was the previous test, i don't understand it (Alexis).
 		//if (OBJECT(pdata.info) || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
 		if(OBJECT(pdata.info)) {
-			// The forces computed in the neighbors loop are forces by unit of mass so when
-			// computing the forces (and torques) on an object the force acting on each object
-			// particle must be multiplied by the particle mass.
+			// Except for SA boundary, the forces computed in the neighbors loop are forces by unit of mass
+			// (i.e) accelerations so when we computing the total forces (and torques) acting on an object
+			// particle, the force must be multiplied by the particle mass.
 			// TODO
 			// 1. use relative coordinates for cg and distance computation
 			// 2. the write of forces and torques is by nature not coalesced so why using float4
 			// 3. params and the kernel should be templatized also on floating bodies presence
 			// AM - GB FIXME
-			if (boundarytype == SA_BOUNDARY)
-				params.rbforces[pdata.rbindex] = pout.force;
-			else
-				params.rbforces[pdata.rbindex] = pout.force*pdata.pos.w;
+			if (boundarytype != SA_BOUNDARY)
+				pout.force *= pdata.pos.w;
+			params.rbforces[pdata.rbindex] = pout.force;
 			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
 			//       of gravity and the local position of the cg. wrt. that gridPos.
 			params.rbtorques[pdata.rbindex] = make_float4(
