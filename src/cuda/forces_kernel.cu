@@ -1682,7 +1682,7 @@ shepardDevice(	const float4*	posArray,
 
 	float4 vel = tex1Dfetch(velTex, index);
 
-	if (NOT_FLUID(info) && !VERTEX(info)) {
+	if ((NOT_FLUID(info) && !VERTEX(info)) || BOUNDARY(info)) {
 		newVel[index] = vel;
 		return;
 	}
@@ -1726,7 +1726,7 @@ shepardDevice(	const float4*	posArray,
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		//if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/) ) {
-		if (r < influenceradius && ACTIVE(relPos) && (FLUID(neib_info) || boundarytype == DYN_BOUNDARY) ) {
+		if (r < influenceradius && ACTIVE(relPos) && FLUID(neib_info) ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
