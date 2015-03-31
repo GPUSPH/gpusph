@@ -1828,6 +1828,10 @@ forcesDevice(
 			// of the focal particle
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
+			if ((BOUNDARY(pdata.info) && BOUNDARY(ndata.info)) || (BOUNDARY(pdata.info) && OBJECT(ndata.info))
+				|| (OBJECT(pdata.info) && BOUNDARY(ndata.info)) || (OBJECT(pdata.info) && OBJECT(ndata.info)))
+				printf("Bound - Object , Object - Object or Bound - bound interaction\n");
+
 			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
 			if (pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) {
 
