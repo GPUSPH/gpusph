@@ -77,15 +77,15 @@ __device__ int d_maxNeibs;				///< Computed maximum number of neighbors per part
  *  @{ */
 /// Clamp grid position to edges according to periodicity
 /*! This function clamp grid position to edges according to the chosen
- * periodicity, returns the new grid position and update the grid offset.
+ * 	periodicity, returns the new grid position and update the grid offset.
+ *
+ *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  *
  *	\param[in] gridPos : grid position to be clamped
  *	\param[in] gridOffset : grid offset
  *	\param[out] toofar : has the gridPos been clamped when the offset was of more than 1 cell ?
  *
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- *
- * 	\return : new grid position
+ *	\return new grid position
  */
 // TODO: verify periodicity along multiple axis
 template <Periodicity periodicbound>
@@ -137,10 +137,7 @@ clampGridPos(const int3& gridPos, int3& gridOffset, bool *toofar)
 
 
 /// clampGridPos Specialization without any periodicity
-/*! This function clamp grid position to edges according and
- * returns the new grid position and an updated grid offset.
- *
- *	\see clampGridPos
+/*! @see clampGridPos
  */
 template <>
 __device__ __forceinline__ int3
@@ -172,14 +169,12 @@ clampGridPos<PERIODIC_NONE>(const int3& gridPos, int3& gridOffset, bool *toofar)
  * 	- updates hash values and relative positions for fluid and
  * 	object particles
  * 	- fill the particle's indexes array with current index
- *
+ *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  *	\param[in,out] posArray : particle's positions
  *	\param[in,out] particleHash : particle's hashes
  *	\param[out] particleIndex : particle's indexes
  *	\param[in] particleInfo : particle's informations
  *	\param[in] numParticles : total number of particles
- *
- *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
  */
 // TODO: document compactMapDevice (Alexis).
 template <Periodicity periodicbound>
@@ -187,12 +182,12 @@ __global__ void
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 /*! \endcond */
-calcHashDevice(float4*			posArray,			///< particle's positions (in, out)
-			   hashKey*			particleHash,		///< particle's hashes (in, out)
-			   uint*			particleIndex,		///< particle's indexes (out)
-			   const particleinfo*	particelInfo,	///< particle's informations (in)
-			   uint				*compactDeviceMap,
-			   const uint		numParticles)		///< total number of particles
+calcHashDevice(float4*			posArray,			// particle's positions (in, out)
+			   hashKey*			particleHash,		// particle's hashes (in, out)
+			   uint*			particleIndex,		// particle's indexes (out)
+			   const particleinfo*	particelInfo,	// particle's informations (in)
+			   uint				*compactDeviceMap,	// TODO
+			   const uint		numParticles)		// total number of particles
 {
 	const uint index = INTMUL(blockIdx.x, blockDim.x) + threadIdx.x;
 
@@ -254,25 +249,22 @@ calcHashDevice(float4*			posArray,			///< particle's positions (in, out)
  * 	and should be called at the 1st iteration.
  * 	He computes the high bits of particle hash according to the
  * 	compact device map. Also initialize particleIndex.
- *
- *	\param[in,out] particleHash : particle's hashes
- *	\param[out] particleIndex : particle's indexes
- *	\param[in] particleInfo : particle's informations
- *	\param[out] compactDeviceMap : ???
- *	\param[in] numParticles : total number of particles
- *
- *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ * 	\param[in,out] particleHash : particle's hashes
+ * 	\param[out] particleIndex : particle's indexes
+ * 	\param[in] particleInfo : particle's informations
+ * 	\param[out] compactDeviceMap : ???
+ * 	\param[in] numParticles : total number of particles
  */
-// TODO: document compactDeviceMap. (Alexis).
 __global__ void
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_CALCHASH, MIN_BLOCKS_CALCHASH)
 /*! \endcond */
-fixHashDevice(hashKey*			particleHash,		///< particle's hashes (in, out)
-			   uint*			particleIndex,		///< particle's indexes (out)
-			   const particleinfo*	particelInfo,	///< particle's informations (in)
-			   uint				*compactDeviceMap,
-			   const uint		numParticles)		///< total number of particles
+fixHashDevice(hashKey*			particleHash,		// particle's hashes (in, out)
+			   uint*			particleIndex,		// particle's indexes (out)
+			   const particleinfo*	particelInfo,	// particle's informations (in)
+			   uint				*compactDeviceMap,	// TODO
+			   const uint		numParticles)		// total number of particles
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -323,7 +315,7 @@ fixHashDevice(hashKey*			particleHash,		///< particle's hashes (in, out)
  *	\param[in] particleHash : previously sorted particle's hashes
  *	\param[in] particleIndex : previously sorted particle's indexes
  *	\param[in] numParticles : total number of particles
- *	\param[out] numParticles : new number of active particles
+ *	\param[out] numParticles : device pointer to new number of active particles
  *
  * In order to avoid WAR issues we use double buffering : the unsorted data
  * are read trough texture fetches and the sorted one written in a coalesced
@@ -331,30 +323,29 @@ fixHashDevice(hashKey*			particleHash,		///< particle's hashes (in, out)
  */
 // FIXME: we cannot avoid WAR, instead we need to be prepared to WAR ....
 // TODO: should be templatized according to boundary type. (Alexis)
-// TODO: what is exactly newNumParticles supposed to do ???? POSSIBL CAUSE OF RACE CONDITION !! (Alexis)
 // TODO: k goes with e, make it a float2. (Alexis).
 // TODO: document segmentStart (Alexis).
 __global__
 /*! \cond */
 __launch_bounds__(BLOCK_SIZE_REORDERDATA, MIN_BLOCKS_REORDERDATA)
 /*! \endcond */
-void reorderDataAndFindCellStartDevice( uint*			cellStart,			///< index of cells first particle (out)
-										uint*			cellEnd,			///< index of cells last particle (out)
-										uint*			segmentStart,
-										float4*			sortedPos,			///< new sorted particle's positions (out)
-										float4*			sortedVel,			///< new sorted particle's velocities (out)
-										particleinfo*	sortedInfo,			///< new sorted particle's informations (out)
-										float4*			sortedBoundElements,///< new sorted boundary elements (out)
-										float4*			sortedGradGamma,	///< new sorted gradient gamma (out)
-										vertexinfo*		sortedVertices,		///< new sorted vertices (out)
-										float*			sortedTKE,			///< new sorted k for k-e model (out)
-										float*			sortedEps,			///< new sorted e for k-e model (out)
-										float*			sortedTurbVisc,		///< new sorted eddy viscosity (out)
-										float4*			sortedEulerVel,		///< new sorted eulerian velocity (out)
-										const hashKey*	particleHash,		///< previously sorted particle's hashes (in)
-										const uint*		particleIndex,		///< previously sorted particle's hashes (in)
-										const uint		numParticles,		///< total number of particles (in)
-										uint*			newNumParticles)	///< new number of active particles (out)
+void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells first particle (out)
+										uint*			cellEnd,			// index of cells last particle (out)
+										uint*			segmentStart,		// TODO
+										float4*			sortedPos,			// new sorted particle's positions (out)
+										float4*			sortedVel,			// new sorted particle's velocities (out)
+										particleinfo*	sortedInfo,			// new sorted particle's informations (out)
+										float4*			sortedBoundElements,// new sorted boundary elements (out)
+										float4*			sortedGradGamma,	// new sorted gradient gamma (out)
+										vertexinfo*		sortedVertices,		// new sorted vertices (out)
+										float*			sortedTKE,			// new sorted k for k-e model (out)
+										float*			sortedEps,			// new sorted e for k-e model (out)
+										float*			sortedTurbVisc,		// new sorted eddy viscosity (out)
+										float4*			sortedEulerVel,		// new sorted eulerian velocity (out)
+										const hashKey*	particleHash,		// previously sorted particle's hashes (in)
+										const uint*		particleIndex,		// previously sorted particle's hashes (in)
+										const uint		numParticles,		// total number of particles (in)
+										uint*			newNumParticles)	// device pointer to new number of active particles (out)
 {
 	// Shared hash array of dimension blockSize + 1
 	extern __shared__ uint sharedHash[];
@@ -475,11 +466,11 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			///< index of cells
 
 
 /// Update ID-to-particleIndex lookup table (BUFFER_VERTIDINDEX)
-/*! This kernel should be called after the reorder.
- *
- *	\param[in] particleInfo : particle's informations
- *	\param[out] vertIDToIndex : ID-to-particle index lookup table, overwritten
- *	\param[in] numParticles : total number of particles
+/*! Update ID-to-particleIndex lookup table. This kernel should be
+ * 	called after the reorder.
+ * 	\param[in] particleInfo : particle's informations
+ * 	\param[out] vertIDToIndex : ID-to-particle index lookup table, overwritten
+ * 	\param[in] numParticles : total number of particles
  */
 __global__
 /*! \cond */
@@ -708,7 +699,7 @@ struct niC_vars :
  */
 template<bool use_sa_boundary>
 __device__ __forceinline__
-bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo,
+bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 	buildneibs_params<use_sa_boundary> params)
 {
 	// Default : check against the influence radius
@@ -719,19 +710,19 @@ bool isCloseEnough(float3 const& relPos, particleinfo const& neibInfo,
 /// \see isCloseEnough
 template<>
 __device__ __forceinline__
-bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neibInfo,
+bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neib_info,
 	buildneibs_params<true> params)
 {
 	const float rp2(sqlength(relPos));
-	// Include BOUNDARY neighbors which are a little further than sqinfluenceradius
+	// Include boundary neighbors which are a little further than sqinfluenceradius
 	return (rp2 < params.sqinfluenceradius ||
-		(rp2 < params.boundNlSqInflRad && BOUNDARY(neibInfo)));
+		(rp2 < params.boundNlSqInflRad && BOUNDARY(neib_info)));
 }
 
 
 /// Process SA segments in neibsInCell
 /*! Do special treatment for segments when using SA boundaries. Obviously
- * 	don't do anything at all in th standard case..
+ * 	don't do anything at all in the standard case..
  *
  * 	\param[in] index : particle index
  * 	\param[in] neib_index : neighbor index
@@ -808,18 +799,19 @@ void process_niC_segment<true>(const uint index, const uint neib_index, float3 c
  * First and last particle index for grid cells and particle's informations
  * are read through texture fetches.
  */
-template <bool use_sa_boundary, Periodicity periodicbound>
+template <BoundaryType boundarytype, Periodicity periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
-			buildneibs_params<use_sa_boundary>
-				const& params,			///< build neibs parameters
-			int3			gridPos,	///< current particle grid position
-			const int3		gridOffset,	///< cell offset from current particle grid position
-			const uchar		cell,		///< cell number (0 ... 26)
-			const uint		index,		///< current particle index
-			float3			pos,		///< current particle position
-			uint&			neibs_num,	///< number of neighbors for the current particle
-			const bool		segment)	///< true if the current particle belongs to a segment
+			buildneibs_params<boundarytype == SA_BOUNDARY>
+				const& params,			// build neibs parameters
+			int3			gridPos,	// current particle grid position
+			const int3		gridOffset,	// cell offset from current particle grid position
+			const uchar		cell,		// cell number (0 ... 26)
+			const uint		index,		// current particle index
+			float3			pos,		// current particle position
+			uint&			neibs_num,	// number of neighbors for the current particle
+			const bool		segment,	// true if the current particle belongs to a segment
+			const bool		boundary)	// true if the current particle is a boundary particle
 {
 	// Compute the grid position of the current cell, and return if it's
 	// outside the domain
@@ -828,7 +820,7 @@ neibsInCell(
 
 	// Internal variables used by neibsInCell. Structure built on
 	// specialized template of niC_vars.
-	niC_vars<use_sa_boundary> var(gridPos, index, params);
+	niC_vars<boundarytype == SA_BOUNDARY> var(gridPos, index, params);
 
 	// Return if the cell is empty
 	if (var.bucketStart == 0xffffffff)
@@ -847,12 +839,18 @@ neibsInCell(
 		if (neib_index == index)
 			continue;
 
-		const particleinfo neibInfo = tex1Dfetch(infoTex, neib_index);
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Testpoints have a neighbor list, but are not considered in the neighbor list
 		// of other points
-		if (TESTPOINT(neibInfo))
+		if (TESTPOINT(neib_info))
 			continue;
+
+		// With dynamic boundaries boundary parts don't interact with other boundary parts
+		if (boundarytype == DYN_BOUNDARY) {
+			if (boundary && BOUNDARY(neib_info))
+				continue;
+		}
 
 		// Compute relative position between particle and potential neighbor
 		// NOTE: using as_float3 instead of make_float3 result in a 25% performance loss
@@ -870,7 +868,7 @@ neibsInCell(
 
 		// Check if the squared distance is smaller than the squared influence radius
 		// used for neighbor list construction
-		bool close_enough = isCloseEnough(relPos, neibInfo, params);
+		bool close_enough = isCloseEnough(relPos, neib_info, params);
 
 		if (close_enough) {
 			if (neibs_num < d_maxneibsnum) {
@@ -930,13 +928,13 @@ buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 
 		// The way the neighbor's list it's construct depends on
 		// the boundary type used in the simulation.
-		// - For Lennard-Johnes boundaries :
+		// 	* For Lennard-Johnes boundaries :
 		//		we construct a neighbor's list for fluid, test points
 		//		and particles belonging to a floating body or a moving
 		//		boundary on which we want to compute forces.
-		//	- For SA boundaries :
+		//	* For SA boundaries :
 		//		same as Lennard-Johnes plus vertice and boundary particles
-		//	- For dynamic boundaries :
+		//	* For dynamic boundaries :
 		//		we construct a neighbor's for all particles.
 		//TODO: optimze test. (Alexis).
 		bool build_nl = FLUID(info) || TESTPOINT(info) || FLOATING(info) || COMPUTE_FORCE(info);
@@ -968,13 +966,14 @@ buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 		for(int z=-1; z<=1; z++) {
 			for(int y=-1; y<=1; y++) {
 				for(int x=-1; x<=1; x++) {
-					neibsInCell<boundarytype == SA_BOUNDARY, periodicbound>(params,
+					neibsInCell<boundarytype, periodicbound>(params,
 						gridPos,
 						make_int3(x, y, z),
 						(x + 1) + (y + 1)*3 + (z + 1)*9,
 						index,
 						pos3,
 						neibs_num,
+						BOUNDARY(info),
 						BOUNDARY(info));
 				}
 			}
