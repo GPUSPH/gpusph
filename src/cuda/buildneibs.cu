@@ -184,7 +184,7 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 		uint	*particleIndex,				// particle's indexes (out)
 		const particleinfo* particleInfo,	// particle's information (in)
 		uint	*compactDeviceMap,			// TODO
-		constuint	numParticles)			// total number of particles
+		const uint	numParticles)			// total number of particles
 {
 	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
 	uint numBlocks = div_up(numParticles, numThreads);
