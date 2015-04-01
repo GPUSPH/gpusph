@@ -83,6 +83,8 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectfile << "\tQ" << obj << "_K";
 			}
 			m_objectfile << endl;
+			m_objectfile.precision(7);
+			m_objectfile << std::scientific;
 		}
 
 		string objforce_fn = open_data_file(m_objectforcesfile, "objectforces");
@@ -107,6 +109,8 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectforcesfile << "\tApplied_M" << obj << "_Z";
 			}
 			m_objectforcesfile << endl;
+			m_objectforcesfile.precision(7);
+			m_objectforcesfile << std::scientific;
 		}
 	}
 }
