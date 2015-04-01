@@ -1849,8 +1849,10 @@ forcesDevice(
 					// computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation, inoutBoundaries>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
-					pout.contupd.x += nout.contDiff;
-					pout.contupd.y += nout.DgamDt;
+					if (boundarytype == SA_BOUNDARY) {
+						pout.contupd.x += nout.contDiff;
+						pout.contupd.y += nout.DgamDt;
+					}
 				}
 
 				// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
@@ -1861,8 +1863,7 @@ forcesDevice(
 				// For other boundary types, accelerations is computed with the NS equations whenever the density
 				// is also computed (using NS), otherwise we just apply the repulsive force
 				const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
-					(FLUID(pdata.info) || FLUID(ndata.info)) :
-					computes_NS_drhodt;
+					(FLUID(pdata.info) || FLUID(ndata.info)) : computes_NS_drhodt;
 
 				if (computes_NS_accel) {
 					// Compute pressure part of acceleration
@@ -1877,25 +1878,29 @@ forcesDevice(
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 				} else {
-					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					if (boundarytype == LJ_BOUNDARY)
+						compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX
+			if (boundarytype == SA_BOUNDARY) {
+				if (visctype == KEPSVISC && pdata.ptype == PT_VERTEX
 					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
-				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
-			}
-			else if (boundarytype == SA_BOUNDARY && has_waterdepth_computation<boundarytype>::with(params)
+					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
+					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
+				}
+				else if (has_waterdepth_computation<boundarytype>::with(params)
 					&& pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
-				// Compute the maximum depth at pressure boundaries
-				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
+					// Compute the maximum depth at pressure boundaries
+					compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
+				}
 			}
-			else if (OBJECT(pdata.info)) {
-				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+			if (boundarytype == LJ_BOUNDARY) {
+				if (OBJECT(pdata.info))
+					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
 
-			// Sum all contributions from the neighbours in the force array
+			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
 
 		} // End of loop over neighbors
@@ -1943,7 +1948,7 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		else if (boundarytype == SA_BOUNDARY && OBJECT(pdata.info)) {
+		if (boundarytype == SA_BOUNDARY && OBJECT(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
