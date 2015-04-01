@@ -29,13 +29,13 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		//viscosity<ARTVISC>,
+		viscosity<ARTVISC>,
 		//viscosity<SPSVISC>,
-		viscosity<KINEMATICVISC>,
+		//viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>
 	);
 
-	addFilter(SHEPARD_FILTER, 10);
+	//addFilter(SHEPARD_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -82,7 +82,8 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity(x, y, z)
 
-	add_writer(VTKWRITER, 0.005);
+	//add_writer(VTKWRITER, 0.005);
+	add_writer(VTKWRITER, 0.1);
 	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
