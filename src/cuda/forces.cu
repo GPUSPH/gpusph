@@ -674,7 +674,7 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 	dummy_shared = 2560;
 	#endif
 
-	cuforces::SPSstressMatrixDevice<kerneltype, boundarytype == DYN_BOUNDARY>
+	cuforces::SPSstressMatrixDevice<kerneltype, boundarytype>
 		<<<numBlocks, numThreads, dummy_shared>>>
 		(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 

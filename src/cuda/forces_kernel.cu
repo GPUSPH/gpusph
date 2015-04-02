@@ -471,7 +471,8 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (2) compute turbulent eddy viscosity (non-dynamic)
 // (3) compute turbulent shear stresses
 // (4) return SPS tensor matrix (tau) divided by rho^2
-template<KernelType kerneltype, bool dynbounds>
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
 SPSstressMatrixDevice(	const float4* posArray,
@@ -491,13 +492,11 @@ SPSstressMatrixDevice(	const float4* posArray,
 		return;
 
 	// read particle data from sorted arrays
-	// compute SPS matrix only for fluid particles, except in the
-	// DYN_BOUNDARY case (dynbounds = true), in which case we compute
-	// it for everything
+	// Compute SPS matrix only for fluid particles
 	// TODO testpoints should also compute SPS, it'd be useful
 	// when we will enable SPS saving to disk
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info) && !dynbounds)
+	if (NOT_FLUID(info))
 		return;
 
 	// read particle data from sorted arrays
@@ -557,12 +556,9 @@ SPSstressMatrixDevice(	const float4* posArray,
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		// velocity gradient is contributed by fluid particles only,
-		// except in the DYN_BOUNDARY case where all particles (except TESTPOINTS,
-		// of course) contribute
-		const bool valid_neib_type = FLUID(neib_info) || (dynbounds && !TESTPOINT(neib_info));
-
-		if (r < influenceradius && valid_neib_type) {
+		// Velocity gradient is contributed by all particles
+		// TODO: fix SA case
+		if ( r < influenceradius ) {
 			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
