@@ -1822,31 +1822,56 @@ forcesDevice(
 			// Contributions from this neighbor
 			forces_neib_output<boundarytype> nout;
 
-			// Now compute the interactions based on pdata.info and ndata.info */
+			// Now compute the interactions based on pdata.info and ndata.info
 
 			// Compute gamma_as and |grad gamma_as| and add it to the respective values
 			// of the focal particle
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
-			if (pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) {
-
+			if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID) {
 				// The Navier-Stokes equations are applied in the following cases:
 				// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
-				// 		* for non-DYN, non-SA boundary, by a fluid particle interacting with a fluid particle;
-				// The DYN boundary case is more complex:
-				// 		* a fluid particle will compute both density derivative and acceleration interacting
-				//   	  with any other particle;
-				// 		* a non-fluid particle will compute density derivative interacting with any other particle,
-				//   	  but acceleration will only be computed by object particles interacting with fluid particles
-
-				// TODO : must be always true. Check and eventually eliminate.
-				// TODO : check how the compiler is dealing with this kind of boolean with part from template
-				const bool computes_NS_drhodt = ndata.ntype == PT_FLUID || boundarytype == DYN_BOUNDARY ||
-					( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) );
+				// 		* for LJ boundary, by a fluid particle interacting with a fluid particle;
+				// 		* for DYN bondary :
+				//			- a fluid particle will compute both density derivative and acceleration interacting
+				//   	  	with any other particle;
+				// 			- a non-fluid particle will compute density derivative interacting with any other particle,
+				//   	  	but acceleration will only be computed by object particles interacting with fluid particles
+				// NOTE1 : the compiler has some difficulties to deal with situations as
+				// if (boundarytype == SA_BOUNDARY) {
+				//	...
+				// } else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX
+				//			&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info)) {
+				//  ...
+				// } else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX &&
+				//			has_waterdepth_computation<boundarytype>::with(params) && IO_BOUNDARY(info) && !VEL_IO(info)) {
+				//  ...
+				// } else if (OBJECT(pdata.info)) {
+				// 	...
+				// }
+				// they should be replaced by:
+				// if (boundarytype == SA_BOUNDARY) {
+				//	...
+				// }
+				// if (boundarytype == SA_BOUNDARY) {
+				//		if (...) ....
+				//		else if () ....
+				// }
+				// if (boundarytype == LJ_BOUNDARY) {
+				//	...
+				// }
+				// NOTE 2: in tests mixing templates parameters and variables the tests on templates should be placed
+				// in first position
+				// if ( pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) =>
+				// if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID)
+				// TODO: remove ntype from particle data (useless register usage)
+				const bool computes_NS_drhodt = boundarytype == DYN_BOUNDARY  ||
+						( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) )
+						|| ndata.ntype == PT_FLUID;
 
 				if (computes_NS_drhodt) {
-					// computes d\rho/dt, including ferrari correction
+					// Computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation, inoutBoundaries>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
 					if (boundarytype == SA_BOUNDARY) {
@@ -1862,6 +1887,7 @@ forcesDevice(
 				// particles.
 				// For other boundary types, accelerations is computed with the NS equations whenever the density
 				// is also computed (using NS), otherwise we just apply the repulsive force
+				// TODO : check the test and eventually simplify or reorganize
 				const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
 					(FLUID(pdata.info) || FLUID(ndata.info)) : computes_NS_drhodt;
 
@@ -1883,18 +1909,20 @@ forcesDevice(
 				}
 
 			}
+
 			if (boundarytype == SA_BOUNDARY) {
 				if (visctype == KEPSVISC && pdata.ptype == PT_VERTEX
 					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 				}
-				else if (has_waterdepth_computation<boundarytype>::with(params)
-					&& pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
+				else if (pdata.ptype == PT_VERTEX && has_waterdepth_computation<boundarytype>::with(params)
+					&& IO_BOUNDARY(info) && !VEL_IO(info)) {
 					// Compute the maximum depth at pressure boundaries
 					compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 			}
+
 			if (boundarytype == LJ_BOUNDARY) {
 				if (OBJECT(pdata.info))
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
