@@ -1677,17 +1677,22 @@ shepardDevice(	const float4*	posArray,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
 	float4 vel = tex1Dfetch(velTex, index);
 
+	// We apply Shepard normalization :
+	//	* with LJ or DYN boundary only on fluid particles
+	//TODO 	* with SA boundary ???
+	// in any other case we have to copy the vel vector in the new velocity array
 	if ((NOT_FLUID(info) && !VERTEX(info)) || BOUNDARY(info)) {
 		newVel[index] = vel;
 		return;
 	}
 
-	// taking into account self contribution in summation
+	// Taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
 	float temp2 = temp1/vel.w ;
 
@@ -1699,7 +1704,7 @@ shepardDevice(	const float4*	posArray,
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
-	// loop over all the neighbors
+	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -1716,7 +1721,7 @@ shepardDevice(	const float4*	posArray,
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 
-		// skip inactive particles
+		// Skip inactive neighbors
 		if (INACTIVE(relPos))
 			continue;
 
@@ -1725,14 +1730,16 @@ shepardDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		//if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/) ) {
-		if (r < influenceradius && ACTIVE(relPos) && FLUID(neib_info) ) {
+		// Add neib contribution only if it's a fluid one
+		// TODO: check with SA
+		if (r < influenceradius && FLUID(neib_info) ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
 		}
 	}
 
+	// Normalize the density and write in global memory
 	vel.w = temp1/temp2;
 	newVel[index] = vel;
 }
