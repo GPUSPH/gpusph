@@ -29,13 +29,13 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		//viscosity<ARTVISC>,
+		viscosity<ARTVISC>,
 		//viscosity<SPSVISC>,
-		viscosity<KINEMATICVISC>,
+		//viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>
 	);
 
-	addFilter(SHEPARD_FILTER, 17);
+	addFilter(MLS_FILTER, 17);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008

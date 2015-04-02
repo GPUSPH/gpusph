@@ -1667,8 +1667,6 @@ shepardDevice(	const float4*	posArray,
 	if (index >= numParticles)
 		return;
 
-	// read particle data from sorted arrays
-	// normalize kernel only if the given particle is a fluid one
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	#if( __COMPUTE__ >= 20)
@@ -1687,10 +1685,11 @@ shepardDevice(	const float4*	posArray,
 	//	* with LJ or DYN boundary only on fluid particles
 	//TODO 	* with SA boundary ???
 	// in any other case we have to copy the vel vector in the new velocity array
-	if ((NOT_FLUID(info) && !VERTEX(info)) || BOUNDARY(info)) {
+	if (NOT_FLUID(info)) {
 		newVel[index] = vel;
 		return;
 	}
+
 
 	// Taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
@@ -1721,18 +1720,24 @@ shepardDevice(	const float4*	posArray,
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 
+
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
 		// Skip inactive neighbors
-		if (INACTIVE(relPos))
+		if (INACTIVE(relPos)) {
+			if (OBJECT(neib_info))
+				printf("Object part inactive !");
 			continue;
+		}
 
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
 		// Add neib contribution only if it's a fluid one
 		// TODO: check with SA
-		if (r < influenceradius && FLUID(neib_info) ) {
+		if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
+				&& r < influenceradius ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
@@ -1742,6 +1747,8 @@ shepardDevice(	const float4*	posArray,
 	// Normalize the density and write in global memory
 	vel.w = temp1/temp2;
 	newVel[index] = vel;
+	if (OBJECT(info))
+		printf("SF: object part density updated !\n");
 }
 
 // contribution of neighbor at relative position relPos with weight w to the
@@ -1773,7 +1780,8 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 
 
 // This kernel computes the MLS correction
-template<KernelType kerneltype>
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
 MlsDevice(	const float4*	posArray,
@@ -1790,8 +1798,6 @@ MlsDevice(	const float4*	posArray,
 	if (index >= numParticles)
 		return;
 
-	// read particle data from sorted arrays
-	// computing MLS matrix only for fluid particles
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	#if( __COMPUTE__ >= 20)
@@ -1800,11 +1806,16 @@ MlsDevice(	const float4*	posArray,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
 	float4 vel = tex1Dfetch(velTex, index);
 
+	// We apply MLS normalization :
+	//	* with LJ or DYN boundary only on fluid particles
+	//TODO 	* with SA boundary ???
+	// in any other case we have to copy the vel vector in the new velocity array
 	if (NOT_FLUID(info)) {
 		newVel[index] = vel;
 		return;
@@ -1816,10 +1827,10 @@ MlsDevice(	const float4*	posArray,
 		mls.yy = mls.yz = mls.yw =
 		mls.zz = mls.zw = mls.ww = 0;
 
-	// number of neighbors
+	// Number of neighbors
 	int neibs_num = 0;
 
-	// taking into account self contribution in MLS matrix construction
+	// Taking into account self contribution in MLS matrix construction
 	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// Compute grid position of current particle
@@ -1847,10 +1858,7 @@ MlsDevice(	const float4*	posArray,
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 
-		if (INACTIVE(relPos))
-			continue;
-
-		// skip inactive particles
+		// Skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
@@ -1859,10 +1867,11 @@ MlsDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		// interaction between two particles
+		// Add neib contribution only if it's a fluid one
+		// TODO: check with SA
 		if (r < influenceradius && FLUID(neib_info)) {
 			neibs_num ++;
-			float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
+			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
 			MlsMatrixContrib(mls, relPos, w);
 		}
 	} // end of first loop trough neighbors
@@ -1871,7 +1880,7 @@ MlsDevice(	const float4*	posArray,
 	neib_cellnum = 0;
 	neib_cell_base_index = 0;
 
-	// safe inverse of MLS matrix
+	// Safe inverse of MLS matrix :
 	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
 	// and if the number of fluids neighbors if above a minimum
 	// value, otherwise no correction is applied
@@ -1879,8 +1888,7 @@ MlsDevice(	const float4*	posArray,
 	maxa *= maxa;
 	maxa *= maxa;
 	float D = det(mls);
-	if (D > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
-		// first row of inverse matrix
+	if (fabs(D) > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {
 		D = 1/D;
 		float4 B;
 		B.x = (mls.yy*mls.zz*mls.ww + mls.yz*mls.zw*mls.yw + mls.yw*mls.yz*mls.zw - mls.yy*mls.zw*mls.zw - mls.yz*mls.yz*mls.ww - mls.yw*mls.zz*mls.yw)*D;
@@ -1888,10 +1896,10 @@ MlsDevice(	const float4*	posArray,
 		B.z = (mls.xy*mls.yz*mls.ww + mls.yy*mls.zw*mls.xw + mls.yw*mls.xz*mls.yw - mls.xy*mls.zw*mls.yw - mls.yy*mls.xz*mls.ww - mls.yw*mls.yz*mls.xw)*D;
 		B.w = (mls.xy*mls.zz*mls.yw + mls.yy*mls.xz*mls.zw + mls.yz*mls.yz*mls.xw - mls.xy*mls.yz*mls.zw - mls.yy*mls.zz*mls.xw - mls.yz*mls.xz*mls.yw)*D;
 
-		// taking into account self contribution in density summation
+		// Taking into account self contribution in density summation
 		vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
 
-		// loop over all the neighbors (Second loop)
+		// Loop over all the neighbors (Second loop)
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
@@ -1908,7 +1916,7 @@ MlsDevice(	const float4*	posArray,
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 
-			// skip inactive particles
+			// Skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
@@ -1917,8 +1925,9 @@ MlsDevice(	const float4*	posArray,
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
+			// Interaction between two particles
+			if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
+					&& r < influenceradius ) {
 				const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 				vel.w += MlsCorrContrib(B, relPos, w);
 			}
@@ -1946,7 +1955,7 @@ MlsDevice(	const float4*	posArray,
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 
-			// skip inactive particles
+			// Skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
@@ -1955,8 +1964,10 @@ MlsDevice(	const float4*	posArray,
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
+			// Add neib contribution only if it's a fluid one
+			// TODO: check with SA
+			if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
+					&& r < influenceradius ) {
 					// ρj*Wij*Vj = mj*Wij
 					const float w = W<kerneltype>(r, slength)*relPos.w;
 					// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
