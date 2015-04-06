@@ -725,12 +725,6 @@ bool GPUSPH::runSimulation() {
 		if (finished || gdata->quit_request)
 			force_write = true;
 
-		// build neighbors list
-		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
-			gdata->particlesCreated) {
-			buildNeibList();
-		}
-
 		// Launch specific post processing kernels (vorticity, free surface detection , ...)
 		// before writing to disk
 		if (need_write || force_write) {
@@ -824,6 +818,12 @@ bool GPUSPH::runSimulation() {
 				printStatus();
 				m_intervalPerformanceCounter->restart();
 			}
+		}
+
+		// build neighbors list
+		if (gdata->iterations % problem->get_simparams()->buildneibsfreq == 0 ||
+			gdata->particlesCreated) {
+			buildNeibList();
 		}
 
 		if (finished || gdata->quit_request)
