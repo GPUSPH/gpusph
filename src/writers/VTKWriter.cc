@@ -123,6 +123,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *tke = buffers.getData<BUFFER_TKE>();
 	const float *eps = buffers.getData<BUFFER_EPSILON>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
+	const float *spsturbvisc = buffers.getData<BUFFER_SPS_TURBVISC>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
@@ -190,6 +191,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// eddy viscosity
 	if (turbvisc) {
 		scalar_array(fid, "Float32", "Eddy viscosity", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
+	// SPS eddy viscosity
+	if (spsturbvisc) {
+		scalar_array(fid, "Float32", "SPS turbulent viscosity", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
@@ -363,6 +370,15 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float value = turbvisc[i];
+			write_var(fid, value);
+		}
+	}
+
+	// SPS turbulent viscosity
+	if (spsturbvisc) {
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = spsturbvisc[i];
 			write_var(fid, value);
 		}
 	}

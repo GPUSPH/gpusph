@@ -464,6 +464,45 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 /*		   Kernels for computing SPS tensor and SPS viscosity												*/
 /************************************************************************************************************/
 
+/// A functor that writes out turbvisc for SPS visc
+template<bool>
+struct write_sps_turbvisc
+{
+	template<typename FP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, const uint index, const float turbvisc)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP>
+__device__ __forceinline__ void
+write_sps_turbvisc<true>::with(FP const& params, const uint index, const float turbvisc)
+{ params.turbvisc[index] = turbvisc; }
+
+/// A functor that writes out tau for SPS visc
+template<bool>
+struct write_sps_tau
+{
+	template<typename FP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, const uint index, const float2& tau0, const float2& tau1, const float2& tau2)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP>
+__device__ __forceinline__ void
+write_sps_tau<true>::with(FP const& params, const uint index, const float2& tau0,
+							const float2& tau1, const float2& tau2)
+{
+	params.tau0[index] = tau0;
+	params.tau1[index] = tau1;
+	params.tau2[index] = tau2;
+}
+
 // Compute the Sub-Particle-Stress (SPS) Tensor matrix for all Particles
 // WITHOUT Kernel correction
 // Procedure:
@@ -472,36 +511,26 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (3) compute turbulent shear stresses
 // (4) return SPS tensor matrix (tau) divided by rho^2
 template<KernelType kerneltype,
-	BoundaryType boundarytype>
+	BoundaryType boundarytype,
+	uint simflags>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-SPSstressMatrixDevice(	const float4* posArray,
-						float2*		tau0,
-						float2*		tau1,
-						float2*		tau2,
-						const hashKey*	particleHash,
-						const uint*	cellStart,
-						const neibdata*	neibsList,
-						const uint	numParticles,
-						const float	slength,
-						const float	influenceradius)
+SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	// Compute SPS matrix only for fluid particles
+	// Compute SPS matrix only for any kind of particles
 	// TODO testpoints should also compute SPS, it'd be useful
 	// when we will enable SPS saving to disk
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info))
-		return;
 
 	// read particle data from sorted arrays
 	#if( __COMPUTE__ >= 20)
-	const float4 pos = posArray[index];
+	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -512,16 +541,13 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	const float4 vel = tex1Dfetch(velTex, index);
 
-	// SPS stress matrix elements
-	symtensor3 tau;
-
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
 	float3 dvy = make_float3(0.0f);
 	float3 dvz = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
@@ -530,17 +556,17 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	// loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
+		neibdata neib_data = params.neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
+				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		#if( __COMPUTE__ >= 20)
-		const float4 relPos = pos_corr - posArray[neib_index];
+		const float4 relPos = pos_corr - params.pos[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
@@ -549,7 +575,7 @@ SPSstressMatrixDevice(	const float4* posArray,
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
@@ -558,8 +584,8 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 		// Velocity gradient is contributed by all particles
 		// TODO: fix SA case
-		if ( r < influenceradius ) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
+		if ( r < params.influenceradius ) {
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
 			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
@@ -567,6 +593,10 @@ SPSstressMatrixDevice(	const float4* posArray,
 			dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
 			}
 		} // end of loop through neighbors
+
+
+	// SPS stress matrix elements
+	symtensor3 tau;
 
 	// Calculate Sub-Particle Scale viscosity
 	// and special turbulent terms
@@ -580,26 +610,31 @@ SPSstressMatrixDevice(	const float4* posArray,
 	temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
 	tau.yz = temp;
 	SijSij_bytwo += temp*temp;
-	float S = sqrtf(SijSij_bytwo);
-	float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
-	float divu_SPS = 0.6666666666f*nu_SPS*(dvx.x + dvy.y + dvz.z);
-	float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
+	const float S = sqrtf(SijSij_bytwo);
+	const float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
+	const float divu_SPS = 0.6666666666f*nu_SPS*(dvx.x + dvy.y + dvz.z);
+	const float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
+
+	// Storing the turbulent viscosity for each particle
+	write_sps_turbvisc<simflags & SPSK_STORE_TURBVISC>::with(params, index, nu_SPS);
 
 	// Shear Stress matrix = TAU (pronounced taf)
 	// Dalrymple & Rogers (2006): eq. (10)
-	tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-	tau.xx /= vel.w;
-	tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-	tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
-	tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-	tau.yy /= vel.w;
-	tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
-	tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-	tau.zz /= vel.w;
+	if (simflags & SPSK_STORE_TAU) {
 
-	tau0[index] = make_float2(tau.xx, tau.xy);
-	tau1[index] = make_float2(tau.xz, tau.yy);
-	tau2[index] = make_float2(tau.yz, tau.zz);
+		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
+		tau.xx /= vel.w;
+		tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
+		tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
+		tau.yy /= vel.w;
+		tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
+		tau.zz /= vel.w;
+
+		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, make_float2(tau.xx, tau.xy),
+				make_float2(tau.xz, tau.yy), make_float2(tau.yz, tau.zz));
+	}
 }
 /************************************************************************************************************/
 

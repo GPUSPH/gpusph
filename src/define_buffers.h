@@ -111,7 +111,10 @@ SET_BUFFER_TRAITS(BUFFER_CFL_TEMP, float, 1, "CFL aux array");
 #define BUFFER_CFL_KEPS		(BUFFER_CFL_TEMP << 1)
 SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
 
-#define BUFFER_PRIVATE		(BUFFER_CFL_KEPS << 1)
+#define BUFFER_SPS_TURBVISC		(BUFFER_CFL_KEPS << 1)
+SET_BUFFER_TRAITS(BUFFER_SPS_TURBVISC, float, 1, "SPS Turbulent viscosity");
+
+#define BUFFER_PRIVATE		(BUFFER_SPS_TURBVISC << 1)
 SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 
 // last defined buffer. if new buffers are defined, remember to update this

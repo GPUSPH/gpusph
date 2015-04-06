@@ -129,6 +129,10 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_DKDE>();
 	}
 
+	if (m_simparams->visctype == SPSVISC) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
+	}
+
 	if (m_simparams->inoutBoundaries || m_simparams->visctype == KEPSVISC)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
@@ -2381,6 +2385,7 @@ void GPUWorker::kernel_sps()
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
 	viscEngine->process(bufwrite.getRawPtr<BUFFER_TAU>(),
+		bufwrite.getData<BUFFER_SPS_TURBVISC>(),
 		bufread.getData<BUFFER_POS>(),
 		bufread.getData<BUFFER_VEL>(),
 		bufread.getData<BUFFER_INFO>(),

@@ -29,13 +29,13 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
-		viscosity<ARTVISC>,
-		//viscosity<SPSVISC>,
+		//viscosity<ARTVISC>,
+		viscosity<SPSVISC>,
 		//viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>
 	);
 
-	addFilter(MLS_FILTER, 17);
+	//addFilter(MLS_FILTER, 17);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -45,7 +45,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.ferrari = 0;
-	m_simparams.tend = 20.0f; //0.00036f
+	m_simparams.tend = 1.0f; //0.00036f
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;

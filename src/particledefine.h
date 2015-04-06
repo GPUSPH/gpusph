@@ -187,6 +187,11 @@ const char *FilterName[MLS_FILTER+1]
 #endif
 ;
 
+enum SPSKernelSimFlags {
+	SPSK_STORE_TAU = 1,
+	SPSK_STORE_TURBVISC = (SPSK_STORE_TAU << 1)
+};
+
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
 #define MAX_FLUID_TYPES 	4
