@@ -100,6 +100,7 @@ class EulerParameters {
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
 		EulerParameters(const dQuaternion &);
+		EulerParameters(const dReal *);
 		~EulerParameters(void) {};
 		//@}
 

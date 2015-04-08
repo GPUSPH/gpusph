@@ -86,6 +86,17 @@ EulerParameters::EulerParameters(const dQuaternion &quat)
 		m_ep[i] = quat[i];
 }
 
+/// Constructor from ODE dReal
+/*!
+ *	\param[in] r : ODE dReal pointer
+ */
+EulerParameters::EulerParameters(const dReal *r)
+{
+	for (int i = 0; i < 3; i++)
+		m_ep[i] = r[i];
+}
+
+
 /// Constructor from Euler angles
 /*! Construct Euler parameters form a set of Euler angles \f$(\psi, \theta, \phi)\f$
  *  in zxz extrinsic convention.
