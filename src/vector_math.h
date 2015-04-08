@@ -14,6 +14,7 @@
 #define VECTOR_MATH_H
 
 #include "cuda_runtime.h"
+#include "ode/ode.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 typedef unsigned int uint;
@@ -323,6 +324,11 @@ static __inline__ __host__  float3 make_float3(const double *a)
 static __inline__ __host__  __device__  float3 make_float3(const double3 &a)
 {
 	return make_float3(float(a.x), float(a.y), float(a.z));
+}
+
+static __inline__ __host__  float3 make_float3(const dReal* a)
+{
+	return make_float3(float(a[0]), float(a[1]), float(a[2]);
 }
 
 // negate
