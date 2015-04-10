@@ -95,6 +95,9 @@ Object::SetMass(const double mass)
 
 
 /// Set the objects center of gravity
+/*! Directly set the object center of gravity
+ * \param cg : center of gravity
+ */
 void
 Object::SetCenterOfGravity(const double* cg)
 {
@@ -102,6 +105,29 @@ Object::SetCenterOfGravity(const double* cg)
 	m_center(1) = cg[1];
 	m_center(2) = cg[2];
 }
+
+
+/// Returns objects center of gravity
+/*! Returns the object center of gravity
+ * \return center of gravity
+ */
+float3
+Object::GetCenterOfGravity(void)
+{
+	return(make_float3(m_cg));
+}
+
+
+/// Returns object orientation
+/*! Returns the object orientation
+ * \return object orientation
+ */
+EulerParameters
+Object::GetOrientation(void)
+{
+	return m_ep;
+}
+
 
 /// Set the object principal moments of inertia
 /*! Directly set the object principal moments of inertia.
@@ -114,7 +140,6 @@ Object::SetInertia(const double* inertia)
 	m_inertia[1] = inertia[1];
 	m_inertia[2] = inertia[2];
 }
-
 
 
 /// Retrieve the object inertial data
@@ -140,6 +165,7 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 	inertia[2] = m_inertia[2];
 	ep = m_ep;
 }
+
 
 /// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
 // TODO: could be useful to print also the rotation matrix
