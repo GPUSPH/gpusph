@@ -112,9 +112,9 @@ Object::SetCenterOfGravity(const double* cg)
  * \return center of gravity
  */
 float3
-Object::GetCenterOfGravity(void)
+Object::GetCenterOfGravity(void) const
 {
-	return(make_float3(m_cg));
+	return(make_float3(m_center));
 }
 
 
@@ -123,7 +123,7 @@ Object::GetCenterOfGravity(void)
  * \return object orientation
  */
 EulerParameters
-Object::GetOrientation(void)
+Object::GetOrientation(void) const
 {
 	return m_ep;
 }
