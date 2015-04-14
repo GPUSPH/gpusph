@@ -156,7 +156,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	bool write_part_obj = (gdata->problem->get_simparams()->numODEbodies > 0);
+	bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
 	if (info) {
 		fid << "SCALARS Type+flags int" << endl;
 		print_lookup(fid);

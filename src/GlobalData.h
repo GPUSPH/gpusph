@@ -101,7 +101,8 @@ enum CommandType {
 	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
-	UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects
+	EULER_UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects (for Euler only)
+	FORCES_UPLOAD_OBJECTS_CG,	// upload centers of grovity of objects (for forces only)
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
 	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values

@@ -33,21 +33,6 @@
 #include "Point.h"
 #include "deprecation.h"
 
-typedef struct MbCallBack {
-	short			type;
-	double			tstart;
-	double			tend;
-	float3			origin;
-	float3			vel;
-	float3			disp;
-	float			sintheta;
-	float			costheta;
-	float			dthetadt;
-	float			omega;
-	float			amplitude;
-	float			phase;
-} MbCallBack;
-
 typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
@@ -75,7 +60,9 @@ typedef struct SimParams {
 	bool			surfaceparticle;		// true if we want to find surface particles
 	bool			calc_energy;			// true if we want to compute system energy at save time
 	GageList		gage;					// water gages
-	uint			numODEbodies;			// number of floating bodies
+	uint			numforcesbodies;		// number of moving bodies on which we need to compute the forces
+	uint			nummovingbodies;		// total number of moving bodies
+	uint			numbodies;				// total number of bodies (ODE + moving)
 	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	bool			calcPrivate;			// add the private array for debugging / additional calculation
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
@@ -119,7 +106,9 @@ typedef struct SimParams {
 		savenormals(false),
 		surfaceparticle(false),
 		calc_energy(true),
-		numODEbodies(0),
+		nummovingbodies(0),
+		numforcesbodies(0),
+		numbodies(0),
 		maxneibsnum(0),
 		calcPrivate(false),
 		epsilon(5e-5f),

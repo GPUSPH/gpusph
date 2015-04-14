@@ -26,49 +26,56 @@
 #include <cmath>
 #include <iostream>
 
-#include "OdeObjects.h"
+#include "DamBreakGate.h"
+#include "Cube.h"
 #include "Point.h"
-#include "particledefine.h"
+#include "Vector.h"
 #include "GlobalData.h"
 
-OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
+#define SIZE_X		(1.60)
+#define SIZE_Y		(0.67)
+#define SIZE_Z		(0.40)
+
+// default: origin in 0,0,0
+#define ORIGIN_X	(0)
+#define ORIGIN_Y	(0)
+#define ORIGIN_Z	(0)
+
+
+DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
-	lx = 1.6;
-	ly = 0.67;
-	lz = 0.6;
-	H = 0.4;
-	wet = false;
-
-	m_size = make_double3(lx, ly, lz);
-	m_origin = make_double3(0.0, 0.0, 0.0);
+	m_size = make_double3(SIZE_X, SIZE_Y, SIZE_Z + 0.7);
+	m_origin = make_double3(ORIGIN_X, ORIGIN_Y, ORIGIN_Z);
 
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC>,
+		viscosity<ARTVISC>,//DYNAMICVISC//SPSVISC
 		boundary<LJ_BOUNDARY>
 	);
+
+	addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.015f);
 	m_simparams.dt = 0.0001f;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.tend = 1.5;
+	m_simparams.mbcallback = true;
+	m_simparams.tend = 10.f;
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
-	// We have no moving boundary
-	m_simparams.mbcallback = false;
-
 	// Physical parameters
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
+	H = 0.4f;
+	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0, 10);
+	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
+	m_physparams.numFluids = 1;
 
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0*g*H;
+    //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
+	m_physparams.dcoeff = 5.0f*g*H;
 	m_physparams.r0 = m_deltap;
 
 	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
@@ -78,135 +85,109 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc = 1.0e-6;
-	m_physparams.artvisccoeff = 0.3;
+	m_physparams.kinematicvisc = 1.0e-6f;
+	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	// Initialize ODE
-	dInitODE();
-	m_ODEWorld = dWorldCreate();	// Create a dynamic world
-	m_ODESpace = dHashSpaceCreate(0);
-	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
-
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 0.2);
 
 	// Name of problem used for directory creation
-	m_name = "OdeObjects";
+	m_name = "DamBreakGate";
 }
 
 
-OdeObjects::~OdeObjects(void)
+DamBreakGate::~DamBreakGate(void)
 {
 	release_memory();
-	dWorldDestroy(m_ODEWorld);
-	dCloseODE();
 }
 
 
-void OdeObjects::release_memory(void)
+void DamBreakGate::release_memory(void)
 {
 	parts.clear();
+	gate_parts.clear();
 	obstacle_parts.clear();
 	boundary_parts.clear();
 }
 
 
-int OdeObjects::fill_parts()
+void
+DamBreakGate::moving_bodies_callback(Object* object, const float dt, const double t,
+		float3& lvel, float3& avel)
+{
+	const double tstart = 0.2f;
+	const double tend = 0.6f;
+	if (t >= tstart && t < tend) {
+		lvel = make_float3(0.0, 0.0, 4.*(t - tstart));
+		}
+	else
+		lvel = make_float3(0.0f);
+	avel = make_float3(0.0f);
+}
+
+int DamBreakGate::fill_parts()
 {
 	float r0 = m_physparams.r0;
 
-	Cube fluid, fluid1;
+	Cube fluid, fluid1, fluid2, fluid3, fluid4;
 
-	experiment_box = Cube(Point(0, 0, 0), lx, ly, lz);
-	planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0.0);
-	planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0.0);
-	planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, -lx);
-	planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0.0);
-	planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, -ly);
+	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
 
-	obstacle = Cube(Point(0.6, 0.24, 2*r0), 0.12, 0.12, 0.7*lz - 2*r0);
+	float3 gate_origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
+	Rect gate = Rect (Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
+				Vector(0,0,0.4));
 
-	fluid = Cube(Point(r0, r0, r0), 0.4, ly - 2*r0, H - r0);
+	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
 
+	fluid = Cube(Point(r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z), 0.4, 0.67 - 2*r0, 0.4 - r0);
+
+	bool wet = false;	// set wet to true have a wet bed experiment
 	if (wet) {
-		fluid1 = Cube(Point(H + m_deltap + r0 , r0, r0),
-			lx - H - m_deltap - 2*r0, 0.67 - 2*r0, 0.1);
+		fluid1 = Cube(Point(0.4 + m_deltap + r0 + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.5 - m_deltap - 2*r0, 0.67 - 2*r0, 0.03);
+
+		fluid2 = Cube(Point(1.02 + r0  + ORIGIN_X, r0 + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.58 - 2*r0, 0.67 - 2*r0, 0.03);
+
+		fluid3 = Cube(Point(0.9 + ORIGIN_X , m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.12, 0.24 - 2*r0, 0.03);
+
+		fluid4 = Cube(Point(0.9 + ORIGIN_X , 0.36 + m_deltap  + ORIGIN_Y, r0 + ORIGIN_Z),
+			0.12, 0.31 - 2*r0, 0.03);
 	}
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
+	gate_parts.reserve(2000);
 
 	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
-	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
-	//obstacle.FillBorder(obstacle.GetParts(), r0, true);
-	//obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
-	//obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
-	//add_ODE_body(&obstacle);
+	gate.Fill(gate_parts, r0, true);
+	add_moving_body(&gate, MB_MOVING);
+
+	obstacle.SetPartMass(r0, m_physparams.rho0[0]);
+	obstacle.FillBorder(obstacle_parts, r0, true);
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
+
 	if (wet) {
 		fluid1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
-		//obstacle.Unfill(parts, r0);
+		fluid2.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid2.Fill(parts, m_deltap, true);
+		fluid3.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid3.Fill(parts, m_deltap, true);
+		fluid4.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid4.Fill(parts, m_deltap, true);
 	}
 
-	// Rigid body #1 : sphere
-	Point rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
-	sphere = Sphere(rb_cg, 0.05);
-	sphere.SetPartMass(r0, m_physparams.rho0[0]*0.6);
-	sphere.SetMass(r0, m_physparams.rho0[0]*0.6);
-	sphere.Unfill(parts, r0);
-	sphere.FillBorder(sphere.GetParts(), r0);
-	sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
-	sphere.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_moving_body(&sphere, MB_ODE);
-
-	// Rigid body #2 : cylinder
-	cylinder = Cylinder(Point(0.9, 0.7*ly, r0), 0.05, Vector(0, 0, 0.2));
-	cylinder.SetPartMass(r0, m_physparams.rho0[0]*0.3);
-	cylinder.SetMass(r0, m_physparams.rho0[0]*0.3);
-	cylinder.Unfill(parts, r0);
-	cylinder.FillBorder(cylinder.GetParts(), r0);
-	cylinder.ODEBodyCreate(m_ODEWorld, m_deltap);
-	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_moving_body(&cylinder, MB_ODE);
-
-	/*joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
-	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
-	dJointSetHingeAnchor(joint, 0.7, 0.24, 2*r0);	// Set a joint anchor
-	dJointSetHingeAxis(joint, 0, 1, 0);*/
-
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
 }
 
-
-void OdeObjects::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
-{
-	const int N = 10;
-	dContact contact[N];
-
-	int n = dCollide(o1, o2, N, &contact[0].geom, sizeof(dContact));
-	if ((o1 == cube.m_ODEGeom && o2 == sphere.m_ODEGeom) || (o2 == cube.m_ODEGeom && o1 == sphere.m_ODEGeom)) {
-		cout << "Collision between cube and obstacle " << n << "contact points\n";
-	}
-	for (int i = 0; i < n; i++) {
-		contact[i].surface.mode = dContactBounce;
-		contact[i].surface.mu   = dInfinity;
-		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
-		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
-		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
-		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
-	}
-}
-
-
-void OdeObjects::copy_to_array(BufferList &buffers)
+void DamBreakGate::copy_to_array(BufferList &buffers)
 {
 	float4 *pos = buffers.getData<BUFFER_POS>();
 	hashKey *hash = buffers.getData<BUFFER_HASH>();
@@ -254,9 +235,6 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 
-	particleinfo  pinfo = info[j-1];
-	std::cout << "Object pinfo: type = " << PART_TYPE(pinfo) << " flags = " << PART_FLAGS(pinfo)
-				<< " is object = " << OBJECT(pinfo) << " object num = " << object(pinfo) << "\n\n";
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
@@ -275,3 +253,4 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 	j += parts.size();
 	std::cout << "Fluid part mass:" << pos[j-1].w << "\n";
 }
+

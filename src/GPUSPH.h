@@ -85,6 +85,9 @@ private:
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
 
+	// Move objects
+	void move_objects(const uint);
+
 	// create the Writer
 	void createWriter();
 

@@ -234,8 +234,8 @@ eulerDevice(
 		case PT_BOUNDARY:
 			if (boundarytype == DYN_BOUNDARY)
 				vel.w += dt*force.w;
-			if (OBJECT(pinfo) && step == 2) {
-#ifdef _DEBUG_OBJ_FORCES_
+			if (MOVING(pinfo)) {
+				#ifdef _DEBUG_OBJ_FORCES_
 				if (id(pinfo) == 0) {
 					printf("Euler device, object %d\n", obj);
 					printf("   lvel: %e\t%e\t%e\n", d_rblinearvel[obj].x, d_rblinearvel[obj].y, d_rblinearvel[obj].z);
@@ -246,15 +246,17 @@ eulerDevice(
 					printf("         %e\t%e\t%e\n", d_rbsteprot[9*obj + 3], d_rbsteprot[9*obj + 4], d_rbsteprot[9*obj + 5]);
 					printf("         %e\t%e\t%e\n", d_rbsteprot[9*obj + 6], d_rbsteprot[9*obj + 7], d_rbsteprot[9*obj + 8]);
 				}
-#endif
+				#endif
+
+				// Applying rotation around center of gravity
+				// relPos = x - x_cg
+				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
+				applyrot(&d_rbsteprot[9*obj], relPos, pos);
+
 				// Applying center of gravity translation
 				pos.x += d_rbtrans[obj].x;
 				pos.y += d_rbtrans[obj].y;
 				pos.z += d_rbtrans[obj].z;
-
-				// Applying rotation around center of gravity
-				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
-				applyrot(&d_rbsteprot[9*obj], relPos, pos);
 
 				// Computing particles velocity
 				// V(P) = V(Cg) + PCg^omega

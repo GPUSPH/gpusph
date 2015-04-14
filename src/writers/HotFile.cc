@@ -61,10 +61,10 @@ void HotFile::save() {
 		iter++;
 	}
 
-	const float3 *cgs = _gdata->problem->get_ODE_bodies_cg();
-	const dQuaternion *quats = _gdata->problem->get_ODE_bodies_quaternion();
-	const float3 *linvels = _gdata->problem->get_ODE_bodies_linearvel();
-	const float3 *angvels = _gdata->problem->get_ODE_bodies_angularvel();
+	const float3 *cgs = _gdata->problem->get_bodies_cg();
+	const dQuaternion *quats = _gdata->problem->get_bodies_quaternion();
+	const float3 *linvels = _gdata->problem->get_bodies_linearvel();
+	const float3 *angvels = _gdata->problem->get_bodies_angularvel();
 	for (int b = 0; b < _header.body_count; ++b)
 		writeBody(_fp.out, b, cgs + b, quats[b],
 			linvels + b, angvels + b, VERSION_1);
@@ -98,7 +98,8 @@ void HotFile::load() {
 
 	// NOTE: simulation with ODE bodies cannot be resumed identically due to
 	// the way ODE handles its internal state.
-	check_counts_match("body", _header.body_count, _gdata->problem->get_simparams()->numODEbodies);
+	// TODO FIXME/ should be num ODE bodies
+	check_counts_match("body", _header.body_count, _gdata->problem->get_simparams()->numbodies);
 
 	// TODO FIXME multinode should take into account _node_offset
 	BufferList::const_iterator iter = _gdata->s_hBuffers.begin();
@@ -134,7 +135,8 @@ void HotFile::writeHeader(ofstream *fp, version_t version) {
 		_header.version = 1;
 		_header.buffer_count = _gdata->s_hBuffers.size();
 		_header.particle_count = _particle_count;
-		_header.body_count = _gdata->problem->get_simparams()->numODEbodies;
+		//TODO FIXME
+		_header.body_count = _gdata->problem->get_simparams()->numbodies;
 		_header.iterations = _gdata->iterations;
 		_header.dt = _gdata->dt;
 		_header.t = _gdata->t;
@@ -265,8 +267,9 @@ void HotFile::readBody(ifstream *fp, version_t version)
 		encoded_body_t eb;
 		memset(&eb, 0, sizeof(eb));
 		fp->read((char *)&eb, sizeof(eb));
-		_gdata->problem->restore_ODE_body(eb.index, eb.gravity_center, eb.quaternion,
-			eb.linvel, eb.angvel);
+		// TODO FIXME
+		//_gdata->problem->restore_ODE_body(eb.index, eb.gravity_center, eb.quaternion,
+		//	eb.linvel, eb.angvel);
 		break;
 	default:
 		unsupported_version(version);
