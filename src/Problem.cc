@@ -374,14 +374,14 @@ Problem::object_forces_callback(const double t, float3 *forces, float3 *torques)
 
 
 void
-Problem::moving_bodies_callback(const uint index, Object* object, const double t, float3 & crot,
-			EulerParameters& orientation,float3& lvel, float3& avel)
+Problem::moving_bodies_callback(const uint index, Object* object, const double t, const float3&,
+		const float3&, float3 & crot, EulerParameters& orientation,float3& lvel, float3& avel)
 { /* default does nothing */ }
 
 // input: force, torque, step number, dt
 // output: cg, trans, steprot (can be input uninitialized)
 void
-Problem::bodies_timestep(const float3 *force, const float3 *torque, const int step,
+Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int step,
 		const double dt, const double t, float3 * & cg, float3 * & trans, float * & steprot,
 		float3 * & linearvel, float3 * & angularvel)
 {
@@ -420,14 +420,14 @@ Problem::bodies_timestep(const float3 *force, const float3 *torque, const int st
 				mbdata->kdata.orientation.ToODEQuaternion(quat);
 				dBodySetQuaternion(bodyid, quat);
 			}
-			dBodyAddForce(bodyid, force[i].x, force[i].y, force[i].z);
-			dBodyAddTorque(bodyid, torque[i].x, torque[i].y, torque[i].z);
+			dBodyAddForce(bodyid, forces[i].x, forces[i].y, forces[i].z);
+			dBodyAddTorque(bodyid, torques[i].x, torques[i].y, torques[i].z);
 
 			#ifdef _DEBUG_OBJ_FORCES_
 			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 			mbdata->object->ODEPrintInformation(false);
-			printf("   F:	%e\t%e\t%e\n", force[i].x, force[i].y, force[i].z);
-			printf("   T:	%e\t%e\t%e\n", torque[i].x, torque[i].y, torque[i].z);
+			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
+			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
 			#endif
 		}
 		else
@@ -464,7 +464,13 @@ Problem::bodies_timestep(const float3 *force, const float3 *torque, const int st
 		else {
 			const uint index = mbdata->index;
 			// Get linear and angular velocities at t + dt/2.O for step 1 or t + dt for step 2
-			moving_bodies_callback(index, mbdata->object, nt2, new_crot, new_orientation, new_lvel, new_avel);
+			float3 force = make_float3(0.0f);
+			float3 torque = make_float3(0.0f);
+			if (mbdata->type == MB_FORCES_MOVING) {
+				force = forces[i];
+				torque = torques[i];
+			}
+			moving_bodies_callback(index, mbdata->object, nt2, force, torque, new_crot, new_orientation, new_lvel, new_avel);
 		}
 
 		m_bodies_trans[i] = new_crot - mbdata->kdata.crot;

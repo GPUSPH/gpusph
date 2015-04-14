@@ -411,8 +411,8 @@ RESTORE_WARNINGS
 		object_forces_callback(const double t, float3 *forces, float3 *torques);
 
 		virtual void
-		moving_bodies_callback(const uint, Object* object, const double t,
-				float3& crot, EulerParameters& orientation, float3& lvel, float3& avel);
+		moving_bodies_callback(const uint, Object* object, const double t, const float3&, const float3&,
+							float3& crot, EulerParameters& orientation, float3& lvel, float3& avel);
 
 		void bodies_timestep(const float3 *, const float3 *, const int,
 							const double, const double, float3 * &, float3 * &,
