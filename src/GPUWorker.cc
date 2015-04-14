@@ -2054,8 +2054,8 @@ void GPUWorker::kernel_forces_async_enqueue()
 	// and torques to avoid spurious contributions
 	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
 		uint bodiesPartsSize = m_numForcesBodiesParticles * sizeof(float4);
-		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0f, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0f, bodiesPartsSize));
 	}
 
 	// NOTE: the stripe containing the internal edge particles must be run first, so that the
@@ -2165,8 +2165,8 @@ void GPUWorker::kernel_forces()
 	// and torques to avoid spurious contributions
 	if (m_simparams->numforcesbodies > 0 && MULTI_DEVICE) {
 		uint bodiesPartsSize = m_numForcesBodiesParticles * sizeof(float4);
-		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0F, bodiesPartsSize));
-		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0F, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbForces, 0.0f, bodiesPartsSize));
+		CUDA_SAFE_CALL(cudaMemset(m_dRbTorques, 0.0f, bodiesPartsSize));
 	}
 
 	const uint fromParticle = 0;
@@ -2407,8 +2407,8 @@ void GPUWorker::kernel_reduceRBForces()
 	// make sure this device does not add any obsolete contribute to forces acting on objects
 	if (MULTI_DEVICE) {
 		for (uint ob = 0; ob < m_simparams->numforcesbodies; ob++) {
-			gdata->s_hRbDeviceTotalForce[m_deviceIndex][ob] = make_float3(0.0F);
-			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][ob] = make_float3(0.0F);
+			gdata->s_hRbDeviceTotalForce[m_deviceIndex][ob] = make_float3(0.0f);
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][ob] = make_float3(0.0f);
 		}
 	}
 
