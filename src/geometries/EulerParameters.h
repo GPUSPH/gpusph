@@ -97,6 +97,8 @@ class EulerParameters {
 		EulerParameters(const double *);
 		EulerParameters(const float *);
 		EulerParameters(const double, const double, const double);
+		EulerParameters(const double, const double, const double, const double);
+		EulerParameters(const float, const float, const float, const float);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
 		EulerParameters(const dQuaternion &);
@@ -131,13 +133,15 @@ class EulerParameters {
 		/** \name Overloaded operators */
 		//@{
 		EulerParameters& operator = (const EulerParameters&);
-		EulerParameters &operator*=(const EulerParameters &);
+		EulerParameters &operator *= (const EulerParameters &);
 		//@}
 
 		/** \name Overloaded friends operators */
 		//@{
+		friend EulerParameters operator+(const EulerParameters &, const EulerParameters &);
 		friend EulerParameters operator*(const EulerParameters &, const EulerParameters &);
 		friend EulerParameters operator*(const EulerParameters *, const EulerParameters &);
+		friend EulerParameters operator*(const double, const EulerParameters &);
 		//@}
 
 		/** \name Debug printing functions */

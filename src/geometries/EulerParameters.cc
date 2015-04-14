@@ -60,6 +60,31 @@ EulerParameters::EulerParameters(const float * ep)
 }
 
 
+/// Constructor form for values
+/*! Constructor from for double of values
+ *	\param[in] e0 : 1st component
+ *	\param[in] e1 : 2nd component
+ *	\param[in] e2 : 3rd component
+ *	\param[in] e3 : 4th component
+ */
+EulerParameters::EulerParameters(const double e0, const double e1, const double e2, const double e3)
+{
+	m_ep[0] = e0;
+	m_ep[1] = e1;
+	m_ep[2] = e2;
+	m_ep[3] = e3;
+}
+
+
+/*!
+ * \overload EulerParameters::EulerParameters(const double, cons double, const double, const double)
+ */
+EulerParameters::EulerParameters(const float e0, const float e1, const float e2, const float e3)
+{
+	EulerParameters((double) e0, (double) e1, (double) e2, (double) e3);
+}
+
+
 /// Copy constructor
 /*!
  *	\param[in] source : source data
@@ -285,6 +310,26 @@ EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 }
 
 
+/*!	Define the + operation for EulerParmeters.
+ * 	Overload of the + operator for Euler parameters.
+ *
+ *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ and \f$ q'=(q'_0, q'_1, q'_2, q'_3)\f$ two set of Euler parameters
+ *	we have :
+ *  \f{eqnarray*}{ q*q' = & (q_0 + q'_0, q_1 + q'_1, q_2 + q'_2, q_3 + q'_3) \f}
+ *
+ *	\param[in] ep1 : Euler parameters
+ *	\param[in] ep2 : Euler parameters
+ *	\return ep1+ep2
+ *
+ *	Beware this operation is not commutative
+ */
+EulerParameters operator+(const EulerParameters &ep1, const EulerParameters &ep2)
+{
+	return EulerParameters(ep1.m_ep[0] + ep2.m_ep[0], ep1.m_ep[1] + ep2.m_ep[1],
+				ep1.m_ep[2] + ep2.m_ep[2], ep1.m_ep[3] + ep2.m_ep[3]);
+}
+
+
 /*!	Define the * operation for EulerParmeters.
  * 	Overload of the * operator for Euler parameters. This operation corresponds to a rotation composition.
  *
@@ -314,8 +359,6 @@ EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2
 
 	EulerParameters res(temp);
 
-	res.Normalize();
-
 	return res;
 }
 
@@ -333,10 +376,28 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 
 	EulerParameters res(temp);
 
-	res.Normalize();
-
 	return res;
 }
+
+
+/*!	Define the * operation between double and EulerParmeters.
+ * 	Overload of the * operator between double and Euler parameters.
+ *
+ *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ an Euler parameters and \f$ a\f$ a real
+ *	we have :
+ *  \f$ a*q = & (a*q_0, a*q_1, a*q_2, a*q_3) \f$
+ *
+ *	\param[in] a : real
+ *	\param[in] ep : Euler parameters
+ *	\return a*ep
+ *
+ *	Beware this operation is not commutative
+ */
+EulerParameters operator*(const double a, const EulerParameters &ep)
+{
+	return EulerParameters(a*ep.m_ep[0], a*ep.m_ep[1], a*ep.m_ep[2], a*ep.m_ep[3]);
+}
+
 
 
 /// Relative rotation between two Euler parameters
