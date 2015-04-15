@@ -110,7 +110,7 @@ eulerDevice(
 	const	float4	*oldPos,			///< previous particle's position (in)
 	const	hashKey	*particleHash,		///< particle's hash (in)
 	const	float4	*oldVel,			///< previous particle's velocity (in)
-	const	float4	*oldEulerVel,		///< previous eulerian velocityies for ??? <- TODO (in)
+	const	float4	*oldEulerVel,		///< previous eulerian velocities for ??? <- TODO (in)
 	const	float4	*oldgGam,			///< previous values of gradient of gamma (in)
 	const	float	*oldTKE,			///< previous values of k, for k-e model (in)
 	const	float	*oldEps,			///< previous values of e, for k-e model
@@ -165,7 +165,7 @@ eulerDevice(
 		// TODO: complete prviouds comment
 		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !OBJECT(pinfo)) )
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pinfo)) )
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
@@ -248,7 +248,8 @@ eulerDevice(
 				}
 				#endif
 
-				// Applying rotation around center of gravity
+				// Applying rotation around center of gravity. We always have cg = cg(n). Cg behaves
+				// the same as pos and we always have pos = pos(n).
 				// relPos = x - x_cg
 				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
 				applyrot(&d_rbsteprot[9*obj], relPos, pos);

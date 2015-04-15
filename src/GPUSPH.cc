@@ -499,10 +499,6 @@ bool GPUSPH::runSimulation() {
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_1);
 
-		// Take care of moving bodies
-		// TODO: use INTEGRATOR_STEP
-		move_objects(1);
-
 		//MM		fetch/update forces on neighbors in other GPUs/nodes
 		//				initially done trivial and slow: stop and read
 		//			//reduce bodies
@@ -510,6 +506,9 @@ bool GPUSPH::runSimulation() {
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
+		// Take care of moving bodies
+		// TODO: use INTEGRATOR_STEP
+		move_objects(1);
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
@@ -559,25 +558,21 @@ bool GPUSPH::runSimulation() {
 		if (gdata->clOptions->striping && MULTI_DEVICE)
 			doCommand(FORCES_COMPLETE, INTEGRATOR_STEP_2);
 
-		// Take care of moving bodies
-		// TODO: use INTEGRATOR_STEP
-		move_objects(2);
-
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case
 		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
+		// Take care of moving bodies
+		// TODO: use INTEGRATOR_STEP
+		move_objects(2);
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
-
-		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
-
 		// Euler needs always cg(n)
 		if (problem->get_simparams()->numbodies > 0)
 			doCommand(EULER_UPLOAD_OBJECTS_CG);
 
-		//			//reduce bodies
+		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
 		// semi-analytical boundary conditions
 		if (problem->get_simparams()->boundarytype == SA_BOUNDARY)
@@ -814,7 +809,7 @@ void GPUSPH::move_objects(const uint step)
 					gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d][ob];
 					gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d][ob];
 				} // Iterate on devices
-			} // Iterate on objects
+			} // Iterate on objects on which we compute forces
 
 			// if running multinode, also reduce across nodes
 			if (MULTI_NODE) {
@@ -852,7 +847,8 @@ void GPUSPH::move_objects(const uint step)
 		// Upload objects linear and angular velocities
 		doCommand(UPLOAD_OBJECTS_VELOCITIES);
 		// Upload objects CG in forces only
-		doCommand(UPLOAD_OBJECTS_VELOCITIES);
+		if (numforcesodies)
+			doCommand(FORCES_UPLOAD_OBJECTS_CG);
 	} // if there are objects
 }
 
