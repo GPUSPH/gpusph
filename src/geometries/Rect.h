@@ -47,7 +47,7 @@ class Rect: public Object {
 
 	public:
 		Rect(void);
-		Rect(const Point&, const double, const double, const EulerParameters &);
+		Rect(const Point&, const double, const double, const EulerParameters & = EulerParameters());
 		Rect(const Point&, const Vector&, const Vector&);
 		virtual ~Rect(void) {};
 
