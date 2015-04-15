@@ -112,6 +112,32 @@ EulerParameters::EulerParameters(const dQuaternion &quat)
 }
 
 
+/// Constructor from a vector
+/*! All rotations can be done using only normalized quaternions:
+ *  let be \f$ q \f$ a normalized quaternion and \f$ v \f$ the quaternion
+ *  having a null real component and imaginary components equals to the
+ *  components of vector \f$ \vec{c} \f$ i.e.  \f$ v = (0, v_x, v_y, v_z)\f$.
+ *  The imaginary part of the quaternion \f$ qvq^{-1} \f$ is the vector \f$ \vec{c} \f$
+ *  rotated by the rotation defined by \f$ q \f$.
+ */
+EulerParameters::EulerParameters(const double3 v)
+{
+	m_ep[0] = 0.;
+	m_ep[1] = v.x;
+	m_ep[2] = v.y;
+	m_ep[3] = v.z;
+}
+
+
+EulerParameters::EulerParameters(const float3 v)
+{
+	m_ep[0] = 0.;
+	m_ep[1] = (double) v.x;
+	m_ep[2] = (double) v.y;
+	m_ep[3] = (double) v.z;
+}
+
+
 /// Constructor from Euler angles
 /*! Construct Euler parameters form a set of Euler angles \f$(\psi, \theta, \phi)\f$
  *  in zxz extrinsic convention.
@@ -221,6 +247,35 @@ EulerParameters::ToODEQuaternion(dQuaternion & quat)
 	for (int i = 0; i < 4; i++)
 		quat[i] = m_ep[i];
 }
+
+
+/// Set Euler parameters to identity: (1, 0, 0, 0)
+void
+EulerParameters::Identity(void)
+{
+	m_ep[0] = 1.0;
+	for (int i = 1; i < 4; i++)
+		m_ep[i] = 0.0;
+}
+
+
+/// Return the inverse of the parameter
+/*! Compute the inverse of the Euler parameters. Given
+ * 	\f$ q=(q_0, q_1, q_2, q_3)\f$ we have \f$ q^{-1}=(q_0, -q_1, -q_2, -q_3)\f$
+ *
+ *	\return the inverse
+ */
+EulerParameters
+EulerParameters::Inverse(void)
+{
+	EulerParameters res = *this;
+	res.m_ep[1] *= -1;
+	res.m_ep[2] *= -1;
+	res.m_ep[3] *= -1;
+
+	return res;
+}
+
 
 /// Rotation matrix computation
 /*! Compute the rotation matrix associated with the Euler parameters
@@ -398,6 +453,19 @@ EulerParameters operator*(const double a, const EulerParameters &ep)
 	return EulerParameters(a*ep.m_ep[0], a*ep.m_ep[1], a*ep.m_ep[2], a*ep.m_ep[3]);
 }
 
+
+/// Copy rotation maxtrix in an array
+/*!	Copy stored rotation matrix in an array of floatspointed by res.
+ *	\param[out] res : pointer to rotation matrix
+ *
+ *  Beware: this method use the rotation matrix associated with each Euler parameters.
+ *  Those matrix should be computed before calling the method.
+ */
+void EulerParameters::GetRotation(float *res) const
+{
+	for (int i = 0; i < 9; i++)
+		res[i] = m_rot[i];
+}
 
 
 /// Relative rotation between two Euler parameters

@@ -99,6 +99,8 @@ class EulerParameters {
 		EulerParameters(const double, const double, const double);
 		EulerParameters(const double, const double, const double, const double);
 		EulerParameters(const float, const float, const float, const float);
+		EulerParameters(const double3);
+		EulerParameters(const float3);
 		EulerParameters(const Vector &, const double);
 		EulerParameters(const EulerParameters &);
 		EulerParameters(const dQuaternion &);
@@ -107,6 +109,7 @@ class EulerParameters {
 
 		/// \name Rotation related methods
 		//@{
+		EulerParameters Inverse(void);
 		void ComputeRot(void);
 		float3 Rot(const float3 &) const;
 		Point Rot(const Point &) const;
@@ -114,6 +117,7 @@ class EulerParameters {
 		float3 TransposeRot(const float3 &) const;
 		Vector TransposeRot(const Vector &) const;
 		Point TransposeRot(const Point &) const;
+		void GetRotation(float *) const;
 		void StepRotation(const EulerParameters &, float *) const;
 		//@}
 
@@ -122,6 +126,7 @@ class EulerParameters {
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
 		void ToODEQuaternion(dQuaternion &);
+		void Identity(void);
 		//@}
 
 		/** \name Access operators */
