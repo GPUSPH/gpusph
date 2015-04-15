@@ -43,6 +43,7 @@ class DamBreakGate: public Problem {
 	private:
 		Cube		experiment_box;
 		Cube		obstacle;
+		Rect		gate;
 		PointVect	parts;
 		PointVect	boundary_parts;
 		PointVect	obstacle_parts;
@@ -55,7 +56,9 @@ class DamBreakGate: public Problem {
 
 		int fill_parts(void);
 		void copy_to_array(BufferList &);
-		void moving_bodies_callback(Object*, const float, const double, float3&, float3&);
+		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
+			 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
+			 	 	 	 	 	 	double3&, EulerParameters&);
 		void release_memory(void);
 };
 #endif	/* _DAMBREAKGATE_H */

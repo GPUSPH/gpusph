@@ -53,7 +53,7 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 		boundary<LJ_BOUNDARY>
 	);
 
-	addFilter(MLS_FILTER, 10);
+	//addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.015f);
@@ -90,7 +90,8 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2);
+	add_writer(VTKWRITER, 0.1);
+	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
@@ -111,20 +112,35 @@ void DamBreakGate::release_memory(void)
 	boundary_parts.clear();
 }
 
-
 void
-DamBreakGate::moving_bodies_callback(Object* object, const float dt, const double t,
-		float3& lvel, float3& avel)
+DamBreakGate::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
-	const double tstart = 0.2f;
-	const double tend = 0.6f;
-	if (t >= tstart && t < tend) {
-		lvel = make_float3(0.0, 0.0, 4.*(t - tstart));
+	const double tstart = 0.1;
+	const double tend = 0.4;
+
+	// Computing, at t = t1, new position of center of rotation (here only translation)
+	// along with linear velocity
+	if (t1 >= tstart && t1 <= tend) {
+		kdata.lvel = make_double3(0.0, 0.0, 4.*(t1 - tstart));
+		kdata.crot.z = initial_kdata.crot.z + 2.*(t1 - tstart)*(t1 - tstart);
 		}
 	else
-		lvel = make_float3(0.0f);
-	avel = make_float3(0.0f);
+		kdata.lvel = make_double3(0.0f);
+
+	// Computing the displacement of center of rotation between t = t0 and t = t1
+	double ti = min(tend, max(tstart, t0));
+	double tf = min(tend, max(tstart, t1));
+	dx.z = 2.*(tf - tstart)*(tf - tstart) - 2.*(ti - tstart)*(ti - tstart);
+
+	// Setting angular velocity at t = t1 and the rotation between t = t0 and t = 1.
+	// Here we have a simple translation movement so the angular velocity is null and
+	// the rotation between t0 and t1 equal to identity.
+	kdata.avel = make_double3(0.0f);
+	dr.Identity();
 }
+
 
 int DamBreakGate::fill_parts()
 {
@@ -135,7 +151,7 @@ int DamBreakGate::fill_parts()
 	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
 
 	float3 gate_origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
-	Rect gate = Rect (Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
+	gate = Rect (Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
 	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
@@ -164,7 +180,8 @@ int DamBreakGate::fill_parts()
 	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	gate.Fill(gate_parts, r0, true);
+	gate.SetPartMass(r0, m_physparams.rho0[0]);
+	gate.Fill(gate.GetParts(), r0, true);
 	add_moving_body(&gate, MB_MOVING);
 
 	obstacle.SetPartMass(r0, m_physparams.rho0[0]);
@@ -184,7 +201,7 @@ int DamBreakGate::fill_parts()
 		fluid4.Fill(parts, m_deltap, true);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate.GetParts().size();
 }
 
 void DamBreakGate::copy_to_array(BufferList &buffers)
@@ -193,8 +210,6 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 	hashKey *hash = buffers.getData<BUFFER_HASH>();
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
-
-	allocate_bodies_storage();
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
@@ -233,6 +248,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 		}
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		std::cout << ", part type: " << type(info[j-1])<< "\n";
 	}
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
