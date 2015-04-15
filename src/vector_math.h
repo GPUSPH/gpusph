@@ -575,6 +575,11 @@ static __inline__ __host__ __device__ double3 make_double3(const int3 &a)
 	return make_double3(double(a.x), double(a.y), double(a.z));
 }
 
+static __inline__ __host__ __device__ double3 make_double3(const float3 &a)
+{
+	return make_double3(double(a.x), double(a.y), double(a.z));
+}
+
 static __inline__ __host__  double3 make_double3(const float *a)
 {
 	return make_double3(double(a[0]), double(a[1]), double(a[2]));
