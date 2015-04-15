@@ -92,7 +92,7 @@ class Object {
 		virtual void SetInertia(const double dx) = 0;
 		virtual void SetInertia(const double*);
 		void SetCenterOfGravity(const double*);
-		float3 GetCenterOfGravity(void) const;
+		double3 GetCenterOfGravity(void) const;
 		EulerParameters GetOrientation(void) const;
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}

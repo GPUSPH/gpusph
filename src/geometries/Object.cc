@@ -111,10 +111,10 @@ Object::SetCenterOfGravity(const double* cg)
 /*! Returns the object center of gravity
  * \return center of gravity
  */
-float3
+double3
 Object::GetCenterOfGravity(void) const
 {
-	return(make_float3(m_center));
+	return(make_double3(m_center(0), m_center(1), m_center(2)));
 }
 
 
@@ -212,11 +212,13 @@ Object::GetParts(void)
 	return m_parts;
 }
 
+
 /// Sets the number of particles associated with an object
 void Object::SetNumParts(const int numParts)
 {
 	m_numParts = numParts;
 }
+
 
 /// Gets the number of particles associated with an object
 /*! This function either returns the set number of particles which is used
@@ -231,6 +233,7 @@ uint Object::GetNumParts()
 
 	return m_numParts;
 }
+
 
 /// Fill the object with particles
 /*! Fill the object by calling Fill(points, dx, true).
