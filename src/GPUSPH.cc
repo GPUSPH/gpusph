@@ -141,9 +141,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// initial dt (or, just dt in case adaptive is disabled)
 	gdata->dt = _sp->dt;
 
-	// create the Writers according to the WriterType
-	createWriter();
-
 	printf("Generating problem particles...\n");
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
@@ -157,6 +154,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	// generate planes, will be allocated in allocateGlobalHostBuffers()
 	gdata->numPlanes = problem->fill_planes();
+
+	// Create the Writers according to the WriterType
+	// Should be done after the last fill operation
+	createWriter();
 
 	// allocate aux arrays for rollCallParticles()
 	m_rcBitmap = (bool*) calloc( sizeof(bool) , gdata->allocatedParticles );
