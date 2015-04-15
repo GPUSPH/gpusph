@@ -95,7 +95,8 @@ Problem::allocate_bodies_storage()
 		m_bodies_linearvel = new float3[nbodies];
 		m_bodies_angularvel = new float3[nbodies];
 		m_bodies_steprot = new float[9*nbodies];
-		m_bodies_storage = NULL;	// TODO: this should depend on the integration scheme
+		// TODO: this should depend on the integration scheme
+		m_bodies_storage = new KinematicData[nbodies];
 	}
 }
 
@@ -108,20 +109,21 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// The reason behind this ordering is the way the forces on bodies
 	// are reduced by a parallel prefix sum: all the bodies that require
 	// force computing must have consecutive ids.
+	const uint index = m_bodies.size();
 	MovingBodyData *mbdata = new MovingBodyData;
-	mbdata->index = m_bodies.size();
+	mbdata->index = index;
 	mbdata->type = mbtype;
 	mbdata->object = object;
 	mbdata->kdata.crot = object->GetCenterOfGravity();
-	mbdata->kdata.lvel = make_float3(0.0f);
-	mbdata->kdata.avel = make_float3(0.0f);
+	mbdata->kdata.lvel = make_double3(0.0f);
+	mbdata->kdata.avel = make_double3(0.0f);
 	mbdata->kdata.orientation = object->GetOrientation();
 	switch (mbdata->type) {
 		case MB_ODE : {
 			const dBodyID bodyid = object->m_ODEBody;
-			mbdata->kdata.crot = make_float3(dBodyGetPosition(bodyid));
-			mbdata->kdata.lvel = make_float3(dBodyGetLinearVel(bodyid));
-			mbdata->kdata.avel = make_float3(dBodyGetAngularVel(bodyid));
+			mbdata->kdata.crot = make_double3(dBodyGetPosition(bodyid));
+			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
+			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
 			m_bodies.insert(m_bodies.begin() + m_numODEbodies, mbdata);
 			m_numODEbodies++;
 			m_simparams.numforcesbodies++;
@@ -141,7 +143,10 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			break;
 	}
 
-	m_numbodies = m_simparams.numbodies = m_bodies.size();
+	mbdata->initial_kdata = mbdata->kdata;
+
+	m_numbodies = m_bodies.size();
+	m_simparams.numbodies = m_numbodies;
 }
 
 
@@ -263,7 +268,7 @@ float3*
 Problem::get_bodies_cg(void)
 {
 	for (uint i = 0; i < m_simparams.numbodies; i++) {
-		m_bodies_cg[i] = m_bodies[i]->kdata.crot;
+		m_bodies_cg[i] = make_float3(m_bodies[i]->kdata.crot);
 	}
 
 	return m_bodies_cg;
@@ -271,58 +276,58 @@ Problem::get_bodies_cg(void)
 
 
 void
-Problem::set_body_cg(const float3 crot, MovingBodyData* mbdata) {
+Problem::set_body_cg(const double3 crot, MovingBodyData* mbdata) {
 	mbdata->kdata.crot = crot;
 
 }
 
 
 void
-Problem::set_body_cg(const uint index, const float3 crot) {
+Problem::set_body_cg(const uint index, const double3 crot) {
 	set_body_cg(crot, get_mbdata(index));
 }
 
 
 void
-Problem::set_body_cg(const Object *object, const float3 crot) {
+Problem::set_body_cg(const Object *object, const double3 crot) {
 	set_body_cg(crot, get_mbdata(object));
 }
 
 
 void
-Problem::set_body_linearvel(const float3 lvel, MovingBodyData* mbdata) {
+Problem::set_body_linearvel(const double3 lvel, MovingBodyData* mbdata) {
 	mbdata->kdata.lvel = lvel;
 
 }
 
 
 void
-Problem::set_body_linearvel(const uint index, const float3 lvel) {
+Problem::set_body_linearvel(const uint index, const double3 lvel) {
 	set_body_linearvel(lvel, get_mbdata(index));
 }
 
 
 void
-Problem::set_body_linearvel(const Object *object, const float3 lvel)
+Problem::set_body_linearvel(const Object *object, const double3 lvel)
 {
 	set_body_linearvel(lvel, get_mbdata(object));
 }
 
 
 void
-Problem::set_body_angularvel(const float3 avel, MovingBodyData* mbdata) {
+Problem::set_body_angularvel(const double3 avel, MovingBodyData* mbdata) {
 	mbdata->kdata.avel = avel;
 
 }
 
 void
-Problem::set_body_angularvel(const uint index, const float3 avel) {
+Problem::set_body_angularvel(const uint index, const double3 avel) {
 	set_body_angularvel(avel, get_mbdata(index));
 }
 
 
 void
-Problem::set_body_angularvel(const Object *object, const float3 avel)
+Problem::set_body_angularvel(const Object *object, const double3 avel)
 {
 	set_body_angularvel(avel, get_mbdata(object));
 }
@@ -343,7 +348,7 @@ float3*
 Problem::get_bodies_linearvel(void)
 {
 	for (uint i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies_linearvel[i] = m_bodies[i]->kdata.lvel;
+		m_bodies_linearvel[i] = make_float3(m_bodies[i]->kdata.lvel);
 	}
 
 	return m_bodies_linearvel;
@@ -354,7 +359,7 @@ float3*
 Problem::get_bodies_angularvel(void)
 {
 	for (uint i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies_angularvel[i] = m_bodies[i]->kdata.avel;
+		m_bodies_angularvel[i] = make_float3(m_bodies[i]->kdata.avel);
 	}
 
 	return m_bodies_linearvel;
@@ -374,8 +379,9 @@ Problem::object_forces_callback(const double t, float3 *forces, float3 *torques)
 
 
 void
-Problem::moving_bodies_callback(const uint index, Object* object, const double t, const float3&,
-		const float3&, float3 & crot, EulerParameters& orientation,float3& lvel, float3& avel)
+Problem::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+		const float3& force, const float3& torque, const KinematicData& initial_kdata,
+		KinematicData& kdata, double3& dx, EulerParameters& dr)
 { /* default does nothing */ }
 
 // input: force, torque, step number, dt
@@ -391,31 +397,37 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double dt2 = dt;
 	if (step == 1)
 		dt1 /= 2.0;
-	double nt1 = t;
-	double nt2 = t + dt/2.;
+	double t0 = t;
+	double t1 = t + dt/2.;
 	if (step == 2) {
-		nt1 = t + dt/2;
-		nt2 = t + dt;
+		t1 = t + dt;
 	}
 
 	//#define _DEBUG_OBJ_FORCES_
 	bool ode_bodies = false;
 	// For ODE bodies apply forces and torques
-	for (uint i = 0; i < m_simparams.numbodies; i++)  {
+	for (int i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to body data
 		MovingBodyData* mbdata = m_bodies[i];
+		// Store kinematic data at the beginning of the time step
+		if (step == 1)
+			m_bodies_storage[i] = mbdata->kdata;
+		// Restore kinematic data from the value stored at the beginning of the time step
+		if (step == 2)
+			mbdata->kdata = m_bodies_storage[i];
+
 		if (mbdata->type == MB_ODE) {
 			ode_bodies = true;
 			const dBodyID bodyid = mbdata->object->m_ODEBody;
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
 			if (step == 2) {
-				dBodySetPosition(bodyid, mbdata->kdata.crot.x, mbdata->kdata.crot.y,
-								mbdata->kdata.crot.z);
-				dBodySetLinearVel(bodyid, mbdata->kdata.lvel.x, mbdata->kdata.lvel.y,
-								mbdata->kdata.lvel.z);
-				dBodySetAngularVel(bodyid, mbdata->kdata.avel.x, mbdata->kdata.avel.y,
-								mbdata->kdata.avel.z);
+				dBodySetPosition(bodyid, (dReal) mbdata->kdata.crot.x, (dReal) mbdata->kdata.crot.y,
+								(dReal) mbdata->kdata.crot.z);
+				dBodySetLinearVel(bodyid, (dReal) mbdata->kdata.lvel.x, (dReal) mbdata->kdata.lvel.y,
+								(dReal) mbdata->kdata.lvel.z);
+				dBodySetAngularVel(bodyid, (dReal) mbdata->kdata.avel.x, (dReal) mbdata->kdata.avel.y,
+								(dReal) mbdata->kdata.avel.z);
 				dQuaternion quat;
 				mbdata->kdata.orientation.ToODEQuaternion(quat);
 				dBodySetQuaternion(bodyid, quat);
@@ -425,13 +437,11 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 			#ifdef _DEBUG_OBJ_FORCES_
 			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-			mbdata->object->ODEPrintInformation(false);
+			//mbdata->object->ODEPrintInformation(false);
 			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
 			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
 			#endif
 		}
-		else
-			break;
 	}
 
 	// Call ODE solver for ODE bodies
@@ -444,20 +454,24 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 	// Walk trough all moving bodies :
 	// updates bodies center of rotation, linear and angular velocity and orientation
-	for (int i = 0; i < m_simparams.numbodies; i++) {
+	for (int i = 0; i < m_bodies.size(); i++) {
 		// Shortcut to MovingBodyData
 		MovingBodyData* mbdata = m_bodies[i];
 		// New center of rotation, linear and angular velocity and orientation
-		float3 new_crot, new_lvel, new_avel;
-		EulerParameters new_orientation;
+		double3 new_trans = make_double3(0.0);
+		EulerParameters new_orientation, dr;
 		// In case of an ODE body, new center of rotation position, linear and angular velocity
 		// and new orientation have been computed by ODE
 		if (mbdata->type == MB_ODE) {
 			const dBodyID bodyid = mbdata->object->m_ODEBody;
-			new_crot = make_float3(dBodyGetPosition(bodyid));
-			new_lvel = make_float3(dBodyGetLinearVel(bodyid));
-			new_avel = make_float3(dBodyGetAngularVel(bodyid));
-			new_orientation = EulerParameters(dBodyGetQuaternion(bodyid));
+			const double3 new_crot = make_double3(dBodyGetPosition(bodyid));
+			new_trans = new_crot - mbdata->kdata.crot;
+			mbdata->kdata.crot = new_crot;
+			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
+			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
+			const EulerParameters new_orientation = EulerParameters(dBodyGetQuaternion(bodyid));
+			dr = new_orientation*mbdata->kdata.orientation.Inverse();
+			mbdata->kdata.orientation = new_orientation;
 		}
 		// Otherwise the user is providing linear and angular velocity trough a call back
 		// function
@@ -470,42 +484,36 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 				force = forces[i];
 				torque = torques[i];
 			}
-			moving_bodies_callback(index, mbdata->object, nt2, force, torque, new_crot, new_orientation, new_lvel, new_avel);
+			moving_bodies_callback(index, mbdata->object, t0, t1, force, torque, mbdata->initial_kdata,
+					mbdata->kdata, new_trans, dr);
 		}
 
-		m_bodies_trans[i] = new_crot - mbdata->kdata.crot;
-		m_bodies_cg[i] = new_crot;
-		m_bodies_linearvel[i] = new_lvel;
-		m_bodies_angularvel[i] = new_avel;
+		m_bodies_trans[i] = make_float3(new_trans);
+		m_bodies_cg[i] = make_float3(mbdata->kdata.crot);
+		m_bodies_linearvel[i] = make_float3(mbdata->kdata.lvel);
+		m_bodies_angularvel[i] = make_float3(mbdata->kdata.avel);
 
 		// Compute and relative rotation respect to the beginning of time step
 		float *base_addr = m_bodies_steprot + 9*i;
-		new_orientation.ComputeRot();
-		new_orientation.StepRotation(mbdata->kdata.orientation, base_addr);
+		dr.ComputeRot();
+		dr.GetRotation(base_addr);
 
 		#ifdef _DEBUG_OBJ_FORCES_
+		if (i == 1 && m_bodies_trans[i].x != 0.0) {
 		cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 		mbdata->object->ODEPrintInformation(false);
 		printf("   lvel: %e\t%e\t%e\n", m_bodies_linearvel[i].x, m_bodies_linearvel[i].y, m_bodies_linearvel[i].z);
 		printf("   avel: %e\t%e\t%e\n", m_bodies_angularvel[i].x, m_bodies_angularvel[i].y, m_bodies_angularvel[i].z);
 		printf("   npos: %e\t%e\t%e\n", m_bodies_cg[i].x, m_bodies_cg[i].y, m_bodies_cg[i].z);
 		printf("   trans:%e\t%e\t%e\n", m_bodies_trans[i].x, m_bodies_trans[i].y, m_bodies_trans[i].z);
-		printf("   o_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0),  mbdata->kdata.orientation(1),
-				mbdata->kdata.orientation(2),  mbdata->kdata.orientation(3));
-		printf("   n_ep: %e\t%e\t%e\t%e\n", new_orientation(0),  new_orientation(1),
-				new_orientation(2),  new_orientation(3));
+		printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
+				mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
+		printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
 		printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
 		printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
-		printf("         %e\t%e\t%e\n", base_addr[6], base_addr[7], base_addr[8]);
-		#endif
-
-		// Update moving body kinematic state
-		if (step == 2) {
-			mbdata->kdata.crot = new_crot;
-			mbdata->kdata.lvel = new_lvel;
-			mbdata->kdata.avel = new_avel;
-			mbdata->kdata.orientation = new_orientation;
+		printf("         %e\t%e\t%e\n\n", base_addr[6], base_addr[7], base_addr[8]);
 		}
+		#endif
 	}
 
 	cg = m_bodies_cg;

@@ -65,15 +65,15 @@ enum MovingBodyType {
 };
 
 typedef struct KinematicData {
-	float3 			crot;
-	float3			lvel;
-	float3			avel;
+	double3 		crot;
+	double3			lvel;
+	double3			avel;
 	EulerParameters	orientation;
 
 	KinematicData():
-		crot(make_float3(0.0f)),
-		lvel(make_float3(0.0f)),
-		avel(make_float3(0.0f)),
+		crot(make_double3(0.0f)),
+		lvel(make_double3(0.0f)),
+		avel(make_double3(0.0f)),
 		orientation(EulerParameters())
 	{};
 
@@ -98,14 +98,16 @@ typedef struct MovingBodyData {
 	MovingBodyType		type;
 	Object				*object;
 	KinematicData		kdata;
+	KinematicData		initial_kdata;
 
-	MovingBodyData(): index(0), type(MB_MOVING), object(NULL), kdata(KinematicData()) {};
+	MovingBodyData(): index(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()) {};
 
 	MovingBodyData(const MovingBodyData& mbdata) {
 		index = mbdata.index;
 		type = mbdata.type;
 		object = mbdata.object;
 		kdata = mbdata.kdata;
+		initial_kdata = mbdata.initial_kdata;
 	};
 
 	MovingBodyData& operator = (const MovingBodyData& source) {
@@ -113,6 +115,7 @@ typedef struct MovingBodyData {
 		type = source.type;
 		object = source.object;
 		kdata = source.kdata;
+		initial_kdata = source.initial_kdata;
 		return *this;
 	};
 } MovingBodyData;
@@ -390,19 +393,19 @@ RESTORE_WARNINGS
 
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		float3* get_bodies_cg(void);
-		void set_body_cg(const float3, MovingBodyData*);
-		void set_body_cg(const uint, const float3);
-		void set_body_cg(const Object*, const float3);
+		void set_body_cg(const double3, MovingBodyData*);
+		void set_body_cg(const uint, const double3);
+		void set_body_cg(const Object*, const double3);
 		dQuaternion *get_bodies_quaternion(void);
 		float* get_bodies_steprot(void);
 		float3* get_bodies_linearvel(void);
-		void set_body_linearvel(const float3, MovingBodyData*);
-		void set_body_linearvel(const uint, const float3);
-		void set_body_linearvel(const Object*, const float3);
+		void set_body_linearvel(const double3, MovingBodyData*);
+		void set_body_linearvel(const uint, const double3);
+		void set_body_linearvel(const Object*, const double3);
 		float3* get_bodies_angularvel(void);
-		void set_body_angularvel(const float3, MovingBodyData*);
-		void set_body_angularvel(const uint, const float3);
-		void set_body_angularvel(const Object*, const float3);
+		void set_body_angularvel(const double3, MovingBodyData*);
+		void set_body_angularvel(const uint, const double3);
+		void set_body_angularvel(const Object*, const double3);
 
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
@@ -411,8 +414,9 @@ RESTORE_WARNINGS
 		object_forces_callback(const double t, float3 *forces, float3 *torques);
 
 		virtual void
-		moving_bodies_callback(const uint, Object* object, const double t, const float3&, const float3&,
-							float3& crot, EulerParameters& orientation, float3& lvel, float3& avel);
+		moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
+		 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
+		 	 	 	 	 	 	double3&, EulerParameters&);
 
 		void bodies_timestep(const float3 *, const float3 *, const int,
 							const double, const double, float3 * &, float3 * &,
