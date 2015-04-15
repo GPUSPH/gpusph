@@ -91,6 +91,7 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
+	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
@@ -143,17 +144,17 @@ int OdeObjects::fill_parts()
 
 	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
 	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
-	//obstacle.FillBorder(obstacle.GetParts(), r0, true);
-	//obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
-	//obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
-	//add_ODE_body(&obstacle);
+	obstacle.FillBorder(obstacle.GetParts(), r0, true);
+	obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
+	obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
+	add_moving_body(&obstacle, MB_ODE);
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 	if (wet) {
 		fluid1.SetPartMass(m_deltap, m_physparams.rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
-		//obstacle.Unfill(parts, r0);
+		obstacle.Unfill(parts, r0);
 	}
 
 	// Rigid body #1 : sphere
@@ -170,19 +171,19 @@ int OdeObjects::fill_parts()
 	// Rigid body #2 : cylinder
 	cylinder = Cylinder(Point(0.9, 0.7*ly, r0), 0.05, Vector(0, 0, 0.2));
 	cylinder.SetPartMass(r0, m_physparams.rho0[0]*0.3);
-	cylinder.SetMass(r0, m_physparams.rho0[0]*0.3);
+	cylinder.SetMass(r0, m_physparams.rho0[0]*0.05);
 	cylinder.Unfill(parts, r0);
 	cylinder.FillBorder(cylinder.GetParts(), r0);
 	cylinder.ODEBodyCreate(m_ODEWorld, m_deltap);
 	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_moving_body(&cylinder, MB_ODE);
 
-	/*joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
+	joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
 	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
 	dJointSetHingeAnchor(joint, 0.7, 0.24, 2*r0);	// Set a joint anchor
-	dJointSetHingeAxis(joint, 0, 1, 0);*/
+	dJointSetHingeAxis(joint, 0, 1, 0);
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
+	return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
 
@@ -253,18 +254,6 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
-
-	particleinfo  pinfo = info[j-1];
-	std::cout << "Object pinfo: type = " << PART_TYPE(pinfo) << " flags = " << PART_FLAGS(pinfo)
-				<< " is object = " << OBJECT(pinfo) << " object num = " << object(pinfo) << "\n\n";
-	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
-	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(PT_BOUNDARY, 1, i);
-		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
