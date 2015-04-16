@@ -201,7 +201,7 @@ int DamBreakGate::fill_parts()
 		fluid4.Fill(parts, m_deltap, true);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate.GetParts().size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
 }
 
 void DamBreakGate::copy_to_array(BufferList &buffers)
