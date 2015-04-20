@@ -95,6 +95,7 @@ class XProblem: public Problem {
 		size_t m_numActiveGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
 		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
 		size_t m_numPlanes;
+		size_t m_numOpenBoundaries;
 
 		// extra margin to be added to computed world size
 		double m_extra_world_margin;
@@ -199,20 +200,17 @@ class XProblem: public Problem {
 
 		void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
 
-		// methods related to SA bounds yet to be implemented
-		/*
-		void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
-		uint max_parts(uint);
+		// methods related to SA bounds
+		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+		//virtual uint max_parts(uint);
 
-		void
-		setboundconstants(
+		virtual void setboundconstants(
 			const	PhysParams	*physparams,
 			float3	const&		worldOrigin,
 			uint3	const&		gridSize,
 			float3	const&		cellSize);
 
-		void
-		imposeBoundaryConditionHost(
+		virtual void imposeBoundaryConditionHost(
 					float4*			newVel,
 					float4*			newEulerVel,
 					float*			newTke,
@@ -226,15 +224,13 @@ class XProblem: public Problem {
 			const	uint			particleRangeEnd,
 			const	hashKey*		particleHash);
 
-		void imposeForcedMovingObjects(
-					float3*	gravityCenters,
-					float3*	translations,
+		virtual void imposeForcedMovingObjects(
+					float3	&gravityCenters,
+					float3	&translations,
 					float*	rotationMatrices,
-			const	uint*	ODEobjectId,
-			const	uint	numObjects,
+			const	uint	ob,
 			const	double	t,
 			const	float	dt);
-		*/
 
 		// will probably implement a smart, general purpose one
 		// void fillDeviceMap();

@@ -23,6 +23,7 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_numActiveGeometries = 0;
 	m_numRigidBodies = 0;
 	m_numPlanes = 0;
+	m_numOpenBoundaries = 0;
 
 	m_extra_world_margin = 0.0;
 
@@ -200,6 +201,10 @@ void XProblem::initialize()
 	// only init ODE if m_numRigidBodies
 	if (m_numRigidBodies > 0)
 		initializeODE();
+
+	// enable open boundaries?
+	if (m_numOpenBoundaries > 0)
+		m_simparams.inoutBoundaries = true;
 }
 
 void XProblem::initializeODE()
@@ -292,6 +297,10 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
 			break;
+		case GT_OPENBOUNDARY:
+			geomInfo->handle_collisions = false; // TODO: make optional?
+			geomInfo->handle_dynamics = false;
+			break;
 		case GT_FLOATING_BODY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = true;
@@ -330,6 +339,9 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 
 	if (geomInfo->type == GT_PLANE)
 		m_numPlanes++;
+
+	if (geomInfo->type == GT_OPENBOUNDARY)
+		m_numOpenBoundaries++;
 
 	m_geometries.push_back(geomInfo);
 	return (m_geometries.size() - 1);
@@ -564,6 +576,9 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	if (m_geometries[gid]->type == GT_PLANE)
 		m_numPlanes--;
 
+	if (m_geometries[gid]->type == GT_OPENBOUNDARY)
+		m_numOpenBoundaries--;
+
 	// TODO: print a warning if deletion is requested after fill_parts
 }
 
@@ -590,6 +605,7 @@ void XProblem::enableCollisions(const GeometryID gid)
 {
 	if (!validGeometry(gid)) return;
 
+	// TODO: allow collisions for open boundaries? Why not for fixed bounds?
 	// ensure collisions are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY &&
@@ -985,14 +1001,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 	vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
 	float4 *boundelm = buffers.getData<BUFFER_BOUNDELEMENTS>();
-	//float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
+	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
 	// NOTEs and TODO
 	// - Automatic hydrostatic filling. Or, callback?
 	// - SA currently supported only from file. Support runtime generation?
-	// - I/O support, inlcuding: setting IO_PARTICLE_FLAG, VEL_IO_PARTICLE_FLAG,
-	//   INFLOW_PARTICLE_FLAG, MOVING_PARTICLE_FLAG, FLOATING_PARTICLE_FLAG.
-	//   E.g. SET_FLAG(info[i], IO_PARTICLE_FLAG);
 	// - Warn if loaded particle has different type than filled, but only once
 	// - Save the id of the first boundary particle that belongs to an ODE object?
 	//   Was in previous code but we probably don't need it
@@ -1029,6 +1042,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
+		if (eulerVel)
+			eulerVel[i] = make_float4(0);
 		if (i == tot_parts)
 			fluid_part_mass = pos[i].w;
 	}
@@ -1041,6 +1056,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
+		if (eulerVel)
+			eulerVel[i] = make_float4(0);
 		if (i == tot_parts)
 			boundary_part_mass = pos[i].w;
 	}
@@ -1061,7 +1078,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// - load and copy HDF5 files (they are not copied to the global particle vectors, and that's the reason why
 	//   currently no erase operations are supported with HDF5-loaded geometries);
 	// - copy particles of floating objects, since they fill their own point vector;
-	// - setup stuff related to floating objects (e.g. object particle count).
+	// - setup stuff related to floating objects (e.g. object particle count, flags, etc.).
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 
 		// planes do not fill particles nor they load from files
@@ -1139,18 +1156,28 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// compute particle info, local pos, cellhash
 				info[i] = make_particleinfo(ptype, shifted_object_id, i);
-				// not yet enabled?
-				if (m_geometries[g]->type == GT_FLOATING_BODY) {
-					SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
-					SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
+
+				// set appropriate particle flags
+				switch (m_geometries[g]->type) {
+					case GT_MOVING_BODY:
+						SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
+						break;
+					case GT_FLOATING_BODY:
+						SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+						SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
+						break;
+					case GT_OPENBOUNDARY:
+						SET_FLAG(info[i], IO_PARTICLE_FLAG);
+						break;
 				}
-				// if (m_geometries[g]->type == GT_FLOATING_BODY)
-				//	SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
 
 				calc_localpos_and_hash(
 					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,
 						m_physparams.rho0[0]*m_hdf5_reader.buf[bi].Volume),
 					info[i], pos[i], hash[i]);
+
+				if (eulerVel)
+					eulerVel[i] = make_float4(0);
 
 				// store particle mass for current type, if it was not store already
 				if (ptype == FLUIDPART && !isfinite(fluid_part_mass))
@@ -1196,6 +1223,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 				info[i] = make_particleinfo(OBJECTPART, shifted_object_id, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
+				if (eulerVel)
+					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
+					eulerVel[i] = make_float4(0);
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
 				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
@@ -1287,6 +1317,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		hdf5idx_to_idx_map.clear();
 	}
 
+	// FIXME: move this somewhere else
+	printf("Open boundaries: %u\n", m_numOpenBoundaries);
+
 	std::cout << "Fluid: " << fluid_parts << " parts, mass " << fluid_part_mass << "\n";
 	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";
 	if (m_simparams.boundarytype == SA_BOUNDARY)
@@ -1295,45 +1328,45 @@ void XProblem::copy_to_array(BufferList &buffers)
 	std::flush(std::cout);
 }
 
-/*void
-XProblem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+void XProblem::init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*)
 {
-	const float k0 = 1.0f/sqrtf(0.09f);
-
-	for (uint i = 0; i < numpart; i++) {
-		k[i] = k0;
-		e[i] = 2.874944542f*k0*0.01f;
-	}
+	//if (m_simparams.visctype == KEPSVISC)
+	printf("* WARNING: init_keps() not implemented!\n");
 }
 
-uint
-XProblem::max_parts(uint numpart)
+void XProblem::setboundconstants(
+	const	PhysParams	*physparams,
+	float3	const&		worldOrigin,
+	uint3	const&		gridSize,
+	float3	const&		cellSize)
 {
-	return (uint)((float)numpart*2.0f);
+	printf("* WARNING: setboundconstants() not implemented!\n");
 }
 
-void XProblem::fillDeviceMap()
+void XProblem::imposeBoundaryConditionHost(
+			float4*			newVel,
+			float4*			newEulerVel,
+			float*			newTke,
+			float*			newEpsilon,
+	const	particleinfo*	info,
+	const	float4*			oldPos,
+			uint*			IOwaterdepth,
+	const	float			t,
+	const	uint			numParticles,
+	const	uint			numObjects,
+	const	uint			particleRangeEnd,
+	const	hashKey*		particleHash)
 {
-	fillDeviceMapByAxis(Y_AXIS);
+	printf("* WARNING: imposeBoundaryConditionHost() not implemented!\n");
 }
 
 void XProblem::imposeForcedMovingObjects(
-			float3*	gravityCenters,
-			float3*	translations,
-			float*	rotationMatrices,
-	const	uint*	ODEobjectId,
-	const	uint	numObjects,
-	const	double	t,
-	const	float	dt)
+					float3	&gravityCenters,
+					float3	&translations,
+					float*	rotationMatrices,
+			const	uint	ob,
+			const	double	t,
+			const	float	dt)
 {
-	// for object(info)==n we need to access array index n-1
-	uint id = 2-1;
-	// if ODEobjectId[id] is not equal to UINT_MAX we have a floating object
-	if (ODEobjectId[id] == UINT_MAX) {
-		gravityCenters[id] = make_float3(0.0f, 0.0f, 0.0f);
-		translations[id] = make_float3(0.2f*dt, 0.0f, 0.0f);
-		for (uint i=0; i<9; i++)
-			rotationMatrices[id*9+i] = (i==0 || i==4 || i==8) ? 1.0f : 0.0f;
-	}
+	printf("* WARNING: imposeForcedMovingObjects() not implemented!\n");
 }
-*/
