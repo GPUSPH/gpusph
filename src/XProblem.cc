@@ -205,6 +205,10 @@ void XProblem::initialize()
 	// enable open boundaries?
 	if (m_numOpenBoundaries > 0)
 		m_simparams.inoutBoundaries = true;
+
+	// TODO FIXME m_numMovingObjects does not exist yet
+	//if (m_numMovingObjects > 0)
+	//	m_simparams.movingBoundaries = true;
 }
 
 void XProblem::initializeODE()
@@ -1086,7 +1090,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 			continue;
 
 		// skip deleted geometries
-		if (!m_geometries[g]->enabled) continue;
+		if (!m_geometries[g]->enabled)
+			continue;
 
 		const bool curr_geometry_is_object =
 			m_geometries[g]->type == GT_FLOATING_BODY ||
@@ -1268,6 +1273,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// recap on stdout
 			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
 				" parts, mass " << rigid_body_part_mass << ", object mass " << m_geometries[g]->ptr->GetMass() << "\n";
+
+			// DBG info
+			// printf("  DBG: s_hRbFirstIndex[%u] = %u, s_hRbLastIndex[%u] = %u\n", \
+				object_id, gdata->s_hRbFirstIndex[object_id], rigid_body_counter, gdata->s_hRbLastIndex[rigid_body_counter]);
 
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
