@@ -1252,7 +1252,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			rigid_body_particles_counter += current_geometry_particles;
 
 			// set s_hRbLastIndex after updating rigid_body_particles_counter
-			gdata->s_hRbLastIndex[object_id] = rigid_body_particles_counter - 1;
+			gdata->s_hRbLastIndex[rigid_body_counter] = rigid_body_particles_counter - 1;
 
 			// We need two little adjustments for SA boundaries:
 			// 1. Since vertices in Crixus are filled before boundary particles, and for SA objects we only
@@ -1262,7 +1262,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// We can go more general if we ever need it (i.e. without any assumption on the filling order).
 			if (m_simparams.boundarytype == SA_BOUNDARY) {
 				gdata->s_hRbFirstIndex[object_id] -= current_geometry_vertex_particles;
-				gdata->s_hRbLastIndex[object_id] -= current_geometry_vertex_particles;
+				gdata->s_hRbLastIndex[rigid_body_counter] -= current_geometry_vertex_particles;
 			}
 
 			// recap on stdout
