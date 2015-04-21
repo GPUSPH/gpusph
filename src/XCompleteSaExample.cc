@@ -67,7 +67,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// inflow square
 	GeometryID inlet =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent1.h5sph", NULL);
+		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
 	// floating box
@@ -97,6 +97,11 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	//makeUniverseBox(m_origin, m_origin + m_size );
 }
 
+
+uint XCompleteSaExample::max_parts(uint numpart)
+{
+	return (uint)((float)numpart*2.0f);
+}
 
 void XCompleteSaExample::fillDeviceMap()
 {

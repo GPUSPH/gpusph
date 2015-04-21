@@ -28,11 +28,50 @@
 
 #include "XProblem.h"
 
+// Water level simulated by the pressure inlet
+#define INLET_WATER_LEVEL	0.9
+
 class XCompleteSaExample: public XProblem {
 	private:
 	public:
 		XCompleteSaExample(GlobalData *);
 		//virtual ~XCompleteSaExample(void);
+
+		uint max_parts(uint);
+
+		void
+		setboundconstants(
+			const	PhysParams	*physparams,
+			float3	const&		worldOrigin,
+			uint3	const&		gridSize,
+			float3	const&		cellSize);
+
+		void
+		imposeBoundaryConditionHost(
+					float4*			newVel,
+					float4*			newEulerVel,
+					float*			newTke,
+					float*			newEpsilon,
+			const	particleinfo*	info,
+			const	float4*			oldPos,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numObjects,
+			const	uint			particleRangeEnd,
+			const	hashKey*		particleHash);
+
+		/*
+		void
+		imposeForcedMovingObjects(
+			float3	&centerOfGravity,
+			float3	&translation,
+			float*	rotationMatrix,
+	const	uint	ob,
+	const	double	t,
+	const	float	dt);
+		// */
+
 		// override standard split
 		void fillDeviceMap();
 };
