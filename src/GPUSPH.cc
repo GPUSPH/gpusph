@@ -608,8 +608,7 @@ bool GPUSPH::runSimulation() {
 			// Impose translation & rotation for forced movement of objects
 			for (uint ob=0; ob < problem->get_simparams()->numObjects; ob++) {
 				// if ODEobjectId[id] is not equal to UINT_MAX we have a floating object
-				if(problem->m_ODEobjectId[ob] == UINT_MAX) {
-					// TODO call imposeForcedMovingObjects even though the object might be an open boundary
+				if(problem->get_simparams()->movingBoundaries && problem->m_ODEobjectId[ob] == UINT_MAX) {
 					problem->imposeForcedMovingObjects(
 						gdata->s_hMovObjGravityCenters[ob],
 						gdata->s_hMovObjTranslations[ob],
