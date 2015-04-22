@@ -93,6 +93,10 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_size = make_double3(world_l, world_w ,world_h);
 
+	// max_fall == 5 -> sspeed =~ 70
+	setMaxFall(5);
+	setWaterLevel(0.5);
+
 	// add "universe box" of planes
 	//makeUniverseBox(m_origin, m_origin + m_size );
 }
