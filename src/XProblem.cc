@@ -1,6 +1,7 @@
 #include <math.h>
 #include <string>
 #include <iostream>
+#include <limits>
 
 #include "Rect.h"
 #include "Disk.h"
@@ -139,8 +140,14 @@ XProblem::~XProblem()
 void XProblem::initialize()
 {
 	// aux vars to compute bounding box
-	Point globalMin = Point (NAN, NAN, NAN);
-	Point globalMax = Point (NAN, NAN, NAN);
+	Point globalMin = Point (
+		std::numeric_limits<double>::max(),
+		std::numeric_limits<double>::max(),
+		std::numeric_limits<double>::max() );
+	Point globalMax = Point (
+		std::numeric_limits<double>::min(),
+		std::numeric_limits<double>::min(),
+		std::numeric_limits<double>::min() );
 
 	// counters of floating objects and generic objects (floating + moving + open bounds)
 	uint rigid_body_counter = 0;
