@@ -117,6 +117,11 @@ class XProblem: public Problem {
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
 
+		// used for hydrostatic filling (absolute value)
+		double m_waterLevel;
+		// used to set sound of speed (relative value)
+		double m_maxFall;
+
 	protected:
 		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
@@ -182,6 +187,11 @@ class XProblem: public Problem {
 
 		// world size will be increased by the given margin in each dimension and direction
 		void addExtraWorldMargin(const double margin);
+
+		// set m_waterLevel for automatic hydrostatic filling
+		void setWaterLevel(double waterLevel) { m_waterLevel = waterLevel; }
+		// set m_maxFall (former "H") for setting sspeed
+		void setMaxFall(double maxFall) { m_maxFall = maxFall; }
 
 	public:
 		XProblem(GlobalData *);

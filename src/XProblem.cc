@@ -70,10 +70,11 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.02f);
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
+	// NAN: will autocompute if user doesn't define them
+	m_waterLevel = NAN;
+	m_maxFall = NAN;
 	float g = length(m_physparams.gravity);
 	double H = 3;
-	m_physparams.dcoeff = 5.0f*g*H;
-	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
 	//m_physparams.kinematicvisc = 1.0e-2f;
 
 	// *** Initialization of minimal simulation parameters
@@ -153,6 +154,9 @@ void XProblem::initialize()
 	uint rigid_body_counter = 0;
 	uint object_counter = 0;
 
+	// aux var for automatic water level computation
+	double highest_water_part = NAN;
+
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		// ignore planes for bbox
 		if (m_geometries[g]->type == GT_PLANE)
@@ -170,6 +174,12 @@ void XProblem::initialize()
 		// global min and max
 		setMinPerElement(globalMin, currMin);
 		setMaxPerElement(globalMax, currMax);
+
+		// store highest fluid part Z coordinate
+		if (m_geometries[g]->type == GT_FLUID) {
+			if (!isfinite(highest_water_part) || currMax(2) > highest_water_part)
+				highest_water_part = currMax(2);
+		}
 
 		// update m_ODEobjectId map
 		// (recall: from object index in particleinfo, incl. I/O, to floating object index, excl. I/O)
@@ -204,6 +214,23 @@ void XProblem::initialize()
 		m_origin -= m_extra_world_margin;
 		m_size += 2 * m_extra_world_margin;
 	}
+
+	// compute water level automatically, if not set
+	if (!isfinite(m_waterLevel)) {
+		// water level: highest fluid coordinate or (absolute) domain height
+		m_waterLevel = ( isfinite(highest_water_part) ? highest_water_part : m_size.z - m_origin.z );
+	}
+
+	// ditto for max fall; approximated as (waterLevel - lowest_domain_point)
+	// NOTE: if there is no fluid geometry and both water level and maxFall are autocomputed, then
+	// water level will be equal to highest domain point and max fall to domain height
+	if (!isfinite(m_maxFall))
+		m_maxFall = m_waterLevel - globalMin(2);
+
+	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed
+	const float g = length(m_physparams.gravity);
+	m_physparams.dcoeff = 5.0f * g * m_maxFall;
+	m_physparams.set_density(0, 1000.0, 7.0f, 10.0 * sqrt(g * m_maxFall) );
 
 	// only init ODE if m_numRigidBodies
 	if (m_numRigidBodies > 0)
@@ -1134,11 +1161,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// TODO: warning as follows? But should be printed only once
 				// if (m_hdf5_reader.buf[bi].ParticleType != 0) ... warning, filling with different particle type
-				//float rho = density(initial_water_level - m_hdf5_reader.buf[i].Coords_2, 0); // how to?
-				float rho = m_physparams.rho0[0];
-				vel[i] = make_float4(0, 0, 0, rho);
-				//if (eulerVel)
-				//	eulerVel[i] = make_float4(0);
 
 				// TODO: define an invalid/unknown particle type?
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
@@ -1165,6 +1187,15 @@ void XProblem::copy_to_array(BufferList &buffers)
 						// TODO: print warning or throw fatal
 						break;
 				}
+
+				// default density
+				float rho = m_physparams.rho0[0];
+
+				// fix density of fluid parts for hydrostatic filling
+				if (ptype == FLUIDPART)
+					rho = density(m_waterLevel - m_hdf5_reader.buf[bi].Coords_2, 0);
+
+				vel[i] = make_float4(0, 0, 0, rho);
 
 				// compute particle info, local pos, cellhash
 				info[i] = make_particleinfo(ptype, shifted_object_id, i);
