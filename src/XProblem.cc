@@ -175,8 +175,28 @@ void XProblem::initialize()
 
 		Point currMin, currMax;
 
-		// get bbox of curr geometry
-		m_geometries[g]->ptr->getBoundingBox(currMin, currMax);
+		// geometries loaded from HDF5 files but not featuring a STL file do not have a
+		// bounding box yet; let's compute it
+		if (m_geometries[g]->has_hdf5_file && !m_geometries[g]->has_stl_file) {
+
+			// initialize temp variables
+			currMin(0) = currMin(1) = currMin(2) = std::numeric_limits<double>::max();
+			currMax(0) = currMax(1) = currMax(2) = std::numeric_limits<double>::min();
+
+			// iterate on particles - could printf something if long...
+			for (uint p = 0; p < m_geometries[g]->hdf5_reader->getNParts(); p++) {
+				// utility pointer & var
+				ReadParticles *part = &(m_geometries[g]->hdf5_reader->buf[p]);
+				Point currPoint(part->Coords_0, part->Coords_1, part->Coords_2);
+				// set current per-coordinate minimum and maximum
+				setMinPerElement(currMin, currPoint);
+				setMaxPerElement(currMax, currPoint);
+			}
+			// TODO: store the so-computed bbox somewhere?
+			// Not using it yet, but we have it for free here
+		} else
+			// all other geometries should have one ready
+			m_geometries[g]->ptr->getBoundingBox(currMin, currMax);
 
 		// global min and max
 		setMinPerElement(globalMin, currMin);
@@ -611,6 +631,8 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
 
 	// TODO: handle positioning like in addSTLMesh()? Better, simply trust the hdf5 file
+
+	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts in initialize() for that
 
 	return addGeometry(otype, FT_NOFILL,
 		stlmesh,
