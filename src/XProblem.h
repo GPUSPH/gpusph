@@ -62,6 +62,9 @@ struct GeometryInfo {
 	std::string hdf5_filename;
 	HDF5SphReader *hdf5_reader;
 
+	bool has_stl_file; // ditto
+	std::string stl_filename;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -78,6 +81,9 @@ struct GeometryInfo {
 		has_hdf5_file = false;
 		hdf5_filename = "";
 		hdf5_reader = NULL;
+
+		has_stl_file = false;
+		stl_filename = "";
 	}
 };
 
@@ -111,7 +117,7 @@ class XProblem: public Problem {
 
 		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
-			const char *hdf5_fname = NULL);
+			const char *hdf5_fname = NULL, const char *stl_fname = NULL);
 
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);

@@ -320,7 +320,7 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 }
 
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
-	const char *hdf5_fname)
+	const char *hdf5_fname, const char *stl_fname)
 {
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
@@ -333,6 +333,10 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 		// TODO: error checking
 		geomInfo->hdf5_reader = new HDF5SphReader();
 		geomInfo->hdf5_reader->setFilename(hdf5_fname);
+	}
+	if (stl_fname) {
+		geomInfo->stl_filename = std::string(stl_fname);
+		geomInfo->has_stl_file = true;
 	}
 	m_numActiveGeometries++;
 
@@ -587,7 +591,9 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 	stlmesh->shift( make_double3(origin(0) + offsetX, origin(1) + offsetY, origin(2) + offsetZ) );
 
 	return addGeometry(otype, ftype,
-		stlmesh
+		stlmesh,
+		NULL,			// HDF5 filename
+		filename		// STL filename
 	);
 }
 
@@ -608,7 +614,9 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 
 	return addGeometry(otype, FT_NOFILL,
 		stlmesh,
-		fname_hdf5
+		fname_hdf5,		// HDF5 filename
+		fname_stl		// STL filename
+
 	);
 }
 
