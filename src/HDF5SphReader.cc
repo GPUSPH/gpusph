@@ -34,6 +34,10 @@ HDF5SphReader::HDF5SphReader(void) {
 	buf = NULL;
 }
 
+HDF5SphReader::~HDF5SphReader() {
+	empty();
+}
+
 int
 HDF5SphReader::getNParts()
 {

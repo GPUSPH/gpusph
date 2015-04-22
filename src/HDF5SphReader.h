@@ -37,6 +37,7 @@ private:
 public:
 	// constructor
 	HDF5SphReader(void);
+	~HDF5SphReader(void);
 
 	// returns the number of particles in the h5sph file
 	int getNParts(void);
