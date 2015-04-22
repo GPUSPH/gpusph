@@ -41,7 +41,7 @@ class Cylinder: public Object {
 		Cylinder(void);
 		Cylinder(const Point&, const double, const Vector&);
 		Cylinder(const Point&, const Vector&, const Vector&);
-		Cylinder(const Point&, const double, const double, const EulerParameters&);
+		Cylinder(const Point&, const double, const double, const EulerParameters& = EulerParameters());
 		virtual ~Cylinder(void) {};
 
 		double Volume(const double) const;

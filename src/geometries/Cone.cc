@@ -67,7 +67,7 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 }
 
 
-Cone::Cone(const Point& center, const double radiusbottom, const double radiustop, const double height, const EulerParameters&  ep)
+Cone::Cone(const Point& center, const double radiusbottom, const double radiustop, const double height, const EulerParameters& ep)
 {
 	m_origin = center;
 	m_rb = radiusbottom;
