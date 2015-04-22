@@ -126,9 +126,12 @@ void XProblem::release_memory()
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
 	// also cleanup object parts
-	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++)
+	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
 		if (m_geometries[i]->enabled)
 			m_geometries[i]->ptr->GetParts().clear();
+		if (m_geometries[i]->hdf5_reader)
+			delete m_geometries[i]->hdf5_reader;
+	}
 }
 
 XProblem::~XProblem()
@@ -165,6 +168,10 @@ void XProblem::initialize()
 		// ignore deleted geometries
 		if (!m_geometries[g]->enabled)
 			continue;
+
+		// load HDF5 files
+		if (m_geometries[g]->has_hdf5_file)
+			m_geometries[g]->hdf5_reader->read();
 
 		Point currMin, currMax;
 
@@ -322,6 +329,10 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	if (hdf5_fname) {
 		geomInfo->hdf5_filename = std::string(hdf5_fname);
 		geomInfo->has_hdf5_file = true;
+		// initialize the reader
+		// TODO: error checking
+		geomInfo->hdf5_reader = new HDF5SphReader();
+		geomInfo->hdf5_reader->setFilename(hdf5_fname);
 	}
 	m_numActiveGeometries++;
 
@@ -936,11 +947,8 @@ int XProblem::fill_parts()
 		}
 
 		// geometries loaded from HDF5file do not undergo filling, but should be counted as well
-		if (m_geometries[i]->has_hdf5_file) {
-			m_hdf5_reader.setFilename(m_geometries[i]->hdf5_filename);
-			hdf5file_parts_counter += m_hdf5_reader.getNParts();
-			// do not reset() file reader: if we load only one, we'll avoid re-reading file header
-		}
+		if (m_geometries[i]->has_hdf5_file)
+			hdf5file_parts_counter += m_geometries[i]->hdf5_reader->getNParts();
 
 #if 0
 		// dbg: fill horizontal XY planes with particles, only within the world domain
@@ -1070,10 +1078,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// count how many particles will be loaded from file
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
-		if (m_geometries[g]->has_hdf5_file) {
-			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
-			loaded_parts += m_hdf5_reader.getNParts();
-		}
+		if (m_geometries[g]->has_hdf5_file)
+			loaded_parts += m_geometries[g]->hdf5_reader->getNParts();
 
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
@@ -1113,8 +1119,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// Until now we copied fluid and boundary particles not belonging to floating objects and/or not to be loaded
 	// from HDF5 files. Now we iterate on the geometries with the aim to
-	// - load and copy HDF5 files (they are not copied to the global particle vectors, and that's the reason why
-	//   currently no erase operations are supported with HDF5-loaded geometries);
+	// - copy HDF5 particles from HDF5 files (they are not copied to the global particle vectors, and that's the reason
+	//   why currently no erase operations are supported with HDF5-loaded geometries);
 	// - copy particles of floating objects, since they fill their own point vector;
 	// - setup stuff related to floating objects (e.g. object particle count, flags, etc.).
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
@@ -1147,12 +1153,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
-			// set and check filename
-			m_hdf5_reader.setFilename(m_geometries[g]->hdf5_filename);
 			// read number of particles
-			current_geometry_particles = m_hdf5_reader.getNParts();
-			// read particles
-			m_hdf5_reader.read();
+			current_geometry_particles = m_geometries[g]->hdf5_reader->getNParts();
+			// utility pointer
+			const ReadParticles *hdf5Buffer = m_geometries[g]->hdf5_reader->buf;
 			// add every particle
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 
@@ -1160,13 +1164,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 				const uint bi = i - tot_parts;
 
 				// TODO: warning as follows? But should be printed only once
-				// if (m_hdf5_reader.buf[bi].ParticleType != 0) ... warning, filling with different particle type
+				// if (hdf5Buffer[bi].ParticleType != 0) ... warning, filling with different particle type
 
 				// TODO: define an invalid/unknown particle type?
 				// NOTE: update particle counters here, since current_geometry_particles does not distinguish vertex/bound;
 				// tot_parts instead is updated in the outer loop
 				ushort ptype = FLUIDPART;
-				switch (m_hdf5_reader.buf[bi].ParticleType) {
+				switch (hdf5Buffer[bi].ParticleType) {
 					case CRIXUS_FLUID:
 						// TODO: warn user if (m_geometries[g]->type != GT_FLUID)
 						ptype = FLUIDPART;
@@ -1193,7 +1197,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// fix density of fluid parts for hydrostatic filling
 				if (ptype == FLUIDPART)
-					rho = density(m_waterLevel - m_hdf5_reader.buf[bi].Coords_2, 0);
+					rho = density(m_waterLevel - hdf5Buffer[bi].Coords_2, 0);
 
 				vel[i] = make_float4(0, 0, 0, rho);
 
@@ -1215,8 +1219,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				}
 
 				calc_localpos_and_hash(
-					Point(m_hdf5_reader.buf[bi].Coords_0, m_hdf5_reader.buf[bi].Coords_1, m_hdf5_reader.buf[bi].Coords_2,
-						m_physparams.rho0[0]*m_hdf5_reader.buf[bi].Volume),
+					Point(hdf5Buffer[bi].Coords_0, hdf5Buffer[bi].Coords_1, hdf5Buffer[bi].Coords_2,
+						m_physparams.rho0[0]*hdf5Buffer[bi].Volume),
 					info[i], pos[i], hash[i]);
 
 				if (eulerVel)
@@ -1238,21 +1242,21 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// load boundary-specific data (SA bounds only)
 				if (ptype == BOUNDPART) {
-					vertices[i].x = m_hdf5_reader.buf[bi].VertexParticle1;
-					vertices[i].y = m_hdf5_reader.buf[bi].VertexParticle2;
-					vertices[i].z = m_hdf5_reader.buf[bi].VertexParticle3;
-					boundelm[i].x = m_hdf5_reader.buf[bi].Normal_0;
-					boundelm[i].y = m_hdf5_reader.buf[bi].Normal_1;
-					boundelm[i].z = m_hdf5_reader.buf[bi].Normal_2;
-					boundelm[i].w = m_hdf5_reader.buf[bi].Surface;
+					vertices[i].x = hdf5Buffer[bi].VertexParticle1;
+					vertices[i].y = hdf5Buffer[bi].VertexParticle2;
+					vertices[i].z = hdf5Buffer[bi].VertexParticle3;
+					boundelm[i].x = hdf5Buffer[bi].Normal_0;
+					boundelm[i].y = hdf5Buffer[bi].Normal_1;
+					boundelm[i].z = hdf5Buffer[bi].Normal_2;
+					boundelm[i].w = hdf5Buffer[bi].Surface;
 				}
 
 				// update hash map
 				if (ptype == VERTEXPART)
-					hdf5idx_to_idx_map[ m_hdf5_reader.buf[bi].AbsoluteIndex ] = i;
-			}
-			// free memory and prepare for next file
-			m_hdf5_reader.reset();
+					hdf5idx_to_idx_map[ hdf5Buffer[bi].AbsoluteIndex ] = i;
+
+			} // for every particle in the HDF5 buffer
+
 		} // if (m_geometries[g]->has_hdf5_file)
 
 		// copy particles from the point vector of objects which have not been loaded from file
