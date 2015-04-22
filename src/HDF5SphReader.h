@@ -10,29 +10,29 @@
 #define CRIXUS_VERTEX 2
 #define CRIXUS_BOUNDARY 3
 
+struct ReadParticles {
+	double Coords_0;
+	double Coords_1;
+	double Coords_2;
+	double Normal_0;
+	double Normal_1;
+	double Normal_2;
+	double Volume;
+	double Surface;
+	int ParticleType;
+	int FluidType;
+	int KENT;
+	int MovingBoundary;
+	int AbsoluteIndex;
+	int VertexParticle1;
+	int VertexParticle2;
+	int VertexParticle3;
+};
+
 class HDF5SphReader {
 private:
 	std::string	filename;
 	uint	npart;
-
-	struct ReadParticles {
-		double Coords_0;
-		double Coords_1;
-		double Coords_2;
-		double Normal_0;
-		double Normal_1;
-		double Normal_2;
-		double Volume;
-		double Surface;
-		int ParticleType;
-		int FluidType;
-		int KENT;
-		int MovingBoundary;
-		int AbsoluteIndex;
-		int VertexParticle1;
-		int VertexParticle2;
-		int VertexParticle3;
-	};
 
 public:
 	// constructor
