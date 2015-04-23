@@ -701,6 +701,25 @@ void XProblem::disableCollisions(const GeometryID gid)
 	m_geometries[gid]->handle_collisions = false;
 }
 
+// Set a custom inertia matrix (main diagonal only). Will overwrite the precomputed one
+void XProblem::setInertia(const GeometryID gid, const double i11, const double i22, const double i33)
+{
+	// implicitly checking that geometry is a GT_FLOATING_BODY
+	if (!m_geometries[gid]->handle_dynamics) {
+		printf("WARNING: trying to set inertia of a geometry with no dynamics! Ignoring\n");
+		return;
+	}
+	m_geometries[gid]->custom_inertia[0] = i11;
+	m_geometries[gid]->custom_inertia[1] = i22;
+	m_geometries[gid]->custom_inertia[2] = i33;
+}
+
+// overload
+void XProblem::setInertia(const GeometryID gid, const double* mainDiagonal)
+{
+	setInertia(gid, mainDiagonal[0], mainDiagonal[1], mainDiagonal[2]);
+}
+
 // NOTE: GPUSPH uses ZXZ angles counterclockwise, while ODE XYZ clockwise (http://goo.gl/bV4Zeb - http://goo.gl/oPnMCv)
 void XProblem::setOrientation(const GeometryID gid, const EulerParameters &ep)
 {
@@ -1007,6 +1026,36 @@ int XProblem::fill_parts()
 				if (m_geometries[i]->handle_collisions)
 					m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 			}
+
+			// overwrite the computed inertia matrix if user set a custom one
+			if (m_geometries[i]->handle_dynamics) {
+
+				// use custom inertia only if entirely finite (no partial overwrite)
+				if (isfinite(m_geometries[i]->custom_inertia[0]) &&
+					isfinite(m_geometries[i]->custom_inertia[1]) &&
+					isfinite(m_geometries[i]->custom_inertia[2]) ) {
+
+					// setting the main diagonal only...
+					m_geometries[i]->ptr->m_ODEMass.I[0] =  m_geometries[i]->custom_inertia[0];
+					m_geometries[i]->ptr->m_ODEMass.I[5] =  m_geometries[i]->custom_inertia[1];
+					m_geometries[i]->ptr->m_ODEMass.I[10] = m_geometries[i]->custom_inertia[2];
+
+					// ...thus resetting the rest
+					m_geometries[i]->ptr->m_ODEMass.I[1] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[2] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[3] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[4] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[6] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[7] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[8] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[9] = 0.0;
+					m_geometries[i]->ptr->m_ODEMass.I[11] = 0.0;
+
+					// tell ODE about the change
+					dBodySetMass(m_geometries[i]->ptr->m_ODEBody, &(m_geometries[i]->ptr->m_ODEMass));
+				} // if custom_inertia is not NAN
+
+			} // if body has dynamics
 
 			// dynamics-only stuff
 			if (m_geometries[i]->handle_dynamics) {

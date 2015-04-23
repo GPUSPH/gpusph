@@ -65,6 +65,9 @@ struct GeometryInfo {
 	bool has_stl_file; // ditto
 	std::string stl_filename;
 
+	// user-set inertia
+	double custom_inertia[3];
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -84,6 +87,10 @@ struct GeometryInfo {
 
 		has_stl_file = false;
 		stl_filename = "";
+
+		custom_inertia[0] = NAN;
+		custom_inertia[1] = NAN;
+		custom_inertia[2] = NAN;
 	}
 };
 
@@ -160,6 +167,10 @@ class XProblem: public Problem {
 		void enableCollisions(const GeometryID gid);
 		void disableDynamics(const GeometryID gid);
 		void disableCollisions(const GeometryID gid);
+
+		// methods to set a custom inertia matrix (and overwrite the precomputed one)
+		void setInertia(const GeometryID gid, const double i11, const double i22, const double i33);
+		void setInertia(const GeometryID gid, const double* mainDiagonal);
 
 		// methods for rotating an existing object
 		void setOrientation(const GeometryID gid, const EulerParameters &ep);
