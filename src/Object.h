@@ -70,6 +70,9 @@ class Object {
 			dRSetIdentity (m_ODERot);
 			m_center = Point(0,0,0);
 			m_numParts = 0;
+			m_inertia[0] = NAN;
+			m_inertia[1] = NAN;
+			m_inertia[2] = NAN;
 		};
 
 		virtual ~Object(void) {};
