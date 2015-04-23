@@ -97,6 +97,9 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	setMaxFall(5);
 	setWaterLevel(0.5);
 
+	// explicitly set sspeed (mind the inlet)
+	m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
+
 	// add "universe box" of planes
 	//makeUniverseBox(m_origin, m_origin + m_size );
 }
