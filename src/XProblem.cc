@@ -254,10 +254,19 @@ void XProblem::initialize()
 	if (!isfinite(m_maxFall))
 		m_maxFall = m_waterLevel - globalMin(2);
 
-	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed
+	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
 	const float g = length(m_physparams.gravity);
 	m_physparams.dcoeff = 5.0f * g * m_maxFall;
-	m_physparams.set_density(0, 1000.0, 7.0f, 10.0 * sqrt(g * m_maxFall) );
+
+	if (!m_physparams.contEquationWasSet) {
+		const float default_rho = 1000.0;
+		const float default_gamma = 1000.0;
+		const float default_c0 = 10.0 * sqrt(g * m_maxFall);
+
+		m_physparams.set_density(0, default_rho, default_gamma, default_c0);
+		printf("Cont. equation not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",
+			default_rho, default_gamma, default_c0 );
+	}
 
 	// only init ODE if m_numRigidBodies
 	if (m_numRigidBodies > 0)
