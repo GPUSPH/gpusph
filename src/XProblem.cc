@@ -120,9 +120,9 @@ void XProblem::initialize()
 		std::numeric_limits<double>::max(),
 		std::numeric_limits<double>::max() );
 	Point globalMax = Point (
-		std::numeric_limits<double>::min(),
-		std::numeric_limits<double>::min(),
-		std::numeric_limits<double>::min() );
+		-std::numeric_limits<double>::max(),
+		-std::numeric_limits<double>::max(),
+		-std::numeric_limits<double>::max() );
 
 	// counters of floating objects and generic objects (floating + moving + open bounds)
 	uint rigid_body_counter = 0;
@@ -152,7 +152,7 @@ void XProblem::initialize()
 
 			// initialize temp variables
 			currMin(0) = currMin(1) = currMin(2) = std::numeric_limits<double>::max();
-			currMax(0) = currMax(1) = currMax(2) = std::numeric_limits<double>::min();
+			currMax(0) = currMax(1) = currMax(2) = -std::numeric_limits<double>::max();
 
 			// iterate on particles - could printf something if long...
 			for (uint p = 0; p < m_geometries[g]->hdf5_reader->getNParts(); p++) {
