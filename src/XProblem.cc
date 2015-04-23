@@ -246,13 +246,16 @@ void XProblem::initialize()
 	if (!isfinite(m_waterLevel)) {
 		// water level: highest fluid coordinate or (absolute) domain height
 		m_waterLevel = ( isfinite(highest_water_part) ? highest_water_part : m_size.z - m_origin.z );
+		printf("Water level not set, autocomputed: %g\n", m_waterLevel);
 	}
 
 	// ditto for max fall; approximated as (waterLevel - lowest_domain_point)
 	// NOTE: if there is no fluid geometry and both water level and maxFall are autocomputed, then
 	// water level will be equal to highest domain point and max fall to domain height
-	if (!isfinite(m_maxFall))
+	if (!isfinite(m_maxFall)) {
 		m_maxFall = m_waterLevel - globalMin(2);
+		printf("Max fall height not set, autocomputed: %g\n", m_maxFall);
+	}
 
 	// set physical parameters depending on m_maxFall or m_waterLevel: LJ dcoeff, sspeed (through set_density())
 	const float g = length(m_physparams.gravity);
