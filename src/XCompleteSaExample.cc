@@ -100,6 +100,38 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	//makeUniverseBox(m_origin, m_origin + m_size );
 }
 
+/*
+void XCompleteSaExample::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
+{
+	const float k0 = 1.0f/sqrtf(0.09f);
+
+	for (uint i = 0; i < numpart; i++) {
+		k[i] = k0;
+		e[i] = 2.874944542f*k0*0.01f;
+	}
+} // */
+
+/*
+void XCompleteSaExample::imposeForcedMovingObjects(
+			float3	&centerOfGravity,
+			float3	&translation,
+			float*	rotationMatrix,
+	const	uint	ob,
+	const	double	t,
+	const	float	dt)
+{
+	switch (ob) {
+		case 2:
+			centerOfGravity = make_float3(0.0f, 0.0f, 0.0f);
+			translation = make_float3(0.2f*dt, 0.0f, 0.0f);
+			for (uint i=0; i<9; i++)
+				rotationMatrix[i] = (i%4==0) ? 1.0f : 0.0f;
+			break;
+		default:
+			break;
+	}
+}
+// */
 
 uint XCompleteSaExample::max_parts(uint numpart)
 {
