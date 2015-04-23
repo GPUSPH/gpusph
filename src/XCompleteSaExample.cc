@@ -38,11 +38,6 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	set_deltap(0.02f);
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(m_physparams.gravity);
-	double H = 3;
-	m_physparams.dcoeff = 5.0f*g*H;
-	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
-	//m_physparams.kinematicvisc = 1.0e-2f;
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams.maxneibsnum = 256 + 64;
@@ -59,7 +54,9 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	add_writer(VTKWRITER, 1e-2f);
 	m_name = "XCompleteSaExample";
 
+	// fluid
 	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
+
 	// main container
 	GeometryID container =
 		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent0.h5sph", NULL);
@@ -70,11 +67,10 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
-	// floating box
+	// floating box, with STL mesh for collision detection
 	GeometryID cube =
 		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent2.h5sph", "./sa/sa_box_sbgrid_2.stl");
 	setMassByDensity(cube, m_physparams.rho0[0] / 2);
-
 
 	m_origin = make_double3(-1, -1, -1);
 	m_size = make_double3(3, 3, 3);
@@ -83,7 +79,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// Also, HDF5 file loading does not support bounding box detection yet
 	const double MARGIN = 0.1;
 	const double INLET_BOX_LENGTH = 0.25;
-	// size of the main cube, exlcuding the inlet and any margin
+	// size of the main cube, excluding the inlet and any margin
 	double box_l, box_w, box_h;
 	box_l = box_w = box_h = 1.0;
 	// world size
@@ -93,8 +89,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_size = make_double3(world_l, world_w ,world_h);
 
-	// max_fall == 5 -> sspeed =~ 70
-	setMaxFall(5);
+	// set max_fall 5 for sspeed =~ 70
+	//setMaxFall(5);
 	setWaterLevel(0.5);
 
 	// explicitly set sspeed (mind the inlet)
