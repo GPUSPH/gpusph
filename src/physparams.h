@@ -82,6 +82,9 @@ typedef struct PhysParams {
 	float	objectobjectdf;	// damping factor for object-object interaction
 	float	objectboundarydf;	// damping factor for object-boundary interaction
 
+	// was set_density() called at least once? (not checking for which fluids)
+	bool contEquationWasSet;
+
 	// We have three deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
@@ -98,7 +101,8 @@ IGNORE_WARNINGS(deprecated-declarations)
 		cosconeanglefluid(0.86f),
 		cosconeanglenonfluid(0.5f),
 		objectobjectdf(1.0f),
-		objectboundarydf(1.0f)
+		objectboundarydf(1.0f),
+		contEquationWasSet(false)
 	{};
 RESTORE_WARNINGS
 
@@ -114,6 +118,7 @@ RESTORE_WARNINGS
 		bcoeff[i] = rho*c0*c0/gamma;
 		sscoeff[i] = c0;
 		sspowercoeff[i] = (gamma - 1)/2;
+		contEquationWasSet = true;
 	}
 } PhysParams;
 
