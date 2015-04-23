@@ -72,12 +72,9 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	set_deltap(0.02f);
 	m_physparams.r0 = m_deltap;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	// NAN: will autocompute if user doesn't define them
+	// NAN water level and max fall: will autocompute if user doesn't define them
 	m_waterLevel = NAN;
 	m_maxFall = NAN;
-	float g = length(m_physparams.gravity);
-	double H = 3;
-	//m_physparams.kinematicvisc = 1.0e-2f;
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams.maxneibsnum = 256 + 64;
@@ -93,34 +90,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(NAN, NAN, NAN);
 	m_size = make_double3(NAN, NAN, NAN);
 	m_name = "XProblem";
-
-	// example usage
-
-	/*
-
-	addHDF5File(GT_FLUID, Point(0,0,0), "./sa/0.complete_sa_example.fluid.h5sph", NULL);
-	// main container
-	GeometryID container =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent0.h5sph", NULL);
-	disableCollisions(container);
-
-	// inflow square
-	GeometryID inlet =
-		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent1.h5sph", NULL);
-	disableCollisions(inlet);
-
-	// floating box
-	GeometryID cube =
-		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.complete_sa_example.boundary.kent2.h5sph", "./sa/sa_box_sbgrid_2.stl");
-	setMassByDensity(cube, m_physparams.rho0[0] / 2);
-
-	// manually set world size and origin while HDF5 file loading does not support bbox detection yet
-	m_origin = make_double3(-1, -1, -1);
-	m_size = make_double3(3, 3, 3);
-
-	// add "universe box" of planes. TODO: check: what happens with LJ planes in SA simulation?
-	makeUniverseBox(m_origin, m_origin + m_size );
-	*/
 }
 
 void XProblem::release_memory()
