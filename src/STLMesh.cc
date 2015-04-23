@@ -359,8 +359,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 		m_ODEMass.I[1] = m_ODEMass.I[2] = m_ODEMass.I[4] = 0;
 		m_ODEMass.I[6] = m_ODEMass.I[8] = m_ODEMass.I[9] = 0;
 
-		// show final computed position, CG, mass, inertia, bbox
-		ODEPrintInformation();
+		// for dbg information can use ODEPrintInformation() between a computation and the other ^^^
 	}
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
