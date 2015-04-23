@@ -59,10 +59,12 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	//m_simparams.nlexpansionfactor = 1.1;
 	//m_simparams.sfactor=1.3f;
 
-	// *** Optional physical parameters
-	//m_physparams.artvisccoeff = 0.3f;
-	//m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	// *** Default viscosity coefficients
+	m_physparams.artvisccoeff = 0.3f;
+	m_physparams.epsartvisc = 0.01 * m_simparams.slength * m_simparams.slength;
+	m_physparams.kinematicvisc = 1.0e-6f;
 	//m_physparams.epsxsph = 0.5f;
+
 	// TODO: following comment: still makes sense?
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
