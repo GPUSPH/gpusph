@@ -48,7 +48,8 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.movingBoundaries = true;
 
 	// SPH parameters
-	m_simparams.dt = 0.00004f;
+	// let the dt be autocomputed
+	//m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
