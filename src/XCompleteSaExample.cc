@@ -77,9 +77,10 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// set max_fall 5 for sspeed =~ 70
 	//setMaxFall(5);
 	setWaterLevel(0.5);
+	setMaxParticleSpeed(7.0);
 
-	// explicitly set sspeed (mind the inlet)
-	m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
+	// explicitly set sspeed (not necessary since using setMaxParticleSpeed();
+	//m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
 
 	// add "universe box" of planes
 	//makeUniverseBox(m_origin, m_origin + m_size );
