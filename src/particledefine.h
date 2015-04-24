@@ -313,7 +313,7 @@ disable_particle(float4 &pos) {
 #define PART_FLUID_NUM(f)	(fluid_num(f))
 
 /* Maximum number of floating bodies*/
-#define	MAXBODIES				10
+#define	MAXBODIES				16
 
 #define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
 

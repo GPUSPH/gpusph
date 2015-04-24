@@ -258,13 +258,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		hot_in.close();
 	}
 
-	// initialize CGs (or, the problem could directly write on gdata)
-	initializeObjectsCGs();
-	initializeObjectsVelocities();
 
 	// initialize CGs (or, the problem could directly write on gdata)
-	initializeObjectsCGs();
-	initializeObjectsVelocities();
+	if (gdata->problem->get_simparams()->numbodies > 0) {
+		gdata->problem->get_bodies_cg();
+	}
+
 
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
 	if (problem->get_simparams()->inoutBoundaries)
@@ -460,14 +459,6 @@ bool GPUSPH::runSimulation() {
 
 		//			//(init bodies)
 
-		// moving boundaries
-		if (problem->get_simparams()->mbcallback) {
-			// ask the Problem to update mbData, one per process
-			gdata->commandFlags = INTEGRATOR_STEP_1;
-			doCallBacks();
-			// upload on the GPU, one per device
-			doCommand(UPLOAD_MBDATA);
-		}
 
 		// variable gravity
 		if (problem->get_simparams()->gcallback) {
@@ -797,31 +788,31 @@ void GPUSPH::move_objects(const uint step)
 	// Get moving bodies data (position, linear and angular velocity ...)
 	if (problem->get_simparams()->numbodies > 0) {
 		// We have to reduce forces and torques only on bodies which requires it
-		size_t numforcesodies = problem->get_simparams()->numforcesbodies;
-		if (numforcesodies > 0) {
+		const size_t numforcesbodies = problem->get_simparams()->numforcesbodies;
+		if (numforcesbodies > 0) {
 			doCommand(REDUCE_BODIES_FORCES);
 
 			// Now sum up the partial forces and momentums computed in each gpu
-			for (uint ob = 0; ob < numforcesodies; ob ++) {
+			for (uint ob = 0; ob < numforcesbodies; ob ++) {
 				gdata->s_hRbTotalForce[ob] = make_float3( 0.0F );
 				gdata->s_hRbTotalTorque[ob] = make_float3( 0.0F );
 
 				for (uint d = 0; d < gdata->devices; d++) {
-					gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d][ob];
-					gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d][ob];
+					gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
+					gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
 				} // Iterate on devices
 			} // Iterate on objects on which we compute forces
 
 			// if running multinode, also reduce across nodes
 			if (MULTI_NODE) {
 				// to minimize the overhead, we reduce the whole arrays of forces and torques in one command
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numforcesodies, SUM_REDUCTION);
-				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numforcesodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalForce, 3 * numforcesbodies, SUM_REDUCTION);
+				gdata->networkManager->networkFloatReduction((float*)gdata->s_hRbTotalTorque, 3 * numforcesbodies, SUM_REDUCTION);
 			}
 
 			/* Make a copy of the total forces, and let the problem override the applied forces, if necessary */
-			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesodies*sizeof(float3));
-			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesodies*sizeof(float3));
+			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));
+			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
 
 			double t = gdata->t;
 			if (step == 1)
@@ -835,20 +826,12 @@ void GPUSPH::move_objects(const uint step)
 		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t, gdata->s_hRbGravityCenters,
 				gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
-		// Copy values into the moving object arrays
-		for (uint ob=0; ob < problem->get_simparams()->numbodies; ob++) {
-			gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[ob];
-			gdata->s_hMovObjTranslations[ob] = gdata->s_hRbTranslations[ob];
-			for (uint i=0; i<9; i++)
-				gdata->s_hMovObjRotationMatrices[ob*9+i] = gdata->s_hRbRotationMatrices[ob*9+i];
-		}
-
 		// Upload translation vectors and rotation matrices; will upload CGs after euler
 		doCommand(UPLOAD_OBJECTS_MATRICES);
 		// Upload objects linear and angular velocities
 		doCommand(UPLOAD_OBJECTS_VELOCITIES);
 		// Upload objects CG in forces only
-		if (numforcesodies)
+		if (numforcesbodies)
 			doCommand(FORCES_UPLOAD_OBJECTS_CG);
 	} // if there are objects
 }
@@ -858,7 +841,6 @@ void GPUSPH::move_objects(const uint step)
 // This does *not* include what was previously allocated (e.g. particles in problem->fillparts())
 size_t GPUSPH::allocateGlobalHostBuffers()
 {
-
 	// define host buffers
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_POS_GLOBAL>();
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_POS>();
@@ -929,17 +911,42 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += planeSize;
 	}
 
-	/*dump_hPos = new float4[numparts];
-	 memset(dump_hPos, 0, float4Size);
-	 totCPUbytes += float4Size;
-
-	 dump_hVel = new float4[numparts];
-	 memset(dump_hVel, 0, float4Size);
-	 totCPUbytes += float4Size;
-
-	 dump_hInfo = new particleinfo[numparts];
-	 memset(dump_hInfo, 0, infoSize);
-	 totCPUbytes += infoSize;*/
+	const size_t numbodies = gdata->problem->get_simparams()->numbodies;
+	if (numbodies > 0) {
+		gdata->s_hRbGravityCenters = new float3 [numbodies];
+		fill_n(gdata->s_hRbGravityCenters, numbodies, make_float3(0.0f));
+		gdata->s_hRbTranslations = new float3 [numbodies];
+		fill_n(gdata->s_hRbTranslations, numbodies, make_float3(0.0f));
+		gdata->s_hRbLinearVelocities = new float3 [numbodies];
+		fill_n(gdata->s_hRbLinearVelocities, numbodies, make_float3(0.0f));
+		gdata->s_hRbAngularVelocities = new float3 [numbodies];
+		fill_n(gdata->s_hRbAngularVelocities, numbodies, make_float3(0.0f));
+		gdata->s_hRbRotationMatrices = new float [numbodies*9];
+		fill_n(gdata->s_hRbRotationMatrices, 9*numbodies, 0.0f);
+		totCPUbytes += numbodies*21*sizeof(float);
+	}
+	const size_t numforcesbodies = gdata->problem->get_simparams()->numforcesbodies;
+	if (numforcesbodies) {
+		gdata->s_hRbLastIndex = new uint [numforcesbodies];
+		fill_n(gdata->s_hRbLastIndex, numforcesbodies, 0);
+		totCPUbytes += numforcesbodies*sizeof(uint);
+		gdata->s_hRbTotalForce = new float3 [numforcesbodies];
+		fill_n(gdata->s_hRbTotalForce, numforcesbodies, make_float3(0.0f));
+		gdata->s_hRbAppliedForce = new float3 [numforcesbodies];
+		fill_n(gdata->s_hRbAppliedForce, numforcesbodies, make_float3(0.0f));
+		gdata->s_hRbTotalTorque = new float3 [numforcesbodies];
+		fill_n(gdata->s_hRbTotalTorque, numforcesbodies, make_float3(0.0f));
+		gdata->s_hRbAppliedTorque = new float3 [numforcesbodies];
+		fill_n(gdata->s_hRbAppliedTorque, numforcesbodies, make_float3(0.0f));
+		totCPUbytes += numforcesbodies*4*sizeof(float3);
+		if (MULTI_DEVICE) {
+			gdata->s_hRbDeviceTotalForce = new float3 [numforcesbodies*MAX_DEVICES_PER_NODE];
+			fill_n(gdata->s_hRbDeviceTotalForce, numforcesbodies*MAX_DEVICES_PER_NODE, make_float3(0.0f));
+			gdata->s_hRbDeviceTotalTorque = new float3 [numforcesbodies*MAX_DEVICES_PER_NODE];
+			fill_n(gdata->s_hRbDeviceTotalTorque, numforcesbodies*MAX_DEVICES_PER_NODE, make_float3(0.0f));
+			totCPUbytes += numforcesbodies*MAX_DEVICES_PER_NODE*2*sizeof(float3);
+		}
+	}
 
 	if (MULTI_DEVICE) {
 		// deviceMap
@@ -976,6 +983,26 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 // Deallocate the shared buffers, i.e. those accessed by all workers
 void GPUSPH::deallocateGlobalHostBuffers() {
 	gdata->s_hBuffers.clear();
+
+	// Deallocating rigid bodies related arrays
+	if (gdata->problem->get_simparams()->numbodies > 0) {
+		delete [] gdata->s_hRbGravityCenters;
+		delete [] gdata->s_hRbTranslations;
+		delete [] gdata->s_hRbLinearVelocities;
+		delete [] gdata->s_hRbAngularVelocities;
+		delete [] gdata->s_hRbRotationMatrices;
+	}
+	if (gdata->problem->get_simparams()->numforcesbodies) {
+		delete [] gdata->s_hRbLastIndex;
+		delete [] gdata->s_hRbTotalForce;
+		delete [] gdata->s_hRbAppliedForce;
+		delete [] gdata->s_hRbTotalTorque;
+		delete [] gdata->s_hRbAppliedTorque;
+		if (MULTI_DEVICE) {
+			delete [] gdata->s_hRbDeviceTotalForce;
+			delete [] gdata->s_hRbDeviceTotalTorque;
+		}
+	}
 
 	// planes
 	if (gdata->numPlanes > 0) {
@@ -1649,44 +1676,6 @@ void GPUSPH::updateArrayIndices() {
 	}
 }
 
-// initialize the centers of gravity of objects
-void GPUSPH::initializeObjectsCGs()
-{
-	if (gdata->problem->get_simparams()->numbodies > 0) {
-		gdata->s_hRbGravityCenters = gdata->problem->get_bodies_cg();
-
-		// Debug
-		/* for (int i=0; i < m_simparams->numbodies; i++) {
-			printf("Body %d: cg(%g,%g,%g) lastindex: %d\n", i, cg[i].x, cg[i].y, cg[i].z, m_hRbLastIndex[i]);
-		}
-		uint rbfirstindex[MAXBODIES];
-		CUDA_SAFE_CALL(cudaMemcpyFromSymbol(rbfirstindex, "d_rbstartindex", m_simparams->numbodies*sizeof(int)));
-		for (int i=0; i < m_simparams->numbodies; i++) {
-			printf("Body %d: firstindex: %d\n", i, rbfirstindex[i]);
-		} */
-	}
-
-	// allocate centers of gravity
-	uint numObj = gdata->problem->get_simparams()->numbodies;
-	printf("alloc: %d\n", numObj);
-	if (numObj > 0) {
-		gdata->s_hMovObjGravityCenters = new float3 [numObj];
-		gdata->s_hMovObjTranslations = new float3 [numObj];
-		gdata->s_hMovObjRotationMatrices = new float [numObj*9];
-	}
-
-	// copy values into the moving object arrays
-	for (uint ob=0; ob < numObj; ob++) {
-		gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[ob];
-		/*const uint curODEobjectId = gdata->problem->m_ODEobjectId[ob];
-		if (curODEobjectId != UINT_MAX)
-			// this is the gravity center for floating ODE objects
-			gdata->s_hMovObjGravityCenters[ob] = gdata->s_hRbGravityCenters[curODEobjectId];
-		else
-			// we don't need a center of gravity just yet for forced moving objects (non-ODE)
-			gdata->s_hMovObjGravityCenters[ob] = make_float3(0.0f);*/
-	}
-}
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {
@@ -1782,13 +1771,4 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	// swap changed buffers back so that read contains the new data
 	if (cFlag & INITIALIZATION_STEP)
 		doCommand(SWAP_BUFFERS, BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_POS | BUFFER_EULERVEL | BUFFER_GRADGAMMA | BUFFER_VERTICES);
-}
-
-// initialize the centers of gravity of objects
-void GPUSPH::initializeObjectsVelocities()
-{
-	if (gdata->problem->get_simparams()->numbodies > 0) {
-		gdata->s_hRbLinearVelocities = gdata->problem->get_bodies_linearvel();
-		gdata->s_hRbAngularVelocities = gdata->problem->get_bodies_angularvel();
-	}
 }

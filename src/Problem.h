@@ -188,18 +188,8 @@ class Problem {
 		SimParams	m_simparams; // TODO FIXME should become a pointer to the one in the simframework
 		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams
 
-		uint				m_numbodies;
-		uint				m_numforcesbodies;
-		uint				m_numODEbodies;
-		uint				m_nummovingbodies;
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData 		*m_bodies_storage;				// kinematic data staorage for bodie movement integration
-		float3				*m_bodies_cg;				// center of gravity of rigid bodies
-		dQuaternion 		*m_bodies_quaternion;		// orientation of the rigid bodies
-		float3				*m_bodies_trans;			// translation to apply between t and t + dt
-		float3				*m_bodies_linearvel;		// Linear velocity of rigid bodies
-		float3				*m_bodies_angularvel;		// Angular velocity of rigid bodies
-		float				*m_bodies_steprot;		// rotation to apply between t and t + dt
 		uint				m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
 		Problem(const GlobalData *_gdata);
@@ -207,7 +197,7 @@ class Problem {
 		virtual ~Problem(void);
 
 		/* a function to check if the (initial or fixed) timestep
-		 * is compatible with the CFL coditions */
+		 * is compatible with the CFL conditions */
 		virtual void check_dt();
 		/* Find the minimum amount of maximum number of neighbors
 		 * per particle based on the kernel and boundary choice,
@@ -392,17 +382,13 @@ RESTORE_WARNINGS
 		size_t	get_body_numparts(const Object *);
 
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
-		float3* get_bodies_cg(void);
+		void get_bodies_cg(void);
 		void set_body_cg(const double3, MovingBodyData*);
 		void set_body_cg(const uint, const double3);
 		void set_body_cg(const Object*, const double3);
-		dQuaternion *get_bodies_quaternion(void);
-		float* get_bodies_steprot(void);
-		float3* get_bodies_linearvel(void);
 		void set_body_linearvel(const double3, MovingBodyData*);
 		void set_body_linearvel(const uint, const double3);
 		void set_body_linearvel(const Object*, const double3);
-		float3* get_bodies_angularvel(void);
 		void set_body_angularvel(const double3, MovingBodyData*);
 		void set_body_angularvel(const uint, const double3);
 		void set_body_angularvel(const Object*, const double3);

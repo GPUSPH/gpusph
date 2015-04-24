@@ -53,30 +53,14 @@ Problem::Problem(const GlobalData *_gdata)
 	m_options = gdata->clOptions;
 	m_simframework = NULL;
 	m_problem_dir = m_options->dir;
-	m_bodies_cg = NULL;
-	m_bodies_quaternion = NULL;
-	m_bodies_trans = NULL;
-	m_bodies_linearvel = NULL;
-	m_bodies_angularvel = NULL;
-	m_bodies_steprot = NULL;
 	m_bodies_storage = NULL;
 	m_firstODEobjectPartId = 0;
-	m_numbodies = 0;
-	m_numforcesbodies = 0;
-	m_numODEbodies = 0;
-	m_nummovingbodies = 0;
 }
 
 
 Problem::~Problem(void)
 {
 	if (m_simparams.numbodies) {
-		delete [] m_bodies_cg;
-		delete [] m_bodies_quaternion;
-		delete [] m_bodies_trans;
-		delete [] m_bodies_linearvel;
-		delete [] m_bodies_angularvel;
-		delete [] m_bodies_steprot;
 		delete [] m_bodies_storage;
 	}
 
@@ -89,12 +73,6 @@ Problem::allocate_bodies_storage()
 	const uint nbodies = m_simparams.numbodies;
 
 	if (nbodies) {
-		m_bodies_cg = new float3[nbodies];
-		m_bodies_quaternion = new dQuaternion[nbodies];
-		m_bodies_trans = new float3[nbodies];
-		m_bodies_linearvel = new float3[nbodies];
-		m_bodies_angularvel = new float3[nbodies];
-		m_bodies_steprot = new float[9*nbodies];
 		// TODO: this should depend on the integration scheme
 		m_bodies_storage = new KinematicData[nbodies];
 	}
@@ -110,6 +88,8 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// are reduced by a parallel prefix sum: all the bodies that require
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
+	if (index >= MAXBODIES)
+		throw runtime_error ("Number of moving bodies superior to MAXBODIES. Increase MAXBODIES\n");
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
 	mbdata->type = mbtype;
@@ -124,29 +104,27 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			mbdata->kdata.crot = make_double3(dBodyGetPosition(bodyid));
 			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
 			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
-			m_bodies.insert(m_bodies.begin() + m_numODEbodies, mbdata);
-			m_numODEbodies++;
+			m_bodies.insert(m_bodies.begin() + m_simparams.numODEbodies, mbdata);
+			m_simparams.numODEbodies++;
 			m_simparams.numforcesbodies++;
 			break;
 		}
 
 		case MB_FORCES_MOVING:
-			m_bodies.insert(m_bodies.begin() + m_numODEbodies + m_numforcesbodies, mbdata);
-			m_numforcesbodies++;
+			m_bodies.insert(m_bodies.begin() + m_simparams.numODEbodies + m_simparams.numforcesbodies, mbdata);
 			m_simparams.numforcesbodies++;
 			m_simparams.nummovingbodies++;
 			break;
 
 		case MB_MOVING:
-			m_bodies.insert(m_bodies.begin() + m_numbodies, mbdata);
+			m_bodies.insert(m_bodies.begin() + m_simparams.numbodies, mbdata);
 			m_simparams.nummovingbodies++;
 			break;
 	}
 
 	mbdata->initial_kdata = mbdata->kdata;
 
-	m_numbodies = m_bodies.size();
-	m_simparams.numbodies = m_numbodies;
+	m_simparams.numbodies = m_bodies.size();
 }
 
 
@@ -254,24 +232,13 @@ Problem::restore_ODE_body(const uint i, const float *gravity_center, const float
 }*/
 
 
+
 void
-Problem::get_bodies_data(float3 * & cg, float * & steprot, float3 * & linearvel, float3 * & angularvel)
-{
-	cg = get_bodies_cg();
-	steprot = get_bodies_steprot();
-	linearvel = get_bodies_linearvel();
-	angularvel = get_bodies_angularvel();
-}
-
-
-float3*
 Problem::get_bodies_cg(void)
 {
 	for (uint i = 0; i < m_simparams.numbodies; i++) {
-		m_bodies_cg[i] = make_float3(m_bodies[i]->kdata.crot);
+		gdata->s_hRbGravityCenters[i] = make_float3(m_bodies[i]->kdata.crot);
 	}
-
-	return m_bodies_cg;
 }
 
 
@@ -330,46 +297,6 @@ void
 Problem::set_body_angularvel(const Object *object, const double3 avel)
 {
 	set_body_angularvel(avel, get_mbdata(object));
-}
-
-
-dQuaternion*
-Problem::get_bodies_quaternion(void)
-{
-	for (uint i = 0; i < m_simparams.numbodies; i++) {
-		m_bodies[i]->kdata.orientation.ToODEQuaternion(m_bodies_quaternion[i]);
-	}
-
-	return m_bodies_quaternion;
-}
-
-
-float3*
-Problem::get_bodies_linearvel(void)
-{
-	for (uint i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies_linearvel[i] = make_float3(m_bodies[i]->kdata.lvel);
-	}
-
-	return m_bodies_linearvel;
-}
-
-
-float3*
-Problem::get_bodies_angularvel(void)
-{
-	for (uint i = 0; i < m_simparams.numbodies; i++)  {
-		m_bodies_angularvel[i] = make_float3(m_bodies[i]->kdata.avel);
-	}
-
-	return m_bodies_linearvel;
-}
-
-
-float*
-Problem::get_bodies_steprot(void)
-{
-	return m_bodies_steprot;
 }
 
 
@@ -484,17 +411,18 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 				force = forces[i];
 				torque = torques[i];
 			}
+
 			moving_bodies_callback(index, mbdata->object, t0, t1, force, torque, mbdata->initial_kdata,
 					mbdata->kdata, new_trans, dr);
 		}
 
-		m_bodies_trans[i] = make_float3(new_trans);
-		m_bodies_cg[i] = make_float3(mbdata->kdata.crot);
-		m_bodies_linearvel[i] = make_float3(mbdata->kdata.lvel);
-		m_bodies_angularvel[i] = make_float3(mbdata->kdata.avel);
+		trans[i] = make_float3(new_trans);
+		cg[i] = make_float3(mbdata->kdata.crot);
+		linearvel[i] = make_float3(mbdata->kdata.lvel);
+		angularvel[i] = make_float3(mbdata->kdata.avel);
 
 		// Compute and relative rotation respect to the beginning of time step
-		float *base_addr = m_bodies_steprot + 9*i;
+		float *base_addr = steprot + 9*i;
 		dr.ComputeRot();
 		dr.GetRotation(base_addr);
 
@@ -515,12 +443,6 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		}
 		#endif
 	}
-
-	cg = m_bodies_cg;
-	steprot = m_bodies_steprot;
-	trans = m_bodies_trans;
-	linearvel = m_bodies_linearvel;
-	angularvel = m_bodies_angularvel;
 }
 
 

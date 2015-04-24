@@ -141,9 +141,6 @@ private:
 	float4*		m_dRbTorques;					// Torques on particles belonging to rigid bodies
 	uint*		m_dRbNum;						// Key used in segmented scan
 
-	// CPU/GPU data for moving boundaries
-	uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
-	float4*		m_dMbData;				// device side moving boundary data
 
 	// CPU/GPU buffers for the compact device map (2 bits per cell)
 	uint*		m_hCompactDeviceMap;
@@ -218,7 +215,6 @@ private:
 	void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
-	void uploadMBData();
 	void uploadGravity();
 	void uploadPlanes();
 

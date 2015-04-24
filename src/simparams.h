@@ -63,6 +63,7 @@ typedef struct SimParams {
 	uint			numforcesbodies;		// number of moving bodies on which we need to compute the forces
 	uint			nummovingbodies;		// total number of moving bodies
 	uint			numbodies;				// total number of bodies (ODE + moving)
+	uint 			numODEbodies;			// number of bodies which movmeent is computed by ODE
 	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	bool			calcPrivate;			// add the private array for debugging / additional calculation
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical

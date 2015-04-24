@@ -917,7 +917,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	if (m_simparams->numforcesbodies) {
 		m_numForcesBodiesParticles = gdata->problem->get_forces_bodies_numparts();
-		printf("number of rigid bodies particles = %d\n", m_numForcesBodiesParticles);
+		printf("number of forces rigid bodies particles = %d\n", m_numForcesBodiesParticles);
 
 		int objParticlesFloat4Size = m_numForcesBodiesParticles*sizeof(float4);
 		int objParticlesUintSize = m_numForcesBodiesParticles*sizeof(uint);
@@ -927,10 +927,6 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		CUDA_SAFE_CALL(cudaMalloc(&m_dRbNum, objParticlesUintSize));
 
 		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
-
-		// DEBUG
-		// m_hRbForces = new float4[m_numBodiesParticles];
-		// m_hRbTorques = new float4[m_numBodiesParticles];
 
 		int *rbfirstindex = new int[m_simparams->numforcesbodies];
 		uint* rbnum = new uint[m_numForcesBodiesParticles];
@@ -1327,13 +1323,6 @@ void GPUWorker::uploadNewNumParticles()
 	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
-// upload mbData for moving boundaries (possibily called many times)
-void GPUWorker::uploadMBData()
-{
-	// check if MB are active and if gdata->s_mbData is not NULL
-	if (m_simparams->mbcallback && gdata->s_mbData)
-		integrationEngine->setmbdata(gdata->s_mbData, gdata->mbDataSize);
-}
 
 // upload gravity (possibily called many times)
 void GPUWorker::uploadGravity()
@@ -1546,16 +1535,14 @@ void* GPUWorker::simulationThread(void *ptr) {
 	// upload planes, if any
 	instance->uploadPlanes();
 
-	// upload centers of gravity of the bodies
-	instance->uploadEulerBodiesCentersOfGravity();
-	instance->uploadForcesBodiesCentersOfGravity();
-	// Upload linear and angular velocities of objects
-	instance->uploadBodiesVelocities();
-
 	// allocate CPU and GPU arrays
 	instance->allocateHostBuffers();
 	instance->allocateDeviceBuffers();
 	instance->printAllocatedMemory();
+
+	// upload centers of gravity of the bodies
+	instance->uploadEulerBodiesCentersOfGravity();
+	instance->uploadForcesBodiesCentersOfGravity();
 
 	// create and upload the compact device map (2 bits per cell)
 	if (MULTI_DEVICE) {
@@ -1707,10 +1694,6 @@ void* GPUWorker::simulationThread(void *ptr) {
 			case REDUCE_BODIES_FORCES:
 				if (dbg_step_printf) printf(" T %d issuing REDUCE_BODIES_FORCES\n", deviceIndex);
 				instance->kernel_reduceRBForces();
-				break;
-			case UPLOAD_MBDATA:
-				if (dbg_step_printf) printf(" T %d issuing UPLOAD_MBDATA\n", deviceIndex);
-				instance->uploadMBData();
 				break;
 			case UPLOAD_GRAVITY:
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_GRAVITY\n", deviceIndex);
@@ -2404,11 +2387,13 @@ void GPUWorker::kernel_sps()
 
 void GPUWorker::kernel_reduceRBForces()
 {
+	const size_t numforcesbodies = m_simparams->numforcesbodies;
+
 	// make sure this device does not add any obsolete contribute to forces acting on objects
 	if (MULTI_DEVICE) {
-		for (uint ob = 0; ob < m_simparams->numforcesbodies; ob++) {
-			gdata->s_hRbDeviceTotalForce[m_deviceIndex][ob] = make_float3(0.0f);
-			gdata->s_hRbDeviceTotalTorque[m_deviceIndex][ob] = make_float3(0.0f);
+		for (uint ob = 0; ob < numforcesbodies; ob++) {
+			gdata->s_hRbDeviceTotalForce[m_deviceIndex*numforcesbodies + ob] = make_float3(0.0f);
+			gdata->s_hRbDeviceTotalTorque[m_deviceIndex*numforcesbodies + ob] = make_float3(0.0f);
 		}
 	}
 
@@ -2419,8 +2404,11 @@ void GPUWorker::kernel_reduceRBForces()
 	// (possible? e.g. vector objects?)
 	if (m_numForcesBodiesParticles == 0) return;
 
-	forcesEngine->reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex, gdata->s_hRbDeviceTotalForce[m_deviceIndex],
-					gdata->s_hRbDeviceTotalTorque[m_deviceIndex], m_simparams->numforcesbodies, m_numForcesBodiesParticles);
+	if (numforcesbodies)
+		forcesEngine->reduceRbForces(m_dRbForces, m_dRbTorques, m_dRbNum, gdata->s_hRbLastIndex,
+				gdata->s_hRbDeviceTotalForce + m_deviceIndex*numforcesbodies,
+				gdata->s_hRbDeviceTotalTorque + m_deviceIndex*numforcesbodies,
+				numforcesbodies, m_numForcesBodiesParticles);
 
 }
 
@@ -2798,8 +2786,6 @@ void GPUWorker::uploadBodiesTransRotMatrices()
 
 void GPUWorker::uploadBodiesVelocities()
 {
-	// TODO FIXME should this be only for ODE bodies or all moving objects?
-	// compare uploadBodiesCentersOfGravity() and uploadBodiesTransRotMatrices()
 	integrationEngine->setrblinearvel(gdata->s_hRbLinearVelocities, m_simparams->numbodies);
 	integrationEngine->setrbangularvel(gdata->s_hRbAngularVelocities, m_simparams->numbodies);
 }

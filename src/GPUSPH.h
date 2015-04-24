@@ -116,10 +116,8 @@ private:
 	// do a roll call of particle IDs
 	void rollCallParticles();
 
-	// initialize the centers of gravity of objects
-	void initializeObjectsCGs();
-	// initialize velocities (linear and angular) of objects
-	void initializeObjectsVelocities();
+	void allocateRbArrays();
+	void cleanRbArrays();
 
 public:
 	// destructor

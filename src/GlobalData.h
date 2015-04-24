@@ -97,8 +97,7 @@ enum CommandType {
 	FIND_CLOSEST_VERTEX,	// Finds closest vertex for boundaries that have no proper IO vertex themselves
 	DISABLE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
 	SPS,				// SPS stress matrix computation kernel TODO FIXME RENAME COMMAND (generic viscEngine processing)
-	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each boy)
-	UPLOAD_MBDATA,		// upload data for moving boundaries, after problem callback
+	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each body)
 	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
 	UPLOAD_PLANES,		// upload planes
 	EULER_UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects (for Euler only)
@@ -215,10 +214,6 @@ struct GlobalData {
 	// offset used for ID cloning
 	uint	newIDsOffset;
 
-	// moving boundaries
-	float4	*s_mbData;
-	size_t	mbDataSize;
-
 	// planes
 	uint numPlanes;
 	float4	*s_hPlanes;
@@ -261,17 +256,17 @@ struct GlobalData {
 	bool nosave;
 
 	// ODE objects
-	uint s_hRbLastIndex[MAXBODIES]; // last indices are the same for all workers
-	float3 s_hRbDeviceTotalForce[MAX_DEVICES_PER_NODE][MAXBODIES]; // there is one partial totals force for each object in each thread
-	float3 s_hRbDeviceTotalTorque[MAX_DEVICES_PER_NODE][MAXBODIES]; // ditto, for partial torques
+	uint* s_hRbLastIndex; // last indices are the same for all workers
+	float3* s_hRbDeviceTotalForce; // there is one partial totals force for each object in each thread
+	float3* s_hRbDeviceTotalTorque; // ditto, for partial torques
 
-	float3 s_hRbTotalForce[MAXBODIES]; // aggregate total force (sum across all devices and nodes);
-	float3 s_hRbTotalTorque[MAXBODIES]; // aggregate total torque (sum across all devices and nodes);
+	float3* s_hRbTotalForce; // aggregate total force (sum across all devices and nodes);
+	float3* s_hRbTotalTorque; // aggregate total torque (sum across all devices and nodes);
 
 	// actual applied total forces and torques. may be different from the computed total
 	// forces/torques if modified by the problem callback
-	float3 s_hRbAppliedForce[MAXBODIES];
-	float3 s_hRbAppliedTorque[MAXBODIES];
+	float3* s_hRbAppliedForce;
+	float3* s_hRbAppliedTorque;
 
 
 	// gravity centers and rototranslations, which are computed by the ODE library
@@ -280,11 +275,6 @@ struct GlobalData {
 	float* s_hRbRotationMatrices;
 	float3* s_hRbLinearVelocities;
 	float3*	s_hRbAngularVelocities;
-
-	// moving objects
-	float3* s_hMovObjGravityCenters;
-	float3* s_hMovObjTranslations;
-	float* s_hMovObjRotationMatrices;
 
 	// waterdepth at pressure outflows
 	uint	h_IOwaterdepth[MAX_DEVICES_PER_NODE][MAXBODIES];
@@ -311,8 +301,6 @@ struct GlobalData {
 		s_dCellStarts(NULL),
 		s_dCellEnds(NULL),
 		s_dSegmentsStart(NULL),
-		s_mbData(NULL),
-		mbDataSize(0),
 		numPlanes(0),
 		s_hPlanes(NULL),
 		s_hPlanesDiv(NULL),
@@ -335,9 +323,6 @@ struct GlobalData {
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
-		s_hMovObjGravityCenters(NULL),
-		s_hMovObjTranslations(NULL),
-		s_hMovObjRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),
 		s_hRbAngularVelocities(NULL)
 	{
@@ -348,23 +333,6 @@ struct GlobalData {
 		// init particlesCreatedOnNode
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			particlesCreatedOnNode[d] = false;
-
-		// init partial forces and torques
-		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
-			for (uint ob=0; ob < MAXBODIES; ob++) {
-				s_hRbDeviceTotalForce[d][ob] = make_float3(0.0F);
-				s_hRbDeviceTotalTorque[d][ob] = make_float3(0.0F);
-			}
-
-		// init total computed and applied forces
-		for (uint ob=0; ob < MAXBODIES; ob++) {
-			s_hRbAppliedForce[ob] = s_hRbTotalForce[ob] = make_float3(0.0F);
-			s_hRbAppliedTorque[ob] = s_hRbTotalTorque[ob] = make_float3(0.0F);
-		}
-
-		// init last indices for segmented scans for objects
-		for (uint ob=0; ob < MAXBODIES; ob++)
-			s_hRbLastIndex[ob] = 0;
 
 		for (uint d=0; d < MAX_DEVICES_PER_NODE; d++)
 			for (uint p=0; p < MAX_DEVICES_PER_NODE; p++)
