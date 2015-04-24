@@ -61,13 +61,14 @@ void HotFile::save() {
 		iter++;
 	}
 
-	const float3 *cgs = _gdata->problem->get_bodies_cg();
+	// TODO FIXME for new moving/floating bodies treatment
+	/*const float3 *cgs = _gdata->problem->get_bodies_cg();
 	const dQuaternion *quats = _gdata->problem->get_bodies_quaternion();
 	const float3 *linvels = _gdata->problem->get_bodies_linearvel();
 	const float3 *angvels = _gdata->problem->get_bodies_angularvel();
 	for (int b = 0; b < _header.body_count; ++b)
 		writeBody(_fp.out, b, cgs + b, quats[b],
-			linvels + b, angvels + b, VERSION_1);
+			linvels + b, angvels + b, VERSION_1);*/
 }
 
 // auxiliary method that checks that two values are the same, and throws an
