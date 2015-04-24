@@ -56,6 +56,11 @@ private:
 	bool *m_rcNotified;
 	uint *m_rcAddrs;
 
+	// store max speed reached during the whole simulation
+	// NOTE: float since network reduction currently does not support double
+	float m_peakParticleSpeed;
+	double m_peakParticleSpeedTime; // ...and when
+
 	// other vars
 	bool initialized;
 

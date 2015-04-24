@@ -64,6 +64,8 @@ GPUSPH::GPUSPH() {
 	gdata = NULL;
 	problem = NULL;
 	initialized = false;
+	m_peakParticleSpeed = 0.0;
+	m_peakParticleSpeedTime = 0.0;
 }
 
 GPUSPH::~GPUSPH() {
@@ -833,6 +835,10 @@ bool GPUSPH::runSimulation() {
 	if (MULTI_NODE)
 		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
 
+	// suggest max speed for next runs
+	printf("Peak particle speed was ~%g at t %g -> can set maximum vel %.2g for this problem\n",
+		m_peakParticleSpeed, m_peakParticleSpeedTime, (m_peakParticleSpeed*1.1));
+
 	// NO doCommand() nor other barriers than the standard ones after the
 
 	printf("Simulation end, cleaning up...\n");
@@ -1320,6 +1326,16 @@ void GPUSPH::doWrite(bool force)
 		}
 
 		gpos[i] = dpos;
+
+		// track peak speed
+		float part_speed = length( as_float3( gdata->s_hBuffers.getData<BUFFER_VEL>()[i] ) );
+		// read simulation global for multi-node
+		if (MULTI_NODE)
+			gdata->networkManager->networkFloatReduction(&(part_speed), 1, MAX_REDUCTION);
+		if (part_speed > m_peakParticleSpeed) {
+			m_peakParticleSpeed = part_speed;
+			m_peakParticleSpeedTime = gdata->t;
+		}
 	}
 
 	Writer::SetForced(force);
