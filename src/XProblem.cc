@@ -235,7 +235,7 @@ void XProblem::initialize()
 	if (!m_physparams.contEquationWasSet) {
 		const float default_rho = 1000.0;
 		const float default_gamma = 1000.0;
-		const float default_c0 = 10.0 * sqrt(g * m_maxFall);
+		const float default_c0 = 10.0 * sqrt(2.0 * g * m_maxFall);
 
 		m_physparams.set_density(0, default_rho, default_gamma, default_c0);
 		printf("Cont. equation not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",
