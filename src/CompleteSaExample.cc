@@ -45,7 +45,7 @@ CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(- INLET_BOX_LENGTH - MARGIN, - MARGIN, - MARGIN);
 	m_simparams.calcPrivate = false;
 	m_simparams.inoutBoundaries = true;
-	m_simparams.movingBoundaries = true;
+	m_simparams.movingBoundaries = false;
 
 	// SPH parameters
 	// let the dt be autocomputed
