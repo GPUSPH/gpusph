@@ -52,13 +52,6 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
-void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
-setmbdata(const float4* MbData, uint size)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_mbdata, MbData, size));
-}
 
 template<BoundaryType boundarytype, bool xsphcorr>
 void

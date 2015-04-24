@@ -119,9 +119,7 @@ __constant__ float	d_kspsfactor;
 __constant__ float	d_cosconeanglefluid;
 __constant__ float	d_cosconeanglenonfluid;
 
-// Rigid body data (test version)
-__device__ float3	d_force;
-__device__ float3	d_torque;
+// Rigid body data
 __constant__ float3	d_rbcg[MAXBODIES];
 __constant__ int	d_rbstartindex[MAXBODIES];
 __constant__ float	d_objectobjectdf;
