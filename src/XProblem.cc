@@ -75,6 +75,7 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	// NAN water level and max fall: will autocompute if user doesn't define them
 	m_waterLevel = NAN;
 	m_maxFall = NAN;
+	m_maxParticleSpeed = NAN;
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams.maxneibsnum = 256 + 64;
@@ -232,10 +233,16 @@ void XProblem::initialize()
 	const float g = length(m_physparams.gravity);
 	m_physparams.dcoeff = 5.0f * g * m_maxFall;
 
+	if (!isfinite(m_maxParticleSpeed)) {
+		m_maxParticleSpeed = sqrt(2.0 * g * m_maxFall);
+		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
+	}
+
 	if (!m_physparams.contEquationWasSet) {
 		const float default_rho = 1000.0;
 		const float default_gamma = 1000.0;
-		const float default_c0 = 10.0 * sqrt(2.0 * g * m_maxFall);
+		// numerical speed of sound
+		const float default_c0 = 10.0 * m_maxParticleSpeed;
 
 		m_physparams.set_density(0, default_rho, default_gamma, default_c0);
 		printf("Cont. equation not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",

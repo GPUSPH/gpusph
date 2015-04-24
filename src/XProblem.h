@@ -131,8 +131,10 @@ class XProblem: public Problem {
 
 		// used for hydrostatic filling (absolute value)
 		double m_waterLevel;
-		// used to set sound of speed (relative value)
+		// used to set LJ dcoeff and sound speed if m_maxParticleSpeed is unset
 		double m_maxFall;
+		// used to set sound of speed
+		double m_maxParticleSpeed;
 
 	protected:
 		// methods for creation of new objects
@@ -208,6 +210,8 @@ class XProblem: public Problem {
 		void setWaterLevel(double waterLevel) { m_waterLevel = waterLevel; }
 		// set m_maxFall (former "H") for setting sspeed
 		void setMaxFall(double maxFall) { m_maxFall = maxFall; }
+		// set _expected_ max particle speed
+		void setMaxParticleSpeed(double maxParticleSpeed) { m_maxParticleSpeed = maxParticleSpeed; }
 
 	public:
 		XProblem(GlobalData *);
