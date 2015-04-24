@@ -50,6 +50,9 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// ferrari correction
 	m_simparams.ferrariLengthScale = 0.25f;
 
+	// buildneibs at every iteration
+	m_simparams.buildneibsfreq = 1;
+
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
 	m_name = "XCompleteSaExample";
