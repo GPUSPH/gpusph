@@ -108,8 +108,8 @@ void*	reduce_buffer = NULL;
 
 #define VISC_CHECK_STANDARD(boundarytype, inoutBoundaries) \
 		VISC_CHECK(boundarytype, ARTVISC, inoutBoundaries); \
-		/*VISC_CHECK(boundarytype, DYNAMICVISC, inoutBoundaries); \
-		VISC_CHECK(boundarytype, KINEMATICVISC, inoutBoundaries);\
+		VISC_CHECK(boundarytype, DYNAMICVISC, inoutBoundaries); \
+		/*VISC_CHECK(boundarytype, KINEMATICVISC, inoutBoundaries);\
 		VISC_CHECK(boundarytype, SPSVISC, inoutBoundaries); \
 		VISC_CHECK(boundarytype, KEPSVISC, inoutBoundaries);*/
 
