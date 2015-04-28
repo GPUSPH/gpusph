@@ -185,6 +185,7 @@ MKForce(const float r, const float slength,
 
 // opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
 // normal vector norm div
+// TODO FIXME update for homogeneous precision
 __device__ __forceinline__ float4
 reflectPoint(const float4 &pos, const float4 &plane, float pdiv)
 {
