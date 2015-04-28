@@ -836,7 +836,7 @@ bool GPUSPH::runSimulation() {
 		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
 
 	// suggest max speed for next runs
-	printf("Peak particle speed was ~%g at t %g -> can set maximum vel %.2g for this problem\n",
+	printf("Peak particle speed was ~%g m/s at %g s -> can set maximum vel %.2g for this problem\n",
 		m_peakParticleSpeed, m_peakParticleSpeedTime, (m_peakParticleSpeed*1.1));
 
 	// NO doCommand() nor other barriers than the standard ones after the
