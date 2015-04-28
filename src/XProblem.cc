@@ -1126,6 +1126,7 @@ void XProblem::copy_planes(float4 *planes, float *planediv)
 void XProblem::copy_to_array(BufferList &buffers)
 {
 	float4 *pos = buffers.getData<BUFFER_POS>();
+	double4 *globalPos = buffers.getData<BUFFER_POS_GLOBAL>();
 	hashKey *hash = buffers.getData<BUFFER_HASH>();
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
@@ -1170,6 +1171,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i]= make_particleinfo(FLUIDPART,0,i);
 		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
+		globalPos[i] = m_fluidParts[i].toDouble4();
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
 		if (i == tot_parts)
@@ -1184,6 +1186,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 		info[i] = make_particleinfo(BOUNDPART, 0, i);
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
+		globalPos[i] = m_boundaryParts[i - tot_parts].toDouble4();
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
 		if (i == tot_parts)
@@ -1302,10 +1305,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 						break;
 				}
 
-				calc_localpos_and_hash(
-					Point(hdf5Buffer[bi].Coords_0, hdf5Buffer[bi].Coords_1, hdf5Buffer[bi].Coords_2,
-						m_physparams.rho0[0]*hdf5Buffer[bi].Volume),
-					info[i], pos[i], hash[i]);
+				Point tmppoint = Point(hdf5Buffer[bi].Coords_0, hdf5Buffer[bi].Coords_1, hdf5Buffer[bi].Coords_2,
+					m_physparams.rho0[0]*hdf5Buffer[bi].Volume);
+				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
+				globalPos[i] = tmppoint.toDouble4();
 
 				if (eulerVel)
 					eulerVel[i] = make_float4(0);
@@ -1369,6 +1372,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 				info[i] = make_particleinfo(OBJECTPART, shifted_object_id, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
+				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				if (eulerVel)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
 					eulerVel[i] = make_float4(0);
