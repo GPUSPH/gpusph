@@ -80,7 +80,7 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	// *** Initialization of minimal simulation parameters
 	m_simparams.maxneibsnum = 256 + 64;
 	m_simparams.dtadapt = true;
-	// viscositys: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
+	// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
 	m_simparams.visctype = ARTVISC;
 	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
 	m_simparams.boundarytype = SA_BOUNDARY;
