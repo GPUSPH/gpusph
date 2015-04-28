@@ -347,7 +347,6 @@ bind_textures(
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
 	#endif
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
 	if (needs_eulerVel) {
@@ -409,7 +408,7 @@ unbind_textures()
 FORCES_RET(uint)
 getFmaxElements(const uint n)
 {
-	return div_up(n, min(BLOCK_SIZE_FORCES, n));
+	return div_up<uint>(n, BLOCK_SIZE_FORCES);
 }
 
 
@@ -508,7 +507,7 @@ basicstep(
 
 	const uint numParticlesInRange = toParticle - fromParticle;
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_FORCES, numParticlesInRange);
+	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(numParticlesInRange, numThreads);
 	#if (__COMPUTE__ == 20)
 	if (visctype == SPSVISC)
@@ -667,7 +666,7 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
 
-	uint numThreads = min(BLOCK_SIZE_SPS, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_SPS;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ == 20)
@@ -722,7 +721,7 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 {
 	int dummy_shared = 0;
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
@@ -768,7 +767,7 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 {
 	int dummy_shared = 0;
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_MLS, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_MLS;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
@@ -822,7 +821,7 @@ vorticity(const	float4*		pos,
 			float		influenceradius)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_CALCVORT, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_CALCVORT;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
@@ -862,7 +861,7 @@ testpoints( const float4*	pos,
 			float			influenceradius)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_CALCTEST, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_CALCTEST;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
@@ -912,7 +911,7 @@ surfaceparticle(const	float4*		pos,
 					bool		savenormals)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_CALCTEST, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_CALCTEST;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
@@ -955,7 +954,7 @@ calcPrivate(const	float4*			pos,
 					uint			numParticles,
 					uint			particleRangeEnd)
 {
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	#if (__COMPUTE__ < 20)
@@ -1058,7 +1057,7 @@ disableOutgoingParts(		float4*			pos,
 					const	uint			numParticles,
 					const	uint			particleRangeEnd)
 {
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
@@ -1098,7 +1097,7 @@ saSegmentBoundaryConditions(
 	const	float			influenceradius,
 	const	bool			initStep)
 {
-	uint numThreads = min(BLOCK_SIZE_FORCES, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	int dummy_shared = 0;
@@ -1151,7 +1150,7 @@ saVertexBoundaryConditions(
 {
 	int dummy_shared = 0;
 
-	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
@@ -1207,7 +1206,7 @@ saIdentifyCornerVertices(
 {
 	int dummy_shared = 0;
 
-	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
@@ -1248,7 +1247,7 @@ saFindClosestVertex(
 {
 	int dummy_shared = 0;
 
-	uint numThreads = min(BLOCK_SIZE_SHEPARD, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));

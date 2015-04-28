@@ -100,7 +100,7 @@ const	particleinfo	*particleInfo,
 		uint		*compactDeviceMap,
 const	uint		numParticles)
 {
-	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::calcHashDevice<periodicbound><<< numBlocks, numThreads >>>
@@ -119,7 +119,7 @@ const	particleinfo* particleInfo,
 		uint	*compactDeviceMap,
 const	uint	numParticles)
 {
-	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(particleHash, particleIndex,
@@ -146,7 +146,7 @@ reorderDataAndFindCellStart(
 		const uint			numParticles,		// input: number of particles in input buffers
 		uint*				newNumParticles)	// output: number of active particles found
 {
-	const uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	const uint numThreads = BLOCK_SIZE_REORDERDATA;
 	const uint numBlocks = div_up(numParticles, numThreads);
 
 	// TODO find a smarter way to do this
@@ -235,7 +235,7 @@ updateVertIDToIndex(
 			uint	*vertIDToIndex,
 	const	uint	numParticles)
 {
-	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numThreads = BLOCK_SIZE_REORDERDATA;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
@@ -276,7 +276,7 @@ const	float		boundNlSqInflRad)
 		throw std::invalid_argument("missing data");
 	}
 
-	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
+	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones

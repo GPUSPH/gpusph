@@ -134,7 +134,7 @@ basicstep(
 	const	float	t)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_INTEGRATE, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 #define ARGS oldPos, particleHash, oldVel, oldEulerVel, oldgGam, oldTKE, oldEps, \
