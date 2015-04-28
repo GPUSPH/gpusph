@@ -246,37 +246,19 @@ enum ParticleFlag {
 /* A bitmask to select only the particle type */
 #define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)
 
-/* A particle is NOT fluid if its particle type is non-zero */
-#define NOT_FLUID(f)	((type(f) & PART_TYPE_MASK) > PT_FLUID)
-/* otherwise it's fluid */
-#define FLUID(f)		((type(f) & PART_TYPE_MASK) == PT_FLUID)
-
-// fluid particles can be active or inactive. Particles are marked inactive under appropriate
-// conditions (e.g. after flowing out through an outlet), and are kept around until the next
-// buildneibs, that sweeps them away.
-// Since the inactivity of the particles must be accessible during neighbor list building,
-// and in particular when computing the particle hash for bucketing, we carry the information
-// in the position/mass field. Since fluid particles have positive mass, it is sufficient
-// to set its mass to zero to mark the particle inactive
-
-// a particle is active if its mass is non-zero
-#define ACTIVE(p)	(isfinite((p).w))
-#define INACTIVE(p)	(!ACTIVE(p))
-
-// disable a particle by zeroing its mass
-inline __host__ __device__ void
-disable_particle(float4 &pos) {
-	pos.w = NAN;
-}
-
 /* Extract a specific subfield from the particle type: */
 // Extract particle type
 #define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
 // Extract particle flag
 #define PART_FLAGS(f)		(type(f) >> PART_FLAG_SHIFT)
 
-
 /* Tests for particle types */
+
+/* A particle is NOT fluid if its particle type is non-zero */
+#define NOT_FLUID(f)	((type(f) & PART_TYPE_MASK) > PT_FLUID)
+/* otherwise it's fluid */
+#define FLUID(f)		((type(f) & PART_TYPE_MASK) == PT_FLUID)
+
 // Testpoints
 #define TESTPOINT(f)	(PART_TYPE(f) == PT_TESTPOINT)
 // Particle belonging to an floating object
@@ -311,6 +293,24 @@ disable_particle(float4 &pos) {
 #define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
 
 #define PART_FLUID_NUM(f)	(fluid_num(f))
+
+// fluid particles can be active or inactive. Particles are marked inactive under appropriate
+// conditions (e.g. after flowing out through an outlet), and are kept around until the next
+// buildneibs, that sweeps them away.
+// Since the inactivity of the particles must be accessible during neighbor list building,
+// and in particular when computing the particle hash for bucketing, we carry the information
+// in the position/mass field. Specifically, a particle is marked inactive by setting its
+// mass to Not-a-Number.
+
+// a particle is active if its mass is finite
+#define ACTIVE(p)	(isfinite((p).w))
+#define INACTIVE(p)	(!ACTIVE(p))
+
+// disable a particle by zeroing its mass
+inline __host__ __device__ void
+disable_particle(float4 &pos) {
+	pos.w = NAN;
+}
 
 /* Maximum number of floating bodies*/
 #define	MAXBODIES				16
