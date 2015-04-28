@@ -125,7 +125,7 @@ euler(	const float4*		oldPos,
 		BoundaryType		boundarytype)
 {
 	// thread per particle
-	uint numThreads = min(BLOCK_SIZE_INTEGRATE, particleRangeEnd);
+	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 #define ARGS oldPos, particleHash, oldVel, oldEulerVel, gGam, oldgGam, oldTKE, oldEps, \

@@ -89,7 +89,7 @@ calcHash(float4*	pos,
 		 const uint		numParticles,
 		 const Periodicity	periodicbound)
 {
-	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	switch (periodicbound) {
@@ -148,7 +148,7 @@ fixHash(hashKey*	particleHash,
 		 uint*		compactDeviceMap,
 		 const uint		numParticles)
 {
-	uint numThreads = min(BLOCK_SIZE_CALCHASH, numParticles);
+	uint numThreads = BLOCK_SIZE_CALCHASH;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::fixHashDevice<<< numBlocks, numThreads >>>(particleHash, particleIndex,
@@ -187,7 +187,7 @@ void reorderDataAndFindCellStart(	uint*				cellStart,			// output: cell start in
 									const uint			numParticles,
 									uint*				newNumParticles)	// output: number of active particles found
 {
-	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numThreads = BLOCK_SIZE_REORDERDATA;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, oldPos, numParticles*sizeof(float4)));
@@ -247,7 +247,7 @@ updateVertIDToIndex(particleinfo*	particleInfo,
 					uint*			vertIDToIndex,
 					const uint		numParticles)
 {
-	uint numThreads = min(BLOCK_SIZE_REORDERDATA, numParticles);
+	uint numThreads = BLOCK_SIZE_REORDERDATA;
 	uint numBlocks = div_up(numParticles, numThreads);
 
 	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
@@ -287,7 +287,7 @@ buildNeibsList(	neibdata*			neibsList,
 		throw std::invalid_argument("missing data");
 	}
 
-	const uint numThreads = min(BLOCK_SIZE_BUILDNEIBS, particleRangeEnd);
+	const uint numThreads = BLOCK_SIZE_BUILDNEIBS;
 	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	// bind textures to read all particles, not only internal ones
