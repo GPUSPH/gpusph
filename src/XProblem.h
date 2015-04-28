@@ -218,6 +218,9 @@ class XProblem: public Problem {
 		// set _expected_ max particle speed
 		void setMaxParticleSpeed(double maxParticleSpeed) { m_maxParticleSpeed = maxParticleSpeed; }
 
+		// callback for initializing particles with custom values
+		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
+
 	public:
 		XProblem(GlobalData *);
 		~XProblem(void);
