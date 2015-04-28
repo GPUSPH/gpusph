@@ -47,9 +47,6 @@ public:
 	getconstants(PhysParams *physparams) = 0;
 
 	virtual void
-	setmbdata(const float4* MbData, uint size) = 0;
-
-	virtual void
 	setrbcg(const float3* cg, int numbodies) = 0;
 
 	virtual void

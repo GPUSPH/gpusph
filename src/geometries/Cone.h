@@ -45,7 +45,7 @@ class Cone: public Object {
 	public:
 		Cone(void);
 		Cone(const Point&, const double, const double, const Vector&);
-		Cone(const Point&, const double, const double, const double, const EulerParameters&);
+		Cone(const Point&, const double, const double, const double, const EulerParameters& = EulerParameters());
 		Cone(const Point&, const Vector&, const Vector&, const Vector&);
 		virtual ~Cone(void) {};
 

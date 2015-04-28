@@ -104,7 +104,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			value = vel[i].w;
 		else
 			value = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
@@ -118,7 +118,7 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	print_lookup(fid);
 	for (uint i=0; i < numParts; ++i) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			// TODO FIXME: Testpoints compute pressure only
 			// In the future we would like to have a density here
 			// but this needs to be done correctly for multifluids
@@ -149,24 +149,38 @@ VTKLegacyWriter::write(uint numParts, BufferList const& buffers, uint node_offse
 	}
 
 	// Info
+	/* Fluid number is only included if there are more than 1 */
+	bool write_fluid_num = (gdata->problem->get_physparams()->numFluids > 1);
+
+	/* Object number is only included if there are any */
+	// TODO a better way would be for GPUSPH to expose the highest
+	// object number ever associated with any particle, so that we
+	// could check that
+	bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
 	if (info) {
-		fid << "SCALARS Type int" << endl;
+		fid << "SCALARS Type+flags int" << endl;
 		print_lookup(fid);
 		for (uint i=0; i < numParts; ++i)
 			fid << type(info[i]) << endl;
 		fid << endl;
 
-		fid << "SCALARS Object int" << endl;
-		print_lookup(fid);
-		for (uint i=0; i < numParts; ++i)
-			fid << object(info[i]) << endl;
-		fid << endl;
+		if (write_fluid_num || write_part_obj) {
+			if (write_fluid_num)
+				fid << "SCALARS Fluid int" << endl;
+			else
+				fid << "SCALARS Object int" << endl;
+			print_lookup(fid);
+			for (uint i=0; i < numParts; ++i)
+				fid << object(info[i]) << endl;
+			fid << endl;
+		}
 
 		fid << "SCALARS ParticleId int" << endl;
 		print_lookup(fid);
 		for (uint i=0; i < numParts; ++i)
 			fid << id(info[i]) << endl;
 		fid << endl;
+
 	}
 
 	fid.close();

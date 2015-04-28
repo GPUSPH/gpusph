@@ -41,8 +41,6 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	lx = 9.0;
 	ly = 0.4;
 	lz = 3.0;
-	m_size = make_double3(lx, ly, lz);
-	m_origin = make_double3(0.0, 0.0, 0.0);
 
 	// Data for problem setup
 	slope_length = 8.5f;
@@ -50,28 +48,23 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	height = .63f;
 	beta = 4.2364*M_PI/180.0;
 
+	m_size = make_double3(lx, ly, lz + 1.2*height);
+	m_origin = make_double3(0.0, 0.0, -1.2*height);
+
 	SETUP_FRAMEWORK(
-		//viscosity<ARTVISC>,
+		viscosity<ARTVISC>,
 		//viscosity<KINEMATICVISC>,
-		viscosity<SPSVISC>,
+		//viscosity<SPSVISC>,
 		boundary<LJ_BOUNDARY>
 		//boundary<MK_BOUNDARY>
 	);
 
-	addFilter(SHEPARD_FILTER, 20);
+	//addFilter(SHEPARD_FILTER, 20);
 
-
-	// We have at least 1 moving boundary, the paddle
-	m_mbnumber = 1;
-	m_simparams.mbcallback = true;
 
 	// Add objects to the tank
-	icyl = 0;	// icyl = 0 means no cylinders
+	icyl = 1;	// icyl = 0 means no cylinders
 	icone = 0;	// icone = 0 means no cone
-	// If presents, cylinders and cone are moving alltogether with
-	// the same velocity
-	if (icyl || icone)
-		m_mbnumber++;
 
 	i_use_bottom_plane = 1; // 1 for real plane instead of boundary parts
 
@@ -82,7 +75,7 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.tend = 10.0;
 
-	m_simparams.vorticity = true;
+	m_simparams.vorticity = false;
 
 	// Physical parameters
 	H = 0.45f;
@@ -109,32 +102,21 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.MK_d = 1.1*m_deltap/MK_par;
 	m_physparams.MK_beta = MK_par;
 
-	//Wave paddle definition:  location, start & stop times
-	MbCallBack& mbpistondata = m_mbcallbackdata[0];
-	mbpistondata.type = PISTONPART;
-	mbpistondata.origin = make_float3(r0, 0.0, 0.0);
-	float amplitude = 0.2f;
-	m_Hoh = amplitude/H;
-	float kappa = sqrt((3*m_Hoh)/(4.0*H*H));
-	float cel = sqrt(g*(H + amplitude));
-	m_S = sqrt(16.0*amplitude*H/3.0);
-	m_tau = 2.0*(3.8 + m_Hoh)/(kappa*cel);
-//	std::cout << "m_tau: " << m_tau << "\n";
-	mbpistondata.tstart = 0.2f;
-	mbpistondata.tend = m_tau;
-	// Call mb_callback for piston a first time to initialise
-	// values set by the call back function
-	mb_callback(0.0, 0.0, 0);
-
-	// Moving boundary initialisation data for cylinders and cone
-	// used only if needed(cyl = 1 or cone = 1)
-	MbCallBack& mbcyldata = m_mbcallbackdata[1];
-	mbcyldata.type = GATEPART;
-	mbcyldata.tstart = 0.0f;
-	mbcyldata.tend =  1.0f;
-	// Call mb_callback  for cylindres and cone a first time to initialise
-	// values set by the call back function
-	mb_callback(0.0, 0.0, 0);
+	// Compute parameters for piston movement
+	// The velocity will be c/(cosh(a*t+b)^2), so keep it simple
+	// and have only a, b, c as calss variables.
+	const double amplitude = 0.2;
+	const double Hoh = amplitude/H;
+	const double kappa = sqrt(3*Hoh)/(2.0*H);
+	const double cel = sqrt(g*(H + amplitude));
+	const double S = sqrt(16.0*amplitude*H/3.0);
+	const double tau = 2.0*(3.8 + Hoh)/(kappa*cel);
+	piston_tend = tau;
+	piston_tstart = 0.2;
+	piston_initial_crotx = r0;
+	a = 2.0*(3.8 + Hoh)/tau;
+	b = 2.0*((3.8 + Hoh)*(-piston_tstart/tau - 0.5) - 2.0*Hoh*(piston_initial_crotx/S - 0.5));
+	c = (3.8 + Hoh)*S/tau;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
@@ -154,51 +136,53 @@ void SolitaryWave::release_memory(void)
 {
 	parts.clear();
 	boundary_parts.clear();
-	gate_parts.clear();
-	piston_parts.clear();
 }
 
 
-MbCallBack& SolitaryWave::mb_callback(const double t, const float dt, const int i)
+void
+SolitaryWave::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
-	switch (i) {
-		// Piston
-		case 0:
-			{
-			MbCallBack& mbpistondata = m_mbcallbackdata[0];
-			mbpistondata.type = PISTONPART;
-			const float posx = mbpistondata.origin.x;
-			if (t >= mbpistondata.tstart && t < mbpistondata.tend) {
-				float arg = 2.0*((3.8 + m_Hoh)*((t - mbpistondata.tstart)/m_tau - 0.5)
-							- 2.0*m_Hoh*((posx/m_S) - 0.5));
-				mbpistondata.disp.x = m_S*(1.0 + tanh(arg))/2.0;
-				mbpistondata.vel.x = (3.8 + m_Hoh)*m_S/(m_tau*cosh(arg)*cosh(arg));
-			}
-			else {
-				mbpistondata.vel.x = 0;
-				}
-			}
-			break;
+	dx = make_double3(0.0);
+	if (object == &piston) {
+		const double ti = min(piston_tend, max(piston_tstart, t0));
+		const double tf = min(piston_tend, max(piston_tstart, t1));
 
-		// Cylinders and cone
-		case 1:
-			{
-			MbCallBack& mbcyldata = m_mbcallbackdata[1];
-			if (t >= mbcyldata.tstart && t < mbcyldata.tend) {
-				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.5f);
-				mbcyldata.disp += mbcyldata.vel*dt;
-				}
-			else
-				mbcyldata.vel = make_float3(0.0f, 0.0f, 0.0f);
-			break;
-			}
-
-		default:
-			throw runtime_error("Incorrect moving boundary object number");
-			break;
+		if (t1 >= piston_tstart && t1 <= piston_tend) {
+			kdata.lvel.x = c/(cosh(a*t1 + b)*cosh(a*t1 + b));
+			if (tf != ti)
+				dx.x = c/a*(tanh(a*tf+b) - tanh(a*ti + b));
+			kdata.crot.x += dx.x;
 		}
+		else
+			kdata.lvel.x = 0.0f;
+	}
+	else {
+		const double tstart = 0.0;
+		const double tend = 1.0;
+		const double velz = 0.5;
 
-	return m_mbcallbackdata[i];
+		const double ti = min(tend, max(tstart, t0));
+		const double tf = min(tend, max(tstart, t1));
+
+		// Setting postion of center of rotation
+		if (t1 >= tstart && t1 <= tend) {
+			kdata.crot.z = initial_kdata.crot.z + velz*(t1 - tstart);
+			// Setting linear velocity
+			kdata.lvel.z = velz;
+		}
+		else
+			kdata.lvel.z = 0.0f;
+		// Computing the displacement of center of rotation between t = t0 and t = t1
+		dx.z = (tf - ti)*velz;
+	}
+
+	// Setting angular velocity at t = t1 and the rotation between t = t0 and t = 1.
+	// Here we have a simple translation movement so the angular velocity is null and
+	// the rotation between t0 and t1 equal to identity.
+	kdata.avel = make_double3(0.0f);
+	dr.Identity();
 }
 
 
@@ -213,14 +197,11 @@ int SolitaryWave::fill_parts()
 
 	boundary_parts.reserve(100);
 	parts.reserve(34000);
-	gate_parts.reserve(2000);
-	piston_parts.reserve(500);
 
-	MbCallBack& mbpistondata = m_mbcallbackdata[0];
-	Rect piston = Rect(Point(mbpistondata.origin),
-						Vector(0, width, 0), Vector(0, 0, height));
+	piston = Rect(Point(piston_initial_crotx, 0, 0), Vector(0, width, 0), Vector(0, 0, height));
 	piston.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	piston.Fill(piston_parts, br, true);
+	piston.Fill(piston.GetParts(), br, true);
+	add_moving_body(&piston, MB_MOVING);
 
 	if (i_use_bottom_plane == 0) {
 	   experiment_box1 = Rect(Point(h_length, 0, 0), Vector(0, width, 0),
@@ -231,54 +212,35 @@ int SolitaryWave::fill_parts()
 	   }
 
 	if (icyl == 1) {
-		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
-		Point p2 = Point(h_length + slope_length/(cos(beta)*10), width/6,  -height);
-		Point p3 = Point(h_length + slope_length/(cos(beta)*10), 5*width/6, -height);
-		Point p4 = Point(h_length + slope_length/(cos(beta)*5), 0, -height);
-		Point p5 = Point(h_length + slope_length/(cos(beta)*5),  width/3, -height);
-		Point p6 = Point(h_length + slope_length/(cos(beta)*5), 2*width/3, -height);
-		Point p7 = Point(h_length + slope_length/(cos(beta)*5),  width, -height);
-		Point p8 = Point(h_length + 3*slope_length/(cos(beta)*10),  width/6, -height);
-		Point p9 = Point(h_length + 3*slope_length/(cos(beta)*10),  width/2, -height);
-		Point p10 = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6, -height);
-		Point p11 = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2, -height*.75);
+		Point p[10];
+		p[0] = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
+		p[1] = Point(h_length + slope_length/(cos(beta)*10), width/6,  -height);
+		p[2] = Point(h_length + slope_length/(cos(beta)*10), 5*width/6, -height);
+		p[3] = Point(h_length + slope_length/(cos(beta)*5), 0, -height);
+		p[4] = Point(h_length + slope_length/(cos(beta)*5),  width/3, -height);
+		p[5] = Point(h_length + slope_length/(cos(beta)*5), 2*width/3, -height);
+		p[6] = Point(h_length + slope_length/(cos(beta)*5),  width, -height);
+		p[7] = Point(h_length + 3*slope_length/(cos(beta)*10),  width/6, -height);
+		p[8] = Point(h_length + 3*slope_length/(cos(beta)*10),  width/2, -height);
+		p[9] = Point(h_length+ 3*slope_length/(cos(beta)*10), 5*width/6, -height);
+		//p[]  = Point(h_length+ 4*slope_length/(cos(beta)*10), width/2, -height*.75);
 
-	    cyl1 = Cylinder(p1,Vector(.05, 0, 0),Vector(0,0,height));
-	    cyl1.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	    cyl1.FillBorder(gate_parts, br, true, true);
-		cyl2 = Cylinder(p2,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl2.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl2.FillBorder(gate_parts, br, false, false);
-		cyl3 = Cylinder(p3,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl3.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl3.FillBorder(gate_parts, br, false, false);
-		cyl4 = Cylinder(p4,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl4.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl4.FillBorder(gate_parts, br, false, false);
-		cyl5  = Cylinder(p5,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl5.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl5.FillBorder(gate_parts, br, false, false);
-		cyl6 = Cylinder(p6,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl6.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl6.FillBorder(gate_parts, br, false, false);
-		cyl7 = Cylinder(p7,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl7.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl7.FillBorder(gate_parts, br, false, false);
-		cyl8 = Cylinder(p8,Vector(.025,0,0),Vector(0,0,height));
-		cyl8.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl8.FillBorder(gate_parts, br, false, false);
-		cyl9 = Cylinder(p9,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl9.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl9.FillBorder(gate_parts, br, false, false);
-		cyl10 = Cylinder(p10,Vector(.025, 0, 0),Vector(0,0,height));
-		cyl10.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cyl10.FillBorder(gate_parts, br, false, false);
+		for (int i = 0; i < 10; i++) {
+			double radius = 0.025;
+			if (i == 0)
+				radius = 0.05;
+			cyl[i] = Cylinder(p[i], radius, height);
+		    cyl[i].SetPartMass(m_deltap, m_physparams.rho0[0]);
+		    cyl[i].FillBorder(cyl[i].GetParts(), br, false, false);
+			add_moving_body(&(cyl[i]), MB_MOVING);
+		}
 	}
 	if (icone == 1) {
 		Point p1 = Point(h_length + slope_length/(cos(beta)*10), width/2, -height);
-		cone = Cone(p1,Vector(width/4,0.0,0.0), Vector(width/10,0.,0.), Vector(0,0,height));
+		cone = Cone(p1, width/4, width/10, height);
 		cone.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		cone.FillBorder(gate_parts, br, false, true);
+		cone.FillBorder(cone.GetParts(), br, false, true);
+		add_moving_body(&cone, MB_MOVING);
     }
 
 	Rect fluid;
@@ -286,7 +248,7 @@ int SolitaryWave::fill_parts()
 	int n = 0;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
-		float x = mbpistondata.origin.x + r0;
+		float x = piston_initial_crotx + r0;
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  r0, z),
 				Vector(0, width-2.0*r0, 0), Vector(l, 0, 0));
@@ -295,7 +257,7 @@ int SolitaryWave::fill_parts()
 		n++;
 	 }
 
-    return parts.size() + boundary_parts.size() + gate_parts.size() + piston_parts.size();
+    return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
 
@@ -345,38 +307,48 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 		std::cout << "      "<< 0  <<"--"<< boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "\nPiston parts: " << piston_parts.size() << "\n";
-	std::cout << "     " << j << "--" << j + piston_parts.size() << "\n";
-	for (uint i = j; i < j + piston_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(PISTONPART, 0, i);
-		calc_localpos_and_hash(piston_parts[i - j], info[i], pos[i], hash[i]);
-	}
-	j += piston_parts.size();
-	std::cout << "Piston part mass:" << pos[j-1].w << "\n";
-
-	std::cout << "\nGate parts: " << gate_parts.size() << "\n";
-	std::cout << "       " << j << "--" << j+gate_parts.size() <<"\n";
-	for (uint i = j; i < j + gate_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(GATEPART, 1, i);
-		calc_localpos_and_hash(gate_parts[i - j], info[i], pos[i], hash[i]);
-	}
-	j += gate_parts.size();
-	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
-
+	for (uint k = 0; k < m_bodies.size(); k++) {
+			PointVect & rbparts = m_bodies[k]->object->GetParts();
+			std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+			for (uint i = 0; i < rbparts.size(); i++) {
+				uint ij = i + j;
+				float ht = H - rbparts[i](2);
+				if (ht < 0)
+					ht = 0.0;
+				float rho = density(ht, 0);
+				rho = m_physparams.rho0[0];
+				vel[ij] = make_float4(0, 0, 0, rho);
+				uint ptype = (uint) PT_BOUNDARY;
+				switch (m_bodies[k]->type) {
+					case MB_ODE:
+						ptype |= FG_FLOATING;
+						break;
+					case MB_FORCES_MOVING:
+						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+						break;
+					case MB_MOVING:
+						ptype |= FG_MOVING_BOUNDARY;
+						break;
+				}
+				info[ij] = make_particleinfo(ptype, k, i );
+				calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
+			}
+			j += rbparts.size();
+			std::cout << ", part mass: " << pos[j-1].w << "\n";
+			std::cout << ", part type: " << type(info[j-1])<< "\n";
+		}
 
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-	    info[i]= make_particleinfo(FLUIDPART,0,i);
+	    info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(parts[i - j], info[i], pos[i], hash[i]);
 		// initializing density
 		//       float rho = m_physparams.rho0*pow(1.+g*(H-pos[i].z)/m_physparams.bcoeff,1/m_physparams.gammacoeff);

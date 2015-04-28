@@ -52,13 +52,6 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
-void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
-setmbdata(const float4* MbData, uint size)
-{
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_mbdata, MbData, size));
-}
 
 template<BoundaryType boundarytype, bool xsphcorr>
 void
@@ -82,7 +75,6 @@ CUDAPredCorrEngine<boundarytype, xsphcorr>::
 setrblinearvel(const float3* linearvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rblinearvel, linearvel, numbodies*sizeof(float3)));
-	//printf("Upload linear vel: %e %e %e\n", linearvel[0].x, linearvel[0].y, linearvel[0].z);
 }
 
 template<BoundaryType boundarytype, bool xsphcorr>
@@ -91,7 +83,6 @@ CUDAPredCorrEngine<boundarytype, xsphcorr>::
 setrbangularvel(const float3* angularvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbangularvel, angularvel, numbodies*sizeof(float3)));
-	//printf("Upload angular vel: %e %e %e\n", angularvel[0].x, angularvel[0].y, angularvel[0].z);
 }
 
 template<BoundaryType boundarytype, bool xsphcorr>

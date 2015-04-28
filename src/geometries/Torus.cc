@@ -15,6 +15,7 @@ Torus::Torus()
 {
 	m_R = 0.0;
 	m_r = 0.0;
+	m_ep = EulerParameters();
 }
 
 
@@ -33,12 +34,6 @@ Torus::Torus(const Point& center, const Vector& axis, const double R, const doub
 		rotdir = Vector(0, 1, 0);
 	m_ep = EulerParameters(rotdir, angle);
 	m_ep.ComputeRot();
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-
-	dQtoR(q, m_ODERot);
 }
 
 
@@ -50,12 +45,6 @@ Torus::Torus(const Point& center, const double R, const double r, const EulerPar
 
 	m_ep = ep;
 	m_ep.ComputeRot();
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-
-	dQtoR(q, m_ODERot);
 }
 
 
@@ -157,5 +146,7 @@ Torus::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 		m_inertia[0], m_inertia[1], m_inertia[2], 0.0, 0.0, 0.0);
 	dBodySetMass(m_ODEBody, &m_ODEMass);
 	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dBodySetRotation(m_ODEBody, m_ODERot);
+	dQuaternion q;
+	m_ep.ToODEQuaternion(q);
+	dBodySetQuaternion(m_ODEBody, q);
 }

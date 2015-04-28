@@ -42,15 +42,16 @@ public:
 	virtual void getconstants() = 0 ; // TODO
 
 	virtual void
-	process(float2	*tau[],
-	const	float4	*pos,
-	const	float4	*vel,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
+	process(		float2	*tau[],
+					float	*turbvisc,
+			const	float4	*pos,
+			const	float4	*vel,
+			const	particleinfo	*info,
+			const	hashKey	*particleHash,
+			const	uint	*cellStart,
+			const	neibdata*neibsList,
+					uint	numParticles,
+					uint	particleRangeEnd,
 			float	slength,
 			float	influenceradius) = 0;
 

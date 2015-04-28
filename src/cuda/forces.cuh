@@ -202,17 +202,18 @@ template<ViscosityType visctype,
 struct CUDAViscEngineHelper
 {
 	static void
-	process(float2	*tau[],
-	const	float4	*pos,
-	const	float4	*vel,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-			float	influenceradius);
+	process(		float2	*tau[],
+					float	*turbvisc,
+			const	float4	*pos,
+			const	float4	*vel,
+			const	particleinfo	*info,
+			const	hashKey	*particleHash,
+			const	uint	*cellStart,
+			const	neibdata*neibsList,
+					uint	numParticles,
+					uint	particleRangeEnd,
+					float	slength,
+					float	influenceradius);
 };
 
 template<ViscosityType visctype,
@@ -225,20 +226,21 @@ class CUDAViscEngine : public AbstractViscEngine
 	void getconstants() {}
 
 	void
-	process(float2	*tau[],
-	const	float4	*pos,
-	const	float4	*vel,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-			float	influenceradius)
+	process(		float2	*tau[],
+					float	*turbvisc,
+			const	float4	*pos,
+			const	float4	*vel,
+			const	particleinfo	*info,
+			const	hashKey	*particleHash,
+			const	uint	*cellStart,
+			const	neibdata*neibsList,
+					uint	numParticles,
+					uint	particleRangeEnd,
+					float	slength,
+					float	influenceradius)
 	{
 		CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process
-		(tau, pos, vel, info, particleHash, cellStart, neibsList, numParticles,
+		(tau, turbvisc, pos, vel, info, particleHash, cellStart, neibsList, numParticles,
 		 particleRangeEnd, slength, influenceradius);
 	}
 

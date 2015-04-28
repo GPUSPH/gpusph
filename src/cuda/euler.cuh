@@ -40,8 +40,6 @@ class CUDAPredCorrEngine : public AbstractIntegrationEngine
 	void
 	getconstants(PhysParams *physparams);
 
-	void
-	setmbdata(const float4* MbData, uint size);
 
 	void
 	setrbcg(const float3* cg, int numbodies);

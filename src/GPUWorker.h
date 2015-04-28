@@ -136,14 +136,11 @@ private:
 	uint*		m_dCellEnd;				// index of cell end in sorted order
 
 	// GPU arrays for rigid bodies (CPU ones are in GlobalData)
-	uint		m_numBodiesParticles;	// Total number of particles belonging to rigid bodies
-	float4*		m_dRbForces;			// Forces on particles belonging to rigid bodies
-	float4*		m_dRbTorques;			// Torques on particles belonging to rigid bodies
-	uint*		m_dRbNum;				// Key used in segmented scan
+	uint		m_numForcesBodiesParticles;		// Total number of particles belonging to rigid bodies on which we compute forces
+	float4*		m_dRbForces;					// Forces on particles belonging to rigid bodies
+	float4*		m_dRbTorques;					// Torques on particles belonging to rigid bodies
+	uint*		m_dRbNum;						// Key used in segmented scan
 
-	// CPU/GPU data for moving boundaries
-	uint		m_mbDataSize;			// size (in bytes) of m_dMbData array
-	float4*		m_dMbData;				// device side moving boundary data
 
 	// CPU/GPU buffers for the compact device map (2 bits per cell)
 	uint*		m_hCompactDeviceMap;
@@ -218,7 +215,6 @@ private:
 	void downloadNewNumParticles();
 
 	// moving boundaries, gravity, planes
-	void uploadMBData();
 	void uploadGravity();
 	void uploadPlanes();
 
@@ -227,7 +223,8 @@ private:
 	void uploadConstants();
 
 	// bodies
-	void uploadBodiesCentersOfGravity();
+	void uploadForcesBodiesCentersOfGravity();
+	void uploadEulerBodiesCentersOfGravity();
 	void uploadBodiesTransRotMatrices();
 	void uploadBodiesVelocities();
 

@@ -625,6 +625,7 @@ template<ViscosityType visctype,
 void
 CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process(
 			float2	*tau[],
+			float	*turbvisc,
 	const	float4	*pos,
 	const	float4	*vel,
 	const	particleinfo	*info,
@@ -646,17 +647,18 @@ template<KernelType kerneltype,
 struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 {
 	static void
-	process(float2	*tau[],
-	const	float4	*pos,
-	const	float4	*vel,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
-	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	particleRangeEnd,
-			float	slength,
-			float	influenceradius)
+	process(		float2	*tau[],
+					float	*turbvisc,
+			const	float4	*pos,
+			const	float4	*vel,
+			const	particleinfo	*info,
+			const	hashKey	*particleHash,
+			const	uint	*cellStart,
+			const	neibdata*neibsList,
+					uint	numParticles,
+					uint	particleRangeEnd,
+					float	slength,
+					float	influenceradius)
 {
 	int dummy_shared = 0;
 	// bind textures to read all particles, not only internal ones
@@ -673,9 +675,12 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 	dummy_shared = 2560;
 	#endif
 
-	cuforces::SPSstressMatrixDevice<kerneltype, boundarytype == DYN_BOUNDARY>
-		<<<numBlocks, numThreads, dummy_shared>>>
-		(pos, tau[0], tau[1], tau[2], particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
+	sps_params<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)> params(
+			pos, particleHash, cellStart, neibsList, numParticles, slength, influenceradius,
+			tau[0], tau[1], tau[2], turbvisc);
+
+	cuforces::SPSstressMatrixDevice<kerneltype, boundarytype, (SPSK_STORE_TAU | SPSK_STORE_TURBVISC)>
+		<<<numBlocks, numThreads, dummy_shared>>>(params);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("SPS kernel execution failed");
@@ -735,7 +740,7 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 	dummy_shared = 2560;
 	#endif
 
-	cuforces::shepardDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cuforces::shepardDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
 		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 
 	// check if kernel invocation generated an error
@@ -781,7 +786,7 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 	dummy_shared = 2560;
 	#endif
 
-	cuforces::MlsDevice<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
+	cuforces::MlsDevice<kerneltype, boundarytype><<< numBlocks, numThreads, dummy_shared >>>
 		(pos, newVel, particleHash, cellStart, neibsList, particleRangeEnd, slength, influenceradius);
 
 	// check if kernel invocation generated an error

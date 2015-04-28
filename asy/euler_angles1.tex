@@ -1,0 +1,45 @@
+\documentclass{article}
+\usepackage[paperheight=8cm,paperwidth=9cm,margin=0cm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{asymptote}
+\begin{document}
+\begin{asy}
+import graph3;
+import math;
+
+size(8cm,8cm);
+
+currentprojection=perspective(4,2,2);
+
+triple Zaxe=(0,0,1);
+triple Xaxe=(1,0,0);
+triple Yaxe=(0,1,0);
+path3 vX = O--Xaxe;
+path3 vY = O--Yaxe;
+path3 vZ = O--Zaxe;
+transform3 rZ=rotate(30,Zaxe);
+transform3 rX1=rotate(30,rZ*Xaxe);
+transform3 rZp=rotate(20, rX1*Zaxe);
+
+limits(O, X+Y+Z);
+
+xaxis3(scale(1.2)*Label("$X$",1), 1.5bp+heavyred ,arrow=Arrow3(8));
+yaxis3(scale(1.2)*Label("$Y$",1), 1.5bp+deepblue,arrow=Arrow3(8));
+zaxis3(scale(1.2)*Label("$Z$",1), 1.5bp+deepgreen,arrow=Arrow3(8));
+
+draw(scale(1.2)*"$\Phi$", arc(0.7*Z,0.25,90,70,90,45), arrow=ArcArrow3);
+draw(scale(1.2)*Label("$X_1$",1),rZ*vX, arrow=Arrow3);
+draw(scale(1.2)*Label("$Y_1$",1),rZ*vY, arrow=Arrow3);
+
+draw(rZ*rotate(90,Yaxe)*arc(0.55*Z,0.17,90,70,90,45),  arrow=ArcArrow3);
+label("$\Theta$", rZ*(0.7, 0, 0), NE);
+draw(scale(1.2)*Label("$Z'$",1), rX1*vZ, 1.5bp+deepgreen+dashed, arrow = Arrow3(8));
+draw(scale(1.2)*Label("$Y_2$",1),rX1*rZ*vY, arrow=Arrow3);
+
+draw( rX1*arc(0.6*Z,0.25,90,60,90,35), arrow=ArcArrow3);
+label("$\Psi$", rX1*(0, 0, 0.8), SW);
+draw(scale(1.2)*Label("$X'$",1), rZp*rZ*vX, 1.5bp+heavyred+dashed, arrow = Arrow3(8));
+draw(scale(1.2)*Label("$Y'$",1), rZp*rZ*vY, 1.5bp+deepblue+dashed, arrow = Arrow3(8));
+\end{asy}
+\end{document}

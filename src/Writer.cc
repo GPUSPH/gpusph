@@ -280,7 +280,7 @@ Writer::WriteWaveGage(double t, GageList const& gage)
 }
 
 void
-Writer::WriteObjects(double t, Object const* const* bodies)
+Writer::WriteObjects(double t)
 {
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
@@ -295,13 +295,13 @@ Writer::WriteObjects(double t, Object const* const* bodies)
 
 		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced) {
-			writer->write_objects(t, bodies);
+			writer->write_objects(t);
 			written = true;
 		}
 	}
 
 	if (common_special && written)
-		m_writers[COMMONWRITER]->write_objects(t, bodies);
+		m_writers[COMMONWRITER]->write_objects(t);
 }
 
 void

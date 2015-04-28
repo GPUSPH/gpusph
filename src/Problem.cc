@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -42,28 +45,422 @@
 // COORD1, COORD2, COORD3
 #include "linearization.h"
 
-uint Problem::m_total_ODE_bodies = 0;
+using namespace std;
 
 Problem::Problem(const GlobalData *_gdata)
 {
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_simframework = NULL;
-	m_mbnumber = 0;
-	memset(m_mbcallbackdata, 0, MAXMOVINGBOUND*sizeof(float4));
-	m_ODE_bodies = NULL;
 	m_problem_dir = m_options->dir;
-	for (uint i=0; i<MAXBODIES; i++)
-		m_ODEobjectId[i] = UINT_MAX;
+	m_bodies_storage = NULL;
 	m_firstODEobjectPartId = 0;
 }
 
 
 Problem::~Problem(void)
 {
-	if (m_ODE_bodies)
-		delete [] m_ODE_bodies;
+	if (m_simparams.numbodies) {
+		delete [] m_bodies_storage;
+	}
+
 }
+
+
+void
+Problem::allocate_bodies_storage()
+{
+	const uint nbodies = m_simparams.numbodies;
+
+	if (nbodies) {
+		// TODO: this should depend on the integration scheme
+		m_bodies_storage = new KinematicData[nbodies];
+	}
+}
+
+void
+Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
+{
+	// Moving bodies are put at the end of the bodies vector,
+	// ODE bodies and moving bodies for which we want a force feedback
+	// aare put at the beginning of the bodies vector.
+	// The reason behind this ordering is the way the forces on bodies
+	// are reduced by a parallel prefix sum: all the bodies that require
+	// force computing must have consecutive ids.
+	const uint index = m_bodies.size();
+	if (index >= MAXBODIES)
+		throw runtime_error ("Number of moving bodies superior to MAXBODIES. Increase MAXBODIES\n");
+	MovingBodyData *mbdata = new MovingBodyData;
+	mbdata->index = index;
+	mbdata->type = mbtype;
+	mbdata->object = object;
+	mbdata->kdata.crot = object->GetCenterOfGravity();
+	mbdata->kdata.lvel = make_double3(0.0f);
+	mbdata->kdata.avel = make_double3(0.0f);
+	mbdata->kdata.orientation = object->GetOrientation();
+	switch (mbdata->type) {
+		case MB_ODE : {
+			const dBodyID bodyid = object->m_ODEBody;
+			mbdata->kdata.crot = make_double3(dBodyGetPosition(bodyid));
+			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
+			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
+			m_bodies.insert(m_bodies.begin() + m_simparams.numODEbodies, mbdata);
+			m_simparams.numODEbodies++;
+			m_simparams.numforcesbodies++;
+			break;
+		}
+
+		case MB_FORCES_MOVING:
+			m_bodies.insert(m_bodies.begin() + m_simparams.numODEbodies + m_simparams.numforcesbodies, mbdata);
+			m_simparams.numforcesbodies++;
+			m_simparams.nummovingbodies++;
+			break;
+
+		case MB_MOVING:
+			m_bodies.insert(m_bodies.begin() + m_simparams.numbodies, mbdata);
+			m_simparams.nummovingbodies++;
+			break;
+	}
+
+	mbdata->initial_kdata = mbdata->kdata;
+
+	m_simparams.numbodies = m_bodies.size();
+}
+
+
+MovingBodyData *
+Problem::get_mbdata(const uint index)
+{
+	if (index >= m_bodies.size()) {
+		stringstream ss;
+		ss << "get_body: body number " << index << " >= numbodies";
+		throw runtime_error(ss.str());
+	}
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+		if ((*it)->index == index)
+			return *it;
+	}
+	return NULL;
+}
+
+
+MovingBodyData *
+Problem::get_mbdata(const Object* object)
+{
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+		if ((*it)->object == object)
+			return *it;
+	}
+	throw runtime_error("get_body: invalid object\n");
+	return NULL;
+}
+
+size_t
+Problem::get_bodies_numparts(void)
+{
+	size_t total_parts = 0;
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+		total_parts += (*it)->object->GetNumParts();
+	}
+
+	return total_parts;
+}
+
+
+size_t
+Problem::get_forces_bodies_numparts(void)
+{
+	size_t total_parts = 0;
+	for (vector<MovingBodyData *>::iterator it = m_bodies.begin() ; it != m_bodies.end(); ++it) {
+		if ((*it)->type == MB_ODE || (*it)->type == MB_FORCES_MOVING)
+			total_parts += (*it)->object->GetNumParts();
+	}
+	return total_parts;
+}
+
+
+size_t
+Problem::get_body_numparts(const int index)
+{
+	return get_mbdata(index)->object->GetNumParts();
+}
+
+
+size_t
+Problem::get_body_numparts(const Object* object)
+{
+	return get_mbdata(object)->object->GetNumParts();
+}
+
+/*void
+Problem::restore_ODE_body(const uint i, const float *gravity_center, const float *quaternion,
+	const float *linvel, const float *angvel)
+{
+	Object *obj = m_ODE_bodies[i];
+	dBodyID odeid = obj->m_ODEBody;
+
+	// re-set the position, rotation and velocities in ODE
+	dBodySetAngularVel(odeid, angvel[0], angvel[1], angvel[2]);
+	dBodySetLinearVel(odeid, linvel[0], linvel[1], linvel[2]);
+	dBodySetPosition(odeid, gravity_center[0], gravity_center[1], gravity_center[2]);
+
+	dBodySetQuaternion(odeid, quaternion);
+
+	// After setting the quaternion, ODE does a forced renormalization
+	// that will slightly change the value of the quaternion (except in some
+	// trivial cases). While the final result is within machine precision to
+	// the set value, the (small) difference will propagate through the
+	// simulation, resulting in differences. The following code can be used to
+	// check the amount of absolute and relative error in the set quaternion:
+#if 0
+	dQuaternion rec;
+	dQuaternion abs_err, rel_err;
+	dBodyCopyQuaternion(odeid, rec);
+	for (int i = 0; i < 4; ++i) {
+		abs_err[i] = fabs(rec[i] - quaternion[i]);
+		float normfactor = fabs(rec[i]+quaternion[i])/2;
+		rel_err[i] = normfactor == 0 ? abs_err[i] : abs_err[i]/normfactor;
+	}
+
+	printf("object %u quaternion: recovered (%g, %g, %g, %g), was (%g, %g, %g, %g),\n"
+		"\tdelta (%g, %g, %g, %g), rel err (%g, %g, %g, %g)\n",
+		i, rec[0], rec[1], rec[2], rec[3],
+		quaternion[0], quaternion[1], quaternion[2], quaternion[3],
+		abs_err[0], abs_err[1], abs_err[2], abs_err[3],
+		rel_err[0], rel_err[1], rel_err[2], rel_err[3]);
+#endif
+}*/
+
+
+
+void
+Problem::get_bodies_cg(void)
+{
+	for (uint i = 0; i < m_simparams.numbodies; i++) {
+		gdata->s_hRbGravityCenters[i] = make_float3(m_bodies[i]->kdata.crot);
+	}
+}
+
+
+void
+Problem::set_body_cg(const double3 crot, MovingBodyData* mbdata) {
+	mbdata->kdata.crot = crot;
+
+}
+
+
+void
+Problem::set_body_cg(const uint index, const double3 crot) {
+	set_body_cg(crot, get_mbdata(index));
+}
+
+
+void
+Problem::set_body_cg(const Object *object, const double3 crot) {
+	set_body_cg(crot, get_mbdata(object));
+}
+
+
+void
+Problem::set_body_linearvel(const double3 lvel, MovingBodyData* mbdata) {
+	mbdata->kdata.lvel = lvel;
+
+}
+
+
+void
+Problem::set_body_linearvel(const uint index, const double3 lvel) {
+	set_body_linearvel(lvel, get_mbdata(index));
+}
+
+
+void
+Problem::set_body_linearvel(const Object *object, const double3 lvel)
+{
+	set_body_linearvel(lvel, get_mbdata(object));
+}
+
+
+void
+Problem::set_body_angularvel(const double3 avel, MovingBodyData* mbdata) {
+	mbdata->kdata.avel = avel;
+
+}
+
+void
+Problem::set_body_angularvel(const uint index, const double3 avel) {
+	set_body_angularvel(avel, get_mbdata(index));
+}
+
+
+void
+Problem::set_body_angularvel(const Object *object, const double3 avel)
+{
+	set_body_angularvel(avel, get_mbdata(object));
+}
+
+
+void
+Problem::object_forces_callback(const double t, float3 *forces, float3 *torques)
+{ /* default does nothing */ }
+
+
+void
+Problem::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+		const float3& force, const float3& torque, const KinematicData& initial_kdata,
+		KinematicData& kdata, double3& dx, EulerParameters& dr)
+{ /* default does nothing */ }
+
+// input: force, torque, step number, dt
+// output: cg, trans, steprot (can be input uninitialized)
+void
+Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int step,
+		const double dt, const double t, float3 * & cg, float3 * & trans, float * & steprot,
+		float3 * & linearvel, float3 * & angularvel)
+{
+	// Compute time step and time according to the integration scheme
+	// TODO: must be done according to the integration scheme
+	double dt1 = dt;
+	double dt2 = dt;
+	if (step == 1)
+		dt1 /= 2.0;
+	double t0 = t;
+	double t1 = t + dt/2.;
+	if (step == 2) {
+		t1 = t + dt;
+	}
+
+	//#define _DEBUG_OBJ_FORCES_
+	bool ode_bodies = false;
+	// For ODE bodies apply forces and torques
+	for (int i = 0; i < m_bodies.size(); i++) {
+		// Shortcut to body data
+		MovingBodyData* mbdata = m_bodies[i];
+		// Store kinematic data at the beginning of the time step
+		if (step == 1)
+			m_bodies_storage[i] = mbdata->kdata;
+		// Restore kinematic data from the value stored at the beginning of the time step
+		if (step == 2)
+			mbdata->kdata = m_bodies_storage[i];
+
+		if (mbdata->type == MB_ODE) {
+			ode_bodies = true;
+			const dBodyID bodyid = mbdata->object->m_ODEBody;
+			// For step 2 restore cg, lvel and avel to the value at the beginning of
+			// the timestep
+			if (step == 2) {
+				dBodySetPosition(bodyid, (dReal) mbdata->kdata.crot.x, (dReal) mbdata->kdata.crot.y,
+								(dReal) mbdata->kdata.crot.z);
+				dBodySetLinearVel(bodyid, (dReal) mbdata->kdata.lvel.x, (dReal) mbdata->kdata.lvel.y,
+								(dReal) mbdata->kdata.lvel.z);
+				dBodySetAngularVel(bodyid, (dReal) mbdata->kdata.avel.x, (dReal) mbdata->kdata.avel.y,
+								(dReal) mbdata->kdata.avel.z);
+				dQuaternion quat;
+				mbdata->kdata.orientation.ToODEQuaternion(quat);
+				dBodySetQuaternion(bodyid, quat);
+			}
+			dBodyAddForce(bodyid, forces[i].x, forces[i].y, forces[i].z);
+			dBodyAddTorque(bodyid, torques[i].x, torques[i].y, torques[i].z);
+
+			#ifdef _DEBUG_OBJ_FORCES_
+			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+			//mbdata->object->ODEPrintInformation(false);
+			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
+			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
+			#endif
+		}
+	}
+
+	// Call ODE solver for ODE bodies
+	if (ode_bodies) {
+		dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
+		dWorldStep(m_ODEWorld, dt1);
+			if (m_ODEJointGroup)
+		dJointGroupEmpty(m_ODEJointGroup);
+	}
+
+	// Walk trough all moving bodies :
+	// updates bodies center of rotation, linear and angular velocity and orientation
+	for (int i = 0; i < m_bodies.size(); i++) {
+		// Shortcut to MovingBodyData
+		MovingBodyData* mbdata = m_bodies[i];
+		// New center of rotation, linear and angular velocity and orientation
+		double3 new_trans = make_double3(0.0);
+		EulerParameters new_orientation, dr;
+		// In case of an ODE body, new center of rotation position, linear and angular velocity
+		// and new orientation have been computed by ODE
+		if (mbdata->type == MB_ODE) {
+			const dBodyID bodyid = mbdata->object->m_ODEBody;
+			const double3 new_crot = make_double3(dBodyGetPosition(bodyid));
+			new_trans = new_crot - mbdata->kdata.crot;
+			mbdata->kdata.crot = new_crot;
+			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
+			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
+			const EulerParameters new_orientation = EulerParameters(dBodyGetQuaternion(bodyid));
+			dr = new_orientation*mbdata->kdata.orientation.Inverse();
+			mbdata->kdata.orientation = new_orientation;
+		}
+		// Otherwise the user is providing linear and angular velocity trough a call back
+		// function
+		else {
+			const uint index = mbdata->index;
+			// Get linear and angular velocities at t + dt/2.O for step 1 or t + dt for step 2
+			float3 force = make_float3(0.0f);
+			float3 torque = make_float3(0.0f);
+			if (mbdata->type == MB_FORCES_MOVING) {
+				force = forces[i];
+				torque = torques[i];
+			}
+
+			moving_bodies_callback(index, mbdata->object, t0, t1, force, torque, mbdata->initial_kdata,
+					mbdata->kdata, new_trans, dr);
+		}
+
+		trans[i] = make_float3(new_trans);
+		cg[i] = make_float3(mbdata->kdata.crot);
+		linearvel[i] = make_float3(mbdata->kdata.lvel);
+		angularvel[i] = make_float3(mbdata->kdata.avel);
+
+		// Compute and relative rotation respect to the beginning of time step
+		float *base_addr = steprot + 9*i;
+		dr.ComputeRot();
+		dr.GetRotation(base_addr);
+
+		#ifdef _DEBUG_OBJ_FORCES_
+		if (i == 1 && m_bodies_trans[i].x != 0.0) {
+		cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+		mbdata->object->ODEPrintInformation(false);
+		printf("   lvel: %e\t%e\t%e\n", m_bodies_linearvel[i].x, m_bodies_linearvel[i].y, m_bodies_linearvel[i].z);
+		printf("   avel: %e\t%e\t%e\n", m_bodies_angularvel[i].x, m_bodies_angularvel[i].y, m_bodies_angularvel[i].z);
+		printf("   npos: %e\t%e\t%e\n", m_bodies_cg[i].x, m_bodies_cg[i].y, m_bodies_cg[i].z);
+		printf("   trans:%e\t%e\t%e\n", m_bodies_trans[i].x, m_bodies_trans[i].y, m_bodies_trans[i].z);
+		printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
+				mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
+		printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
+		printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
+		printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
+		printf("         %e\t%e\t%e\n\n", base_addr[6], base_addr[7], base_addr[8]);
+		}
+		#endif
+	}
+}
+
+
+// Number of planes
+uint
+Problem::fill_planes(void)
+{
+	return 0;
+}
+
+
+// Copy planes for upload
+void
+Problem::copy_planes(float4*, float*)
+{
+	return;
+}
+
 
 void
 Problem::check_dt(void)
@@ -272,33 +669,6 @@ Problem::finished(double t) const
 	double tend(m_simparams.tend);
 	return tend && (t > tend);
 }
-
-
-MbCallBack&
-Problem::mb_callback(const double t, const float dt, const int i)
-{
-	/* If this was not overridden, it's likely that the caller overridden the deprecated
-	 * float version, passthrough */
-	static bool reminder_shown = false;
-	if (!reminder_shown) {
-		fprintf(stderr, "WARNING: mb_callback(float, float, int) is deprecated, please switch to mb_callback(double, float, int)\n");
-		reminder_shown = true;
-	}
-	IGNORE_WARNINGS(deprecated-declarations)
-	return mb_callback(float(t), dt, i);
-	RESTORE_WARNINGS
-};
-
-MbCallBack&
-Problem::mb_callback(const float t, const float dt, const int i)
-{
-	static bool reminder_shown = false;
-	if (!reminder_shown) {
-		fprintf(stderr, "WARNING: gravity callback enabled but not overridden\n");
-		reminder_shown = true;
-	}
-	return m_mbcallbackdata[i];
-};
 
 
 float3
@@ -517,163 +887,6 @@ void Problem::fillDeviceMapByRegularGrid()
 	fillDeviceMapByAxesSplits(cutsX, cutsY, cutsZ);
 }
 
-void
-Problem::allocate_ODE_bodies(const uint i)
-{
-	m_simparams.numODEbodies = i;
-	m_ODE_bodies = new Object *[i];
-}
-
-
-Object*
-Problem::get_ODE_body(const uint i)
-{
-	if (i >= m_simparams.numODEbodies) {
-		stringstream ss;
-		ss << "get_ODE_body: body number " << i << " >= numbodies";
-		throw runtime_error(ss.str());
-	}
-	return m_ODE_bodies[i];
-}
-
-
-void
-Problem::add_ODE_body(Object* object)
-{
-	if (m_total_ODE_bodies >= m_simparams.numODEbodies) {
-		stringstream ss;
-		ss << "add_ODE_body: body number " << m_total_ODE_bodies << " >= numbodies";
-		throw runtime_error(ss.str());
-	}
-	m_ODE_bodies[m_total_ODE_bodies] = object;
-	m_total_ODE_bodies++;
-}
-
-
-size_t
-Problem::get_ODE_bodies_numparts(void) const
-{
-	size_t total_parts = 0;
-	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
-		total_parts += m_ODE_bodies[i]->GetNumParts();
-	}
-
-	return total_parts;
-}
-
-
-size_t
-Problem::get_ODE_body_numparts(const int i) const
-{
-	if (!m_simparams.numODEbodies)
-		return 0;
-
-	return m_ODE_bodies[i]->GetNumParts();
-}
-
-void
-Problem::restore_ODE_body(const uint i, const float *gravity_center, const float *quaternion,
-	const float *linvel, const float *angvel)
-{
-	Object *obj = m_ODE_bodies[i];
-	dBodyID odeid = obj->m_ODEBody;
-
-	// re-set the position, rotation and velocities in ODE
-	dBodySetAngularVel(odeid, angvel[0], angvel[1], angvel[2]);
-	dBodySetLinearVel(odeid, linvel[0], linvel[1], linvel[2]);
-	dBodySetPosition(odeid, gravity_center[0], gravity_center[1], gravity_center[2]);
-
-	dBodySetQuaternion(odeid, quaternion);
-
-	// After setting the quaternion, ODE does a forced renormalization
-	// that will slightly change the value of the quaternion (except in some
-	// trivial cases). While the final result is within machine precision to
-	// the set value, the (small) difference will propagate through the
-	// simulation, resulting in differences. The following code can be used to
-	// check the amount of absolute and relative error in the set quaternion:
-#if 0
-	dQuaternion rec;
-	dQuaternion abs_err, rel_err;
-	dBodyCopyQuaternion(odeid, rec);
-	for (int i = 0; i < 4; ++i) {
-		abs_err[i] = fabs(rec[i] - quaternion[i]);
-		float normfactor = fabs(rec[i]+quaternion[i])/2;
-		rel_err[i] = normfactor == 0 ? abs_err[i] : abs_err[i]/normfactor;
-	}
-
-	printf("object %u quaternion: recovered (%g, %g, %g, %g), was (%g, %g, %g, %g),\n"
-		"\tdelta (%g, %g, %g, %g), rel err (%g, %g, %g, %g)\n",
-		i, rec[0], rec[1], rec[2], rec[3],
-		quaternion[0], quaternion[1], quaternion[2], quaternion[3],
-		abs_err[0], abs_err[1], abs_err[2], abs_err[3],
-		rel_err[0], rel_err[1], rel_err[2], rel_err[3]);
-#endif
-}
-
-
-void
-Problem::get_ODE_bodies_data(float3 * & cg, float * & steprot, float3 * & linearvel, float3 * & angularvel)
-{
-	cg = get_ODE_bodies_cg();
-	steprot = get_ODE_bodies_steprot();
-	linearvel = get_ODE_bodies_linearvel();
-	angularvel = get_ODE_bodies_angularvel();
-}
-
-
-float3*
-Problem::get_ODE_bodies_cg(void)
-{
-	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
-		m_bodies_cg[i] = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
-	}
-
-	return m_bodies_cg;
-}
-
-dQuaternion*
-Problem::get_ODE_bodies_quaternion(void)
-{
-	for (uint i = 0; i < m_simparams.numODEbodies; i++) {
-		dBodyCopyQuaternion(m_ODE_bodies[i]->m_ODEBody, m_bodies_quaternion[i]);
-	}
-
-	return m_bodies_quaternion;
-}
-
-
-
-float3*
-Problem::get_ODE_bodies_linearvel(void)
-{
-	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
-		m_bodies_linearvel[i] = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
-	}
-
-	return m_bodies_linearvel;
-}
-
-
-float3*
-Problem::get_ODE_bodies_angularvel(void)
-{
-	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
-		m_bodies_angularvel[i] = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
-	}
-
-	return m_bodies_linearvel;
-}
-
-
-float*
-Problem::get_ODE_bodies_steprot(void)
-{
-	return m_bodies_steprot;
-}
-
-void
-Problem::object_forces_callback(double t, int step, float3 *forces, float3 *torques)
-{ /* default does nothing */ }
 
 
 uint
@@ -715,117 +928,6 @@ Problem::calculateFerrariCoefficient()
 	return;
 }
 
-// input: force, torque, step number (why?), dt
-// output: cg, trans, steprot (can be input uninitialized)
-void
-Problem::ODE_bodies_timestep(const float3 *force, const float3 *torque, const int step,
-		const double dt, float3 * & cg, float3 * & trans, float * & steprot,
-		float3 * & linearvel, float3 * & angularvel)
-{
-	dReal prev_quat[MAXBODIES][4];
-	for (uint i = 0; i < m_total_ODE_bodies; i++)  {
-		const dReal* quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
-		prev_quat[i][0] = quat[0];
-		prev_quat[i][1] = quat[1];
-		prev_quat[i][2] = quat[2];
-		prev_quat[i][3] = quat[3];
-		dBodyAddForce(m_ODE_bodies[i]->m_ODEBody, force[i].x, force[i].y, force[i].z);
-		dBodyAddTorque(m_ODE_bodies[i]->m_ODEBody, torque[i].x, torque[i].y, torque[i].z);
-	}
-
-	dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
-	dWorldStep(m_ODEWorld, dt);
-	if (m_ODEJointGroup)
-		dJointGroupEmpty(m_ODEJointGroup);
-
-	for (uint i = 0; i < m_simparams.numODEbodies; i++)  {
-		float3 new_cg = make_float3(dBodyGetPosition(m_ODE_bodies[i]->m_ODEBody));
-		m_bodies_trans[i] = new_cg - m_bodies_cg[i];
-		m_bodies_cg[i] = new_cg;
-
-		float3 new_lvel = make_float3(dBodyGetLinearVel(m_ODE_bodies[i]->m_ODEBody));
-		m_bodies_linearvel[i] = new_lvel;
-
-		float3 new_avel = make_float3(dBodyGetAngularVel(m_ODE_bodies[i]->m_ODEBody));
-		m_bodies_angularvel[i] = new_avel;
-
-		const dReal *new_quat = dBodyGetQuaternion(m_ODE_bodies[i]->m_ODEBody);
-		dQuaternion step_quat;
-		dMatrix3 R;
-		dQMultiply2 (step_quat, new_quat, prev_quat[i]);
-		dQtoR (step_quat, R);
-		float *base_addr = m_bodies_steprot + 9*i;
-		base_addr[0] = R[0];
-		base_addr[1] = R[1];
-		base_addr[2] = R[2]; // Skipp R[3]
-		base_addr[3] = R[4];
-		base_addr[4] = R[5];
-		base_addr[5] = R[6]; // Skipp R[7]
-		base_addr[6] = R[8];
-		base_addr[7] = R[9];
-		base_addr[8] = R[10];
-	}
-	cg = m_bodies_cg;
-	steprot = m_bodies_steprot;
-	trans = m_bodies_trans;
-	linearvel = m_bodies_linearvel;
-	angularvel = m_bodies_angularvel;
-}
-
-// Number of planes
-uint
-Problem::fill_planes(void)
-{
-	return 0;
-}
-
-
-// Copy planes for upload
-void
-Problem::copy_planes(float4*, float*)
-{
-	return;
-}
-
-
-float4*
-Problem::get_mbdata(const double t, const float dt, const bool forceupdate)
-{
-	bool needupdate = false;
-
-	for (int i=0; i < m_mbnumber; i++) {
-		MbCallBack& mbcallbackdata = mb_callback(t, dt, i);
-		float4 data = make_float4(0.0f);
-
-		switch(mbcallbackdata.type) {
-			case PISTONPART:
-				data.x = mbcallbackdata.vel.x;
-				break;
-
-			case PADDLEPART:
-				data.x = mbcallbackdata.origin.x;
-				data.y = mbcallbackdata.origin.z;
-				data.z = mbcallbackdata.dthetadt;
-				break;
-
-			case GATEPART:
-				data.x = mbcallbackdata.vel.x;
-				data.y = mbcallbackdata.vel.y;
-				data.z = mbcallbackdata.vel.z;
-				break;
-		}
-		if (m_mbdata[i].x != data.x || m_mbdata[i].y != data.y ||
-			m_mbdata[i].z != data.z ||m_mbdata[i].w != data.w) {
-			m_mbdata[i] = data;
-			needupdate = true;
-			}
-	}
-
-	if (needupdate || forceupdate)
-		return m_mbdata;
-
-	return NULL;
-}
 
 /*! Compute grid and cell size from the kernel influence radius
  * The number of cell is obtained as the ratio between the domain size and the

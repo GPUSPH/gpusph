@@ -92,6 +92,8 @@ class Object {
 		virtual void SetInertia(const double dx) = 0;
 		virtual void SetInertia(const double*);
 		void SetCenterOfGravity(const double*);
+		double3 GetCenterOfGravity(void) const;
+		EulerParameters GetOrientation(void) const;
 		virtual void GetInertialFrameData(double*, double&, double*, EulerParameters&) const;
 		//@}
 
@@ -115,12 +117,12 @@ class Object {
 		/// Create an ODE body in the specified ODE world and space
 		/*! \throws std::runtime_error if the method is not implemented
 		 */
-		virtual void ODEBodyCreate(dWorldID, const double, const double density = 1.0, dSpaceID ODESpace = 0)
+		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0)
 		{ throw std::runtime_error("ODEBodyCreate called but not defined!"); }
 		/// Create an ODE geometry in the specified ODE space
 		/*! \throws std::runtime_error if the method is not implemented
 		 */
-		virtual void ODEGeomCreate(dSpaceID, const double, const double density = 1.0)
+		virtual void ODEGeomCreate(dSpaceID, const double)
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		/// Return the ODE body ID associated with the Object
 		/*! \return the body ID associated with the object
@@ -131,7 +133,7 @@ class Object {
 				throw std::runtime_error("ODEGetBody called but object is not associated with an ODE body !");
 			return m_ODEBody; }
 		/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
-		void ODEPrintInformation();
+		void ODEPrintInformation(const bool print_geom = true);
 		//@}
 
 

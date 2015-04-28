@@ -9,7 +9,7 @@
 class HDF5SphReader {
 private:
 	std::string	filename;
-	uint	npart;
+	unsigned int	npart;
 
 	struct ReadParticles {
 		double Coords_0;

@@ -516,7 +516,7 @@ LIBPATH += -L$(CUDA_INSTALL_PATH)/lib$(LIB_PATH_SFX)
 # On Darwin 10.9 with CUDA 5.5 using clang we want to link with the clang c++ stdlib.
 # This is exactly the conditions under which we set WE_USE_CLANG
 ifeq ($(WE_USE_CLANG),1)
-	LIBS += -lc++
+	LIBS += -lstdc++
 endif
 
 # link to the CUDA runtime library

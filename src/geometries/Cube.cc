@@ -42,6 +42,7 @@ Cube::Cube(void):m_lx(0), m_ly(0), m_lz(0)
 	m_vx = Vector(0, 0, 0);
 	m_vy = Vector(0, 0, 0);
 	m_vz = Vector(0, 0, 0);
+	m_ep = EulerParameters();
 }
 
 
@@ -218,8 +219,6 @@ Cube::Cube(const Point& origin, const Vector& vx, const Vector& vy, const Vector
 		axis(1) = 0.0;
 		axis(2) = 0.0;
 	}
-
-	dRFromAxisAndAngle(m_ODERot, axis(0), axis(1), axis(2), angle);
 
 	m_ep = EulerParameters(axis, angle);
 	m_ep.ComputeRot();
@@ -631,7 +630,9 @@ Cube::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 	dBodySetMass(m_ODEBody, &m_ODEMass);
 	// Move an rotate the body to match current cube location and orientation
 	dBodySetPosition(m_ODEBody, m_center(0), m_center(1), m_center(2));
-	dBodySetRotation(m_ODEBody, m_ODERot);
+	dQuaternion q;
+	m_ep.ToODEQuaternion(q);
+	dBodySetQuaternion(m_ODEBody, q);
 	// If an ODE space has been defined create a geometry associated with the body
 	if (ODESpace)
 		ODEGeomCreate(ODESpace, dx);
@@ -653,9 +654,11 @@ Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 	// If an ODE body has been defined, associate the geometry with the ODE body
 	if (m_ODEBody)
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
-	// Otherwise move and rotate the geometry to match current cube position and orientration
+	// Otherwise move and rotate the geometry to match current cube position and orientation
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
-		dGeomSetRotation(m_ODEGeom, m_ODERot);
+		dQuaternion q;
+		m_ep.ToODEQuaternion(q);
+		dGeomSetQuaternion(m_ODEGeom, q);
 	}
 }

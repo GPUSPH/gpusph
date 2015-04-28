@@ -68,12 +68,12 @@ public:
 
 	virtual const char* get_buffer_name() const
 	{
-		throw std::runtime_error("AbstractBuffer name queried");
+		throw runtime_error("AbstractBuffer name queried");
 	}
 
 	// allocate buffer and return total amount of memory allocated
 	virtual size_t alloc(size_t elems) {
-		throw std::runtime_error("cannot allocate generic buffer");
+		throw runtime_error("cannot allocate generic buffer");
 	}
 
 	// base method to return a specific buffer of the array
@@ -251,7 +251,7 @@ class MultiBufferList;
  */
 class BufferList
 {
-	typedef std::map<flag_t, AbstractBuffer*> map_type;
+	typedef map<flag_t, AbstractBuffer*> map_type;
 
 	map_type m_map;
 
@@ -287,8 +287,7 @@ public:
 	// delete all buffers before clearing the hash
 	void clear() {
 		map_type::iterator buf = m_map.begin();
-		const map_type::iterator done = m_map.end();
-		while (buf != done) {
+		while (buf != m_map.end()) {
 			delete buf->second;
 			++buf;
 		}

@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -96,7 +99,7 @@ const char* BoundaryName[INVALID_BOUNDARY+1]
 = {
 	"Lennard-Jones",
 	"Monaghan-Kajtar",
-	"Ferrand et al.",
+	"Semi Analytical.",
 	"Dynamic",
 	"(invalid)"
 }
@@ -184,50 +187,36 @@ const char *FilterName[INVALID_FILTER+1]
 #endif
 ;
 
+enum SPSKernelSimFlags {
+	SPSK_STORE_TAU = 1,
+	SPSK_STORE_TURBVISC = (SPSK_STORE_TAU << 1)
+};
+
 #define MAXPLANES			8
 #define MAXMOVINGBOUND		16
+#define MAX_FLUID_TYPES 	4
 
 /* The particle type is a short integer organized this way:
-   * lowest 4 bits: fluid number (for multifluid)
-   * next 4 bits: non-fluid code (boundary, piston, etc)
-   * high 8 bits: flags
+   * lowest 3 bits: particle type
+   * next 13 bits: flags
 */
 
-// number of bits reserved for the fluid number
-#define MAX_FLUID_BITS	4
 // number of bits after which flags are stored
-#define PART_FLAG_SHIFT	8
+#define PART_FLAG_SHIFT	3
 
-/* this can be increased to up to (1<<MAX_FLUID_BITS) */
-#define MAX_FLUID_TYPES      4
 
-/* compile-time consistency check */
-#if MAX_FLUID_TYPES > (1<<MAX_FLUID_BITS)
-#error "Too many fluids"
-#endif
-
-/* non-fluid particle types are mutually exclusive (e.g. a particle is _either_
- * boundary _or_ piston, but not both, so they could be increasing from 1 to the
- * maximum number of particle types that we need.
+/* Particle types are mutually exclusive (e.g. a particle is _either_
+ * boundary _or_ vertex, but not both)
  *
- * These will then be encoded in the particle info field by shifting them by
- * MAX_FLUID_BITS.
- *
- * The maximum number of particle types we can have with 4 fluid bits is
- * 2^4 -1 = 15 (16 including particle type 0 = fluid).
- * If we ever need more, we can reduce MAX_FLUID_BITS to 2 (and force the limit of
- * 4 fluid types), and we could have up to 2^6 - 1 = 63 non-fluid particle types.
+ * The maximum number of particle types we can have with 4 is
+ * 2^3 = 8 of which 4 are actually used.
  */
 
 enum ParticleType {
 	PT_FLUID = 0,
-	PT_VERTEX,
+	PT_TESTPOINT,
 	PT_BOUNDARY,
-	PT_PISTON,
-	PT_PADDLE,
-	PT_GATE,
-	PT_OBJECT,
-	PT_TESTPOINT
+	PT_VERTEX
 };
 
 /* The ParticleType enum is rarely used directly, since for storage its value
@@ -235,39 +224,32 @@ enum ParticleType {
  * so they are all shifted by MAX_FLUID_BITS.
  */
 
-#define FLUIDPART		(PT_FLUID << MAX_FLUID_BITS)
-/* non-fluid types start at (1<<MAX_FLUID_BITS) */
-#define BOUNDPART		(PT_BOUNDARY << MAX_FLUID_BITS)
-#define PISTONPART		(PT_PISTON << MAX_FLUID_BITS)
-#define PADDLEPART		(PT_PADDLE << MAX_FLUID_BITS)
-#define GATEPART		(PT_GATE << MAX_FLUID_BITS)
-#define OBJECTPART		(PT_OBJECT << MAX_FLUID_BITS)
-#define TESTPOINTSPART	(PT_TESTPOINT << MAX_FLUID_BITS)
-#define VERTEXPART		(PT_VERTEX << MAX_FLUID_BITS)
 
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
+enum ParticleFlag {
+	FG_FLOATING = (PART_FLAG_START<<0),
+	FG_MOVING_BOUNDARY = (PART_FLAG_START<<1),
+	FG_INLET = (PART_FLAG_START<<2),
+	FG_OUTLET = (PART_FLAG_START<<3),
+	FG_COMPUTE_FORCE = (PART_FLAG_START<<4),
+	FG_VELOCITY_DRIVEN =  (PART_FLAG_START<<5),
+	FG_CORNER =  (PART_FLAG_START<<6),
+	FG_SURFACE =  (PART_FLAG_START<<7),
+	FG_FIXED =  (PART_FLAG_START<<8)
+};
 
 #define SET_FLAG(info, flag) ((info).x |= (flag))
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
+#define QUERY_FLAG(info, flag) ((info).x & (flag))
 
-#define SURFACE_PARTICLE_FLAG	(PART_FLAG_START<<0)
-#define FIXED_PARTICLE_FLAG		(PART_FLAG_START<<1)
-#define IO_PARTICLE_FLAG		(PART_FLAG_START<<2)
-#define VEL_IO_PARTICLE_FLAG	(PART_FLAG_START<<3)
-#define CORNER_PARTICLE_FLAG	(PART_FLAG_START<<5)
-#define MOVING_PARTICLE_FLAG	(PART_FLAG_START<<6)
-#define FLOATING_PARTICLE_FLAG	(PART_FLAG_START<<7)
-
-/* A bitmask to select only the fluid number */
-#define FLUID_NUM_MASK	((1<<MAX_FLUID_BITS)-1)
 /* A bitmask to select only the particle type */
-#define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-(1<<MAX_FLUID_BITS))
+#define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)
 
 /* A particle is NOT fluid if its particle type is non-zero */
-#define NOT_FLUID(f)	(type(f) & PART_TYPE_MASK)
+#define NOT_FLUID(f)	((type(f) & PART_TYPE_MASK) > PT_FLUID)
 /* otherwise it's fluid */
-#define FLUID(f)		(!(NOT_FLUID(f)))
+#define FLUID(f)		((type(f) & PART_TYPE_MASK) == PT_FLUID)
 
 // fluid particles can be active or inactive. Particles are marked inactive under appropriate
 // conditions (e.g. after flowing out through an outlet), and are kept around until the next
@@ -287,50 +269,51 @@ disable_particle(float4 &pos) {
 	pos.w = NAN;
 }
 
+/* Extract a specific subfield from the particle type: */
+// Extract particle type
+#define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
+// Extract particle flag
+#define PART_FLAGS(f)		(type(f) >> PART_FLAG_SHIFT)
+
+
 /* Tests for particle types */
 // Testpoints
-#define TESTPOINTS(f)	((type(f) & PART_TYPE_MASK) == TESTPOINTSPART)
-// Particle belonging to an object
-#define OBJECT(f)		((type(f) & PART_TYPE_MASK) == OBJECTPART)
+#define TESTPOINT(f)	(PART_TYPE(f) == PT_TESTPOINT)
+// Particle belonging to an floating object
+#define OBJECT(f)		(type(f) & FG_FLOATING)
 // Boundary particle
-#define BOUNDARY(f)		((type(f) & PART_TYPE_MASK) == BOUNDPART)
+#define BOUNDARY(f)		(PART_TYPE(f) == PT_BOUNDARY)
 // Vertex particle
-#define VERTEX(f)		((type(f) & PART_TYPE_MASK) == VERTEXPART)
+#define VERTEX(f)		(PART_TYPE(f) == PT_VERTEX)
 
 /* Tests for particle flags */
 // Free surface detection
-#define SURFACE(f)		(type(f) & SURFACE_PARTICLE_FLAG)
+#define SURFACE(f)		(type(f) & FG_SURFACE)
+// TODO: remove ?
 // Fixed particle (e.g. Dalrymple's dynamic bounary particles)
-#define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
+//#define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
 // If this flag is set the object is and open boundary
-#define IO_BOUNDARY(f)	(type(f) & IO_PARTICLE_FLAG)
+#define IO_BOUNDARY(f)	(type(f) & (FG_INLET | FG_OUTLET))
 // If this flag is set the normal velocity is imposed at an open boundary
 // if it is not set the pressure is imposed instead
-#define VEL_IO(f)		(type(f) & VEL_IO_PARTICLE_FLAG)
+#define VEL_IO(f)		(type(f) & FG_VELOCITY_DRIVEN)
 // If vel_io is not set then we have a pressure inlet
 #define PRES_IO(f)		(!VEL_IO(f))
 // If this flag is set then a particle at an open boundary will have a non-varying mass but still
 // be treated like an open boundary particle apart from that. This avoids having to span new particles
 // very close to the side wall which causes problems
-#define CORNER(f)		(type(f) & CORNER_PARTICLE_FLAG)
+#define CORNER(f)		(type(f) & FG_CORNER)
 // This flag is set for moving vertices / segments either forced or free (floating)
-#define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
-// If the floating flag is set then the particles 
-#define FLOATING(f)		(type(f) & FLOATING_PARTICLE_FLAG)
+#define MOVING(f)		(type(f) & (FG_FLOATING | FG_MOVING_BOUNDARY))
+// This flag is set for particles belonging to a floating body
+#define FLOATING(f)		(type(f) & FG_FLOATING)
+// This flag is set for particles belonging to a moving body on which we want to compute reaction force
+#define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
 
-/* Extract a specific subfield from the particle type, unshifted:
- * this is used when saving data
- */
-// Extract particle type
-#define PART_TYPE(f)		((type(f) & PART_TYPE_MASK) >> MAX_FLUID_BITS)
-// Extract particle flag
-#define PART_FLAG(f)		(type(f) >> PART_FLAG_SHIFT)
-// Extract particle fluid number
-#define PART_FLUID_NUM(f)	(type(f) & FLUID_NUM_MASK)
-
+#define PART_FLUID_NUM(f)	(fluid_num(f))
 
 /* Maximum number of floating bodies*/
-#define	MAXBODIES				10
+#define	MAXBODIES				16
 
 #define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
 

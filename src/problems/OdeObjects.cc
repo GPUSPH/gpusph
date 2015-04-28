@@ -45,7 +45,6 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 
 	SETUP_FRAMEWORK(
 		viscosity<ARTVISC>,
-		//viscosity<DYNAMICVISC>,
 		boundary<LJ_BOUNDARY>
 	);
 
@@ -83,9 +82,8 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
-	// Allocate data for floating bodies
-	allocate_ODE_bodies(2);
-	dInitODE();				// Initialize ODE
+	// Initialize ODE
+	dInitODE();
 	m_ODEWorld = dWorldCreate();	// Create a dynamic world
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
@@ -93,6 +91,7 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
+	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "OdeObjects";
@@ -145,10 +144,10 @@ int OdeObjects::fill_parts()
 
 	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
 	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
-	//obstacle.FillBorder(obstacle.GetParts(), r0, true);
-	//obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
-	//obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
-	//add_ODE_body(&obstacle);
+	obstacle.FillBorder(obstacle.GetParts(), r0, true);
+	obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
+	obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
+	add_moving_body(&obstacle, MB_ODE);
 
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
@@ -167,26 +166,24 @@ int OdeObjects::fill_parts()
 	sphere.FillBorder(sphere.GetParts(), r0);
 	sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
 	sphere.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(&sphere);
-	m_ODEobjectId[0]=0;
+	add_moving_body(&sphere, MB_ODE);
 
 	// Rigid body #2 : cylinder
 	cylinder = Cylinder(Point(0.9, 0.7*ly, r0), 0.05, Vector(0, 0, 0.2));
 	cylinder.SetPartMass(r0, m_physparams.rho0[0]*0.3);
-	cylinder.SetMass(r0, m_physparams.rho0[0]*0.3);
+	cylinder.SetMass(r0, m_physparams.rho0[0]*0.05);
 	cylinder.Unfill(parts, r0);
 	cylinder.FillBorder(cylinder.GetParts(), r0);
 	cylinder.ODEBodyCreate(m_ODEWorld, m_deltap);
 	cylinder.ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(&cylinder);
-	m_ODEobjectId[1]=1;
+	add_moving_body(&cylinder, MB_ODE);
 
-	/*joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
+	joint = dJointCreateHinge(m_ODEWorld, 0);				// Create a hinge joint
 	dJointAttach(joint, obstacle.m_ODEBody, 0);		// Attach joint to bodies
 	dJointSetHingeAnchor(joint, 0.7, 0.24, 2*r0);	// Set a joint anchor
-	dJointSetHingeAxis(joint, 0, 1, 0);*/
+	dJointSetHingeAxis(joint, 0, 1, 0);
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_ODE_bodies_numparts();
+	return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
 
@@ -217,40 +214,51 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 	float4 *vel = buffers.getData<BUFFER_VEL>();
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
+	allocate_bodies_storage();
+
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
-		PointVect & rbparts = get_ODE_body(k)->GetParts();
+	for (uint k = 0; k < m_bodies.size(); k++) {
+		PointVect & rbparts = m_bodies[k]->object->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
-		for (uint i = j; i < j + rbparts.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i] = make_particleinfo(OBJECTPART, k+1, i - j);
-			calc_localpos_and_hash(rbparts[i - j], info[i], pos[i], hash[i]);
+		for (uint i = 0; i < rbparts.size(); i++) {
+			uint ij = i + j;
+			float ht = H - rbparts[i](2);
+			if (ht < 0)
+				ht = 0.0;
+			float rho = density(ht, 0);
+			rho = m_physparams.rho0[0];
+			vel[ij] = make_float4(0, 0, 0, rho);
+			uint ptype = (uint) PT_BOUNDARY;
+			switch (m_bodies[k]->type) {
+				case MB_ODE:
+					ptype |= FG_FLOATING;
+					break;
+				case MB_FORCES_MOVING:
+					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+					break;
+				case MB_MOVING:
+					ptype |= FG_MOVING_BOUNDARY;
+					break;
+			}
+			info[ij] = make_particleinfo(ptype, k, i );
+			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}
 
-	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
-	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(BOUNDPART, 1, i);
-		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
-	}
-	j += obstacle_parts.size();
-	std::cout << "Obstacle part mass:" << pos[j-1].w << "\n";
-
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();

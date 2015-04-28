@@ -1,13 +1,16 @@
-/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -26,9 +29,9 @@
 #ifndef _HASHKEY_H
 #define _HASHKEY_H
 
-// for CELLTYPE_BITMASK
+// For CELLTYPE_BITMASK
 #include "multi_gpu_defines.h"
-// for HAS_KEY_SIZE
+// For HAS_KEY_SIZE
 #include "hash_key_size_select.opt"
 
 /*
@@ -65,23 +68,46 @@ typedef unsigned long hashKey;
 // CELL_HASH_MAX replaces HASH_KEY_MAX. It is always 32 bits long since it is used only as a cellHash.
 #define CELL_HASH_MAX	UINT_MAX
 
-// now follow a few utility functions to convert between cellHash <-> particleHash, defined with the same compiler directives ___spec
+// Now follow a few utility functions to convert between cellHash <-> particleHash,
+// defined with the same compiler directives ___spec
+// TODO: should be __forceinline__ for cuda part. Check if this doesn't create problem
+// on CPU side
 #define __spec static inline __host__ __device__
 
 // In multi-device simulations the 2 high bits of the long particle hash are used to store the cell type
 // (internal/external, edge); they are reset by default, allowing for using the hash as an index for cell-based
 // arrays. Set preserveHighbits to true to preserve them instead.
 // Note the explicit uint cast: we know that the shifted partHash will fit in a uint, but the compiler doesn't,
-// and would warn if -Wconversion is enabled; the explict cast silences the warning.
+// and would warn if -Wconversion is enabled; the explicit cast silences the warning.
 // FIXME TODO: check that single-device simulations with 32 or 64 bits hashes allow to use them for the actual hash
 // without resetting them
+
+/// Compute cell hash from particle hash
+/*! Compute the cell hash value from particle hash according to the chosen
+ * 	key size.
+ *
+ *	\param[in] partHash : particle hash
+ *
+ *	\return cell hash value
+ */
 __spec
 unsigned int cellHashFromParticleHash(const hashKey &partHash, bool preserveHighbits = false) {
 	uint cellHash = uint(partHash >> GRIDHASH_BITSHIFT);
 	return (preserveHighbits ? cellHash : (cellHash & CELLTYPE_BITMASK) );
 }
 
-// if HASH_KEY_SIZE is 32 bits wide, this just returns the cellHash; otherwise, the extended particle hash is computed
+
+/// Compute particle hash from cell hash and particle info
+/*! Compute particle hash from cell hash and particle info
+ * 	according to the chosen key size.
+ * 	If HASH_KEY_SIZE is 32 bits wide, this just returns the
+ * 	cellHash; otherwise, the extended particle hash is computed
+ *
+ *	\param[in] celHash : cell hash
+ *	\param[in] info : particle info
+ *
+ *	\return cell hash value
+ */
 __spec
 hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info) {
 #if HASH_KEY_SIZE == 32
@@ -89,7 +115,7 @@ hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info)
 #else
 	return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | id(info);
 #endif
-	// alternatively, to avoid conditionals one can use the more compact but less readable:
+	// Alternatively, to avoid conditionals one can use the more compact but less readable:
 	// return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | (id(info) & (EMPTY_CELL >> (32 - GRIDHASH_BITSHIFT) ));
 }
 

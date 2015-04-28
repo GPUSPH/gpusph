@@ -325,6 +325,7 @@ static __inline__ __host__  __device__  float3 make_float3(const double3 &a)
 	return make_float3(float(a.x), float(a.y), float(a.z));
 }
 
+
 // negate
 static __inline__ __host__ __device__ float3 operator-(const float3 &a)
 {
@@ -570,6 +571,11 @@ static __inline__ __host__ __device__ double3 make_double3(const double4 &a)
 }
 
 static __inline__ __host__ __device__ double3 make_double3(const int3 &a)
+{
+	return make_double3(double(a.x), double(a.y), double(a.z));
+}
+
+static __inline__ __host__ __device__ double3 make_double3(const float3 &a)
 {
 	return make_double3(double(a.x), double(a.y), double(a.z));
 }

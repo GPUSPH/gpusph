@@ -31,8 +31,11 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 		kernel<WENDLAND>,
 		viscosity<ARTVISC>,
 		//viscosity<SPSVISC>,
+		//viscosity<KINEMATICVISC>,
 		boundary<DYN_BOUNDARY>
 	);
+
+	//addFilter(MLS_FILTER, 17);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -42,7 +45,7 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.ferrari = 0;
-	m_simparams.tend = 20.0f; //0.00036f
+	m_simparams.tend = 5.0f; //0.00036f
 
 	// Free surface detection
 	m_simparams.surfaceparticle = false;
@@ -67,16 +70,19 @@ BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
-	// Allocate data for floating bodies
-	allocate_ODE_bodies(1);
-	dInitODE();				// Initialize ODE
-	m_ODEWorld = dWorldCreate();	// Create a dynamic world
+	// Initialize ODE
+	dInitODE();
+	m_ODEWorld = dWorldCreate();
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity(x, y, z)
 
+	//add_writer(VTKWRITER, 0.005);
 	add_writer(VTKWRITER, 0.1);
+	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "BuoyancyTest";
@@ -120,7 +126,7 @@ int BuoyancyTest::fill_parts()
 	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 
-	const int object_type = 2;
+	const int object_type = 0;
 	Object *floating;
 	switch (object_type) {
 		case 0: {
@@ -156,13 +162,15 @@ int BuoyancyTest::fill_parts()
 	floating->ODEBodyCreate(m_ODEWorld, m_deltap);
 	if (object_type != 2)
 		floating->ODEGeomCreate(m_ODESpace, m_deltap);
-	add_ODE_body(floating);
 	dBodySetLinearVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
 	dBodySetAngularVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
-	PointVect & rbparts = get_ODE_body(0)->GetParts();
+	add_moving_body(floating, MB_ODE);
+	floating->ODEPrintInformation();
+
+	PointVect & rbparts = get_mbdata(uint(0))->object->GetParts();
 	std::cout << "Rigid body " << 1 << ": " << rbparts.size() << " particles \n";
-	std::cout << "totl rb parts:" << get_ODE_bodies_numparts() << "\n";
-	return parts.size() + boundary_parts.size() + get_ODE_bodies_numparts();
+	std::cout << "totl rb parts:" << get_bodies_numparts() << "\n";
+	return parts.size() + boundary_parts.size() + get_bodies_numparts();
 }
 
 
@@ -198,14 +206,14 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			ht = 0.0;
 		float rho = density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	uint j = boundary_parts.size();
 	std::cout << "Boundary part mass: " << pos[j-1].w << std::endl;
 
-	for (uint k = 0; k < m_simparams.numODEbodies; k++) {
-		PointVect & rbparts = get_ODE_body(k)->GetParts();
+	for (uint k = 0; k < m_bodies.size(); k++) {
+		PointVect & rbparts = m_bodies[k]->object->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
 		for (uint i = 0; i < rbparts.size(); i++) {
 			uint ij = i + j;
@@ -215,7 +223,19 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			float rho = density(ht, 0);
 			rho = m_physparams.rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
-			info[ij] = make_particleinfo(OBJECTPART, k, i );
+			uint ptype = (uint) PT_BOUNDARY;
+			switch (m_bodies[k]->type) {
+				case MB_ODE:
+					ptype |= FG_FLOATING;
+					break;
+				case MB_FORCES_MOVING:
+					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+					break;
+				case MB_MOVING:
+					ptype |= FG_MOVING_BOUNDARY;
+					break;
+			}
+			info[ij] = make_particleinfo(ptype, k, i );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
 		j += rbparts.size();
@@ -230,7 +250,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			ht = 0.0;
 		float rho = density(ht, 0);
 		vel[ij] = make_float4(0, 0, 0, rho);
-		info[ij] = make_particleinfo(FLUIDPART, 0, ij);
+		info[ij] = make_particleinfo(PT_FLUID, 0, ij);
 		calc_localpos_and_hash(parts[i], info[ij], pos[ij], hash[ij]);
 	}
 	j += parts.size();

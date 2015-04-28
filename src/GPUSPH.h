@@ -85,6 +85,9 @@ private:
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
 
+	// Move objects
+	void move_objects(const uint);
+
 	// create the Writer
 	void createWriter();
 
@@ -113,10 +116,8 @@ private:
 	// do a roll call of particle IDs
 	void rollCallParticles();
 
-	// initialize the centers of gravity of objects
-	void initializeObjectsCGs();
-	// initialize velocities (linear and angular) of objects
-	void initializeObjectsVelocities();
+	void allocateRbArrays();
+	void cleanRbArrays();
 
 public:
 	// destructor

@@ -50,10 +50,22 @@
 	#define MIN_BLOCKS_BUILDNEIBS	1
 #endif
 
+/// Neighbor engine class
+/*!	CUDANeibsEngine is an implementation of the abstract class AbstractNeibsEngine
+ *	and is providing :
+ *		- device constants upload to the device
+ *		- device variables upload/downlod to/from the device
+ *		- launch of sorting and reordering kernels
+ *		- launch of neighbor list construction kernels
+ *
+ *	\ingroup neibs
+*/
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
+	/** \name Constants upload/download and timing related function
+	 *  @{ */
 	void
 	setconstants(const SimParams *simparams, const PhysParams *physparams,
 		float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
@@ -67,42 +79,48 @@ public:
 
 	void
 	getinfo(TimingInfo &timingInfo);
+	/** @} */
 
-	void
+	/** \name Reordering and sort related function
+	 *  @{ */	void
 	calcHash(float4*	pos,
-		 hashKey*	particleHash,
-		 uint*		particleIndex,
-		 const particleinfo* particleInfo,
-		 uint*		compactDeviceMap,
-		 const uint		numParticles);
+			hashKey*	particleHash,
+			uint*		particleIndex,
+			const particleinfo* particleInfo,
+			uint*		compactDeviceMap,
+			const uint	numParticles);
 
 	void
 	fixHash(hashKey*	particleHash,
 			uint*		particleIndex,
 			const particleinfo* particleInfo,
 			uint*		compactDeviceMap,
-			const uint		numParticles);
+			const uint	numParticles);
 
 	void
 	reorderDataAndFindCellStart(
-		uint*				cellStart,			// output: cell start index
-		uint*				cellEnd,			// output: cell end index
-		uint*				segmentStart,		// output: segment start
-
-		const hashKey*		particleHash,		// input: sorted grid hashes
-		const uint*			particleIndex,		// input: sorted particle indices
-
-		MultiBufferList::iterator sorted_buffers,		// output: sorted buffers
-		MultiBufferList::const_iterator unsorted_buffers, // input: buffers to sort
-
-		const uint			numParticles,		// input: number of particles in input buffers
-		uint*				newNumParticles);	// output: number of active particles found
+			uint*		cellStart,
+			uint*		cellEnd,
+			uint*		segmentStart,
+			const hashKey*		particleHash,
+			const uint*		particleIndex,
+			MultiBufferList::iterator sorted_buffers,
+			MultiBufferList::const_iterator unsorted_buffers,
+			const uint			numParticles,
+			uint*				newNumParticles);
 
 	void
 	updateVertIDToIndex(const particleinfo*	particleInfo,	// input: particle's information
 						uint*			vertIDToIndex,	// output: vertIDToIndex array
 						const uint		numParticles);	// input: total number of particles
+	void
+	sort(	hashKey	*particleHash,
+			uint	*particleIndex,
+			uint	numParticles);
+	/** @} */
 
+	/** \name Neighbors list building
+	 *  @{ */
 	void
 	buildNeibsList(	neibdata*			neibsList,
 					const float4*		pos,
@@ -119,14 +137,6 @@ public:
 					const uint			gridCells,
 					const float			sqinfluenceradius,
 					const float			boundNlSqInflRad);
-
-	void
-	sort(	hashKey	*particleHash,
-			uint	*particleIndex,
-			uint	numParticles);
-
+	/** @} */
 };
-
-
-
 #endif

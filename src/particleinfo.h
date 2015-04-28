@@ -93,6 +93,11 @@ static __inline__ __host__ __device__ const ushort& object(const particleinfo &i
 	return info.y;
 }
 
+static __inline__ __host__ __device__ const ushort& fluid_num(const particleinfo &info)
+{
+	return info.y;
+}
+
 static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(const uint*)&info.z;

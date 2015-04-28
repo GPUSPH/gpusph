@@ -49,46 +49,98 @@
 // Remember that for step 1 dt => dt/2 and for step 2 dt => dt !!!
 // but dt2 is always equal to dt/2
 
+/// Performs a basic Euler integration step
+/*! Updates positions, velocities and other quantities of fluid partcles
+ *  according to their previous values and derivatives :
+ *  - for velocity \f$u(x, t + \Delta t) = u(x, t) + \Delta t.\frac{du}{dt}(x, t*)\f$
+ *  - for positions \f$x(t + \Delta t) = x(t) + \Delta t.u_(x, t)\f$
+ *	All other quantities are integrated like velocity.
+ *
+ *	The basic Euler step is called two times for the predictor corrector
+ *	integration scheme (see tempalte param step) then \f$\Delta t\f$ and
+ *	\f$t^*\f$ depends on the step.
+ *
+ *	The full description of the scheme is found in the IntegrationEngine
+ *	documentation.
+ *
+ *	The velocities and positions of particles belonging to a floating or
+ *	moving object are update according to a rigid body movement :
+ *	- positions \f$x(t + \Delta t) = x(t) + t(t + \Delta t) + \Omega(t, t + \Delta t) \times (x(t) - x_C(t)\f$
+ *	- velocity field  \f$u(x, t + \Delta t) = v_l(t + \Delta t) + \frac{d\omega}{dt}(t + \Delta t)\times(x(t) - x_C(t)) \f$
+ *	where :
+ *	- \f$v_l\f$ is the linear velocity
+ *	- \f$\frac{d\omega}{dt}\f$ the angular velocity
+ *	- \f$t\f$ is the linear displacement
+ *	- \f$\Omega(t, t + \Delta t)\f$ the rotation of the body between time
+ *		\f$t\f$ an \f$t + \Delta t\f$
+ *	- \f$C\f$ the center of rotation
+ *
+ *	\param[in] oldPos : previous particle's position
+ *	\param[in] hashKey : particle's hash
+ *	\param[in] oldVel : previous particle's velocity
+ *	\param[in] oldEulerVel : previous eulerian velocities for ??? <- TODO
+ *	\param[in] oldGam : previous values of gradient of gamma
+ *	\param[in] okdTKE : previous values of k, for k-e model
+ *	\param[in] oldEps : previous values of e, for k-e model
+ *	\param[in] particleInfo : particle's information
+ *	\param[in] forces : derivative of particle's velocity and density
+ *	\param[in] contupd : ??? <- TODO
+ *	\param[in] keps_dkde : derivative of ??? <- TODO
+ *	\param[in] xsph : SPH mean of velocities used for xsph correction
+ *	\param[out] newPos : updated particle's position
+ *	\param[out] newVel : updated particle's  velocity
+ *	\param[out] newEulerVel : updated eulerian velocities for ??? <- TODO
+ *	\param[out] newgGam : updated values of gradient of gamma
+ *	\param[out] newTKE : updated values of k, for k-e model
+ *	\param[out] newEps : updated values of e, for k-e model
+ *	\param[in,out] newBoundElement : ??? <- TODO
+ *	\param[in] numParticles : total number of particles
+ *	\param[in] full_dt  : time step (dt)
+ *	\param[in] half_dt : half of time step (dt/2)
+ *	\param[in] t : simualation time
+ *
+ *	\tparam step : integration step (1, 2)
+ *	\tparam xsphcorr : if true, XSPH correction is applied
+ *	\tparam boundarytype : type of boundary
+ */
+//TODO templatize vars like other kernels
 template<int step, bool xsphcorr, BoundaryType boundarytype>
 __global__ void
 eulerDevice(
-	const	float4	*oldPos,
-	const	hashKey	*particleHash,
-	const	float4	*oldVel,
-	const	float4	*oldEulerVel,
-	const	float4	*oldgGam,
-	const	float	*oldTKE,
-	const	float	*oldEps,
-	const	particleinfo	*info,
-	const	float4	*forces,
-	const	float2	*contupd,
-	const	float3	*keps_dkde,
-	const	float4	*xsph,
-			float4	*newPos,
-			float4	*newVel,
-			float4	*newEulerVel,
-			float4	*newgGam,
-			float	*newTKE,
-			float	*newEps,
+	const	float4	*oldPos,			///< previous particle's position (in)
+	const	hashKey	*particleHash,		///< particle's hash (in)
+	const	float4	*oldVel,			///< previous particle's velocity (in)
+	const	float4	*oldEulerVel,		///< previous eulerian velocities for ??? <- TODO (in)
+	const	float4	*oldgGam,			///< previous values of gradient of gamma (in)
+	const	float	*oldTKE,			///< previous values of k, for k-e model (in)
+	const	float	*oldEps,			///< previous values of e, for k-e model
+	const	particleinfo	*info,		///< particle's information
+	const	float4	*forces,			///< derivative of particle's velocity and density (in)
+	const	float2	*contupd,			///< ?? (in)
+	const	float3	*keps_dkde,			///< derivative of ??? (in)
+	const	float4	*xsph,				///< SPH mean of velocities used for xsph correction (in)
+			float4	*newPos,			///< updated particle's position (out)
+			float4	*newVel,			///< updated particle's  velocity (out)
+			float4	*newEulerVel,		///<  updated eulerian velocities for ??? <- TODO (out)
+			float4	*newgGam,			///< updated values of gradient of gamma (out)
+			float	*newTKE,			///< updated values of k, for k-e model (out)
+			float	*newEps,			///< updated values of e, for k-e model (out)
 	// boundary elements are updated in-place, only used for rotation in the second step
-			float4	*newBoundElement,
-	const	uint	numParticles,
-	const	float	full_dt,
-	const	float	half_dt, /* full_dt/2 */
-	const	float	t)
+			float4	*newBoundElement,	///< ??? <- TODO (in, out)
+	const	uint	numParticles,		///< total number of particles
+	const	float	full_dt,			///< time step (dt)
+	const	float	half_dt, 			///< half of time step (dt/2)
+	const	float	t)					///< simulation time
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
 	if (index >= numParticles)
 		return;
 
-	// we use dt/2 on the first step, the actual dt on the second step
+	// We use dt/2 on the first step, the actual dt on the second step
 	const float dt = (step == 1) ? half_dt : full_dt;
 
-	// read particle data from sorted arrays
-	// Euler does nothing to boundary particles apart
-	// copying pos and vel in the new arrays, except in DYN_BOUNDARY
-	// case (boundarytype == DYN_BOUNDARY)
+	// Read particles data from sorted arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
 	float4 eulerVel = make_float4(0.0f);
@@ -102,129 +154,164 @@ eulerDevice(
 	const ParticleType ptype = static_cast<ParticleType>(PART_TYPE(pinfo));
 
 	do {
-		// we only integrate ACTIVE particles which are not BOUNDARY particles,
-		// unless dynbounds or sa_boundary is active (in which case BOUNDARY particles are also integrated)
+		// Euler does nothing to boundary particles apart copying pos and vel
+		// in the new arrays except :
+		//		* when boundary part belongs to an object or a moving boundary, in
+		//		  that case particle position and velocity is updated according to
+		//		  the rigid body movement
+		//		* with dynamic boundaries, in that case density of boundary parts is
+		//		  also evolved
+		//		* with SA boundaries and .....
+		// TODO: complete prviouds comment
 		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
-		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary))
+		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
+		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pinfo)) )
 			break;
 
 		const float4 force = forces[index];	// f(n) at step 1 and f(n+1/2) at step 2
-		// mean XSPH velocity, only when XSPH is active
-		// the compiler is smart enough to actually optimize this out
+
+		// Mean XSPH velocity, only when XSPH is active.
+		// The compiler is smart enough to actually optimize this out
 		// in the xsphcorr == false case
 		const float4 mean_vel = xsphcorr ? xsph[index] : make_float4(0);
-		/*
-		   velc = vel if step == 1, but
-		   velc = vel + forces[index]*dt/2.0f if step == 2
-		 */
+
+		// velc = vel if step == 1, but
+		// velc = vel + forces[index]*dt/2.0f if step == 2
 		const float4 velc = vel + (step - 1)*force*half_dt;
 
-		// object index
+		// Object index
 		const int obj = object(pinfo);
 
 		// Updating particle position
 		switch (ptype) {
-		case PT_FLUID:
-			// add weighted mean_vel only in xsphcorr case
-			// the compiler is smart enough to optimize it out
-			// in the xsphcorr == false case
-			pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
-			pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
-			pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
+			case PT_FLUID:
+				// Add weighted mean_vel only in xsphcorr case.
+				// The compiler is smart enough to optimize it out
+				// in the xsphcorr == false case
+				pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
+				pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
+				pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
-			if (boundarytype == SA_BOUNDARY) {
-				// Updating particle density
-				// For step 1:
-				//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
-				// For step 2:
-				//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-				// Improved continuity equation
-				if (step == 1) {
-					// gamma at time n+1 (gGam.w is gamma at time n)
-					const float gamN = newgGam[index].w;
-					const float gamNp1 = gamN + dt*contupd[index].y;
-					vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+				if (boundarytype == SA_BOUNDARY) {
+					// Updating particle density
+					// For step 1:
+					//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
+					// For step 2:
+					//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
+					// Improved continuity equation
+					if (step == 1) {
+						// gamma at time n+1 (gGam.w is gamma at time n)
+						const float gamN = newgGam[index].w;
+						const float gamNp1 = gamN + dt*contupd[index].y;
+						vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+					}
+					else {
+						const float gamNp1o2 = newgGam[index].w;
+						const float rhoNp1o2 = newVel[index].w;
+						// gamma at time n (gGam.w is gamma at time n+1/2)
+						const float gamN   = oldgGam[index].w;
+						// gamma at time n+1
+						const float gamNp1 = gamN + dt*contupd[index].y;
+						vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
+					}
+					// Classical continuity equation
+					//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
 				}
-				else {
-					const float gamNp1o2 = newgGam[index].w;
-					const float rhoNp1o2 = newVel[index].w;
-					// gamma at time n (gGam.w is gamma at time n+1/2)
-					const float gamN   = oldgGam[index].w;
-					// gamma at time n+1
-					const float gamNp1 = gamN + dt*contupd[index].y;
-					vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
-				}
-				// Classical continuity equation
-				//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
-			}
-			else
-				vel.w += dt*force.w;
-			// Fixed particles only evolve the density, non-fixed also evolve the velocity
-			if (!FIXED_PART(pinfo)) {
-				vel.x += dt*force.x;
-				vel.y += dt*force.y;
-				vel.z += dt*force.z;
-			}
+				else
+					vel += dt*force;
 
-			// Updating k and e for k-e model
-			if (keps_dkde) {
-				const float3 dkde = keps_dkde[index];
-				const float oldK = keps_k;
-				// implicit formulations of k and e
-				keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
-				keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
-			}
-			break;
+				// Updating k and e for k-e model
+				// TODO: templatize
+				if (keps_dkde) {
+					const float3 dkde = keps_dkde[index];
+					const float oldK = keps_k;
+					// implicit formulations of k and e
+					keps_k = (oldK   + dt*dkde.x)/(1.0f + dt*keps_e/oldK);
+					keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
+				}
+				break;
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		case PT_BOUNDARY:
 			if (boundarytype == DYN_BOUNDARY)
 				vel.w += dt*force.w;
-			if (boundarytype != SA_BOUNDARY)
+			if (MOVING(pinfo)) {
+				#ifdef _DEBUG_OBJ_FORCES_
+				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0) {
+					printf("Euler device, object %d\n", obj);
+					printf("   lvel: %e\t%e\t%e\n", d_rblinearvel[obj].x, d_rblinearvel[obj].y, d_rblinearvel[obj].z);
+					printf("   avel: %e\t%e\t%e\n", d_rbangularvel[obj].x, d_rbangularvel[obj].y, d_rbangularvel[obj].z);
+					printf("   npos: %e\t%e\t%e\n", d_rbcg[obj].x, d_rbcg[obj].y, d_rbcg[obj].z);
+					printf("   trans:%e\t%e\t%e\n", d_rbtrans[obj].x, d_rbtrans[obj].y, d_rbtrans[obj].z);
+					printf("   SR:   %e\t%e\t%e\n", d_rbsteprot[9*obj + 0], d_rbsteprot[9*obj + 1], d_rbsteprot[9*obj + 2]);
+					printf("         %e\t%e\t%e\n", d_rbsteprot[9*obj + 3], d_rbsteprot[9*obj + 4], d_rbsteprot[9*obj + 5]);
+					printf("         %e\t%e\t%e\n", d_rbsteprot[9*obj + 6], d_rbsteprot[9*obj + 7], d_rbsteprot[9*obj + 8]);
+				}
+				#endif
+
+				// Applying rotation around center of gravity. We always have cg = cg(n). Cg behaves
+				// the same as pos and we always have pos = pos(n).
+				// relPos = x - x_cg
+				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
+				applyrot(&d_rbsteprot[9*obj], relPos, pos);
+
+				// Applying center of gravity translation
+				pos.x += d_rbtrans[obj].x;
+				pos.y += d_rbtrans[obj].y;
+				pos.z += d_rbtrans[obj].z;
+
+				// Computing particles velocity
+				// V(P) = V(Cg) + PCg^omega
+				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
+				}
 				break;
-			// SA_BOUNDARY: fall-through to VERTEX
+
 		case PT_VERTEX:
-			if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
-				// this is for k-eps only. Normally forces are going to be zero
-				eulerVel += dt*force;
-				// remove normal component of eulerian velocity
-				const float4 gradGamma = newgGam[index];
-				eulerVel -= dot3(gradGamma, eulerVel)/sqlength3(gradGamma)*gradGamma;
-				// move segments and boundary particles if the MOVING flag is set
-				if (MOVING(pinfo) && step == 2) {
-					const uint i = object(pinfo)-1;
-					// old position
-					const float4 oldPos = pos;
-					// Applying center of gravity translation
-					pos.x += d_rbtrans[i].x;
-					pos.y += d_rbtrans[i].y;
-					pos.z += d_rbtrans[i].z;
-					// Applying rotation around center of gravity
-					const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
-					applyrot(&d_rbsteprot[9*i], relPos, pos);
-					// compute velocity as position derivative
-					vel.x = (pos.x - oldPos.x)/dt;
-					vel.y = (pos.y - oldPos.y)/dt;
-					vel.z = (pos.z - oldPos.z)/dt;
-					// update normal of boundary element
-					if (BOUNDARY(pinfo)) {
-						const float3 normal = as_float3(newBoundElement[index]);
-						applyrot(&d_rbsteprot[9*i], normal, newBoundElement[index]);
+			if (boundarytype == SA_BOUNDARY) {
+				// TODO: verify and fix
+				if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
+					// this is for k-eps only. Normally forces are going to be zero
+					eulerVel += dt*force;
+					// remove normal component of eulerian velocity
+					const float4 gradGamma = newgGam[index];
+					eulerVel -= dot3(gradGamma, eulerVel)/sqlength3(gradGamma)*gradGamma;
+					// move segments and boundary particles if the MOVING flag is set
+					if (MOVING(pinfo) && step == 2) {
+						const uint i = object(pinfo)-1;
+						// old position
+						const float4 oldPos = pos;
+						// Applying center of gravity translation
+						pos.x += d_rbtrans[i].x;
+						pos.y += d_rbtrans[i].y;
+						pos.z += d_rbtrans[i].z;
+						// Applying rotation around center of gravity
+						const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
+						applyrot(&d_rbsteprot[9*i], relPos, pos);
+						// compute velocity as position derivative
+						vel.x = (pos.x - oldPos.x)/dt;
+						vel.y = (pos.y - oldPos.y)/dt;
+						vel.z = (pos.z - oldPos.z)/dt;
+						// update normal of boundary element
+						if (BOUNDARY(pinfo)) {
+							const float3 normal = as_float3(newBoundElement[index]);
+							applyrot(&d_rbsteprot[9*i], normal, newBoundElement[index]);
+						}
+					}
+					else if (!MOVING(pinfo)) {
+						vel.x = 0.0f;
+						vel.y = 0.0f;
+						vel.z = 0.0f;
 					}
 				}
-				else if (!MOVING(pinfo)) {
+				else {
 					vel.x = 0.0f;
 					vel.y = 0.0f;
 					vel.z = 0.0f;
 				}
 			}
-			else {
-				vel.x = 0.0f;
-				vel.y = 0.0f;
-				vel.z = 0.0f;
-			}
 			break;
+
 		// Moving boundaries
-		case PT_PISTON:
+		/*case PT_PISTON:
 			vel.w += dt*force.w;
 			// Updating positions for piston particles.
 			// Now d_mbdata.x contains the piston velocity
@@ -270,7 +357,7 @@ eulerDevice(
 				// V(P) = V(Cg) + PCg^omega
 				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
 			}
-			break;
+			break;*/
 		case PT_TESTPOINT:
 			/* TODO */
 			break;

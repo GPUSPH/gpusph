@@ -60,6 +60,31 @@ EulerParameters::EulerParameters(const float * ep)
 }
 
 
+/// Constructor form for values
+/*! Constructor from for double of values
+ *	\param[in] e0 : 1st component
+ *	\param[in] e1 : 2nd component
+ *	\param[in] e2 : 3rd component
+ *	\param[in] e3 : 4th component
+ */
+EulerParameters::EulerParameters(const double e0, const double e1, const double e2, const double e3)
+{
+	m_ep[0] = e0;
+	m_ep[1] = e1;
+	m_ep[2] = e2;
+	m_ep[3] = e3;
+}
+
+
+/*!
+ * \overload EulerParameters::EulerParameters(const double, cons double, const double, const double)
+ */
+EulerParameters::EulerParameters(const float e0, const float e1, const float e2, const float e3)
+{
+	EulerParameters((double) e0, (double) e1, (double) e2, (double) e3);
+}
+
+
 /// Copy constructor
 /*!
  *	\param[in] source : source data
@@ -85,6 +110,33 @@ EulerParameters::EulerParameters(const dQuaternion &quat)
 	for (int i = 0; i < 3; i++)
 		m_ep[i] = quat[i];
 }
+
+
+/// Constructor from a vector
+/*! All rotations can be done using only normalized quaternions:
+ *  let be \f$ q \f$ a normalized quaternion and \f$ v \f$ the quaternion
+ *  having a null real component and imaginary components equals to the
+ *  components of vector \f$ \vec{c} \f$ i.e.  \f$ v = (0, v_x, v_y, v_z)\f$.
+ *  The imaginary part of the quaternion \f$ qvq^{-1} \f$ is the vector \f$ \vec{c} \f$
+ *  rotated by the rotation defined by \f$ q \f$.
+ */
+EulerParameters::EulerParameters(const double3 v)
+{
+	m_ep[0] = 0.;
+	m_ep[1] = v.x;
+	m_ep[2] = v.y;
+	m_ep[3] = v.z;
+}
+
+
+EulerParameters::EulerParameters(const float3 v)
+{
+	m_ep[0] = 0.;
+	m_ep[1] = (double) v.x;
+	m_ep[2] = (double) v.y;
+	m_ep[3] = (double) v.z;
+}
+
 
 /// Constructor from Euler angles
 /*! Construct Euler parameters form a set of Euler angles \f$(\psi, \theta, \phi)\f$
@@ -196,6 +248,35 @@ EulerParameters::ToODEQuaternion(dQuaternion & quat)
 		quat[i] = m_ep[i];
 }
 
+
+/// Set Euler parameters to identity: (1, 0, 0, 0)
+void
+EulerParameters::Identity(void)
+{
+	m_ep[0] = 1.0;
+	for (int i = 1; i < 4; i++)
+		m_ep[i] = 0.0;
+}
+
+
+/// Return the inverse of the parameter
+/*! Compute the inverse of the Euler parameters. Given
+ * 	\f$ q=(q_0, q_1, q_2, q_3)\f$ we have \f$ q^{-1}=(q_0, -q_1, -q_2, -q_3)\f$
+ *
+ *	\return the inverse
+ */
+EulerParameters
+EulerParameters::Inverse(void)
+{
+	EulerParameters res = *this;
+	res.m_ep[1] *= -1;
+	res.m_ep[2] *= -1;
+	res.m_ep[3] *= -1;
+
+	return res;
+}
+
+
 /// Rotation matrix computation
 /*! Compute the rotation matrix associated with the Euler parameters
  * 	according to:
@@ -284,6 +365,26 @@ EulerParameters &EulerParameters::operator*=(const EulerParameters &val)
 }
 
 
+/*!	Define the + operation for EulerParmeters.
+ * 	Overload of the + operator for Euler parameters.
+ *
+ *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ and \f$ q'=(q'_0, q'_1, q'_2, q'_3)\f$ two set of Euler parameters
+ *	we have :
+ *  \f{eqnarray*}{ q*q' = & (q_0 + q'_0, q_1 + q'_1, q_2 + q'_2, q_3 + q'_3) \f}
+ *
+ *	\param[in] ep1 : Euler parameters
+ *	\param[in] ep2 : Euler parameters
+ *	\return ep1+ep2
+ *
+ *	Beware this operation is not commutative
+ */
+EulerParameters operator+(const EulerParameters &ep1, const EulerParameters &ep2)
+{
+	return EulerParameters(ep1.m_ep[0] + ep2.m_ep[0], ep1.m_ep[1] + ep2.m_ep[1],
+				ep1.m_ep[2] + ep2.m_ep[2], ep1.m_ep[3] + ep2.m_ep[3]);
+}
+
+
 /*!	Define the * operation for EulerParmeters.
  * 	Overload of the * operator for Euler parameters. This operation corresponds to a rotation composition.
  *
@@ -313,8 +414,6 @@ EulerParameters operator*(const EulerParameters &ep1, const EulerParameters &ep2
 
 	EulerParameters res(temp);
 
-	res.Normalize();
-
 	return res;
 }
 
@@ -332,9 +431,40 @@ EulerParameters operator*(const EulerParameters * ep1, const EulerParameters &ep
 
 	EulerParameters res(temp);
 
-	res.Normalize();
-
 	return res;
+}
+
+
+/*!	Define the * operation between double and EulerParmeters.
+ * 	Overload of the * operator between double and Euler parameters.
+ *
+ *  Let be \f$ q=(q_0, q_1, q_2, q_3)\f$ an Euler parameters and \f$ a\f$ a real
+ *	we have :
+ *  \f$ a*q = & (a*q_0, a*q_1, a*q_2, a*q_3) \f$
+ *
+ *	\param[in] a : real
+ *	\param[in] ep : Euler parameters
+ *	\return a*ep
+ *
+ *	Beware this operation is not commutative
+ */
+EulerParameters operator*(const double a, const EulerParameters &ep)
+{
+	return EulerParameters(a*ep.m_ep[0], a*ep.m_ep[1], a*ep.m_ep[2], a*ep.m_ep[3]);
+}
+
+
+/// Copy rotation maxtrix in an array
+/*!	Copy stored rotation matrix in an array of floatspointed by res.
+ *	\param[out] res : pointer to rotation matrix
+ *
+ *  Beware: this method use the rotation matrix associated with each Euler parameters.
+ *  Those matrix should be computed before calling the method.
+ */
+void EulerParameters::GetRotation(float *res) const
+{
+	for (int i = 0; i < 9; i++)
+		res[i] = m_rot[i];
 }
 
 

@@ -41,10 +41,6 @@
 #define ORIGIN_Y	(0)
 #define ORIGIN_Z	(0)
 
-// centered domain: use to improve accuracy
-// #define ORIGIN_X	(- SIZE_X / 2)
-// #define ORIGIN_Y	(- SIZE_Y / 2)
-// #define ORIGIN_Z	(- SIZE_Z / 2)
 
 DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 {
@@ -57,7 +53,7 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 		boundary<LJ_BOUNDARY>
 	);
 
-	addFilter(MLS_FILTER, 10);
+	//addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.015f);
@@ -94,19 +90,8 @@ DamBreakGate::DamBreakGate(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.2);
-
-	// Set up callback function
-	m_simparams.mbcallback = true;
-	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	m_mbnumber = 1;
-	mbgatedata.origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
-	mbgatedata.type = GATEPART;
-	mbgatedata.tstart = 0.2f;
-	mbgatedata.tend = 0.6f;
-	mbgatedata.vel = make_float3(0.0, 0.0, 0.0);
-	// Call mb_callback a first time to initialize values set by the call back function
-	mb_callback(0.0, 0.0, 0);
+	add_writer(VTKWRITER, 0.1);
+	add_writer(COMMONWRITER, 0.0);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreakGate";
@@ -127,19 +112,35 @@ void DamBreakGate::release_memory(void)
 	boundary_parts.clear();
 }
 
-
-MbCallBack& DamBreakGate::mb_callback(const double t, const float dt, const int i)
+void
+DamBreakGate::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
-	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	if (t >= mbgatedata.tstart && t < mbgatedata.tend) {
-		mbgatedata.vel = make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart));
-		mbgatedata.disp += mbgatedata.vel*dt;
+	const double tstart = 0.1;
+	const double tend = 0.4;
+
+	// Computing, at t = t1, new position of center of rotation (here only translation)
+	// along with linear velocity
+	if (t1 >= tstart && t1 <= tend) {
+		kdata.lvel = make_double3(0.0, 0.0, 4.*(t1 - tstart));
+		kdata.crot.z = initial_kdata.crot.z + 2.*(t1 - tstart)*(t1 - tstart);
 		}
 	else
-		mbgatedata.vel = make_float3(0.0f);
+		kdata.lvel = make_double3(0.0f);
 
-	return m_mbcallbackdata[0];
+	// Computing the displacement of center of rotation between t = t0 and t = t1
+	double ti = min(tend, max(tstart, t0));
+	double tf = min(tend, max(tstart, t1));
+	dx.z = 2.*(tf - tstart)*(tf - tstart) - 2.*(ti - tstart)*(ti - tstart);
+
+	// Setting angular velocity at t = t1 and the rotation between t = t0 and t = 1.
+	// Here we have a simple translation movement so the angular velocity is null and
+	// the rotation between t0 and t1 equal to identity.
+	kdata.avel = make_double3(0.0f);
+	dr.Identity();
 }
+
 
 int DamBreakGate::fill_parts()
 {
@@ -149,8 +150,8 @@ int DamBreakGate::fill_parts()
 
 	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
 
-	MbCallBack& mbgatedata = m_mbcallbackdata[0];
-	Rect gate = Rect (Point(mbgatedata.origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
+	float3 gate_origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
+	gate = Rect (Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
 	obstacle = Cube(Point(0.9 + ORIGIN_X, 0.24 + ORIGIN_Y, r0 + ORIGIN_Z), 0.12, 0.12, 0.4 - r0);
@@ -179,8 +180,9 @@ int DamBreakGate::fill_parts()
 	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	gate.SetPartMass(GATEPART);
-	gate.Fill(gate_parts, r0, true);
+	gate.SetPartMass(r0, m_physparams.rho0[0]);
+	gate.Fill(gate.GetParts(), r0, true);
+	add_moving_body(&gate, MB_MOVING);
 
 	obstacle.SetPartMass(r0, m_physparams.rho0[0]);
 	obstacle.FillBorder(obstacle_parts, r0, true);
@@ -199,7 +201,7 @@ int DamBreakGate::fill_parts()
 		fluid4.Fill(parts, m_deltap, true);
 	}
 
-	return parts.size() + boundary_parts.size() + obstacle_parts.size() + gate_parts.size();
+	return parts.size() + boundary_parts.size() + obstacle_parts.size() + get_bodies_numparts();
 }
 
 void DamBreakGate::copy_to_array(BufferList &buffers)
@@ -212,25 +214,47 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(BOUNDPART,0,i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	std::cout << "Gate parts: " << gate_parts.size() << "\n";
-	for (uint i = j; i < j + gate_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(GATEPART,0,i);
-		calc_localpos_and_hash(gate_parts[i-j], info[i], pos[i], hash[i]);
+	for (uint k = 0; k < m_bodies.size(); k++) {
+		PointVect & rbparts = m_bodies[k]->object->GetParts();
+		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		for (uint i = 0; i < rbparts.size(); i++) {
+			uint ij = i + j;
+			float ht = H - rbparts[i](2);
+			if (ht < 0)
+				ht = 0.0;
+			float rho = density(ht, 0);
+			rho = m_physparams.rho0[0];
+			vel[ij] = make_float4(0, 0, 0, rho);
+			uint ptype = (uint) PT_BOUNDARY;
+			switch (m_bodies[k]->type) {
+				case MB_ODE:
+					ptype |= FG_FLOATING;
+					break;
+				case MB_FORCES_MOVING:
+					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+					break;
+				case MB_MOVING:
+					ptype |= FG_MOVING_BOUNDARY;
+					break;
+			}
+			info[ij] = make_particleinfo(ptype, k, i );
+			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
+		}
+		j += rbparts.size();
+		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		std::cout << ", part type: " << type(info[j-1])<< "\n";
 	}
-	j += gate_parts.size();
-	std::cout << "Gate part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(BOUNDPART,1,i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 1, i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
@@ -239,7 +263,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i] = make_particleinfo(FLUIDPART,0,i);
+		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();

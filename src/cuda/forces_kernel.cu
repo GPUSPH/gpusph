@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -39,7 +42,8 @@
 #include "kahan.h"
 #include "tensor.cu"
 
-// single-precision M_PI
+// Single-precision M_PI
+// FIXME : ah, ah ! Single precision with 976896587958795795 decimals ....
 #define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
 
 // an auxiliary function that fetches the tau tensor
@@ -66,15 +70,14 @@ texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
 
-__constant__ idx_t	d_neiblist_end; // maxneibsnum * number of allocated particles
-__constant__ idx_t	d_neiblist_stride; // stride between neighbors of the same particle
+__constant__ idx_t	d_neiblist_end; 		///< maximum number of neighbors * number of allocated particles
+__constant__ idx_t	d_neiblist_stride; 		///< stride between neighbors of the same particle
 
-__constant__ int	d_numfluids;					// number of different fluids
+__constant__ int	d_numfluids;			///< number of different fluids
 
-// square of sound speed for at-rest density
-__constant__ float	d_sqC0[MAX_FLUID_TYPES];
+__constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-rest density for each fluid
 
-__constant__ float	d_ferrari;						// coefficient for Ferrari correction
+__constant__ float	d_ferrari;				///< coefficient for Ferrari correction
 
 // LJ boundary repusion force comuting
 __constant__ float	d_dcoeff;
@@ -94,14 +97,14 @@ __constant__ float	d_visccoeff;
 __constant__ float	d_epsartvisc;
 
 // Constants used for DEM
-__constant__ float	d_ewres;
-__constant__ float	d_nsres;
+__constant__ float	d_ewres;		///< east-west resolution
+__constant__ float	d_nsres;		///< north-south resolution
 __constant__ float	d_demdx;
 __constant__ float	d_demdy;
 __constant__ float	d_demdxdy;
 __constant__ float	d_demzmin;
 
-__constant__ float	d_partsurf;						// particle surface
+__constant__ float	d_partsurf;		/// particle surface (typically particle spacing suared)
 
 // Definition of planes for geometrical boundaries
 __constant__ uint	d_numplanes;
@@ -116,9 +119,7 @@ __constant__ float	d_kspsfactor;
 __constant__ float	d_cosconeanglefluid;
 __constant__ float	d_cosconeanglenonfluid;
 
-// Rigid body data (test version)
-__device__ float3	d_force;
-__device__ float3	d_torque;
+// Rigid body data
 __constant__ float3	d_rbcg[MAXBODIES];
 __constant__ int	d_rbstartindex[MAXBODIES];
 __constant__ float	d_objectobjectdf;
@@ -136,7 +137,7 @@ __constant__ char3	d_cell_to_offset[27];
 __constant__ uint	d_newIDsOffset;
 
 /************************************************************************************************************/
-/*							  Functions used by the differents CUDA kernels							   */
+/*							  Functions used by the different CUDA kernels							        */
 /************************************************************************************************************/
 
 // Lennard-Jones boundary repulsion force
@@ -179,7 +180,7 @@ MKForce(const float r, const float slength,
 /************************************************************************************************************/
 
 /************************************************************************************************************/
-/*					   Reflect position or velocity wrt to a plane										    */
+/*					   Reflect position or velocity with respect to a plane									*/
 /************************************************************************************************************/
 
 // opposite of a point wrt to a plane specified as p.x * x + p.y * y + p.z * z + p.w, with
@@ -461,6 +462,45 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 /*		   Kernels for computing SPS tensor and SPS viscosity												*/
 /************************************************************************************************************/
 
+/// A functor that writes out turbvisc for SPS visc
+template<bool>
+struct write_sps_turbvisc
+{
+	template<typename FP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, const uint index, const float turbvisc)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP>
+__device__ __forceinline__ void
+write_sps_turbvisc<true>::with(FP const& params, const uint index, const float turbvisc)
+{ params.turbvisc[index] = turbvisc; }
+
+/// A functor that writes out tau for SPS visc
+template<bool>
+struct write_sps_tau
+{
+	template<typename FP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, const uint index, const float2& tau0, const float2& tau1, const float2& tau2)
+	{ /* do nothing */ }
+};
+
+template<>
+template<typename FP>
+__device__ __forceinline__ void
+write_sps_tau<true>::with(FP const& params, const uint index, const float2& tau0,
+							const float2& tau1, const float2& tau2)
+{
+	params.tau0[index] = tau0;
+	params.tau1[index] = tau1;
+	params.tau2[index] = tau2;
+}
+
 // Compute the Sub-Particle-Stress (SPS) Tensor matrix for all Particles
 // WITHOUT Kernel correction
 // Procedure:
@@ -468,38 +508,27 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 // (2) compute turbulent eddy viscosity (non-dynamic)
 // (3) compute turbulent shear stresses
 // (4) return SPS tensor matrix (tau) divided by rho^2
-template<KernelType kerneltype, bool dynbounds>
+template<KernelType kerneltype,
+	BoundaryType boundarytype,
+	uint simflags>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SPS, MIN_BLOCKS_SPS)
-SPSstressMatrixDevice(	const float4* posArray,
-						float2*		tau0,
-						float2*		tau1,
-						float2*		tau2,
-						const hashKey*	particleHash,
-						const uint*	cellStart,
-						const neibdata*	neibsList,
-						const uint	numParticles,
-						const float	slength,
-						const float	influenceradius)
+SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 {
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
-	if (index >= numParticles)
+	if (index >= params.numParticles)
 		return;
 
 	// read particle data from sorted arrays
-	// compute SPS matrix only for fluid particles, except in the
-	// DYN_BOUNDARY case (dynbounds = true), in which case we compute
-	// it for everything
+	// Compute SPS matrix only for any kind of particles
 	// TODO testpoints should also compute SPS, it'd be useful
 	// when we will enable SPS saving to disk
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if (NOT_FLUID(info) && !dynbounds)
-		return;
 
 	// read particle data from sorted arrays
 	#if( __COMPUTE__ >= 20)
-	const float4 pos = posArray[index];
+	const float4 pos = params.pos[index];
 	#else
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
@@ -510,16 +539,13 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	const float4 vel = tex1Dfetch(velTex, index);
 
-	// SPS stress matrix elements
-	symtensor3 tau;
-
 	// Gradients of the the velocity components
 	float3 dvx = make_float3(0.0f);
 	float3 dvy = make_float3(0.0f);
 	float3 dvz = make_float3(0.0f);
 
 	// Compute grid position of current particle
-	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	const int3 gridPos = calcGridPosFromParticleHash( params.particleHash[index] );
 
 	// Persistent variables across getNeibData calls
 	char neib_cellnum = -1;
@@ -528,17 +554,17 @@ SPSstressMatrixDevice(	const float4* posArray,
 
 	// loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
-		neibdata neib_data = neibsList[i + index];
+		neibdata neib_data = params.neibsList[i + index];
 
 		if (neib_data == 0xffff) break;
 
-		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
-					neib_cellnum, neib_cell_base_index);
+		const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
+				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
 
 		// Compute relative position vector and distance
 		// Now relPos is a float4 and neib mass is stored in relPos.w
 		#if( __COMPUTE__ >= 20)
-		const float4 relPos = pos_corr - posArray[neib_index];
+		const float4 relPos = pos_corr - params.pos[neib_index];
 		#else
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
@@ -547,20 +573,17 @@ SPSstressMatrixDevice(	const float4* posArray,
 		if (INACTIVE(relPos))
 			continue;
 
-		const float r = length(as_float3(relPos));
+		const float r = length3(relPos);
 
 		// Compute relative velocity
 		// Now relVel is a float4 and neib density is stored in relVel.w
 		const float4 relVel = as_float3(vel) - tex1Dfetch(velTex, neib_index);
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		// velocity gradient is contributed by fluid particles only,
-		// except in the DYN_BOUNDARY case where all particles (except TESTPOINTS,
-		// of course) contribute
-		const bool valid_neib_type = FLUID(neib_info) || (dynbounds && !TESTPOINTS(neib_info));
-
-		if (r < influenceradius && valid_neib_type) {
-			const float f = F<kerneltype>(r, slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
+		// Velocity gradient is contributed by all particles
+		// TODO: fix SA case
+		if ( r < params.influenceradius ) {
+			const float f = F<kerneltype>(r, params.slength)*relPos.w/relVel.w;	// 1/r ∂Wij/∂r Vj
 
 			// Velocity Gradients
 			dvx -= relVel.x*as_float3(relPos)*f;	// dvx = -∑mj/ρj vxij (ri - rj)/r ∂Wij/∂r
@@ -568,6 +591,10 @@ SPSstressMatrixDevice(	const float4* posArray,
 			dvz -= relVel.z*as_float3(relPos)*f;	// dvz = -∑mj/ρj vzij (ri - rj)/r ∂Wij/∂r
 			}
 		} // end of loop through neighbors
+
+
+	// SPS stress matrix elements
+	symtensor3 tau;
 
 	// Calculate Sub-Particle Scale viscosity
 	// and special turbulent terms
@@ -581,26 +608,31 @@ SPSstressMatrixDevice(	const float4* posArray,
 	temp = dvy.z + dvz.y;			// 2*SijSij += (∂vy/∂z + ∂vz/∂y)^2
 	tau.yz = temp;
 	SijSij_bytwo += temp*temp;
-	float S = sqrtf(SijSij_bytwo);
-	float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
-	float divu_SPS = 0.6666666666f*nu_SPS*(dvx.x + dvy.y + dvz.z);
-	float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
+	const float S = sqrtf(SijSij_bytwo);
+	const float nu_SPS = d_smagfactor*S;		// Dalrymple & Rogers (2006): eq. (12)
+	const float divu_SPS = 0.6666666666f*nu_SPS*(dvx.x + dvy.y + dvz.z);
+	const float Blinetal_SPS = d_kspsfactor*SijSij_bytwo;
+
+	// Storing the turbulent viscosity for each particle
+	write_sps_turbvisc<simflags & SPSK_STORE_TURBVISC>::with(params, index, nu_SPS);
 
 	// Shear Stress matrix = TAU (pronounced taf)
 	// Dalrymple & Rogers (2006): eq. (10)
-	tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
-	tau.xx /= vel.w;
-	tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
-	tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
-	tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
-	tau.yy /= vel.w;
-	tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
-	tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
-	tau.zz /= vel.w;
+	if (simflags & SPSK_STORE_TAU) {
 
-	tau0[index] = make_float2(tau.xx, tau.xy);
-	tau1[index] = make_float2(tau.xz, tau.yy);
-	tau2[index] = make_float2(tau.yz, tau.zz);
+		tau.xx = nu_SPS*(dvx.x + dvx.x) - divu_SPS - Blinetal_SPS;	// tau11 = tau_xx/ρ^2
+		tau.xx /= vel.w;
+		tau.xy *= nu_SPS/vel.w;								// tau12 = tau_xy/ρ^2
+		tau.xz *= nu_SPS/vel.w;								// tau13 = tau_xz/ρ^2
+		tau.yy = nu_SPS*(dvy.y + dvy.y) - divu_SPS - Blinetal_SPS;	// tau22 = tau_yy/ρ^2
+		tau.yy /= vel.w;
+		tau.yz *= nu_SPS/vel.w;								// tau23 = tau_yz/ρ^2
+		tau.zz = nu_SPS*(dvz.z + dvz.z) - divu_SPS - Blinetal_SPS;	// tau33 = tau_zz/ρ^2
+		tau.zz /= vel.w;
+
+		write_sps_tau<simflags & SPSK_STORE_TAU>::with(params, index, make_float2(tau.xx, tau.xy),
+				make_float2(tau.xz, tau.yy), make_float2(tau.yz, tau.zz));
+	}
 }
 /************************************************************************************************************/
 
@@ -1581,7 +1613,7 @@ saVertexBoundaryConditions(
 			// FIXME endianness
 			uint clone_id = id(info) + d_newIDsOffset;
 			particleinfo clone_info = info;
-			clone_info.x = FLUIDPART; // clear all flags and set it to fluid particle
+			clone_info.x = PT_FLUID; // clear all flags and set it to fluid particle
 			clone_info.y = 0; // reset object to 0
 			clone_info.z = (clone_id & 0xffff); // set the id of the object
 			clone_info.w = ((clone_id >> 16) & 0xffff);
@@ -1646,7 +1678,8 @@ saVertexBoundaryConditions(
 /************************************************************************************************************/
 
 // This kernel computes the Sheppard correction
-template<KernelType kerneltype>
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 shepardDevice(	const float4*	posArray,
@@ -1663,8 +1696,6 @@ shepardDevice(	const float4*	posArray,
 	if (index >= numParticles)
 		return;
 
-	// read particle data from sorted arrays
-	// normalize kernel only if the given particle is a fluid one
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	#if( __COMPUTE__ >= 20)
@@ -1673,17 +1704,23 @@ shepardDevice(	const float4*	posArray,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
 	float4 vel = tex1Dfetch(velTex, index);
 
-	if (NOT_FLUID(info) && !VERTEX(info)) {
+	// We apply Shepard normalization :
+	//	* with LJ or DYN boundary only on fluid particles
+	//TODO 	* with SA boundary ???
+	// in any other case we have to copy the vel vector in the new velocity array
+	if (NOT_FLUID(info)) {
 		newVel[index] = vel;
 		return;
 	}
 
-	// taking into account self contribution in summation
+
+	// Taking into account self contribution in summation
 	float temp1 = pos.w*W<kerneltype>(0, slength);
 	float temp2 = temp1/vel.w ;
 
@@ -1695,7 +1732,7 @@ shepardDevice(	const float4*	posArray,
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
-	// loop over all the neighbors
+	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
@@ -1712,24 +1749,35 @@ shepardDevice(	const float4*	posArray,
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 
-		// skip inactive particles
-		if (INACTIVE(relPos))
+
+		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
+
+		// Skip inactive neighbors
+		if (INACTIVE(relPos)) {
+			if (OBJECT(neib_info))
+				printf("Object part inactive !");
 			continue;
+		}
 
 		const float r = length(as_float3(relPos));
 
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
-		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		if (r < influenceradius && (FLUID(neib_info)/* || VERTEX(neib_info)*/) && ACTIVE(relPos)) {
+		// Add neib contribution only if it's a fluid one
+		// TODO: check with SA
+		if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
+				&& r < influenceradius ) {
 			const float w = W<kerneltype>(r, slength)*relPos.w;
 			temp1 += w;
 			temp2 += w/neib_rho;
 		}
 	}
 
+	// Normalize the density and write in global memory
 	vel.w = temp1/temp2;
 	newVel[index] = vel;
+	if (OBJECT(info))
+		printf("SF: object part density updated !\n");
 }
 
 // contribution of neighbor at relative position relPos with weight w to the
@@ -1761,7 +1809,8 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 
 
 // This kernel computes the MLS correction
-template<KernelType kerneltype>
+template<KernelType kerneltype,
+	BoundaryType boundarytype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_MLS, MIN_BLOCKS_MLS)
 MlsDevice(	const float4*	posArray,
@@ -1778,8 +1827,6 @@ MlsDevice(	const float4*	posArray,
 	if (index >= numParticles)
 		return;
 
-	// read particle data from sorted arrays
-	// computing MLS matrix only for fluid particles
 	const particleinfo info = tex1Dfetch(infoTex, index);
 
 	#if( __COMPUTE__ >= 20)
@@ -1788,11 +1835,16 @@ MlsDevice(	const float4*	posArray,
 	const float4 pos = tex1Dfetch(posTex, index);
 	#endif
 
+	// If particle is inactive there is absolutely nothing to do
 	if (INACTIVE(pos))
 		return;
 
 	float4 vel = tex1Dfetch(velTex, index);
 
+	// We apply MLS normalization :
+	//	* with LJ or DYN boundary only on fluid particles
+	//TODO 	* with SA boundary ???
+	// in any other case we have to copy the vel vector in the new velocity array
 	if (NOT_FLUID(info)) {
 		newVel[index] = vel;
 		return;
@@ -1804,10 +1856,10 @@ MlsDevice(	const float4*	posArray,
 		mls.yy = mls.yz = mls.yw =
 		mls.zz = mls.zw = mls.ww = 0;
 
-	// number of neighbors
+	// Number of neighbors
 	int neibs_num = 0;
 
-	// taking into account self contribution in MLS matrix construction
+	// Taking into account self contribution in MLS matrix construction
 	mls.xx = W<kerneltype>(0, slength)*pos.w/vel.w;
 
 	// Compute grid position of current particle
@@ -1835,10 +1887,7 @@ MlsDevice(	const float4*	posArray,
 		const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 		#endif
 
-		if (INACTIVE(relPos))
-			continue;
-
-		// skip inactive particles
+		// Skip inactive particles
 		if (INACTIVE(relPos))
 			continue;
 
@@ -1847,10 +1896,11 @@ MlsDevice(	const float4*	posArray,
 		const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 		const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-		// interaction between two particles
+		// Add neib contribution only if it's a fluid one
+		// TODO: check with SA
 		if (r < influenceradius && FLUID(neib_info)) {
 			neibs_num ++;
-			float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
+			const float w = W<kerneltype>(r, slength)*relPos.w/neib_rho;	// Wij*Vj
 			MlsMatrixContrib(mls, relPos, w);
 		}
 	} // end of first loop trough neighbors
@@ -1859,7 +1909,7 @@ MlsDevice(	const float4*	posArray,
 	neib_cellnum = 0;
 	neib_cell_base_index = 0;
 
-	// safe inverse of MLS matrix
+	// Safe inverse of MLS matrix :
 	// the matrix is inverted only if |det|/max|aij|^4 > EPSDET
 	// and if the number of fluids neighbors if above a minimum
 	// value, otherwise no correction is applied
@@ -1867,8 +1917,7 @@ MlsDevice(	const float4*	posArray,
 	maxa *= maxa;
 	maxa *= maxa;
 	float D = det(mls);
-	if (D > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {  // FIXME: should be |det| ?????
-		// first row of inverse matrix
+	if (fabs(D) > maxa*EPSDETMLS && neibs_num > MINCORRNEIBSMLS) {
 		D = 1/D;
 		float4 B;
 		B.x = (mls.yy*mls.zz*mls.ww + mls.yz*mls.zw*mls.yw + mls.yw*mls.yz*mls.zw - mls.yy*mls.zw*mls.zw - mls.yz*mls.yz*mls.ww - mls.yw*mls.zz*mls.yw)*D;
@@ -1876,10 +1925,10 @@ MlsDevice(	const float4*	posArray,
 		B.z = (mls.xy*mls.yz*mls.ww + mls.yy*mls.zw*mls.xw + mls.yw*mls.xz*mls.yw - mls.xy*mls.zw*mls.yw - mls.yy*mls.xz*mls.ww - mls.yw*mls.yz*mls.xw)*D;
 		B.w = (mls.xy*mls.zz*mls.yw + mls.yy*mls.xz*mls.zw + mls.yz*mls.yz*mls.xw - mls.xy*mls.yz*mls.zw - mls.yy*mls.zz*mls.xw - mls.yz*mls.xz*mls.yw)*D;
 
-		// taking into account self contribution in density summation
+		// Taking into account self contribution in density summation
 		vel.w = B.x*W<kerneltype>(0, slength)*pos.w;
 
-		// loop over all the neighbors (Second loop)
+		// Loop over all the neighbors (Second loop)
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
@@ -1896,7 +1945,7 @@ MlsDevice(	const float4*	posArray,
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 
-			// skip inactive particles
+			// Skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
@@ -1905,8 +1954,9 @@ MlsDevice(	const float4*	posArray,
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
+			// Interaction between two particles
+			if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
+					&& r < influenceradius ) {
 				const float w = W<kerneltype>(r, slength)*relPos.w;	 // ρj*Wij*Vj = mj*Wij
 				vel.w += MlsCorrContrib(B, relPos, w);
 			}
@@ -1934,7 +1984,7 @@ MlsDevice(	const float4*	posArray,
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 
-			// skip inactive particles
+			// Skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
@@ -1943,8 +1993,10 @@ MlsDevice(	const float4*	posArray,
 			const float neib_rho = tex1Dfetch(velTex, neib_index).w;
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// interaction between two particles
-			if (r < influenceradius && FLUID(neib_info)) {
+			// Add neib contribution only if it's a fluid one
+			// TODO: check with SA
+			if ((boundarytype == DYN_BOUNDARY || (boundarytype != DYN_BOUNDARY && FLUID(neib_info)))
+					&& r < influenceradius ) {
 					// ρj*Wij*Vj = mj*Wij
 					const float w = W<kerneltype>(r, slength)*relPos.w;
 					// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
@@ -2053,20 +2105,20 @@ void calcEnergiesDevice(
 		const int3 gridPos = calcGridPosFromParticleHash( particleHash[gid] );
 		particleinfo pinfo = pInfo[gid];
 		if (FLUID(pinfo)) {
-			uint fluid_num = PART_FLUID_NUM(pinfo);
+			uint fnum = fluid_num(pinfo);
 			float v2 = kahan_sqlength(as_float3(vel));
 			// TODO improve precision by splitting the float part from the grid part
 			float gh = kahan_dot(d_gravity, as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize);
-			kahan_add(energy[fluid_num].x, pos.w*v2/2, E_k[fluid_num].x);
-			kahan_add(energy[fluid_num].y, -pos.w*gh, E_k[fluid_num].y);
+			kahan_add(energy[fnum].x, pos.w*v2/2, E_k[fnum].x);
+			kahan_add(energy[fnum].y, -pos.w*gh, E_k[fnum].y);
 			// internal elastic energy
-			float gamma = d_gammacoeff[fluid_num];
-			float gm1 = d_gammacoeff[fluid_num]-1;
-			float rho0 = d_rho0[fluid_num];
+			float gamma = d_gammacoeff[fnum];
+			float gm1 = d_gammacoeff[fnum]-1;
+			float rho0 = d_rho0[fnum];
 			float elen = __powf(vel.w/rho0, gm1)/gm1 + rho0/vel.w - gamma/gm1;
-			float ssp = soundSpeed(vel.w, fluid_num);
+			float ssp = soundSpeed(vel.w, fnum);
 			elen *= ssp*ssp/gamma;
-			kahan_add(energy[fluid_num].z, pos.w*elen, E_k[fluid_num].z);
+			kahan_add(energy[fnum].z, pos.w*elen, E_k[fnum].z);
 		}
 		gid += stride;
 	}
@@ -2272,7 +2324,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 
 	// read particle data from sorted arrays
 	const particleinfo info = tex1Dfetch(infoTex, index);
-	if(type(info) != TESTPOINTSPART)
+	if(!TESTPOINT(info))
 		return;
 
 	#if (__COMPUTE__ >= 20)
@@ -2407,7 +2459,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	// Compute grid position of current particle
 	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
 
-	CLEAR_FLAG(info, SURFACE_PARTICLE_FLAG);
+	CLEAR_FLAG(info, FG_SURFACE);
 	normal.w = W<kerneltype>(0.0f, slength)*pos.w;
 
 	// Persistent variables across getNeibData calls
@@ -2511,7 +2563,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	}
 
 	if (!nc)
-		SET_FLAG(info, SURFACE_PARTICLE_FLAG);
+		SET_FLAG(info, FG_SURFACE);
 
 	newInfo[index] = info;
 
@@ -2612,7 +2664,7 @@ saIdentifyCornerVertices(
 			// this implies that the mass of this particle won't vary but it is still treated
 			// like an open boundary in every other aspect
 			if (normDist < deltap - eps){
-				SET_FLAG(info, CORNER_PARTICLE_FLAG);
+				SET_FLAG(info, FG_CORNER);
 				pinfo[index] = info;
 				break;
 			}
@@ -2716,7 +2768,7 @@ saFindClosestVertex(
 		return;
 	} else {
 		vertices[index].w = minVertId;
-		SET_FLAG(info, CORNER_PARTICLE_FLAG);
+		SET_FLAG(info, FG_CORNER);
 		pinfo[index] = info;
 	}
 }

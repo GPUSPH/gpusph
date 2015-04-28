@@ -1,13 +1,16 @@
-/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+/*  Copyright 2013 Alexis Herault, Giuseppe Bilotta, Robert A.
+ 	Dalrymple, Eugenio Rustico, Ciro Del Negro
 
-    Istituto Nazionale di Geofisica e Vulcanologia
-        Sezione di Catania, Catania, Italy
+	Conservatoire National des Arts et Metiers, Paris, France
 
-    Università di Catania, Catania, Italy
+	Istituto Nazionale di Geofisica e Vulcanologia,
+    Sezione di Catania, Catania, Italy
+
+    Universita di Catania, Catania, Italy
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+	This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -60,35 +63,49 @@
  * Auxiliary functions, needed to initialize const members in one go
  */
 
-/// Precompute pressure contribution to the momemntum equation.
+/// Precompute pressure contribution to the momentum equation.
 /// Two versions are available, one in the KEPS viscosity case,
 /// and a generic one
 
-// Generic:
+/// Precompute pressure contribution to momentum equation
+/*! This function precomputes the pressure contribution to the
+ * 	momentum equation according to the chosen SPH formulation.
+ *
+ *	\param[in] rho : particle density
+ *	\param[in] info : particle info (used for fluid number)
+ *
+ * 	\tparam sph_formulation : SPH formulation used
+ *
+ *	\return : pressure contribution
+ */
+ //@{
 template<SPHFormulation sph_formulation>
 __device__ __forceinline__
 float
 precalc_pressure(const float rho, particleinfo const& info);
 
-/* when using SPH formulation 1, the precomputed pressure contribution
-   for the current particle is p/rho^2 */
+/*! When using SPH formulation 1, the precomputed pressure contribution
+*   for the current particle is p/rho^2
+*/
 template<>
 __device__ __forceinline__
 float
 precalc_pressure<SPH_F1>(const float rho, particleinfo const& info)
 {
-	return P(rho, PART_FLUID_NUM(info))/(rho*rho);
+	return P(rho, fluid_num(info))/(rho*rho);
 }
 
-/* when using SPH formulation 2, the precomputed pressure contribution
-   for the current particle is just p */
+/*! When using SPH formulation 2, the precomputed pressure contribution
+*   for the current particle is just p
+*/
 template<>
 __device__ __forceinline__
 float
 precalc_pressure<SPH_F2>(const float rho, particleinfo const& info)
 {
-	return P(rho, PART_FLUID_NUM(info));
+	return P(rho, fluid_num(info));
 }
+//@}
 
 // With KEPS visc:
 template<SPHFormulation sph_formulation>
@@ -147,7 +164,8 @@ struct rb_particle_data
 	const	uint	rbindex;
 
 	__device__ __forceinline__
-	rb_particle_data(particleinfo const& info) : rbindex(object(info) != 0 ? ((int)id(info)) + d_rbstartindex[object(info)-1] : UINT_MAX)
+	//rb_particle_data(particleinfo const& info) : rbindex(object(info) != 0 ? ((int)id(info)) + d_rbstartindex[object(info)-1] : UINT_MAX)
+	rb_particle_data(particleinfo const& info) : rbindex( ((int)id(info)) + d_rbstartindex[object(info)] )
 	{}
 };
 
@@ -491,7 +509,7 @@ struct common_neib_data
 		relVel(as_float3(pdata.vel) - tex1Dfetch(velTex, _index)),
 		vel_dot_pos(dot3(relVel, relPos)),
 		f(F<kerneltype>(r, params.slength)),
-		sspeed(soundSpeed(relVel.w, PART_FLUID_NUM(_info)))
+		sspeed(soundSpeed(relVel.w, fluid_num(_info)))
 	{}
 };
 
@@ -750,7 +768,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 {
 	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		return;
-	if (pdata.ptype != PT_OBJECT && (ndata.ntype == PT_VERTEX ) ) {
+	if (OBJECT(pdata.info) && (ndata.ntype == PT_VERTEX ) ) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
 		const float ndist = sqlength3(ndata.relPos)/params.slength/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
@@ -760,7 +778,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	}
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
-	if (pdata.ptype != PT_OBJECT && ndata.ntype == PT_BOUNDARY) {
+	if (!OBJECT(pdata.info) && ndata.ntype == PT_BOUNDARY) {
 		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.5f);
 		const float sx = fmax(x*4.0f - 1.0f,0.0f);
 		// smootherstep function
@@ -830,7 +848,7 @@ struct compute_density_derivative {
 	static void
 	ferrari_correction(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		const int fType =  PART_FLUID_NUM(pdata.info);
+		const int fType =  fluid_num(pdata.info);
 		// gravity correction for free-surface flows
 		const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
 		// actual diffusion term
@@ -1670,7 +1688,7 @@ forcesDevice(
 	__shared__ forces_shared_data<dyndt, visctype> shared;
 	shared.init();
 
-	// the body of this kernel easily gets a lot of indentation. to prevent that,
+	// The body of this kernel easily gets a lot of indentation. to prevent that,
 	// we wrap the main part into a do { } while(0); so that rather than
 	// if (c1) { if (c2) { if (c3) { stuff } } } we can do
 	// if (!c1) break; if (!c2) break ; if (!c3) break; stuff
@@ -1679,35 +1697,35 @@ forcesDevice(
 	// into one place.
 	// (The alternative would have been a label before the reduction and a
 	// bunch of goto label, but that would skip across initializations, which is an error.
-	// and some people still don't like gotos, so this is actually a better alternative).
+	// and some people still don't like goto's, so this is actually a better alternative).
 #pragma unroll
 	do {
 		if (index >= params.toParticle) break;
 
-		// particle info struct, always stored in a texture
+		// Particle info struct, always stored in a texture
 		const particleinfo info = tex1Dfetch(infoTex, index);
 
-		// Determine if the current particle must act based on the particle type.
+		// Determine how the current particle must act based on it's the particle type.
 		// The particles for which forces are computed are:
-		// * fluid particles
-		// * object particles
-		// * vertex particles (for SA_BOUNDARY)
-		// * evertyhing except TESTPOINTS (for DYN_BOUNDARY)
+		// 	* fluid particles
+		// 	* object particles
+		// 	* vertex particles (for SA_BOUNDARY)
+		// 	* everything except TESTPOINTS (for DYN_BOUNDARY)
 
 		bool computes_stuff = FLUID(info) || OBJECT(info);
-		if (boundarytype == SA_BOUNDARY){
+		if (boundarytype == SA_BOUNDARY) {
 			computes_stuff = computes_stuff || VERTEX(info);
-			// floating objects need to compute the force acting on them
+			// Floating objects need to compute the force acting on them
 			computes_stuff = computes_stuff || (BOUNDARY(info) && FLOATING(info));
 		}
 		if (boundarytype == DYN_BOUNDARY)
-			computes_stuff = !TESTPOINTS(info);
+			computes_stuff = !TESTPOINT(info);
 
-		// nothing to do if the particle doesn't need to compute forces
+		// Nothing to do if the particle doesn't need to compute forces
 		if (!computes_stuff)
 			break;
 
-		// cell-local position of the particle, stored in texture
+		// Cell-local position of the particle, stored in texture
 		// or global memory depending on architecture
 		#if( __COMPUTE__ >= 20)
 		const float4 pos = params.posArray[index];
@@ -1715,25 +1733,25 @@ forcesDevice(
 		const float4 pos = tex1Dfetch(posTex, index);
 		#endif
 
-		// nothing to do if the particle is inactive
+		// Nothing to do if the particle is inactive
 		if (INACTIVE(pos))
 			break;
 
-		// load rest of particle data
+		// Loading the rest of particle data
 		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> const
 			pdata(index, pos, info, params);
 
-		// prepare particle output variables
+		// Preparing particle output variables
 		forces_particle_output<boundarytype, visctype, usexsph> pout;
 
-		/* And finally the neib list transversal support */
+		/* And finally the neighbors list traversal support */
 
-		// persistent variables across getNeibData calls
+		// Persistent variables across getNeibData calls
 		char neib_cellnum = 0;
 		uint neib_cell_base_index = 0;
 		float3 pos_corr;
 
-		// under some conditions, some particles might want to skip the
+		// Under some conditions, some particles might want to skip the
 		// neighbor list traversal. This is checked by the check() function of
 		// the skip_neiblist struct. Any action that needs to be done then is
 		// done by the prepare() function in the same struct.
@@ -1746,10 +1764,10 @@ forcesDevice(
 
 		if (skip.check(params, pdata)) {
 			skip.prepare(pdata, pout);
-			i = d_neiblist_end; // skip neighbors loop
+			i = d_neiblist_end; // Skip neighbors loop
 		}
 
-		// loop over all neighbors
+		// Loop over all neighbors
 		for (; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = params.neibsList[i + index];
 
@@ -1759,14 +1777,14 @@ forcesDevice(
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
 
 			// Compute relative position vector and distance
-			// Now relPos is a float4 and neib mass is stored in relPos.w
+			// WARNING: relPos is a float4 and neib mass is stored in relPos.w
 			#if( __COMPUTE__ >= 20)
 			const float4 relPos = pos_corr - params.posArray[neib_index];
 			#else
 			const float4 relPos = pos_corr - tex1Dfetch(posTex, neib_index);
 			#endif
 
-			// skip inactive particles
+			// Skip inactive particles
 			if (INACTIVE(relPos))
 				continue;
 
@@ -1774,15 +1792,15 @@ forcesDevice(
 
 			const particleinfo neib_info = tex1Dfetch(infoTex, neib_index);
 
-			// we now check if the current particle interacts with the neighbor.
+			// We now check if the current particle interacts with the neighbor.
 			// We recycle the computes_stuff as boolean
-			computes_stuff = (r < params.influenceradius) && !TESTPOINTS(neib_info);
+			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
 			// Objects only interact with fluid particles, since object-object
 			// and object-boundary forces are computed with ODE
 			// TODO FIXME prevent OBJECT parts from having other OBJECT parts in their
 			// neib list
-			if (pdata.ptype == PT_OBJECT)
+			if (OBJECT(pdata.info))
 				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
 
 			// With SA_BOUNDARY, fluid and vertex particles interact with any
@@ -1793,105 +1811,139 @@ forcesDevice(
 			if (boundarytype == SA_BOUNDARY && (pdata.ptype == PT_FLUID || pdata.ptype == PT_VERTEX))
 				computes_stuff = computes_stuff || BOUNDARY(neib_info);
 
-			// bail out if we do not interact with this neighbor
+			// Bail out if we do not interact with this neighbor
 			if (!computes_stuff)
 				continue;
 
-			// load rest of neib data
+			// Load rest of neib data
 			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
-			/* Contributions from this neighbor */
+			// Contributions from this neighbor
 			forces_neib_output<boundarytype> nout;
 
-			/* Now compute the interactions based on pdata.info and ndata.info */
+			// Now compute the interactions based on pdata.info and ndata.info
 
 			// Compute gamma_as and |grad gamma_as| and add it to the respective values
 			// of the focal particle
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
-			if (pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) {
-
+			if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID) {
 				// The Navier-Stokes equations are applied in the following cases:
-				// * for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
-				// * for non-DYN, non-SA boundary, by a fluid particle interacting with a fluid particle;
-				// The DYN boundary case is more complex:
-				// * a fluid particle will compute both density derivative and acceleration interacting
-				//   with any other particle;
-				// * a non-fluid particle will compute density derivative interacting with any other particle,
-				//   but acceleration will only be computed by object particles interacting with fluid particles
-
-				const bool computes_NS_drhodt = ndata.ntype == PT_FLUID || boundarytype == DYN_BOUNDARY ||
-					( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) );
+				// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
+				// 		* for LJ boundary, by a fluid particle interacting with a fluid particle;
+				// 		* for DYN bondary :
+				//			- a fluid particle will compute both density derivative and acceleration interacting
+				//   	  	with any other particle;
+				// 			- a non-fluid particle will compute density derivative interacting with any other particle,
+				//   	  	but acceleration will only be computed by object particles interacting with fluid particles
+				// NOTE1 : the compiler has some difficulties to deal with situations as
+				// if (boundarytype == SA_BOUNDARY) {
+				//	...
+				// } else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX
+				//			&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info)) {
+				//  ...
+				// } else if (boundarytype == SA_BOUNDARY && pdata.ptype == PT_VERTEX &&
+				//			has_waterdepth_computation<boundarytype>::with(params) && IO_BOUNDARY(info) && !VEL_IO(info)) {
+				//  ...
+				// } else if (OBJECT(pdata.info)) {
+				// 	...
+				// }
+				// they should be replaced by:
+				// if (boundarytype == SA_BOUNDARY) {
+				//	...
+				// }
+				// if (boundarytype == SA_BOUNDARY) {
+				//		if (...) ....
+				//		else if () ....
+				// }
+				// if (boundarytype == LJ_BOUNDARY) {
+				//	...
+				// }
+				// NOTE 2: in tests mixing templates parameters and variables the tests on templates should be placed
+				// in first position
+				// if ( pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) =>
+				// if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID)
+				// TODO: remove ntype from particle data (useless register usage)
+				const bool computes_NS_drhodt = boundarytype == DYN_BOUNDARY  ||
+						( boundarytype == SA_BOUNDARY && (ndata.ntype == PT_BOUNDARY || ndata.ntype == PT_VERTEX ) )
+						|| ndata.ntype == PT_FLUID;
 
 				if (computes_NS_drhodt) {
-					// computes d\rho/dt, including ferrari correction
+					// Computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation, inoutBoundaries>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
-					pout.contupd.x += nout.contDiff;
-					pout.contupd.y += nout.DgamDt;
+					if (boundarytype == SA_BOUNDARY) {
+						pout.contupd.x += nout.contDiff;
+						pout.contupd.y += nout.DgamDt;
+					}
 				}
 
-				// for DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
+				// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
 				// that interact with fluid; however, it's actually slightly faster to make the boolean on
-				// “either us or the neighbor is fluid”: this does not change the behavior of the simulation
+				// "either us or the neighbor is fluid": this does not change the behavior of the simulation
 				// because the xyz components of the forces are ignored anyway by non-OBJECT, non-FLUID
-				// particles
-
-				// for other boundary types, accelerations is computed with the NS equations whenever the density
+				// particles.
+				// For other boundary types, accelerations is computed with the NS equations whenever the density
 				// is also computed (using NS), otherwise we just apply the repulsive force
+				// TODO : check the test and eventually simplify or reorganize
 				const bool computes_NS_accel = boundarytype == DYN_BOUNDARY ?
-					(FLUID(pdata.info) || FLUID(ndata.info)) :
-					computes_NS_drhodt;
+					(FLUID(pdata.info) || FLUID(ndata.info)) : computes_NS_drhodt;
 
 				if (computes_NS_accel) {
-					// compute pressure part of acceleration
+					// Compute pressure part of acceleration
 					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
-					// compute viscous forces
+					// Compute viscous forces
 					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
 
-					// compute diffusion terms for k-epsilon and the strain rate tensor
+					// Compute diffusion terms for k-epsilon and the strain rate tensor
 					compute_keps_term<boundarytype, visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
 
-					// compute mean velocity for the use in the XSPH variant. Contribution added in euler.
+					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
 				} else {
-					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					if (boundarytype == LJ_BOUNDARY)
+						compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 
 			}
-			else if (boundarytype == SA_BOUNDARY && visctype == KEPSVISC && pdata.ptype == PT_VERTEX && (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
-				// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-				compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
-			}
-			else if (boundarytype == SA_BOUNDARY && has_waterdepth_computation<boundarytype>::with(params) && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
-				// Compute the maximum depth at pressure boundaries
-				compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
-			}
-			else if (pdata.ptype == PT_OBJECT) {
-				compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
-				// TODO FIXME (Alexis): why are we multiplying with the mass here? This seems dimensionally incorrect
-				nout.DvDt *= ndata.relPos.w;
+
+			if (boundarytype == SA_BOUNDARY) {
+				if (visctype == KEPSVISC && pdata.ptype == PT_VERTEX
+					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
+					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
+					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
+				}
+				else if (pdata.ptype == PT_VERTEX && has_waterdepth_computation<boundarytype>::with(params)
+					&& IO_BOUNDARY(info) && !VEL_IO(info)) {
+					// Compute the maximum depth at pressure boundaries
+					compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
+				}
 			}
 
-			// sum all contributions from the neighbours in the force array
+			if (boundarytype == LJ_BOUNDARY) {
+				if (OBJECT(pdata.info))
+					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+			}
+
+			// Sum all contributions from the neighbors in the force array
 			as_float3(pout.force) += nout.DvDt;
 
-		} // end of loop over neighbors
+		} // End of loop over neighbors
 
 		// For SA_BOUNDARY: divides forces by gamma; else: does nothing
-		if (FLUID(pdata.info) || VERTEX(pdata.info)) {
+		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
 			gamma_fixup<boundarytype>::with<sph_formulation>(params, pdata, pout);
 		}
 
-		// External forces etc
+		// External forces
 		if (FLUID(pdata.info)) {
-			// post-processing for viscous terms, returns viscous coefficient
+			// Post-processing for viscous terms, returns viscous coefficient
 			// to be used with planes/DEM
 
-			// for KEPS: finalizes computation of strain rate & computes de/dt and dk/dt
+			// For KEPS: finalizes computation of strain rate & computes de/dt and dk/dt
 			const float dynvisc = viscous_fixup<visctype>::with(params, pdata, pout);
 
 			// Adding gravity
@@ -1924,39 +1976,33 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		else if (pdata.ptype == PT_BOUNDARY && FLOATING(info)) {
+		if (boundarytype == SA_BOUNDARY && OBJECT(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
 
 		// Writing out the results
-		if (pdata.ptype == PT_OBJECT || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
+		// TODO: below was the previous test, i don't understand it (Alexis).
+		//if (OBJECT(pdata.info) || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
+		if (OBJECT(pdata.info)) {
+			// Except for SA boundary, the forces computed in the neighbors loop are forces by unit of mass
+			// (i.e) accelerations so when we computing the total forces (and torques) acting on an object
+			// particle, the force must be multiplied by the particle mass.
+
 			// TODO
 			// 1. use relative coordinates for cg and distance computation
 			// 2. the write of forces and torques is by nature not coalesced so why using float4
 			// 3. params and the kernel should be templatized also on floating bodies presence
 			// AM - GB FIXME
-
-			// The forces computed in the neighbors loop are forces by unit of mass so when
-			// computing the forces (and torques) on an object the force acting on each object
-			// particle must be multiplied by the particle mass, except in the SA_BOUNDARY case (why?).
-
 			if (boundarytype != SA_BOUNDARY)
 				as_float3(pout.force) *= pdata.pos.w;
-
 			params.rbforces[pdata.rbindex] = pout.force;
+
 			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
 			//       of gravity and the local position of the cg. wrt. that gridPos.
 			params.rbtorques[pdata.rbindex] = make_float4(
 				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
-								- d_rbcg[object(info)-1], as_float3(pout.force)));
-
-			// set forces to zero for this particle, but preserve density in DYN_BOUNDARY case
-			if (boundarytype == DYN_BOUNDARY) {
-				pout.force.x = pout.force.y = pout.force.z = 0;
-			} else  {
-				pout.force = make_float4(0.0f);
-			}
+								- d_rbcg[object(info)], as_float3(pout.force)));
 
 			write_forces::with(params, pdata, pout);
 		} else {

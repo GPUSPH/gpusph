@@ -66,11 +66,12 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	}
 
 	// TODO only do this if object data writing is enabled
-	size_t nbodies = m_problem->get_simparams()->numODEbodies;
+	size_t nbodies = m_problem->get_simparams()->numbodies;
 	if (nbodies > 0) {
 		string rbdata_fn = open_data_file(m_objectfile, "rbdata");
 		if (m_objectfile) {
 			m_objectfile << "time";
+			m_objectfile << "\tindex";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
 				// center of mass
 				m_objectfile << "\tCM" << obj << "_X";
@@ -83,11 +84,17 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectfile << "\tQ" << obj << "_K";
 			}
 			m_objectfile << endl;
+			m_objectfile.precision(7);
+			m_objectfile << std::scientific;
 		}
+	}
 
+	nbodies = m_problem->get_simparams()->numforcesbodies;
+	if (nbodies) {
 		string objforce_fn = open_data_file(m_objectforcesfile, "objectforces");
 		if (m_objectforcesfile) {
 			m_objectforcesfile << "time";
+			m_objectforcesfile << "\tindex";
 			for (size_t obj = 0; obj < nbodies; ++obj) {
 				// computed forces
 				m_objectforcesfile << "\tComputed_F" << obj << "_X";
@@ -107,6 +114,8 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 				m_objectforcesfile << "\tApplied_M" << obj << "_Z";
 			}
 			m_objectforcesfile << endl;
+			m_objectforcesfile.precision(7);
+			m_objectforcesfile << std::scientific;
 		}
 	}
 }
@@ -154,18 +163,17 @@ CommonWriter::write_WaveGage(double t, GageList const& gage)
 }
 
 void
-CommonWriter::write_objects(double t, Object const* const* bodies)
+CommonWriter::write_objects(double t)
 {
 	if (m_objectfile) {
 		m_objectfile << t;
-		size_t nbodies = m_problem->get_simparams()->numODEbodies;
-		for (size_t obj = 0; obj < nbodies; ++obj) {
-			const dReal *cg = dBodyGetPosition(bodies[obj]->m_ODEBody);
-			const dReal *quat = dBodyGetQuaternion(bodies[obj]->m_ODEBody);
-			m_objectfile
-				<< "\t" << cg[0] << "\t" << cg[1] << "\t" << cg[2]
-				<< "\t" << quat[0] << "\t" << quat[1]
-				<< "\t" << quat[2] << "\t" << quat[3];
+		const MovingBodiesVect & mbvect = m_problem->get_mbvect();
+		for (vector<MovingBodyData *>::const_iterator it = mbvect.begin(); it != mbvect.end(); ++it) {
+			const MovingBodyData *mbdata = *it;
+			m_objectfile << "\t" << mbdata->index
+				<< "\t" << mbdata->kdata.crot.x << "\t" << mbdata->kdata.crot.y << "\t" << mbdata->kdata.crot.z
+				<< "\t" << mbdata->kdata.orientation(0) << "\t" << mbdata->kdata.orientation(1)
+				<< "\t" <<  mbdata->kdata.orientation(2) << "\t" <<  mbdata->kdata.orientation(3);
 		}
 		m_objectfile << endl;
 		m_objectfile.flush();
@@ -178,8 +186,10 @@ CommonWriter::write_objectforces(double t, uint numobjects,
 		const float3* appliedforces, const float3* appliedtorques)
 {
 	if (m_objectforcesfile) {
+		const MovingBodiesVect & mbvect = m_problem->get_mbvect();
 		m_objectforcesfile << t;
 		for (int i=0; i < numobjects; i++) {
+			m_objectforcesfile << "\t" << mbvect[i]->index;
 			m_objectforcesfile
 				<< "\t" << computedforces[i].x
 				<< "\t" << computedforces[i].y

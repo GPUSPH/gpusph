@@ -36,6 +36,7 @@
 #include <cstdio>
 #include <iostream>
 #include <fstream>
+#include <vector>
 
 #include "Options.h"
 #include "Writer.h"
@@ -57,6 +58,70 @@
 
 typedef std::vector<vertexinfo> VertexVect;
 
+enum MovingBodyType {
+	MB_ODE,
+	MB_FORCES_MOVING,
+	MB_MOVING
+};
+
+typedef struct KinematicData {
+	double3 		crot;
+	double3			lvel;
+	double3			avel;
+	EulerParameters	orientation;
+
+	KinematicData():
+		crot(make_double3(0.0f)),
+		lvel(make_double3(0.0f)),
+		avel(make_double3(0.0f)),
+		orientation(EulerParameters())
+	{};
+
+	KinematicData(const KinematicData& kdata) {
+		crot = kdata.crot;
+		lvel = kdata.lvel;
+		avel = kdata.avel;
+		orientation = kdata.orientation;
+	};
+
+	KinematicData& operator = (const KinematicData& source) {
+		crot = source.crot;
+		lvel = source.lvel;
+		avel = source.avel;
+		orientation = source.orientation;
+		return *this;
+	};
+} KinematicData;
+
+typedef struct MovingBodyData {
+	uint				index;
+	MovingBodyType		type;
+	Object				*object;
+	KinematicData		kdata;
+	KinematicData		initial_kdata;
+
+	MovingBodyData(): index(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()) {};
+
+	MovingBodyData(const MovingBodyData& mbdata) {
+		index = mbdata.index;
+		type = mbdata.type;
+		object = mbdata.object;
+		kdata = mbdata.kdata;
+		initial_kdata = mbdata.initial_kdata;
+	};
+
+	MovingBodyData& operator = (const MovingBodyData& source) {
+		index = source.index;
+		type = source.type;
+		object = source.object;
+		kdata = source.kdata;
+		initial_kdata = source.initial_kdata;
+		return *this;
+	};
+} MovingBodyData;
+
+typedef std::vector<MovingBodyData *> MovingBodiesVect;
+
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
 
@@ -64,13 +129,11 @@ using namespace std;
 
 class Problem {
 	private:
-		string		m_problem_dir;
-		WriterList	m_writers;
+		string			m_problem_dir;
+		WriterList		m_writers;
 
-		const float	*m_dem;
-		int			m_ncols, m_nrows;
-
-		static uint		m_total_ODE_bodies;			///< Total number of rigid bodies used by ODE
+		const float		*m_dem;
+		int				m_ncols, m_nrows;
 
 	public:
 		// used to set the preferred split axis; LONGEST_AXIS (default) uses the longest of the worldSize
@@ -125,26 +188,16 @@ class Problem {
 		SimParams	m_simparams; // TODO FIXME should become a pointer to the one in the simframework
 		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams
 
-		MbCallBack	m_mbcallbackdata[MAXMOVINGBOUND];	// array of structure for moving boundary data
-		int			m_mbnumber;							// number of moving boundaries
-
-		Object		**m_ODE_bodies;						// array of floating ODE objects
-		float4		m_mbdata[MAXMOVINGBOUND];			// moving boudary data to be provided to euler
-		float3		m_bodies_cg[MAXBODIES];				// center of gravity of rigid bodies
-		dQuaternion m_bodies_quaternion[MAXBODIES];		// orientation of the rigid bodies
-		float3		m_bodies_trans[MAXBODIES];			// translation to apply between t and t + dt
-		float3		m_bodies_linearvel[MAXBODIES];		// Linear velocity of rigid bodies
-		float3		m_bodies_angularvel[MAXBODIES];		// Angular velocity of rigid bodies
-		float		m_bodies_steprot[9*MAXBODIES];		// rotation to apply between t and t + dt
-		uint		m_ODEobjectId[MAXBODIES];			// ODE object id
-		uint		m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
+		MovingBodiesVect	m_bodies;			// array of moving objects
+		KinematicData 		*m_bodies_storage;				// kinematic data staorage for bodie movement integration
+		uint				m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
 		Problem(const GlobalData *_gdata);
 
 		virtual ~Problem(void);
 
 		/* a function to check if the (initial or fixed) timestep
-		 * is compatible with the CFL coditions */
+		 * is compatible with the CFL conditions */
 		virtual void check_dt();
 		/* Find the minimum amount of maximum number of neighbors
 		 * per particle based on the kernel and boundary choice,
@@ -300,14 +353,8 @@ RESTORE_WARNINGS
 		virtual void release_memory(void) = 0;
 
 		/* moving boundary and gravity callbacks */
-		virtual MbCallBack& mb_callback(const float t, const float dt, const int i) DEPRECATED;
 		virtual float3 g_callback(const float t) DEPRECATED;
-
-		virtual MbCallBack& mb_callback(const double t, const float dt, const int i);
 		virtual float3 g_callback(const double t);
-
-		float4* get_mbdata(const double t, const float dt, const bool forceupdate);
-
 
 		/* ODE callbacks */
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
@@ -321,33 +368,48 @@ RESTORE_WARNINGS
 			problem->ODE_near_callback(data, o1, o2);
 		}
 
-		void allocate_ODE_bodies(const uint);
-		void add_ODE_body(Object* object);
-		Object* get_ODE_body(const uint);
-		Object const* const* get_ODE_bodies() const
-		{ return m_ODE_bodies; }
+		void allocate_bodies_storage();
+		void add_moving_body(Object *, const MovingBodyType);
+		const MovingBodiesVect& get_mbvect() const
+		{ return m_bodies; };
 
-		void get_ODE_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
-		float3* get_ODE_bodies_cg(void);
-		dQuaternion *get_ODE_bodies_quaternion(void);
-		float* get_ODE_bodies_steprot(void);
-		float3* get_ODE_bodies_linearvel(void);
-		float3* get_ODE_bodies_angularvel(void);
+		MovingBodyData * get_mbdata(const uint);
+		MovingBodyData * get_mbdata(const Object *);
+
+		size_t	get_bodies_numparts(void);
+		size_t	get_forces_bodies_numparts(void);
+		size_t	get_body_numparts(const int);
+		size_t	get_body_numparts(const Object *);
+
+		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
+		void get_bodies_cg(void);
+		void set_body_cg(const double3, MovingBodyData*);
+		void set_body_cg(const uint, const double3);
+		void set_body_cg(const Object*, const double3);
+		void set_body_linearvel(const double3, MovingBodyData*);
+		void set_body_linearvel(const uint, const double3);
+		void set_body_linearvel(const Object*, const double3);
+		void set_body_angularvel(const double3, MovingBodyData*);
+		void set_body_angularvel(const uint, const double3);
+		void set_body_angularvel(const Object*, const double3);
 
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
 		 */
 		virtual void
-		object_forces_callback(double t, int step, float3 *forces, float3 *torques);
+		object_forces_callback(const double t, float3 *forces, float3 *torques);
 
-		void ODE_bodies_timestep(const float3 *, const float3 *, const int,
-									const double, float3 * &, float3 * &, float * &,
-									float3 * &, float3 * &);
-		size_t	get_ODE_bodies_numparts(void) const;
-		size_t	get_ODE_body_numparts(const int) const;
+		virtual void
+		moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
+		 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
+		 	 	 	 	 	 	double3&, EulerParameters&);
 
-		void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
-			const float *linvel, const float *angvel);
+		void bodies_timestep(const float3 *, const float3 *, const int,
+							const double, const double, float3 * &, float3 * &,
+							float * &, float3 * &, float3 * &);
+
+		/*void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
+			const float *linvel, const float *angvel);*/
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 

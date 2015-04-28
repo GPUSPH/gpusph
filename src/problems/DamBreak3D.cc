@@ -52,15 +52,18 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.67;
 	lz = 0.6;
 	H = 0.4;
-	wet = false;
+	wet = true;
 
-	m_usePlanes = true;
+	m_usePlanes = false;
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	SETUP_FRAMEWORK(
-		viscosity<ARTVISC> // or SPSVISC
+		viscosity<SPSVISC>,
+		boundary<LJ_BOUNDARY>
 	);
+
+	addFilter(MLS_FILTER, 10);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
@@ -99,9 +102,11 @@ DamBreak3D::DamBreak3D(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.kinematicvisc = 1.0e-6f;
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.05);
+	add_writer(VTKWRITER, 0.1);
 
 	// Name of problem used for directory creation
 	m_name = "DamBreak3D";
@@ -202,7 +207,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 		std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 		for (uint i = 0; i < boundary_parts.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i]= make_particleinfo(BOUNDPART,0,i);
+			info[i]= make_particleinfo(PT_BOUNDARY, 0, i);
 			calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 		}
 		j = boundary_parts.size();
@@ -214,7 +219,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
 			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+			info[i]= make_particleinfo(PT_TESTPOINT, 0, i);
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
@@ -224,7 +229,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART,1,i);
+		info[i]= make_particleinfo(PT_BOUNDARY, 1, i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += obstacle_parts.size();
@@ -233,7 +238,7 @@ void DamBreak3D::copy_to_array(BufferList &buffers)
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(FLUIDPART,0,i);
+		info[i]= make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();

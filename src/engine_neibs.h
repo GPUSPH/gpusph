@@ -38,6 +38,10 @@
 #include "timing.h"
 #include "buffer.h"
 
+/// Neighbor engine class virtual container
+/*!	AbstractNeibsEngine is an abstract class containing only pure virtual functions.
+ *	Those functions should be implemented in a child class.
+*/
 class AbstractNeibsEngine
 {
 public:
@@ -57,40 +61,40 @@ public:
 
 	virtual void
 	calcHash(float4*	pos,
-		 hashKey*	particleHash,
-		 uint*		particleIndex,
-		 const particleinfo* particleInfo,
-		 uint*		compactDeviceMap,
-		 const uint		numParticles) = 0;
+			hashKey*	particleHash,
+			uint*		particleIndex,
+			const particleinfo* particleInfo,
+			uint*		compactDeviceMap,
+			const uint	numParticles) = 0;
 
 	virtual void
 	fixHash(hashKey*	particleHash,
 			uint*		particleIndex,
 			const particleinfo* particleInfo,
 			uint*		compactDeviceMap,
-			const uint		numParticles) = 0;
+			const uint	numParticles) = 0;
 
 	virtual void
 	reorderDataAndFindCellStart(
-		uint*				cellStart,			// output: cell start index
-		uint*				cellEnd,			// output: cell end index
-		uint*				segmentStart,		// output: segment start
-
-		const hashKey*		particleHash,		// input: sorted grid hashes
-		const uint*			particleIndex,		// input: sorted particle indices
-
-		MultiBufferList::iterator sorted_buffers,		// output: sorted buffers
-		MultiBufferList::const_iterator unsorted_buffers, // input: buffers to sort
-
-		const uint			numParticles,		// input: number of particles in input buffers
-		uint*				newNumParticles)	// output: number of active particles found
-	= 0;
+			uint*		cellStart,
+			uint*		cellEnd,
+			uint*		segmentStart,
+			const hashKey*	particleHash,
+			const uint*	particleIndex,
+			MultiBufferList::iterator sorted_buffers,
+			MultiBufferList::const_iterator unsorted_buffers,
+			const uint		numParticles,
+			uint*			newNumParticles) = 0;
 
 	virtual void
-	updateVertIDToIndex(const particleinfo*	particleInfo,	// input: particle's information
-						uint*			vertIDToIndex,	// output: vertIDToIndex array
-						const uint		numParticles)	// input: total number of particles
-	= 0;
+	updateVertIDToIndex(const particleinfo*	particleInfo,
+						uint*			vertIDToIndex,
+						const uint		numParticles) = 0;
+
+	virtual void
+	sort(	hashKey	*particleHash,
+			uint	*particleIndex,
+			uint	numParticles) = 0;
 
 	virtual void
 	buildNeibsList(	neibdata*			neibsList,
@@ -108,10 +112,5 @@ public:
 					const uint			gridCells,
 					const float			sqinfluenceradius,
 					const float			boundNlSqInflRad) = 0;
-
-	virtual void
-	sort(	hashKey	*particleHash,
-			uint	*particleIndex,
-			uint	numParticles) = 0;
 };
 #endif

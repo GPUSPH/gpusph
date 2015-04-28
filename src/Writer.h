@@ -126,7 +126,7 @@ public:
 
 	// write object data
 	static void
-	WriteObjects(double t, Object const* const* bodies);
+	WriteObjects(double t);
 
 	// write object forces
 	static void
@@ -175,7 +175,7 @@ protected:
 	write_WaveGage(double t, GageList const& gage) {}
 
 	virtual void
-	write_objects(double t, Object const* const* bodies) {}
+	write_objects(double t) {}
 
 	virtual void
 	write_objectforces(double t, uint numobjects,

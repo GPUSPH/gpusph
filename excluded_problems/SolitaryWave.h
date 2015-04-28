@@ -46,12 +46,15 @@ class SolitaryWave: public Problem {
 		int			icyl, icone, wmakertype;
 		Cube		experiment_box;
 		Rect		experiment_box1;
-		Rect		piston;
 		int			i_use_bottom_plane;
 		PointVect	parts;
 		PointVect	boundary_parts;
+		PointVect	piston_parts;
+		PointVect	gate_parts;
 
-		Cylinder	cyl[10];
+		Cylinder	cyl1, cyl2, cyl3, cyl4;
+		Cylinder	cyl5, cyl6, cyl7;
+		Cylinder	cyl8, cyl9, cyl10;
 		Cone 		cone;
 
 		double 		lx, ly, lz;	// Dimension of the computational domain
@@ -63,9 +66,7 @@ class SolitaryWave: public Problem {
 		double		Hbox;	// height of experiment box
 
 		// Moving boundary data
-		double		a, b, c;
-		double 		piston_tstart, piston_tend;
-		double		piston_initial_crotx;
+		double		m_S, m_Hoh, m_tau;
 
 	public:
 		SolitaryWave(const GlobalData *);
@@ -75,9 +76,7 @@ class SolitaryWave: public Problem {
 		void copy_planes(float4*, float*);
 
 		void copy_to_array(BufferList &);
-		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-			 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
-			 	 	 	 	 	 	double3&, EulerParameters&);
+		MbCallBack& mb_callback(const double, const float, const int);
 
 		void release_memory(void);
 };

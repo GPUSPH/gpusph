@@ -65,7 +65,7 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, do
 		fid << pos[i].x << "\t" << pos[i].y << "\t" << pos[i].z << "\t";
 
 		// velocity
-		if (FLUID(info[i]) || TESTPOINTS(info[i]))
+		if (FLUID(info[i]) || TESTPOINT(info[i]))
 			fid << vel[i].x << "\t" << vel[i].y << "\t" << vel[i].z << "\t";
 		else
 			fid << "0.0\t0.0\t0.0\t";
@@ -82,7 +82,7 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, do
 		// pressure
 		if (FLUID(info[i]))
 			fid << m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i])) << "\t";
-		else if (TESTPOINTS(info[i]))
+		else if (TESTPOINT(info[i]))
 			fid << vel[i].w << "\t";
 		else
 			fid << "0.0\t";
@@ -107,7 +107,7 @@ TextWriter::write(uint numParts, BufferList const& buffers, uint node_offset, do
 
 		// Writing datas
 		for (uint i=0; i < numParts; i++) {
-			if (TESTPOINTS(info[i])){
+			if (TESTPOINT(info[i])){
 				// id, type, object, position
 				fid << id(info[i]) << "\t" << type(info[i]) << "\t" << object(info[i]) << "\t";
 				fid << pos[i].x << "\t" << pos[i].y << "\t" << pos[i].z << "\t";

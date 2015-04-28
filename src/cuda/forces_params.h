@@ -244,5 +244,93 @@ struct forces_params :
 	{}
 };
 
+
+/// Parameters common to all SPS kernel specializations
+struct common_sps_params
+{
+	const float4* 	pos;
+	const hashKey*	particleHash;
+	const uint*		cellStart;
+	const neibdata*	neibsList;
+	const uint		numParticles;
+	const float		slength;
+	const float		influenceradius;
+
+	// Constructor / initializer
+	common_sps_params(
+		const	float4	*_pos,
+		const	hashKey *_particleHash,
+		const	uint	*_cellStart,
+		const	neibdata	*_neibsList,
+		const	uint	_numParticles,
+		const	float	_slength,
+		const	float	_influenceradius) :
+		pos(_pos),
+		particleHash(_particleHash),
+		cellStart(_cellStart),
+		neibsList(_neibsList),
+		numParticles(_numParticles),
+		slength(_slength),
+		influenceradius(_influenceradius)
+	{}
+};
+
+/// Additional parameters passed only if simflag SPS_STORE_TAU is set
+struct tau_sps_params
+{
+	float2*		tau0;
+	float2*		tau1;
+	float2*		tau2;
+
+	tau_sps_params(float2 *_tau0, float2 *_tau1, float2 *_tau2) :
+		tau0(_tau0), tau1(_tau1), tau2(_tau2)
+	{}
+};
+
+/// Additional parameters passed only if simflag SPS_STORE_TURBVISC is set
+struct turbvisc_sps_params
+{
+	float	*turbvisc;
+	turbvisc_sps_params(float *_turbvisc) :
+		turbvisc(_turbvisc)
+	{}
+};
+
+
+/// The actual forces_params struct, which concatenates all of the above, as appropriate.
+template<KernelType kerneltype,
+	BoundaryType boundarytype,
+	uint simflags>
+struct sps_params :
+	common_sps_params,
+	COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params),
+	COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)
+{
+	// This structure provides a constructor that takes as arguments the union of the
+	// parameters that would ever be passed to the forces kernel.
+	// It then delegates the appropriate subset of arguments to the appropriate
+	// structs it derives from, in the correct order
+	sps_params(
+		// common
+			const 	float4* 	_pos,
+			const 	hashKey*	_particleHash,
+			const 	uint*		_cellStart,
+			const 	neibdata*	_neibsList,
+			const 	uint		_numParticles,
+			const 	float		_slength,
+			const 	float		_influenceradius,
+		// tau
+					float2*		_tau0,
+					float2*		_tau1,
+					float2*		_tau2,
+		// turbvisc
+					float*		_turbvisc
+		) :
+		common_sps_params(_pos, _particleHash, _cellStart,
+			_neibsList, _numParticles, _slength, _influenceradius),
+		COND_STRUCT(simflags & SPSK_STORE_TAU, tau_sps_params)(_tau0, _tau1, _tau2),
+		COND_STRUCT(simflags & SPSK_STORE_TURBVISC, turbvisc_sps_params)(_turbvisc)
+	{}
+};
 #endif // _FORCES_PARAMS_H
 

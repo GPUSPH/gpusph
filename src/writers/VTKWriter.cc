@@ -123,6 +123,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const float *tke = buffers.getData<BUFFER_TKE>();
 	const float *eps = buffers.getData<BUFFER_EPSILON>();
 	const float *turbvisc = buffers.getData<BUFFER_TURBVISC>();
+	const float *spsturbvisc = buffers.getData<BUFFER_SPS_TURBVISC>();
 	const float4 *eulervel = buffers.getData<BUFFER_EULERVEL>();
 	const float *priv = buffers.getData<BUFFER_PRIVATE>();
 	const vertexinfo *vertices = buffers.getData<BUFFER_VERTICES>();
@@ -193,6 +194,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
+	// SPS eddy viscosity
+	if (spsturbvisc) {
+		scalar_array(fid, "Float32", "SPS turbulent viscosity", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
+	}
+
 	/* Fluid number is only included if there are more than 1 */
 	bool write_fluid_num = (gdata->problem->get_physparams()->numFluids > 1);
 
@@ -200,24 +207,19 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	bool write_part_obj = (gdata->problem->get_simparams()->numODEbodies > 0);
+	bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
 
 	// particle info
-	// TODO check the highest part type/flag/fluid/object and select the type
-	// appropriately; presently none of it is > 256, so assume UInt8 suffices
 	if (info) {
-		scalar_array(fid, "UInt8", "Part type", offset);
-		offset += sizeof(uchar)*numParts+sizeof(int);
-		// TODO don't write Part flag unless it's needed
-		scalar_array(fid, "UInt8", "Part flag", offset);
-		offset += sizeof(uchar)*numParts+sizeof(int);
+		scalar_array(fid, "UInt16", "Part type+flags", offset);
+		offset += sizeof(ushort)*numParts+sizeof(int);
 		if (write_fluid_num) {
-			scalar_array(fid, "UInt8", "Fluid number", offset);
-			offset += sizeof(uchar)*numParts+sizeof(int);
+			scalar_array(fid, "UInt16", "Fluid number", offset);
+			offset += sizeof(ushort)*numParts+sizeof(int);
 		}
 		if (write_part_obj) {
-			scalar_array(fid, "UInt8", "Part object", offset);
-			offset += sizeof(uchar)*numParts+sizeof(int);
+			scalar_array(fid, "UInt16", "Part object", offset);
+			offset += sizeof(ushort)*numParts+sizeof(int);
 		}
 		scalar_array(fid, "UInt32", "Part id", offset);
 		offset += sizeof(uint)*numParts+sizeof(int);
@@ -308,7 +310,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			value = vel[i].w;
 		else
 			value = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
@@ -319,7 +321,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	write_var(fid, numbytes);
 	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		float value = 0.0;
-		if (TESTPOINTS(info[i]))
+		if (TESTPOINT(info[i]))
 			// TODO FIXME: Testpoints compute pressure only
 			// In the future we would like to have a density here
 			// but this needs to be done correctly for multifluids
@@ -372,15 +374,23 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		}
 	}
 
-	// particle info
-	if (info) {
-		numbytes=sizeof(uchar)*numParts;
-
-		// type
+	// SPS turbulent viscosity
+	if (spsturbvisc) {
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uchar value = PART_TYPE(info[i]);
-			if (gdata->problem->get_simparams()->csvtestpoints && value == (TESTPOINTSPART >> MAX_FLUID_BITS)) {
+			float value = spsturbvisc[i];
+			write_var(fid, value);
+		}
+	}
+
+	// particle info
+	if (info) {
+		// type + flags
+		numbytes=sizeof(ushort)*numParts;
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			ushort value = type(info[i]);
+			if (gdata->problem->get_simparams()->csvtestpoints && TESTPOINT(info[i])) {
 				float tkeVal = 0.0f;
 				float epsVal = 0.0f;
 				if(tke)
@@ -405,34 +415,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 			write_var(fid, value);
 		}
 
-		// flag
-		write_var(fid, numbytes);
-		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uchar value = PART_FLAG(info[i]);
-			write_var(fid, value);
-		}
-
 		// fluid number
-		if (write_fluid_num) {
+		if (write_fluid_num || write_part_obj) {
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				uchar value = PART_FLUID_NUM(info[i]);
+				ushort value = object(info[i]);
 				write_var(fid, value);
 			}
 		}
-
-		// object
-		if (write_part_obj) {
-			write_var(fid, numbytes);
-			for (uint i=node_offset; i < node_offset + numParts; i++) {
-				uchar value = object(info[i]);
-				write_var(fid, value);
-			}
-		}
-
-		numbytes=sizeof(uint)*numParts;
 
 		// id
+		numbytes=sizeof(uint)*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			uint value = id(info[i]);

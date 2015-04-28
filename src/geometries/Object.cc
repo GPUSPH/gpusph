@@ -95,6 +95,9 @@ Object::SetMass(const double mass)
 
 
 /// Set the objects center of gravity
+/*! Directly set the object center of gravity
+ * \param cg : center of gravity
+ */
 void
 Object::SetCenterOfGravity(const double* cg)
 {
@@ -102,6 +105,29 @@ Object::SetCenterOfGravity(const double* cg)
 	m_center(1) = cg[1];
 	m_center(2) = cg[2];
 }
+
+
+/// Returns objects center of gravity
+/*! Returns the object center of gravity
+ * \return center of gravity
+ */
+double3
+Object::GetCenterOfGravity(void) const
+{
+	return(make_double3(m_center(0), m_center(1), m_center(2)));
+}
+
+
+/// Returns object orientation
+/*! Returns the object orientation
+ * \return object orientation
+ */
+EulerParameters
+Object::GetOrientation(void) const
+{
+	return m_ep;
+}
+
 
 /// Set the object principal moments of inertia
 /*! Directly set the object principal moments of inertia.
@@ -114,7 +140,6 @@ Object::SetInertia(const double* inertia)
 	m_inertia[1] = inertia[1];
 	m_inertia[2] = inertia[2];
 }
-
 
 
 /// Retrieve the object inertial data
@@ -141,29 +166,38 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 	ep = m_ep;
 }
 
+
 /// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
 // TODO: could be useful to print also the rotation matrix
-void Object::ODEPrintInformation()
+void Object::ODEPrintInformation(const bool print_geom)
 {
 	if (m_ODEBody) {
 		const dReal* cpos = dBodyGetPosition(m_ODEBody);
+		dMass mass;
+		dBodyGetMass(m_ODEBody, &mass);
 		printf("ODE Body ID: %u\n", m_ODEBody);
-		printf("  Mass:     %g\n", m_ODEMass.mass);
-		printf("  Position: %g\t%g\t%g\n", cpos[0], cpos[1], cpos[2]);
-		printf("  CG:       %g\t%g\t%g\n", m_ODEMass.c[0], m_ODEMass.c[1], m_ODEMass.c[2]);
-		printf("  Inertia:  %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[0], m_ODEMass.I[1], m_ODEMass.I[2], m_ODEMass.I[3]);
-		printf("            %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[4], m_ODEMass.I[5], m_ODEMass.I[6], m_ODEMass.I[7]);
-		printf("            %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[8], m_ODEMass.I[9], m_ODEMass.I[10], m_ODEMass.I[11]);
+		printf("   Mass: %e\n", mass.mass);
+		printf("   Pos:	 %e\t%e\t%e\n", cpos[0], cpos[1], cpos[2]);
+		printf("   CG:   %e\t%e\t%e\n", mass.c[0], mass.c[1], mass.c[2]);
+		printf("   I:    %e\t%e\t%e\n", mass.I[0], mass.I[1], mass.I[2]);
+		printf("         %e\t%e\t%e\n", mass.I[4], mass.I[5], mass.I[6]);
+		printf("         %e\t%e\t%e\n", mass.I[8], mass.I[9], mass.I[10]);
+		const dReal* rot = dBodyGetRotation(m_ODEBody);
+		printf("   R:    %e\t%e\t%e\n", rot[0], rot[1], rot[2]);
+		printf("         %e\t%e\t%e\n", rot[4], rot[5], rot[6]);
+		printf("         %e\t%e\t%e\n", rot[8], rot[9], rot[10]);
+		const dReal* quat = dBodyGetQuaternion(m_ODEBody);
+		printf("   Q:    %e\t%e\t%e\t%e\n", quat[0], quat[1], quat[2], quat[3]);
 	}
-	if (m_ODEGeom) {
+	if (m_ODEGeom && print_geom) {
 		dReal bbox[6];
 		const dReal* gpos = dGeomGetPosition(m_ODEGeom);
 		dGeomGetAABB(m_ODEGeom, bbox);
 		printf("ODE Geom ID: %u\n", m_ODEGeom);
-		printf("  Position: %g\t%g\t%g\n", gpos[0], gpos[1], gpos[2]);
-		printf("  B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
+		printf("   Position: %g\t%g\t%g\n", gpos[0], gpos[1], gpos[2]);
+		printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
 			bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]);
-		printf("    size:   X [%g] Y [%g] Z [%g]\n", bbox[1] - bbox[0],
+		printf("   size:     X [%g] Y [%g] Z [%g]\n", bbox[1] - bbox[0],
 			bbox[3] - bbox[2], bbox[5] - bbox[4]);
 	}
 }
@@ -178,11 +212,13 @@ Object::GetParts(void)
 	return m_parts;
 }
 
+
 /// Sets the number of particles associated with an object
 void Object::SetNumParts(const int numParts)
 {
 	m_numParts = numParts;
 }
+
 
 /// Gets the number of particles associated with an object
 /*! This function either returns the set number of particles which is used
@@ -197,6 +233,7 @@ uint Object::GetNumParts()
 
 	return m_numParts;
 }
+
 
 /// Fill the object with particles
 /*! Fill the object by calling Fill(points, dx, true).
