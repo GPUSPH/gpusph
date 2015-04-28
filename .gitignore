@@ -40,4 +40,5 @@ meshes/
 *.vim
 inifile/
 sa/
+log*
 
