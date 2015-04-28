@@ -63,6 +63,8 @@ class Point {
 		Point(const double *);
 		~Point(void) {};
 
+		double4 toDouble4();
+
 		void SetCoord(double *);
 		void SetCoord(double, double, double);
 
