@@ -1295,6 +1295,9 @@ void GPUSPH::doWrite(bool force)
 
 	bool warned_nan_pos = false;
 
+	// max particle speed only for this node only at time t
+	float local_max_part_speed = 0;
+
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
 		double4 dpos;
@@ -1328,14 +1331,17 @@ void GPUSPH::doWrite(bool force)
 		gpos[i] = dpos;
 
 		// track peak speed
-		float part_speed = length( as_float3( gdata->s_hBuffers.getData<BUFFER_VEL>()[i] ) );
-		// read simulation global for multi-node
-		if (MULTI_NODE)
-			gdata->networkManager->networkFloatReduction(&(part_speed), 1, MAX_REDUCTION);
-		if (part_speed > m_peakParticleSpeed) {
-			m_peakParticleSpeed = part_speed;
-			m_peakParticleSpeedTime = gdata->t;
-		}
+		local_max_part_speed = fmax(local_max_part_speed, length( as_float3(gdata->s_hBuffers.getData<BUFFER_VEL>()[i]) ));
+	}
+
+	// max speed: read simulation global for multi-node
+	if (MULTI_NODE)
+		// after this, local_max_part_speed actually becomes global_max_part_speed for time t only
+		gdata->networkManager->networkFloatReduction(&(local_max_part_speed), 1, MAX_REDUCTION);
+	// update peak
+	if (local_max_part_speed > m_peakParticleSpeed) {
+		m_peakParticleSpeed = local_max_part_speed;
+		m_peakParticleSpeedTime = gdata->t;
 	}
 
 	Writer::SetForced(force);
