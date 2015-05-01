@@ -68,12 +68,7 @@ typedef unsigned long hashKey;
 // CELL_HASH_MAX replaces HASH_KEY_MAX. It is always 32 bits long since it is used only as a cellHash.
 #define CELL_HASH_MAX	UINT_MAX
 
-// Now follow a few utility functions to convert between cellHash <-> particleHash,
-// defined with the same compiler directives ___spec
-// TODO: should be __forceinline__ for cuda part. Check if this doesn't create problem
-// on CPU side
-#define __spec static inline __host__ __device__
-
+// Now follow a few utility functions to convert between cellHash <-> particleHash.
 // In multi-device simulations the 2 high bits of the long particle hash are used to store the cell type
 // (internal/external, edge); they are reset by default, allowing for using the hash as an index for cell-based
 // arrays. Set preserveHighbits to true to preserve them instead.
@@ -90,7 +85,7 @@ typedef unsigned long hashKey;
  *
  *	\return cell hash value
  */
-__spec
+static __host__ __device__ __forceinline__
 unsigned int cellHashFromParticleHash(const hashKey &partHash, bool preserveHighbits = false) {
 	uint cellHash = uint(partHash >> GRIDHASH_BITSHIFT);
 	return (preserveHighbits ? cellHash : (cellHash & CELLTYPE_BITMASK) );
@@ -108,7 +103,7 @@ unsigned int cellHashFromParticleHash(const hashKey &partHash, bool preserveHigh
  *
  *	\return cell hash value
  */
-__spec
+static __host__ __device__ __forceinline__
 hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info) {
 #if HASH_KEY_SIZE == 32
 	return cellHash;
@@ -118,7 +113,5 @@ hashKey makeParticleHash(const unsigned int &cellHash, const particleinfo& info)
 	// Alternatively, to avoid conditionals one can use the more compact but less readable:
 	// return ((hashKey)cellHash << GRIDHASH_BITSHIFT) | (id(info) & (EMPTY_CELL >> (32 - GRIDHASH_BITSHIFT) ));
 }
-
-#undef __spec
 
 #endif
