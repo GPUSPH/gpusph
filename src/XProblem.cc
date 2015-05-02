@@ -414,13 +414,13 @@ bool XProblem::validGeometry(GeometryID gid)
 {
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
-		printf("WARNING: invalid GeometryID %u\n", gid);
+		printf("WARNING: invalid GeometryID %zu\n", gid);
 		return false;
 	}
 
 	// ensure geometry was not deleted
 	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: GeometryID %u refers to a deleted geometry!\n", gid);
+		printf("WARNING: GeometryID %zu refers to a deleted geometry!\n", gid);
 		return false;
 	}
 
@@ -853,7 +853,7 @@ const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
-		printf("WARNING: invalid GeometryID %u\n", gid);
+		printf("WARNING: invalid GeometryID %zu\n", gid);
 		return NULL;
 	}
 
@@ -1472,7 +1472,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	}
 
 	// FIXME: move this somewhere else
-	printf("Open boundaries: %u\n", m_numOpenBoundaries);
+	printf("Open boundaries: %zu\n", m_numOpenBoundaries);
 
 	std::cout << "Fluid: " << fluid_parts << " parts, mass " << fluid_part_mass << "\n";
 	std::cout << "Boundary: " << boundary_parts << " parts, mass " << boundary_part_mass << "\n";

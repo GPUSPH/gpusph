@@ -2650,7 +2650,7 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 		sizeof(float4), cudaMemcpyDeviceToHost));
 	CUDA_SAFE_CALL(cudaMemcpy(&wVel, m_dBuffers.getData<BUFFER_VEL>(gdata->currentWrite[BUFFER_VEL]) + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
-	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
+	printf("XXd%u_%s: id %u (%s) idx %u IT %lu, readVel (%g,%g,%g %g) writeVel  (%g,%g,%g %g)\n",
 		m_deviceIndex, printID, id(pinfo),
 		(FLUID(pinfo) ? "F" : (BOUNDARY(pinfo) ? "B" : (VERTEX(pinfo) ? "V" : "-"))),
 		pindex, gdata->iterations,
