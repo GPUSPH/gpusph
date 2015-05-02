@@ -54,10 +54,9 @@
 /*!	CUDANeibsEngine is an implementation of the abstract class AbstractNeibsEngine
  *	and is providing :
  *		- device constants upload to the device
- *		- device variables upload/downlod to/from the device
+ *		- device variables upload/download to/from the device
  *		- launch of sorting and reordering kernels
  *		- launch of neighbor list construction kernels
- *
  *	\ingroup neibs
 */
 template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>

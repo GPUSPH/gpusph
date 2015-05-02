@@ -48,8 +48,7 @@
 // TODO : what was CELLTYPE_MASK_* supposed to be ? Can we delete ?
 // CELLTYPE_MASK_*
 #include "multi_gpu_defines.h"
-/** @addtogroup neibs */
-/** @{ */
+
 
 /** \namespace cuneibs
  *  \brief Contains all device functions/kernels/variables used for neighbor list construction
@@ -58,6 +57,8 @@
  *  	- device constants/variables
  *  	- device functions
  *  	- kernels
+ *
+ *  \ingroup neibs
  */
 namespace cuneibs {
 /** \name Device constants
@@ -586,7 +587,8 @@ calcNeibCell(
 //TODO: Giuseppe write a REAL documentation COMPLYING with Doxygen
 // standards and with OUR DOCUMENTING CONVENTIONS !!!! (Alexis).
 /// variables found in all specializations of neibsInCell
-
+/** \name Data structures
+ *  @{ */
 /*!	\struct common_niC_vars
  * 	\brief Common parameters used in neibsInCell device function
  *
@@ -686,6 +688,8 @@ struct niC_vars :
 		COND_STRUCT(use_sa_boundary, sa_boundary_niC_vars)(index, bparams)
 	{}
 };
+/** @} */
+
 
 /** \name Device functions
  *  @{ */
@@ -1019,6 +1023,5 @@ buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 }
 /**  @} */
 
-/**  @} */
 }
 #endif
