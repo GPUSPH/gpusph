@@ -1088,7 +1088,9 @@ int XProblem::fill_parts()
 				m_geometries[i]->ptr->updateODERotMatrix();
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
-			m_geometries[i]->ptr->ODEPrintInformation();
+			// NOTE: ODEPrintInformation() should be plane-safe anyway
+			if (m_geometries[i]->type != GT_PLANE)
+				m_geometries[i]->ptr->ODEPrintInformation();
 		} // if m_numRigidBodies > 0
 	}
 
