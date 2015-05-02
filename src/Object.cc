@@ -176,7 +176,8 @@ void Object::ODEPrintInformation()
 		printf("            %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[4], m_ODEMass.I[5], m_ODEMass.I[6], m_ODEMass.I[7]);
 		printf("            %.4f\t%.4f\t%.4f\t%.4f\n", m_ODEMass.I[8], m_ODEMass.I[9], m_ODEMass.I[10], m_ODEMass.I[11]);
 	}
-	if (m_ODEGeom) {
+	// not only check if an ODE geometry is associated, but also it must not be a plane
+	if (m_ODEGeom && dGeomGetClass(m_ODEGeom) != dPlaneClass) {
 		dReal bbox[6];
 		const dReal* gpos = dGeomGetPosition(m_ODEGeom);
 		dGeomGetAABB(m_ODEGeom, bbox);
