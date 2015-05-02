@@ -651,7 +651,7 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	// and this is the reason why m_numActiveGeometries not be used to iterate on m_geometries:
 	m_numActiveGeometries--;
 
-	if (m_geometries[gid]->ptr->m_ODEBody || m_geometries[gid]->ptr->m_ODEGeom)
+	if (m_geometries[gid]->handle_dynamics)
 		m_numRigidBodies--;
 
 	if (m_geometries[gid]->type == GT_PLANE)
