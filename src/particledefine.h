@@ -62,9 +62,11 @@ const char* KernelName[INVALID_KERNEL+1]
 #endif
 ;
 
+/* TODO find better names for F1 and F2 formulations */
 enum SPHFormulation {
 	SPH_F1 = 1,
 	SPH_F2,
+	SPH_GRENIER,
 	SPH_INVALID
 } ;
 
@@ -77,6 +79,7 @@ const char* SPHFormulationName[SPH_INVALID+1]
 	"(null)",
 	"F1",
 	"F2",
+	"Grenier",
 	"(invalid)"
 }
 #endif

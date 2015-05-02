@@ -1033,6 +1033,28 @@ Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4*
 	}
 }
 
+/* Initialize the particle volumes from their masses and densities. */
+void
+Problem::init_volume(BufferList &buffers, uint numParticles)
+{
+	float4 *pos = buffers.getData<BUFFER_POS>();
+	float4 *vel = buffers.getData<BUFFER_VEL>();
+	float4 *vol = buffers.getData<BUFFER_VOLUME>();
+
+	for (uint i = 0; i < numParticles; ++i) {
+		float4 pvol;
+		// .x: initial volume, .w current volume.
+		// at the beginning they are both equal to mass/density
+		pvol.x = pvol.w = pos[i].w/vel[i].w;
+		// .y is the log of current/initial
+		pvol.y = 0;
+		// .z is unused, set to zero
+		pvol.z = 0;
+
+		vol[i] = pvol;
+	}
+}
+
 void
 Problem::imposeBoundaryConditionHost(
 			float4*			newVel,

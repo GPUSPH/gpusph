@@ -136,6 +136,11 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->inoutBoundaries || m_simparams->visctype == KEPSVISC)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
+	if (m_simparams->sph_formulation == SPH_GRENIER) {
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VOLUME>();
+		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SIGMA>();
+	}
+
 	if (m_simparams->calcPrivate)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE>();
 }
@@ -1687,6 +1692,10 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing FIND_CLOSEST_VERTEX\n", deviceIndex);
 				instance->kernel_saFindClosestVertex();
 				break;
+			case COMPUTE_DENSITY:
+				if (dbg_step_printf) printf(" T %d issuing COMPUTE_DENSITY\n", deviceIndex);
+				instance->kernel_compute_density();
+				break;
 			case SPS:
 				if (dbg_step_printf) printf(" T %d issuing SPS\n", deviceIndex);
 				instance->kernel_sps();
@@ -2303,6 +2312,24 @@ void GPUWorker::kernel_surfaceParticles()
 		m_simparams->influenceRadius,
 		m_simparams->savenormals);
 }
+
+void GPUWorker::kernel_compute_density()
+{
+	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
+
+	// is the device empty? (unlikely but possible before LB kicks in)
+	if (numPartsToElaborate == 0) return;
+
+	MultiBufferList::const_iterator bufread = m_dBuffers.getReadBufferList();
+	MultiBufferList::iterator bufwrite = m_dBuffers.getWriteBufferList();
+
+	forcesEngine->compute_density(bufread, bufwrite,
+		m_dCellStart,
+		numPartsToElaborate,
+		m_simparams->slength,
+		m_simparams->influenceRadius);
+}
+
 
 // TODO FIXME RENAME METHOD
 void GPUWorker::kernel_sps()

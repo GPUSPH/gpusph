@@ -220,6 +220,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	 * requirements, find some smart way to have the host fill the shared
 	 * buffer directly.
 	 */
+	bool resumed = false;
 
 	if (clOptions->resume_fname.empty()) {
 		printf("Copying the particles to shared arrays...\n");
@@ -256,6 +257,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->dt = hf->get_dt();
 		gdata->t = hf->get_t();
 		hot_in.close();
+		resumed = true;
 	}
 
 
@@ -266,11 +268,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
-	if (problem->get_simparams()->inoutBoundaries)
+	if (_sp->inoutBoundaries)
 		countVertexAndNonFluidParticles();
 
 	// initialize values of k and e for k-e model
-	if (_sp->visctype == KEPSVISC)
+	if (!resumed && _sp->visctype == KEPSVISC)
 		problem->init_keps(
 			gdata->s_hBuffers.getData<BUFFER_TKE>(),
 			gdata->s_hBuffers.getData<BUFFER_EPSILON>(),
@@ -278,6 +280,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 			gdata->s_hBuffers.getData<BUFFER_INFO>(),
 			gdata->s_hBuffers.getData<BUFFER_POS>(),
 			gdata->s_hBuffers.getData<BUFFER_HASH>());
+
+	if (!resumed && _sp->sph_formulation == SPH_GRENIER)
+		problem->init_volume(gdata->s_hBuffers, gdata->totParticles);
 
 	if (MULTI_DEVICE) {
 		printf("Sorting the particles per device...\n");
@@ -468,6 +473,14 @@ bool GPUSPH::runSimulation() {
 			doCommand(UPLOAD_GRAVITY);
 		}
 
+		// for Grenier formulation, compute sigma and smoothed density
+		if (problem->get_simparams()->sph_formulation == SPH_GRENIER) {
+			gdata->only_internal = true;
+			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_1);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL);
+		}
+
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
@@ -528,6 +541,14 @@ bool GPUSPH::runSimulation() {
 		// Here the first part of our time integration scheme is complete. All updated values
 		// are now in the read buffers again.
 
+		// for Grenier formulation, compute sigma and smoothed density
+		if (problem->get_simparams()->sph_formulation == SPH_GRENIER) {
+			gdata->only_internal = true;
+			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_2);
+			if (MULTI_DEVICE)
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL);
+		}
+
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
 		if (problem->get_simparams()->visctype == SPSVISC) {
 			gdata->only_internal = true;
@@ -552,7 +573,7 @@ bool GPUSPH::runSimulation() {
 
 		// swap read and writes again because the write contains the variables at time n
 		// boundelements is swapped because the normals are updated in the moving objects case
-		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
+		doCommand(SWAP_BUFFERS, BUFFER_POS | BUFFER_VEL | BUFFER_VOLUME | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS);
 
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
@@ -874,6 +895,12 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 	if (problem->m_simparams.visctype == SPSVISC)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SPS_TURBVISC>();
+
+	if (problem->m_simparams.sph_formulation == SPH_GRENIER) {
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
+		// Only for debugging:
+		//gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
+	}
 
 	if (problem->m_simparams.calcPrivate)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();

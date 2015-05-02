@@ -237,6 +237,10 @@ reorderDataAndFindCellStart(
 	float4 *newVel = sorted_buffers->getData<BUFFER_VEL>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, oldVel, numParticles*sizeof(float4)));
 
+	const float4 *oldVol = unsorted_buffers->getData<BUFFER_VOLUME>();
+	float4 *newVol = sorted_buffers->getData<BUFFER_VOLUME>();
+	CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
+
 	const particleinfo *oldInfo = unsorted_buffers->getData<BUFFER_INFO>();
 	particleinfo *newInfo = sorted_buffers->getData<BUFFER_INFO>();
 	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, oldInfo, numParticles*sizeof(particleinfo)));
@@ -278,7 +282,7 @@ reorderDataAndFindCellStart(
 
 	uint smemSize = sizeof(uint)*(numThreads+1);
 	cuneibs::reorderDataAndFindCellStartDevice<<< numBlocks, numThreads, smemSize >>>(cellStart, cellEnd, segmentStart,
-		newPos, newVel, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
+		newPos, newVel, newVol, newInfo, newBoundElement, newGradGamma, newVertices, newTKE, newEps, newTurbVisc,
 		newEulerVel, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error

@@ -35,6 +35,7 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+#include "buffer.h"
 
 class AbstractForcesEngine
 {
@@ -93,6 +94,15 @@ public:
 	// of the block size that is not greater than it
 	virtual uint
 	round_particles(uint numparts) = 0;
+
+	// Compute particle density
+	virtual void
+	compute_density(MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const uint *cellStart,
+		uint numParticles,
+		float slength,
+		float influenceradius) = 0;
 
 	// basic forces step. returns the number of blocks launched
 	// (which is the number of blocks to launch dtreduce on

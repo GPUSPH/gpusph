@@ -334,6 +334,7 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 										uint*			segmentStart,		// TODO
 										float4*			sortedPos,			// new sorted particle's positions (out)
 										float4*			sortedVel,			// new sorted particle's velocities (out)
+										float4*			sortedVol,			// new sorted particle's volumes (out)
 										particleinfo*	sortedInfo,			// new sorted particle's informations (out)
 										float4*			sortedBoundElements,// new sorted boundary elements (out)
 										float4*			sortedGradGamma,	// new sorted gradient gamma (out)
@@ -427,6 +428,10 @@ void reorderDataAndFindCellStartDevice( uint*			cellStart,			// index of cells f
 		sortedPos[index] = pos;
 		sortedVel[index] = vel;
 		sortedInfo[index] = info;
+
+		if (sortedVol) {
+			sortedVol[index] = tex1Dfetch(volTex, sortedIndex);
+		}
 
 		if (sortedBoundElements) {
 			sortedBoundElements[index] = tex1Dfetch(boundTex, sortedIndex);

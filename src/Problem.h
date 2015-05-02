@@ -401,8 +401,8 @@ RESTORE_WARNINGS
 
 		virtual void
 		moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-		 	 	 	 	 	 	const float3&, const KinematicData &, KinematicData &,
-		 	 	 	 	 	 	double3&, EulerParameters&);
+								const float3&, const KinematicData &, KinematicData &,
+								double3&, EulerParameters&);
 
 		void bodies_timestep(const float3 *, const float3 *, const int,
 							const double, const double, float3 * &, float3 * &,
@@ -412,6 +412,9 @@ RESTORE_WARNINGS
 			const float *linvel, const float *angvel);*/
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
+
+		/* Initialize the particle volumes */
+		virtual void init_volume(BufferList &, uint numParticles);
 
 		virtual void
 		setboundconstants(

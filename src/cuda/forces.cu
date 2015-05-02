@@ -36,6 +36,8 @@
 #include "utils.h"
 #include "cuda_call.h"
 
+#include "define_buffers.h"
+
 #include "forces_params.h"
 
 cudaArray*  dDem = NULL;
@@ -270,6 +272,8 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cellSize, &cellSize, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 }
 
 
@@ -302,6 +306,8 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->demzmin, cuforces::d_demzmin, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->smagfactor, cuforces::d_smagfactor, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->kspsfactor, cuforces::d_kspsfactor, sizeof(float)));
+
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 }
 
 FORCES_RET(void)
@@ -458,6 +464,71 @@ dtreduce(	float	slength,
 	CUT_CHECK_ERROR("Forces kernel execution failed");
 
 	return dt;
+}
+
+/// Density computation is a no-op in all cases but Grenier's. Since C++ does not
+/// allow partial template specialization for methods, we rely on a CUDADensityHelper
+/// auxiliary functor, that we can re-define with partial specialization as needed.
+
+/// General case: do nothing
+template<
+	KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype>
+struct CUDADensityHelper {
+	static void
+	process(MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const uint *cellStart,
+		const uint numParticles,
+		float slength,
+		float influenceradius)
+	{ /* do nothing by default */ }
+};
+
+/// Grenier
+template<
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
+	static void
+	process(MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const uint *cellStart,
+		const uint numParticles,
+		float slength,
+		float influenceradius)
+	{
+		uint numThreads = BLOCK_SIZE_FORCES;
+		uint numBlocks = div_up(numParticles, numThreads);
+
+		const float4 *pos = bufread->getData<BUFFER_POS>();
+		const float4 *vol = bufread->getData<BUFFER_VOLUME>();
+		const particleinfo *info = bufread->getData<BUFFER_INFO>();
+		const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+
+		// density is updated in-place, so it uses the READ buffer
+		float4 *vel = const_cast<float4*>(bufread->getData<BUFFER_VEL>());
+		float *sigma = bufwrite->getData<BUFFER_SIGMA>();
+
+		cuforces::densityGrenierDevice<kerneltype, boundarytype>
+			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
+	}
+};
+
+
+FORCES_RET(void)
+compute_density(MultiBufferList::const_iterator bufread,
+	MultiBufferList::iterator bufwrite,
+	const uint *cellStart,
+	uint numParticles,
+	float slength,
+	float influenceradius)
+{
+	CUDADensityHelper<kerneltype, sph_formulation, boundarytype>::process(bufread,
+		bufwrite, cellStart, numParticles, slength, influenceradius);
+	return;
 }
 
 // Returns numBlock for delayed dt reduction in case of striping

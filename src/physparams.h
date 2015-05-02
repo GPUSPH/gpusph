@@ -43,6 +43,9 @@ typedef struct PhysParams {
 	float	sscoeff[MAX_FLUID_TYPES];
 	float	sspowercoeff[MAX_FLUID_TYPES];
 
+	// interface epsilon for Grenier's simplified surface tension model
+	float	epsinterface;
+
 	// Lennard-Jones boundary coefficients
 	float	r0;				// influence radius of boundary repulsive force
 	float	dcoeff;
@@ -88,6 +91,7 @@ typedef struct PhysParams {
 IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
 		partsurf(0),
+		epsinterface(NAN),
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),

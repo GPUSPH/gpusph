@@ -127,6 +127,14 @@ public:
 	uint
 	round_particles(uint numparts);
 
+	void
+	compute_density(MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const uint *cellStart,
+		uint numParticles,
+		float slength,
+		float influenceradius);
+
 	uint
 	basicstep(
 		MultiBufferList::const_iterator bufread,

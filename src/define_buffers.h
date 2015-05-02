@@ -114,7 +114,14 @@ SET_BUFFER_TRAITS(BUFFER_CFL_KEPS, float, 1, "Turbulent Viscosity CFL array");
 #define BUFFER_SPS_TURBVISC		(BUFFER_CFL_KEPS << 1)
 SET_BUFFER_TRAITS(BUFFER_SPS_TURBVISC, float, 1, "SPS Turbulent viscosity");
 
-#define BUFFER_PRIVATE		(BUFFER_SPS_TURBVISC << 1)
+// .x: initial volume, .y log (current/initial), .z unused, .w current volume
+#define BUFFER_VOLUME		(BUFFER_SPS_TURBVISC << 1)
+SET_BUFFER_TRAITS(BUFFER_VOLUME, float4, 1, "Volume");
+
+#define BUFFER_SIGMA		(BUFFER_VOLUME << 1)
+SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (inverse discrete volume)");
+
+#define BUFFER_PRIVATE		(BUFFER_SIGMA << 1)
 SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 
 // last defined buffer. if new buffers are defined, remember to update this
@@ -149,6 +156,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 		BUFFER_EULERVEL | \
 		BUFFER_TKE | \
 		BUFFER_EPSILON | \
+		BUFFER_VOLUME | \
 		DBLBUFFER_READ)
 
 #define POST_FORCES_UPDATE_BUFFERS \
@@ -182,6 +190,7 @@ SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
 		BUFFER_EPSILON | \
 		BUFFER_EULERVEL | \
 		BUFFER_GRADGAMMA | \
+		BUFFER_VOLUME | \
 		BUFFER_VERTICES)
 
 #endif

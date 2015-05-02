@@ -70,14 +70,17 @@ texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
 namespace cuforces {
 
-__constant__ idx_t	d_neiblist_end; 		///< maximum number of neighbors * number of allocated particles
-__constant__ idx_t	d_neiblist_stride; 		///< stride between neighbors of the same particle
+__constant__ idx_t	d_neiblist_end;			///< maximum number of neighbors * number of allocated particles
+__constant__ idx_t	d_neiblist_stride;		///< stride between neighbors of the same particle
 
 __constant__ int	d_numfluids;			///< number of different fluids
 
 __constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-rest density for each fluid
 
 __constant__ float	d_ferrari;				///< coefficient for Ferrari correction
+
+// interface epsilon for simplified surface tension in Grenier
+__constant__ float	d_epsinterface;
 
 // LJ boundary repusion force comuting
 __constant__ float	d_dcoeff;
@@ -635,6 +638,110 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 				make_float2(tau.xz, tau.yy), make_float2(tau.yz, tau.zz));
 	}
 }
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*										Density computation							*/
+/************************************************************************************************************/
+
+// When using the Grenier formulation, density is reinitialized at each timestep from
+// a Shepard-corrected mass distribution limited to same-fluid particles M and volumes ω computed
+// from a continuity equation, with ϱ = M/ω.
+// During the same run, we also compute σ, the approximation of the inverse volume obtained by summing
+// the kernel computed over _all_ neighbors (not just the same-fluid ones) which is used in the continuity
+// equation as well as the Navier-Stokes equation
+template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound >
+__global__ void
+densityGrenierDevice(
+			float* __restrict__		sigmaArray,
+	const	float4* __restrict__	posArray,
+			float4* __restrict__	velArray,
+	const	particleinfo* __restrict__	infoArray,
+	const	hashKey* __restrict__	particleHash,
+	const	float4* __restrict__	volArray,
+	const	uint* __restrict__		cellStart,
+	const	neibdata* __restrict__	neibsList,
+	const	uint	numParticles,
+	const	float	slength,
+	const	float	influenceradius)
+{
+	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
+
+	if (index >= numParticles)
+		return;
+
+	const particleinfo info = infoArray[index];
+
+	if (NOT_FLUID(info))
+		return;
+
+	const float4 pos = posArray[index];
+
+	if (INACTIVE(pos))
+		return;
+
+	ushort fnum = PART_FLUID_NUM(info);
+
+	// self contribution
+	float corr = W<kerneltype>(0, slength);
+	float sigma = corr;
+	float mass_corr = pos.w*corr;
+
+	const int3 gridPos = calcGridPosFromParticleHash( particleHash[index] );
+	// Persistent variables across getNeibData calls
+	char neib_cellnum = 0;
+	uint neib_cell_base_index = 0;
+	float3 pos_corr;
+
+	// Loop over all neighbors
+	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
+		neibdata neib_data = neibsList[i + index];
+
+		if (neib_data == 0xffff) break;
+
+		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
+			neib_cellnum, neib_cell_base_index);
+
+		// Compute relative position vector and distance
+
+		const particleinfo neib_info = infoArray[neib_index];
+		const float4 relPos = pos_corr - posArray[neib_index];
+		float r = length(as_float3(relPos));
+
+		/* Contributions only come from active particles within the influence radius
+		   that are fluid particles (or also non-fluid in DYN_BOUNDARY case).
+		   TODO check what to do with SA
+		   Sigma calculations uses all such particles, whereas smoothed mass
+		   only uses same-fluid particles.
+		 */
+		if (INACTIVE(relPos) || r >= influenceradius ||
+			((boundarytype != DYN_BOUNDARY) && NOT_FLUID(neib_info)))
+			continue;
+
+		const float w = W<kerneltype>(r, slength);
+		sigma += w;
+
+		/* We only consider FLUID particles of the same fluid. The FLUID check
+		   is only needed in the DYN_BOUNDARY case
+		   */
+		if (PART_FLUID_NUM(neib_info) == fnum &&
+			(boundarytype != DYN_BOUNDARY || FLUID(neib_info))) {
+			mass_corr += relPos.w;
+			corr += w;
+		}
+	}
+
+	float4 vel = velArray[index];
+	float vol = volArray[index].w;
+
+	// M = mass_corr/corr, ϱ = M/ω
+	// this could be optimized to pos.w/vol assuming all same-fluid particles
+	// have the same mass
+	vel.w = mass_corr/(corr*vol);
+	velArray[index] = vel;
+	sigmaArray[index] = sigma;
+}
+
 /************************************************************************************************************/
 
 /************************************************************************************************************/

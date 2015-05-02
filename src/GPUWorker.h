@@ -238,6 +238,7 @@ private:
 	void kernel_filter();
 	void kernel_vorticity();
 	void kernel_surfaceParticles();
+	void kernel_compute_density();
 	void kernel_sps();
 	void kernel_meanStrain();
 	void kernel_reduceRBForces();
