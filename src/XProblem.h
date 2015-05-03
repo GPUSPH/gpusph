@@ -225,9 +225,8 @@ class XProblem: public Problem {
 		XProblem(GlobalData *);
 		~XProblem(void);
 
-		// initialize world size, ODE if necessary
-		// public, since GPUSPH will call it
-		void initialize();
+		// initialize world size, ODE if necessary; public, since GPUSPH will call it
+		bool initialize();
 
 		int fill_parts();
 		uint fill_planes(void);

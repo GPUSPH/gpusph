@@ -82,8 +82,11 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	// needed for the new problem interface (compute worldorigin, init ODE)
-	problem->initialize();
+	// needed for the new problem interface (compute worldorigin, init ODE, etc.)
+	if (!problem->initialize()) {
+		printf("Problem initialization failed. Aborting...\n");
+		return false;
+	}
 
 	// run post-construction functions
 	problem->check_dt();

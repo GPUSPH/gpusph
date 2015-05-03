@@ -113,7 +113,7 @@ XProblem::~XProblem()
 		cleanupODE();
 }
 
-void XProblem::initialize()
+bool XProblem::initialize()
 {
 	// aux vars to compute bounding box
 	Point globalMin = Point (
@@ -260,6 +260,8 @@ void XProblem::initialize()
 	// TODO FIXME m_numMovingObjects does not exist yet
 	//if (m_numMovingObjects > 0)
 	//	m_simparams.movingBoundaries = true;
+
+	return true;
 }
 
 void XProblem::initializeODE()
