@@ -921,11 +921,19 @@ struct compute_density_derivative {
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		common_with(params, pdata, ndata, pout, nout);
-		// TODO this should not be done at runtime, but as a template option
-		if (d_ferrari) {
-			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
-			ferrari_correction(params, pdata, ndata, pout, nout);
+		if (sph_formulation == SPH_GRENIER) {
+			// for Grenier's formulation, DrDt is actually DJ/Dt, which needs to be divided
+			// by the particle sigma, which will be done at the end of the cycle
+			nout.DrDt -= ndata.vel_dot_pos*ndata.f;
+			// TODO Ferrari correction
+		} else {
+			// SPH_F1 or SPH_F2
+			common_with(params, pdata, ndata, pout, nout);
+			// TODO this should not be done at runtime, but as a template option
+			if (d_ferrari) {
+				// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
+				ferrari_correction(params, pdata, ndata, pout, nout);
+			}
 		}
 		/* The second formulation takes into consideration the density ratio */
 		if (sph_formulation == SPH_F2)
@@ -940,6 +948,7 @@ template<SPHFormulation sph_formulation, bool inoutBoundaries, typename FP, type
 __device__ __forceinline__ void
 compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	/// TODO FIXME SPH_GRENIER support
 	if (ndata.ntype == PT_BOUNDARY) {
 		// boundary term of div(v)
 		nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
@@ -993,6 +1002,14 @@ struct compute_pressure_contrib
 		case SPH_F2:
 			pGradTerm = (pdata.p_precalc + ndata.p_precalc)/(pdata.vel.w*ndata.relVel.w);
 			break;
+		case SPH_GRENIER:
+			pGradTerm = pdata.p_precalc + ndata.p_precalc;
+			// simplified surface tension correction, applied if neighbor is FLUID
+			// of different type
+			// (TODO optimization: the FLUID check is needed in DYN_BOUNDARY case only)
+			if (FLUID(ndata.info) && PART_FLUID_NUM(pdata.info) != PART_FLUID_NUM(ndata.info))
+				pGradTerm += d_epsinterface*(fabs(pdata.p_precalc) + fabs(ndata.p_precalc));
+			break;
 		}
 		return pGradTerm;
 	}
@@ -1005,7 +1022,11 @@ struct compute_pressure_contrib
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
 		const float pGradTerm(common_with<sph_formulation>(params, pdata, ndata, pout, nout));
-		nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
+		if (sph_formulation == SPH_GRENIER) {
+			nout.DvDt -= pGradTerm*ndata.f*as_float3(ndata.relPos);
+		} else {
+			nout.DvDt -= pGradTerm*ndata.relPos.w*ndata.f*as_float3(ndata.relPos);
+		}
 	}
 };
 
@@ -1247,9 +1268,8 @@ visc_volumic_part<ARTVISC>::with(FP const& params, P const& pdata, N const& ndat
 /// A functor that computes the scalar viscous coefficient (plus additional optional contributions
 /// directly to nout.
 /// See above about the double template<> in the specializations
-template<BoundaryType>
+template<BoundaryType boundarytype, SPHFormulation sph_formulation>
 struct compute_viscous_contrib {
-
 	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -1261,21 +1281,43 @@ struct compute_viscous_contrib {
 
 };
 
-template<>
-template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_viscous_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	if (ndata.ntype == PT_BOUNDARY) {
-		// boundary term of the viscous part based on a boundary segment
-		if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
-			visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
+/// Specialization for SA_BOUNDARY
+template<SPHFormulation sph_formulation>
+struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
+	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		if (ndata.ntype == PT_BOUNDARY) {
+			// boundary term of the viscous part based on a boundary segment
+			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
+				visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
+		}
+		else {
+			// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
+			visc_volumic_part<visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
+		}
 	}
-	else {
-		// volumic term of the viscous part using vertices and fluid particles (same as in the generic case)
-		visc_volumic_part<visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
+};
+
+/// Specialization for SPH_GRENIER
+template<BoundaryType boundarytype>
+struct compute_viscous_contrib<boundarytype, SPH_GRENIER> {
+	template<bool inoutBoundaries, ViscosityType visctype, typename FP, typename P, typename N, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+	{
+		// TODO support different visctypes, currently we just ignore it
+		// TODO per-fluid visccoeff
+		const float mu_i = d_visccoeff*pdata.vel.w;
+		const float mu_j = d_visccoeff*ndata.relVel.w;
+		const float avg_mu = 2*(mu_i*mu_j)/(mu_i+mu_j);
+		const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
+		nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
 	}
-}
+};
 
 /// Functor to compute the KEPS diffusion and velocity gradient terms
 
@@ -1451,6 +1493,37 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 
 	return d_visccoeff*pdata.vel.w;
 }
+
+/// A functor to do global corrections of particle forces, such as multiplication
+/// or division by a common factor
+template<SPHFormulation sph_formulation>
+struct forces_fixup
+{
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP &pout)
+	{ /* do nothing */ }
+};
+
+/// In Grenier, we compute DJ/Dt without the 1/sigma factor in front,
+/// and DvDt without the 1/\rho factor in front. Do the division in forces_fixup
+template<>
+struct forces_fixup<SPH_GRENIER>
+{
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP &pout)
+	{
+		pout.force.x /= pdata.vel.w;
+		pout.force.y /= pdata.vel.w;
+		pout.force.z /= pdata.vel.w;
+		pout.force.w /= pdata.sigma;
+	}
+};
+
+
 
 
 /// A functor that clamps gamma and divides force by it,
@@ -1933,7 +2006,7 @@ forcesDevice(
 					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
 					// Compute viscous forces
-					compute_viscous_contrib<boundarytype>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype, sph_formulation>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
 
 					// Compute diffusion terms for k-epsilon and the strain rate tensor
 					compute_keps_term<boundarytype, visctype>::with<simflags & ENABLE_INLET_OUTLET>(params, pdata, ndata, pout, nout);
@@ -1951,7 +2024,7 @@ forcesDevice(
 				if (visctype == KEPSVISC && pdata.ptype == PT_VERTEX
 					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-					compute_viscous_contrib<boundarytype>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype, sph_formulation>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
 				}
 				else if (pdata.ptype == PT_VERTEX && has_waterdepth_computation<boundarytype>::with(params)
 					&& IO_BOUNDARY(info) && !VEL_IO(info)) {
@@ -1974,6 +2047,9 @@ forcesDevice(
 		if (boundarytype == SA_BOUNDARY && (FLUID(pdata.info) || VERTEX(pdata.info))) {
 			gamma_fixup<boundarytype>::with<sph_formulation>(params, pdata, pout);
 		}
+
+		// common division or multiplifaction
+		forces_fixup<sph_formulation>::with(params, pdata, pout);
 
 		// External forces
 		if (FLUID(pdata.info)) {
