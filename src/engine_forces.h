@@ -77,15 +77,7 @@ public:
 	// called separately because the kernel might be split into inner/outer calls, and
 	// the pre-/post- calls have to do before the first and after the last
 	virtual void
-	bind_textures(
-		const	float4	*pos,
-		const	float4	*vel,
-		const	float4	*eulerVel,
-		const	float4	*oldGGam,
-		const	float4	*boundelem,
-		const	particleinfo	*info,
-		const	float	*keps_tke,
-		const	float	*keps_eps,
+	bind_textures(MultiBufferList::const_iterator bufread,
 		uint	numParticles) = 0;
 
 	virtual void
@@ -106,21 +98,11 @@ public:
 	// (which is the number of blocks to launch dtreduce on
 	virtual uint
 	basicstep(
-		const	float4	*pos,
-		const	float2	* const vertPos[],
-		const	float4	*vel,
-				float4	*forces,
-				float2	*contupd,
-		const	float4	*oldGGam,
-				float4	*newGGam,
-		const	float4	*boundelem,
+		MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
 				float4	*rbforces,
 				float4	*rbtorques,
-				float4	*xsph,
-		const	particleinfo	*info,
-		const	hashKey	*particleHash,
 		const	uint	*cellStart,
-		const	neibdata*neibsList,
 				uint	numParticles,
 				uint	fromParticle,
 				uint	toParticle,
@@ -131,13 +113,6 @@ public:
 		const	float	epsilon,
 				uint	*IOwaterdepth,
 				float	visccoeff,
-				float	*turbvisc,
-				float	*keps_tke,
-				float	*keps_eps,
-				float3	*keps_dkde,
-				float	*cfl,
-				float	*cflTVisc,
-				float	*tempCfl,
 				uint	cflOffset) = 0;
 
 	// Reduction methods

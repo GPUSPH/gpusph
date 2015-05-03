@@ -332,23 +332,17 @@ setrbstart(const int* rbfirstindex, int numbodies)
 
 FORCES_RET(void)
 bind_textures(
-	const	float4	*pos,
-	const	float4	*vel,
-	const	float4	*eulerVel,
-	const	float4	*oldGGam,
-	const	float4	*boundelem,
-	const	particleinfo	*info,
-	const	float	*keps_tke,
-	const	float	*keps_eps,
+	MultiBufferList::const_iterator bufread,
 	uint	numParticles)
 {
 	// bind textures to read all particles, not only internal ones
 	#if (__COMPUTE__ < 20)
-	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, pos, numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, posTex, bufread->getData<BUFFER_POS>(), numParticles*sizeof(float4)));
 	#endif
-	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, vel, numParticles*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, info, numParticles*sizeof(particleinfo)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, velTex, bufread->getData<BUFFER_VEL>(), numParticles*sizeof(float4)));
+	CUDA_SAFE_CALL(cudaBindTexture(0, infoTex, bufread->getData<BUFFER_INFO>(), numParticles*sizeof(particleinfo)));
 
+	const float4 *eulerVel = bufread->getData<BUFFER_EULERVEL>();
 	if (needs_eulerVel) {
 		if (!eulerVel)
 			throw std::invalid_argument("eulerVel not set but needed");
@@ -359,13 +353,13 @@ bind_textures(
 	}
 
 	if (boundarytype == SA_BOUNDARY) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, oldGGam, numParticles*sizeof(float4)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelem, numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, gamTex, bufread->getData<BUFFER_GRADGAMMA>(), numParticles*sizeof(float4)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, bufread->getData<BUFFER_BOUNDELEMENTS>(), numParticles*sizeof(float4)));
 	}
 
 	if (visctype == KEPSVISC) {
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, keps_tke, numParticles*sizeof(float)));
-		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, keps_eps, numParticles*sizeof(float)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_kTex, bufread->getData<BUFFER_TKE>(), numParticles*sizeof(float)));
+		CUDA_SAFE_CALL(cudaBindTexture(0, keps_eTex, bufread->getData<BUFFER_EPSILON>(), numParticles*sizeof(float)));
 	}
 }
 
@@ -469,40 +463,48 @@ dtreduce(	float	slength,
 // Returns numBlock for delayed dt reduction in case of striping
 FORCES_RET(uint)
 basicstep(
-	const	float4	*pos,
-	const	float2	* const vertPos[],
-	const	float4	*vel,
-			float4	*forces,
-			float2	*contupd,
-	const	float4	*oldGGam,
-			float4	*newGGam,
-	const	float4	*boundelem,
-			float4	*rbforces,
-			float4	*rbtorques,
-			float4	*xsph,
-	const	particleinfo	*info,
-	const	hashKey	*particleHash,
+	MultiBufferList::const_iterator bufread,
+	MultiBufferList::iterator bufwrite,
+	float4	*rbforces,
+	float4	*rbtorques,
 	const	uint	*cellStart,
-	const	neibdata*neibsList,
-			uint	numParticles,
-			uint	fromParticle,
-			uint	toParticle,
-			float	deltap,
-			float	slength,
-			float	dtadaptfactor,
-			float	influenceradius,
+	uint	numParticles,
+	uint	fromParticle,
+	uint	toParticle,
+	float	deltap,
+	float	slength,
+	float	dtadaptfactor,
+	float	influenceradius,
 	const	float	epsilon,
-			uint	*IOwaterdepth,
-			float	visccoeff,
-			float	*turbvisc,
-			float	*keps_tke,
-			float	*keps_eps,
-			float3	*keps_dkde,
-			float	*cfl,
-			float	*cflTVisc,
-			float	*tempCfl,
-			uint	cflOffset)
+	uint	*IOwaterdepth,
+	float	visccoeff,
+	uint	cflOffset)
 {
+	const float4 *pos = bufread->getData<BUFFER_POS>();
+	const float4 *vel = bufread->getData<BUFFER_VEL>();
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+
+	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
+	const float4 *oldGGam = bufread->getData<BUFFER_GRADGAMMA>();
+	const float4 *boundelem = bufread->getData<BUFFER_BOUNDELEMENTS>();
+
+	float4 *forces = bufwrite->getData<BUFFER_FORCES>();
+	float4 *xsph = bufwrite->getData<BUFFER_XSPH>();
+	float2 *contupd = bufwrite->getData<BUFFER_CONTUPD>();
+	float4 *newGGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+
+	// TODO FIXME TURBVISC, TKE, EPSILON are in/out, but they are taken from the READ position
+	float *turbvisc = const_cast<float*>(bufread->getData<BUFFER_TURBVISC>());
+	float *keps_tke = const_cast<float*>(bufread->getData<BUFFER_TKE>());
+	float *keps_eps = const_cast<float*>(bufread->getData<BUFFER_EPSILON>());
+
+	float3 *keps_dkde = bufwrite->getData<BUFFER_DKDE>();
+	float *cfl = bufwrite->getData<BUFFER_CFL>();
+	float *cflTVisc = bufwrite->getData<BUFFER_CFL_KEPS>();
+	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
+
 	int dummy_shared = 0;
 
 	const uint numParticlesInRange = toParticle - fromParticle;

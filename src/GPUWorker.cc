@@ -1893,62 +1893,30 @@ void GPUWorker::kernel_buildNeibsList()
 // returns numBlocks as computed by forces()
 uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
 {
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
 	return forcesEngine->basicstep(
-			bufread.getData<BUFFER_POS>(),   // pos(n)
-			bufread.getRawPtr<BUFFER_VERTPOS>(),
-			bufread.getData<BUFFER_VEL>(),   // vel(n)
-			bufwrite.getData<BUFFER_FORCES>(),					// f(n
-			bufwrite.getData<BUFFER_CONTUPD>(),					// f(n
-			bufread.getData<BUFFER_GRADGAMMA>(),
-			bufwrite.getData<BUFFER_GRADGAMMA>(),
-			bufread.getData<BUFFER_BOUNDELEMENTS>(),
-			m_dRbForces,
-			m_dRbTorques,
-			bufwrite.getData<BUFFER_XSPH>(),
-			bufread.getData<BUFFER_INFO>(),
-			bufread.getData<BUFFER_HASH>(),
-			m_dCellStart,
-			bufread.getData<BUFFER_NEIBSLIST>(),
-			m_numParticles,
-			fromParticle,
-			toParticle,
-			gdata->problem->m_deltap,
-			m_simparams->slength,
-			m_simparams->dtadaptfactor,
-			m_simparams->influenceRadius,
-			m_simparams->epsilon,
-			m_dIOwaterdepth,
-			m_physparams->visccoeff,
-			// TODO FIXME TURBVISC, TKE, EPSILON are in/out, but they are taken from the READ position
-			(float*)bufread.getData<BUFFER_TURBVISC>(),	// nu_t(n)
-			(float*)bufread.getData<BUFFER_TKE>(),	// k(n)
-			(float*)bufread.getData<BUFFER_EPSILON>(),	// e(n)
-			bufwrite.getData<BUFFER_DKDE>(),
-			bufwrite.getData<BUFFER_CFL>(),
-			bufwrite.getData<BUFFER_CFL_KEPS>(),
-			bufwrite.getData<BUFFER_CFL_TEMP>(),
-			cflOffset);
+		m_dBuffers.getReadBufferList(),
+		m_dBuffers.getWriteBufferList(),
+		m_dRbForces,
+		m_dRbTorques,
+		m_dCellStart,
+		m_numParticles,
+		fromParticle,
+		toParticle,
+		gdata->problem->m_deltap,
+		m_simparams->slength,
+		m_simparams->dtadaptfactor,
+		m_simparams->influenceRadius,
+		m_simparams->epsilon,
+		m_dIOwaterdepth,
+		m_physparams->visccoeff,
+		cflOffset);
 }
 
 // Bind the textures needed by forces kernel
 void GPUWorker::bind_textures_forces()
 {
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-
-	forcesEngine->bind_textures(
-		bufread.getData<BUFFER_POS>(),   // pos(n)
-		bufread.getData<BUFFER_VEL>(),   // vel(n)
-		bufread.getData<BUFFER_EULERVEL>(),   // eulerVel(n)
-		bufread.getData<BUFFER_GRADGAMMA>(),
-		bufread.getData<BUFFER_BOUNDELEMENTS>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_TKE>(),	// k(n)
-		bufread.getData<BUFFER_EPSILON>(),	// e(n)
-		m_numParticles
-	);
+	forcesEngine->bind_textures(m_dBuffers.getReadBufferList(),
+		m_numParticles);
 }
 
 // Unbind the textures needed by forces kernel
