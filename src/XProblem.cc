@@ -126,6 +126,8 @@ bool XProblem::initialize()
 		-std::numeric_limits<double>::max() );
 
 	// counters of floating objects and generic objects (floating + moving + open bounds)
+	// NOTE: there is already m_numRigidBodies, but we need a progressive count to
+	// initialize m_ODEobjectId map
 	uint rigid_body_counter = 0;
 	uint object_counter = 0;
 
