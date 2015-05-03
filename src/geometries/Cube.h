@@ -36,6 +36,7 @@
 #include "Object.h"
 #include "Point.h"
 #include "Vector.h"
+#include <ostream>
 
 #include "deprecation.h"
 
@@ -119,7 +120,7 @@ class Cube: public Object {
 		void ODEBodyCreate(dWorldID, const double density = 1.0, dSpaceID ODESpace = 0);
 		void ODEGeomCreate(dSpaceID, const double);
 		//@}
+
+		friend std::ostream& operator<<(std::ostream&, const Cube&);
 };
-
 #endif	/* _CUBE_H */
-
