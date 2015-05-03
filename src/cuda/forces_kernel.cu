@@ -650,7 +650,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 // During the same run, we also compute σ, the approximation of the inverse volume obtained by summing
 // the kernel computed over _all_ neighbors (not just the same-fluid ones) which is used in the continuity
 // equation as well as the Navier-Stokes equation
-template<KernelType kerneltype, BoundaryType boundarytype, bool periodicbound >
+template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
 densityGrenierDevice(
 			float* __restrict__		sigmaArray,
@@ -672,7 +672,10 @@ densityGrenierDevice(
 
 	const particleinfo info = infoArray[index];
 
-	if (NOT_FLUID(info))
+	/* We only process FLUID particles normally,
+	   except with DYN_BOUNDARY, where we also process boundary particles
+	   */
+	if (boundarytype != DYN_BOUNDARY && NOT_FLUID(info))
 		return;
 
 	const float4 pos = posArray[index];
@@ -680,7 +683,16 @@ densityGrenierDevice(
 	if (INACTIVE(pos))
 		return;
 
-	ushort fnum = PART_FLUID_NUM(info);
+	const ushort fnum = PART_FLUID_NUM(info);
+	const float vol = volArray[index].w;
+	float4 vel = velArray[index];
+
+	// TODO check the most consistent way to set sigma for dyn boundary particles
+	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info)) {
+		vel.w = pos.w/vol;
+		velArray[index] = vel;
+		sigmaArray[index] = 1;
+	}
 
 	// self contribution
 	float corr = W<kerneltype>(0, slength);
@@ -724,15 +736,12 @@ densityGrenierDevice(
 		/* We only consider FLUID particles of the same fluid. The FLUID check
 		   is only needed in the DYN_BOUNDARY case
 		   */
-		if (PART_FLUID_NUM(neib_info) == fnum &&
-			(boundarytype != DYN_BOUNDARY || FLUID(neib_info))) {
-			mass_corr += relPos.w;
+		if ((boundarytype != DYN_BOUNDARY || FLUID(neib_info)) &&
+			PART_FLUID_NUM(neib_info) == fnum) {
+			mass_corr += relPos.w*w;
 			corr += w;
 		}
 	}
-
-	float4 vel = velArray[index];
-	float vol = volArray[index].w;
 
 	// M = mass_corr/corr, ϱ = M/ω
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
