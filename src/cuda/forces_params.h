@@ -128,6 +128,14 @@ struct xsph_forces_params
 	{}
 };
 
+/// Additional parameters passed only to kernels with SPH_GRENIER formulation
+struct grenier_forces_params
+{
+	const float	*sigmaArray;
+	grenier_forces_params(const float *_sigmaArray) : sigmaArray(_sigmaArray)
+	{}
+};
+
 /// Additional parameters passed only to kernels with SA_BOUNDARY
 struct sa_boundary_forces_params
 {
@@ -176,6 +184,7 @@ struct kepsvisc_forces_params
 
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
 template<KernelType kerneltype,
+	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
 	flag_t simflags>
@@ -183,6 +192,7 @@ struct forces_params :
 	common_forces_params,
 	COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params),
 	COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params),
+	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params),
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
 	COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)
@@ -216,6 +226,9 @@ struct forces_params :
 		// XSPH
 				float4	*_xsph,
 
+		// SPH_GRENIER
+		const	float	*_sigmaArray,
+
 		// SA_BOUNDARY
 				float4	*_newGGam,
 		const	float2	* const _vertPos[],
@@ -234,7 +247,8 @@ struct forces_params :
 			_deltap, _slength, _influenceradius),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
 			(_cfl, _cflTVisc, _cflOffset),
-			COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
 			(_newGGam, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),

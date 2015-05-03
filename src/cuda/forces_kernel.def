@@ -107,6 +107,19 @@ precalc_pressure<SPH_F2>(const float rho, particleinfo const& info)
 }
 //@}
 
+/*! When using Grenier's SPH formulation, the precomputed pressure contribution
+*   for the current particle is P/sigma. The division by sigma will be done in
+*   p_precalc_particle_data
+*/
+template<>
+__device__ __forceinline__
+float
+precalc_pressure<SPH_GRENIER>(const float rho, particleinfo const& info)
+{
+	return P(rho, fluid_num(info));
+}
+//@}
+
 // With KEPS visc:
 template<SPHFormulation sph_formulation>
 __device__ __forceinline__
@@ -195,6 +208,18 @@ struct eulerVel_particle_data
 	{}
 };
 
+// data used for SPH_GRENIER
+struct grenier_particle_data
+{
+	const	float	sigma;
+
+	__device__ __forceinline__
+	grenier_particle_data(const uint index,
+		grenier_forces_params const& params) :
+		sigma(params.sigmaArray[index])
+	{}
+};
+
 // data used for SA_BOUNDARY
 template<ViscosityType visctype, flag_t simflags>
 struct sa_boundary_particle_data
@@ -264,8 +289,8 @@ struct keps_particle_data
 // Automatic initialization of this beast is a bit messy because
 // (1) we want it to be const
 // (2) the initialization depends on SPH formulation and viscosity type
-// (3) with KEPSVISC it needs one additional parameter
-// (4) the value passed to the additional parameter only exists in the KEPSVISC case
+// (3) with KEPSVISC and SPH_GRENIER it needs one additional parameter
+// (4) the value passed to the additional parameter only exists in the KEPSVISC/SPH_GRENIER case
 // so the caller must be able to feed the last parameter correctly if it exsists,
 // but not even try to provide it otherwise.
 // The solution is to make this a templatized structure based on
@@ -281,6 +306,19 @@ struct p_precalc_particle_data
 	__device__ __forceinline__
 	p_precalc_particle_data(const float rho, particleinfo const& info, T const&) :
 		p_precalc(precalc_pressure<sph_formulation>(rho, info))
+	{}
+};
+
+// Specialization for SPH_GRENIER formulation
+// TODO check compatibility between SPH_GRENIER and KEPSVISC
+template<>
+struct p_precalc_particle_data<SPH_GRENIER, grenier_particle_data>
+{
+	const	float	p_precalc;
+
+	__device__ __forceinline__
+	p_precalc_particle_data(const float rho, particleinfo const& info, grenier_particle_data const& pdata) :
+		p_precalc(precalc_pressure<SPH_GRENIER>(rho, info)/pdata.sigma)
 	{}
 };
 
@@ -331,6 +369,7 @@ struct forces_particle_data :
 	// PT_OBJECT don't use them
 	vel_particle_data,
 	// eulerian velocity only used in case of keps or with open boundaries
+	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
 	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
@@ -346,12 +385,14 @@ struct forces_particle_data :
 		sps_particle_data),
 	// to see why this is so messy, see definition of p_precalc_particle_data
 	p_precalc_particle_data<sph_formulation,
-		typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
+		typename conditional<sph_formulation == SPH_GRENIER,
+		grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
+	>::type >,
 	COND_STRUCT(visctype == KEPSVISC,
 		keps_precalc_particle_data)
 {
 	// shorthand for the type of the forces params
-	typedef forces_params<kerneltype, boundarytype, visctype, simflags> params_t;
+	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
 
 	ParticleType	ptype;
 
@@ -362,6 +403,7 @@ struct forces_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
 			eulerVel_particle_data)(_index),
 		conditional<boundarytype == SA_BOUNDARY,
@@ -373,7 +415,9 @@ struct forces_particle_data :
 		COND_STRUCT(visctype == SPSVISC,
 			sps_particle_data)(_index),
 		p_precalc_particle_data<sph_formulation,
-			typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(vel.w, _info, *this),
+			typename conditional<sph_formulation == SPH_GRENIER,
+			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
+		>::type >(vel.w, _info, *this),
 		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, *this),
 		ptype(static_cast<ParticleType>PART_TYPE(_info))
 	{}
@@ -485,7 +529,7 @@ struct common_neib_data
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
 	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
-	typedef forces_params<kerneltype, boundarytype, visctype, simflags> params_t;
+	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
 
 	particleinfo	const& info;
 	// relPos holds the distance vector in .xyz and the neib mass in .w
@@ -522,7 +566,7 @@ struct sa_boundary_neib_data
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
 	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
-	typedef forces_params<kerneltype, boundarytype, visctype, simflags> params_t;
+	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
 	typedef forces_particle_output<SA_BOUNDARY, visctype, simflags> pout_t;
 
 	const uint index;
@@ -568,6 +612,7 @@ template<KernelType kerneltype,
 	flag_t simflags>
 struct forces_neib_data :
 	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
+	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
 // can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
 	conditional<boundarytype == SA_BOUNDARY,
 		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
@@ -584,7 +629,9 @@ struct forces_neib_data :
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
 	// precalculated pressure
 	p_precalc_particle_data<sph_formulation,
-		typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>,
+		typename conditional<sph_formulation == SPH_GRENIER,
+		grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
+	>::type >,
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data)
 {
 	// shortcut typedefs
@@ -613,12 +660,15 @@ struct forces_neib_data :
 		const uint _index, particleinfo const& _info,
 		float4 const& _relPos, const float _r) :
 		_common_neib_data(pdata, params, _index, _info, _relPos, _r),
+		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data)(_index, params),
 		_sa_boundary_neib_data(pdata, params, _index, _relPos),
 		_eulerVel_neib_data(pdata, _index, _info),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_data)(_index, _info),
-		p_precalc_particle_data<sph_formulation,
-			typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)>(this->relVel.w, _info, *this),
 		COND_STRUCT(visctype == SPSVISC, sps_particle_data)(_index),
+		p_precalc_particle_data<sph_formulation,
+			typename conditional<sph_formulation == SPH_GRENIER,
+			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
+		>::type >(this->relVel.w, _info, *this),
 		ntype(static_cast<ParticleType>PART_TYPE(_info))
 	{}
 };
@@ -1667,7 +1717,7 @@ template<KernelType kerneltype,
 	flag_t simflags>
 __global__ void
 forcesDevice(
-	forces_params<kerneltype, boundarytype, visctype, simflags> params)
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;

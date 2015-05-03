@@ -589,12 +589,13 @@ basicstep(
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	forces_params<kerneltype, boundarytype, visctype, simflags> params(
+	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
 			forces, contupd, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius,
 			cfl, cflTVisc, cflOffset,
 			xsph,
+			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
