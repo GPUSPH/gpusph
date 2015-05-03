@@ -1891,7 +1891,7 @@ forcesDevice(
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<simflags & ENABLE_XSPH>::with<kerneltype>(params, pdata, ndata, pout, nout);
 				} else {
-					if (boundarytype == LJ_BOUNDARY)
+					if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY)
 						compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}
 
