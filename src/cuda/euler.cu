@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <stdexcept>
 
+#include "define_buffers.h"
+
 #include "euler.cuh"
 #include "euler_kernel.cu"
 
@@ -97,36 +99,41 @@ template<BoundaryType boundarytype, bool xsphcorr>
 void
 CUDAPredCorrEngine<boundarytype, xsphcorr>::
 basicstep(
-	const	float4	*oldPos,
-	const	hashKey	*particleHash,
-	const	float4	*oldVel,
-	const	float4	*oldEulerVel,
-	const	float4	*oldgGam,
-	const	float	*oldTKE,
-	const	float	*oldEps,
-	const	particleinfo	*info,
-	const	float4	*forces,
-	const	float2	*contupd,
-	const	float3	*keps_dkde,
-	const	float4	*xsph,
-			float4	*newPos,
-			float4	*newVel,
-			float4	*newEulerVel,
-			float4	*newgGam,
-			float	*newTKE,
-			float	*newEps,
-	// boundary elements are updated in-place, only used for rotation in the second step
-			float4	*newBoundElement,
-	const	uint	numParticles,
-	const	uint	particleRangeEnd,
-	const	float	dt,
-	const	float	dt2,
-	const	int		step,
-	const	float	t)
+		MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const	uint	numParticles,
+		const	uint	particleRangeEnd,
+		const	float	dt,
+		const	float	dt2,
+		const	int		step,
+		const	float	t)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_INTEGRATE;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
+
+	const float4  *oldPos = bufread->getData<BUFFER_POS>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+	const float4  *oldVel = bufread->getData<BUFFER_VEL>();
+	const float4 *oldEulerVel = bufread->getData<BUFFER_EULERVEL>();
+	const float4 *oldgGam = bufread->getData<BUFFER_GRADGAMMA>();
+	const float *oldTKE = bufread->getData<BUFFER_TKE>();
+	const float *oldEps = bufread->getData<BUFFER_EPSILON>();
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+
+	const float4 *forces = bufread->getData<BUFFER_FORCES>();
+	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
+	const float3 *keps_dkde = bufread->getData<BUFFER_DKDE>();
+	const float4 *xsph = bufread->getData<BUFFER_XSPH>();
+
+	float4 *newPos = bufwrite->getData<BUFFER_POS>();
+	float4 *newVel = bufwrite->getData<BUFFER_VEL>();
+	float4 *newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
+	float4 *newgGam = bufwrite->getData<BUFFER_GRADGAMMA>();
+	float *newTKE = bufwrite->getData<BUFFER_TKE>();
+	float *newEps = bufwrite->getData<BUFFER_EPSILON>();
+	// boundary elements are updated in-place; only used for rotation in the second step
+	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
 #define ARGS oldPos, particleHash, oldVel, oldEulerVel, oldgGam, oldTKE, oldEps, \
 	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t

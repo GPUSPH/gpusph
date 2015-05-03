@@ -35,6 +35,7 @@
 #include "particledefine.h"
 #include "physparams.h"
 #include "simparams.h"
+#include "buffer.h"
 
 class AbstractIntegrationEngine
 {
@@ -66,27 +67,8 @@ public:
 	// integration schemes
 	virtual void
 	basicstep(
-		const	float4	*oldPos,
-		const	hashKey	*particleHash,
-		const	float4	*oldVel,
-		const	float4	*oldEulerVel,
-		const	float4	*oldgGam,
-		const	float	*oldTKE,
-		const	float	*oldEps,
-		const	particleinfo	*info,
-		const	float4	*forces,
-		const	float2	*contupd,
-		const	float3	*keps_dkde,
-		const	float4	*xsph,
-				float4	*newPos,
-				float4	*newVel,
-				float4	*newEulerVel,
-				float4	*newgGam,
-				float	*newTKE,
-				float	*newEps,
-		// TODO these are only updated in-place during the second step for predcorr, but
-		// we will want a more generic API here
-				float4	*newBoundElement,
+		MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,

@@ -2157,33 +2157,9 @@ void GPUWorker::kernel_euler()
 
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
 	integrationEngine->basicstep(
-		// previous pos, vel, k, e, info
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_HASH>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufread.getData<BUFFER_EULERVEL>(),
-		bufread.getData<BUFFER_GRADGAMMA>(),
-		bufread.getData<BUFFER_TKE>(),
-		bufread.getData<BUFFER_EPSILON>(),
-		bufread.getData<BUFFER_INFO>(),
-		// f(n+1/2)
-		bufread.getData<BUFFER_FORCES>(),
-		bufread.getData<BUFFER_CONTUPD>(),
-		// dkde(n)
-		bufread.getData<BUFFER_DKDE>(),
-		bufread.getData<BUFFER_XSPH>(),
-		// integrated pos vel, k, e
-		bufwrite.getData<BUFFER_POS>(),
-		bufwrite.getData<BUFFER_VEL>(),
-		bufwrite.getData<BUFFER_EULERVEL>(),
-		bufwrite.getData<BUFFER_GRADGAMMA>(),
-		bufwrite.getData<BUFFER_TKE>(),
-		bufwrite.getData<BUFFER_EPSILON>(),
-		bufwrite.getData<BUFFER_BOUNDELEMENTS>(),
+		m_dBuffers.getReadBufferList(),
+		m_dBuffers.getWriteBufferList(),
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
