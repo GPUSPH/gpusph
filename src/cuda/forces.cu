@@ -518,26 +518,18 @@ basicstep(
 		dummy_shared = 2560 - dtadapt*BLOCK_SIZE_FORCES*4;
 	#endif
 
-	// TODO why are the booleans here as parameters?
-	// FIXME forces_param should be based on simflags too
-	forces_params<kerneltype, boundarytype, visctype,
-		simflags & ENABLE_DTADAPT,
-		simflags & ENABLE_XSPH,
-		simflags & ENABLE_INLET_OUTLET> params(
+	forces_params<kerneltype, boundarytype, visctype, simflags> params(
 			forces, contupd, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius,
-			simflags & ENABLE_DEM,
 			cfl, cflTVisc, cflOffset,
 			xsph,
 			newGGam, vertPos, epsilon,
-			simflags & ENABLE_MOVING_BODIES,
-			IOwaterdepth, simflags & ENABLE_WATER_DEPTH,
+			IOwaterdepth,
 			keps_dkde, turbvisc);
 
 	// FIXME forcesDevice should use simflags, not the neverending pile of booleans
-	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype,
-		simflags & ENABLE_DTADAPT, simflags & ENABLE_XSPH, simflags & ENABLE_INLET_OUTLET>
+	cuforces::forcesDevice<kerneltype, sph_formulation, boundarytype, visctype, simflags>
 			<<< numBlocks, numThreads, dummy_shared >>>(params);
 
 	return numBlocks;

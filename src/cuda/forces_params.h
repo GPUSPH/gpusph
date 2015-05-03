@@ -26,6 +26,9 @@
 #ifndef _FORCES_PARAMS_H
 #define _FORCES_PARAMS_H
 
+#include "particledefine.h"
+#include "simflags.h"
+
 /* The forces computation kernel is probably the most complex beast in GPUSPH.
    To achieve good performance, each combination of kernel, boundary, formulation
    etc is a different specialization, something which in itself makes for a huge
@@ -72,7 +75,6 @@ struct common_forces_params
 	const	float	deltap;
 	const	float	slength;
 	const	float	influenceradius;
-	const	bool	usedem;
 
 	// Constructor / initializer
 	common_forces_params(
@@ -88,8 +90,7 @@ struct common_forces_params
 		const	uint	_toParticle,
 		const	float	_deltap,
 		const	float	_slength,
-		const	float	_influenceradius,
-		const	bool	_usedem) :
+		const	float	_influenceradius) :
 		forces(_forces),
 		contupd(_contupd),
 		rbforces(_rbforces),
@@ -102,8 +103,7 @@ struct common_forces_params
 		toParticle(_toParticle),
 		deltap(_deltap),
 		slength(_slength),
-		influenceradius(_influenceradius),
-		usedem(_usedem)
+		influenceradius(_influenceradius)
 	{}
 };
 
@@ -136,24 +136,13 @@ struct sa_boundary_forces_params
 	const	float2	*vertPos1;
 	const	float2	*vertPos2;
 	const	float	epsilon;
-	const	bool	movingBoundaries;
-	// TODO move into separate struct for inoutBoundaries
-			uint	*IOwaterdepth;
-			bool	ioWaterdepthComputation;
 
 	// Constructor / initializer
 	sa_boundary_forces_params(
 				float4	*_newGGam,
 		const	float2	* const _vertPos[],
-		const	float	_epsilon,
-		const	bool	_movingBoundaries,
-				uint	*_IOwaterdepth,
-		const	bool	_ioWaterdepthComputation) :
-		newGGam(_newGGam),
-		epsilon(_epsilon),
-		movingBoundaries(_movingBoundaries),
-		IOwaterdepth(_IOwaterdepth),
-		ioWaterdepthComputation(_ioWaterdepthComputation)
+		const	float	_epsilon) :
+		newGGam(_newGGam), epsilon(_epsilon)
 	{
 		if (_vertPos) {
 			vertPos0 = _vertPos[0];
@@ -163,6 +152,15 @@ struct sa_boundary_forces_params
 			vertPos0 = vertPos1 = vertPos2 = NULL;
 		}
 	}
+};
+
+/// Additional parameters passed only to kernels with ENABLE_WATER_DEPTH
+struct water_depth_forces_params
+{
+	uint	*IOwaterdepth;
+
+	water_depth_forces_params(uint *_IOwaterdepth) : IOwaterdepth(_IOwaterdepth)
+	{}
 };
 
 /// Additional parameters passed only to kernels with KEPSVISC
@@ -180,14 +178,13 @@ struct kepsvisc_forces_params
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct forces_params :
 	common_forces_params,
-	COND_STRUCT(dyndt, dyndt_forces_params),
-	COND_STRUCT(usexsph, xsph_forces_params),
+	COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params),
+	COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params),
 	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
+	COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
 	COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)
 {
 	// This structure provides a constructor that takes as arguments the union of the
@@ -210,7 +207,6 @@ struct forces_params :
 				float	_deltap,
 				float	_slength,
 				float	_influenceradius,
-				bool	_usedem,
 
 		// dyndt
 				float	*_cfl,
@@ -224,9 +220,9 @@ struct forces_params :
 				float4	*_newGGam,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
-		const	bool	_movingBoundaries,
+
+		// ENABLE_WATER_DEPTH
 				uint	*_IOwaterdepth,
-		const	bool	_ioWaterdepthComputation,
 
 		// KEPSVISC
 				float3	*_keps_dkde,
@@ -235,11 +231,13 @@ struct forces_params :
 		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
-			_deltap, _slength, _influenceradius, _usedem),
-		COND_STRUCT(dyndt, dyndt_forces_params)(_cfl, _cflTVisc, _cflOffset),
-		COND_STRUCT(usexsph, xsph_forces_params)(_xsph),
+			_deltap, _slength, _influenceradius),
+		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
+			(_cfl, _cflTVisc, _cflOffset),
+			COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
-			(_newGGam, _vertPos, _epsilon, _movingBoundaries, _IOwaterdepth, _ioWaterdepthComputation),
+			(_newGGam, _vertPos, _epsilon),
+		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}
 };

@@ -196,7 +196,7 @@ struct eulerVel_particle_data
 };
 
 // data used for SA_BOUNDARY
-template<ViscosityType visctype>
+template<ViscosityType visctype, flag_t simflags>
 struct sa_boundary_particle_data
 {
 	// does this particle want to (re)compute gamma? see logic below
@@ -220,7 +220,7 @@ struct sa_boundary_particle_data
 	__device__ __forceinline__
 	sa_boundary_particle_data(const uint index, particleinfo const& info,
 		sa_boundary_forces_params const& params) :
-		computeGamma(FLUID(info) || (VERTEX(info) && (params.movingBoundaries || visctype==KEPSVISC))),
+		computeGamma(FLUID(info) || (VERTEX(info) && ((simflags & ENABLE_MOVING_BODIES) || visctype==KEPSVISC))),
 		// the actual oldGGam loading: this will also set computeGamma true if
 		// it was false but .w was < epsilon
 		oldGGam(fetchOldGamma(index, params.epsilon, computeGamma)),
@@ -320,9 +320,7 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -333,12 +331,13 @@ struct forces_particle_data :
 	// PT_OBJECT don't use them
 	vel_particle_data,
 	// eulerian velocity only used in case of keps or with open boundaries
-	COND_STRUCT(visctype == KEPSVISC || inoutBoundaries, // TODO this only works for SA_BOUNDARY atm
+	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
-	COND_STRUCT(boundarytype == SA_BOUNDARY,
-		sa_boundary_particle_data<visctype>),
+	conditional<boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data<visctype, simflags>,
+		empty< sa_boundary_particle_data<visctype, simflags> > >::type,
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
 	COND_STRUCT(visctype == KEPSVISC,
 		keps_particle_data),
@@ -352,7 +351,7 @@ struct forces_particle_data :
 		keps_precalc_particle_data)
 {
 	// shorthand for the type of the forces params
-	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> params_t;
+	typedef forces_params<kerneltype, boundarytype, visctype, simflags> params_t;
 
 	ParticleType	ptype;
 
@@ -363,10 +362,12 @@ struct forces_particle_data :
 		common_particle_data(_index, _pos, _info, params.particleHash),
 		rb_particle_data(_info),
 		vel_particle_data(_index, _info),
-		COND_STRUCT(visctype == KEPSVISC || inoutBoundaries,
+		COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
 			eulerVel_particle_data)(_index),
-		COND_STRUCT(boundarytype == SA_BOUNDARY,
-			sa_boundary_particle_data<visctype>)(_index, _info, params),
+		conditional<boundarytype == SA_BOUNDARY,
+			sa_boundary_particle_data<visctype, simflags>,
+			empty< sa_boundary_particle_data<visctype, simflags>
+		> >::type(_index, _info, params),
 		COND_STRUCT(visctype == KEPSVISC,
 			keps_particle_data)(_index, _info),
 		COND_STRUCT(visctype == SPSVISC,
@@ -447,7 +448,7 @@ struct xsph_particle_output
 
 template<BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool usexsph>
+	flag_t simflags>
 struct forces_particle_output :
 	common_particle_output,
 	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g viscous_fixup<KEPSVISC>),
@@ -455,7 +456,7 @@ struct forces_particle_output :
 	// When this is implemented, the || visctype == KEPSVISC should be removed
 	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output),
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_output),
-	COND_STRUCT(usexsph, xsph_particle_output)
+	COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)
 {
 	__device__ __forceinline__
 	forces_particle_output() :
@@ -463,7 +464,7 @@ struct forces_particle_output :
 		// TODO FIXME see above
 		COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output)(),
 		COND_STRUCT(visctype == KEPSVISC, keps_particle_output)(),
-		COND_STRUCT(usexsph, xsph_particle_output)()
+		COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)()
 	{}
 };
 
@@ -478,15 +479,13 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct common_neib_data
 {
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
-	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> params_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
+	typedef forces_params<kerneltype, boundarytype, visctype, simflags> params_t;
 
 	particleinfo	const& info;
 	// relPos holds the distance vector in .xyz and the neib mass in .w
@@ -517,16 +516,14 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct sa_boundary_neib_data
 {
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
-	typedef forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> params_t;
-	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
+	typedef forces_params<kerneltype, boundarytype, visctype, simflags> params_t;
+	typedef forces_particle_output<SA_BOUNDARY, visctype, simflags> pout_t;
 
 	const uint index;
 
@@ -549,14 +546,12 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct eulerVel_neib_data
 {
 	// we will get as arguments also the current particle data and forces_kernel params.
 	// Define shorthands for their data type
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
 
 	const float4 relEulerVel;
 
@@ -570,22 +565,20 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct forces_neib_data :
-	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+	common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
 // can't use COND_STRUCT here because of the commas in the sa_boundary_neib_data template def
 	conditional<boundarytype == SA_BOUNDARY,
-		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+		sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
 		empty<
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
 		> >::type,
 	// relative eulerian velocity
-	conditional<visctype == KEPSVISC || inoutBoundaries,
-		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+	conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+		eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
 		empty<
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
 		> >::type,
 	// these are the same as the particle data
 	COND_STRUCT(visctype == KEPSVISC, keps_particle_data),
@@ -595,19 +588,19 @@ struct forces_neib_data :
 	COND_STRUCT(visctype == SPSVISC, sps_particle_data)
 {
 	// shortcut typedefs
-	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> _common_neib_data;
+	typedef common_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> _common_neib_data;
 	typedef
 		typename conditional<boundarytype == SA_BOUNDARY,
-			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+			sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
 			empty<
-				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
+				sa_boundary_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
 			> >::type
 		_sa_boundary_neib_data;
 	typedef
-		typename conditional<visctype == KEPSVISC || inoutBoundaries,
-			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>,
+		typename conditional<visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET,
+			eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>,
 			empty<
-				eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries>
+				eulerVel_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags>
 			> >::type
 		_eulerVel_neib_data;
 	typedef typename _common_neib_data::pdata_t pdata_t;
@@ -684,14 +677,12 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 struct skip_neiblist
 {
 	// typedefs to shorten argument types
-	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
-	typedef forces_particle_output<boundarytype, visctype, usexsph> pout_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> pdata_t;
+	typedef forces_particle_output<boundarytype, visctype, simflags> pout_t;
 
 	/// check if the given particle must skip the neiblist traversal
 	template<typename FP, typename P>
@@ -711,14 +702,12 @@ struct skip_neiblist
 template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
-struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, usexsph, inoutBoundaries>
+	flag_t simflags>
+struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags>
 {
 	// typedefs to shorten argument types
-	typedef forces_particle_data<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, usexsph, inoutBoundaries> pdata_t;
-	typedef forces_particle_output<SA_BOUNDARY, visctype, usexsph> pout_t;
+	typedef forces_particle_data<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflags> pdata_t;
+	typedef forces_particle_output<SA_BOUNDARY, visctype, simflags> pout_t;
 
 	template<typename FP, typename P>
 	__device__ __forceinline__
@@ -726,7 +715,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, dyndt, 
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
 		// when using KEPSVISC, or when outflow boundaries are present
-		return !(inoutBoundaries && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
@@ -1675,17 +1664,15 @@ template<KernelType kerneltype,
 	SPHFormulation sph_formulation,
 	BoundaryType boundarytype,
 	ViscosityType visctype,
-	bool dyndt,
-	bool usexsph,
-	bool inoutBoundaries>
+	flag_t simflags>
 __global__ void
 forcesDevice(
-	forces_params<kerneltype, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> params)
+	forces_params<kerneltype, boundarytype, visctype, simflags> params)
 {
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	__shared__ forces_shared_data<dyndt, visctype> shared;
+	__shared__ forces_shared_data<simflags & ENABLE_DTADAPT, visctype> shared;
 	shared.init();
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
@@ -1738,11 +1725,11 @@ forcesDevice(
 			break;
 
 		// Loading the rest of particle data
-		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> const
+		forces_particle_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> const
 			pdata(index, pos, info, params);
 
 		// Preparing particle output variables
-		forces_particle_output<boundarytype, visctype, usexsph> pout;
+		forces_particle_output<boundarytype, visctype, simflags> pout;
 
 		/* And finally the neighbors list traversal support */
 
@@ -1759,7 +1746,7 @@ forcesDevice(
 		// actually skip the neib list traversal is done in here rather than
 		// in the prepare() function.
 
-		skip_neiblist<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> skip;
+		skip_neiblist<kerneltype, sph_formulation, boundarytype, visctype, simflags> skip;
 		idx_t i = 0;
 
 		if (skip.check(params, pdata)) {
@@ -1816,7 +1803,7 @@ forcesDevice(
 				continue;
 
 			// Load rest of neib data
-			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, dyndt, usexsph, inoutBoundaries> const
+			forces_neib_data<kerneltype, sph_formulation, boundarytype, visctype, simflags> const
 				ndata(pdata, params, neib_index, neib_info, relPos, r);
 
 			// Contributions from this neighbor
@@ -1872,7 +1859,7 @@ forcesDevice(
 
 				if (computes_NS_drhodt) {
 					// Computes d\rho/dt, including ferrari correction
-					compute_density_derivative<boundarytype>::with<sph_formulation, inoutBoundaries>(params, pdata, ndata, pout, nout);
+					compute_density_derivative<boundarytype>::with<sph_formulation, simflags & ENABLE_INLET_OUTLET>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
 					if (boundarytype == SA_BOUNDARY) {
 						pout.contupd.x += nout.contDiff;
@@ -1896,13 +1883,13 @@ forcesDevice(
 					compute_pressure_contrib<boundarytype>::with<sph_formulation>(params, pdata, ndata, pout, nout);
 
 					// Compute viscous forces
-					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
 
 					// Compute diffusion terms for k-epsilon and the strain rate tensor
-					compute_keps_term<boundarytype, visctype>::with<inoutBoundaries>(params, pdata, ndata, pout, nout);
+					compute_keps_term<boundarytype, visctype>::with<simflags & ENABLE_INLET_OUTLET>(params, pdata, ndata, pout, nout);
 
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
-					compute_mean_vel<usexsph>::with<kerneltype>(params, pdata, ndata, pout, nout);
+					compute_mean_vel<simflags & ENABLE_XSPH>::with<kerneltype>(params, pdata, ndata, pout, nout);
 				} else {
 					if (boundarytype == LJ_BOUNDARY)
 						compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
@@ -1914,7 +1901,7 @@ forcesDevice(
 				if (visctype == KEPSVISC && pdata.ptype == PT_VERTEX
 					&& (!IO_BOUNDARY(pdata.info) || CORNER(pdata.info))) {
 					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
-					compute_viscous_contrib<boundarytype>::with<inoutBoundaries, visctype>(params, pdata, ndata, pout, nout);
+					compute_viscous_contrib<boundarytype>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
 				}
 				else if (pdata.ptype == PT_VERTEX && has_waterdepth_computation<boundarytype>::with(params)
 					&& IO_BOUNDARY(info) && !VEL_IO(info)) {
@@ -1956,15 +1943,15 @@ forcesDevice(
 			const float3 globalpos = d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize;
 
 			// Adding repulsive force computed from DEM
-			switch (boundarytype) {
+			if (simflags & ENABLE_DEM) {
+				switch (boundarytype) {
 				case LJ_BOUNDARY:
-					if (params.usedem) {
-						geom_coeff = DemLJForce(demTex, globalpos,
-								pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
-					}
+					geom_coeff = DemLJForce(demTex, globalpos,
+						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
 					break;
 				default:
 					break;
+				}
 			}
 
 			// Adding repulsive force computed from geometric boundaries
@@ -2007,11 +1994,11 @@ forcesDevice(
 			write_forces::with(params, pdata, pout);
 		} else {
 			write_forces::with(params, pdata, pout);
-			write_gamma<boundarytype>::with(params, pdata, pout, inoutBoundaries);
+			write_gamma<boundarytype>::with(params, pdata, pout, simflags & ENABLE_INLET_OUTLET);
 		}
 
 		if (FLUID(pdata.info)) {
-			write_xsph<usexsph>::with(params, pdata, pout);
+			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
 			write_turbvisc<visctype>::with(params, pdata, pout);
 		}
 
