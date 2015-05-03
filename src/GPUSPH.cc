@@ -692,6 +692,9 @@ bool GPUSPH::runSimulation() {
 			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
 
+			if (gdata->problem->get_simparams()->sph_formulation == SPH_GRENIER)
+				which_buffers |= BUFFER_VOLUME;
+
 			// compute and dump normals if set
 			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
 			// not to call, since it has been called at least once for sure
