@@ -997,7 +997,7 @@ int XProblem::fill_parts()
 				m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
 				break;
 			case FT_SOLID_BORDERLESS:
-				printf("WARNING: borderless not yet implemented, filling with border\n");
+				printf("WARNING: borderless not yet implemented; not filling\n");
 				break;
 			// case FT_NOFILL: ;
 			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
