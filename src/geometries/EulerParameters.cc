@@ -251,7 +251,7 @@ EulerParameters::ToODEQuaternion(dQuaternion & quat)
 
 /// Set Euler parameters to identity: (1, 0, 0, 0)
 void
-EulerParameters::Identity(void)
+EulerParameters::ToIdentity(void)
 {
 	m_ep[0] = 1.0;
 	for (int i = 1; i < 4; i++)
@@ -634,4 +634,12 @@ void EulerParameters::printrot(void) const
 		std::cout << "\n";
 	}
 	return;
+}
+
+
+std::ostream& operator<<(std::ostream& out, const EulerParameters& ep) // output
+{
+    out << "Ep (" << ep.m_ep[0] << ", " << ep.m_ep[1] << ", " <<
+    		ep.m_ep[2] <<", " << ep.m_ep[3] << ")";
+    return out;
 }

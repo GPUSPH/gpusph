@@ -107,6 +107,8 @@ class EulerParameters {
 		~EulerParameters(void) {};
 		//@}
 
+		static inline EulerParameters Identity(void) { return EulerParameters(); }
+
 		/// \name Rotation related methods
 		//@{
 		EulerParameters Inverse(void);
@@ -126,7 +128,7 @@ class EulerParameters {
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
 		void ToODEQuaternion(dQuaternion &);
-		void Identity(void);
+		void ToIdentity(void);
 		//@}
 
 		/** \name Access operators */
@@ -153,6 +155,7 @@ class EulerParameters {
 		//@{
 		void print(void) const;
 		void printrot(void) const;
+		friend std::ostream& operator<<(std::ostream&, const EulerParameters&);
 		//@}
 };
 #endif	/* EULERPARAMETERS_H */
