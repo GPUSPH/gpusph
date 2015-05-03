@@ -30,7 +30,7 @@
 
 #define BLOCK_SIZE_INTEGRATE	256
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 class CUDAPredCorrEngine : public AbstractIntegrationEngine
 {
 	void

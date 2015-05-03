@@ -93,7 +93,7 @@ class CUDASimFrameworkImpl : public SimFramework
 public:
 	CUDASimFrameworkImpl() {
 		m_neibsEngine = new CUDANeibsEngine<boundarytype, periodicbound, true>();
-		m_integrationEngine = new CUDAPredCorrEngine<boundarytype, simflags & ENABLE_XSPH>();
+		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, simflags & ENABLE_XSPH>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine
 			<kerneltype, sph_formulation, visctype, boundarytype, simflags>();

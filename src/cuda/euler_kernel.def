@@ -104,12 +104,13 @@
  *	\tparam boundarytype : type of boundary
  */
 //TODO templatize vars like other kernels
-template<int step, bool xsphcorr, BoundaryType boundarytype>
+template<int step, bool xsphcorr, SPHFormulation sph_formulation, BoundaryType boundarytype>
 __global__ void
 eulerDevice(
 	const	float4	*oldPos,			///< previous particle's position (in)
 	const	hashKey	*particleHash,		///< particle's hash (in)
 	const	float4	*oldVel,			///< previous particle's velocity (in)
+	const	float4	*oldVol,			///< previous particle's volume (in)
 	const	float4	*oldEulerVel,		///< previous eulerian velocities for ??? <- TODO (in)
 	const	float4	*oldgGam,			///< previous values of gradient of gamma (in)
 	const	float	*oldTKE,			///< previous values of k, for k-e model (in)
@@ -120,7 +121,8 @@ eulerDevice(
 	const	float3	*keps_dkde,			///< derivative of ??? (in)
 	const	float4	*xsph,				///< SPH mean of velocities used for xsph correction (in)
 			float4	*newPos,			///< updated particle's position (out)
-			float4	*newVel,			///< updated particle's  velocity (out)
+			float4	*newVel,			///< updated particle's velocity (out)
+			float4	*newVol,			///< updated particle's voume (out)
 			float4	*newEulerVel,		///<  updated eulerian velocities for ??? <- TODO (out)
 			float4	*newgGam,			///< updated values of gradient of gamma (out)
 			float	*newTKE,			///< updated values of k, for k-e model (out)
@@ -143,6 +145,7 @@ eulerDevice(
 	// Read particles data from sorted arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
+	float4 vol = oldVol[index];		// always vol(n)
 	float4 eulerVel = make_float4(0.0f);
 	if (oldEulerVel)
 		eulerVel = oldEulerVel[index];		// always eulerVel(n)
@@ -162,7 +165,7 @@ eulerDevice(
 		//		* with dynamic boundaries, in that case density of boundary parts is
 		//		  also evolved
 		//		* with SA boundaries and .....
-		// TODO: complete prviouds comment
+		// TODO: complete previous comment
 		const bool integrateBoundary = (boundarytype == DYN_BOUNDARY || boundarytype == SA_BOUNDARY);
 		// TODO: fix for MOBILE and FLOATING boundaries with any type of bound type
 		if (!ACTIVE(pos) || (ptype == PT_BOUNDARY && !integrateBoundary && !MOVING(pinfo)) )
@@ -192,33 +195,41 @@ eulerDevice(
 				pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
 				pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
 
-				if (boundarytype == SA_BOUNDARY) {
-					// Updating particle density
-					// For step 1:
-					//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
-					// For step 2:
-					//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-					// Improved continuity equation
-					if (step == 1) {
-						// gamma at time n+1 (gGam.w is gamma at time n)
-						const float gamN = newgGam[index].w;
-						const float gamNp1 = gamN + dt*contupd[index].y;
-						vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+				// Grenier evolves the volume, not the density,
+				// all other evolve the density directly
+				if (sph_formulation == SPH_GRENIER) {
+					vol.y += dt*force.w;
+				} else {
+					if (boundarytype == SA_BOUNDARY) {
+						// Updating particle density
+						// For step 1:
+						//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
+						// For step 2:
+						//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
+						// Improved continuity equation
+						if (step == 1) {
+							// gamma at time n+1 (gGam.w is gamma at time n)
+							const float gamN = newgGam[index].w;
+							const float gamNp1 = gamN + dt*contupd[index].y;
+							vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
+						}
+						else {
+							const float gamNp1o2 = newgGam[index].w;
+							const float rhoNp1o2 = newVel[index].w;
+							// gamma at time n (gGam.w is gamma at time n+1/2)
+							const float gamN   = oldgGam[index].w;
+							// gamma at time n+1
+							const float gamNp1 = gamN + dt*contupd[index].y;
+							vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
+						}
+						// Classical continuity equation
+						//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
+					} else {
+						vel.w += dt*force.w;
 					}
-					else {
-						const float gamNp1o2 = newgGam[index].w;
-						const float rhoNp1o2 = newVel[index].w;
-						// gamma at time n (gGam.w is gamma at time n+1/2)
-						const float gamN   = oldgGam[index].w;
-						// gamma at time n+1
-						const float gamNp1 = gamN + dt*contupd[index].y;
-						vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
-					}
-					// Classical continuity equation
-					//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
 				}
-				else
-					vel += dt*force;
+
+				as_float3(vel) += dt*as_float3(force);
 
 				// Updating k and e for k-e model
 				// TODO: templatize
@@ -232,8 +243,13 @@ eulerDevice(
 				break;
 		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
 		case PT_BOUNDARY:
-			if (boundarytype == DYN_BOUNDARY)
-				vel.w += dt*force.w;
+			if (boundarytype == DYN_BOUNDARY) {
+				if (sph_formulation == SPH_GRENIER) {
+					vol.y += dt*force.w;
+				} else {
+					vel.w += dt*force.w;
+				}
+			}
 			if (MOVING(pinfo)) {
 				#ifdef _DEBUG_OBJ_FORCES_
 				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0) {
@@ -366,6 +382,10 @@ eulerDevice(
 
 	newPos[index] = pos;
 	newVel[index] = vel;
+	if (sph_formulation == SPH_GRENIER) {
+		vol.w = expf(vol.y)*vol.x;
+		newVol[index] = vol;
+	}
 	if (newEulerVel)
 		newEulerVel[index] = eulerVel;
 	if (newTKE)

@@ -82,7 +82,7 @@ add_instances() {
 	# integration engine
 	file="$EULER_INSTANCE_FILE"
 	xsphcorr=$(echo ${flags} | grep -q ENABLE_XSPH && echo true || echo false)
-	instance="template class CUDAPredCorrEngine<${boundary}, ${xsphcorr}>;"
+	instance="template class CUDAPredCorrEngine<${formulation}, ${boundary}, ${xsphcorr}>;"
 	add_instance
 
 	# forces engine

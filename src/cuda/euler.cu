@@ -33,9 +33,9 @@
 
 #include "utils.h"
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setconstants(const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
 {
@@ -46,58 +46,58 @@ setconstants(const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 getconstants(PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
 }
 
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbcg(const float3* cg, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbcg, cg, numbodies*sizeof(float3)));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbtrans(const float3* trans, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbtrans, trans, numbodies*sizeof(float3)));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrblinearvel(const float3* linearvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rblinearvel, linearvel, numbodies*sizeof(float3)));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbangularvel(const float3* angularvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbangularvel, angularvel, numbodies*sizeof(float3)));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbsteprot(const float* rot, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
 }
 
-template<BoundaryType boundarytype, bool xsphcorr>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<boundarytype, xsphcorr>::
+CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 basicstep(
 		MultiBufferList::const_iterator bufread,
 		MultiBufferList::iterator bufwrite,
@@ -115,6 +115,7 @@ basicstep(
 	const float4  *oldPos = bufread->getData<BUFFER_POS>();
 	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
 	const float4  *oldVel = bufread->getData<BUFFER_VEL>();
+	const float4  *oldVol = bufread->getData<BUFFER_VOLUME>();
 	const float4 *oldEulerVel = bufread->getData<BUFFER_EULERVEL>();
 	const float4 *oldgGam = bufread->getData<BUFFER_GRADGAMMA>();
 	const float *oldTKE = bufread->getData<BUFFER_TKE>();
@@ -128,6 +129,7 @@ basicstep(
 
 	float4 *newPos = bufwrite->getData<BUFFER_POS>();
 	float4 *newVel = bufwrite->getData<BUFFER_VEL>();
+	float4 *newVol = bufwrite->getData<BUFFER_VOLUME>();
 	float4 *newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
 	float4 *newgGam = bufwrite->getData<BUFFER_GRADGAMMA>();
 	float *newTKE = bufwrite->getData<BUFFER_TKE>();
@@ -135,13 +137,13 @@ basicstep(
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
-#define ARGS oldPos, particleHash, oldVel, oldEulerVel, oldgGam, oldTKE, oldEps, \
-	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
+#define ARGS oldPos, particleHash, oldVel, oldVol, oldEulerVel, oldgGam, oldTKE, oldEps, \
+	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newVol, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, dt, dt2, t
 
 	if (step == 1) {
-		cueuler::eulerDevice<1, xsphcorr, boundarytype><<< numBlocks, numThreads >>>(ARGS);
+		cueuler::eulerDevice<1, xsphcorr, sph_formulation, boundarytype><<< numBlocks, numThreads >>>(ARGS);
 	} else if (step == 2) {
-		cueuler::eulerDevice<2, xsphcorr, boundarytype><<< numBlocks, numThreads >>>(ARGS);
+		cueuler::eulerDevice<2, xsphcorr, sph_formulation, boundarytype><<< numBlocks, numThreads >>>(ARGS);
 	} else {
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
