@@ -500,7 +500,7 @@ bool GPUSPH::runSimulation() {
 
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
-		move_objects(1);
+		move_bodies(1);
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_1);
@@ -556,7 +556,7 @@ bool GPUSPH::runSimulation() {
 
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
-		move_objects(2);
+		move_bodies(2);
 		// integrate also the externals
 		gdata->only_internal = false;
 		doCommand(EULER, INTEGRATOR_STEP_2);
@@ -783,7 +783,7 @@ bool GPUSPH::runSimulation() {
 }
 
 
-void GPUSPH::move_objects(const uint step)
+void GPUSPH::move_bodies(const uint step)
 {
 	// Get moving bodies data (position, linear and angular velocity ...)
 	if (problem->get_simparams()->numbodies > 0) {
@@ -793,15 +793,17 @@ void GPUSPH::move_objects(const uint step)
 			doCommand(REDUCE_BODIES_FORCES);
 
 			// Now sum up the partial forces and momentums computed in each gpu
-			for (uint ob = 0; ob < numforcesbodies; ob ++) {
-				gdata->s_hRbTotalForce[ob] = make_float3( 0.0F );
-				gdata->s_hRbTotalTorque[ob] = make_float3( 0.0F );
+			if (MULTI_GPU) {
+				for (uint ob = 0; ob < numforcesbodies; ob ++) {
+					gdata->s_hRbTotalForce[ob] = make_float3( 0.0f );
+					gdata->s_hRbTotalTorque[ob] = make_float3( 0.0f );
 
-				for (uint d = 0; d < gdata->devices; d++) {
-					gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
-					gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
-				} // Iterate on devices
-			} // Iterate on objects on which we compute forces
+					for (uint d = 0; d < gdata->devices; d++) {
+						gdata->s_hRbTotalForce[ob] += gdata->s_hRbDeviceTotalForce[d*numforcesbodies + ob];
+						gdata->s_hRbTotalTorque[ob] += gdata->s_hRbDeviceTotalTorque[d*numforcesbodies + ob];
+					} // Iterate on devices
+				} // Iterate on objects on which we compute forces
+			}
 
 			// if running multinode, also reduce across nodes
 			if (MULTI_NODE) {
@@ -912,6 +914,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	}
 
 	const size_t numbodies = gdata->problem->get_simparams()->numbodies;
+	std::cout << "Numbodie : " << numbodies << "\n";
 	if (numbodies > 0) {
 		gdata->s_hRbGravityCenters = new float3 [numbodies];
 		fill_n(gdata->s_hRbGravityCenters, numbodies, make_float3(0.0f));
@@ -926,7 +929,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		totCPUbytes += numbodies*21*sizeof(float);
 	}
 	const size_t numforcesbodies = gdata->problem->get_simparams()->numforcesbodies;
-	if (numforcesbodies) {
+	std::cout << "Numforcesbodies : " << numforcesbodies << "\n";
+	if (numforcesbodies > 0) {
 		gdata->s_hRbLastIndex = new uint [numforcesbodies];
 		fill_n(gdata->s_hRbLastIndex, numforcesbodies, 0);
 		totCPUbytes += numforcesbodies*sizeof(uint);
@@ -939,12 +943,18 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hRbAppliedTorque = new float3 [numforcesbodies];
 		fill_n(gdata->s_hRbAppliedTorque, numforcesbodies, make_float3(0.0f));
 		totCPUbytes += numforcesbodies*4*sizeof(float3);
-		if (MULTI_DEVICE) {
+		if (MULTI_GPU) {
 			gdata->s_hRbDeviceTotalForce = new float3 [numforcesbodies*MAX_DEVICES_PER_NODE];
 			fill_n(gdata->s_hRbDeviceTotalForce, numforcesbodies*MAX_DEVICES_PER_NODE, make_float3(0.0f));
 			gdata->s_hRbDeviceTotalTorque = new float3 [numforcesbodies*MAX_DEVICES_PER_NODE];
 			fill_n(gdata->s_hRbDeviceTotalTorque, numforcesbodies*MAX_DEVICES_PER_NODE, make_float3(0.0f));
 			totCPUbytes += numforcesbodies*MAX_DEVICES_PER_NODE*2*sizeof(float3);
+		}
+		// In order to avoid tests and special case for mono GPU in GPUWorker::reduceRbForces the the per device
+		// total arrays are aliased to the global total ones.
+		else {
+			gdata->s_hRbDeviceTotalForce = gdata->s_hRbTotalForce;
+			gdata->s_hRbDeviceTotalTorque = gdata->s_hRbTotalTorque;
 		}
 	}
 
@@ -992,7 +1002,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete [] gdata->s_hRbAngularVelocities;
 		delete [] gdata->s_hRbRotationMatrices;
 	}
-	if (gdata->problem->get_simparams()->numforcesbodies) {
+	if (gdata->problem->get_simparams()->numforcesbodies > 0) {
 		delete [] gdata->s_hRbLastIndex;
 		delete [] gdata->s_hRbTotalForce;
 		delete [] gdata->s_hRbAppliedForce;
