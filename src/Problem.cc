@@ -111,14 +111,12 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 		}
 
 		case MB_FORCES_MOVING:
-			m_bodies.insert(m_bodies.begin() + m_simparams.numODEbodies + m_simparams.numforcesbodies, mbdata);
+			m_bodies.insert(m_bodies.begin() + m_simparams.numforcesbodies, mbdata);
 			m_simparams.numforcesbodies++;
-			m_simparams.nummovingbodies++;
 			break;
 
 		case MB_MOVING:
-			m_bodies.insert(m_bodies.begin() + m_simparams.numbodies, mbdata);
-			m_simparams.nummovingbodies++;
+			m_bodies.push_back(mbdata);
 			break;
 	}
 
@@ -182,7 +180,7 @@ Problem::get_forces_bodies_numparts(void)
 size_t
 Problem::get_body_numparts(const int index)
 {
-	return get_mbdata(index)->object->GetNumParts();
+	return m_bodies[index]->object->GetNumParts();
 }
 
 
@@ -251,7 +249,7 @@ Problem::set_body_cg(const double3 crot, MovingBodyData* mbdata) {
 
 void
 Problem::set_body_cg(const uint index, const double3 crot) {
-	set_body_cg(crot, get_mbdata(index));
+	set_body_cg(crot, m_bodies[index]);
 }
 
 
@@ -270,7 +268,7 @@ Problem::set_body_linearvel(const double3 lvel, MovingBodyData* mbdata) {
 
 void
 Problem::set_body_linearvel(const uint index, const double3 lvel) {
-	set_body_linearvel(lvel, get_mbdata(index));
+	set_body_linearvel(lvel, m_bodies[index]);
 }
 
 
@@ -289,7 +287,7 @@ Problem::set_body_angularvel(const double3 avel, MovingBodyData* mbdata) {
 
 void
 Problem::set_body_angularvel(const uint index, const double3 avel) {
-	set_body_angularvel(avel, get_mbdata(index));
+	set_body_angularvel(avel, m_bodies[index]);
 }
 
 
