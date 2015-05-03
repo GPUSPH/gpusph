@@ -246,7 +246,7 @@ struct forces_params :
 /// Parameters common to all SPS kernel specializations
 struct common_sps_params
 {
-	const float4* 	pos;
+	const float4*	pos;
 	const hashKey*	particleHash;
 	const uint*		cellStart;
 	const neibdata*	neibsList;
@@ -257,7 +257,7 @@ struct common_sps_params
 	// Constructor / initializer
 	common_sps_params(
 		const	float4	*_pos,
-		const	hashKey *_particleHash,
+		const	hashKey	*_particleHash,
 		const	uint	*_cellStart,
 		const	neibdata	*_neibsList,
 		const	uint	_numParticles,
@@ -310,13 +310,13 @@ struct sps_params :
 	// structs it derives from, in the correct order
 	sps_params(
 		// common
-			const 	float4* 	_pos,
-			const 	hashKey*	_particleHash,
-			const 	uint*		_cellStart,
-			const 	neibdata*	_neibsList,
-			const 	uint		_numParticles,
-			const 	float		_slength,
-			const 	float		_influenceradius,
+			const	float4*	_pos,
+			const	hashKey*	_particleHash,
+			const	uint*		_cellStart,
+			const	neibdata*	_neibsList,
+			const	uint		_numParticles,
+			const	float		_slength,
+			const	float		_influenceradius,
 		// tau
 					float2*		_tau0,
 					float2*		_tau1,

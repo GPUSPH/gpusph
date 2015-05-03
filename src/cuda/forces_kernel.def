@@ -1821,10 +1821,10 @@ forcesDevice(
 				// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
 				// 		* for LJ boundary, by a fluid particle interacting with a fluid particle;
 				// 		* for DYN bondary :
-				//			- a fluid particle will compute both density derivative and acceleration interacting
-				//   	  	with any other particle;
+				// 			- a fluid particle will compute both density derivative and acceleration interacting
+				// 			  with any other particle;
 				// 			- a non-fluid particle will compute density derivative interacting with any other particle,
-				//   	  	but acceleration will only be computed by object particles interacting with fluid particles
+				// 			  but acceleration will only be computed by object particles interacting with fluid particles
 				// NOTE1 : the compiler has some difficulties to deal with situations as
 				// if (boundarytype == SA_BOUNDARY) {
 				//	...

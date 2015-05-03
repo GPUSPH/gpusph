@@ -129,7 +129,7 @@ eulerDevice(
 			float4	*newBoundElement,	///< ??? <- TODO (in, out)
 	const	uint	numParticles,		///< total number of particles
 	const	float	full_dt,			///< time step (dt)
-	const	float	half_dt, 			///< half of time step (dt/2)
+	const	float	half_dt,			///< half of time step (dt/2)
 	const	float	t)					///< simulation time
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
