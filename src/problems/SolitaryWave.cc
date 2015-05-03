@@ -314,35 +314,35 @@ void SolitaryWave::copy_to_array(BufferList &buffers)
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
 	for (uint k = 0; k < m_bodies.size(); k++) {
-			PointVect & rbparts = m_bodies[k]->object->GetParts();
-			std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
-			for (uint i = 0; i < rbparts.size(); i++) {
-				uint ij = i + j;
-				float ht = H - rbparts[i](2);
-				if (ht < 0)
-					ht = 0.0;
-				float rho = density(ht, 0);
-				rho = m_physparams.rho0[0];
-				vel[ij] = make_float4(0, 0, 0, rho);
-				uint ptype = (uint) PT_BOUNDARY;
-				switch (m_bodies[k]->type) {
-					case MB_ODE:
-						ptype |= FG_FLOATING;
-						break;
-					case MB_FORCES_MOVING:
-						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
-						break;
-					case MB_MOVING:
-						ptype |= FG_MOVING_BOUNDARY;
-						break;
-				}
-				info[ij] = make_particleinfo(ptype, k, i );
-				calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
+		PointVect & rbparts = m_bodies[k]->object->GetParts();
+		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+		for (uint i = 0; i < rbparts.size(); i++) {
+			uint ij = i + j;
+			float ht = H - rbparts[i](2);
+			if (ht < 0)
+				ht = 0.0;
+			float rho = density(ht, 0);
+			rho = m_physparams.rho0[0];
+			vel[ij] = make_float4(0, 0, 0, rho);
+			uint ptype = (uint) PT_BOUNDARY;
+			switch (m_bodies[k]->type) {
+				case MB_ODE:
+					ptype |= FG_FLOATING;
+					break;
+				case MB_FORCES_MOVING:
+					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+					break;
+				case MB_MOVING:
+					ptype |= FG_MOVING_BOUNDARY;
+					break;
 			}
-			j += rbparts.size();
-			std::cout << ", part mass: " << pos[j-1].w << "\n";
-			std::cout << ", part type: " << type(info[j-1])<< "\n";
+			info[ij] = make_particleinfo(ptype, k, i );
+			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
+		j += rbparts.size();
+		std::cout << ", part mass: " << pos[j-1].w << "\n";
+		std::cout << ", part type: " << type(info[j-1])<< "\n";
+	}
 
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  <<"--"<< j+ parts.size() << "\n";
