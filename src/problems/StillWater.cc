@@ -46,8 +46,6 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 {
 	H = 1;
 
-	set_deltap(0.0625f);
-
 	l = sqrt(2)*H; w = l; h = 1.1*H;
 	m_usePlanes = false;
 
@@ -59,6 +57,8 @@ StillWater::StillWater(const GlobalData *_gdata) : Problem(_gdata)
 		//boundary<SA_BOUNDARY>
 		//boundary<LJ_BOUNDARY>
 	);
+
+	set_deltap(0.0625f);
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
@@ -217,7 +217,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 		float rho = m_physparams.rho0[0];
 #endif
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
 	int j = boundary_parts.size();
@@ -230,7 +230,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 			water_column = 0;
 		float rho = density(water_column, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(FLUIDPART, 0, i);
+		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
@@ -243,7 +243,7 @@ void StillWater::copy_to_array(BufferList &buffers)
 		for (uint i = j; i < j + vertex_parts.size(); i++) {
 			float rho = density(H - vertex_parts[i-j](2), 0);
 			vel[i] = make_float4(0, 0, 0, rho);
-			info[i] = make_particleinfo(VERTEXPART, 0, i);
+			info[i] = make_particleinfo(PT_VERTEX, 0, i);
 			calc_localpos_and_hash(vertex_parts[i-j], info[i], pos[i], hash[i]);
 		}
 		j += vertex_parts.size();
