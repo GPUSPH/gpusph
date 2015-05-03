@@ -194,6 +194,13 @@ bool XProblem::initialize()
 			object_counter++;
 	}
 
+	// here should be rigid_body_counter == m_numRigidBodies
+	if ( rigid_body_counter > MAXBODIES ) {
+		printf("Fatal: number off floating bodies > MAXBODIES (%u > %u)\n",
+			rigid_body_counter, MAXBODIES);
+		return false;
+	}
+
 	// store number of floating objects (aka ODE bodies)
 	// NOTE: allocate_ODE_bodies() sets it again, but we will get rid of that
 	m_simparams.numODEbodies = rigid_body_counter;
