@@ -578,8 +578,8 @@ reduceRbForces(	float4	*forces,
 				uint	*lastindex,
 				float3	*totalforce,
 				float3	*totaltorque,
-				uint	numbodies,
-				uint	numBodiesParticles)
+				uint	numforcesbodies,
+				uint	numForcesBodiesParticles)
 {
 	thrust::device_ptr<float4> forces_devptr = thrust::device_pointer_cast(forces);
 	thrust::device_ptr<float4> torques_devptr = thrust::device_pointer_cast(torques);
@@ -592,12 +592,12 @@ reduceRbForces(	float4	*forces,
 	// the scan is in place); equal_to as data-key operator and plus as scan operator. The sums are in the last position
 	// of each segment (thus we retrieve them by using lastindex values).
 
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numForcesBodiesParticles,
 				forces_devptr, forces_devptr, binary_pred, binary_op);
-	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numBodiesParticles,
+	thrust::inclusive_scan_by_key(rbnum_devptr, rbnum_devptr + numForcesBodiesParticles,
 				torques_devptr, torques_devptr, binary_pred, binary_op);
 
-	for (uint i = 0; i < numbodies; i++) {
+	for (uint i = 0; i < numforcesbodies; i++) {
 		float4 temp;
 		void * ddata = (void *) (forces + lastindex[i]);
 		CUDA_SAFE_CALL(cudaMemcpy((void *) &temp, ddata, sizeof(float4), cudaMemcpyDeviceToHost));

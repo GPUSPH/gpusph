@@ -108,8 +108,8 @@ public:
 					uint	*lastindex,
 					float3	*totalforce,
 					float3	*totaltorque,
-					uint	numbodies,
-					uint	numBodiesParticles);
+					uint	numforcesbodies,
+					uint	numForcesBodiesParticles);
 
 	void
 	bind_textures(
