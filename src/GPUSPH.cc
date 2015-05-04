@@ -1495,7 +1495,8 @@ void GPUSPH::buildNeibList()
 		const uint currDevMaxNeibs = gdata->timingInfo[d].maxNeibs;
 
 		if (currDevMaxNeibs > maxPossibleNeibs)
-			printf("WARNING: current max. neighbors numbers %u greather than MAXNEIBSNUM (%u)\n", currDevMaxNeibs, maxPossibleNeibs);
+			printf("WARNING: current max. neighbors numbers %u greather than MAXNEIBSNUM (%u) at iteration %lu\n",
+				currDevMaxNeibs, maxPossibleNeibs, gdata->iterations);
 
 		if (currDevMaxNeibs > gdata->lastGlobalPeakNeibsNum)
 			gdata->lastGlobalPeakNeibsNum = currDevMaxNeibs;
