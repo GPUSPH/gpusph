@@ -89,7 +89,7 @@ typedef struct PhysParams {
 	float	objectboundarydf;	// damping factor for object-boundary interaction
 
 	// was set_density() called at least once? (not checking for which fluids)
-	bool contEquationWasSet;
+	bool EOS_was_set;
 
 	// We have three deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
@@ -109,7 +109,7 @@ IGNORE_WARNINGS(deprecated-declarations)
 		cosconeanglenonfluid(0.5f),
 		objectobjectdf(1.0f),
 		objectboundarydf(1.0f),
-		contEquationWasSet(false)
+		EOS_was_set(false)
 	{};
 RESTORE_WARNINGS
 
@@ -129,7 +129,7 @@ RESTORE_WARNINGS
 		sscoeff[i] = c0;
 		sspowercoeff[i] = (gamma - 1)/2;
 
-		contEquationWasSet = true;
+		EOS_was_set = true;
 
 		/* Check if we need to increase numFluids. If the user skipped an index,
 		 * we will have i > numFluids, which we assume it's an error; otherwise,

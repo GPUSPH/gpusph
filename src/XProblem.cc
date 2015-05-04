@@ -248,9 +248,9 @@ bool XProblem::initialize()
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
 	}
 
-	if (!m_physparams.contEquationWasSet) {
+	if (!m_physparams.EOS_was_set) {
 		const float default_rho = 1000.0;
-		const float default_gamma = 1000.0;
+		const float default_gamma = 7;
 		// numerical speed of sound
 		const float default_c0 = 10.0 * m_maxParticleSpeed;
 
