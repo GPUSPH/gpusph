@@ -21,6 +21,7 @@ typedef unsigned short ushort;
 
 #ifndef __CUDACC__
 #include <cmath>
+#include <iostream>
 
 inline int max(int a, int b)
 {
@@ -42,7 +43,45 @@ inline double rsqrt(double x)
 	return 1.0 / sqrt(x);
 }
 
+inline std::ostream& operator<<(std::ostream& out, const float2 &v) // output
+{
+    out << "(" << v.x << ", " << v.y << ")";
+    return out;
+}
 
+
+inline std::ostream& operator<<(std::ostream& out, const float3 &v) // output
+{
+    out << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+    return out;
+}
+
+
+inline std::ostream& operator<<(std::ostream& out, const float4 &v) // output
+{
+    out << "(" << v.x << ", " << v.y << ", " << v.z  << ", " << v.w << ")";
+    return out;
+}
+
+inline std::ostream& operator<<(std::ostream& out, const double2 &v) // output
+{
+    out << "(" << v.x << ", " << v.y << ")";
+    return out;
+}
+
+
+inline std::ostream& operator<<(std::ostream& out, const double3 &v) // output
+{
+    out << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+    return out;
+}
+
+
+inline std::ostream& operator<<(std::ostream& out, const double4 &v) // output
+{
+    out << "(" << v.x << ", " << v.y << ", " << v.z  << ", " << v.w << ")";
+    return out;
+}
 #endif
 
 // float functions
@@ -280,6 +319,23 @@ static __inline__ __host__ __device__ double2 operator-(const double2 &a, const 
 	return make_double2(a.x - b, a.y - b);
 }
 
+// dot product
+static __inline__ __host__ __device__ double dot(const double2 &a, const double2 &b)
+{
+	return a.x*b.x + a.y*b.y;
+}
+
+// squared length
+static __inline__ __host__ __device__ float sqlength(const double2 &v)
+{
+	return dot(v, v);
+}
+
+// length
+static __inline__ __host__ __device__ float length(const double2 &v)
+{
+	return sqrtf(sqlength(v));
+}
 
 // float3 functions
 ////////////////////////////////////////////////////////////////////////////////
