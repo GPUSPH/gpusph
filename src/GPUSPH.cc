@@ -190,8 +190,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
 
-	// copy planes from the problem to the shared array
-	problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
+	// copy planes from the problem to the shared array, if there are any
+	if (gdata->numPlanes)
+		problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
 
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
