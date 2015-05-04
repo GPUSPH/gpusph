@@ -153,6 +153,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
 
+	// Determine the highest ID per device for unambiguous particle creation
 	for (uint d=0; d < gdata->devices; d++)
 		gdata->highestDevId[d] = gdata->totParticles + GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
 
