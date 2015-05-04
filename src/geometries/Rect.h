@@ -64,5 +64,9 @@ class Rect: public Object {
 		int Fill(PointVect&, const double, const bool fill = true);
 		void FillIn(PointVect& points, const double dx, const int layers);
 		bool IsInside(const Point&, const double) const;
+
+		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(Point &output_min, Point &output_max);
+		void shift(const double3 &offset);
 };
 #endif	/* _RECT_H */

@@ -7,9 +7,9 @@
 
 #define USE_PLANES 0
 
-CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
+CompleteSaExample::CompleteSaExample(GlobalData *_gdata) : Problem(_gdata)
 {
-	h5File.setFilename("meshes/0.complete_sa_example.h5sph");
+	h5File.setFilename("sa/0.complete_sa_example.h5sph");
 
 	container = STLMesh::load_stl("./meshes/CompleteSaExample_container_coarse.stl");
 	cube = STLMesh::load_stl("./meshes/CompleteSaExample_cube_coarse.stl");
@@ -19,7 +19,7 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 		viscosity<DYNAMICVISC>,
 		flags<	ENABLE_DTADAPT |
 			ENABLE_INLET_OUTLET |
-			ENABLE_MOVING_BODIES |
+			/* ENABLE_MOVING_BODIES | */
 			ENABLE_FLOATING_BODIES>);
 
 	m_simparams.numObjects = 2;
@@ -53,7 +53,8 @@ CompleteSaExample::CompleteSaExample(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.calcPrivate = false;
 
 	// SPH parameters
-	m_simparams.dt = 0.00004f;
+	// let the dt be autocomputed
+	//m_simparams.dt = 0.00004f;
 	m_simparams.xsph = false;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 1;
@@ -134,9 +135,11 @@ int CompleteSaExample::fill_parts()
 	// cube density half water density
 	const double water_density_fraction = 0.5F;
 	const double cube_density = m_physparams.rho0[0] * water_density_fraction; // 1000 = water
-	//cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density); // only dynamics
+	// setting mass after merge; see 0158cbc1
+	cube->SetMass(m_deltap, cube_density);
+	//cube->ODEBodyCreate(m_ODEWorld, m_deltap); // only dynamics
 	//cube->ODEGeomCreate(m_ODESpace, m_deltap); // only collisions
-	cube->ODEBodyCreate(m_ODEWorld, m_deltap, cube_density, m_ODESpace); // dynamics + collisions
+	cube->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace); // dynamics + collisions
 	// particles with object(info)-1==1 are associated with ODE object number 0
 	m_ODEobjectId[2-1] = 0;
 	add_ODE_body(cube);
@@ -177,13 +180,13 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 
 	for (uint i = 0; i<h5File.getNParts(); i++) {
 		switch(h5File.buf[i].ParticleType) {
-			case 1: // AM-TODO call this CRIXUS_FLUID
+			case CRIXUS_FLUID:
 				n_parts++;
 				break;
-			case 2: // AM-TODO call this CRIXUS_VERTEX
+			case CRIXUS_VERTEX:
 				n_vparts++;
 				break;
-			case 3: // AM-TODO call this CRIXUS_BOUNDARY
+			case CRIXUS_BOUNDARY:
 				n_bparts++;
 				break;
 		}
@@ -237,6 +240,7 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
 
+	// NOTE: this actually counts only boundary parts
 	uint numOdeObjParts = 0;
 
 	if(n_bparts) {
@@ -247,9 +251,6 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				eulerVel[i] = make_float4(0);
 			int specialBoundType = h5File.buf[i].KENT;
 			info[i] = make_particleinfo(BOUNDPART, specialBoundType, i);
-			// Save the id of the first boundary particle that belongs to an ODE object
-			if (m_firstODEobjectPartId == 0 && specialBoundType != 0 &&  m_ODEobjectId[specialBoundType-1] != UINT_MAX)
-				m_firstODEobjectPartId = i;
 			// Define the type of boundaries
 			if (specialBoundType == 1) {
 				// this vertex is part of an open boundary
@@ -262,6 +263,9 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 				SET_FLAG(info[i], MOVING_PARTICLE_FLAG);
 				// this moving object is also floating
 				SET_FLAG(info[i], FLOATING_PARTICLE_FLAG);
+				if (numOdeObjParts == 0)
+					// first part of floating body, write it as offset for rbforces
+					gdata->s_hRbFirstIndex[2-1] = - i;
 				numOdeObjParts++;
 			}
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
@@ -279,6 +283,8 @@ void CompleteSaExample::copy_to_array(BufferList &buffers)
 	// Make sure that fluid + vertex + boundaries are done in that order
 	// before adding any other items like testpoints, etc.
 	cube->SetNumParts(numOdeObjParts);
+	// set last index for rbforces
+	gdata->s_hRbLastIndex[0] = numOdeObjParts - 1;
 
 	//Testpoints
 	if (test_points.size()) {

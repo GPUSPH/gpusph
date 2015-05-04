@@ -63,6 +63,8 @@ class Point {
 		Point(const double *);
 		~Point(void) {};
 
+		double4 toDouble4();
+
 		void SetCoord(double *);
 		void SetCoord(double, double, double);
 
@@ -131,4 +133,27 @@ void make_dvector3(const Point &, dVector3);
 void make_dvector4(const Point &, dVector4);
 
 typedef std::vector<Point> PointVect;
+
+// Small utility functions, useful for bbox and world size computation
+// Writes in pmin and pmax the per-element minima and maxima
+inline void setMinMaxPerElement(Point &pmin, Point &pmax, Point a)
+{
+	for (uint elem = 0; elem < 3; elem++) {
+		pmin(elem) = fmin( pmin(elem), a(elem));
+		pmax(elem) = fmax( pmax(elem), a(elem));
+	}
+}
+// Writes in pmin the per-element minima
+inline void setMinPerElement(Point &pmin, Point a)
+{
+	for (uint elem = 0; elem < 3; elem++)
+		pmin(elem) = fmin( pmin(elem), a(elem));
+}
+// Writes in pmax the per-element maxima
+inline void setMaxPerElement(Point &pmax, Point a)
+{
+	for (uint elem = 0; elem < 3; elem++)
+		pmax(elem) = fmax( pmax(elem), a(elem));
+}
+
 #endif

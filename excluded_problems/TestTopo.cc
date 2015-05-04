@@ -39,7 +39,7 @@
 
 #define EB experiment_box
 
-TestTopo::TestTopo(const GlobalData *_gdata) : Problem(_gdata)
+TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 {
 	const char* dem_file;
 	if (m_options->dem.empty())

@@ -88,6 +88,10 @@ STLMesh::STLMesh(uint meshsize) :
 	m_vertices.reserve(meshsize/2);
 	m_triangles.reserve(meshsize);
 	m_normals.reserve(meshsize);
+
+	m_origin = Point(0,0,0);
+	m_center = Point(0,0,0);
+	m_ep.ComputeRot();
 }
 
 STLMesh::~STLMesh(void)
@@ -249,6 +253,10 @@ STLMesh::add(STLTriangle const& t, uint tnum)
 	m_barycenter(0) = avg_pos.x/get_meshsize();
 	m_barycenter(1) = avg_pos.y/get_meshsize();
 	m_barycenter(2) = avg_pos.z/get_meshsize();
+
+	// here assign m_minbounds to m_origin to make the lower corner of the bbox align with world origin
+	// m_origin = Point(m_minbounds);
+	m_center = m_origin + Point(m_minbounds + (m_maxbounds - m_minbounds) / 2.0);
 }
 
 /* FIXME might need something more sophisticated  */
@@ -270,16 +278,19 @@ void STLMesh::SetPartMass(const double mass)
 
 void STLMesh::FillBorder(PointVect& parts, double)
 {
-	// start by placing a particle on each vertex
-
+	// place a particle on each vertex
 	F4Vect::const_iterator f = m_vertices.begin();
 	F4Vect::const_iterator e = m_vertices.end();
 	for (; f != e; ++f) {
-		parts.push_back(Point(*f));
+		// translate from STL coords to GPUSPH ones
+		Point p_in_global_coords = Point(*f) + m_origin;
+		// rotate around m_center
+		Point rotated = m_ep.Rot(p_in_global_coords - m_center) + m_center;
+		parts.push_back(rotated);
 	}
 }
 
-void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double density)
+void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx)
 {
 	m_ODETriMeshData = dGeomTriMeshDataCreate();
 	// TODO FIXME sanity checks on data type (use *Single1 if data is floats,
@@ -308,7 +319,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		dGeomSetBody(m_ODEGeom, m_ODEBody);
 
 		// here we are interested only in the CG; inertia is wrong
-		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+		dMassSetTrimeshTotal(&m_ODEMass, (dReal)m_mass, m_ODEGeom);
 
 		// save the CG in the local m_center class member
 		m_center(0) = m_ODEMass.c[0];
@@ -320,7 +331,11 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		dGeomSetOffsetPosition(m_ODEGeom, -m_ODEMass.c[0], -m_ODEMass.c[1], -m_ODEMass.c[2] );
 
 		// compute again CG, mass, inertia (correct this time)
-		dMassSetTrimesh(&m_ODEMass, (dReal)density, m_ODEGeom);
+		dMassSetTrimeshTotal(&m_ODEMass, (dReal)m_mass, m_ODEGeom);
+		// NOTE: dMassSetTrimeshTotal() is not documented in ODE docs. However, we can use
+		// the equivalent:
+		// dMassSetTrimesh(&m_ODEMass, 1.0, m_ODEGeom);
+		// dMassAdjust(&m_ODEMass, m_mass);
 
 		// CG is now very close to zero, except for numerical leftovers which we manually reset
 		m_ODEMass.c[0] = m_ODEMass.c[1] = m_ODEMass.c[2] = 0;
@@ -330,6 +345,9 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 
 		// once the inertia matrix is correctly computed, we can move back the ODE obj to its global position
 		dBodySetPosition(m_ODEBody,m_center(0), m_center(1), m_center(2));
+		// apply rotation
+		// NOTE: if the problem is calling updateODERotMatrix(), this should be redundant but not harmful
+		dBodySetRotation(m_ODEBody, m_ODERot);
 
 		// store inertia and mass in local class members
 		m_inertia[0] = m_ODEMass.I[0];
@@ -341,8 +359,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 		m_ODEMass.I[1] = m_ODEMass.I[2] = m_ODEMass.I[4] = 0;
 		m_ODEMass.I[6] = m_ODEMass.I[8] = m_ODEMass.I[9] = 0;
 
-		// show final computed position, CG, mass, inertia, bbox
-		ODEPrintInformation();
+		// for dbg information can use ODEPrintInformation() between a computation and the other ^^^
 	}
 	else {
 		dGeomSetPosition(m_ODEGeom, m_center(0), m_center(1), m_center(2));
@@ -350,7 +367,7 @@ void STLMesh::ODEGeomCreate(dSpaceID ODESpace, const double dx, const double den
 	}
 }
 
-void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace)
+void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)
 {
 	const double m_lx = m_maxbounds.x - m_minbounds.x;
 	const double m_ly = m_maxbounds.y - m_minbounds.y;
@@ -361,7 +378,7 @@ void STLMesh::ODEBodyCreate(dWorldID ODEWorld, const double dx, const double den
 	dMassSetZero(&m_ODEMass);
 
 	if (ODESpace)
-		ODEGeomCreate(ODESpace, dx, density);
+		ODEGeomCreate(ODESpace, dx);
 	else {
 		// In case we don't have a geometry we can make ODE believe it is a box.
 		// This works because all we need in this case are center of gravity and the
@@ -383,16 +400,62 @@ void STLMesh::Fill(PointVect&, const double)
 {}
 
 void STLMesh::FillIn(PointVect&, const double, const int)
-{}
+{ }
 
-bool STLMesh::IsInside(const Point&, double) const
-{}
+// NOTE: checking the bounding box (incl. orientation), not the actual mesh space
+bool STLMesh::IsInside(const Point& p, double dx) const
+{
+	const Point rotated_point = m_ep.TransposeRot(p - m_center);
+	const Point half_size = Point( (m_maxbounds - m_minbounds) / 2.0 + dx );
+
+	bool inside = true;
+	for (uint coord = 0; coord < 3; coord++)
+		if ( abs(rotated_point(coord)) >= half_size(coord) )
+			inside =  false;
+
+	return inside;
+}
 
 double STLMesh::Volume(const double dx) const
-{}
+{
+	const double dp_offset = 0; // or: dx
+	const double m_lx = m_maxbounds.x - m_minbounds.x + dp_offset;
+	const double m_ly = m_maxbounds.y - m_minbounds.y + dp_offset;
+	const double m_lz = m_maxbounds.z - m_minbounds.z + dp_offset;
+	return (m_lx * m_ly * m_lz);
+}
 
 void STLMesh::SetInertia(double)
 {}
 
 void STLMesh::SetInertia(const double*)
 {}
+
+// set the given EulerParameters
+void STLMesh::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	// Before doing any rotation with Euler parameters the rotation matrix associated with
+	// m_ep is computed.
+	m_ep.ComputeRot();
+
+	// TODO FIXME: check if here should make something, or applying m_ODERot upon body creation is enough
+	// Should probably update m_center and m_barycenter
+	// m_center = m_origin + 0.5*m_ep.Rot(Vector(m_lx, m_ly, m_lz));
+	printf("WARNING: STLMesh::setEulerParameters() is incomplete, rotation might be wrong\n");
+}
+
+// get the object bounding box
+void STLMesh::getBoundingBox(Point &output_min, Point &output_max)
+{
+	output_min = m_minbounds - make_double3(m_origin(0), m_origin(1), m_origin(2));
+	output_max = output_min + (m_maxbounds - m_minbounds);
+}
+
+void STLMesh::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+	m_origin += poff;
+	// NOTE: not shifting m_barycenter, since it is in mesh coordinates
+}

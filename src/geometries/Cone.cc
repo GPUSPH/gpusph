@@ -76,13 +76,10 @@ Cone::Cone(const Point& center, const double radiusbottom, const double radiusto
 
 	m_halfaperture = atan((m_rb - m_rt)/m_h);
 
-	m_ep = ep;
-	m_ep.ComputeRot();
-
 	m_hg = m_h*(m_rb*m_rb + 2.0*m_rb*m_rt + 3.0*m_rt*m_rt)/
 				(4.0*(m_rb *m_rb + m_rb*m_rt + m_rt*m_rt));
 
-	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
+	setEulerParameters(ep);
 }
 
 
@@ -150,6 +147,28 @@ Cone::SetInertia(const double dx)
 
 }
 
+void Cone::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	m_ep.ComputeRot();
+	m_center = m_origin + m_hg*m_ep.Rot(Vector(0, 0, 1));
+}
+
+// TODO: here assuming the cone is right (i.e. height == length(height_vector))
+void Cone::getBoundingBox(Point &output_min, Point &output_max)
+{
+	double radius = max(m_rt, m_rb);
+	Point corner_origin = m_origin - Vector( -radius, -radius, 0.0 );
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(2*radius, 0, 0), Vector(0, 2*radius, 0), Vector(0, 0, m_h) );
+}
+
+void Cone::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_origin += poff;
+	m_center += poff;
+}
 
 void
 Cone::FillBorder(PointVect& points, const double dx, const bool bottom, const bool top)

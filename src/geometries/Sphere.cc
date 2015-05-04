@@ -64,6 +64,24 @@ Sphere::SetInertia(const double dx)
 	m_inertia[2] = m_inertia[0];
 }
 
+void Sphere::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = EulerParameters(ep);
+	m_ep.ComputeRot();
+}
+
+void Sphere::getBoundingBox(Point &output_min, Point &output_max)
+{
+	Point corner_origin = m_center + Point(-m_r, -m_r, -m_r);
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(m_r, 0, 0), Vector(0, m_r, 0), Vector(0, 0, m_r));
+}
+
+void Sphere::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+}
 
 void
 Sphere::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

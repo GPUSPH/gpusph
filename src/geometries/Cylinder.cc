@@ -63,10 +63,7 @@ Cylinder::Cylinder(const Point& origin, const double radius, const double height
 	m_h = height;
 	m_r = radius;
 
-	m_ep = ep;
-	m_ep.ComputeRot();
-
-	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
+	setEulerParameters(ep);
 }
 
 
@@ -112,6 +109,32 @@ Cylinder::SetInertia(const double dx)
 	m_inertia[2] = m_mass/2.0*r*r;
 }
 
+void Cylinder::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	m_ep.ComputeRot();
+
+	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
+
+	dQuaternion q;
+	for (int i = 0; i < 4; i++)
+		q[i] = m_ep(i);
+	dQtoR(q, m_ODERot);
+}
+
+void Cylinder::getBoundingBox(Point &output_min, Point &output_max)
+{
+	Point corner_origin = m_origin - Vector( -m_r, -m_r, 0.0 );
+	getBoundingBoxOfCube(output_min, output_max, corner_origin,
+		Vector(2*m_r, 0, 0), Vector(0, 2*m_r, 0), Vector(0, 0, m_h) );
+}
+
+void Cylinder::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_origin += poff;
+	m_center += poff;
+}
 
 void
 Cylinder::ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace)

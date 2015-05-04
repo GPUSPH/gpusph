@@ -6,33 +6,38 @@
 #include <string>
 #include <iostream>
 
+#define CRIXUS_FLUID 1
+#define CRIXUS_VERTEX 2
+#define CRIXUS_BOUNDARY 3
+
+struct ReadParticles {
+	double Coords_0;
+	double Coords_1;
+	double Coords_2;
+	double Normal_0;
+	double Normal_1;
+	double Normal_2;
+	double Volume;
+	double Surface;
+	int ParticleType;
+	int FluidType;
+	int KENT;
+	int MovingBoundary;
+	int AbsoluteIndex;
+	int VertexParticle1;
+	int VertexParticle2;
+	int VertexParticle3;
+};
+
 class HDF5SphReader {
 private:
 	std::string	filename;
 	unsigned int	npart;
 
-	struct ReadParticles {
-		double Coords_0;
-		double Coords_1;
-		double Coords_2;
-		double Normal_0;
-		double Normal_1;
-		double Normal_2;
-		double Volume;
-		double Surface;
-		int ParticleType;
-		int FluidType;
-		int KENT;
-		int MovingBoundary;
-		int AbsoluteIndex;
-		int VertexParticle1;
-		int VertexParticle2;
-		int VertexParticle3;
-	};
-
 public:
 	// constructor
 	HDF5SphReader(void);
+	~HDF5SphReader(void);
 
 	// returns the number of particles in the h5sph file
 	int getNParts(void);
@@ -42,6 +47,9 @@ public:
 
 	// frees the buffer
 	void empty(void);
+
+	// free the buffer, reset npart and filename
+	void reset();
 
 	// sets the filename
 	void setFilename(std::string const&);

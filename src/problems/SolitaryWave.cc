@@ -35,7 +35,7 @@
 
 #define MK_par 2
 
-SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
+SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 9.0;
@@ -75,7 +75,7 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.tend = 10.0;
 
-	m_simparams.vorticity = false;
+	m_simparams.vorticity = true;
 
 	// Physical parameters
 	H = 0.45f;

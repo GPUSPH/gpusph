@@ -129,7 +129,7 @@ class EulerParameters {
 		//@{
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
-		void ToODEQuaternion(dQuaternion &);
+		void ToODEQuaternion(dQuaternion &) const;
 		void ToIdentity(void);
 		//@}
 

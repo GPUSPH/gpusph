@@ -134,6 +134,7 @@ struct GlobalData {
 	devcount_t devices;
 	// array of cuda device numbers
 	unsigned int device[MAX_DEVICES_PER_NODE];
+	uint highestDevId[MAX_DEVICES_PER_NODE];
 
 	// MPI vars
 	devcount_t mpi_nodes; // # of MPI nodes. 0 if network manager is not initialized, 1 if no other nodes (only multi-gpu)
@@ -257,6 +258,7 @@ struct GlobalData {
 	bool nosave;
 
 	// ODE objects
+	int* s_hRbFirstIndex; // first indices: so forces kernel knows where to write rigid body force
 	uint* s_hRbLastIndex; // last indices are the same for all workers
 	float3* s_hRbDeviceTotalForce; // there is one partial totals force for each object in each thread
 	float3* s_hRbDeviceTotalTorque; // ditto, for partial torques
@@ -321,6 +323,14 @@ struct GlobalData {
 		extraCommandArg(NAN),
 		only_internal(false),
 		nosave(false),
+		s_hRbFirstIndex(NULL),
+		s_hRbLastIndex(NULL),
+		s_hRbDeviceTotalForce(NULL),
+		s_hRbDeviceTotalTorque(NULL),
+		s_hRbTotalForce(NULL),
+		s_hRbTotalTorque(NULL),
+		s_hRbAppliedForce(NULL),
+		s_hRbAppliedTorque(NULL),
 		s_hRbGravityCenters(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
@@ -475,7 +485,7 @@ struct GlobalData {
 	}
 
 
-	/* disable -Wconversion warnings in this uchar manipulation sections, since GCC is a bit overeager 
+	/* disable -Wconversion warnings in this uchar manipulation sections, since GCC is a bit overeager
 	 * in signaling potential issues in the upconversion from uchar to (u)int and subsequent downconversion
 	 * that happen on the shifts
 	 */

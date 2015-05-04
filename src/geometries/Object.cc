@@ -65,6 +65,17 @@ Object::SetPartMass(double mass)
 	m_center(3) = mass;
 }
 
+/// Get the mass of object particles
+/*! Get the mass of object particles.
+ *
+ *	\return mass of the object particles
+ *
+ *  NOTE: in case of SA boundaries, this should refer to boundary particles
+ */
+double Object::GetPartMass()
+{
+	return m_center(3);
+}
 
 /// Compute the object mass according to object volume and density
 /*! The mass of object is computed by multiplying its volume (computed using Volume()) by its density.
@@ -91,6 +102,16 @@ void
 Object::SetMass(const double mass)
 {
 	m_mass = mass;
+}
+
+/// Get the mass of the object
+/*! Get the mass of the object.
+ *
+ *	\return mass of the object
+ */
+double Object::GetMass()
+{
+	return m_mass;
 }
 
 
@@ -175,7 +196,7 @@ void Object::ODEPrintInformation(const bool print_geom)
 		const dReal* cpos = dBodyGetPosition(m_ODEBody);
 		dMass mass;
 		dBodyGetMass(m_ODEBody, &mass);
-		printf("ODE Body ID: %u\n", m_ODEBody);
+		printf("ODE Body ID: %p\n", m_ODEBody);
 		printf("   Mass: %e\n", mass.mass);
 		printf("   Pos:	 %e\t%e\t%e\n", cpos[0], cpos[1], cpos[2]);
 		printf("   CG:   %e\t%e\t%e\n", mass.c[0], mass.c[1], mass.c[2]);
@@ -189,11 +210,12 @@ void Object::ODEPrintInformation(const bool print_geom)
 		const dReal* quat = dBodyGetQuaternion(m_ODEBody);
 		printf("   Q:    %e\t%e\t%e\t%e\n", quat[0], quat[1], quat[2], quat[3]);
 	}
-	if (m_ODEGeom && print_geom) {
+	// not only check if an ODE geometry is associated, but also it must not be a plane
+	if (print_geom && m_ODEGeom && dGeomGetClass(m_ODEGeom) != dPlaneClass) {
 		dReal bbox[6];
 		const dReal* gpos = dGeomGetPosition(m_ODEGeom);
 		dGeomGetAABB(m_ODEGeom, bbox);
-		printf("ODE Geom ID: %u\n", m_ODEGeom);
+		printf("ODE Geom ID: %p\n", m_ODEGeom);
 		printf("   Position: %g\t%g\t%g\n", gpos[0], gpos[1], gpos[2]);
 		printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
 			bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]);
@@ -222,7 +244,10 @@ void Object::SetNumParts(const int numParts)
 
 /// Gets the number of particles associated with an object
 /*! This function either returns the set number of particles which is used
- *  in case of a loaded STL mesh or the number of particles set in m_parts
+ *  in case of a loaded STL mesh or the number of particles set in m_parts.
+ *  NOTE: in case of SA_BOUNDARIES, SetNumParts() is called with number of
+ *  boundary parts only, thus GetNumParts() returns the number of particles
+ *  excluding vertices
  */
 uint Object::GetNumParts()
 {
@@ -374,3 +399,71 @@ void Object::Unfill(PointVect& points, const double dx) const
 	points = new_points;
 }
 
+/// Remove particles from particle vector
+/*! Remove the particles of particles vector lying outside the object,
+ * 	within a tolerance off dx.
+ *  This method uses IsInside().
+ *	\param points : particle vector
+ *	\param dx : tolerance
+ */
+void Object::Intersect(PointVect& points, const double dx) const
+{
+	PointVect new_points;
+	new_points.reserve(points.size());
+
+	for (uint i = 0; i < points.size(); i++) {
+		const Point & p = points[i];
+
+		if (IsInside(p, -dx))
+			new_points.push_back(p);
+	}
+
+	points.clear();
+
+	points = new_points;
+}
+
+// auxiliary function for computing the bounding box
+void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
+	Point &origin, Vector v1, Vector v2, Vector v3)
+{
+	// init min and max to origin
+	Point currMin = origin;
+	Point currMax = origin;
+	// compare to corners adjacent to origin
+	setMinMaxPerElement(currMin, currMax, origin + v1);
+	setMinMaxPerElement(currMin, currMax, origin + v2);
+	setMinMaxPerElement(currMin, currMax, origin + v3);
+	// compare to other corners
+	setMinMaxPerElement(currMin, currMax, origin + v1 + v2);
+	setMinMaxPerElement(currMin, currMax, origin + v1 + v3);
+	setMinMaxPerElement(currMin, currMax, origin + v2 + v3);
+	setMinMaxPerElement(currMin, currMax, origin + v1 + v2 + v3);
+	// output in double3
+	out_min(0) = currMin(0);
+	out_min(1) = currMin(1);
+	out_min(2) = currMin(2);
+	out_max(0) = currMax(0);
+	out_max(1) = currMax(1);
+	out_max(2) = currMax(2);
+}
+
+// Update the ODE rotation matrix according to m_ep (EulerParameters)
+// NOTE: should not be called for planes, since they are "non-placeable" objects
+// in ODE and ODE does not support isPlaceable() or similar
+void Object::updateODERotMatrix()
+{
+	// alternative way:
+	//double phi, theta, psi;
+	//m_ep.ExtractEulerZXZ(psi, theta, phi);
+	//dRFromEulerAngles(m_ODERot, -phi, -theta, -psi);
+
+	dQuaternion quaternion;
+	m_ep.ToODEQuaternion(quaternion);
+	// if obj has body *and* geom, one setQuaternion() is enough - that's why "else"
+	if (m_ODEBody)
+		dBodySetQuaternion(m_ODEBody, quaternion);
+	else
+	if (m_ODEGeom)
+		dGeomSetQuaternion(m_ODEGeom, quaternion);
+}

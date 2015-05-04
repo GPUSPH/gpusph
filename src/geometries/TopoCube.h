@@ -101,6 +101,10 @@ class TopoCube: public Object {
 			m_inertia[2] = 0.0;
 		}
 
+		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(Point &output_min, Point &output_max);
+		void shift(const double3 &offset);
+
 		void FillBorder(PointVect&, const double, const int, const bool);
 		void FillBorder(PointVect& points, const double dx)
 		{

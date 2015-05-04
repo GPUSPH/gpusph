@@ -54,6 +54,10 @@ class Object {
 		double				m_mass;			///< Mass of the object
 		PointVect			m_parts;		///< Particles belonging to the object
 		uint				m_numParts;		///< Number of particles belonging to the object
+
+		// auxiliary function for computing the bounding box
+		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
+			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
 		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
 		dGeomID				m_ODEGeom;		///< ODE geometry ID associated with the object
@@ -66,6 +70,9 @@ class Object {
 			dRSetIdentity (m_ODERot);
 			m_center = Point(0,0,0);
 			m_numParts = 0;
+			m_inertia[0] = NAN;
+			m_inertia[1] = NAN;
+			m_inertia[2] = NAN;
 		};
 
 		virtual ~Object(void) {};
@@ -74,8 +81,10 @@ class Object {
 		//@{
 		virtual double SetPartMass(const double, const double);
 		virtual void SetPartMass(const double);
+		double GetPartMass();
 		virtual double SetMass(const double, const double);
 		virtual void SetMass(const double);
+		double GetMass();
 		virtual double Volume(const double dx) const = 0;
 		//@}
 
@@ -181,6 +190,7 @@ class Object {
 		 */
 		virtual void FillIn(PointVect& points, const double dx, const int layers) = 0;
 		void Unfill(PointVect&, const double) const;
+		void Intersect(PointVect&, const double) const;
 		//@}
 
 		/// Detect if a particle is inside an object
@@ -192,6 +202,46 @@ class Object {
 		 *  This function is pure virtual and then as to be defined at child level
 		 */
 		virtual bool IsInside(const Point& p, const double dx) const = 0;
+
+		/// \name Other functions
+		//@{
+		/// Set the EulerParameters
+		/*! This function sets the EulerParameters and updateds the object accordingly
+		 *	\param ep : new EulerParameters
+		 *
+		 *	This function is pure virtual and then has to be defined at child level
+		 */
+		virtual void setEulerParameters(const EulerParameters &ep) = 0;
+
+		/// Get the EulerParameters
+		/*! This function returns the EulerParameters
+		 *	\return EulerParameters
+		 *
+		 *	This function is pure virtual and then has to be defined at child level
+		 */
+		const EulerParameters* getEulerParameters() {return &m_ep; }
+
+		/// Update the ODE rotation matrix according to the EulerParameters
+		void updateODERotMatrix();
+
+		/// Get the bounding box
+		/*! This function writes the bounding box of the object in the given parameters,
+		 *  taking into account also the object rotation
+		 *  \param min : minimum coodinates
+		 *  \param min : maximum coodinates
+		 *
+		 *  This function is pure virtual and then has to be defined at child level.
+		 */
+		virtual void getBoundingBox(Point &output_min, Point &output_max) = 0;
+
+		/// Shift the object (center, origin, etc.) with the given offset
+		/*! This function shifts the object with the given offset. The object
+		 *  internally updates everything necessary.
+		 *  \param double3 : offset
+		 *
+		 *  This function is pure virtual and then has to be defined at child level.
+		 */
+		virtual void shift(const double3 &offset) = 0;
 };
 #endif	/* OBJECT_H */
 

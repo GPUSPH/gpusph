@@ -130,6 +130,10 @@ Point::Point(const float *xx)
 	x[3] = xx[3];
 }
 
+double4 Point::toDouble4()
+{
+	return make_double4(x[0], x[1], x[2], x[3]);
+}
 
 Point
 Point::Rot(const dMatrix3 rot)

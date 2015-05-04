@@ -64,6 +64,8 @@ GPUSPH::GPUSPH() {
 	gdata = NULL;
 	problem = NULL;
 	initialized = false;
+	m_peakParticleSpeed = 0.0;
+	m_peakParticleSpeedTime = 0.0;
 }
 
 GPUSPH::~GPUSPH() {
@@ -79,6 +81,12 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata = _gdata;
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
+
+	// needed for the new problem interface (compute worldorigin, init ODE, etc.)
+	if (!problem->initialize()) {
+		printf("Problem initialization failed. Aborting...\n");
+		return false;
+	}
 
 	// run post-construction functions
 	problem->check_dt();
@@ -144,6 +152,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	printf("Generating problem particles...\n");
 	// allocate the particles of the *whole* simulation
 	gdata->totParticles = problem->fill_parts();
+
+	for (uint d=0; d < gdata->devices; d++)
+		gdata->highestDevId[d] = gdata->totParticles + GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, d);
 
 	// Allocate internal storage for moving bodies
 	problem->allocate_bodies_storage();
@@ -261,12 +272,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		resumed = true;
 	}
 
-
 	// initialize CGs (or, the problem could directly write on gdata)
 	if (gdata->problem->get_simparams()->numbodies > 0) {
 		gdata->problem->get_bodies_cg();
 	}
-
 
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
 	if (_sp->inoutBoundaries)
@@ -785,6 +794,10 @@ bool GPUSPH::runSimulation() {
 	// the condition (gdata->mpi_rank == 0)
 	if (MULTI_NODE)
 		printf("Global performance of the multinode simulation: %.2g MIPPS\n", m_multiNodePerformanceCounter->getMIPPS());
+
+	// suggest max speed for next runs
+	printf("Peak particle speed was ~%g m/s at %g s -> can set maximum vel %.2g for this problem\n",
+		m_peakParticleSpeed, m_peakParticleSpeedTime, (m_peakParticleSpeed*1.1));
 
 	// NO doCommand() nor other barriers than the standard ones after the
 
@@ -1363,6 +1376,9 @@ void GPUSPH::doWrite(bool force)
 
 	bool warned_nan_pos = false;
 
+	// max particle speed only for this node only at time t
+	float local_max_part_speed = 0;
+
 	for (uint i = node_offset; i < node_offset + gdata->processParticles[gdata->mpi_rank]; i++) {
 		const float4 pos = lpos[i];
 		double4 dpos;
@@ -1394,6 +1410,19 @@ void GPUSPH::doWrite(bool force)
 		}
 
 		gpos[i] = dpos;
+
+		// track peak speed
+		local_max_part_speed = fmax(local_max_part_speed, length( as_float3(gdata->s_hBuffers.getData<BUFFER_VEL>()[i]) ));
+	}
+
+	// max speed: read simulation global for multi-node
+	if (MULTI_NODE)
+		// after this, local_max_part_speed actually becomes global_max_part_speed for time t only
+		gdata->networkManager->networkFloatReduction(&(local_max_part_speed), 1, MAX_REDUCTION);
+	// update peak
+	if (local_max_part_speed > m_peakParticleSpeed) {
+		m_peakParticleSpeed = local_max_part_speed;
+		m_peakParticleSpeedTime = gdata->t;
 	}
 
 	Writer::SetForced(force);
@@ -1790,12 +1819,14 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
 		if (problem->get_simparams()->inoutBoundaries) {
 
-			gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-				(gdata->numVertices * gdata->createdParticlesIterations);
+			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
+			//	(gdata->numVertices * gdata->createdParticlesIterations);
 
-			if (UINT_MAX - gdata->numVertices < gdata->newIDsOffset) {
-				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu - requesting quit...\n", gdata->iterations);
-				gdata->quit_request = true;
+			for (uint d = 0; d < gdata->devices; d++) {
+				if (UINT_MAX - gdata->numVertices < gdata->highestDevId[d]) {
+					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, d);
+					gdata->quit_request = true;
+				}
 			}
 		}
 	}

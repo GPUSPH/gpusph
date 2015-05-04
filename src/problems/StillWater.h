@@ -21,7 +21,7 @@ class StillWater: public Problem {
 		bool		m_usePlanes; // use planes or boundaries
 
 	public:
-		StillWater(const GlobalData *);
+		StillWater(GlobalData *);
 		~StillWater(void);
 
 		int fill_parts(void);

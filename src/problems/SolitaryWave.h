@@ -68,7 +68,7 @@ class SolitaryWave: public Problem {
 		double		piston_initial_crotx;
 
 	public:
-		SolitaryWave(const GlobalData *);
+		SolitaryWave(GlobalData *);
 		~SolitaryWave(void);
 		int fill_parts(void);
 		uint fill_planes(void);

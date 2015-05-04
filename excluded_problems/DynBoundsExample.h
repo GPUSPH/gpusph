@@ -38,7 +38,7 @@ class DynBoundsExample: public Problem
 	float	alpha; // slope angle
 
 public:
-	DynBoundsExample(const GlobalData *);
+	DynBoundsExample(GlobalData *);
 	virtual ~DynBoundsExample(void);
 
 	int fill_parts(void);

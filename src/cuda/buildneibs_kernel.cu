@@ -631,6 +631,7 @@ struct sa_boundary_niC_vars
 	vertexinfo			vertices; 		///< TODO
 	const	float4		boundElement; 	///< TODO
 	const	uint		j; 				///< TODO
+	const	float4		coord1; 		///< TODO
 	const	float4		coord2; 		///< TODO
 
 	/// Constructor
@@ -650,15 +651,17 @@ struct sa_boundary_niC_vars
 			fabs(boundElement.z) < fabs(boundElement.x)) ? 2 :
 			(fabs(boundElement.y) < fabs(boundElement.x) ? 1 : 0)
 		 ),
-		// Compute second coordinate which is equal to n_s x e_j
-		coord2(
-			j == 0 ?
-			make_float4(0.0f, boundElement.z, -boundElement.y, 0.0f) :
-			j == 1 ?
-			make_float4(-boundElement.z, 0.0f, boundElement.x, 0.0f) :
-			// j == 2
-			make_float4(boundElement.y, -boundElement.x, 0.0f, 0.0f)
-			)
+		// Compute the first coordinate which is a 2-D rotated version of the normal with the j-th coordinate set to 0
+		coord1(
+			normalize(make_float4(
+			// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+			-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
+			  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
+			-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
+			0))
+			),
+		// The second coordinate is the cross product between the normal and the first coordinate
+		coord2( cross3(boundElement, coord1) )
 		{
 			// Here local copy of part IDs of vertices are replaced by the correspondent part indices
 			vertices.x = bparams.vertIDToIndex[vertices.x];
@@ -767,12 +770,10 @@ void process_niC_segment<true>(const uint index, const uint neib_index, float3 c
 	if (i>-1) {
 		// relPosProj is the projected relative position of the vertex to the segment.
 		// the first coordinate system is given by the following two vectors:
-		// 1. The unit vector e_j, where j is the coordinate for which n_s is minimal
-		// 2. The cross product between n_s and e_j
+		// 1. set one coordinate to 0 and rotate the remaining 2-D vector
+		// 2. cross product between coord1 and the normal of the boundary element
 		float2 relPosProj = make_float2(0.0);
-		// relPosProj.x = relPos . e_j
-		relPosProj.x = var.j==0 ? relPos.x : (var.j==1 ? relPos.y : relPos.z);
-		// relPosProj.y = relPos . (n_s x e_j)
+		relPosProj.x = dot(relPos, as_float3(var.coord1));
 		relPosProj.y = dot(relPos, as_float3(var.coord2));
 		// save relPosProj in vertPos buffer
 		if (i==0)

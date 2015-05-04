@@ -47,14 +47,13 @@
 
 using namespace std;
 
-Problem::Problem(const GlobalData *_gdata)
+Problem::Problem(GlobalData *_gdata)
 {
 	gdata = _gdata;
 	m_options = gdata->clOptions;
 	m_simframework = NULL;
 	m_problem_dir = m_options->dir;
 	m_bodies_storage = NULL;
-	m_firstODEobjectPartId = 0;
 }
 
 

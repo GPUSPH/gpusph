@@ -818,8 +818,8 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
 	if (!OBJECT(pdata.info) && ndata.ntype == PT_BOUNDARY) {
-		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.5f);
-		const float sx = fmax(x*4.0f - 1.0f,0.0f);
+		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
+		const float sx = fmax(x*8.0f - 1.0f,0.0f);
 		// smootherstep function
 		const float smooth = pdata.ptype == PT_VERTEX ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
@@ -960,9 +960,10 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 			// gravity correction for free-surface flows
 			const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
 			// actual diffusion term
-			const float ferraricor = max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr);
+			const float ferraricor = (ndata.r > 1e-4f*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r : 0.0f;
 			// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-			nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.gamAS.x;
+			//nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.gamAS.x;
+			nout.contDiff -= d_ferrari*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.gamAS.x;
 		}
 		if (sph_formulation == SPH_F1) {
 			nout.DrDt *= ndata.relVel.w;
@@ -1163,6 +1164,9 @@ __device__ __forceinline__ void
 visc_boundary_part<KEPSVISC>::with
 (FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
+	// for boundary particles without neighbouring fluid particle k is 0 so skip
+	if(pdata.keps_k < params.epsilon)
+		return;
 	// a component of fluid paricle velocity tangential to the wall
 	const float3 u_t = as_float3(ndata.relVel+pdata.eulerVel) - dot(as_float3(ndata.relVel+pdata.eulerVel), ndata.normal_s)*ndata.normal_s;
 	const float abs_u_t = length(u_t);
@@ -1384,28 +1388,6 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 	pout.dvy += (ndata.relVel.y+ndata.relEulerVel.y)*dvmul;
 	pout.dvz += (ndata.relVel.z+ndata.relEulerVel.z)*dvmul;
 }
-
-// Functor to check if water depth computation was requested
-// in the forces params (SA-only)
-template<BoundaryType boundarytype>
-struct
-has_waterdepth_computation
-{
-	template<typename FP>
-	__device__ __forceinline__
-	static bool
-	with(FP const& params) { return false; }
-};
-
-template<>
-template<typename FP>
-__device__ __forceinline__ bool
-has_waterdepth_computation<SA_BOUNDARY>::with(FP const& params)
-{
-	return params.ioWaterdepthComputation;
-}
-
-
 
 /*
  * Post-processing and saving
@@ -2027,8 +2009,7 @@ forcesDevice(
 					// For vertex particles: Compute viscous force as Dv/Dt = div(\nu grad(v)), only in KEPS these are actually used
 					compute_viscous_contrib<boundarytype, sph_formulation>::with<simflags & ENABLE_INLET_OUTLET, visctype>(params, pdata, ndata, pout, nout);
 				}
-				else if (pdata.ptype == PT_VERTEX && has_waterdepth_computation<boundarytype>::with(params)
-					&& IO_BOUNDARY(info) && !VEL_IO(info)) {
+				else if ((simflags & ENABLE_WATER_DEPTH) && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
 					// Compute the maximum depth at pressure boundaries
 					compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
 				}

@@ -115,6 +115,10 @@ class Cube: public Object {
 		void SetInertia(const double);
 		bool IsInside(const Point&, const double) const;
 
+		void setEulerParameters(const EulerParameters &ep);
+		void getBoundingBox(Point &output_min, Point &output_max);
+		void shift(const double3 &offset);
+
 		/// \name ODE related  functions
 		//@{
 		void ODEBodyCreate(dWorldID, const double density = 1.0, dSpaceID ODESpace = 0);

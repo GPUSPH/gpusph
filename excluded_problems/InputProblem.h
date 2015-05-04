@@ -21,9 +21,10 @@
 #define	SmallChannelFlowIOKeps	9	// Small channel flow for debugging i/o with periodicty and keps
 #define	IOWithoutWalls			10	// I/O Debugging with periodicity and no walls
 #define LaPalisseSmallTest		11	// Small testcase for La Palisse (pressure in/out with free-surface)
+#define PeriodicWave			12	// Periodic wave with IO
 //*******************************************************************************************************
 // Chosse one of the problems above
-#define SPECIFIC_PROBLEM SmallChannelFlowKEPS
+#define SPECIFIC_PROBLEM PeriodicWave
 
 class InputProblem: public Problem {
 	private:
@@ -35,7 +36,7 @@ class InputProblem: public Problem {
 
 
 	public:
-		InputProblem(const GlobalData *);
+		InputProblem(GlobalData *);
 		~InputProblem(void) {};
 
 		int fill_parts(void);

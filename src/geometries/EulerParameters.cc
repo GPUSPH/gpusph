@@ -107,7 +107,7 @@ EulerParameters::EulerParameters(const EulerParameters &source)
  */
 EulerParameters::EulerParameters(const dQuaternion &quat)
 {
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 4; i++)
 		m_ep[i] = quat[i];
 }
 
@@ -242,7 +242,7 @@ EulerParameters::ExtractEulerZXZ(double &psi, double &theta, double &phi) const
  *	\param[in/out] quat : ODE quaternion
  */
 void
-EulerParameters::ToODEQuaternion(dQuaternion & quat)
+EulerParameters::ToODEQuaternion(dQuaternion & quat) const
 {
 	for (int i = 0; i < 4; i++)
 		quat[i] = m_ep[i];

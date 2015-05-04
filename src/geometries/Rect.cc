@@ -50,8 +50,8 @@ Rect::Rect(void)
 Rect::Rect(const Point& origin, const Vector& vx, const Vector& vy)
 {
 	if (fabs(vx*vy) > 1.e-8*vx.norm()*vy.norm()) {
-		std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
-		exit(1);
+		//std::cout << "Trying to construct a rectangle with non perpendicular vectors\n";
+		//exit(1);
 	}
 
 	m_origin = origin;
@@ -153,16 +153,11 @@ Rect::Rect(const Point &origin, const double lx, const double ly, const EulerPar
 {
 	m_origin = origin;
 
-	m_ep = ep;
-	m_ep.ComputeRot();
 	m_lx = lx;
 	m_ly = ly;
 
-	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
-	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
-	m_vz = m_vx.cross(m_vz);
+	setEulerParameters(ep);
 
-	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 	m_origin.print();
 	m_center.print();
 }
@@ -616,4 +611,29 @@ Rect::IsInside(const Point& p, const double dx) const
 		inside = true;
 
 	return inside;
+}
+
+void Rect::setEulerParameters(const EulerParameters &ep)
+{
+	m_ep = ep;
+	m_ep.ComputeRot();
+
+	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
+	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
+	m_vz = m_vx.cross(m_vz);
+
+	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
+}
+
+void Rect::getBoundingBox(Point &output_min, Point &output_max)
+{
+	getBoundingBoxOfCube(output_min, output_max, m_origin,
+		m_vx, m_vy, Vector(0, 0, 0) );
+}
+
+void Rect::shift(const double3 &offset)
+{
+	const Point poff = Point(offset);
+	m_center += poff;
+	m_origin += poff;
 }

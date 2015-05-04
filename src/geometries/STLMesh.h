@@ -102,8 +102,14 @@ private:
 	// to get the actual barycenter, divide by the
 	// number of triangles
 	float3 m_barysum;
+
 	// actual barycenter
+	// NOTE: barycenter is in mesh coordinates
 	Point m_barycenter;
+
+	// origin = position of the smallest corner in world coordinates
+	// NOTE: m_origin and m_center are in GPUSPH world coordinates
+	Point m_origin;
 
 	// minimum coordinates
 	double3	m_minbounds, m_maxbounds;
@@ -151,14 +157,18 @@ public:
 	void FillIn(PointVect &, const double, const int);
 	bool IsInside(const Point&, double) const;
 
+	void setEulerParameters(const EulerParameters &ep);
+	void getBoundingBox(Point &output_min, Point &output_max);
+	void shift(const double3 &offset);
+
 	double SetPartMass(const double, const double);
 	void SetPartMass(const double);
 	double Volume(const double dx) const;
 	void SetInertia(double);
 	void SetInertia(const double*);
 
-	void ODEGeomCreate(dSpaceID ODESpace, const double dx, const double density = 1.0);
-	void ODEBodyCreate(dWorldID ODEWorld, const double dx, const double density, dSpaceID ODESpace = 0);
+	void ODEGeomCreate(dSpaceID ODESpace, const double dx);
+	void ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace = 0);
 };
 
 #endif // _STLMESH_H

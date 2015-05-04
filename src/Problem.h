@@ -164,7 +164,7 @@ class Problem {
 
 		string	m_name;
 
-		const GlobalData	*gdata;
+		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
 		SimFramework		*m_simframework;			// simulation framework
@@ -190,9 +190,11 @@ class Problem {
 
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData 		*m_bodies_storage;				// kinematic data staorage for bodie movement integration
-		uint				m_firstODEobjectPartId;				// first id of a boundary segment that belongs to an ODE object
 
-		Problem(const GlobalData *_gdata);
+		Problem(GlobalData *_gdata);
+
+		// returns true if successful, false if should abort the simulation
+		virtual bool initialize() { return true; };
 
 		virtual ~Problem(void);
 

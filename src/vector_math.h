@@ -612,6 +612,10 @@ static __inline__ __host__ __device__ void operator+=(double3 &a, const double3 
 {
 	a.x += b.x; a.y += b.y; a.z += b.z;
 }
+static __inline__ __host__ __device__ void operator+=(double3 &a, const double &b)
+{
+	a.x += b; a.y += b; a.z += b;
+}
 
 // subtract
 static __inline__ __host__ __device__ double3 operator-(const double3 &a, const double3 &b)
@@ -627,6 +631,10 @@ static __inline__ __host__ __device__ double3 operator-(const double3 &a, const 
 static __inline__ __host__ __device__ void operator-=(double3 &a, const double3 &b)
 {
 	a.x -= b.x; a.y -= b.y; a.z -= b.z;
+}
+static __inline__ __host__ __device__ void operator-=(double3 &a, const double &b)
+{
+	a.x -= b; a.y -= b; a.z -= b;
 }
 
 // multiply

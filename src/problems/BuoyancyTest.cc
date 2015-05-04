@@ -16,7 +16,7 @@
 #include "Vector.h"
 
 
-BuoyancyTest::BuoyancyTest(const GlobalData *_gdata) : Problem(_gdata)
+BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 1.0;
@@ -238,6 +238,8 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, i );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
+		gdata->s_hRbFirstIndex[0] = -j; // offset for rbforces indexing
+		gdata->s_hRbLastIndex[0] = rbparts.size() - 1; // index of last part in rbforces
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}

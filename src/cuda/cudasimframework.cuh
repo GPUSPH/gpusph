@@ -114,7 +114,6 @@ public:
 		m_simparams.dtadapt = simflags & ENABLE_DTADAPT;
 		m_simparams.usedem = simflags & ENABLE_DEM;
 		m_simparams.movingBoundaries = simflags & ENABLE_MOVING_BODIES;
-		m_simparams.floatingObjects = simflags & ENABLE_FLOATING_BODIES;
 		m_simparams.inoutBoundaries = simflags & ENABLE_INLET_OUTLET;
 		m_simparams.ioWaterdepthComputation = simflags & ENABLE_WATER_DEPTH;
 	}

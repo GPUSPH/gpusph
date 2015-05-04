@@ -31,7 +31,7 @@
 #include "particledefine.h"
 #include "GlobalData.h"
 
-OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
+OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
 	lx = 1.6;
@@ -88,6 +88,9 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
+
+	// update numObjects, which is used for allocations
+	m_simparams.numObjects = m_simparams.numODEbodies;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
@@ -225,6 +228,7 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 	int j = boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
+	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
@@ -251,6 +255,9 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, i );
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
+		gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
+		gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
+		object_particle_counter += rbparts.size();
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}

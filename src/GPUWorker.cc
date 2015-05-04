@@ -54,6 +54,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
 
+	printf("Global device id: %d (%d)\n", m_globalDeviceIdx, gdata->totDevices);
+
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->get_simparams();
 	m_physparams = gdata->problem->get_physparams();
@@ -933,30 +935,21 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 		allocated += 2 * objParticlesFloat4Size + objParticlesUintSize;
 
-		int *rbfirstindex = new int[m_simparams->numforcesbodies];
 		uint* rbnum = new uint[m_numForcesBodiesParticles];
 
-		rbfirstindex[0] = 0;
-		for (uint i = 1; i < m_simparams->numforcesbodies; i++) {
-			rbfirstindex[i] = rbfirstindex[i - 1] +
-				gdata->problem->get_body_numparts(i - 1);
-		}
-		forcesEngine->setrbstart(rbfirstindex, m_simparams->numforcesbodies);
+		forcesEngine->setrbstart(gdata->s_hRbFirstIndex, m_simparams->numforcesbodies);
 
 		int offset = 0;
 		for (uint i = 0; i < m_simparams->numforcesbodies; i++) {
-			gdata->s_hRbLastIndex[i] = gdata->problem->get_body_numparts(i) - 1 + offset;
-
-			for (int j = 0; j < gdata->problem->get_body_numparts(i); j++) {
+			// set rbnum for each object particle; it is the key for the reduction
+			for (int j = 0; j < gdata->problem->get_body_numparts(i); j++)
 				rbnum[offset + j] = i;
-			}
 			offset += gdata->problem->get_body_numparts(i);
 		}
 		size_t  size = m_numForcesBodiesParticles*sizeof(uint);
 		CUDA_SAFE_CALL(cudaMemcpy((void *) m_dRbNum, (void*) rbnum, size, cudaMemcpyHostToDevice));
 
 		delete[] rbnum;
-		delete[] rbfirstindex;
 	}
 
 	if (m_simparams->usedem) {
@@ -1296,6 +1289,8 @@ void GPUWorker::downloadNewNumParticles()
 	if (activeParticles != m_numParticles) {
 		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
+		if (activeParticles > m_numParticles)
+			gdata->highestDevId[m_deviceIndex] += (activeParticles-m_numParticles)*gdata->totDevices;
 		m_numParticles = activeParticles;
 		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
 		// it should not be updated here. Single-device simulations, instead, have it updated here.
@@ -2488,8 +2483,10 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				gdata->newIDsOffset,
-				initStep);
+				gdata->highestDevId[m_deviceIndex],
+				initStep,
+				m_globalDeviceIdx,
+				gdata->totDevices);
 }
 
 void GPUWorker::kernel_saIdentifyCornerVertices()

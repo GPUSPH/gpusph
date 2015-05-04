@@ -80,7 +80,6 @@ typedef struct SimParams {
 	bool			dtadapt;				// true if adaptive timestep
 	bool			usedem;					// true if using a DEM
 	bool			movingBoundaries;		// defines if moving boundaries are present
-	bool			floatingObjects;		// defines if floating objects are present
 	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
 	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows
 
@@ -123,7 +122,6 @@ typedef struct SimParams {
 		dtadapt(true),
 		usedem(false),
 		movingBoundaries(false),
-		floatingObjects(false),
 		inoutBoundaries(false),
 		ioWaterdepthComputation(false)
 	{};
