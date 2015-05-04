@@ -28,6 +28,9 @@
 #ifndef _PHYSPARAMS_H
 #define _PHYSPARAMS_H
 
+#include <stdexcept>
+#include <iostream>
+
 #include "particledefine.h"
 
 #include "deprecation.h"
@@ -111,6 +114,9 @@ RESTORE_WARNINGS
 	  @param rho	base density
 	  @param gamma	gamma coefficient
 	  @param c0	sound speed for density at rest
+
+	  The number of fluids is automatically increased if set_density()
+	  is called with consecutive indices
 	 */
 	void set_density(uint i, float rho, float gamma, float c0) {
 		rho0[i] = rho;
@@ -118,6 +124,16 @@ RESTORE_WARNINGS
 		bcoeff[i] = rho*c0*c0/gamma;
 		sscoeff[i] = c0;
 		sspowercoeff[i] = (gamma - 1)/2;
+		/* Check if we need to increase numFluids. If the user skipped an index,
+		 * we will have i > numFluids, which we assume it's an error; otherwise,
+		 * we will have i <= numFluids, and if == we need to increase
+		 */
+		if (i > numFluids) {
+			std::cerr << "setting density for fluid index " << i << " > " << numFluids << std::endl;
+			throw std::runtime_error("fluid index is growing too fast");
+		}
+		if (i == numFluids)
+			numFluids++;
 	}
 } PhysParams;
 
