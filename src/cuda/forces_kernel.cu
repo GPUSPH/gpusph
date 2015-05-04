@@ -687,13 +687,6 @@ densityGrenierDevice(
 	const float vol = volArray[index].w;
 	float4 vel = velArray[index];
 
-	// TODO check the most consistent way to set sigma for dyn boundary particles
-	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info)) {
-		vel.w = pos.w/vol;
-		velArray[index] = vel;
-		sigmaArray[index] = 1;
-	}
-
 	// self contribution
 	float corr = W<kerneltype>(0, slength);
 	float sigma = corr;
@@ -704,6 +697,11 @@ densityGrenierDevice(
 	char neib_cellnum = 0;
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
+
+	// For DYN_BOUNDARY particles, we compute sigma in the same way as fluid particles,
+	// except that if the boundary particle has no fluid neighbors we set its
+	// sigma to 1.
+	bool has_fluid_neibs = false;
 
 	// Loop over all neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
@@ -732,16 +730,21 @@ densityGrenierDevice(
 
 		const float w = W<kerneltype>(r, slength);
 		sigma += w;
+		if (FLUID(neib_info))
+			has_fluid_neibs = true;
 
-		/* We only consider FLUID particles of the same fluid. The FLUID check
-		   is only needed in the DYN_BOUNDARY case
+		/* For smoothed mass, fluid particles only consider fluid particles,
+		   and non-fluid (only preset for DYN_BOUNDARY) only consider non-fluid
 		   */
-		if ((boundarytype != DYN_BOUNDARY || FLUID(neib_info)) &&
-			PART_FLUID_NUM(neib_info) == fnum) {
+		if ((boundarytype != DYN_BOUNDARY || (PART_TYPE(neib_info) == PART_TYPE(info)))
+			&& PART_FLUID_NUM(neib_info) == fnum) {
 			mass_corr += relPos.w*w;
 			corr += w;
 		}
 	}
+
+	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info) && !has_fluid_neibs)
+		sigma = 1;
 
 	// M = mass_corr/corr, ϱ = M/ω
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
