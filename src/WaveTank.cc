@@ -39,8 +39,10 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.6;
 	lz = 1.0;
 
-	m_size = make_double3(lx, ly, lz);
-	m_origin = make_double3(0.0, 0.0, 0.0);
+	double OFFS = 1;
+
+	m_size = make_double3(lx + OFFS, ly + OFFS, lz + OFFS);
+	m_origin = make_double3(-OFFS, -OFFS, -OFFS);
 
 	// Data for problem setup
 	slope_length = 8.5;
@@ -79,12 +81,12 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.testpoints = false;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = true;
+	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
 	//WaveGage
-	add_gage(1, 0.3);
-	add_gage(0.5, 0.3);
+	//add_gage(1, 0.3);
+	//add_gage(0.5, 0.3);
 
 	/* Uncomment preferred boundary type, comment the others */
 	// TODO easier way to switch
@@ -120,11 +122,12 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
 	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
 	paddle_length = 1.0;
-	paddle_width = m_size.y - 2*r0;
+	paddle_width = ly - 2*r0;
 	mbpaddledata.type = PADDLEPART;
 	mbpaddledata.origin = make_float3(0.13f, r0, -0.1344);
 	mbpaddledata.tstart = 0.2;
 	mbpaddledata.tend = m_simparams.tend;
+	m_simparams.movingBoundaries = true;
 	// The stroke value is given at free surface level H
 	float stroke = 0.18;
 	// m_mbamplitude is the maximal angular value par paddle angle
@@ -280,7 +283,7 @@ uint WaveTank::fill_planes()
 
 void WaveTank::copy_planes(float4 *planes, float *planediv)
 {
-	const float w = m_size.y;
+	const float w = ly;
 	const float l = h_length + slope_length;
 
 	//  plane is defined as a x + by +c z + d= 0
@@ -339,7 +342,7 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	std::cout << "      " << j  << "--" << j + paddle_parts.size() << "\n";
 	for (uint i = j; i < j + paddle_parts.size(); i++) {
 		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(PADDLEPART, 0, i);
+		info[i]= make_particleinfo(PADDLEPART, 1, i);
 		calc_localpos_and_hash(paddle_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += paddle_parts.size();
