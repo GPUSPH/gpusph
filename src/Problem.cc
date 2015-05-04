@@ -240,58 +240,58 @@ Problem::get_bodies_cg(void)
 
 
 void
-Problem::set_body_cg(const double3 crot, MovingBodyData* mbdata) {
+Problem::set_body_cg(const double3& crot, MovingBodyData* mbdata) {
 	mbdata->kdata.crot = crot;
 
 }
 
 
 void
-Problem::set_body_cg(const uint index, const double3 crot) {
+Problem::set_body_cg(const uint index, const double3& crot) {
 	set_body_cg(crot, m_bodies[index]);
 }
 
 
 void
-Problem::set_body_cg(const Object *object, const double3 crot) {
+Problem::set_body_cg(const Object *object, const double3& crot) {
 	set_body_cg(crot, get_mbdata(object));
 }
 
 
 void
-Problem::set_body_linearvel(const double3 lvel, MovingBodyData* mbdata) {
+Problem::set_body_linearvel(const double3& lvel, MovingBodyData* mbdata) {
 	mbdata->kdata.lvel = lvel;
 
 }
 
 
 void
-Problem::set_body_linearvel(const uint index, const double3 lvel) {
+Problem::set_body_linearvel(const uint index, const double3& lvel) {
 	set_body_linearvel(lvel, m_bodies[index]);
 }
 
 
 void
-Problem::set_body_linearvel(const Object *object, const double3 lvel)
+Problem::set_body_linearvel(const Object *object, const double3& lvel)
 {
 	set_body_linearvel(lvel, get_mbdata(object));
 }
 
 
 void
-Problem::set_body_angularvel(const double3 avel, MovingBodyData* mbdata) {
+Problem::set_body_angularvel(const double3& avel, MovingBodyData* mbdata) {
 	mbdata->kdata.avel = avel;
 
 }
 
 void
-Problem::set_body_angularvel(const uint index, const double3 avel) {
+Problem::set_body_angularvel(const uint index, const double3& avel) {
 	set_body_angularvel(avel, m_bodies[index]);
 }
 
 
 void
-Problem::set_body_angularvel(const Object *object, const double3 avel)
+Problem::set_body_angularvel(const Object *object, const double3& avel)
 {
 	set_body_angularvel(avel, get_mbdata(object));
 }

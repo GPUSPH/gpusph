@@ -189,7 +189,7 @@ class Problem {
 		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams
 
 		MovingBodiesVect	m_bodies;			// array of moving objects
-		KinematicData 		*m_bodies_storage;				// kinematic data staorage for bodie movement integration
+		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
 
 		Problem(GlobalData *_gdata);
 
@@ -386,15 +386,15 @@ RESTORE_WARNINGS
 
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		void get_bodies_cg(void);
-		void set_body_cg(const double3, MovingBodyData*);
-		void set_body_cg(const uint, const double3);
-		void set_body_cg(const Object*, const double3);
-		void set_body_linearvel(const double3, MovingBodyData*);
-		void set_body_linearvel(const uint, const double3);
-		void set_body_linearvel(const Object*, const double3);
-		void set_body_angularvel(const double3, MovingBodyData*);
-		void set_body_angularvel(const uint, const double3);
-		void set_body_angularvel(const Object*, const double3);
+		void set_body_cg(const double3&, MovingBodyData*);
+		void set_body_cg(const uint, const double3&);
+		void set_body_cg(const Object*, const double3&);
+		void set_body_linearvel(const double3&, MovingBodyData*);
+		void set_body_linearvel(const uint, const double3&);
+		void set_body_linearvel(const Object*, const double3&);
+		void set_body_angularvel(const double3&, MovingBodyData*);
+		void set_body_angularvel(const uint, const double3&);
+		void set_body_angularvel(const Object*, const double3&);
 
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.
