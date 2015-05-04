@@ -26,6 +26,8 @@
 #ifndef EULERPARAMETERS_H
 #define	EULERPARAMETERS_H
 
+#include <iostream>
+
 #include "Point.h"
 #include "Vector.h"
 #include "ode/ode.h"
