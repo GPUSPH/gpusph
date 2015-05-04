@@ -548,23 +548,53 @@ Point EulerParameters::TransposeRot(const Point &data) const
 
 /// Apply the rotation defined by the Euler parameters
 /*!	Apply the rotation defined by the Euler parameters to input data.
- * 	This rotation is computed by multiplying the input data by the the
- * 	the rotation matrix defined by the Euler parameter.
+ * 	This rotation is computed using the most efficient method aka using
+ * 	directly the values of Rumer parameter.
+ *
  *	\param[in] data : input data
  *	\return \f$R(q)*data\f$
- *
- *	The ComputeRot method should be called before calling this method.
  */
-float3 EulerParameters::Rot(const float3 &data) const
+double3 EulerParameters::Rot(const double3 &data) const
 {
-	float3 res;
-	res.x = (float) (m_rot[0]*data.x + m_rot[1]*data.y + m_rot[2]*data.z);
-	res.y = (float) (m_rot[3]*data.x + m_rot[4]*data.y + m_rot[5]*data.z);
-	res.z = (float) (m_rot[6]*data.x + m_rot[7]*data.y + m_rot[8]*data.z);
+	double3 res;
+	double t2 = m_ep[0]*m_ep[1];
+	double t3 = m_ep[0]*m_ep[2];
+	double t4 = m_ep[0]*m_ep[3];
+	double t5 = - m_ep[1]*m_ep[1];
+	double t6 = m_ep[1]*m_ep[2];
+	double t7 = m_ep[1]*m_ep[3];
+	double t8 = -m_ep[2]*m_ep[2];
+	double t9 = m_ep[2]*m_ep[3];
+	double t10 = - m_ep[3]*m_ep[3];
+	res.x = 2.*( (t8 + t10)*data.x + (t6 -  t4)*data.y + (t3 + t7)*data.z ) + data.x;
+	res.y = 2.*( (t4 +  t6)*data.x + (t5 + t10)*data.y + (t9 - t2)*data.z ) + data.y;
+	res.z = 2.*( (t7 -  t3)*data.x + (t2 +  t9)*data.y + (t5 + t8)*data.z ) + data.z;
 
 	return res;
 }
 
+
+/*!
+ * \overload Vector EulerParameters::Rot(const float3 &data) const
+ */
+float3 EulerParameters::Rot(const float3 &data) const
+{
+	float3 res;
+	float t2 = m_ep[0]*m_ep[1];
+	float t3 = m_ep[0]*m_ep[2];
+	float t4 = m_ep[0]*m_ep[3];
+	float t5 = - m_ep[1]*m_ep[1];
+	float t6 = m_ep[1]*m_ep[2];
+	float t7 = m_ep[1]*m_ep[3];
+	float t8 = -m_ep[2]*m_ep[2];
+	float t9 = m_ep[2]*m_ep[3];
+	float t10 = - m_ep[3]*m_ep[3];
+	res.x = 2.*( (t8 + t10)*data.x + (t6 -  t4)*data.y + (t3 + t7)*data.z ) + data.x;
+	res.y = 2.*( (t4 +  t6)*data.x + (t5 + t10)*data.y + (t9 - t2)*data.z ) + data.y;
+	res.z = 2.*( (t7 -  t3)*data.x + (t2 +  t9)*data.y + (t5 + t8)*data.z ) + data.z;
+
+	return res;
+}
 
 /*!
  * \overload Vector EulerParameters::Rot(const Vector &data) const

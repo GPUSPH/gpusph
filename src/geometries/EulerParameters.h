@@ -26,6 +26,7 @@
 #ifndef EULERPARAMETERS_H
 #define	EULERPARAMETERS_H
 
+#include <iostream>
 #include "Point.h"
 #include "Vector.h"
 #include "ode/ode.h"
@@ -113,6 +114,7 @@ class EulerParameters {
 		//@{
 		EulerParameters Inverse(void);
 		void ComputeRot(void);
+		double3 Rot(const double3 &) const;
 		float3 Rot(const float3 &) const;
 		Point Rot(const Point &) const;
 		Vector Rot(const Vector &) const;
