@@ -233,6 +233,7 @@ class Problem {
 		};
 
 		float density(float, int) const;
+		float density_for_pressure(float, int) const;
 
 		float pressure(float, int) const;
 

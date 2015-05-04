@@ -583,6 +583,15 @@ Problem::density(float h, int i) const
 	return density;
 }
 
+// density to achieve a specific pressure
+float
+Problem::density_for_pressure(float P, int i) const
+{
+	return  m_physparams.rho0[i]*pow(P/m_physparams.bcoeff[i] + 1,
+				1/m_physparams.gammacoeff[i]);
+}
+
+
 float
 Problem::soundspeed(float rho, int i) const
 {
