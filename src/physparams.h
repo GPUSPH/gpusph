@@ -56,12 +56,12 @@ typedef struct PhysParams {
 	float	MK_d;			// Typically: distance between boundary particles
 	float	MK_beta;		// Typically: ratio between h and MK_d
 
-	float	kinematicvisc;	// Kinematic viscosity
+	float	kinematicvisc[MAX_FLUID_TYPES];	// Kinematic viscosity
 	float	artvisccoeff;	// Artificial viscosity coefficient
 	// For ARTVSIC: artificial viscosity coefficient
 	// For KINEMATICVISC: 4*kinematic viscosity,
 	// For DYNAMICVISC: dynamic viscosity
-	float	visccoeff;
+	float	visccoeff[MAX_FLUID_TYPES];
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
 

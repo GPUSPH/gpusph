@@ -88,7 +88,7 @@ SolitaryWave::SolitaryWave(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.r0 = r0;
 
 	m_physparams.artvisccoeff = 0.3f;
-	m_physparams.kinematicvisc =  1.0e-6f;
+	m_physparams.kinematicvisc[0] =  1.0e-6f;
 	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;

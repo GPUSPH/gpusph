@@ -1274,17 +1274,20 @@ void GPUSPH::setViscosityCoefficient()
 	// Set visccoeff based on the viscosity model used
 	switch (vt) {
 		case ARTVISC:
-			pp->visccoeff = pp->artvisccoeff;
+			for (uint f = 0; f < pp->numFluids; ++f)
+				pp->visccoeff[f] = pp->artvisccoeff;
 			break;
 
 		case KINEMATICVISC:
 		case SPSVISC:
-			pp->visccoeff = 4*pp->kinematicvisc;
+			for (uint f = 0; f < pp->numFluids; ++f)
+				pp->visccoeff[f] = 4*pp->kinematicvisc[f];
 			break;
 
 		case KEPSVISC:
 		case DYNAMICVISC:
-			pp->visccoeff = pp->kinematicvisc;
+			for (uint f = 0; f < pp->numFluids; ++f)
+				pp->visccoeff[f] = pp->kinematicvisc[f];
 			break;
 
 		default:

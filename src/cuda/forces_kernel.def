@@ -344,9 +344,9 @@ struct keps_precalc_particle_data
 	const	float	dedt_precalc;
 
 	__device__ __forceinline__
-	keps_precalc_particle_data(const float rho, keps_particle_data const& ke) :
-		dkdt_precalc(rho*(d_visccoeff + ke.turbVisc)),
-		dedt_precalc(rho*(d_visccoeff + ke.turbVisc/1.3f))
+	keps_precalc_particle_data(const float rho, const uint fnum, keps_particle_data const& ke) :
+		dkdt_precalc(rho*(d_visccoeff[fnum] + ke.turbVisc)),
+		dedt_precalc(rho*(d_visccoeff[fnum] + ke.turbVisc/1.3f))
 	{}
 };
 
@@ -418,7 +418,7 @@ struct forces_particle_data :
 			typename conditional<sph_formulation == SPH_GRENIER,
 			grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
 		>::type >(vel.w, _info, *this),
-		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, *this),
+		COND_STRUCT(visctype == KEPSVISC, keps_precalc_particle_data)(vel.w, PART_FLUID_NUM(_info), *this),
 		ptype(static_cast<ParticleType>PART_TYPE(_info))
 	{}
 };
@@ -1152,7 +1152,9 @@ visc_boundary_part<DYNAMICVISC>::with
 	// velocity of fluid particle along the wall
 	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
 
-	nout.DvDt -= nout.gamAS.x*d_visccoeff*(pdata.vel.w + ndata.relVel.w)/ndata.r_as*vel_tau/pdata.vel.w;
+	nout.DvDt -= nout.gamAS.x*
+		(d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w + d_visccoeff[PART_FLUID_NUM(ndata.info)]*ndata.relVel.w)/ndata.r_as*
+		vel_tau/pdata.vel.w;
 }
 
 template<>
@@ -1169,16 +1171,16 @@ visc_boundary_part<KEPSVISC>::with
 	float u_star = 0.0f;
 	// the constant is equal to 0.09^0.25
 	const float uk = 0.547722558f*sqrt(pdata.keps_k);
-	float y_plus = ndata.r_as/d_visccoeff*uk;
+	float y_plus = ndata.r_as/d_visccoeff[PART_FLUID_NUM(pdata.info)]*uk;
 	// constant is equal to 1/0.41
 	if(y_plus < 2.43902439f) // viscous sublayer
 		u_star = abs_u_t/y_plus;
 	else{ // log law
 		// constant is equal to exp(-5.2*0.41)
-		float utau = 0.118599857f*d_visccoeff/ndata.r_as;
+		float utau = 0.118599857f*d_visccoeff[PART_FLUID_NUM(ndata.info)]/ndata.r_as;
 		for (int i=0; i<10; i++) {
 			// constant is equal to 1/0.41
-			y_plus = fmax(ndata.r_as*utau/d_visccoeff, 2.43902439f);
+			y_plus = fmax(ndata.r_as*utau/d_visccoeff[PART_FLUID_NUM(ndata.info)], 2.43902439f);
 			// constant is equal to 5.2*0.41+1
 			utau = (0.41f*abs_u_t + utau)/(log(y_plus) + 3.132f);
 		}
@@ -1203,7 +1205,7 @@ __device__ __forceinline__ void
 visc_volumic_part<DYNAMICVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-		d_visccoeff*pdata.vel.w, d_visccoeff*ndata.relVel.w));
+		d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w, d_visccoeff[PART_FLUID_NUM(ndata.info)]*ndata.relVel.w));
 	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<inoutBoundaries>::with(ndata));
 }
 
@@ -1245,8 +1247,8 @@ __device__ __forceinline__ void
 visc_volumic_part<KEPSVISC>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	const float visc(laminarvisc_dynamic(pdata.vel.w, ndata.relVel.w, ndata.relPos.w, ndata.f,
-		(d_visccoeff+pdata.turbViscForViscTerm)*pdata.vel.w,
-		(d_visccoeff+ndata.turbViscForViscTerm)*ndata.relVel.w));
+		(d_visccoeff[PART_FLUID_NUM(pdata.info)]+pdata.turbViscForViscTerm)*pdata.vel.w,
+		(d_visccoeff[PART_FLUID_NUM(ndata.info)]+ndata.turbViscForViscTerm)*ndata.relVel.w));
 	// call getRelEulerVel always with true as in keps we always have that value
 	nout.DvDt += visc*as_float3(ndata.relVel + getRelEulerVel<true>::with(ndata));
 }
@@ -1310,9 +1312,8 @@ struct compute_viscous_contrib<boundarytype, SPH_GRENIER> {
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
 		// TODO support different visctypes, currently we just ignore it
-		// TODO per-fluid visccoeff
-		const float mu_i = d_visccoeff*pdata.vel.w;
-		const float mu_j = d_visccoeff*ndata.relVel.w;
+		const float mu_i = d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w;
+		const float mu_j = d_visccoeff[PART_FLUID_NUM(ndata.info)]*ndata.relVel.w;
 		const float avg_mu = 2*(mu_i*mu_j)/(mu_i+mu_j);
 		const float avg_sigma = (1/pdata.sigma + 1/ndata.sigma);
 		nout.DvDt += avg_mu*avg_sigma*ndata.f*as_float3(ndata.relVel);
@@ -1359,10 +1360,10 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 		// volume contribution for k and epsilon diffusion terms
 		pout.diff_term_k += ndata.relPos.w*(
-			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc)
+			pdata.dkdt_precalc + ndata.relVel.w*(d_visccoeff[PART_FLUID_NUM(ndata.info)] + ndata.turbVisc)
 			)*(pdata.keps_k - ndata.keps_k)*ndata.f/ndata.relVel.w;
 		pout.diff_term_e += ndata.relPos.w*(
-			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff + ndata.turbVisc/1.3f)
+			pdata.dedt_precalc + ndata.relVel.w*(d_visccoeff[PART_FLUID_NUM(ndata.info)] + ndata.turbVisc/1.3f)
 			)*(pdata.keps_e - ndata.keps_e)*ndata.f/ndata.relVel.w;
 
 		// multiplication for velocity gradient terms (- m_b*r_ab*gradW)
@@ -1433,19 +1434,19 @@ template<>
 template<typename FP, typename P, typename OP >
 __device__ __forceinline__ float
 viscous_fixup<DYNAMICVISC>::with(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff*pdata.vel.w; }
+{ return d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w; }
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
 viscous_fixup<KINEMATICVISC>::with(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff*pdata.vel.w/4; } // TODO FIXME check?
+{ return d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
 
 template<>
 template<typename FP, typename P, typename OP>
 __device__ __forceinline__ float
 viscous_fixup<SPSVISC>::with(FP const& params, P const& pdata, OP &pout)
-{ return d_visccoeff*pdata.vel.w/4; } // TODO FIXME check?
+{ return d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w/4; } // TODO FIXME check?
 
 template<>
 template<typename FP, typename P, typename OP>
@@ -1491,7 +1492,7 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 	params.keps_dkde[pdata.index].y = dedt;
 	params.keps_dkde[pdata.index].z = pout.ce2yap;
 
-	return d_visccoeff*pdata.vel.w;
+	return d_visccoeff[PART_FLUID_NUM(pdata.info)]*pdata.vel.w;
 }
 
 /// A functor to do global corrections of particle forces, such as multiplication

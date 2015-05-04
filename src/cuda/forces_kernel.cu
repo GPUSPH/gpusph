@@ -96,7 +96,7 @@ __constant__ float	d_MK_d;
 // This is typically the ration between h and the distance between boundary particles
 __constant__ float	d_MK_beta;
 
-__constant__ float	d_visccoeff;
+__constant__ float	d_visccoeff[MAX_FLUID_TYPES];
 __constant__ float	d_epsartvisc;
 
 // Constants used for DEM
@@ -223,7 +223,9 @@ artvisc(	const float	vel_dot_pos,
 			const float	r,
 			const float	slength)
 {
-	return vel_dot_pos*slength*d_visccoeff*(sspeed + neib_sspeed)/
+	// TODO check if it makes sense to support different artificial viscosity coefficients
+	// for different fluids
+	return vel_dot_pos*slength*d_visccoeff[0]*(sspeed + neib_sspeed)/
 									((r*r + d_epsartvisc)*(rho + neib_rho));
 }
 
@@ -241,7 +243,11 @@ laminarvisc_kinematic(	const float	rho,
 						const float	neib_mass,
 						const float	f)
 {
-	return neib_mass*d_visccoeff*f/(rho + neib_rho);
+	// NOTE: this won't work in multi-fluid!
+	// TODO FIXME kinematic viscosity should probably be marked as incompatible
+	// with multi-fluid (or at least if fluids don't have the same, constant
+	// viscosity
+	return neib_mass*d_visccoeff[0]*f/(rho + neib_rho);
 }
 
 

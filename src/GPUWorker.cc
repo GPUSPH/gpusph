@@ -1917,7 +1917,6 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		m_simparams->influenceRadius,
 		m_simparams->epsilon,
 		m_dIOwaterdepth,
-		m_physparams->visccoeff,
 		cflOffset);
 }
 
@@ -1944,10 +1943,21 @@ float GPUWorker::forces_dt_reduce()
 
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
+	// TODO multifluid: dtreduce needs the maximum viscosity. We compute it
+	// here and pass it over. This is inefficient as we compute it every time,
+	// while it should be done, while it could be done once only. OTOH, for
+	// non-constant viscosities this should actually be done in-kernel to determine
+	// the _actual_ maximum viscosity
+
+	float max_kinematic = NAN;
+	if (m_simparams->visctype != ARTVISC)
+		for (uint f = 0; f < m_physparams->numFluids; ++f)
+			max_kinematic = max(max_kinematic, m_physparams->kinematicvisc[f]);
+
 	return forcesEngine->dtreduce(
 		m_simparams->slength,
 		m_simparams->dtadaptfactor,
-		m_physparams->visccoeff,
+		max_kinematic,
 		bufwrite.getData<BUFFER_CFL>(),
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),

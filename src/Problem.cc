@@ -477,7 +477,8 @@ Problem::check_dt(void)
 
 	float dt_from_visc = NAN;
 	if (m_simparams.visctype != ARTVISC) {
-		dt_from_visc = m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc;
+		for (uint f = 0; f < m_physparams.numFluids; ++f)
+			dt_from_visc = fminf(dt_from_visc, m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc[f]);
 		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}
 

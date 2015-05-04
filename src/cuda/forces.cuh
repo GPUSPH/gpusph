@@ -151,7 +151,6 @@ public:
 				float	influenceradius,
 		const	float	epsilon,
 				uint	*IOwaterdepth,
-				float	visccoeff,
 				uint	cflOffset);
 
 	uint
@@ -163,7 +162,7 @@ public:
 	float
 	dtreduce(	float	slength,
 				float	dtadaptfactor,
-				float	visccoeff,
+				float	max_kinematic,
 				float	*cfl,
 				float	*cflTVisc,
 				float	*tempCfl,

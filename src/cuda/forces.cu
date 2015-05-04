@@ -217,6 +217,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 		sqC0[i] *= sqC0[i];
 	}
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sqC0, sqC0, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, physparams->visccoeff, MAX_FLUID_TYPES*sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gravity, &physparams->gravity, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dcoeff, &physparams->dcoeff, sizeof(float)));
@@ -228,7 +229,6 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_MK_beta, &physparams->MK_beta, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_r0, &physparams->r0, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, &physparams->visccoeff, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsartvisc, &physparams->epsartvisc, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ewres, &physparams->ewres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_nsres, &physparams->nsres, sizeof(float)));
@@ -281,6 +281,7 @@ FORCES_RET(void)
 getconstants(PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->numFluids, cuforces::d_numfluids, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff, cuforces::d_visccoeff, MAX_FLUID_TYPES*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->rho0, cuforces::d_rho0, MAX_FLUID_TYPES*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gravity, cuforces::d_gravity, sizeof(float3), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->bcoeff, cuforces::d_bcoeff, MAX_FLUID_TYPES*sizeof(float), 0));
@@ -297,7 +298,6 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->MK_beta, cuforces::d_MK_beta, sizeof(float), 0));
 
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->r0, cuforces::d_r0, sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff, cuforces::d_visccoeff, sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsartvisc, cuforces::d_epsartvisc, sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->ewres, cuforces::d_ewres, sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->nsres, cuforces::d_nsres, sizeof(float)));
@@ -425,7 +425,7 @@ getFmaxTempElements(const uint n)
 FORCES_RET(float)
 dtreduce(	float	slength,
 			float	dtadaptfactor,
-			float	visccoeff,
+			float	max_kinematic,
 			float	*cfl,
 			float	*cflTVisc,
 			float	*tempCfl,
@@ -437,25 +437,16 @@ dtreduce(	float	slength,
 	float dt = dtadaptfactor*sqrtf(slength/maxcfl);
 
 	if (visctype != ARTVISC) {
-		/* Stability condition from viscosity h²/ν */
-		float dt_visc = slength*slength/visccoeff;
-		switch (visctype) {
-			case KINEMATICVISC:
-			case SPSVISC:
-			/* ν = visccoeff/4 for kinematic viscosity */
-				dt_visc *= 4;
-				break;
+		/* Stability condition from viscosity h²/ν
+		   We get the maximum kinematic viscosity from the caller, and in the KEPS case we
+		   add the maximum KEPS
+		 */
+		float visccoeff = max_kinematic;
+		if (visctype == KEPSVISC)
+			visccoeff += cflmax(numBlocks, cflTVisc, tempCfl);
 
-			case DYNAMICVISC:
-			/* ν = visccoeff for dynamic viscosity */
-				break;
-			case KEPSVISC:
-				dt_visc = slength*slength/(visccoeff + cflmax(numBlocks, cflTVisc, tempCfl));
-				break;
-			default:
-				throw invalid_argument("unknown viscosity in dtreduce");
-			}
-		dt_visc *= 0.125;
+		float dt_visc = slength*slength/visccoeff;
+		dt_visc *= 0.125; // TODO allow customization
 		if (dt_visc < dt)
 			dt = dt_visc;
 	}
@@ -548,7 +539,6 @@ basicstep(
 	float	influenceradius,
 	const	float	epsilon,
 	uint	*IOwaterdepth,
-	float	visccoeff,
 	uint	cflOffset)
 {
 	const float4 *pos = bufread->getData<BUFFER_POS>();

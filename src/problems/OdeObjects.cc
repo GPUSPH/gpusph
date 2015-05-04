@@ -78,7 +78,7 @@ OdeObjects::OdeObjects(const GlobalData *_gdata) : Problem(_gdata)
 	m_physparams.MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc = 1.0e-6;
+	m_physparams.kinematicvisc[0] = 1.0e-6;
 	m_physparams.artvisccoeff = 0.3;
 	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
 
