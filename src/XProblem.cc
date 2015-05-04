@@ -991,7 +991,10 @@ int XProblem::fill_parts()
 		// after making some space, fill
 		switch (m_geometries[i]->fill_type) {
 			case FT_BORDER:
-				m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
+				if (m_simparams.boundarytype == DYN_BOUNDARY)
+					m_geometries[i]->ptr->FillIn(*parts_vector, m_deltap, 4);
+				else
+					m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
 				break;
 			case FT_SOLID:
 				m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
