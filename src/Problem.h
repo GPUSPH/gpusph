@@ -65,15 +65,15 @@ enum MovingBodyType {
 };
 
 typedef struct KinematicData {
-	double3 		crot;
-	double3			lvel;
-	double3			avel;
+	double3			crot; ///< Center of rotation of the body
+	double3			lvel; ///< Linear velocity
+	double3			avel; ///< Angular velocity
 	EulerParameters	orientation;
 
 	KinematicData():
-		crot(make_double3(0.0f)),
-		lvel(make_double3(0.0f)),
-		avel(make_double3(0.0f)),
+		crot(make_double3(0.0)),
+		lvel(make_double3(0.0)),
+		avel(make_double3(0.0)),
 		orientation(EulerParameters())
 	{};
 
@@ -94,7 +94,7 @@ typedef struct KinematicData {
 } KinematicData;
 
 typedef struct MovingBodyData {
-	uint				index;
+	uint				index; ///< Sequential insertion index (NOTE: NOT index in the array)
 	MovingBodyType		type;
 	Object				*object;
 	KinematicData		kdata;
