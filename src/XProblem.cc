@@ -30,35 +30,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 
 	m_positioning = PP_CENTER;
 
-	// *** Optional simulation parameters (defaults?)
-
-	//m_simparams.tend = 10.0;
-	//m_simparams.testpoints = false;
-	//m_simparams.surfaceparticle = false;
-	//m_simparams.savenormals = false;
-	//m_simparams.calcPrivate = false;
-	// TODO: check: do we need the following 4 as well?
-	//m_simparams.inoutBoundaries = true;
-	//m_simparams.movingBoundaries = true;
-	//m_simparams.floatingObjects = true;
-	//m_simparams.numObjects = 2;
-
-	// NOTE: no need to set m_simparams.numODEbodies, since it will be set by allocate_ODE_bodies()
-
-	// *** Optional SPH parameters
-
-	//m_simparams.dt = 0.00004f;
-	//m_simparams.xsph = false;
-	//m_simparams.dtadapt = true; // default?
-	//m_simparams.dtadaptfactor = 0.3;
-	//m_simparams.buildneibsfreq = 1;
-	//m_simparams.shepardfreq = 0;
-	//m_simparams.mlsfreq = 0;
-	//m_simparams.ferrari = 0.1;
-	//m_simparams.mbcallback = false;
-	//m_simparams.nlexpansionfactor = 1.1;
-	//m_simparams.sfactor=1.3f;
-
 	// *** Default viscosity coefficients
 	m_physparams.artvisccoeff = 0.3f;
 	m_physparams.epsartvisc = 0.01 * m_simparams.slength * m_simparams.slength;
@@ -77,20 +48,15 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_maxFall = NAN;
 	m_maxParticleSpeed = NAN;
 
-	// *** Initialization of minimal simulation parameters
-	m_simparams.maxneibsnum = 256 + 64;
-	m_simparams.dtadapt = true;
-	// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
-	m_simparams.visctype = ARTVISC;
-	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
-	m_simparams.boundarytype = SA_BOUNDARY;
-	// also init formulation (SPH_F1, SPH_F2) & kernel type (WENDLAND, CUBICSPLINE)?
-
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
 	m_origin = make_double3(NAN, NAN, NAN);
 	m_size = make_double3(NAN, NAN, NAN);
 	m_name = "XProblem";
+
+	// We don't initialize simparams because it will be done by the SETUP_FRAMEWORK
+	// in the subclass
+
 }
 
 void XProblem::release_memory()
@@ -115,6 +81,9 @@ XProblem::~XProblem()
 
 bool XProblem::initialize()
 {
+	if (!m_simframework)
+		SETUP_FRAMEWORK();
+
 	// aux vars to compute bounding box
 	Point globalMin = Point (
 		std::numeric_limits<double>::max(),
@@ -255,7 +224,7 @@ bool XProblem::initialize()
 		const float default_c0 = 10.0 * m_maxParticleSpeed;
 
 		m_physparams.set_density(0, default_rho, default_gamma, default_c0);
-		printf("Cont. equation not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",
+		printf("EOS not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",
 			default_rho, default_gamma, default_c0 );
 	}
 
@@ -263,9 +232,14 @@ bool XProblem::initialize()
 	if (m_numRigidBodies > 0)
 		initializeODE();
 
-	// enable open boundaries?
-	if (m_numOpenBoundaries > 0)
-		m_simparams.inoutBoundaries = true;
+	// check open boundaries consistency
+	// TODO ideally we should enable/disable them depending on whether
+	// they are present, but this isn't trivial to do with the static framework
+	// options
+	if (m_numOpenBoundaries > 0 && m_simparams.inoutBoundaries != true)
+		throw std::invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
+	if (m_numOpenBoundaries == 0 && m_simparams.inoutBoundaries == true)
+		throw std::invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
 
 	// TODO FIXME m_numMovingObjects does not exist yet
 	//if (m_numMovingObjects > 0)
