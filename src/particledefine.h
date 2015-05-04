@@ -293,7 +293,7 @@ disable_particle(float4 &pos) {
 #define CORNER(f)		(type(f) & CORNER_PARTICLE_FLAG)
 // This flag is set for moving vertices / segments either forced or free (floating)
 #define MOVING(f)		(type(f) & MOVING_PARTICLE_FLAG)
-// If the floating flag is set then the particles 
+// If the floating flag is set then the particles
 #define FLOATING(f)		(type(f) & FLOATING_PARTICLE_FLAG)
 
 /* Extract a specific subfield from the particle type, unshifted:
