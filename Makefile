@@ -993,11 +993,15 @@ $(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 
 # target: docs - Generate Doxygen documentation in $(DOCSDIR);
 # target:        to produce refman.pdf, run "make pdf" in $(DOCSDIR)/latex/.
-docs: $(DOXYCONF)
+docs: $(DOXYCONF) img/logo.png
 	$(CMDECHO)mkdir -p $(DOCSDIR)
 	@echo Running Doxygen...
 	$(CMDECHO)doxygen $(DOXYCONF) && \
 	echo Generated Doxygen documentation in $(DOCSDIR)
+
+img/logo.png:
+	$(CMDECHO)mkdir -p img && \
+		wget http://www.gpusph.org/img/logo.png -O img/logo.png
 
 # target: docsclean - Remove $(DOCSDIR)
 docsclean:
