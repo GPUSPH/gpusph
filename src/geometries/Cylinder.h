@@ -57,8 +57,10 @@ class Cylinder: public Object {
 		}
 
 		int Fill(PointVect&, const double, const bool fill = true);
-		void FillIn(PointVect& points, const double dx, const int layers)
-		{ throw std::runtime_error("FillIn not implemented for this object!"); }
+
+		// for dyn bounds layers
+		void FillIn(PointVect& points, const double dx, const int layers, const bool fill_tops);
+		void FillIn(PointVect& points, const double dx, const int layers);
 
 		bool IsInside(const Point&, const double) const;
 };

@@ -85,8 +85,8 @@ private:
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	void setViscosityCoefficient();
 
-	// Move objects
-	void move_objects(const uint);
+	// Do the multi gpu/multi node forces reduction and move bodies
+	void move_bodies(const uint);
 
 	// create the Writer
 	void createWriter();

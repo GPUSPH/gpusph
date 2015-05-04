@@ -662,3 +662,11 @@ Cube::ODEGeomCreate(dSpaceID ODESpace, const double dx) {
 		dGeomSetQuaternion(m_ODEGeom, q);
 	}
 }
+
+
+std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
+{
+    out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " <<cube. m_lz
+    		<< ") particles: " << cube.m_parts.size() << "\n";
+    return out;
+}

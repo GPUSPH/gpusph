@@ -171,6 +171,36 @@ Cylinder::Fill(PointVect& points, const double dx, const bool fill)
 	return nparts;
 }
 
+void
+Cylinder::FillIn(PointVect& points, const double dx, const int layers)
+{
+	FillIn(points, dx, layers, true);
+}
+
+
+void
+Cylinder::FillIn(PointVect& points, const double dx, const int layers, const bool fill_tops)
+{
+	m_origin(3) = m_center(3);
+
+	for (uint l = 1; l <= layers; l++) {
+
+		const double smaller_r = m_r - l * dx;
+		const double smaller_h = m_h - l * 2 * dx;
+
+		const int nz = (int) ceil(smaller_h/dx);
+		const double dz = smaller_h/nz;
+		for (int i = 0; i <= nz; i++)
+			FillDiskBorder(points, m_ep, m_origin, smaller_r, i*dz, dx, 2.0*M_PI*rand()/RAND_MAX);
+		// fill "bottom"
+		if (fill_tops)
+			FillDisk(points, m_ep, m_origin, smaller_r - dx, l * dx, dx, true);
+		// fill "top"
+		if (fill_tops)
+			FillDisk(points, m_ep, m_origin, smaller_r - dx, nz*dz + l * dx, dx, true);
+	}
+	return;
+}
 
 bool
 Cylinder::IsInside(const Point& p, const double dx) const

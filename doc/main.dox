@@ -1,26 +1,22 @@
-/*! \mainpage GPUSPH Developer's documentation
- *
- *
- * \section intro_sec  Introduction
- *
- * GPUSPH is a CUDA-based 3D SPH simulator (STUB).
- *
- * \section compile_sec Compiling and installing
- *
- * See "make help" (STUB).
- *
- * \section quick_links Internal links
- * - \ref main \n
- * - GPUSPH
- *
- * \section links Links
- * - <a href="http://www.stack.nl/~dimitri/doxygen/manual.html">Complete Doxygen manual</a>
- * - <a href="http://www.nvidia.com/object/cuda_gpus.html">GPUs and compute capabilites</a>
- *
- *
- * GPUSPH is a CUDA-based 3D SPH simulator (FIX).
- *
- * This document was generated with Doxygen.\n
- *
- */
+/*! 
+\mainpage GPUSPH reference documentation
+
+\image html logo.png
+
+Welcome to GPUSPH documention.
+
+GPUSPH is a CUDA based general purpose SPH solver featuring :
+-# multi GPU and multi node capability
+-# multiple options for boundary representation
+-# artificial and real viscosity
+-# turbulence models (Smagorinsky LES and \f$ \kappa-\epsilon \f$)
+-# fluid/solid interaction
+-# user defined moving object
+-# floating objects
+-# inlet/outlets
+
+The documentation is subdivided into three main parts:
+- \subpage sph_doc
+- \subpage user_doc
+- \subpage dev_doc
 */

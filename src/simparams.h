@@ -107,7 +107,6 @@ typedef struct SimParams {
 		savenormals(false),
 		surfaceparticle(false),
 		calc_energy(true),
-		nummovingbodies(0),
 		numforcesbodies(0),
 		numbodies(0),
 		maxneibsnum(0),

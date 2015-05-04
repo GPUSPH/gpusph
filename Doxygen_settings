@@ -51,7 +51,7 @@ PROJECT_BRIEF          = "SPH solver on GPU"
 # pixels and the maximum width should not exceed 200 pixels. Doxygen will copy
 # the logo to the output directory.
 
-PROJECT_LOGO           = /Users/alexisherault/Projects/gpusph/gpusph_current/img/logo.png
+PROJECT_LOGO           = /Users/alexisherault/Projects/gpusph/gpusph_wip1/img/logo.png
 
 # The OUTPUT_DIRECTORY tag is used to specify the (relative or absolute) path
 # into which the generated documentation will be written. If a relative path is
@@ -875,7 +875,12 @@ EXCLUDE_PATTERNS       =
 # Note that the wildcards are matched against the file with absolute path, so to
 # exclude all test directories use the pattern */test/*
 
-EXCLUDE_SYMBOLS        = __launch_bounds__(*)
+EXCLUDE_SYMBOLS        = __launch_bounds__(*) \
+                         __device__ \
+                         __forceinline__ \
+                         __constant__ \
+                         __shared__ \
+                         __global__
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
@@ -1046,7 +1051,7 @@ VERBATIM_HEADERS       = YES
 # compiled with the --with-libclang option.
 # The default value is: NO.
 
-CLANG_ASSISTED_PARSING = YES
+CLANG_ASSISTED_PARSING = NO
 
 # If clang assisted parsing is enabled you can provide the compiler with command
 # line options that you would normally use when invoking the compiler. Note that
@@ -2038,7 +2043,12 @@ SEARCH_INCLUDES        = YES
 
 INCLUDE_PATH           = /usr/local/cuda/include/ \
                          /usr/include/ \
-                         ./options
+                         ./options \
+                         src \
+                         src/cuda \
+                         src/geometries \
+                         src/problems \
+                         src/writers
 
 # You can use the INCLUDE_FILE_PATTERNS tag to specify one or more wildcard
 # patterns (like *.h and *.hpp) to filter out the header-files in the
