@@ -241,15 +241,22 @@ CommonWriter::write_simparams(ostream &out)
 	out << " initial dt = " << SP->dt << endl;
 	out << " simulation end time = " << SP->tend << endl;
 	out << " neib list construction every " << SP->buildneibsfreq << " iterations" << endl;
-	/* TODO FIXME iterate over filters
-	out << " Shepard filter every " << SP->shepardfreq << " iterations" << endl;
-	out << " MLS filter every " << SP->mlsfreq << " iterations" << endl;
-	*/
+
+	/* Iterate over enabled filters, showing their name and frequency */
+	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
+	FilterFreqList::const_iterator flt(enabledFilters.begin());
+	FilterFreqList::const_iterator flt_end(enabledFilters.end());
+	while (flt != flt_end) {
+		out << " " << FilterName[flt->first] << " filter every "
+			<< flt->second << " iterations" << endl;
+		++flt;
+	}
+
 	out << " adaptive time stepping " << ED[SP->dtadapt] << endl;
 	if (SP->dtadapt)
 		out << " safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
-	out << " XSP-> correction " << ED[SP->xsph] << endl;
-	out << " SP-> formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
+	out << " XSPH correction " << ED[SP->xsph] << endl;
+	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
 	out << " viscosity type: " << SP->visctype << " (" << ViscosityName[SP->visctype] << ")" << endl;
 	out << " moving boundaries " << ED[SP->mbcallback] << endl;
 	out << " time-dependent gravity " << ED[SP->gcallback] << endl;
