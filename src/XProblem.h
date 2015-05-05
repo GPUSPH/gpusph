@@ -3,8 +3,8 @@
 
 #include <string>
 
-// for size_t max
-#include <limits>
+// SIZE_MAX
+#include <limits.h>
 
 #include "Problem.h"
 
@@ -100,7 +100,7 @@ typedef std::vector<GeometryInfo*> GeometryVector;
 
 // GeometryID, aka index of the GeometryInfo in the GeometryVector
 typedef size_t GeometryID;
-#define GEOMETRY_ERROR		std::numeric_limits<std::size_t>::max()
+#define GEOMETRY_ERROR		SIZE_MAX
 
 class XProblem: public Problem {
 	private:

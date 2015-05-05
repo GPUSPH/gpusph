@@ -1,7 +1,10 @@
 #include <math.h>
 #include <string>
 #include <iostream>
-#include <limits>
+
+// limits
+#include <float.h>
+#include <limits.h>
 
 #include "Rect.h"
 #include "Disk.h"
@@ -85,14 +88,8 @@ bool XProblem::initialize()
 		SETUP_FRAMEWORK();
 
 	// aux vars to compute bounding box
-	Point globalMin = Point (
-		std::numeric_limits<double>::max(),
-		std::numeric_limits<double>::max(),
-		std::numeric_limits<double>::max() );
-	Point globalMax = Point (
-		-std::numeric_limits<double>::max(),
-		-std::numeric_limits<double>::max(),
-		-std::numeric_limits<double>::max() );
+	Point globalMin = Point(DBL_MAX, DBL_MAX, DBL_MAX);
+	Point globalMax = Point(-DBL_MAX, -DBL_MAX, -DBL_MAX);
 
 	// counters of floating objects and generic objects (floating + moving + open bounds)
 	// NOTE: there is already m_numRigidBodies, but we need a progressive count to
@@ -123,8 +120,8 @@ bool XProblem::initialize()
 		if (m_geometries[g]->has_hdf5_file && !m_geometries[g]->has_stl_file) {
 
 			// initialize temp variables
-			currMin(0) = currMin(1) = currMin(2) = std::numeric_limits<double>::max();
-			currMax(0) = currMax(1) = currMax(2) = -std::numeric_limits<double>::max();
+			currMin(0) = currMin(1) = currMin(2) = DBL_MAX;
+			currMax(0) = currMax(1) = currMax(2) = -DBL_MAX;
 
 			// iterate on particles - could printf something if long...
 			for (uint p = 0; p < m_geometries[g]->hdf5_reader->getNParts(); p++) {
