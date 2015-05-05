@@ -300,7 +300,12 @@ Problem::set_body_angularvel(const Object *object, const double3& avel)
 
 
 void
-Problem::object_forces_callback(const double t, float3 *forces, float3 *torques)
+Problem::bodies_forces_callback(const double t0, const double t1, const uint step, float3 *forces, float3 *torques)
+{ /* default does nothing */ }
+
+
+void
+Problem::post_timestep_callback(const double t)
 { /* default does nothing */ }
 
 
@@ -320,14 +325,10 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	// Compute time step and time according to the integration scheme
 	// TODO: must be done according to the integration scheme
 	double dt1 = dt;
-	double dt2 = dt;
 	if (step == 1)
 		dt1 /= 2.0;
 	double t0 = t;
-	double t1 = t + dt/2.;
-	if (step == 2) {
-		t1 = t + dt;
-	}
+	double t1 = t + dt1;
 
 	//#define _DEBUG_OBJ_FORCES_
 	bool ode_bodies = false;
@@ -374,8 +375,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	if (ode_bodies) {
 		dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
 		dWorldStep(m_ODEWorld, dt1);
-			if (m_ODEJointGroup)
-		dJointGroupEmpty(m_ODEJointGroup);
+		if (m_ODEJointGroup)
+			dJointGroupEmpty(m_ODEJointGroup);
 	}
 
 	// Walk trough all moving bodies :

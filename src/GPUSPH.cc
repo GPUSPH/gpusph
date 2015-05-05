@@ -828,17 +828,21 @@ void GPUSPH::move_bodies(const uint step)
 			memcpy(gdata->s_hRbAppliedForce, gdata->s_hRbTotalForce, numforcesbodies*sizeof(float3));
 			memcpy(gdata->s_hRbAppliedTorque, gdata->s_hRbTotalTorque, numforcesbodies*sizeof(float3));
 
-			double t = gdata->t;
+			double t0 = gdata->t;
+			double t1 = t0;
 			if (step == 1)
-				t += gdata->dt/2.0;
+				t1 += gdata->dt/2.0;
 			else
-				t += gdata->dt;
-			problem->object_forces_callback(t, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
+				t1 += gdata->dt;
+			problem->bodies_forces_callback(t0, t1, step, gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque);
 		}
 
 		// Let the problem compute the new moving bodies data
 		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t, gdata->s_hRbGravityCenters,
 				gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
+
+		if (step == 2)
+			problem->post_timestep_callback(gdata->t);
 
 		// Upload translation vectors and rotation matrices; will upload CGs after euler
 		doCommand(UPLOAD_OBJECTS_MATRICES);

@@ -400,7 +400,10 @@ RESTORE_WARNINGS
 		 * forces have to be altered in some way before being applied.
 		 */
 		virtual void
-		object_forces_callback(const double t, float3 *forces, float3 *torques);
+		bodies_forces_callback(const double t0, const double t1, const uint step, float3 *forces, float3 *torques);
+
+		virtual void
+		post_timestep_callback(const double t);
 
 		virtual void
 		moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
