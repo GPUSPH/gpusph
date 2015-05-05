@@ -212,6 +212,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 	uint j = boundary_parts.size();
 	std::cout << "Boundary part mass: " << pos[j-1].w << std::endl;
 
+	uint object_particle_counter = 0;
 	for (uint k = 0; k < m_bodies.size(); k++) {
 		PointVect & rbparts = m_bodies[k]->object->GetParts();
 		std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
@@ -235,11 +236,14 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 					ptype |= FG_MOVING_BOUNDARY;
 					break;
 			}
-			info[ij] = make_particleinfo(ptype, k, i );
+			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		gdata->s_hRbFirstIndex[0] = -j; // offset for rbforces indexing
-		gdata->s_hRbLastIndex[0] = rbparts.size() - 1; // index of last part in rbforces
+		if (k < m_simparams.numforcesbodies) {
+			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
+			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
+			object_particle_counter += rbparts.size();
+		}
 		j += rbparts.size();
 		std::cout << ", part mass: " << pos[j-1].w << "\n";
 	}

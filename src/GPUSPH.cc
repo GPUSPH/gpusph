@@ -953,6 +953,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	const size_t numforcesbodies = gdata->problem->get_simparams()->numforcesbodies;
 	std::cout << "Numforcesbodies : " << numforcesbodies << "\n";
 	if (numforcesbodies > 0) {
+		gdata->s_hRbFirstIndex = new int [numforcesbodies];
+		fill_n(gdata->s_hRbFirstIndex, numforcesbodies, 0);
 		gdata->s_hRbLastIndex = new uint [numforcesbodies];
 		fill_n(gdata->s_hRbLastIndex, numforcesbodies, 0);
 		totCPUbytes += numforcesbodies*sizeof(uint);
@@ -1025,6 +1027,7 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete [] gdata->s_hRbRotationMatrices;
 	}
 	if (gdata->problem->get_simparams()->numforcesbodies > 0) {
+		delete [] gdata->s_hRbFirstIndex;
 		delete [] gdata->s_hRbLastIndex;
 		delete [] gdata->s_hRbTotalForce;
 		delete [] gdata->s_hRbAppliedForce;
