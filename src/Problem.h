@@ -58,6 +58,10 @@
 
 typedef std::vector<vertexinfo> VertexVect;
 
+// forward declaration. If a class wants to actually use
+// the callback writer it should include CallbackWriter.h
+class CallbackWriter;
+
 enum MovingBodyType {
 	MB_ODE,
 	MB_FORCES_MOVING,
@@ -343,6 +347,12 @@ RESTORE_WARNINGS
 		// overridden in subclasses if they want explicit writes
 		// beyond those controlled by the writer(s) periodic time
 		virtual bool need_write(double) const;
+
+		// overridden in subclasses if they want to write custom stuff
+		// using the CALLBACKWRITER
+		virtual void writer_callback(CallbackWriter *,
+			uint numParts, BufferList const&, uint node_offset, double t,
+			const bool testpoints) const;
 
 		// is the simulation running at the given time?
 		bool finished(double) const;

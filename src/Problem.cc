@@ -672,6 +672,17 @@ Problem::need_write(double t) const
 	return false;
 }
 
+// overridden in subclasses if they want to write custom stuff
+// using the CALLBACKWRITER
+void
+Problem::writer_callback(CallbackWriter *,
+	uint numParts, BufferList const&, uint node_offset, double t,
+	const bool testpoints) const
+{
+	fprintf(stderr, "WARNING: CallbackWriter is being used, but writer_callback wasn't implemented\n");
+}
+
+
 // is the simulation finished at the given time?
 bool
 Problem::finished(double t) const

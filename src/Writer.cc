@@ -31,6 +31,7 @@
 
 #include "CommonWriter.h"
 #include "CustomTextWriter.h"
+#include "CallbackWriter.h"
 #include "TextWriter.h"
 #include "UDPWriter.h"
 #include "VTKLegacyWriter.h"
@@ -46,6 +47,7 @@ static const char* WriterName[] = {
 	"TextWriter",
 	"VTKWriter",
 	"VTKLegacyWriter",
+	"CallbackWriter",
 	"CustomTextWriter",
 	"UDPWriter"
 };
@@ -97,6 +99,9 @@ Writer::Create(GlobalData *_gdata)
 				break;
 			case HOTWRITER:
 				writer = new HotWriter(_gdata);
+				break;
+			case CALLBACKWRITER:
+				writer = new CallbackWriter(_gdata);
 				break;
 			default:
 				stringstream ss;
@@ -234,7 +239,11 @@ Writer::Write(uint numParts, BufferList const& buffers,
 {
 	// is the common writer special?
 	bool common_special = m_writers[COMMONWRITER]->is_special();
-	bool written = false; // set to true if any writer acted
+
+	// save it because it writes last
+	CallbackWriter *cbwriter = NULL;
+
+	ConstWriterMap have_written;
 
 	WriterMap::iterator it(m_writers.begin());
 	WriterMap::iterator end(m_writers.end());
@@ -243,15 +252,26 @@ Writer::Write(uint numParts, BufferList const& buffers,
 		if (common_special && it->first == COMMONWRITER)
 			continue;
 
+		// skip CALLBACKWRITER, it'll be called after all other writers
+		if (it->first == CALLBACKWRITER) {
+			cbwriter = static_cast<CallbackWriter*>(it->second);
+			continue;
+		}
+
 		Writer *writer = it->second;
 		if (writer->need_write(t) || m_forced) {
 			writer->write(numParts, buffers, node_offset, t, testpoints);
-			written = true;
+			have_written[it->first] = writer;
 		}
 	}
 
-	if (common_special && written)
+	if (common_special && !have_written.empty())
 		m_writers[COMMONWRITER]->write(numParts, buffers, node_offset, t, testpoints);
+
+	if (cbwriter) {
+		cbwriter->set_writers_list(have_written);
+		cbwriter->write(numParts, buffers, node_offset, t, testpoints);
+	}
 }
 
 void
