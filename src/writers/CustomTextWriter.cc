@@ -60,7 +60,7 @@ CustomTextWriter::write(uint numParts, BufferList const& buffers, uint node_offs
 
 	// Modify this part to match your requirements
 	// Writing datas
-	for (uint i=0; i < numParts; i++) {
+	for (uint i=node_offset; i < node_offset + numParts; i++) {
 		// id, type, object, position
 		fid << id(info[i]) << "\t" << type(info[i]) << "\t" << object(info[i]) << "\t";
 		fid << pos[i].x << "\t" << pos[i].y << "\t" << pos[i].z << "\t";
