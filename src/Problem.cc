@@ -66,6 +66,8 @@ Problem::~Problem(void)
 }
 
 
+/// Allocate storage required for the integration of the kinematic data
+/// of moving bodies.
 void
 Problem::allocate_bodies_storage()
 {
@@ -82,7 +84,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 {
 	// Moving bodies are put at the end of the bodies vector,
 	// ODE bodies and moving bodies for which we want a force feedback
-	// aare put at the beginning of the bodies vector.
+	// are put at the beginning of the bodies vector (ODE bodies first).
 	// The reason behind this ordering is the way the forces on bodies
 	// are reduced by a parallel prefix sum: all the bodies that require
 	// force computing must have consecutive ids.
