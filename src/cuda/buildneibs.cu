@@ -239,7 +239,8 @@ reorderDataAndFindCellStart(
 
 	const float4 *oldVol = unsorted_buffers->getData<BUFFER_VOLUME>();
 	float4 *newVol = sorted_buffers->getData<BUFFER_VOLUME>();
-	CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
+	if (oldVol)
+		CUDA_SAFE_CALL(cudaBindTexture(0, volTex, oldVol, numParticles*sizeof(float4)));
 
 	const particleinfo *oldInfo = unsorted_buffers->getData<BUFFER_INFO>();
 	particleinfo *newInfo = sorted_buffers->getData<BUFFER_INFO>();
