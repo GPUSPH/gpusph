@@ -340,26 +340,32 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 		case GT_FLUID:
 			geomInfo->handle_collisions = false;
 			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
 			break;
 		case GT_FIXED_BOUNDARY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
 			break;
 		case GT_OPENBOUNDARY:
 			geomInfo->handle_collisions = false; // TODO: make optional?
 			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false; // TODO: make optional?
 			break;
 		case GT_FLOATING_BODY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = true;
+			geomInfo->measure_forces = true;
 			break;
 		case GT_MOVING_BODY:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false; // optional
+			geomInfo->measure_forces = false; // optional
 			break;
 		case GT_PLANE:
 			geomInfo->handle_collisions = true; // optional
 			geomInfo->handle_dynamics = false;
+			geomInfo->measure_forces = false;
 			break;
 	}
 
@@ -697,6 +703,32 @@ void XProblem::disableCollisions(const GeometryID gid)
 
 	// it is possible to disable collisions for any geometry type, so no need to check it
 	m_geometries[gid]->handle_collisions = false;
+}
+
+void XProblem::enableFeedback(const GeometryID gid)
+{
+	if (!validGeometry(gid)) return;
+
+	// TODO: allow collisions for open boundaries? Why not for fixed bounds?
+	// ensure collisions are consistent with geometry type
+	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
+		m_geometries[gid]->type != GT_MOVING_BODY) {
+		printf("WARNING: collisions only available for floating or moving bodies! Ignoring\n");
+		return;
+	}
+	m_geometries[gid]->measure_forces = true;
+}
+
+void XProblem::disableFeedback(const GeometryID gid)
+{
+	if (!validGeometry(gid)) return;
+
+	// ensure no-dynamics is consistent with geometry type
+	if (m_geometries[gid]->type == GT_FLOATING_BODY) {
+		printf("WARNING: measuring forces is mandatory for floating bodies! Ignoring\n");
+		return;
+	}
+	m_geometries[gid]->measure_forces = false;
 }
 
 // Set a custom inertia matrix (main diagonal only). Will overwrite the precomputed one

@@ -55,7 +55,8 @@ struct GeometryInfo {
 	EraseOperation erase_operation;
 
 	bool handle_collisions;
-	bool handle_dynamics;
+	bool handle_dynamics; // implies measure_forces
+	bool measure_forces;
 	bool enabled;
 
 	bool has_hdf5_file; // little redundant but clearer
@@ -79,6 +80,7 @@ struct GeometryInfo {
 
 		handle_collisions = false;
 		handle_dynamics = false;
+		measure_forces = false;
 
 		enabled = true;
 
@@ -174,6 +176,10 @@ class XProblem: public Problem {
 		void enableCollisions(const GeometryID gid);
 		void disableDynamics(const GeometryID gid);
 		void disableCollisions(const GeometryID gid);
+
+		// enable/disable the measurement of forces acting on the object
+		void enableFeedback(const GeometryID gid);
+		void disableFeedback(const GeometryID gid);
 
 		// methods to set a custom inertia matrix (and overwrite the precomputed one)
 		void setInertia(const GeometryID gid, const double i11, const double i22, const double i33);
