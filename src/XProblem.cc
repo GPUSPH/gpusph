@@ -1108,6 +1108,17 @@ int XProblem::fill_parts()
 				m_geometries[i]->ptr->ODEPrintInformation();
 		} // if m_numFloatingBodies > 0
 
+		// tell Problem to add the proper type of body
+		if (m_geometries[i]->type == GT_FLOATING_BODY)
+			add_moving_body(m_geometries[i]->ptr, MB_ODE);
+		else
+		if (m_geometries[i]->type == GT_MOVING_BODY) {
+			if (m_geometries[i]->measure_forces)
+				add_moving_body(m_geometries[i]->ptr, MB_FORCES_MOVING);
+			else
+				add_moving_body(m_geometries[i]->ptr, MB_MOVING);
+		}
+
 	} // iterate on geometries
 
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter + hdf5file_parts_counter;
