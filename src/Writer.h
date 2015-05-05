@@ -147,6 +147,9 @@ public:
 	double get_write_freq() const
 	{ return m_writefreq; }
 
+	/* return the last file number as string */
+	string last_filenum() const;
+
 protected:
 
 	Writer(const GlobalData *_gdata);
@@ -219,7 +222,7 @@ protected:
 
 	const Problem	*m_problem;
 	string			next_filenum();
-	string			current_filenum();
+	string			current_filenum() const;
 	const GlobalData*		gdata;
 };
 

@@ -415,12 +415,23 @@ Writer::need_write(double t) const
 }
 
 string
-Writer::current_filenum() {
+Writer::current_filenum() const {
 	stringstream ss;
 
 	ss.width(FNUM_WIDTH);
 	ss.fill('0');
 	ss << m_FileCounter;
+
+	return ss.str();
+}
+
+string
+Writer::last_filenum() const {
+	stringstream ss;
+
+	ss.width(FNUM_WIDTH);
+	ss.fill('0');
+	ss << m_FileCounter-1;
 
 	return ss.str();
 }
