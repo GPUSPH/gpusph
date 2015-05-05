@@ -25,7 +25,7 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** XProblem initialization
 	m_numActiveGeometries = 0;
-	m_numRigidBodies = 0;
+	m_numFloatingBodies = 0;
 	m_numPlanes = 0;
 	m_numOpenBoundaries = 0;
 
@@ -78,7 +78,7 @@ void XProblem::release_memory()
 XProblem::~XProblem()
 {
 	release_memory();
-	if (m_numRigidBodies > 0)
+	if (m_numFloatingBodies > 0)
 		cleanupODE();
 }
 
@@ -164,7 +164,7 @@ bool XProblem::initialize()
 			object_counter++;
 	}
 
-	// here should be rigid_body_counter == m_numRigidBodies
+	// here should be rigid_body_counter == m_numFloatingBodies
 	if ( rigid_body_counter > MAXBODIES ) {
 		printf("Fatal: number off floating bodies > MAXBODIES (%u > %u)\n",
 			rigid_body_counter, MAXBODIES);
@@ -172,8 +172,8 @@ bool XProblem::initialize()
 	}
 
 	// store number of floating objects (aka ODE bodies)
-	// NOTE: allocate_ODE_bodies() sets it again, but we will get rid of that
-	m_simparams.numODEbodies = rigid_body_counter;
+	// NOTE: add_moving_body() sets it again, but we will maybe fuse it in here
+	m_simparams.numODEbodies = rigid_body_counter; // == m_numFloatingBodies;
 	// store number of objects (floating + moving + I/O)
 	m_simparams.numObjects = object_counter;
 
@@ -227,7 +227,7 @@ bool XProblem::initialize()
 	}
 
 	// only init ODE if m_numRigidBodies
-	if (m_numRigidBodies > 0)
+	if (m_numFloatingBodies)
 		initializeODE();
 
 	// check open boundaries consistency
@@ -249,7 +249,7 @@ bool XProblem::initialize()
 void XProblem::initializeODE()
 {
 	// TODO FIXME MERGE
-	// allocate_ODE_bodies(m_numRigidBodies);
+	// allocate_ODE_bodies(m_numFloatingBodies);
 	dInitODE();
 	// world setup
 	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
@@ -383,7 +383,7 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	// NOTE: we don't need to check handle_collisions at all, since if there are no bodies
 	// we don't need collisions nor ODE at all
 	if (geomInfo->handle_dynamics)
-		m_numRigidBodies++;
+		m_numFloatingBodies++;
 
 	if (geomInfo->type == GT_PLANE)
 		m_numPlanes++;
@@ -631,7 +631,7 @@ void XProblem::deleteGeometry(const GeometryID gid)
 	m_numActiveGeometries--;
 
 	if (m_geometries[gid]->handle_dynamics)
-		m_numRigidBodies--;
+		m_numFloatingBodies--;
 
 	if (m_geometries[gid]->type == GT_PLANE)
 		m_numPlanes--;
@@ -657,7 +657,7 @@ void XProblem::enableDynamics(const GeometryID gid)
 	}
 	// update counter of rigid bodies if needed
 	if (!m_geometries[gid]->handle_dynamics)
-		m_numRigidBodies++;
+		m_numFloatingBodies++;
 	m_geometries[gid]->handle_dynamics = true;
 }
 
@@ -687,7 +687,7 @@ void XProblem::disableDynamics(const GeometryID gid)
 	}
 	// update counter of rigid bodies if needed
 	if (m_geometries[gid]->handle_dynamics)
-		m_numRigidBodies--;
+		m_numFloatingBodies--;
 	m_geometries[gid]->handle_dynamics = false;
 }
 
@@ -1011,7 +1011,7 @@ int XProblem::fill_parts()
 #endif
 
 		// ODE-related operations - only if we have at least one floating body
-		if (m_numRigidBodies > 0) {
+		if (m_numFloatingBodies > 0) {
 
 			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
 			// calls the latter in a dummy way if no ODE space is passed and this messes
@@ -1074,7 +1074,7 @@ int XProblem::fill_parts()
 			// NOTE: ODEPrintInformation() should be plane-safe anyway
 			if (m_geometries[i]->type != GT_PLANE)
 				m_geometries[i]->ptr->ODEPrintInformation();
-		} // if m_numRigidBodies > 0
+		} // if m_numFloatingBodies > 0
 
 	} // iterate on geometries
 

@@ -110,9 +110,9 @@ class XProblem: public Problem {
 		//PointVect m_vertexParts;
 
 		size_t m_numActiveGeometries; // do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
-		size_t m_numRigidBodies; // equivalent to m_simparams.numODEbodies after bodies have been added
 		size_t m_numPlanes;
 		size_t m_numOpenBoundaries;
+		size_t m_numFloatingBodies;		// number of floating bodies (handled with ODE)
 
 		// extra margin to be added to computed world size
 		double m_extra_world_margin;
