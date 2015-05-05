@@ -83,22 +83,22 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
 	return v;
 }
 
-static __inline__ __host__ __device__ const ushort& type(const particleinfo &info)
+static __forceinline__ __host__ __device__ const ushort& type(const particleinfo &info)
 {
 	return info.x;
 }
 
-static __inline__ __host__ __device__ const ushort& object(const particleinfo &info)
+static __forceinline__ __host__ __device__ const ushort& object(const particleinfo &info)
 {
 	return info.y;
 }
 
-static __inline__ __host__ __device__ const ushort& fluid_num(const particleinfo &info)
+static __forceinline__ __host__ __device__ const ushort& fluid_num(const particleinfo &info)
 {
 	return info.y;
 }
 
-static __inline__ __host__ __device__ const uint & id(const particleinfo &info)
+static __forceinline__ __host__ __device__ const uint & id(const particleinfo &info)
 {
 	return *(const uint*)&info.z;
 }
