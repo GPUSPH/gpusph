@@ -326,15 +326,26 @@ static __inline__ __host__ __device__ double dot(const double2 &a, const double2
 }
 
 // squared length
-static __inline__ __host__ __device__ float sqlength(const double2 &v)
+static __inline__ __host__ __device__ double sqlength(const double2 &v)
 {
 	return dot(v, v);
 }
 
 // length
-static __inline__ __host__ __device__ float length(const double2 &v)
+static __inline__ __host__ __device__ double length(const double2 &v)
 {
-	return sqrtf(sqlength(v));
+	return sqrt(sqlength(v));
+}
+
+static __inline__ __host__ __device__ double2 operator*(const double2 &b, const double a)
+{
+	return make_double2(a*b.x, a*b.y);
+}
+
+static __inline__ __host__ __device__ double2 normalize(const double2 &v)
+{
+	double invLen = rsqrt(sqlength(v));
+	return v * invLen;
 }
 
 // float3 functions
