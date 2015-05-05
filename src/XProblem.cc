@@ -84,6 +84,7 @@ XProblem::~XProblem()
 
 bool XProblem::initialize()
 {
+	// setup the framework if the subclass did not do it; will have all defaults
 	if (!m_simframework)
 		SETUP_FRAMEWORK();
 
@@ -1074,7 +1075,8 @@ int XProblem::fill_parts()
 			if (m_geometries[i]->type != GT_PLANE)
 				m_geometries[i]->ptr->ODEPrintInformation();
 		} // if m_numRigidBodies > 0
-	}
+
+	} // iterate on geometries
 
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter + hdf5file_parts_counter;
 }
