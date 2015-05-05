@@ -607,12 +607,11 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 		stlmesh,
 		fname_hdf5,		// HDF5 filename
 		fname_stl		// STL filename
-
 	);
 }
 
 // request to invert normals while loading - only for HDF5 files
-void XProblem::invertNormals(const GeometryID gid, bool invert)
+void XProblem::flipNormals(const GeometryID gid, bool flip)
 {
 	// this makes sense only for geometries loading a HDF5 file
 	if (!m_geometries[gid]->has_hdf5_file) {
@@ -620,7 +619,7 @@ void XProblem::invertNormals(const GeometryID gid, bool invert)
 		return;
 	}
 
-	m_geometries[gid]->invert_normals = invert;
+	m_geometries[gid]->flip_normals = flip;
 }
 
 void XProblem::deleteGeometry(const GeometryID gid)
@@ -1313,7 +1312,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// load boundary-specific data (SA bounds only)
 				if (ptype == PT_BOUNDARY) {
-					if (m_geometries[g]->invert_normals) {
+					if (m_geometries[g]->flip_normals) {
 						// NOTE: simulating with flipped normals has not been numerically validated...
 						// invert the order of vertices so that for the mass it is m_ref - m_v
 						vertices[i].x = hdf5Buffer[bi].VertexParticle3;
@@ -1332,7 +1331,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 						boundelm[i].y = hdf5Buffer[bi].Normal_1;
 						boundelm[i].z = hdf5Buffer[bi].Normal_2;
 					}
-					const float FACTOR = (m_geometries[g]->invert_normals ? -1.0F : 1.0F);
+					const float FACTOR = (m_geometries[g]->flip_normals ? -1.0F : 1.0F);
 
 					boundelm[i].w = hdf5Buffer[bi].Surface;
 				}

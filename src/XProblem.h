@@ -61,7 +61,7 @@ struct GeometryInfo {
 	bool has_hdf5_file; // little redundant but clearer
 	std::string hdf5_filename;
 	HDF5SphReader *hdf5_reader;
-	bool invert_normals; // for HF5 generated from STL files with wrong normals
+	bool flip_normals; // for HF5 generated from STL files with wrong normals
 
 	bool has_stl_file; // ditto
 	std::string stl_filename;
@@ -85,7 +85,7 @@ struct GeometryInfo {
 		has_hdf5_file = false;
 		hdf5_filename = "";
 		hdf5_reader = NULL;
-		invert_normals = false;
+		flip_normals = false;
 
 		has_stl_file = false;
 		stl_filename = "";
@@ -164,7 +164,7 @@ class XProblem: public Problem {
 			const char *fname_hdf5, const char *fname_stl = NULL);
 
 		// request to invert normals while loading - only for HDF5 files
-		void invertNormals(const GeometryID gid, bool invert = true);
+		void flipNormals(const GeometryID gid, bool flip = true);
 
 		// method for deleting a geometry (actually disabling)
 		void deleteGeometry(const GeometryID gid);
