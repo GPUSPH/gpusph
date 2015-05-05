@@ -421,34 +421,7 @@ bool GPUSPH::runSimulation() {
 
 	buildNeibList();
 
-	// Filters are run at the beginning of each iteration whose number is an exact
-	// multiple of the filter frequency. We also want to ensure that filters are run
-	// in order (from lowest-valued type to highest-valued type), so one approach would
-	// be to iterate over all filter types in order, query the filter list to see if the
-	// corresponding filter is there, query for the frequency, check the frequency, etc.
-	// This is needlessly expensive, since the frequencies are fixed before the simulation
-	// starts. Hence, we create an order list of filters to run (and their frequency)
-	// here now, and then iterate over that for each iteration
-
-	FilterFreqList enabledFilters;
-
-	{
-		// fill the enabledFilters vector by iterating over all filter types
-		// and checking if the corresponding filter is in the filter list,
-		// with a potive frequency
-		FilterEngineSet const& filters = gdata->simframework->getFilterEngines();
-		FilterEngineSet::const_iterator nofilter(filters.end());
-
-		for (FilterType filtertype = FIRST_FILTER; filtertype < INVALID_FILTER;
-			filtertype = FilterType(filtertype + 1)) {
-			FilterEngineSet::const_iterator filter(filters.find(filtertype));
-			if (filter == nofilter)
-				continue;
-			uint freq = filter->second->frequency();
-			if ( freq > 0)
-				enabledFilters.push_back(make_pair(filtertype, freq));
-		}
-	}
+	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will

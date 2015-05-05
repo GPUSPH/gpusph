@@ -51,6 +51,7 @@ class SimFramework
 protected:
 	AbstractNeibsEngine *m_neibsEngine;
 	FilterEngineSet m_filterEngines;
+	FilterFreqList m_filterFreqList;
 	AbstractIntegrationEngine *m_integrationEngine;
 	AbstractViscEngine *m_viscEngine;
 	AbstractForcesEngine *m_forcesEngine;
@@ -70,6 +71,8 @@ public:
 	{ return m_neibsEngine; }
 	FilterEngineSet const& getFilterEngines() const
 	{ return m_filterEngines; }
+	FilterFreqList const& getFilterFreqList() const
+	{ return m_filterFreqList; }
 	AbstractIntegrationEngine *getIntegrationEngine()
 	{ return m_integrationEngine; }
 	AbstractViscEngine *getViscEngine()
@@ -84,19 +87,7 @@ public:
 	{ return m_allocPolicy; }
 
 	// add a filter engine with the given frequency (in iterations)
-	AbstractFilterEngine* addFilterEngine(FilterType filtertype, int frequency)
-	{
-		AbstractFilterEngine *flt = NULL;
-		FilterEngineSet::iterator found(m_filterEngines.find(filtertype));
-		if (found == m_filterEngines.end()) {
-			flt = newFilterEngine(filtertype, frequency);
-			m_filterEngines[filtertype] = flt;
-		} else {
-			flt = found->second;
-		}
-		flt->set_frequency(frequency);
-		return flt;
-	}
+	AbstractFilterEngine* addFilterEngine(FilterType filtertype, int frequency);
 
 	SimParams const& get_simparams() const
 	{ return m_simparams; }
