@@ -148,6 +148,8 @@ basicstep(
 		throw std::invalid_argument("unsupported predcorr timestep");
 	}
 
+#undef ARGS
+
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");
 }

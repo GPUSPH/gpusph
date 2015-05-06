@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include "GlobalData.h"
-#include "cudasimframework.cuh"
+#include "cudasimframework.cu"
 #include "Cube.h"
 #include "Sphere.h"
 #include "Point.h"

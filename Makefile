@@ -117,9 +117,14 @@ PROBLEM_FILTER = \
 	$(patsubst %,$(PROBLEM_DIR)/%.cu,$(INACTIVE_PROBLEMS)) \
 	$(patsubst %,$(PROBLEM_DIR)/%_BC.cu,$(INACTIVE_PROBLEMS))
 
-# list of problem source files to scan to get the instances to use
-PROBLEM_SRCS = $(filter $(PROBLEM_DIR)/$(PROBLEM).cu $(PROBLEM_DIR)/$(PROBLEM).cc,\
+# list of problem source files
+PROBLEM_SRCS = $(filter \
+	$(PROBLEM_DIR)/$(PROBLEM).cc \
+	$(PROBLEM_DIR)/$(PROBLEM).cu \
+	$(PROBLEM_DIR)/$(PROBLEM)_BC.cu,\
 	$(wildcard $(SRCDIR)/problems/*))
+
+$(warning $(PROBLEM_SRCS))
 
 # list of .cc files, exclusing MPI sources and disabled problems
 CCFILES = $(filter-out $(PROBLEM_FILTER),\
@@ -127,13 +132,10 @@ CCFILES = $(filter-out $(PROBLEM_FILTER),\
 	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
 	  $(wildcard $(adir)/*.cc))))
 
-# .cu source files (GPU), excluding kernel sources, MPI sources and
-# disabled problems
-CUFILES = $(filter-out $(PROBLEM_FILTER),\
-	  $(filter-out %_kernel.cu,\
-	  $(filter-out $(MPICXXFILES),\
-	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
-	  $(wildcard $(adir)/*.cu)))))
+# GPU source files: we only directly compile the current problem (if it's CUDA)
+# and cudautil.cu, everything else gets in by nested includes
+CUFILES = $(SRCDIR)/cuda/cudautil.cu \
+	  $(filter %.cu,$(PROBLEM_SRCS))
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))

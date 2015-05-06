@@ -31,9 +31,10 @@
 #include "predcorr_alloc_policy.h"
 
 #include "simflags.h"
-#include "buildneibs.cuh"
-#include "euler.cuh"
-#include "forces.cuh"
+
+#include "buildneibs.cu"
+#include "euler.cu"
+#include "forces.cu"
 
 // This class holds the implementation and interface of CUDASimFramework,
 // the CUDA simulation framework for GPUPSH. (In fact, the only simulation

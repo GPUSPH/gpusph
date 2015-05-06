@@ -18,7 +18,6 @@
 
 #include "XProblem.h"
 #include "GlobalData.h"
-#include "cudasimframework.cuh"
 
 //#define USE_PLANES 0
 
@@ -88,8 +87,12 @@ XProblem::~XProblem()
 bool XProblem::initialize()
 {
 	// setup the framework if the subclass did not do it; will have all defaults
-	if (!m_simframework)
-		SETUP_FRAMEWORK();
+	if (!m_simframework) {
+		// TODO automatic framework setup
+		// This must be done in a CU file
+		//SETUP_FRAMEWORK();
+		throw std::runtime_error("no simulation framework defined");
+	}
 
 	// aux vars to compute bounding box
 	Point globalMin = Point(DBL_MAX, DBL_MAX, DBL_MAX);

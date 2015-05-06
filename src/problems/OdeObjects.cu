@@ -30,7 +30,7 @@
 #include "Point.h"
 #include "particledefine.h"
 #include "GlobalData.h"
-#include "cudasimframework.cuh"
+#include "cudasimframework.cu"
 
 OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 {

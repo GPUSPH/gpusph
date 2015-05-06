@@ -30,7 +30,7 @@
 #include "SolitaryWave.h"
 #include "particledefine.h"
 #include "GlobalData.h"
-#include "cudasimframework.cuh"
+#include "cudasimframework.cu"
 
 #define MK_par 2
 

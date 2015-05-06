@@ -31,7 +31,7 @@
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"
-#include "cudasimframework.cuh"
+#include "cudasimframework.cu"
 
 #define SIZE_X		(1.60)
 #define SIZE_Y		(0.67)

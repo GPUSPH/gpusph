@@ -31,7 +31,7 @@
 #include "Point.h"
 #include "Vector.h"
 #include "GlobalData.h"*/
-#include "cudasimframework.cuh"
+#include "cudasimframework.cu"
 
 XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 {
