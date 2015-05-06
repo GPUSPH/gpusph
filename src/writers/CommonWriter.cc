@@ -313,13 +313,16 @@ CommonWriter::write_physparams(ostream &out)
 	if (SP->visctype == ARTVISC) {
 		out << "\tartvisccoeff = " << PP->artvisccoeff << "" << endl;
 		out << "\tepsartvisc = " << PP->epsartvisc << "" << endl;
-	} else
-		out << "\tkinematicvisc = " << PP->kinematicvisc << " (m^2/s)" << endl;
+	} else {
+		for (uint f  = 0; f < PP->numFluids; ++f)
+			out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
+	}
 	if (SP->visctype == SPSVISC) {
 		out << "\tSmagfactor = " << PP->smagfactor << endl;
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
-	out << "\tvisccoeff = " << PP->visccoeff << endl;
+	for (uint f  = 0; f < PP->numFluids; ++f)
+		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f] << endl;
 
 	if (SP->xsph) {
 		out << " epsxsph = " << PP->epsxsph << endl;
