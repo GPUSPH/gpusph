@@ -1272,8 +1272,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		const bool curr_geometry_is_body =
 			m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY   ||
-			m_geometries[g]->type == GT_OPENBOUNDARY;
+			m_geometries[g]->type == GT_MOVING_BODY;
+			// m_geometries[g]->type == GT_OPENBOUNDARY;
 
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
