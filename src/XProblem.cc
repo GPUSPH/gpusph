@@ -1343,6 +1343,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 				switch (m_geometries[g]->type) {
 					case GT_MOVING_BODY:
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY);
+						if (m_geometries[i]->measure_forces)
+							SET_FLAG(info[i], FG_COMPUTE_FORCE);
 						break;
 					case GT_FLOATING_BODY:
 						SET_FLAG(info[i], FG_FLOATING | FG_COMPUTE_FORCE);
