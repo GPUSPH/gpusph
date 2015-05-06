@@ -195,14 +195,16 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 	if (index >= numParticles)
 		return;
 
-	// Getting new pos relative to old cell
-	float4 pos = posArray[index];
 	const particleinfo info = particelInfo[index];
 
 	// we compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
+	// TODO FIXME SA
+	// Getting the old grid hash
+	uint gridHash = cellHashFromParticleHash( particleHash[index] );
+
 	if (FLUID(info) || MOVING(info)) {
-		// Getting the old grid hash
-		uint gridHash = cellHashFromParticleHash( particleHash[index] );
+		// Getting new pos relative to old cell
+		float4 pos = posArray[index];
 
 		// Getting grid address of old cell (computed from old hash)
 		const int3 gridPos = calcGridPosFromCellHash(gridHash);
@@ -216,14 +218,9 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 		// Compute new grid pos relative to cell, adjust grid offset and compute new cell hash
 		gridHash = calcGridHash(clampGridPos<periodicbound>(gridPos, gridOffset, &toofar));
 
-		// Mark the cell as inner/outer and/or edge by setting the high bits
-		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-		// TODO: fix comment CELLTYPE_*_SHIFTED ?????? Make it understandable. (Alexis).
-		if (compactDeviceMap)
-			gridHash |= compactDeviceMap[gridHash];
-
 		// Adjust position
 		as_float3(pos) -= gridOffset*d_cellSize;
+
 		// If the particle would have flown out of the domain by more than a cell, disable it
 		// TODO: this seems very dangerous to me. We disable but it could be a indices to a
 		// serious problem ? (Alexis)
@@ -235,17 +232,24 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 		if (INACTIVE(pos))
 			gridHash = CELL_HASH_MAX;
 
-		// Store grid hash, particle index and position relative to cell
-		particleHash[index] = makeParticleHash(gridHash, info);
 		posArray[index] = pos;
 	}
+
+	// Mark the cell as inner/outer and/or edge by setting the high bits
+	// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
+	// TODO: fix comment CELLTYPE_*_SHIFTED ?????? Make it understandable. (Alexis).
+	if (compactDeviceMap)
+		gridHash |= compactDeviceMap[gridHash];
+
+	// Store grid hash, particle index and position relative to cell
+	particleHash[index] = makeParticleHash(gridHash, info);
 
 	// Preparing particle index array for the sort phase
 	particleIndex[index] = index;
 }
 
 
-/// Updates high bits of cell hash
+/// Updates high bits of cell hash with compact device map
 /*! This kernel is specific for MULTI_DEVICE simulations
  * 	and should be called at the 1st iteration.
  * 	He computes the high bits of particle hash according to the
@@ -272,17 +276,12 @@ fixHashDevice(hashKey*			particleHash,		// particle's hashes (in, out)
 	if (index >= numParticles)
 		return;
 
-	const particleinfo info = particelInfo[index];
-
-	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries).
-	// Also, if particleHash is NULL we just want to set particleIndex (see comment in GPUWorker::kernel_calcHash())
-	if ((FLUID(info) || (type(info) & MOVING(info))) && particleHash) {
+	if (particleHash) {
 
 		uint gridHash = cellHashFromParticleHash( particleHash[index] );
 
 		// Mark the cell as inner/outer and/or edge by setting the high bits
 		// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-		// TODO: make an understandable comment. (Alexis)
 		if (compactDeviceMap)
 			particleHash[index] = particleHash[index] | ((hashKey)compactDeviceMap[gridHash] << 32);
 	}
