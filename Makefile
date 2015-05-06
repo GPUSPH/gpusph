@@ -114,20 +114,26 @@ INACTIVE_PROBLEMS = $(filter-out $(PROBLEM),$(PROBLEM_LIST))
 # from the sources list
 PROBLEM_FILTER = \
 	$(patsubst %,$(PROBLEM_DIR)/%.cc,$(INACTIVE_PROBLEMS)) \
+	$(patsubst %,$(PROBLEM_DIR)/%.cu,$(INACTIVE_PROBLEMS)) \
 	$(patsubst %,$(PROBLEM_DIR)/%_BC.cu,$(INACTIVE_PROBLEMS))
 
 # list of problem source files to scan to get the instances to use
-PROBLEM_SRCS = $(PROBLEM_DIR)/$(PROBLEM).cc
+PROBLEM_SRCS = $(filter $(PROBLEM_DIR)/$(PROBLEM).cu $(PROBLEM_DIR)/$(PROBLEM).cc,\
+	$(wildcard $(SRCDIR)/problems/*))
 
-# list of .cc files (exclusing MPI ones, and the disabled problems
+# list of .cc files, exclusing MPI sources and disabled problems
 CCFILES = $(filter-out $(PROBLEM_FILTER),\
 	  $(filter-out $(MPICXXFILES),\
 	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
 	  $(wildcard $(adir)/*.cc))))
 
-# .cu source files (GPU), excluding *_kernel.cu
-CUFILES = $(filter-out %_kernel.cu,$(foreach adir, $(SRCDIR) $(SRCSUBS),\
-	  $(filter-out $(MPICXXFILES),$(wildcard $(adir)/*.cu))))
+# .cu source files (GPU), excluding kernel sources, MPI sources and
+# disabled problems
+CUFILES = $(filter-out $(PROBLEM_FILTER),\
+	  $(filter-out %_kernel.cu,\
+	  $(filter-out $(MPICXXFILES),\
+	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
+	  $(wildcard $(adir)/*.cu)))))
 
 # headers
 HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
