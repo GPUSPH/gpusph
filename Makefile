@@ -717,6 +717,12 @@ else
 	show_stage_nl=@printf "\r                                 \r[$(1)] $(2)\n"
 endif
 
+# when listing problems, we don't want debug info to show anywhere
+ifeq ($(MAKECMDGOALS), list-problems)
+	show_stage=@
+	show_stage_nl=@
+endif
+
 # option: echo - 0 silent, 1 show commands
 ifeq ($(echo), 1)
 	CMDECHO :=
