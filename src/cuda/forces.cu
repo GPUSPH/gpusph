@@ -573,6 +573,7 @@ basicstep(
 	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(numParticlesInRange, numThreads);
 	#if (__COMPUTE__ == 20)
+	int dtadapt = !!(simflags & ENABLE_DTADAPT);
 	if (visctype == SPSVISC)
 		dummy_shared = 3328 - dtadapt*BLOCK_SIZE_FORCES*4;
 	else
