@@ -173,9 +173,9 @@ bool XProblem::initialize()
 		return false;
 	}
 
-	// store number of floating objects (aka ODE bodies)
-	// NOTE: add_moving_body() sets it again, but we will maybe fuse it in here
-	m_simparams.numODEbodies = rigid_body_counter; // == m_numFloatingBodies;
+	// do not store the number of floating objects (aka ODE bodies) in simparams:
+	// add_moving_body() will increment it and use it for the insertion in the vector
+	//m_simparams.numODEbodies = rigid_body_counter; // == m_numFloatingBodies;
 	// store number of objects (floating + moving + I/O)
 	m_simparams.numObjects = object_counter;
 
