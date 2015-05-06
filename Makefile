@@ -103,8 +103,27 @@ endif
 SRCSUBS=$(sort $(filter %/,$(wildcard $(SRCDIR)/*/)))
 SRCSUBS:=$(SRCSUBS:/=)
 OBJSUBS=$(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SRCSUBS))
-CCFILES = $(foreach adir, $(SRCDIR) $(SRCSUBS),\
-	  $(filter-out $(MPICXXFILES),$(wildcard $(adir)/*.cc)))
+
+PROBLEM_DIR=$(SRCDIR)/problems
+
+# list of problems
+PROBLEM_LIST = $(notdir $(basename $(wildcard $(PROBLEM_DIR)/*.h)))
+# only one problem is active at a time, this is the list of all other problems
+INACTIVE_PROBLEMS = $(filter-out $(PROBLEM),$(PROBLEM_LIST))
+# we don't want to build inactive problems, so we will filter them out
+# from the sources list
+PROBLEM_FILTER = \
+	$(patsubst %,$(PROBLEM_DIR)/%.cc,$(INACTIVE_PROBLEMS)) \
+	$(patsubst %,$(PROBLEM_DIR)/%_BC.cu,$(INACTIVE_PROBLEMS))
+
+# list of problem source files to scan to get the instances to use
+PROBLEM_SRCS = $(PROBLEM_DIR)/$(PROBLEM).cc
+
+# list of .cc files (exclusing MPI ones, and the disabled problems
+CCFILES = $(filter-out $(PROBLEM_FILTER),\
+	  $(filter-out $(MPICXXFILES),\
+	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
+	  $(wildcard $(adir)/*.cc))))
 
 # .cu source files (GPU), excluding *_kernel.cu
 CUFILES = $(filter-out %_kernel.cu,$(foreach adir, $(SRCDIR) $(SRCSUBS),\
@@ -119,9 +138,6 @@ CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
 CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
-
-PROBLEM_SRCS = $(wildcard $(SRCDIR)/problems/*.cc)
-PROBLEM_LIST = $(notdir $(basename $(wildcard $(SRCDIR)/problems/*.h)))
 
 # data files needed by some problems
 EXTRA_PROBLEM_FILES ?=
