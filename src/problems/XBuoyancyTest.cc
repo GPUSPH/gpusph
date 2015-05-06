@@ -28,6 +28,9 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>
 	);
 
+	// let the number of layers be autocomputed
+	//setDynamicBoundariesLayers(4);
+
 	// SPH parameters
 	set_deltap(0.02); //0.008
 	m_simparams.slength = 1.3*m_deltap;
