@@ -149,6 +149,9 @@ class XProblem: public Problem {
 		// used to set sound of speed
 		double m_maxParticleSpeed;
 
+		// number of layers for filling dynamic boundaries
+		uint m_numDynBoundLayers;
+
 	protected:
 		// methods for creation of new objects
 		GeometryID addRect(const GeometryType otype, const FillType ftype, const Point &origin,
@@ -232,6 +235,9 @@ class XProblem: public Problem {
 		void setMaxFall(double maxFall) { m_maxFall = maxFall; }
 		// set _expected_ max particle speed
 		void setMaxParticleSpeed(double maxParticleSpeed) { m_maxParticleSpeed = maxParticleSpeed; }
+
+		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
+		void setDynamicBoundariesLayers(const uint numLayers);
 
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);

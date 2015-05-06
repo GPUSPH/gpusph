@@ -31,6 +31,8 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_numPlanes = 0;
 	m_numOpenBoundaries = 0;
 
+	m_numDynBoundLayers = 0;
+
 	m_extra_world_margin = 0.0;
 
 	m_positioning = PP_CENTER;
@@ -226,6 +228,12 @@ bool XProblem::initialize()
 		m_physparams.set_density(0, default_rho, default_gamma, default_c0);
 		printf("EOS not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",
 			default_rho, default_gamma, default_c0 );
+	}
+
+	// compute the number of layers for dynamic boundaries, if not set
+	if (m_simparams.boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
+		m_numDynBoundLayers = (uint) ceil(m_simparams.sfactor * m_simparams.kernelradius) + 1;
+		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
 	}
 
 	// only init ODE if m_numRigidBodies
@@ -957,6 +965,18 @@ void XProblem::addExtraWorldMargin(const double margin)
 		printf("WARNING: tried to add negative world margin! Ignoring\n");
 }
 
+// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
+void XProblem::setDynamicBoundariesLayers(const uint numLayers)
+{
+	if (m_simparams.boundarytype != DYN_BOUNDARY)
+		printf("WARNIG: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
+
+	if (numLayers > 0 && numLayers < 3)
+		printf("WARNIG: number of layers for dynamic boundaries is low (%u), use at least 3\n", numLayers);
+
+	m_numDynBoundLayers = numLayers;
+}
+
 int XProblem::fill_parts()
 {
 	// if for debug reason we need to test the position and verse of a plane, we can ask ODE to
@@ -1026,7 +1046,7 @@ int XProblem::fill_parts()
 		switch (m_geometries[i]->fill_type) {
 			case FT_BORDER:
 				if (m_simparams.boundarytype == DYN_BOUNDARY)
-					m_geometries[i]->ptr->FillIn(*parts_vector, m_deltap, 4);
+					m_geometries[i]->ptr->FillIn(*parts_vector, m_deltap, m_numDynBoundLayers);
 				else
 					m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
 				break;
