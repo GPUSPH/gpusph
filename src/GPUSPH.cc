@@ -462,7 +462,7 @@ bool GPUSPH::runSimulation() {
 			gdata->only_internal = true;
 			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL);
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -530,7 +530,7 @@ bool GPUSPH::runSimulation() {
 			gdata->only_internal = true;
 			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL);
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
