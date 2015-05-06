@@ -4,6 +4,7 @@
 
 #include "LaPalisse.h"
 #include "GlobalData.h"
+#include "cudasimframework.cuh"
 
 #define USE_PLANES 0
 

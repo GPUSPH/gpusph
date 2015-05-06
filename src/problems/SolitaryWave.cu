@@ -27,11 +27,10 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "cudasimframework.cuh"
-
 #include "SolitaryWave.h"
 #include "particledefine.h"
 #include "GlobalData.h"
+#include "cudasimframework.cuh"
 
 #define MK_par 2
 

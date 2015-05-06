@@ -52,8 +52,6 @@
 
 #include "ode/ode.h"
 
-#include "cudasimframework.cuh"
-
 #define BLOCK_SIZE_IOBOUND	256
 
 typedef std::vector<vertexinfo> VertexVect;
