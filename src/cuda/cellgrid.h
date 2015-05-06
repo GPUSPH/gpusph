@@ -33,9 +33,6 @@
  * of each _kernel.cu file, because of the __constant__s defined below
  */
 
-#ifndef _CELLGRID_H
-#define _CELLGRID_H
-
 #include "hashkey.h"
 #include "linearization.h"
 
@@ -121,6 +118,4 @@ calcGridPosFromParticleHash(const hashKey particleHash)
 #define NEIBINDEX_MASK	(CELLNUM_ENCODED-1)
 #define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
 #define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)
-
-#endif
 

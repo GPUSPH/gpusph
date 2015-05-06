@@ -7,9 +7,6 @@
  * Riemann invariants
  */
 
-#ifndef _SPH_CORE_UTILS_CUH
-#define _SPH_CORE_UTILS_CUH
-
 ////////////////////
 // V A R I A B L E S
 ////////////////////
@@ -174,5 +171,3 @@ soundSpeed(const float rho, const uint i)
 {
 	return d_sscoeff[i]*__powf(rho/d_rho0[i], d_sspowercoeff[i]);
 }
-
-#endif
