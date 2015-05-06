@@ -27,15 +27,18 @@
 #include <stdexcept>
 
 #include "define_buffers.h"
-
-#include "euler.cuh"
-#include "euler_kernel.cu"
-
+#include "engine_integration.h"
 #include "utils.h"
 
+#include "euler_kernel.cu"
+
+#define BLOCK_SIZE_INTEGRATE	256
+
 template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
+class CUDAPredCorrEngine : public AbstractIntegrationEngine
+{
+
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setconstants(const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize)
 {
@@ -46,58 +49,43 @@ setconstants(const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 getconstants(PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->epsxsph, cueuler::d_epsxsph, sizeof(float), 0));
 }
 
-
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbcg(const float3* cg, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbcg, cg, numbodies*sizeof(float3)));
 }
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbtrans(const float3* trans, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbtrans, trans, numbodies*sizeof(float3)));
 }
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrblinearvel(const float3* linearvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rblinearvel, linearvel, numbodies*sizeof(float3)));
 }
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbangularvel(const float3* angularvel, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbangularvel, angularvel, numbodies*sizeof(float3)));
 }
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 setrbsteprot(const float* rot, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cueuler::d_rbsteprot, rot, 9*numbodies*sizeof(float)));
 }
 
-template<SPHFormulation sph_formulation, BoundaryType boundarytype, bool xsphcorr>
 void
-CUDAPredCorrEngine<sph_formulation, boundarytype, xsphcorr>::
 basicstep(
 		MultiBufferList::const_iterator bufread,
 		MultiBufferList::iterator bufwrite,
@@ -153,4 +141,6 @@ basicstep(
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("Euler kernel execution failed");
 }
+
+};
 
