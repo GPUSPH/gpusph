@@ -30,24 +30,65 @@
 #include <thrust/sort.h>
 #include <thrust/device_vector.h>
 
+#include "define_buffers.h"
+#include "engine_neibs.h"
+#include "utils.h"
+
+/* Important notes on block sizes:
+	- all kernels accessing the neighbor list MUST HAVE A BLOCK
+	MULTIPLE OF NEIBINDEX_INTERLEAVE
+	- a parallel reduction for max neibs number is done inside neiblist, block
+	size for neiblist MUST BE A POWER OF 2
+ */
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		6
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	6
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	5
+#else
+	#define BLOCK_SIZE_CALCHASH		256
+	#define MIN_BLOCKS_CALCHASH		1
+	#define BLOCK_SIZE_REORDERDATA	256
+	#define MIN_BLOCKS_REORDERDATA	1
+	#define BLOCK_SIZE_BUILDNEIBS	256
+	#define MIN_BLOCKS_BUILDNEIBS	1
+#endif
+
 #include "textures.cuh"
-#include "buildneibs.cuh"
 
 #include "buildneibs_params.h"
 #include "buildneibs_kernel.cu"
 
 #include "vector_math.h"
 
-#include "utils.h"
 
-#include "define_buffers.h"
+/// Neighbor engine class
+/*!	CUDANeibsEngine is an implementation of the abstract class AbstractNeibsEngine
+ *	and is providing :
+ *		- device constants upload to the device
+ *		- device variables upload/download to/from the device
+ *		- launch of sorting and reordering kernels
+ *		- launch of neighbor list construction kernels
+ *
+ *	It is templatizd by:
+ *	\tparam boundarytype : type of boundary
+ *	\tparam periodicbound : type of periodic boundaries (0 ... 7)
+ *	\tparam neibcount : true if we want to compute actual neighbors number
 
+ *	\ingroup neibs
+*/
+template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+class CUDANeibsEngine : public AbstractNeibsEngine
+{
+public:
+
+/** \name Constants upload/download and timing related function
+ *  @{ */
 
 /// Upload constants on the device
 /*! This function upload neighbors search related constants on the device.
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
  * 	\param[in] simparams : pointer to simulation parameters structure
  * 	\param[in] physparams : pointer to physical parameters structure
  * 	\param[in] worldOrigin : origin of the simulation domain
@@ -55,13 +96,11 @@
  * 	\param[in] cellSize : size of each cell
  * 	\param[in] allocatedParticles : number of allocated particles
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
-setconstants(	const SimParams *simparams, 		// pointer to simulation parameters structure (in)
+setconstants(	const SimParams *simparams,		// pointer to simulation parameters structure (in)
 				const PhysParams *physparams,		// pointer to physical parameters structure (in)
-				float3 const& worldOrigin, 			// origin of the simulation domain (in)
-				uint3 const& gridSize, 				// size of computational domain in grid cells (in)
+				float3 const& worldOrigin,			// origin of the simulation domain (in)
+				uint3 const& gridSize,				// size of computational domain in grid cells (in)
 				float3 const& cellSize,				// size of each cell (in)
 				idx_t const& allocatedParticles)	// number of allocated particles (in)
 {
@@ -73,20 +112,14 @@ setconstants(	const SimParams *simparams, 		// pointer to simulation parameters 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuneibs::d_gridSize, &gridSize, sizeof(uint3)));
 }
 
-
 /// Download maximum number of neighbors
 /*! Download from device the maximum number of neighbors per particle
  *  computed by buildNeibsDevice kernel.
- *  \tparam boundarytype : type of boundary
- *  \tparam periodicbound : type of periodic boundaries (0 ... 7)
- *  \tparam neibcount : true if we want to compute actual neighbors number
  *  \param[in] simparams : pointer to simulation parameters structure
  *  \param[in] physparams : pointer to physical parameters structure
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
-getconstants(	SimParams *simparams, 	// pointer to simulation parameters structure (in)
+getconstants(	SimParams *simparams,	// pointer to simulation parameters structure (in)
 				PhysParams *physparams)	// pointer to physical parameters structure (in)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&simparams->maxneibsnum, cuneibs::d_maxneibsnum, sizeof(uint), 0));
@@ -96,13 +129,8 @@ getconstants(	SimParams *simparams, 	// pointer to simulation parameters structu
 /// Reset number of neighbors and interaction
 /*! Reset number of neighbors and number of interactions stored
  * 	into GPU constant memory.
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 resetinfo(void)
 {
 	uint temp = 0;
@@ -115,28 +143,24 @@ resetinfo(void)
 /*!	Download from GPU the maximum number of neighbors along with the
  * 	total number of interactions. Those data will be used to update a
  * 	TimingInfo structure.
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
  * 	\param[in, out] timingInfo : timing info struct where number of interactions and max
  * 	neighbors number will be updated
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 getinfo(TimingInfo & timingInfo)	// timing info (in, out)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.numInteractions, cuneibs::d_numInteractions, sizeof(int), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&timingInfo.maxNeibs, cuneibs::d_maxNeibs, sizeof(int), 0));
 }
 
+/** @} */
+
+/** \name Reordering and sort related function
+ *  @{ */
 
 /// Launch the compute hash kernel
 /*!	CPU part responsible of launching the compute hash kernel
  * 	(cuneibs::calcHashDevice) on the device.
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
  * 	\param[in,out] posArray : particle's positions
  *	\param[in,out] particleHash : particle's hashes
  *	\param[out] particleIndex : particle's indexes
@@ -144,9 +168,7 @@ getinfo(TimingInfo & timingInfo)	// timing info (in, out)
  *	\param[out] compactDeviceMap : TODO
  *	\param[in] numParticles : total number of particles
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 calcHash(float4		*pos,					// particle's positions (in, out)
 		hashKey		*particleHash,			// particle's hashes (in, out)
 		uint		*particleIndex,			// particle's indexes (out)
@@ -168,18 +190,13 @@ calcHash(float4		*pos,					// particle's positions (in, out)
 /// Launch the fix hash kernel
 /*!	CPU part responsible of launching the fix hash kernel
  * 	(cuneibs::fixHashDevice) on the device.
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
  * 	\param[in,out] particleHash : particle's hashes
  * 	\param[out] particleIndex : particle's indexes
  * 	\param[in] particleInfo : particle's informations
  * 	\param[out] compactDeviceMap : ???
  * 	\param[in] numParticles : total number of particles
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 		uint	*particleIndex,				// particle's indexes (out)
 		const particleinfo* particleInfo,	// particle's information (in)
@@ -200,9 +217,6 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 /// Launch the reorder kernel
 /*!	CPU part responsible of launching the reorder kernel
  * 	(cuneibs::reorderDataAndFindCellStartDevice) on the device.
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
  * 	\param[out] cellStart : index of cells first particle
  * 	\param[out] cellStart : index of cells last particle
  * 	\param[out] segmentStart : TODO
@@ -211,9 +225,7 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
  * 	\param[in] numParticles : total number of particles in input buffers
  * 	\param[out] newNumParticles : device pointer to number of active particles found
  */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 reorderDataAndFindCellStart(
 		uint*				cellStart,			// index of cells first particle (out)
 		uint*				cellEnd,			// index of cells last particle (out)
@@ -313,14 +325,7 @@ reorderDataAndFindCellStart(
 
 
 /// Update vertex ID
-/*!	Update vertex ID
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
- */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 updateVertIDToIndex(
 	const particleinfo	*particleInfo,
 			uint	*vertIDToIndex,
@@ -332,16 +337,25 @@ updateVertIDToIndex(
 	cuneibs::updateVertIDToIndexDevice<<< numBlocks, numThreads>>>(particleInfo, vertIDToIndex, numParticles);
 }
 
+void
+sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
+{
+	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
+	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
+
+	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
+
+	CUT_CHECK_ERROR("thrust sort failed");
+}
+
+
+/** @} */
+
+/** \name Neighbors list building
+ *  @{ */
 
 /// Build neibs list
-/*!	Build neibs list
- * 	\tparam boundarytype : type of boundary
- * 	\tparam periodicbound : type of periodic boundaries (0 ... 7)
- * 	\tparam neibcount : true if we want to compute actual neighbors number
- */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
 buildNeibsList(
 		neibdata	*neibsList,
 const	float4		*pos,
@@ -411,16 +425,7 @@ const	float		boundNlSqInflRad)
 	CUDA_SAFE_CALL(cudaUnbindTexture(cellEndTex));
 }
 
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
-void
-CUDANeibsEngine<boundarytype, periodicbound, neibcount>::
-sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
-{
-	thrust::device_ptr<hashKey> particleHash_devptr = thrust::device_pointer_cast(particleHash);
-	thrust::device_ptr<uint> particleIndex_devptr = thrust::device_pointer_cast(particleIndex);
+/** @} */
 
-	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
-
-	CUT_CHECK_ERROR("thrust sort failed");
-}
+};
 
