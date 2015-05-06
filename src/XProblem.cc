@@ -1429,6 +1429,20 @@ void XProblem::copy_to_array(BufferList &buffers)
 				// NOTE: setting/showing rigid_body_part_mass only makes sense with non-SA bounds
 				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
+				// set appropriate particle flags
+				switch (m_geometries[g]->type) {
+					case GT_MOVING_BODY:
+						SET_FLAG(info[i], FG_MOVING_BOUNDARY);
+						if (m_geometries[i]->measure_forces)
+							SET_FLAG(info[i], FG_COMPUTE_FORCE);
+						break;
+					case GT_FLOATING_BODY:
+						SET_FLAG(info[i], FG_FLOATING | FG_COMPUTE_FORCE);
+						break;
+					case GT_OPENBOUNDARY:
+						SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+						break;
+				}
 			}
 		}
 
