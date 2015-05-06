@@ -1071,8 +1071,8 @@ int XProblem::fill_parts()
 		}
 #endif
 
-		// ODE-related operations - only if we have at least one floating body
-		if (m_numFloatingBodies > 0) {
+		// ODE-related operations - only for floating bodies
+		if (m_geometries[i]->handle_dynamics || m_geometries[i]->handle_collisions) {
 
 			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
 			// calls the latter in a dummy way if no ODE space is passed and this messes
@@ -1127,8 +1127,7 @@ int XProblem::fill_parts()
 			}
 
 			// update ODE rotation matrix according to possible rotation - excl. planes!
-			if ((m_geometries[i]->handle_collisions || m_geometries[i]->handle_dynamics) &&
-				m_geometries[i]->type != GT_PLANE)
+			if (m_geometries[i]->type != GT_PLANE)
 				m_geometries[i]->ptr->updateODERotMatrix();
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
