@@ -1283,10 +1283,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		uint first_id_in_geometry = UINT_MAX;
 
 		// object id (GPUSPH, not ODE) that will be used in particleinfo
-		// TODO: when we will need segmented scan on moving objs as well, this should be changed
-		const uint object_id = ( curr_geometry_is_object ? object_counter : 0 );
-		// each object particle carries (object_id + 1), since object==0 currently means no object
-		const uint shifted_object_id = ( curr_geometry_is_object ? object_id + 1 : object_id );
+		// TODO: will be fluid_number with multifluid
+		const uint object_id = ( curr_geometry_is_body ? object_counter : 0 );
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
@@ -1339,7 +1337,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// compute particle info, local pos, cellhash
-				info[i] = make_particleinfo(ptype, shifted_object_id, i);
+				info[i] = make_particleinfo(ptype, object_id, i);
 
 				// set appropriate particle flags
 				switch (m_geometries[g]->type) {
@@ -1420,7 +1418,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 				vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
 				// TODO FIXME MERGE
-				info[i] = make_particleinfo(PT_BOUNDARY, shifted_object_id, i);
+				info[i] = make_particleinfo(PT_BOUNDARY, object_id, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				if (eulerVel)
