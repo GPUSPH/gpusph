@@ -1270,7 +1270,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		if (!m_geometries[g]->enabled)
 			continue;
 
-		const bool curr_geometry_is_object =
+		const bool curr_geometry_is_body =
 			m_geometries[g]->type == GT_FLOATING_BODY ||
 			m_geometries[g]->type == GT_MOVING_BODY   ||
 			m_geometries[g]->type == GT_OPENBOUNDARY;
@@ -1478,7 +1478,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 		}
 
 		// objects-related settings (floating + moving + open bounds)
-		if (curr_geometry_is_object) {
+		if (curr_geometry_is_body) {
 
 			// set numParts, which will be read while allocating device buffers for obj parts
 			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
