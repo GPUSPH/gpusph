@@ -31,7 +31,11 @@
 #include <thrust/functional.h>
 
 #include "textures.cuh"
-#include "forces.cuh"
+
+#include "engine_forces.h"
+#include "engine_visc.h"
+#include "engine_filter.h"
+#include "simflags.h"
 
 #include "utils.h"
 #include "cuda_call.h"
@@ -39,6 +43,43 @@
 #include "define_buffers.h"
 
 #include "forces_params.h"
+
+/* Important notes on block sizes:
+	- all kernels accessing the neighbor list MUST HAVE A BLOCK
+	MULTIPLE OF NEIBINDEX_INTERLEAVE
+	- a parallel reduction for adaptive dt is done inside forces, block
+	size for forces MUST BE A POWER OF 2
+ */
+#if (__COMPUTE__ >= 20)
+	#define BLOCK_SIZE_FORCES		128
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		6
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		6
+	#define BLOCK_SIZE_SHEPARD		128
+	#define MIN_BLOCKS_SHEPARD		6
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			6
+	#define BLOCK_SIZE_SPS			128
+	#define MIN_BLOCKS_SPS			6
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#else
+	#define BLOCK_SIZE_FORCES		64
+	#define BLOCK_SIZE_CALCVORT		128
+	#define MIN_BLOCKS_CALCVORT		1
+	#define BLOCK_SIZE_CALCTEST		128
+	#define MIN_BLOCKS_CALCTEST		1
+	#define BLOCK_SIZE_SHEPARD		224
+	#define MIN_BLOCKS_SHEPARD		1
+	#define BLOCK_SIZE_MLS			128
+	#define MIN_BLOCKS_MLS			1
+	#define BLOCK_SIZE_SPS			128
+	#define MIN_BLOCKS_SPS			1
+	#define BLOCK_SIZE_FMAX			256
+	#define MAX_BLOCKS_FMAX			64
+#endif
+
 
 cudaArray*  dDem = NULL;
 
@@ -153,34 +194,84 @@ cflmax( const uint	n,
 	return max;
 }
 
+// CUDAForcesEngine. Some methods need helper classes, which are defined below,
+// right before the actual class definition starts
+template<
+	KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	BoundaryType boundarytype,
+	flag_t simflags>
+class CUDAForcesEngine;
+
+/// Density computation is a no-op in all cases but Grenier's. Since C++ does not
+/// allow partial template specialization for methods, we rely on a CUDADensityHelper
+/// auxiliary functor, that we can re-define with partial specialization as needed.
+
+/// General case: do nothing
+template<
+	KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	BoundaryType boundarytype>
+struct CUDADensityHelper {
+	static void
+	process(MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const uint *cellStart,
+		const uint numParticles,
+		float slength,
+		float influenceradius)
+	{ /* do nothing by default */ }
+};
+
+/// Grenier
+template<
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
+	static void
+	process(MultiBufferList::const_iterator bufread,
+		MultiBufferList::iterator bufwrite,
+		const uint *cellStart,
+		const uint numParticles,
+		float slength,
+		float influenceradius)
+	{
+		uint numThreads = BLOCK_SIZE_FORCES;
+		uint numBlocks = div_up(numParticles, numThreads);
+
+		const float4 *pos = bufread->getData<BUFFER_POS>();
+		const float4 *vol = bufread->getData<BUFFER_VOLUME>();
+		const particleinfo *info = bufread->getData<BUFFER_INFO>();
+		const hashKey *pHash = bufread->getData<BUFFER_HASH>();
+		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
+
+		// density is updated in-place, so it uses the READ buffer
+		float4 *vel = const_cast<float4*>(bufread->getData<BUFFER_VEL>());
+		float *sigma = bufwrite->getData<BUFFER_SIGMA>();
+
+		cuforces::densityGrenierDevice<kerneltype, boundarytype>
+			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
+	}
+};
 
 
-/// Methods of the CUDAForcesEngine class
+/// CUDAForcesEngine
 
-// Since for the time being each method needs a
-//   template<blah blah blah> [return type] class CUDAForces<blahblahblah>::
-// before it, and it's boring to type, we do a small auxiliary macro FORCES_RET
-// that wraps the return type.
-// TODO this will go away when the class will be turned into an actual include-only
-// template class definition
+template<
+	KernelType kerneltype,
+	SPHFormulation sph_formulation,
+	ViscosityType visctype,
+	BoundaryType boundarytype,
+	flag_t simflags>
+class CUDAForcesEngine : public AbstractForcesEngine
+{
 
-#define FORCES_RET(ret_type) \
-template< \
-	KernelType kerneltype, \
-	SPHFormulation sph_formulation, \
-	ViscosityType visctype, \
-	BoundaryType boundarytype, \
-	flag_t simflags \
-> \
-ret_type \
-CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>::
-
-FORCES_RET(bool)
-needs_eulerVel = (boundarytype == SA_BOUNDARY &&
+static const bool needs_eulerVel = (boundarytype == SA_BOUNDARY &&
 			(visctype == KEPSVISC || (simflags & ENABLE_INLET_OUTLET)));
 
 
-FORCES_RET(void)
+void
 setconstants(const SimParams *simparams, const PhysParams *physparams,
 	float3 const& worldOrigin, uint3 const& gridSize, float3 const& cellSize,
 	idx_t const& allocatedParticles)
@@ -277,7 +368,7 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 }
 
 
-FORCES_RET(void)
+void
 getconstants(PhysParams *physparams)
 {
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->numFluids, cuforces::d_numfluids, sizeof(int)));
@@ -310,7 +401,7 @@ getconstants(PhysParams *physparams)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));
 }
 
-FORCES_RET(void)
+void
 setplanes(int numPlanes, const float *planesDiv, const float4 *planes)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planes, planes, numPlanes*sizeof(float4)));
@@ -318,25 +409,25 @@ setplanes(int numPlanes, const float *planesDiv, const float4 *planes)
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numplanes, &numPlanes, sizeof(uint)));
 }
 
-FORCES_RET(void)
+void
 setgravity(float3 const& gravity)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gravity, &gravity, sizeof(float3)));
 }
 
-FORCES_RET(void)
+void
 setrbcg(const float3* cg, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcg, cg, numbodies*sizeof(float3)));
 }
 
-FORCES_RET(void)
+void
 setrbstart(const int* rbfirstindex, int numbodies)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbstartindex, rbfirstindex, numbodies*sizeof(int)));
 }
 
-FORCES_RET(void)
+void
 bind_textures(
 	MultiBufferList::const_iterator bufread,
 	uint	numParticles)
@@ -369,7 +460,7 @@ bind_textures(
 	}
 }
 
-FORCES_RET(void)
+void
 unbind_textures()
 {
 	// TODO FIXME why are SPS textures unbound here but bound in sps?
@@ -405,14 +496,14 @@ unbind_textures()
 // particles, since the forces kernel pre-reduces the cfl values, producing one value
 // per block instead of one per particle
 // TODO FIXME reorganize this reduction stuff
-FORCES_RET(uint)
+uint
 getFmaxElements(const uint n)
 {
 	return div_up<uint>(n, BLOCK_SIZE_FORCES);
 }
 
 
-FORCES_RET(uint)
+uint
 getFmaxTempElements(const uint n)
 {
 	uint numBlocks, numThreads;
@@ -422,7 +513,7 @@ getFmaxTempElements(const uint n)
 
 
 
-FORCES_RET(float)
+float
 dtreduce(	float	slength,
 			float	dtadaptfactor,
 			float	max_kinematic,
@@ -457,59 +548,7 @@ dtreduce(	float	slength,
 	return dt;
 }
 
-/// Density computation is a no-op in all cases but Grenier's. Since C++ does not
-/// allow partial template specialization for methods, we rely on a CUDADensityHelper
-/// auxiliary functor, that we can re-define with partial specialization as needed.
-
-/// General case: do nothing
-template<
-	KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype>
-struct CUDADensityHelper {
-	static void
-	process(MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const uint *cellStart,
-		const uint numParticles,
-		float slength,
-		float influenceradius)
-	{ /* do nothing by default */ }
-};
-
-/// Grenier
-template<
-	KernelType kerneltype,
-	BoundaryType boundarytype>
-struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
-	static void
-	process(MultiBufferList::const_iterator bufread,
-		MultiBufferList::iterator bufwrite,
-		const uint *cellStart,
-		const uint numParticles,
-		float slength,
-		float influenceradius)
-	{
-		uint numThreads = BLOCK_SIZE_FORCES;
-		uint numBlocks = div_up(numParticles, numThreads);
-
-		const float4 *pos = bufread->getData<BUFFER_POS>();
-		const float4 *vol = bufread->getData<BUFFER_VOLUME>();
-		const particleinfo *info = bufread->getData<BUFFER_INFO>();
-		const hashKey *pHash = bufread->getData<BUFFER_HASH>();
-		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
-
-		// density is updated in-place, so it uses the READ buffer
-		float4 *vel = const_cast<float4*>(bufread->getData<BUFFER_VEL>());
-		float *sigma = bufwrite->getData<BUFFER_SIGMA>();
-
-		cuforces::densityGrenierDevice<kerneltype, boundarytype>
-			<<<numBlocks, numThreads>>>(sigma, pos, vel, info, pHash, vol, cellStart, neibsList, numParticles, slength, influenceradius);
-	}
-};
-
-
-FORCES_RET(void)
+void
 compute_density(MultiBufferList::const_iterator bufread,
 	MultiBufferList::iterator bufwrite,
 	const uint *cellStart,
@@ -523,7 +562,7 @@ compute_density(MultiBufferList::const_iterator bufread,
 }
 
 // Returns numBlock for delayed dt reduction in case of striping
-FORCES_RET(uint)
+uint
 basicstep(
 	MultiBufferList::const_iterator bufread,
 	MultiBufferList::iterator bufwrite,
@@ -598,7 +637,7 @@ basicstep(
 	return numBlocks;
 }
 
-FORCES_RET(void)
+void
 setDEM(const float *hDem, int width, int height)
 {
 	// Allocating, reading and copying DEM
@@ -615,19 +654,19 @@ setDEM(const float *hDem, int width, int height)
 	CUDA_SAFE_CALL( cudaBindTextureToArray(demTex, dDem, channelDesc));
 }
 
-FORCES_RET(void)
+void
 unsetDEM()
 {
 	CUDA_SAFE_CALL(cudaFreeArray(dDem));
 }
 
-FORCES_RET(uint)
+uint
 round_particles(uint numparts)
 {
 	return (numparts/BLOCK_SIZE_FORCES)*BLOCK_SIZE_FORCES;
 }
 
-FORCES_RET(void)
+void
 reduceRbForces(	float4	*forces,
 				float4	*torques,
 				uint	*rbnum,
@@ -665,7 +704,41 @@ reduceRbForces(	float4	*forces,
 		}
 }
 
-/// CUDAViscEngine should be moved elsewhere
+};
+
+/// CUDAViscEngine class. Should be moved into its own source file
+///
+/// Generally, the kernel and boundary type will be passed through to the
+/// process() to call the appropriate kernels, and the main selector would be
+/// just the ViscosityType. We cannot have partial function/method template
+/// specialization, so our CUDAViscEngine actually delegates to a helper functor,
+/// which should be partially specialized as a whole class
+
+template<ViscosityType visctype,
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+class CUDAViscEngine;
+
+template<ViscosityType visctype,
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+struct CUDAViscEngineHelper
+{
+	static void
+	process(		float2	*tau[],
+					float	*turbvisc,
+			const	float4	*pos,
+			const	float4	*vel,
+			const	particleinfo	*info,
+			const	hashKey	*particleHash,
+			const	uint	*cellStart,
+			const	neibdata*neibsList,
+					uint	numParticles,
+					uint	particleRangeEnd,
+					float	slength,
+					float	influenceradius);
+};
+
 
 template<ViscosityType visctype,
 	KernelType kerneltype,
@@ -745,8 +818,59 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 }
 };
 
-/// Other methods TODO will need to move elsewhere
+/// Actual CUDAVicEngine
+template<ViscosityType visctype,
+	KernelType kerneltype,
+	BoundaryType boundarytype>
+class CUDAViscEngine : public AbstractViscEngine
+{
+	// TODO when we will be in a separate namespace from forces
+	void setconstants() {}
+	void getconstants() {}
 
+	void
+	process(		float2	*tau[],
+					float	*turbvisc,
+			const	float4	*pos,
+			const	float4	*vel,
+			const	particleinfo	*info,
+			const	hashKey	*particleHash,
+			const	uint	*cellStart,
+			const	neibdata*neibsList,
+					uint	numParticles,
+					uint	particleRangeEnd,
+					float	slength,
+					float	influenceradius)
+	{
+		CUDAViscEngineHelper<visctype, kerneltype, boundarytype>::process
+		(tau, turbvisc, pos, vel, info, particleHash, cellStart, neibsList, numParticles,
+		 particleRangeEnd, slength, influenceradius);
+	}
+
+};
+
+/// Preprocessing engines (Shepard, MLS)
+
+// As with the viscengine, we need a helper struct for the partial
+// specialization of process
+template<FilterType filtertype, KernelType kerneltype, BoundaryType boundarytype>
+struct CUDAFilterEngineHelper
+{
+	static void process(
+		const	float4	*pos,
+		const	float4	*oldVel,
+				float4	*newVel,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius);
+};
+
+/* Shepard Filter specialization */
 template<KernelType kerneltype, BoundaryType boundarytype>
 struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 {
@@ -793,6 +917,7 @@ struct CUDAFilterEngineHelper<SHEPARD_FILTER, kerneltype, boundarytype>
 }
 };
 
+/* MLS Filter specialization */
 template<KernelType kerneltype, BoundaryType boundarytype>
 struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 {
@@ -839,9 +964,49 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 }
 };
 
+template<FilterType filtertype, KernelType kerneltype, BoundaryType boundarytype>
+class CUDAFilterEngine : public AbstractFilterEngine
+{
+public:
+	CUDAFilterEngine(uint _frequency) : AbstractFilterEngine(_frequency)
+	{}
+
+	void setconstants() {} // TODO
+	void getconstants() {} // TODO
+
+	void
+	process(
+		const	float4	*pos,
+		const	float4	*oldVel,
+				float4	*newVel,
+		const	particleinfo	*info,
+		const	hashKey	*particleHash,
+		const	uint	*cellStart,
+		const	neibdata*neibsList,
+				uint	numParticles,
+				uint	particleRangeEnd,
+				float	slength,
+				float	influenceradius)
+	{
+		CUDAFilterEngineHelper<filtertype, kerneltype, boundarytype>::process
+			(pos, oldVel, newVel, info, particleHash, cellStart, neibsList,
+			 numParticles, particleRangeEnd, slength, influenceradius);
+	}
+};
+
+
+/// Post-processing engines
+
+// TODO FIXME post-processing should be handled by SEPARATE post-processing engines, like
+// filters.
+// For the time being, everything is hacked up to speed up our grouping of methods
+
 template<KernelType kerneltype>
+class CUDAPostProcessEngine : public AbstractPostProcessEngine
+{
+public:
+
 void
-CUDAPostProcessEngine<kerneltype>::
 vorticity(const	float4*		pos,
 		const	float4*		vel,
 			float3*		vort,
@@ -878,9 +1043,7 @@ vorticity(const	float4*		pos,
 }
 
 //Testpoints
-template<KernelType kerneltype>
 void
-CUDAPostProcessEngine<kerneltype>::
 testpoints( const float4*	pos,
 			float4*			newVel,
 			float*			newTke,
@@ -927,9 +1090,7 @@ testpoints( const float4*	pos,
 }
 
 // Free surface detection
-template<KernelType kerneltype>
 void
-CUDAPostProcessEngine<kerneltype>::
 surfaceparticle(const	float4*		pos,
 				const	float4*     vel,
 					float4*		normals,
@@ -973,9 +1134,7 @@ surfaceparticle(const	float4*		pos,
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 
-template<KernelType kerneltype>
 void
-CUDAPostProcessEngine<kerneltype>::
 calcPrivate(const	float4*			pos,
 			const	float4*			vel,
 			const	particleinfo*	info,
@@ -1017,8 +1176,11 @@ calcPrivate(const	float4*			pos,
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("UpdatePositions kernel execution failed");
 }
+};
 
 
+#if 0
+/// TODO FIXME make this into a proper post-processing filter
 
 /* Reductions */
 void set_reduction_params(void* buffer, size_t blocks,
@@ -1072,19 +1234,22 @@ void calc_energy(
 	CUT_CHECK_ERROR("System energy stage 2 failed");
 	CUDA_SAFE_CALL(cudaMemcpy(output, reduce_buffer, numFluids*sizeof(float4), cudaMemcpyDeviceToHost));
 }
+#endif
 
-#define COND_RET(ret_type) \
-template< \
-	KernelType kerneltype, \
-	ViscosityType visctype, \
-	BoundaryType boundarytype, \
-	flag_t simflags \
-> \
-ret_type \
-CUDABoundaryConditionsEngine<kerneltype, visctype, boundarytype, simflags>::
+/// Boundary conditions engines
+
+// TODO FIXME at this time this is just a horrible hack to group the boundary-conditions
+// methods needed for SA, it needs a heavy-duty refactoring of course
+
+template<KernelType kerneltype, ViscosityType visctype,
+	BoundaryType boundarytype, flag_t simflags>
+class CUDABoundaryConditionsEngine : public AbstractBoundaryConditionsEngine
+{
+public:
 
 
-COND_RET(void)
+/// Disables particles that went through boundaries when open boundaries are used
+void
 disableOutgoingParts(		float4*			pos,
 							vertexinfo*		vertices,
 					const	particleinfo*	info,
@@ -1108,7 +1273,8 @@ disableOutgoingParts(		float4*			pos,
 	CUT_CHECK_ERROR("UpdatePositions kernel execution failed");
 }
 
-COND_RET(void)
+/// Computes the boundary conditions on segments using the information from the fluid (on solid walls used for Neumann boundary conditions).
+void
 saSegmentBoundaryConditions(
 			float4*			oldPos,
 			float4*			oldVel,
@@ -1154,7 +1320,11 @@ saSegmentBoundaryConditions(
 	CUT_CHECK_ERROR("saSegmentBoundaryConditions kernel execution failed");
 }
 
-COND_RET(void)
+/// Apply boundary conditions to vertex particles.
+// There is no need to use two velocity arrays (read and write) and swap them after.
+// Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.
+// Data is only read from fluid and segments and written only on vertices.
+void
 saVertexBoundaryConditions(
 			float4*			oldPos,
 			float4*			oldVel,
@@ -1210,7 +1380,8 @@ saVertexBoundaryConditions(
 
 }
 
-COND_RET(void)
+// Downloads the per device waterdepth from the GPU
+void
 downloadIOwaterdepth(
 			uint*	h_IOwaterdepth,
 	const	uint*	d_IOwaterdepth,
@@ -1219,7 +1390,8 @@ downloadIOwaterdepth(
 	CUDA_SAFE_CALL(cudaMemcpy(h_IOwaterdepth, d_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyDeviceToHost));
 }
 
-COND_RET(void)
+// Upload the global waterdepth to the GPU
+void
 uploadIOwaterdepth(
 	const	uint*	h_IOwaterdepth,
 			uint*	d_IOwaterdepth,
@@ -1228,7 +1400,8 @@ uploadIOwaterdepth(
 	CUDA_SAFE_CALL(cudaMemcpy(d_IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
 }
 
-COND_RET(void)
+// Identifies vertices at the corners of open boundaries
+void
 saIdentifyCornerVertices(
 	const	float4*			oldPos,
 	const	float4*			boundelement,
@@ -1270,7 +1443,9 @@ saIdentifyCornerVertices(
 
 }
 
-COND_RET(void)
+/// Finds the closest vertex particles for segments which have no vertices themselves that are of
+/// the same object type and are no corner particles
+void
 saFindClosestVertex(
 	const	float4*			oldPos,
 			particleinfo*	info,
@@ -1304,4 +1479,5 @@ saFindClosestVertex(
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
+};
 
