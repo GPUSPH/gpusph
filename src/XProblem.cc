@@ -1345,7 +1345,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY);
 						break;
 					case GT_FLOATING_BODY:
-						SET_FLAG(info[i], FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE);
+						SET_FLAG(info[i], FG_FLOATING | FG_COMPUTE_FORCE);
 						break;
 					case GT_OPENBOUNDARY:
 						SET_FLAG(info[i], FG_INLET | FG_OUTLET);
