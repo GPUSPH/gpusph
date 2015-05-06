@@ -629,6 +629,8 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 // request to invert normals while loading - only for HDF5 files
 void XProblem::flipNormals(const GeometryID gid, bool flip)
 {
+	if (!validGeometry(gid)) return;
+
 	// this makes sense only for geometries loading a HDF5 file
 	if (!m_geometries[gid]->has_hdf5_file) {
 		printf("WARNING: trying to invert normals on a geometry without HDF5-files associated! Ignoring\n");
@@ -640,6 +642,8 @@ void XProblem::flipNormals(const GeometryID gid, bool flip)
 
 void XProblem::deleteGeometry(const GeometryID gid)
 {
+	if (!validGeometry(gid)) return;
+
 	m_geometries[gid]->enabled = false;
 
 	// and this is the reason why m_numActiveGeometries not be used to iterate on m_geometries:
@@ -665,11 +669,8 @@ void XProblem::deleteGeometry(const GeometryID gid)
 
 void XProblem::enableDynamics(const GeometryID gid)
 {
-	// ensure geometry was not deleted
-	if (!m_geometries[gid]->enabled) {
-		printf("WARNING: trying to enable dynamics on a deleted geometry! Ignoring\n");
-		return;
-	}
+	if (!validGeometry(gid)) return;
+
 	// ensure dynamics are consistent with geometry type
 	if (m_geometries[gid]->type != GT_FLOATING_BODY &&
 		m_geometries[gid]->type != GT_MOVING_BODY) {
@@ -755,6 +756,8 @@ void XProblem::disableFeedback(const GeometryID gid)
 // Set a custom inertia matrix (main diagonal only). Will overwrite the precomputed one
 void XProblem::setInertia(const GeometryID gid, const double i11, const double i22, const double i33)
 {
+	if (!validGeometry(gid)) return;
+
 	// implicitly checking that geometry is a GT_FLOATING_BODY
 	if (!m_geometries[gid]->handle_dynamics) {
 		printf("WARNING: trying to set inertia of a geometry with no dynamics! Ignoring\n");
@@ -892,6 +895,8 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
+	// NOTE: not checking validGeometry() to allow for deleted geometries
+
 	// ensure gid refers to a valid position
 	if (gid >= m_geometries.size()) {
 		printf("WARNING: invalid GeometryID %zu\n", gid);
