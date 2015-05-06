@@ -855,6 +855,7 @@ void XProblem::setMass(const GeometryID gid, const double mass)
 	if (m_geometries[gid]->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
 	m_geometries[gid]->ptr->SetMass(mass);
+	m_geometries[gid]->mass_was_set = true;
 }
 
 double XProblem::setMassByDensity(const GeometryID gid, const double density)
@@ -863,7 +864,11 @@ double XProblem::setMassByDensity(const GeometryID gid, const double density)
 
 	if (m_geometries[gid]->type != GT_FLOATING_BODY)
 		printf("WARNING: setting mass of a non-floating body\n");
-	return m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
+
+	const double mass = m_geometries[gid]->ptr->SetMass(m_physparams.r0, density);
+	m_geometries[gid]->mass_was_set = true;
+
+	return mass;
 }
 
 void XProblem::setParticleMass(const GeometryID gid, const double mass)
@@ -871,6 +876,7 @@ void XProblem::setParticleMass(const GeometryID gid, const double mass)
 	if (!validGeometry(gid)) return;
 
 	m_geometries[gid]->ptr->SetPartMass(mass);
+	m_geometries[gid]->particle_mass_was_set = true;
 }
 
 double XProblem::setParticleMassByDensity(const GeometryID gid, const double density)
@@ -878,7 +884,10 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 	if (!validGeometry(gid)) return NAN;
 
 	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : m_physparams.r0);
-	return m_geometries[gid]->ptr->SetPartMass(dx, density);
+	const double particle_mass = m_geometries[gid]->ptr->SetPartMass(dx, density);
+	m_geometries[gid]->particle_mass_was_set = true;
+
+	return particle_mass;
 }
 
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
@@ -982,14 +991,14 @@ int XProblem::fill_parts()
 		const double DEFAULT_DENSITY = m_physparams.rho0[0];
 
 		// Set part mass, if not set already.
-		if (m_geometries[i]->type != GT_PLANE && m_geometries[i]->ptr->GetPartMass() == 0) {
+		if (m_geometries[i]->type != GT_PLANE && !m_geometries[i]->particle_mass_was_set) {
 			// dx is deltap or r0, according to the geometry type
 			const double dx = (m_geometries[i]->type == GT_FLUID ? m_deltap : m_physparams.r0);
 			m_geometries[i]->ptr->SetPartMass(dx, DEFAULT_DENSITY);
 		}
 
 		// Set object mass for floating objects, if not set already
-		if (m_geometries[i]->type == GT_FLOATING_BODY && m_geometries[i]->ptr->GetMass() == 0) {
+		if (m_geometries[i]->type == GT_FLOATING_BODY && !m_geometries[i]->mass_was_set) {
 			// dx is r0 for floating bodies
 			// TODO: check if this works also with DYN_BOUNDARY
 			m_geometries[i]->ptr->SetMass(m_physparams.r0, DEFAULT_DENSITY);

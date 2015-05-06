@@ -70,6 +70,10 @@ struct GeometryInfo {
 	// user-set inertia
 	double custom_inertia[3];
 
+	// aux vars to check if user set what he/she should
+	bool mass_was_set;
+	bool particle_mass_was_set;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -95,6 +99,9 @@ struct GeometryInfo {
 		custom_inertia[0] = NAN;
 		custom_inertia[1] = NAN;
 		custom_inertia[2] = NAN;
+
+		mass_was_set = false;
+		particle_mass_was_set = false;
 	}
 };
 
