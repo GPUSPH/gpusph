@@ -154,12 +154,3 @@ basicstep(
 	CUT_CHECK_ERROR("Euler kernel execution failed");
 }
 
-// The instances that we want to actually instantiates are defined
-// in a programmatically-generated file:
-
-#ifndef EULER_INSTANCE_FILE
-#error "No instance file defined for euler!"
-#else
-#include STR(EULER_INSTANCE_FILE)
-#endif
-

@@ -665,15 +665,6 @@ reduceRbForces(	float4	*forces,
 		}
 }
 
-// The instances that we want to actually instantiate are defined
-// in a programmatically-generated file:
-
-#ifndef FORCES_INSTANCE_FILE
-#error "No instance file defined for forces!"
-#else
-#include STR(FORCES_INSTANCE_FILE)
-#endif
-
 /// CUDAViscEngine should be moved elsewhere
 
 template<ViscosityType visctype,
@@ -753,15 +744,6 @@ struct CUDAViscEngineHelper<SPSVISC, kerneltype, boundarytype>
 	CUDA_SAFE_CALL(cudaBindTexture(0, tau2Tex, tau[2], numParticles*sizeof(float2)));
 }
 };
-
-// The instances that we want to actually instantiate are defined
-// in a programmatically-generated file:
-
-#ifndef VISC_INSTANCE_FILE
-#error "No instance file defined for viscosities!"
-#else
-#include STR(VISC_INSTANCE_FILE)
-#endif
 
 /// Other methods TODO will need to move elsewhere
 
@@ -856,16 +838,6 @@ struct CUDAFilterEngineHelper<MLS_FILTER, kerneltype, boundarytype>
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
 };
-
-// The instances that we want to actually instantiate are defined
-// in a programmatically-generated file:
-
-#ifndef FILTERS_INSTANCE_FILE
-#error "No instance file defined for filters!"
-#else
-#include STR(FILTERS_INSTANCE_FILE)
-#endif
-
 
 template<KernelType kerneltype>
 void
@@ -1332,13 +1304,4 @@ saFindClosestVertex(
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));
 }
-
-// The instances that we want to actually instantiate are defined
-// in a programmatically-generated file:
-
-#ifndef BOUND_INSTANCE_FILE
-#error "No instance file defined for boundary conditions!"
-#else
-#include STR(BOUND_INSTANCE_FILE)
-#endif
 

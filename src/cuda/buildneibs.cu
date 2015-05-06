@@ -424,13 +424,3 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 	CUT_CHECK_ERROR("thrust sort failed");
 }
 
-/*! \cond */
-// The instances that we want to actually instantiates are defined
-// in a programmatically-generated file:
-#ifndef BUILDNEIBS_INSTANCE_FILE
-#error "No instance file defined for buildneibs!"
-#else
-#include STR(BUILDNEIBS_INSTANCE_FILE)
-#endif
-/*! \endcond */
-
