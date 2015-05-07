@@ -79,16 +79,16 @@ enum ParticleType {
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 enum ParticleFlag {
-	FG_FLOATING = (PART_FLAG_START<<0),
 	FG_MOVING_BOUNDARY = (PART_FLAG_START<<1),
+	FG_COMPUTE_FORCE = (PART_FLAG_START<<4),
 	FG_INLET = (PART_FLAG_START<<2),
 	FG_OUTLET = (PART_FLAG_START<<3),
-	FG_COMPUTE_FORCE = (PART_FLAG_START<<4),
 	FG_VELOCITY_DRIVEN =  (PART_FLAG_START<<5),
 	FG_CORNER =  (PART_FLAG_START<<6),
 	FG_SURFACE =  (PART_FLAG_START<<7),
 	FG_FIXED =  (PART_FLAG_START<<8)
 };
+#define FG_FLOATING (FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE)
 
 #define SET_FLAG(info, flag) ((info).x |= (flag))
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
@@ -112,8 +112,6 @@ enum ParticleFlag {
 
 // Testpoints
 #define TESTPOINT(f)	(PART_TYPE(f) == PT_TESTPOINT)
-// Particle belonging to an floating object
-#define OBJECT(f)		(type(f) & FG_FLOATING)
 // Boundary particle
 #define BOUNDARY(f)		(PART_TYPE(f) == PT_BOUNDARY)
 // Vertex particle
@@ -137,9 +135,9 @@ enum ParticleFlag {
 // very close to the side wall which causes problems
 #define CORNER(f)		(type(f) & FG_CORNER)
 // This flag is set for moving vertices / segments either forced or free (floating)
-#define MOVING(f)		(type(f) & (FG_FLOATING | FG_MOVING_BOUNDARY))
+#define MOVING(f)		(type(f) & FG_MOVING_BOUNDARY)
 // This flag is set for particles belonging to a floating body
-#define FLOATING(f)		(type(f) & FG_FLOATING)
+#define FLOATING(f)		(type(f) & (FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE))
 // This flag is set for particles belonging to a moving body on which we want to compute reaction force
 #define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
 

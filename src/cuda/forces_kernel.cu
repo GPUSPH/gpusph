@@ -1941,8 +1941,6 @@ shepardDevice(	const float4*	posArray,
 
 		// Skip inactive neighbors
 		if (INACTIVE(relPos)) {
-			if (OBJECT(neib_info))
-				printf("Object part inactive !");
 			continue;
 		}
 
@@ -1963,8 +1961,6 @@ shepardDevice(	const float4*	posArray,
 	// Normalize the density and write in global memory
 	vel.w = temp1/temp2;
 	newVel[index] = vel;
-	if (OBJECT(info))
-		printf("SF: object part density updated !\n");
 }
 
 // contribution of neighbor at relative position relPos with weight w to the

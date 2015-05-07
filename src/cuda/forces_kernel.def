@@ -807,7 +807,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 {
 	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		return;
-	if (OBJECT(pdata.info) && (ndata.ntype == PT_VERTEX ) ) {
+	if (MOVING(pdata.info) && (ndata.ntype == PT_VERTEX ) ) { // TODO FIXME SA check MOVING or FLOATING?
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
 		const float ndist = sqlength3(ndata.relPos)/params.slength/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
@@ -1805,7 +1805,7 @@ forcesDevice(
 		// 	* vertex particles (for SA_BOUNDARY)
 		// 	* everything except TESTPOINTS (for DYN_BOUNDARY)
 
-		bool computes_stuff = FLUID(info) || OBJECT(info);
+		bool computes_stuff = FLUID(info) || COMPUTE_FORCE(info);
 		if (boundarytype == SA_BOUNDARY) {
 			computes_stuff = computes_stuff || VERTEX(info);
 			// Floating objects need to compute the force acting on them
@@ -1889,19 +1889,18 @@ forcesDevice(
 			// We recycle the computes_stuff as boolean
 			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
-			// Objects only interact with fluid particles, since object-object
-			// and object-boundary forces are computed with ODE
-			// TODO FIXME prevent OBJECT parts from having other OBJECT parts in their
-			// neib list
-			if (OBJECT(pdata.info))
-				computes_stuff = computes_stuff && (FLUID(neib_info) && !OBJECT(neib_info));
+			// Particles in rigid bodies that need to compute forcs only interact with
+			// fluid particles, since object-object and object-boundary forces
+			// are computed with ODE
+			if (COMPUTE_FORCE(pdata.info))
+				computes_stuff = computes_stuff && FLUID(neib_info);
 
 			// With SA_BOUNDARY, fluid and vertex particles interact with any
 			// BOUNDARY particles in the neiblist, regardless of distance
 			// TODO FIXME they should interact with BOUNDARY particles such
 			// that the current particle influence radius intersects the
 			// boundary element
-			if (boundarytype == SA_BOUNDARY && (pdata.ptype == PT_FLUID || pdata.ptype == PT_VERTEX))
+			if (boundarytype == SA_BOUNDARY && (FLUID(info) || VERTEX(info)))
 				computes_stuff = computes_stuff || BOUNDARY(neib_info);
 
 			// Bail out if we do not interact with this neighbor
@@ -1922,7 +1921,7 @@ forcesDevice(
 			compute_gamma<boundarytype>::with<kerneltype>(params, pdata, ndata, pout, nout);
 
 			// With DYN_BOUNDARY formulation, all particles interaction follow the fluid-fluid one
-			if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID) {
+			if (boundarytype == DYN_BOUNDARY || FLUID(info)) {
 				// The Navier-Stokes equations are applied in the following cases:
 				// 		* for SA boundary, by a fluid particle interacting with fluid, boundary and vertex particles;
 				// 		* for LJ boundary, by a fluid particle interacting with a fluid particle;
@@ -2016,7 +2015,7 @@ forcesDevice(
 			}
 
 			if (boundarytype == LJ_BOUNDARY) {
-				if (OBJECT(pdata.info))
+				if (COMPUTE_FORCE(pdata.info))
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
 
@@ -2071,7 +2070,7 @@ forcesDevice(
 
 			shared.store(params, pdata, pout);
 		}
-		if (boundarytype == SA_BOUNDARY && OBJECT(pdata.info)) {
+		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
@@ -2079,7 +2078,7 @@ forcesDevice(
 		// Writing out the results
 		// TODO: below was the previous test, i don't understand it (Alexis).
 		//if (OBJECT(pdata.info) || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
-		if (OBJECT(pdata.info)) {
+		if (COMPUTE_FORCE(pdata.info)) {
 			// Except for SA boundary, the forces computed in the neighbors loop are forces by unit of mass
 			// (i.e) accelerations so when we computing the total forces (and torques) acting on an object
 			// particle, the force must be multiplied by the particle mass.
