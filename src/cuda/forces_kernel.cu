@@ -115,8 +115,8 @@ __constant__ float	d_partsurf;		/// particle surface (typically particle spacing
 
 // Definition of planes for geometrical boundaries
 __constant__ uint	d_numplanes;
-__constant__ float4	d_planes[MAXPLANES];
-__constant__ float	d_plane_div[MAXPLANES];
+__constant__ float4	d_planes[MAX_PLANES];
+__constant__ float	d_plane_div[MAX_PLANES];
 
 // Sub-Particle Scale (SPS) Turbulence parameters
 __constant__ float	d_smagfactor;
@@ -127,8 +127,8 @@ __constant__ float	d_cosconeanglefluid;
 __constant__ float	d_cosconeanglenonfluid;
 
 // Rigid body data
-__constant__ float3	d_rbcg[MAXBODIES];
-__constant__ int	d_rbstartindex[MAXBODIES];
+__constant__ float3	d_rbcg[MAX_BODIES];
+__constant__ int	d_rbstartindex[MAX_BODIES];
 __constant__ float	d_objectobjectdf;
 __constant__ float	d_objectboundarydf;
 

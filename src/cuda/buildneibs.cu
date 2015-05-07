@@ -35,8 +35,6 @@
 #include "utils.h"
 
 /* Important notes on block sizes:
-	- all kernels accessing the neighbor list MUST HAVE A BLOCK
-	MULTIPLE OF NEIBINDEX_INTERLEAVE
 	- a parallel reduction for max neibs number is done inside neiblist, block
 	size for neiblist MUST BE A POWER OF 2
  */

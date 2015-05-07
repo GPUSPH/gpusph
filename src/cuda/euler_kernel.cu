@@ -39,11 +39,11 @@ __constant__ float	d_epsxsph;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
 
-__constant__ float3	d_rbcg[MAXBODIES];
-__constant__ float3	d_rbtrans[MAXBODIES];
-__constant__ float3	d_rblinearvel[MAXBODIES];
-__constant__ float3	d_rbangularvel[MAXBODIES];
-__constant__ float	d_rbsteprot[9*MAXBODIES];
+__constant__ float3	d_rbcg[MAX_BODIES];
+__constant__ float3	d_rbtrans[MAX_BODIES];
+__constant__ float3	d_rblinearvel[MAX_BODIES];
+__constant__ float3	d_rbangularvel[MAX_BODIES];
+__constant__ float	d_rbsteprot[9*MAX_BODIES];
 
 #include "cellgrid.h"
 

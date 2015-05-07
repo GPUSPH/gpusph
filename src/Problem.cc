@@ -89,8 +89,8 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// are reduced by a parallel prefix sum: all the bodies that require
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
-	if (index >= MAXBODIES)
-		throw runtime_error ("Number of moving bodies superior to MAXBODIES. Increase MAXBODIES\n");
+	if (index >= MAX_BODIES)
+		throw runtime_error ("Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
 	mbdata->type = mbtype;

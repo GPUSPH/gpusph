@@ -45,8 +45,6 @@
 #include "forces_params.h"
 
 /* Important notes on block sizes:
-	- all kernels accessing the neighbor list MUST HAVE A BLOCK
-	MULTIPLE OF NEIBINDEX_INTERLEAVE
 	- a parallel reduction for adaptive dt is done inside forces, block
 	size for forces MUST BE A POWER OF 2
  */

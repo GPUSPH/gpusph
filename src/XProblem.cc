@@ -171,9 +171,9 @@ bool XProblem::initialize()
 	}
 
 	// here should be rigid_body_counter == m_numFloatingBodies
-	if ( rigid_body_counter > MAXBODIES ) {
-		printf("Fatal: number off floating bodies > MAXBODIES (%u > %u)\n",
-			rigid_body_counter, MAXBODIES);
+	if ( rigid_body_counter > MAX_BODIES ) {
+		printf("Fatal: number off floating bodies > MAX_BODIES (%u > %u)\n",
+			rigid_body_counter, MAX_BODIES);
 		return false;
 	}
 

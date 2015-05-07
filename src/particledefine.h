@@ -195,9 +195,8 @@ enum SPSKernelSimFlags {
 	SPSK_STORE_TURBVISC = (SPSK_STORE_TAU << 1)
 };
 
-#define MAXPLANES			8
-#define MAXMOVINGBOUND		16
-#define MAX_FLUID_TYPES 	4
+#define MAX_PLANES			8
+#define MAX_FLUID_TYPES	4
 
 /* The particle type is a short integer organized this way:
    * lowest 3 bits: particle type
@@ -316,11 +315,14 @@ disable_particle(float4 &pos) {
 }
 
 /* Maximum number of floating bodies*/
-#define	MAXBODIES				16
+#define	MAX_BODIES				16
 
+/* CUDA linear textures have a limit of 2^27 to the number of elements they can hold.
+ * This effectively imposes an upper limit on the number of particles that we can use
+ * per GPU, due to our use of textures for caching.
+ * TODO FIXME actually use this
+ */
 #define MAX_CUDA_LINEAR_TEXTURE_ELEMENTS (1U << 27)
-
-#define NEIBINDEX_INTERLEAVE		32U
 
 #if (__COMPUTE__ >= 20)
 	#define INTMUL(x,y) (x)*(y)

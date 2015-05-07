@@ -919,8 +919,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 
 
 	if (gdata->numPlanes > 0) {
-		if (gdata->numPlanes > MAXPLANES) {
-			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAXPLANES);
+		if (gdata->numPlanes > MAX_PLANES) {
+			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAX_PLANES);
 			exit(1);
 		}
 		const size_t planeSize4 = sizeof(float4) * gdata->numPlanes;
