@@ -79,16 +79,16 @@ enum ParticleType {
 /* particle flags */
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 enum ParticleFlag {
-	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1),
-	FG_INLET =				(PART_FLAG_START<<2),
-	FG_OUTLET =				(PART_FLAG_START<<3),
-	FG_COMPUTE_FORCE =		(PART_FLAG_START<<4),
-	FG_VELOCITY_DRIVEN =	(PART_FLAG_START<<5),
-	FG_CORNER =				(PART_FLAG_START<<6),
-	FG_SURFACE =			(PART_FLAG_START<<7),
-	FG_FIXED =				(PART_FLAG_START<<8)
+	FG_COMPUTE_FORCE =		(PART_FLAG_START<<0), ///< particle belongs to a body that needs to compute forces
+	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1), ///< particle belongs to a body with externally prescriped motion
+
+	FG_INLET =				(PART_FLAG_START<<2), ///< particle belongs to an inlet
+	FG_OUTLET =				(PART_FLAG_START<<3), ///< particle belongs to an outlet
+	FG_VELOCITY_DRIVEN =	(PART_FLAG_START<<4), ///< particle belongs to an I/O with prescribed velocity
+	FG_CORNER =				(PART_FLAG_START<<5), ///< particle is a corner of an I/O
+
+	FG_SURFACE =			(PART_FLAG_START<<6), ///< particle is at the free surface
 };
-#define FG_FLOATING (FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE)
 
 #define SET_FLAG(info, flag) ((info).x |= (flag))
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
@@ -118,12 +118,11 @@ enum ParticleFlag {
 #define VERTEX(f)		(PART_TYPE(f) == PT_VERTEX)
 
 /* Tests for particle flags */
+
 // Free surface detection
 #define SURFACE(f)		(type(f) & FG_SURFACE)
-// TODO: remove ?
-// Fixed particle (e.g. Dalrymple's dynamic bounary particles)
-//#define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
-// If this flag is set the object is and open boundary
+
+// If one of these flag is set the object is and open boundary
 #define IO_BOUNDARY(f)	(type(f) & (FG_INLET | FG_OUTLET))
 // If this flag is set the normal velocity is imposed at an open boundary
 // if it is not set the pressure is imposed instead
@@ -134,6 +133,7 @@ enum ParticleFlag {
 // be treated like an open boundary particle apart from that. This avoids having to span new particles
 // very close to the side wall which causes problems
 #define CORNER(f)		(type(f) & FG_CORNER)
+
 // This flag is set for moving vertices / segments either forced or free (floating)
 #define MOVING(f)		(type(f) & FG_MOVING_BOUNDARY)
 // This flag is set for particles belonging to a floating body

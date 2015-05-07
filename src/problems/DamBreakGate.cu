@@ -236,7 +236,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
 				case MB_ODE:
-					ptype |= FG_FLOATING;
+					ptype |= FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
 					break;
 				case MB_FORCES_MOVING:
 					ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
