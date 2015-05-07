@@ -141,8 +141,6 @@ enum ParticleFlag {
 // This flag is set for particles belonging to a moving body on which we want to compute reaction force
 #define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
 
-#define PART_FLUID_NUM(f)	(fluid_num(f))
-
 // fluid particles can be active or inactive. Particles are marked inactive under appropriate
 // conditions (e.g. after flowing out through an outlet), and are kept around until the next
 // buildneibs, that sweeps them away.

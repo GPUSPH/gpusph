@@ -43,7 +43,7 @@ LaPalisse_imposeBoundaryCondition(
 			}
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
-			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
+			eulerVel.w = RHO(pressure, fluid_num(info));
 		}
 	}
 }

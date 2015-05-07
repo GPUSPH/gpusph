@@ -320,7 +320,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		if (TESTPOINT(info[i]))
 			value = vel[i].w;
 		else
-			value = m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i]));
+			value = m_problem->pressure(vel[i].w, fluid_num(info[i]));
 		write_var(fid, value);
 	}
 

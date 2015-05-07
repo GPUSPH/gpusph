@@ -693,7 +693,7 @@ densityGrenierDevice(
 	if (INACTIVE(pos))
 		return;
 
-	const ushort fnum = PART_FLUID_NUM(info);
+	const ushort fnum = fluid_num(info);
 	const float vol = volArray[index].w;
 	float4 vel = velArray[index];
 
@@ -747,7 +747,7 @@ densityGrenierDevice(
 		   and non-fluid (only preset for DYN_BOUNDARY) only consider non-fluid
 		   */
 		if ((boundarytype != DYN_BOUNDARY || (PART_TYPE(neib_info) == PART_TYPE(info)))
-			&& PART_FLUID_NUM(neib_info) == fnum) {
+			&& fluid_num(neib_info) == fnum) {
 			mass_corr += relPos.w*w;
 			corr += w;
 		}
@@ -1237,7 +1237,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		float3 pos_corr;
 
 		// Square of sound speed. Would need modification for multifluid
-		const float sqC0 = d_sqC0[PART_FLUID_NUM(info)];
+		const float sqC0 = d_sqC0[fluid_num(info)];
 
 		const float4 normal = tex1Dfetch(boundTex, index);
 
@@ -1264,7 +1264,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			if (r < influenceradius && (FLUID(neib_info) || (VERTEX(neib_info) && !IO_BOUNDARY(neib_info) && IO_BOUNDARY(info)))) {
 				const float neib_rho = oldVel[neib_index].w;
 
-				const float neib_pres = P(neib_rho, PART_FLUID_NUM(neib_info));
+				const float neib_pres = P(neib_rho, fluid_num(neib_info));
 				const float neib_vel = length(make_float3(oldVel[neib_index]));
 				const float neib_k = oldTKE ? oldTKE[neib_index] : NAN;
 				const float neib_eps = oldEps ? oldEps[neib_index] : NAN;
@@ -1324,10 +1324,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			}
 			if (IO_BOUNDARY(info))
 				sumvel /= alpha;
-			oldVel[index].w = fmax(sumrho/alpha,d_rho0[PART_FLUID_NUM(info)]);
+			oldVel[index].w = fmax(sumrho/alpha,d_rho0[fluid_num(info)]);
 		}
 		else {
-			oldVel[index].w = d_rho0[PART_FLUID_NUM(info)];
+			oldVel[index].w = d_rho0[fluid_num(info)];
 			if (oldEulerVel)
 				oldEulerVel[index] = make_float4(0.0f);
 			if (oldTKE)
@@ -1350,7 +1350,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 			const float unExt = dot3(eulerVel, normal);
 			const float rhoInt = oldVel[index].w;
 			const float rhoExt = eulerVel.w;
-			const int a = PART_FLUID_NUM(info);
+			const int a = fluid_num(info);
 
 			// impose velocity (and k,eps) => compute density
 			if (VEL_IO(info)) {
@@ -1388,7 +1388,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 				}*/
 				flux = unInt + (R(rhoExt, a) - R(rhoInt, a));
 				// if p <= 0 is imposed then only outgoing flux is allowed
-				if (rhoExt < d_rho0[PART_FLUID_NUM(info)]*(1.0f+1e-5f))
+				if (rhoExt < d_rho0[fluid_num(info)]*(1.0f+1e-5f))
 					flux = fmin(0.0f, flux);
 				// impose eulerVel according to dv/dn = 0
 				as_float3(eulerVel) = sumvel;
@@ -1767,14 +1767,14 @@ saVertexBoundaryConditions(
 
 		// finalize mass computation
 		// reference mass:
-		const float rho0 = d_rho0[PART_FLUID_NUM(info)];
+		const float rho0 = d_rho0[fluid_num(info)];
 		const float refMass = deltap*deltap*deltap*rho0;
 			// only create new particles in the second part of the time step
 		if (step == 2 &&
 			// create new particle if the mass of the vertex is large enough
 			pos.w > refMass*0.5f &&
 			// check that the flow vector points into the domain
-			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[PART_FLUID_NUM(info)] &&
+			dot(as_float3(eulerVel),avgNorm) > 1e-4f*d_sscoeff[fluid_num(info)] &&
 			// pressure inlets need p > 0 to create particles
 			(VEL_IO(info) || eulerVel.w-rho0 > rho0*1e-5f) &&
 			// corner vertices are not allowed to create new particles

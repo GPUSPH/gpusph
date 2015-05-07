@@ -82,7 +82,7 @@ CustomTextWriter::write(uint numParts, BufferList const& buffers, uint node_offs
 
 		// pressure
 		if (FLUID(info[i]))
-			fid << m_problem->pressure(vel[i].w, PART_FLUID_NUM(info[i])) << "\t";
+			fid << m_problem->pressure(vel[i].w, fluid_num(info[i])) << "\t";
 		else
 			fid << "0.0\t";
 
