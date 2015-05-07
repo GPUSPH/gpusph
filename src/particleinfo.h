@@ -201,9 +201,14 @@ static __forceinline__ __host__ __device__ const ushort& object(const particlein
 	return info.y;
 }
 
-static __forceinline__ __host__ __device__ const ushort& fluid_num(const particleinfo &info)
+
+static __forceinline__ __host__ __device__ __attribute__((pure)) ushort fluid_num(const particleinfo &info)
 {
-	return info.y;
+	// TODO FIXME the fluid_num should never be queried for non-fluid part. In the mean time,
+	// retun 0 in such a case, since this is generally used to get information on pressure or
+	// viscosity. This effectively makes the object system incompatible with multifluid.
+	// TODO FIXME also check multifluid SA
+	return BOUNDARY(info) ? 0 : info.y;
 }
 
 static __forceinline__ __host__ __device__ const uint & id(const particleinfo &info)
