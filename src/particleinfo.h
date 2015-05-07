@@ -30,6 +30,8 @@
 
 // for memcpy
 #include <cstring>
+// for NAN
+#include <cmath>
 
 // we use CUDA types and host/device specifications here
 #include "cuda_runtime.h"
@@ -38,10 +40,9 @@
 typedef uint4 vertexinfo;
 #define make_vertexinfo make_uint4
 
-
 /* Particle information. ushort4 with fields:
-   .x: particle type (for multifluid)
-   .y: object id (which object does this particle belong to?)
+   .x: particle type and flags
+   .y: object id or fluid number
    (.z << 16) + .w: particle id
 
    The last two fields are unlikely to be used for actual computations, but
@@ -53,6 +54,115 @@ typedef uint4 vertexinfo;
 */
 
 typedef ushort4 particleinfo;
+
+/* The particle type is a short integer organized this way:
+   * lowest 3 bits: particle type
+   * next 13 bits: flags
+
+  Particle types are mutually exclusive (e.g. a particle is _either_
+  boundary _or_ vertex, but not both)
+
+  The maximum number of particle types we can have with 4 is
+  2^3 = 8 of which 4 are actually used.
+*/
+
+// number of bits after which flags are stored
+#define PART_FLAG_SHIFT	3
+
+enum ParticleType {
+	PT_FLUID = 0,
+	PT_TESTPOINT,
+	PT_BOUNDARY,
+	PT_VERTEX
+};
+
+/* particle flags */
+#define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
+enum ParticleFlag {
+	FG_FLOATING = (PART_FLAG_START<<0),
+	FG_MOVING_BOUNDARY = (PART_FLAG_START<<1),
+	FG_INLET = (PART_FLAG_START<<2),
+	FG_OUTLET = (PART_FLAG_START<<3),
+	FG_COMPUTE_FORCE = (PART_FLAG_START<<4),
+	FG_VELOCITY_DRIVEN =  (PART_FLAG_START<<5),
+	FG_CORNER =  (PART_FLAG_START<<6),
+	FG_SURFACE =  (PART_FLAG_START<<7),
+	FG_FIXED =  (PART_FLAG_START<<8)
+};
+
+#define SET_FLAG(info, flag) ((info).x |= (flag))
+#define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
+#define QUERY_FLAG(info, flag) ((info).x & (flag))
+
+/* A bitmask to select only the particle type */
+#define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)
+
+/* Extract a specific subfield from the particle type: */
+// Extract particle type
+#define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
+// Extract particle flag
+#define PART_FLAGS(f)		(type(f) >> PART_FLAG_SHIFT)
+
+/* Tests for particle types */
+
+/* A particle is NOT fluid if its particle type is non-zero */
+#define NOT_FLUID(f)	((type(f) & PART_TYPE_MASK) > PT_FLUID)
+/* otherwise it's fluid */
+#define FLUID(f)		((type(f) & PART_TYPE_MASK) == PT_FLUID)
+
+// Testpoints
+#define TESTPOINT(f)	(PART_TYPE(f) == PT_TESTPOINT)
+// Particle belonging to an floating object
+#define OBJECT(f)		(type(f) & FG_FLOATING)
+// Boundary particle
+#define BOUNDARY(f)		(PART_TYPE(f) == PT_BOUNDARY)
+// Vertex particle
+#define VERTEX(f)		(PART_TYPE(f) == PT_VERTEX)
+
+/* Tests for particle flags */
+// Free surface detection
+#define SURFACE(f)		(type(f) & FG_SURFACE)
+// TODO: remove ?
+// Fixed particle (e.g. Dalrymple's dynamic bounary particles)
+//#define FIXED_PART(f)	(type(f) & FIXED_PARTICLE_FLAG)
+// If this flag is set the object is and open boundary
+#define IO_BOUNDARY(f)	(type(f) & (FG_INLET | FG_OUTLET))
+// If this flag is set the normal velocity is imposed at an open boundary
+// if it is not set the pressure is imposed instead
+#define VEL_IO(f)		(type(f) & FG_VELOCITY_DRIVEN)
+// If vel_io is not set then we have a pressure inlet
+#define PRES_IO(f)		(!VEL_IO(f))
+// If this flag is set then a particle at an open boundary will have a non-varying mass but still
+// be treated like an open boundary particle apart from that. This avoids having to span new particles
+// very close to the side wall which causes problems
+#define CORNER(f)		(type(f) & FG_CORNER)
+// This flag is set for moving vertices / segments either forced or free (floating)
+#define MOVING(f)		(type(f) & (FG_FLOATING | FG_MOVING_BOUNDARY))
+// This flag is set for particles belonging to a floating body
+#define FLOATING(f)		(type(f) & FG_FLOATING)
+// This flag is set for particles belonging to a moving body on which we want to compute reaction force
+#define COMPUTE_FORCE(f)	(type(f) & FG_COMPUTE_FORCE)
+
+#define PART_FLUID_NUM(f)	(fluid_num(f))
+
+// fluid particles can be active or inactive. Particles are marked inactive under appropriate
+// conditions (e.g. after flowing out through an outlet), and are kept around until the next
+// buildneibs, that sweeps them away.
+// Since the inactivity of the particles must be accessible during neighbor list building,
+// and in particular when computing the particle hash for bucketing, we carry the information
+// in the position/mass field. Specifically, a particle is marked inactive by setting its
+// mass to Not-a-Number.
+
+// a particle is active if its mass is finite
+#define ACTIVE(p)	(isfinite((p).w))
+#define INACTIVE(p)	(!ACTIVE(p))
+
+// disable a particle by zeroing its mass
+inline __host__ __device__ void
+disable_particle(float4 &pos) {
+	pos.w = NAN;
+}
+
 
 inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj, const ushort &z, const ushort &w)
 {
