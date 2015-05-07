@@ -35,6 +35,15 @@
 
 XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 {
+	SETUP_FRAMEWORK(
+		kernel<WENDLAND>,
+		formulation<SPH_F1>,
+		viscosity<ARTVISC>,
+		boundary<SA_BOUNDARY>,
+		periodicity<PERIODIC_NONE>,
+		flags<ENABLE_DTADAPT>
+	);
+
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
 	m_physparams.r0 = m_deltap;
