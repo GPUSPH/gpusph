@@ -49,7 +49,8 @@ static const char* WriterName[] = {
 	"VTKLegacyWriter",
 	"CallbackWriter",
 	"CustomTextWriter",
-	"UDPWriter"
+	"UDPWriter",
+	"HotWriter"
 };
 
 void
@@ -113,7 +114,7 @@ Writer::Create(GlobalData *_gdata)
 		writer->set_write_freq(freq);
 
 		if (freq > 0)
-			cout << WriterName[wt] << " will write every " << freq << " seconds" << endl;
+			cout << WriterName[wt] << " will write every " << freq << " (simulated) seconds" << endl;
 		else if (freq == 0)
 			cout << WriterName[wt] << " will write every iteration" << endl;
 		else if (freq < 0)
