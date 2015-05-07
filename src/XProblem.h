@@ -70,6 +70,10 @@ struct GeometryInfo {
 	// user-set inertia
 	double custom_inertia[3];
 
+	// aux vars to check if user set what he/she should
+	bool mass_was_set;
+	bool particle_mass_was_set;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -95,6 +99,9 @@ struct GeometryInfo {
 		custom_inertia[0] = NAN;
 		custom_inertia[1] = NAN;
 		custom_inertia[2] = NAN;
+
+		mass_was_set = false;
+		particle_mass_was_set = false;
 	}
 };
 
@@ -141,6 +148,9 @@ class XProblem: public Problem {
 		double m_maxFall;
 		// used to set sound of speed
 		double m_maxParticleSpeed;
+
+		// number of layers for filling dynamic boundaries
+		uint m_numDynBoundLayers;
 
 	protected:
 		// methods for creation of new objects
@@ -225,6 +235,9 @@ class XProblem: public Problem {
 		void setMaxFall(double maxFall) { m_maxFall = maxFall; }
 		// set _expected_ max particle speed
 		void setMaxParticleSpeed(double maxParticleSpeed) { m_maxParticleSpeed = maxParticleSpeed; }
+
+		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
+		void setDynamicBoundariesLayers(const uint numLayers);
 
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);

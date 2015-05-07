@@ -35,6 +35,13 @@
 
 XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 {
+	// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
+	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
+	SETUP_FRAMEWORK(
+		viscosity<ARTVISC>,
+		boundary<LJ_BOUNDARY>
+	);
+
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
 	m_physparams.r0 = m_deltap;
@@ -47,11 +54,7 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams.maxneibsnum = 256 + 64;
-	m_simparams.dtadapt = true;
-	// viscositys: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
-	m_simparams.visctype = ARTVISC;
-	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
-	m_simparams.boundarytype = LJ_BOUNDARY;
+	//m_simparams.dtadapt = true;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);

@@ -936,7 +936,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	}
 
 	const size_t numbodies = gdata->problem->get_simparams()->numbodies;
-	std::cout << "Numbodie : " << numbodies << "\n";
+	std::cout << "Numbodies : " << numbodies << "\n";
 	if (numbodies > 0) {
 		gdata->s_hRbGravityCenters = new float3 [numbodies];
 		fill_n(gdata->s_hRbGravityCenters, numbodies, make_float3(0.0f));

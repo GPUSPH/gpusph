@@ -29,6 +29,9 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 		boundary<DYN_BOUNDARY>
 	);
 
+	// let the number of layers be autocomputed
+	//setDynamicBoundariesLayers(4);
+
 	// SPH parameters
 	set_deltap(0.02); //0.008
 	m_simparams.slength = 1.3*m_deltap;
@@ -74,9 +77,6 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 
 	GeometryID cube = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0,0,0), lx, ly, lz);
 	disableCollisions(cube);
-
-	// makeUniverseBox also sets origin and size
-	makeUniverseBox(make_double3(0.0, 0.0, 0.0), make_double3(lx, ly, lz) );
 
 	const double offs = m_deltap * layers;
 	//addExtraWorldMargin(2*offs);
