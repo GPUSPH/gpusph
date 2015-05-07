@@ -77,9 +77,6 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	GeometryID cube = addBox(GT_FIXED_BOUNDARY, FT_BORDER, Point(0,0,0), lx, ly, lz);
 	disableCollisions(cube);
 
-	// makeUniverseBox also sets origin and size
-	makeUniverseBox(make_double3(0.0, 0.0, 0.0), make_double3(lx, ly, lz) );
-
 	const double offs = m_deltap * layers;
 	//addExtraWorldMargin(2*offs);
 
