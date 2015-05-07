@@ -178,6 +178,17 @@ class Problem {
 		// * boundary model
 		// * periodicity
 		// * flags (see simflags.h)
+		// Example usage with default parameters:
+		/*
+			SETUP_FRAMEWORK(
+				kernel<WENDLAND>,
+				formulation<SPH_F1>,
+				viscosity<ARTVISC>,
+				boundary<LJ_BOUNDARY>,
+				periodicity<PERIODIC_NONE>,
+				flags<ENABLE_DTADAPT>
+			);
+		*/
 
 #define	SETUP_FRAMEWORK(...) do { \
 	m_simframework = new CUDASimFramework< __VA_ARGS__ >(); \
