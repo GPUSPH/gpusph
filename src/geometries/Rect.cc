@@ -592,6 +592,8 @@ Rect::FillIn(PointVect &points, const double dx, const int layers)
 
 	Fill(points, dx, true);
 
+	// NOTE: pre-decrementing causes (_layers-1) layers to be filled. This
+	// is correct since the first layer was already filled
 	while (--_layers > 0) {
 		Rect layer(m_origin + dx*_layers*unitshift, m_vx, m_vy);
 		layer.SetPartMass(m_center(3));
