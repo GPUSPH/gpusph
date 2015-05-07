@@ -1566,7 +1566,7 @@ compute_boundary_force<SA_BOUNDARY>::with(FP const& params, PD const& pdata, OP 
 }
 
 /// A functor that computes the mean velocity (XSPH)
-template<BoundaryType>
+template<BoundaryType, bool use_water_depth>
 struct compute_water_depth_at_outflow
 {
 	template<typename FP, typename P, typename N, typename OP, typename ON>
@@ -1579,7 +1579,7 @@ struct compute_water_depth_at_outflow
 template<>
 template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
-compute_water_depth_at_outflow<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	// note all computations here are done assuming that the gravity vector points in z direction only
 	// if the fluid particle is higher than the vertex particle then don't continue (saves a few atomics)
@@ -2010,7 +2010,7 @@ forcesDevice(
 				}
 				else if ((simflags & ENABLE_WATER_DEPTH) && pdata.ptype == PT_VERTEX && IO_BOUNDARY(info) && !VEL_IO(info)) {
 					// Compute the maximum depth at pressure boundaries
-					compute_water_depth_at_outflow<boundarytype>::with(params, pdata, ndata, pout, nout);
+					compute_water_depth_at_outflow<boundarytype, (simflags & ENABLE_WATER_DEPTH)>::with(params, pdata, ndata, pout, nout);
 				}
 			}
 
