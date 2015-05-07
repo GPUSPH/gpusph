@@ -179,6 +179,7 @@ bool XProblem::initialize()
 	// add_moving_body() will increment it and use it for the insertion in the vector
 	//m_simparams.numODEbodies = rigid_body_counter; // == m_numFloatingBodies;
 	// store number of objects (floating + moving + I/O)
+	// TODO: here we probably want numObjects to be actually a numOpenBoundaries
 	m_simparams.numObjects = object_counter;
 
 	// set computed world origin and size without overriding possible user choices
