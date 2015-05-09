@@ -259,20 +259,6 @@ uint Object::GetNumParts()
 	return m_numParts;
 }
 
-
-/// Fill the object with particles
-/*! Fill the object by calling Fill(points, dx, true).
- *
- *	\param points : particle vector
- *	\param dx : particle spacing
- */
-void
-Object::Fill(PointVect& points, const double dx)
-{
-	Fill(points, dx, true);
-}
-
-
 /// Fill a disk
 /*! Fill a disk defined by its radius, center, orientation and an offset value along the circle normal direction.
  *

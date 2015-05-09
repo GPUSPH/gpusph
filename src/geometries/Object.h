@@ -177,8 +177,7 @@ class Object {
 		 *
 		 *  This function is pure virtual and then as to be defined at child level
 		 */
-		virtual int Fill(PointVect& points, const double dx, const bool fill) = 0;
-		virtual void Fill(PointVect& , const double);
+		virtual int Fill(PointVect& points, const double dx, const bool fill = true) = 0;
 		/// Fill object with a specified number of particles layer
 		/*!	Fill multiple layers of particles starting from the object surface
 		 *
