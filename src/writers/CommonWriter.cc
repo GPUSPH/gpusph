@@ -28,6 +28,7 @@
 #include "CommonWriter.h"
 
 #include "GlobalData.h"
+#include "simflags.h"
 
 using namespace std;
 
@@ -238,6 +239,10 @@ CommonWriter::write_simparams(ostream &out)
 	out << " kerneltype: " << SP->kerneltype << " (" << KernelName[SP->kerneltype] << ")" << endl;
 	out << " kernelradius = " << SP->kernelradius << endl;
 	out << " influenceRadius = " << SP->influenceRadius << endl;
+	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
+	out << " viscosity type: " << SP->visctype << " (" << ViscosityName[SP->visctype] << ")" << endl;
+	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
+
 	out << " initial dt = " << SP->dt << endl;
 	out << " simulation end time = " << SP->tend << endl;
 	out << " neib list construction every " << SP->buildneibsfreq << " iterations" << endl;
@@ -252,17 +257,17 @@ CommonWriter::write_simparams(ostream &out)
 		++flt;
 	}
 
-	out << " adaptive time stepping " << ED[SP->dtadapt] << endl;
+	out << " adaptive time stepping " << ED[SP->simflags & ENABLE_DTADAPT] << endl;
 	if (SP->dtadapt)
 		out << " safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
-	out << " XSPH correction " << ED[SP->xsph] << endl;
-	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
-	out << " viscosity type: " << SP->visctype << " (" << ViscosityName[SP->visctype] << ")" << endl;
+	out << " XSPH correction " << ED[SP->simflags & ENABLE_XSPH] << endl;
+	out << " moving bodies " << ED[SP->simflags & ENABLE_MOVING_BODIES] << endl;
+	out << " open boundaries " << ED[SP->simflags & ENABLE_INLET_OUTLET] << endl;
+	out << " water depth computation " << ED[SP->simflags & ENABLE_WATER_DEPTH] << endl;
 	out << " time-dependent gravity " << ED[SP->gcallback] << endl;
-	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
-	out << " DEM: " << TF[SP->usedem] << endl;
+	out << " DEM: " << TF[SP->simflags & ENABLE_DEM] << endl;
 
-	// TODO simflags
+	// TODO post-processing
 #undef SP
 }
 

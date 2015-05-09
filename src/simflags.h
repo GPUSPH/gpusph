@@ -48,6 +48,8 @@
 // DEM
 #define ENABLE_DEM				(ENABLE_XSPH << 1)
 
+// TODO ENABLE_FERRARI, ENABLE_PLANES
+
 // moving boundaries and rigid bodies
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 
@@ -56,6 +58,11 @@
 
 // water depth computation
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
+
+
+//< Post processing flags
+//< (will be removed when post-processing is converted to filter-like behavior
+//! @{
 
 #define ENABLE_VORTICITY		(ENABLE_WATER_DEPTH << 1)
 
@@ -67,6 +74,6 @@
 
 #define NEED_POST_PROC			(ENABLE_VORTICITY | ENABLE_TESTPOINTS | ENABLE_SURFACE_DETECTION | ENABLE_SAVE_NORMALS)
 
-// TODO testpoints, rigid bodies, ferrari, planes ...
+//! }
 
 #endif

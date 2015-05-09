@@ -71,13 +71,14 @@ typedef struct SimParams {
 	// Options that are set via SimFramework.
 	// TODO FIXME mark deprecated, prevent overwrite from users
 	KernelType		kerneltype;				// kernel type
-	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
-	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
+	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
 	BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
+	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
+	flag_t			simflags;				// simulation flags
 
-	bool			xsph;					// true if XSPH correction
 	bool			dtadapt;				// true if adaptive timestep
+	bool			xsph;					// true if XSPH correction
 	bool			usedem;					// true if using a DEM
 	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
 	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows

@@ -109,11 +109,15 @@ public:
 		m_simparams.visctype = visctype;
 		m_simparams.boundarytype = boundarytype;
 		m_simparams.periodicbound = periodicbound;
-		m_simparams.xsph = simflags & ENABLE_XSPH;
+		m_simparams.simflags = simflags;
+
+		// TODO these should be removed
 		m_simparams.dtadapt = simflags & ENABLE_DTADAPT;
+		m_simparams.xsph = simflags & ENABLE_XSPH;
 		m_simparams.usedem = simflags & ENABLE_DEM;
 		m_simparams.inoutBoundaries = simflags & ENABLE_INLET_OUTLET;
 		m_simparams.ioWaterdepthComputation = simflags & ENABLE_WATER_DEPTH;
+
 		m_simparams.surfaceparticle = simflags & ENABLE_SURFACE_DETECTION;
 		m_simparams.savenormals = simflags & ENABLE_SAVE_NORMALS;
 		m_simparams.testpoints = simflags & ENABLE_TESTPOINTS;
