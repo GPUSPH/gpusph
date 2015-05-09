@@ -99,7 +99,7 @@ class Object {
 		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		virtual void SetInertia(const double dx) = 0;
-		virtual void SetInertia(const double*);
+		void SetInertia(const double*);
 		void SetCenterOfGravity(const double*);
 		double3 GetCenterOfGravity(void) const;
 		EulerParameters GetOrientation(void) const;
