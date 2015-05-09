@@ -40,6 +40,7 @@ typedef struct SimParams {
 	double			slength;				// smoothing length (smoothing factor * deltap)
 	double			kernelradius;			// kernel radius
 	double			influenceRadius;		// influence radius ( = kernelradius * slength)
+	double			nlexpansionfactor;		// expand influcenradius by nlexpansionfactor for neib list construction
 	double			nlInfluenceRadius;		// extended radius ( = influence radius * nlexpansionfactor)
 	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;						// initial timestep
@@ -49,9 +50,8 @@ typedef struct SimParams {
 
 	float			ferrari;				// coefficient for Ferrari correction
 	float			ferrariLengthScale;		// length scale for Ferrari correction
-	bool			mbcallback;				// true if moving boundary velocity varies
+
 	bool			gcallback;				// true if using a variable gravity in problem
-	double			nlexpansionfactor;		// increase influcenradius by nlexpansionfactor for neib list construction
 	bool			vorticity;				// true if we want to save vorticity
 	bool			testpoints;				// true if we want to find velocity at testpoints
 	bool			csvtestpoints;			// true to dump the testpoints also in CSV files
@@ -75,10 +75,10 @@ typedef struct SimParams {
 	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
 	BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
+
 	bool			xsph;					// true if XSPH correction
 	bool			dtadapt;				// true if adaptive timestep
 	bool			usedem;					// true if using a DEM
-	bool			movingBoundaries;		// defines if moving boundaries are present
 	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
 	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows
 
@@ -87,17 +87,18 @@ typedef struct SimParams {
 		slength(0),
 		kernelradius(2.0f),
 		influenceRadius(0),
+		nlexpansionfactor(1.0f),
 		nlInfluenceRadius(0),
 		nlSqInfluenceRadius(0),
 		dt(0),
 		tend(0),
 		dtadaptfactor(0.3f),
 		buildneibsfreq(10),
+
 		ferrari(NAN),
 		ferrariLengthScale(NAN),
-		mbcallback(false),
+
 		gcallback(false),
-		nlexpansionfactor(1.0f),
 		vorticity(false),
 		testpoints(false),
 		csvtestpoints(false),
@@ -117,10 +118,10 @@ typedef struct SimParams {
 		periodicbound(PERIODIC_NONE),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
+
 		xsph(false),
 		dtadapt(true),
 		usedem(false),
-		movingBoundaries(false),
 		inoutBoundaries(false),
 		ioWaterdepthComputation(false)
 	{};

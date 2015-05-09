@@ -48,14 +48,11 @@
 // DEM
 #define ENABLE_DEM				(ENABLE_XSPH << 1)
 
-// moving boundaries/bodies
+// moving boundaries and rigid bodies
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 
-// floating objects
-#define ENABLE_FLOATING_BODIES	(ENABLE_MOVING_BODIES << 1)
-
 // inlet/outlet
-#define ENABLE_INLET_OUTLET		(ENABLE_FLOATING_BODIES << 1)
+#define ENABLE_INLET_OUTLET		(ENABLE_MOVING_BODIES << 1)
 
 // water depth computation
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)

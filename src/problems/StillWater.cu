@@ -68,7 +68,6 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
 	// length of the problem
 	m_simparams.ferrari = H/(m_deltap*1000);
-	m_simparams.mbcallback = false;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);

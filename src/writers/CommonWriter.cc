@@ -258,10 +258,11 @@ CommonWriter::write_simparams(ostream &out)
 	out << " XSPH correction " << ED[SP->xsph] << endl;
 	out << " SPH formulation: " << SP->sph_formulation << " (" << SPHFormulationName[SP->sph_formulation] << ")" << endl;
 	out << " viscosity type: " << SP->visctype << " (" << ViscosityName[SP->visctype] << ")" << endl;
-	out << " moving boundaries " << ED[SP->mbcallback] << endl;
 	out << " time-dependent gravity " << ED[SP->gcallback] << endl;
 	out << " periodicity: " << SP->periodicbound << " (" << PeriodicityName[SP->periodicbound] << ")" << endl;
 	out << " DEM: " << TF[SP->usedem] << endl;
+
+	// TODO simflags
 #undef SP
 }
 

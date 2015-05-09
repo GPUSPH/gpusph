@@ -80,9 +80,6 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	// Vorticity
 	m_simparams.vorticity = false;
 
-	// We have no moving boundary
-	m_simparams.mbcallback = false;
-
 	// Physical parameters
 	H = 0.4f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);

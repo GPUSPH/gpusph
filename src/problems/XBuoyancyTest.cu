@@ -52,9 +52,6 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	// Vorticity
 	m_simparams.vorticity = false;
 
-	// We have no moving boundary
-	m_simparams.mbcallback = false;
-
 	// Physical parameters
 	H = 0.6f;
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);

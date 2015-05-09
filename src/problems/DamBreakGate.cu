@@ -61,7 +61,6 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dt = 0.0001f;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
-	m_simparams.mbcallback = true;
 	m_simparams.tend = 10.f;
 
 	// Free surface detection

@@ -60,9 +60,6 @@ OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.surfaceparticle = false;
 	m_simparams.savenormals = false;
 
-	// We have no moving boundary
-	m_simparams.mbcallback = false;
-
 	// Physical parameters
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams.gravity);

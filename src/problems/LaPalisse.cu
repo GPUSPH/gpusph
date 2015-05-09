@@ -17,7 +17,8 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		formulation<SPH_F2>,
-		flags<	ENABLE_DTADAPT |
+		flags<ENABLE_DTADAPT |
+			ENABLE_INLET_OUTLET |
 			ENABLE_WATER_DEPTH>
 	);
 
@@ -37,8 +38,6 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	initial_water_level = 1.23f;
 	expected_final_water_level = INLET_WATER_LEVEL;
 	m_simparams.calcPrivate = false;
-	m_simparams.inoutBoundaries = true;
-	m_simparams.movingBoundaries = false;
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
@@ -47,7 +46,6 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 1;
 	m_simparams.ferrari= 1.0f;
-	m_simparams.mbcallback = false;
 	m_simparams.nlexpansionfactor = 1.1;
 
 	// Size and origin of the simulation domain
