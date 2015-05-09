@@ -103,8 +103,8 @@ bool XProblem::initialize()
 	// counters of floating objects and generic objects (floating + moving + open bounds)
 	// NOTE: there is already m_numRigidBodies, but we need a progressive count to
 	// initialize m_ODEobjectId map
-	uint rigid_body_counter = 0;
-	uint object_counter = 0;
+	uint bodies_counter = 0;
+	uint open_boundaries_counter = 0;
 
 	// aux var for automatic water level computation
 	double highest_water_part = NAN;
@@ -157,34 +157,28 @@ bool XProblem::initialize()
 				highest_water_part = currMax(2);
 		}
 
-		// update m_ODEobjectId map
-		// (recall: from object index in particleinfo, incl. I/O, to floating object index, excl. I/O)
-		// TODO FIXME MERGE
-		// if (m_geometries[g]->type == GT_FLOATING_BODY)
-		//	m_ODEobjectId[ object_counter ] = rigid_body_counter;
-
 		// update object counters
-		if (m_geometries[g]->type == GT_FLOATING_BODY)
-			rigid_body_counter++;
 		if (m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY   ||
-			m_geometries[g]->type == GT_OPENBOUNDARY )
-			object_counter++;
+			m_geometries[g]->type == GT_MOVING_BODY)
+			bodies_counter++;
+		if (m_geometries[g]->type == GT_OPENBOUNDARY)
+			open_boundaries_counter++;
 	}
 
-	// here should be rigid_body_counter == m_numFloatingBodies
-	if ( rigid_body_counter > MAX_BODIES ) {
-		printf("Fatal: number off floating bodies > MAX_BODIES (%u > %u)\n",
-			rigid_body_counter, MAX_BODIES);
+	// here should be bodies_counter == m_numFloatingBodies
+	if ( bodies_counter > MAX_BODIES ) {
+		printf("Fatal: number of bodies > MAX_BODIES (%u > %u)\n",
+			bodies_counter, MAX_BODIES);
 		return false;
 	}
 
 	// do not store the number of floating objects (aka ODE bodies) in simparams:
 	// add_moving_body() will increment it and use it for the insertion in the vector
-	//m_simparams.numODEbodies = rigid_body_counter; // == m_numFloatingBodies;
+	//m_simparams.numODEbodies = bodies_counter; // == m_numFloatingBodies;
+
 	// store number of objects (floating + moving + I/O)
 	// TODO: here we probably want numObjects to be actually a numOpenBoundaries
-	m_simparams.numObjects = object_counter;
+	m_simparams.numObjects = open_boundaries_counter;
 
 	// set computed world origin and size without overriding possible user choices
 	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
@@ -1278,11 +1272,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 	boundary_parts += m_boundaryParts.size();
 
 	// We've already counted the objects in initialize(), but now we need incremental counters
-	// to set the association objId->floatingObjId (m_ODEobjectId) and possibly print information
-	uint object_counter = 0;
-	uint rigid_body_counter = 0;
+	uint bodies_counter = 0;
+	uint open_boundaries_counter = 0;
 	// the number of all the particles of rigid bodies will be used to set s_hRbLastIndex
-	uint rigid_body_particles_counter = 0;
+	uint bodies_particles_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
 
@@ -1302,11 +1295,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 		if (!m_geometries[g]->enabled)
 			continue;
 
-		const bool curr_geometry_is_body =
-			m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY;
-			// m_geometries[g]->type == GT_OPENBOUNDARY;
-
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
 		// special attention to number of vertex particles, used for rb buffers of floating objs
@@ -1315,8 +1303,14 @@ void XProblem::copy_to_array(BufferList &buffers)
 		uint first_id_in_geometry = UINT_MAX;
 
 		// object id (GPUSPH, not ODE) that will be used in particleinfo
-		// TODO: will be fluid_number with multifluid
-		const uint object_id = ( curr_geometry_is_body ? object_counter : 0 );
+		// TODO: will also be fluid_number for multifluid
+		uint object_id = 0;
+		if (m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY)
+			object_id = bodies_counter++;
+		else
+		if (m_geometries[g]->type == GT_OPENBOUNDARY)
+			object_id = open_boundaries_counter++;
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
@@ -1429,7 +1423,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 						boundelm[i].y = hdf5Buffer[bi].Normal_1;
 						boundelm[i].z = hdf5Buffer[bi].Normal_2;
 					}
-					const float FACTOR = (m_geometries[g]->flip_normals ? -1.0F : 1.0F);
 
 					boundelm[i].w = hdf5Buffer[bi].Surface;
 				}
@@ -1472,6 +1465,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE);
 						break;
 					case GT_OPENBOUNDARY:
+						// floating && inlet possible?
 						SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 						break;
 				}
@@ -1492,13 +1486,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// Store index (currently identical to id) of first object particle plus the number
 			// of previously filled object particles. This, summed to the particle id, will be used
 			// as offset to compute the index in rbforces/torques.
-			gdata->s_hRbFirstIndex[object_id] = - first_id_in_geometry + rigid_body_particles_counter;
+			gdata->s_hRbFirstIndex[object_id] = - first_id_in_geometry + bodies_particles_counter;
 
 			// update counter of rigid body particles
-			rigid_body_particles_counter += current_geometry_particles;
+			bodies_particles_counter += current_geometry_particles;
 
-			// set s_hRbLastIndex after updating rigid_body_particles_counter
-			gdata->s_hRbLastIndex[rigid_body_counter] = rigid_body_particles_counter - 1;
+			// set s_hRbLastIndex after updating bodies_particles_counter
+			gdata->s_hRbLastIndex[object_id] = bodies_particles_counter - 1;
 
 			// We need two little adjustments for SA boundaries:
 			// 1. Since vertices in Crixus are filled before boundary particles, and for SA objects we only
@@ -1508,25 +1502,24 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// We can go more general if we ever need it (i.e. without any assumption on the filling order).
 			if (m_simparams.boundarytype == SA_BOUNDARY) {
 				gdata->s_hRbFirstIndex[object_id] -= current_geometry_vertex_particles;
-				gdata->s_hRbLastIndex[rigid_body_counter] -= current_geometry_vertex_particles;
+				gdata->s_hRbLastIndex[object_id] -= current_geometry_vertex_particles;
 			}
 
 			// recap on stdout
-			std::cout << "Rigid body " << rigid_body_counter << ": " << current_geometry_particles <<
+			std::cout << "Rigid body " << bodies_counter << ": " << current_geometry_particles <<
 				" parts, mass " << rigid_body_part_mass << ", object mass " << m_geometries[g]->ptr->GetMass() << "\n";
 
 			// DBG info
-			// printf("  DBG: s_hRbFirstIndex[%u] = %u, s_hRbLastIndex[%u] = %u\n", \
-				object_id, gdata->s_hRbFirstIndex[object_id], rigid_body_counter, gdata->s_hRbLastIndex[rigid_body_counter]);
+			// printf("  DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n", \
+				object_id, gdata->s_hRbFirstIndex[object_id], bodies_counter, gdata->s_hRbLastIndex[object_id]);
 
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
-			// update counter
-			rigid_body_counter++;
 		}
 
-		// objects-related settings (floating + moving + open bounds)
-		if (curr_geometry_is_body) {
+		// update object num parts
+		if (m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY) {
 
 			// set numParts, which will be read while allocating device buffers for obj parts
 			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
@@ -1534,9 +1527,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// necessary anymore after the update of s_hRbFirstIndex and s_hRbLastIndex
 			// has been moved here
 			m_geometries[g]->ptr->SetNumParts(current_geometry_particles - current_geometry_vertex_particles);
-
-			// update counter
-			object_counter++;
 		}
 
 		// update global particle counter

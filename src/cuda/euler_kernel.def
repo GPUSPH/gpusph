@@ -292,7 +292,7 @@ eulerDevice(
 					eulerVel -= dot3(gradGamma, eulerVel)/sqlength3(gradGamma)*gradGamma;
 					// move segments and boundary particles if the MOVING flag is set
 					if (MOVING(pinfo) && step == 2) {
-						const uint i = object(pinfo)-1;
+						const uint i = object(pinfo);
 						// old position
 						const float4 oldPos = pos;
 						// Applying center of gravity translation
