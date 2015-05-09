@@ -47,19 +47,21 @@
 
 using namespace std;
 
-Problem::Problem(GlobalData *_gdata)
+Problem::Problem(GlobalData *_gdata) :
+	gdata(_gdata),
+	m_options(_gdata->clOptions),
+	m_simparams(NULL),
+	m_physparams(NULL),
+	m_simframework(NULL),
+	m_problem_dir(_gdata->clOptions->dir),
+	m_bodies_storage(NULL)
 {
-	gdata = _gdata;
-	m_options = gdata->clOptions;
-	m_simframework = NULL;
-	m_problem_dir = m_options->dir;
-	m_bodies_storage = NULL;
 }
 
 
 Problem::~Problem(void)
 {
-	if (m_simparams.numbodies) {
+	if (m_simparams->numbodies) {
 		delete [] m_bodies_storage;
 	}
 
@@ -71,7 +73,7 @@ Problem::~Problem(void)
 void
 Problem::allocate_bodies_storage()
 {
-	const uint nbodies = m_simparams.numbodies;
+	const uint nbodies = m_simparams->numbodies;
 
 	if (nbodies) {
 		// TODO: this should depend on the integration scheme
@@ -105,15 +107,15 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			mbdata->kdata.crot = make_double3(dBodyGetPosition(bodyid));
 			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
 			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
-			m_bodies.insert(m_bodies.begin() + m_simparams.numODEbodies, mbdata);
-			m_simparams.numODEbodies++;
-			m_simparams.numforcesbodies++;
+			m_bodies.insert(m_bodies.begin() + m_simparams->numODEbodies, mbdata);
+			m_simparams->numODEbodies++;
+			m_simparams->numforcesbodies++;
 			break;
 		}
 
 		case MB_FORCES_MOVING:
-			m_bodies.insert(m_bodies.begin() + m_simparams.numforcesbodies, mbdata);
-			m_simparams.numforcesbodies++;
+			m_bodies.insert(m_bodies.begin() + m_simparams->numforcesbodies, mbdata);
+			m_simparams->numforcesbodies++;
 			break;
 
 		case MB_MOVING:
@@ -123,7 +125,7 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 
 	mbdata->initial_kdata = mbdata->kdata;
 
-	m_simparams.numbodies = m_bodies.size();
+	m_simparams->numbodies = m_bodies.size();
 }
 
 
@@ -235,7 +237,7 @@ Problem::restore_ODE_body(const uint i, const float *gravity_center, const float
 void
 Problem::get_bodies_cg(void)
 {
-	for (uint i = 0; i < m_simparams.numbodies; i++) {
+	for (uint i = 0; i < m_simparams->numbodies; i++) {
 		gdata->s_hRbGravityCenters[i] = make_float3(m_bodies[i]->kdata.crot);
 	}
 }
@@ -466,36 +468,36 @@ void
 Problem::check_dt(void)
 {
 	float dt_from_sspeed = INFINITY;
-	for (uint f = 0 ; f < m_physparams.numFluids; ++f) {
-		float sspeed = m_physparams.sscoeff[f];
-		dt_from_sspeed = fmin(dt_from_sspeed, m_simparams.slength/sspeed);
+	for (uint f = 0 ; f < m_physparams->numFluids; ++f) {
+		float sspeed = m_physparams->sscoeff[f];
+		dt_from_sspeed = fmin(dt_from_sspeed, m_simparams->slength/sspeed);
 	}
-	dt_from_sspeed *= m_simparams.dtadaptfactor;
+	dt_from_sspeed *= m_simparams->dtadaptfactor;
 
-	float dt_from_gravity = sqrt(m_simparams.slength/length(m_physparams.gravity));
-	dt_from_gravity *= m_simparams.dtadaptfactor;
+	float dt_from_gravity = sqrt(m_simparams->slength/length(m_physparams->gravity));
+	dt_from_gravity *= m_simparams->dtadaptfactor;
 
 	float dt_from_visc = NAN;
-	if (m_simparams.visctype != ARTVISC) {
-		for (uint f = 0; f < m_physparams.numFluids; ++f)
-			dt_from_visc = fminf(dt_from_visc, m_simparams.slength*m_simparams.slength/m_physparams.kinematicvisc[f]);
+	if (m_simparams->visctype != ARTVISC) {
+		for (uint f = 0; f < m_physparams->numFluids; ++f)
+			dt_from_visc = fminf(dt_from_visc, m_simparams->slength*m_simparams->slength/m_physparams->kinematicvisc[f]);
 		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}
 
 	float cfl_dt = fminf(dt_from_sspeed, fminf(dt_from_gravity, dt_from_visc));
 
-	if (m_simparams.dt > cfl_dt) {
+	if (m_simparams->dt > cfl_dt) {
 		fprintf(stderr, "WARNING: dt %g bigger than %g imposed by CFL conditions (sspeed: %g, gravity: %g, viscosity: %g)\n",
-			m_simparams.dt, cfl_dt,
+			m_simparams->dt, cfl_dt,
 			dt_from_sspeed, dt_from_gravity, dt_from_visc);
-	} else if (!m_simparams.dt) { // dt wasn't set
-			m_simparams.dt = cfl_dt;
+	} else if (!m_simparams->dt) { // dt wasn't set
+			m_simparams->dt = cfl_dt;
 			printf("setting dt = %g from CFL conditions (soundspeed: %g, gravity: %g, viscosity: %g)\n",
-				m_simparams.dt,
+				m_simparams->dt,
 				dt_from_sspeed, dt_from_gravity, dt_from_visc);
 	} else {
 			printf("dt = %g (CFL conditions from soundspeed: %g, from gravity %g, from viscosity %g)\n",
-				m_simparams.dt,
+				m_simparams->dt,
 				dt_from_sspeed, dt_from_gravity, dt_from_visc);
 	}
 
@@ -505,7 +507,7 @@ void
 Problem::check_maxneibsnum(void)
 {
 	// kernel radius times smoothing factor, rounded to the next integer
-	double r = m_simparams.sfactor*m_simparams.kernelradius;
+	double r = m_simparams->sfactor*m_simparams->kernelradius;
 	r = ceil(r);
 
 	// volumes are computed using a coefficient which is sligthly more than π
@@ -521,7 +523,7 @@ Problem::check_maxneibsnum(void)
 	// with semi-analytical boundaries, boundary particles
 	// are doubled, so we expand by a factor of 1.5,
 	// again rounding up
-	if (m_simparams.boundarytype == SA_BOUNDARY)
+	if (m_simparams->boundarytype == SA_BOUNDARY)
 		maxneibsnum = round_up(3*maxneibsnum/2, 32U);
 
 	// more in general, it's possible to have different particle densities for the
@@ -545,7 +547,7 @@ Problem::check_maxneibsnum(void)
 	//   the neighborhood, which cancels with the (3/2) factor
 	//   TODO check if we should assume 7/8ths instead (particle near vertex
 	//   only has 1/8th of a sphere in the fluid, the rest is all boundaries).
-	double qq = m_deltap/m_physparams.r0; // 1/q
+	double qq = m_deltap/m_physparams->r0; // 1/q
 	// double ratio = fmax((21*qq*qq)/(16*r), 1.0); // if we assume 7/8
 	double ratio = fmax((qq*qq)/r, 1.0); // only use this if it gives us _more_ particles
 	// increase maxneibsnum as appropriate
@@ -554,17 +556,17 @@ Problem::check_maxneibsnum(void)
 	maxneibsnum = round_up(maxneibsnum, 32U);
 
 	// if the maxneibsnum was user-set, check against computed minimum
-	if (m_simparams.maxneibsnum) {
-		if (m_simparams.maxneibsnum < maxneibsnum) {
+	if (m_simparams->maxneibsnum) {
+		if (m_simparams->maxneibsnum < maxneibsnum) {
 			fprintf(stderr, "WARNING: problem-set max neibs num too low! %u < %u\n",
-				m_simparams.maxneibsnum, maxneibsnum);
+				m_simparams->maxneibsnum, maxneibsnum);
 		} else {
 			printf("Using problem-set max neibs num %u (safe computed value was %u)\n",
-				m_simparams.maxneibsnum, maxneibsnum);
+				m_simparams->maxneibsnum, maxneibsnum);
 		}
 	} else {
 		printf("Using computed max neibs num %u\n", maxneibsnum);
-		m_simparams.maxneibsnum = maxneibsnum;
+		m_simparams->maxneibsnum = maxneibsnum;
 	}
 }
 
@@ -572,13 +574,13 @@ Problem::check_maxneibsnum(void)
 float
 Problem::density(float h, int i) const
 {
-	float density = m_physparams.rho0[i];
+	float density = m_physparams->rho0[i];
 
 	if (h > 0) {
-		//float g = length(m_physparams.gravity);
-		float g = abs(m_physparams.gravity.z);
-		density = m_physparams.rho0[i]*pow(g*m_physparams.rho0[i]*h/m_physparams.bcoeff[i] + 1,
-				1/m_physparams.gammacoeff[i]);
+		//float g = length(m_physparams->gravity);
+		float g = abs(m_physparams->gravity.z);
+		density = m_physparams->rho0[i]*pow(g*m_physparams->rho0[i]*h/m_physparams->bcoeff[i] + 1,
+				1/m_physparams->gammacoeff[i]);
 		}
 	return density;
 }
@@ -587,28 +589,28 @@ Problem::density(float h, int i) const
 float
 Problem::density_for_pressure(float P, int i) const
 {
-	return  m_physparams.rho0[i]*pow(P/m_physparams.bcoeff[i] + 1,
-				1/m_physparams.gammacoeff[i]);
+	return  m_physparams->rho0[i]*pow(P/m_physparams->bcoeff[i] + 1,
+				1/m_physparams->gammacoeff[i]);
 }
 
 
 float
 Problem::soundspeed(float rho, int i) const
 {
-	return m_physparams.sscoeff[i]*pow(rho/m_physparams.rho0[i], m_physparams.sspowercoeff[i]);
+	return m_physparams->sscoeff[i]*pow(rho/m_physparams->rho0[i], m_physparams->sspowercoeff[i]);
 }
 
 
 float
 Problem::pressure(float rho, int i) const
 {
-	return m_physparams.bcoeff[i]*(pow(rho/m_physparams.rho0[i], m_physparams.gammacoeff[i]) - 1);
+	return m_physparams->bcoeff[i]*(pow(rho/m_physparams->rho0[i], m_physparams->gammacoeff[i]) - 1);
 }
 
 void
 Problem::add_gage(double3 const& pt)
 {
-	m_simparams.gage.push_back(pt);
+	m_simparams->gage.push_back(pt);
 }
 
 std::string const&
@@ -687,7 +689,7 @@ Problem::writer_callback(CallbackWriter *,
 bool
 Problem::finished(double t) const
 {
-	double tend(m_simparams.tend);
+	double tend(m_simparams->tend);
 	return tend && (t > tend);
 }
 
@@ -913,7 +915,7 @@ void Problem::fillDeviceMapByRegularGrid()
 uint
 Problem::max_parts(uint numParts)
 {
-	if (!(m_simparams.simflags & ENABLE_INLET_OUTLET))
+	if (!(m_simparams->simflags & ENABLE_INLET_OUTLET))
 		return numParts;
 
 	// we assume that we can't have more particles than by filling the whole domain:
@@ -933,19 +935,19 @@ Problem::max_parts(uint numParts)
 void
 Problem::calculateFerrariCoefficient()
 {
-	if (isnan(m_simparams.ferrari)) {
-		if (isnan(m_simparams.ferrariLengthScale)) {
-			m_simparams.ferrari = 0.0f;
-			printf("Ferrari coefficient: %e (default value, disabled)\n", m_simparams.ferrari);
+	if (isnan(m_simparams->ferrari)) {
+		if (isnan(m_simparams->ferrariLengthScale)) {
+			m_simparams->ferrari = 0.0f;
+			printf("Ferrari coefficient: %e (default value, disabled)\n", m_simparams->ferrari);
 			return;
 		}
 		else {
-			m_simparams.ferrari = m_simparams.ferrariLengthScale*1e-3f/m_deltap;
-			printf("Ferrari coefficient: %e (computed from length scale: %e)\n", m_simparams.ferrari, m_simparams.ferrariLengthScale);
+			m_simparams->ferrari = m_simparams->ferrariLengthScale*1e-3f/m_deltap;
+			printf("Ferrari coefficient: %e (computed from length scale: %e)\n", m_simparams->ferrari, m_simparams->ferrariLengthScale);
 			return;
 		}
 	}
-	printf("Ferrari coefficient: %e\n", m_simparams.ferrari);
+	printf("Ferrari coefficient: %e\n", m_simparams->ferrari);
 	return;
 }
 
@@ -960,11 +962,11 @@ Problem::calculateFerrariCoefficient()
 void
 Problem::set_grid_params(void)
 {
-	double influenceRadius = m_simparams.kernelradius*m_simparams.slength;
+	double influenceRadius = m_simparams->kernelradius*m_simparams->slength;
 	// with semi-analytical boundaries, we want a cell size which is
 	// deltap/2 + the usual influence radius
 	double cellSide = influenceRadius;
-	if (m_simparams.boundarytype == SA_BOUNDARY)
+	if (m_simparams->boundarytype == SA_BOUNDARY)
 		cellSide += m_deltap/2.0f;
 
 	m_gridsize.x = (uint)floor(m_size.x / cellSide);
@@ -978,7 +980,7 @@ Problem::set_grid_params(void)
 
 	if (!m_gridsize.x || !m_gridsize.y || !m_gridsize.z) {
 		stringstream ss;
-		ss << "resolution " << m_simparams.slength << " is too low! Resulting grid size would be "
+		ss << "resolution " << m_simparams->slength << " is too low! Resulting grid size would be "
 			<< m_gridsize;
 		throw runtime_error(ss.str());
 	}
@@ -988,7 +990,7 @@ Problem::set_grid_params(void)
 	m_cellsize.z = m_size.z / m_gridsize.z;
 
 	/*
-	printf("set_grid_params\t:\n");
+	printf("set_grid_params->t:\n");
 	printf("Domain size\t: (%f, %f, %f)\n", m_size.x, m_size.y, m_size.z);
 	*/
 	printf("Influence radius / expected cell side\t: %g, %g\n", influenceRadius, cellSide);
@@ -1045,7 +1047,7 @@ void
 Problem::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
 {
 	const float Lm = fmax(2*m_deltap, 1e-5f);
-	const float k0 = pow(0.002f*m_physparams.sscoeff[0], 2);
+	const float k0 = pow(0.002f*m_physparams->sscoeff[0], 2);
 	const float e0 = 0.16f*pow(k0, 1.5f)/Lm;
 
 	for (uint i = 0; i < numpart; i++) {

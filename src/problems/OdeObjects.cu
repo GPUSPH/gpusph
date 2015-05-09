@@ -51,44 +51,44 @@ OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.015f);
-	m_simparams.dt = 0.0001f;
-	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 10;
-	m_simparams.tend = 1.5;
+	m_simparams->dt = 0.0001f;
+	m_simparams->dtadaptfactor = 0.3;
+	m_simparams->buildneibsfreq = 10;
+	m_simparams->tend = 1.5;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = false;
-	m_simparams.savenormals = false;
+	m_simparams->surfaceparticle = false;
+	m_simparams->savenormals = false;
 
 	// Physical parameters
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0, 10);
+	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+	float g = length(m_physparams->gravity);
+	m_physparams->set_density(0, 1000.0, 7.0, 10);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0*g*H;
-	m_physparams.r0 = m_deltap;
+	m_physparams->dcoeff = 5.0*g*H;
+	m_physparams->r0 = m_deltap;
 
-	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
+	// BC when using MK boundary condition: Coupled with m_simsparams->boundarytype=MK_BOUNDARY
 	#define MK_par 2
-	m_physparams.MK_K = g*H;
-	m_physparams.MK_d = 1.1*m_deltap/MK_par;
-	m_physparams.MK_beta = MK_par;
+	m_physparams->MK_K = g*H;
+	m_physparams->MK_d = 1.1*m_deltap/MK_par;
+	m_physparams->MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc[0] = 1.0e-6;
-	m_physparams.artvisccoeff = 0.3;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams->kinematicvisc[0] = 1.0e-6;
+	m_physparams->artvisccoeff = 0.3;
+	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 
 	// Initialize ODE
 	dInitODE();
 	m_ODEWorld = dWorldCreate();	// Create a dynamic world
 	m_ODESpace = dHashSpaceCreate(0);
 	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams.gravity.x, m_physparams.gravity.y, m_physparams.gravity.z);	// Set gravity（x, y, z)
+	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity（x, y, z)
 
 	// update numObjects, which is used for allocations
-	m_simparams.numObjects = m_simparams.numODEbodies;
+	m_simparams->numObjects = m_simparams->numODEbodies;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
@@ -117,7 +117,7 @@ void OdeObjects::release_memory(void)
 
 int OdeObjects::fill_parts()
 {
-	float r0 = m_physparams.r0;
+	float r0 = m_physparams->r0;
 
 	Cube fluid, fluid1;
 
@@ -140,20 +140,20 @@ int OdeObjects::fill_parts()
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
-	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
+	experiment_box.SetPartMass(r0, m_physparams->rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	obstacle.SetPartMass(r0, m_physparams.rho0[0]*0.1);
-	obstacle.SetMass(r0, m_physparams.rho0[0]*0.1);
+	obstacle.SetPartMass(r0, m_physparams->rho0[0]*0.1);
+	obstacle.SetMass(r0, m_physparams->rho0[0]*0.1);
 	obstacle.FillBorder(obstacle.GetParts(), r0, true);
 	obstacle.ODEBodyCreate(m_ODEWorld, m_deltap);
 	obstacle.ODEGeomCreate(m_ODESpace, m_deltap);
 	add_moving_body(&obstacle, MB_ODE);
 
-	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
+	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 	if (wet) {
-		fluid1.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
 		obstacle.Unfill(parts, r0);
 	}
@@ -161,8 +161,8 @@ int OdeObjects::fill_parts()
 	// Rigid body #1 : sphere
 	Point rb_cg = Point(0.6, 0.15*ly, 0.05 + r0);
 	sphere = Sphere(rb_cg, 0.05);
-	sphere.SetPartMass(r0, m_physparams.rho0[0]*0.6);
-	sphere.SetMass(r0, m_physparams.rho0[0]*0.6);
+	sphere.SetPartMass(r0, m_physparams->rho0[0]*0.6);
+	sphere.SetMass(r0, m_physparams->rho0[0]*0.6);
 	sphere.Unfill(parts, r0);
 	sphere.FillBorder(sphere.GetParts(), r0);
 	sphere.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -171,8 +171,8 @@ int OdeObjects::fill_parts()
 
 	// Rigid body #2 : cylinder
 	cylinder = Cylinder(Point(0.9, 0.7*ly, r0), 0.05, Vector(0, 0, 0.2));
-	cylinder.SetPartMass(r0, m_physparams.rho0[0]*0.3);
-	cylinder.SetMass(r0, m_physparams.rho0[0]*0.05);
+	cylinder.SetPartMass(r0, m_physparams->rho0[0]*0.3);
+	cylinder.SetMass(r0, m_physparams->rho0[0]*0.05);
 	cylinder.Unfill(parts, r0);
 	cylinder.FillBorder(cylinder.GetParts(), r0);
 	cylinder.ODEBodyCreate(m_ODEWorld, m_deltap);
@@ -217,7 +217,7 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -234,7 +234,7 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			rho = m_physparams.rho0[0];
+			rho = m_physparams->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
@@ -251,7 +251,7 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams.numforcesbodies) {
+		if (k < m_simparams->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();
@@ -262,7 +262,7 @@ void OdeObjects::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}

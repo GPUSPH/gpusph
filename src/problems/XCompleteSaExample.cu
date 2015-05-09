@@ -48,17 +48,17 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	m_physparams.r0 = m_deltap;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
+	m_physparams->r0 = m_deltap;
+	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 
 	// *** Initialization of minimal simulation parameters
-	m_simparams.maxneibsnum = 256 + 64;
-	m_physparams.kinematicvisc[0] = 1.0e-2f;
+	m_simparams->maxneibsnum = 256 + 64;
+	m_physparams->kinematicvisc[0] = 1.0e-2f;
 	// ferrari correction
-	m_simparams.ferrariLengthScale = 0.25f;
+	m_simparams->ferrariLengthScale = 0.25f;
 
 	// buildneibs at every iteration
-	m_simparams.buildneibsfreq = 1;
+	m_simparams->buildneibsfreq = 1;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
@@ -87,7 +87,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	setMaxParticleSpeed(7.0);
 
 	// explicitly set sspeed (not necessary since using setMaxParticleSpeed();
-	//m_physparams.set_density(0, 1000.0, 7.0f, 70.0f);
+	//m_physparams->set_density(0, 1000.0, 7.0f, 70.0f);
 
 	// add "universe box" of planes
 	//makeUniverseBox(m_origin, m_origin + m_size );
@@ -109,7 +109,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	// floating box, with STL mesh for collision detection
 	GeometryID cube =
 		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent2.h5sph", "./sa/sa_box_sbgrid_2.stl");
-	// NOTE: m_physparams.rho0[0] is not available yet if set_density() was not explicitly called,
+	// NOTE: m_physparams->rho0[0] is not available yet if set_density() was not explicitly called,
 	// so we use an absolute value instead (half water density)
 	setMassByDensity(cube, 500);
 }

@@ -60,7 +60,7 @@ protected:
 
 	BufferAllocPolicy *m_allocPolicy;
 
-	SimParams m_simparams;
+	SimParams *m_simparams;
 protected:
 	// SimFrameworks should override this to convert a FilterType key into
 	// an actual FilterEngine instance
@@ -89,9 +89,9 @@ public:
 	// add a filter engine with the given frequency (in iterations)
 	AbstractFilterEngine* addFilterEngine(FilterType filtertype, int frequency);
 
-	SimParams const& get_simparams() const
+	SimParams const* get_simparams() const
 	{ return m_simparams; }
-	SimParams& get_simparams()
+	SimParams* get_simparams()
 	{ return m_simparams; }
 };
 #endif

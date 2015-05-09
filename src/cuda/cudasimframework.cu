@@ -104,18 +104,14 @@ public:
 		// TODO should be allocated by the integration scheme
 		m_allocPolicy = new PredCorrAllocPolicy();
 
-		m_simparams.kerneltype = kerneltype;
-		m_simparams.sph_formulation = sph_formulation;
-		m_simparams.visctype = visctype;
-		m_simparams.boundarytype = boundarytype;
-		m_simparams.periodicbound = periodicbound;
-		m_simparams.simflags = simflags;
+		m_simparams = new SimParams(kerneltype, sph_formulation, visctype,
+			boundarytype, periodicbound, simflags);
 
 		// TODO these should be removed
-		m_simparams.surfaceparticle = simflags & ENABLE_SURFACE_DETECTION;
-		m_simparams.savenormals = simflags & ENABLE_SAVE_NORMALS;
-		m_simparams.testpoints = simflags & ENABLE_TESTPOINTS;
-		m_simparams.vorticity = simflags & ENABLE_VORTICITY;
+		m_simparams->surfaceparticle = simflags & ENABLE_SURFACE_DETECTION;
+		m_simparams->savenormals = simflags & ENABLE_SAVE_NORMALS;
+		m_simparams->testpoints = simflags & ENABLE_TESTPOINTS;
+		m_simparams->vorticity = simflags & ENABLE_VORTICITY;
 	}
 
 protected:

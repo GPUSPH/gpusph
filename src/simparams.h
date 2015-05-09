@@ -37,6 +37,14 @@
 typedef std::vector<double3> GageList;
 
 typedef struct SimParams {
+	// Options that are set via SimFramework.
+	const KernelType		kerneltype;				// kernel type
+	const SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
+	const ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
+	const BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
+	const Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
+	const flag_t			simflags;				// simulation flags
+
 	double			sfactor;				// smoothing factor
 	double			slength;				// smoothing length (smoothing factor * deltap)
 	double			kernelradius;			// kernel radius
@@ -69,16 +77,21 @@ typedef struct SimParams {
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
 	uint			numObjects;				// number of ODE objects + open boundaries
 
-	// Options that are set via SimFramework.
-	// TODO FIXME mark deprecated, prevent overwrite from users
-	KernelType		kerneltype;				// kernel type
-	SPHFormulation	sph_formulation;		// formulation to use for density and pressure computation
-	ViscosityType	visctype;				// viscosity type (1 artificial, 2 laminar)
-	BoundaryType	boundarytype;			// boundary force formulation (Lennard-Jones etc)
-	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
-	flag_t			simflags;				// simulation flags
+	SimParams(
+		KernelType _kernel = WENDLAND,
+		SPHFormulation _formulation = SPH_F1,
+		ViscosityType _visctype = ARTVISC,
+		BoundaryType _btype = LJ_BOUNDARY,
+		Periodicity _periodic = PERIODIC_NONE,
+		flag_t _simflags = ENABLE_DTADAPT) :
 
-	SimParams(void) :
+		kerneltype(_kernel),
+		sph_formulation(_formulation),
+		visctype(_visctype),
+		boundarytype(_btype),
+		periodicbound(_periodic),
+		simflags(_simflags),
+
 		sfactor(1.3f),
 		slength(0),
 		kernelradius(2.0f),
@@ -107,14 +120,7 @@ typedef struct SimParams {
 		maxneibsnum(0),
 		calcPrivate(false),
 		epsilon(5e-5f),
-		numObjects(0),
-
-		kerneltype(WENDLAND),
-		visctype(ARTVISC),
-		periodicbound(PERIODIC_NONE),
-		sph_formulation(SPH_F1),
-		boundarytype(LJ_BOUNDARY),
-		simflags(ENABLE_DTADAPT)
+		numObjects(0)
 	{};
 
 	inline double
@@ -134,7 +140,7 @@ typedef struct SimParams {
 	{
 		if (kernel != kerneltype)
 			throw std::runtime_error("cannot change kernel type this way anymore");
-		kerneltype = kernel;
+
 		// TODO currently all our kernels have radius 2,
 		// remember to adjust this when we have kernels
 		// with different radii

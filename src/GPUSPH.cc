@@ -871,37 +871,37 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 #endif
 
-	if (problem->m_simparams.savenormals)
+	if (problem->m_simparams->savenormals)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
-	if (problem->m_simparams.vorticity)
+	if (problem->m_simparams->vorticity)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VORTICITY>();
 
-	if (problem->m_simparams.boundarytype == SA_BOUNDARY) {
+	if (problem->m_simparams->boundarytype == SA_BOUNDARY) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_BOUNDELEMENTS>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VERTICES>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_GRADGAMMA>();
 	}
 
-	if (problem->m_simparams.visctype == KEPSVISC) {
+	if (problem->m_simparams->visctype == KEPSVISC) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TKE>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EPSILON>();
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
-	if (problem->m_simparams.simflags & ENABLE_INLET_OUTLET ||
-		problem->m_simparams.visctype == KEPSVISC)
+	if (problem->m_simparams->simflags & ENABLE_INLET_OUTLET ||
+		problem->m_simparams->visctype == KEPSVISC)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
-	if (problem->m_simparams.visctype == SPSVISC)
+	if (problem->m_simparams->visctype == SPSVISC)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SPS_TURBVISC>();
 
-	if (problem->m_simparams.sph_formulation == SPH_GRENIER) {
+	if (problem->m_simparams->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
 		// Only for debugging:
 		//gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
 	}
 
-	if (problem->m_simparams.calcPrivate)
+	if (problem->m_simparams->calcPrivate)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();
 
 	// number of elements to allocate
@@ -1531,7 +1531,7 @@ void GPUSPH::doCallBacks()
 {
 	Problem *pb = gdata->problem;
 
-	if (pb->m_simparams.gcallback)
+	if (pb->m_simparams->gcallback)
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 

@@ -169,6 +169,9 @@ class Problem {
 		GlobalData	*gdata;
 		const Options		*m_options;					// commodity pointer to gdata->clOptions
 
+		SimParams			*m_simparams;				//< Simulation parameters. They only exist after SETUP_FRAMEWORK
+		PhysParams			*m_physparams;				//< Physical parameters. They only exist after SETUP_FRAMEWORK
+
 		SimFramework		*m_simframework;			// simulation framework
 
 		// Set up the simulation framework. This must be done before the rest of the simulation parameters, and it sets
@@ -193,13 +196,11 @@ class Problem {
 #define	SETUP_FRAMEWORK(...) do { \
 	m_simframework = new CUDASimFramework< __VA_ARGS__ >(); \
 	m_simparams = m_simframework->get_simparams(); \
+	m_physparams = new PhysParams(); \
 } while (0)
 
 		// add a filter (MLS, SHEPARD), with given frequency
 #define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)
-
-		SimParams	m_simparams; // TODO FIXME should become a pointer to the one in the simframework
-		PhysParams	m_physparams; // TODO FIXME should become a pointer for consistency with simparams
 
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
@@ -266,7 +267,7 @@ class Problem {
 			else
 				m_deltap = dflt;
 			// also udate the smoothing length
-			set_smoothing(m_simparams.sfactor);
+			set_smoothing(m_simparams->sfactor);
 
 			return m_deltap;
 		}
@@ -280,7 +281,7 @@ class Problem {
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
 		{
-			return m_simparams.set_smoothing(smooth, m_deltap);
+			return m_simparams->set_smoothing(smooth, m_deltap);
 		}
 
 IGNORE_WARNINGS(deprecated-declarations)
@@ -288,13 +289,13 @@ IGNORE_WARNINGS(deprecated-declarations)
 		// DEPRECATED, use set_kernel_radius instead
 		double set_kernel(KernelType kernel, double radius=0) DEPRECATED
 		{
-			return m_simparams.set_kernel(kernel, radius);
+			return m_simparams->set_kernel(kernel, radius);
 		}
 RESTORE_WARNINGS
 
 		void set_kernel_radius(double radius)
 		{
-			m_simparams.set_kernel_radius(radius);
+			m_simparams->set_kernel_radius(radius);
 		}
 
 		void set_grid_params(void);
@@ -307,22 +308,22 @@ RESTORE_WARNINGS
 
 		const SimParams *get_simparams(void) const
 		{
-			return &m_simparams;
+			return m_simparams;
 		};
 
 		SimParams *get_simparams(void)
 		{
-			return &m_simparams;
+			return m_simparams;
 		};
 
 		const PhysParams *get_physparams(void) const
 		{
-			return &m_physparams;
+			return m_physparams;
 		};
 
 		PhysParams *get_physparams(void)
 		{
-			return &m_physparams;
+			return m_physparams;
 		};
 
 		// simple functions to add gages. the third component

@@ -34,35 +34,34 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
-	m_simparams.slength = 1.3*m_deltap;
-	m_simparams.kernelradius = 2.0;
-	m_simparams.kerneltype = WENDLAND;
-	m_simparams.dt = 0.0003f;
-	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 10;
-	m_simparams.ferrari = 0;
-	m_simparams.tend = 20.0f; //0.00036f
+	m_simparams->slength = 1.3*m_deltap;
+	m_simparams->kernelradius = 2.0;
+	m_simparams->dt = 0.0003f;
+	m_simparams->dtadaptfactor = 0.3;
+	m_simparams->buildneibsfreq = 10;
+	m_simparams->ferrari = 0;
+	m_simparams->tend = 20.0f; //0.00036f
 
 	// Free surface detection
-	m_simparams.surfaceparticle = false;
-	m_simparams.savenormals = false;
+	m_simparams->surfaceparticle = false;
+	m_simparams->savenormals = false;
 
 	// Vorticity
-	m_simparams.vorticity = false;
+	m_simparams->vorticity = false;
 
 	// Physical parameters
 	H = 0.6f;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	double g = length(m_physparams.gravity);
-	m_physparams.set_density(0, 1000.0, 7.0f, 20.f);
+	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+	double g = length(m_physparams->gravity);
+	m_physparams->set_density(0, 1000.0, 7.0f, 20.f);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0f*g*H;
-	m_physparams.r0 = m_deltap;
+	m_physparams->dcoeff = 5.0f*g*H;
+	m_physparams->r0 = m_deltap;
 
-	m_physparams.kinematicvisc[0] = 1.0e-6f;
-	m_physparams.artvisccoeff = 0.3f;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams->kinematicvisc[0] = 1.0e-6f;
+	m_physparams->artvisccoeff = 0.3f;
+	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 
 	add_writer(VTKWRITER, 0.01);
 
@@ -93,7 +92,7 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	double R = lx * 0.2;
 	double r = 4.0 * m_deltap;
 	GeometryID torus = addTorus(GT_FLOATING_BODY, FT_BORDER, Point(lx/2.0, ly/2.0, H/2.0), R, r);
-	setMassByDensity(torus, m_physparams.rho0[0]*0.5);
+	setMassByDensity(torus, m_physparams->rho0[0]*0.5);
 
 	// Name of problem used for directory creation
 	m_name = "XBuoyancyTest";

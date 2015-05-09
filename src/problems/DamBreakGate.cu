@@ -58,36 +58,36 @@ DamBreakGate::DamBreakGate(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.015f);
-	m_simparams.dt = 0.0001f;
-	m_simparams.dtadaptfactor = 0.3;
-	m_simparams.buildneibsfreq = 10;
-	m_simparams.tend = 10.f;
+	m_simparams->dt = 0.0001f;
+	m_simparams->dtadaptfactor = 0.3;
+	m_simparams->buildneibsfreq = 10;
+	m_simparams->tend = 10.f;
 
 	// Free surface detection
-	m_simparams.surfaceparticle = false;
-	m_simparams.savenormals = false;
+	m_simparams->surfaceparticle = false;
+	m_simparams->savenormals = false;
 
 	// Physical parameters
 	H = 0.4f;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams.gravity);
-	m_physparams.set_density(0,1000.0, 7.0f, 20.f);
-	m_physparams.numFluids = 1;
+	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+	float g = length(m_physparams->gravity);
+	m_physparams->set_density(0,1000.0, 7.0f, 20.f);
+	m_physparams->numFluids = 1;
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0f*g*H;
-	m_physparams.r0 = m_deltap;
+	m_physparams->dcoeff = 5.0f*g*H;
+	m_physparams->r0 = m_deltap;
 
-	// BC when using MK boundary condition: Coupled with m_simsparams.boundarytype=MK_BOUNDARY
+	// BC when using MK boundary condition: Coupled with m_simsparams->boundarytype=MK_BOUNDARY
 	#define MK_par 2
-	m_physparams.MK_K = g*H;
-	m_physparams.MK_d = 1.1*m_deltap/MK_par;
-	m_physparams.MK_beta = MK_par;
+	m_physparams->MK_K = g*H;
+	m_physparams->MK_d = 1.1*m_deltap/MK_par;
+	m_physparams->MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams.kinematicvisc[0] = 1.0e-6f;
-	m_physparams.artvisccoeff = 0.3f;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams->kinematicvisc[0] = 1.0e-6f;
+	m_physparams->artvisccoeff = 0.3f;
+	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
@@ -144,13 +144,13 @@ DamBreakGate::moving_bodies_callback(const uint index, Object* object, const dou
 
 int DamBreakGate::fill_parts()
 {
-	float r0 = m_physparams.r0;
+	float r0 = m_physparams->r0;
 
 	Cube fluid, fluid1, fluid2, fluid3, fluid4;
 
 	experiment_box = Cube(Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), 1.6, 0.67, 0.4);
 
-	float3 gate_origin = make_float3(0.4 + 2*m_physparams.r0, 0, 0);
+	float3 gate_origin = make_float3(0.4 + 2*m_physparams->r0, 0, 0);
 	gate = Rect (Point(gate_origin) + Point(ORIGIN_X, ORIGIN_Y, ORIGIN_Z), Vector(0, 0.67, 0),
 				Vector(0,0,0.4));
 
@@ -177,27 +177,27 @@ int DamBreakGate::fill_parts()
 	parts.reserve(14000);
 	gate_parts.reserve(2000);
 
-	experiment_box.SetPartMass(r0, m_physparams.rho0[0]);
+	experiment_box.SetPartMass(r0, m_physparams->rho0[0]);
 	experiment_box.FillBorder(boundary_parts, r0, false);
 
-	gate.SetPartMass(r0, m_physparams.rho0[0]);
+	gate.SetPartMass(r0, m_physparams->rho0[0]);
 	gate.Fill(gate.GetParts(), r0, true);
 	add_moving_body(&gate, MB_MOVING);
 
-	obstacle.SetPartMass(r0, m_physparams.rho0[0]);
+	obstacle.SetPartMass(r0, m_physparams->rho0[0]);
 	obstacle.FillBorder(obstacle_parts, r0, true);
 
-	fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
+	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);
 
 	if (wet) {
-		fluid1.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		fluid1.Fill(parts, m_deltap, true);
-		fluid2.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid2.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		fluid2.Fill(parts, m_deltap, true);
-		fluid3.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid3.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		fluid3.Fill(parts, m_deltap, true);
-		fluid4.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		fluid4.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		fluid4.Fill(parts, m_deltap, true);
 	}
 
@@ -213,7 +213,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 
 	std::cout << "Boundary parts: " << boundary_parts.size() << "\n";
 	for (uint i = 0; i < boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 	}
@@ -230,7 +230,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			rho = m_physparams.rho0[0];
+			rho = m_physparams->rho0[0];
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
@@ -247,7 +247,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 			info[ij] = make_particleinfo(ptype, k, ij);
 			calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 		}
-		if (k < m_simparams.numforcesbodies) {
+		if (k < m_simparams->numforcesbodies) {
 			gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
 			gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
 			object_particle_counter += rbparts.size();
@@ -259,7 +259,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 
 	std::cout << "Obstacle parts: " << obstacle_parts.size() << "\n";
 	for (uint i = j; i < j + obstacle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 1, i);
 		calc_localpos_and_hash(obstacle_parts[i-j], info[i], pos[i], hash[i]);
 	}
@@ -268,7 +268,7 @@ void DamBreakGate::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}

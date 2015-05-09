@@ -44,17 +44,17 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
-	m_physparams.r0 = m_deltap;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(m_physparams.gravity);
+	m_physparams->r0 = m_deltap;
+	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
+	float g = length(m_physparams->gravity);
 	double H = 3;
-	m_physparams.dcoeff = 5.0f*g*H;
-	m_physparams.set_density(0, 1000.0, 7.0f, 20.0f);
-	//m_physparams.kinematicvisc = 1.0e-2f;
+	m_physparams->dcoeff = 5.0f*g*H;
+	m_physparams->set_density(0, 1000.0, 7.0f, 20.0f);
+	//m_physparams->kinematicvisc = 1.0e-2f;
 
 	// *** Initialization of minimal simulation parameters
-	m_simparams.maxneibsnum = 256 + 64;
-	//m_simparams.dtadapt = true;
+	m_simparams->maxneibsnum = 256 + 64;
+	//m_simparams->dtadapt = true;
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
@@ -96,8 +96,8 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	GeometryID floating_obj =
 		addSphere(GT_FLOATING_BODY, FT_BORDER, Point(water_length, dimY/2, water_height), sphere_radius);
 	// half water density to make it float
-	setMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
-	setParticleMassByDensity(floating_obj, m_physparams.rho0[0] / 2);
+	setMassByDensity(floating_obj, m_physparams->rho0[0] / 2);
+	setParticleMassByDensity(floating_obj, m_physparams->rho0[0] / 2);
 	// disable collisions: will only interact with fluid
 	disableCollisions(floating_obj);
 

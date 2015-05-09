@@ -62,8 +62,8 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	//set_deltap(6.72e-4/1.3);
 	set_deltap(0.128*R/1.3);
 
-	if (m_simparams.boundarytype == DYN_BOUNDARY) {
-		dyn_layers = ceil(m_simparams.kerneltype*m_simparams.sfactor);
+	if (m_simparams->boundarytype == DYN_BOUNDARY) {
+		dyn_layers = ceil(m_simparams->kerneltype*m_simparams->sfactor);
 		extra_offset = make_double3(dyn_layers*m_deltap);
 	} else {
 		extra_offset = make_double3(0.0);
@@ -71,36 +71,36 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	m_size = make_double3(lx, ly, lz) + 2*extra_offset;
 	m_origin = make_double3(-lx/2, -ly/2, -lz/2) - extra_offset;
 
-	m_simparams.buildneibsfreq = 10;
+	m_simparams->buildneibsfreq = 10;
 
-	m_simparams.tend = 1.0;
+	m_simparams->tend = 1.0;
 
-	m_physparams.epsinterface = 0.08;
+	m_physparams->epsinterface = 0.08;
 
 	// Physical parameters
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
-	float g = length(m_physparams.gravity);
+	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
+	float g = length(m_physparams->gravity);
 
 	float maxvel = sqrt(g*H);
 	float rho0 = 1;
 	float rho1 = 1000;
 	// air
-	m_physparams.set_density(0, rho0, 1.4, 198*maxvel);
+	m_physparams->set_density(0, rho0, 1.4, 198*maxvel);
 	// water
-	m_physparams.set_density(1, rho1, 7.0f, 14*maxvel);
+	m_physparams->set_density(1, rho1, 7.0f, 14*maxvel);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-	m_physparams.dcoeff = 5.0f*g*H;
+	m_physparams->dcoeff = 5.0f*g*H;
 
-	m_physparams.r0 = m_deltap;
+	m_physparams->r0 = m_deltap;
 
 	// air
-	m_physparams.kinematicvisc[0] = 4.5e-3;
+	m_physparams->kinematicvisc[0] = 4.5e-3;
 	// water
-	m_physparams.kinematicvisc[1] = 3.5e-5;
+	m_physparams->kinematicvisc[1] = 3.5e-5;
 
-	m_physparams.artvisccoeff = 0.3f;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	m_physparams->artvisccoeff = 0.3f;
+	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.01);
@@ -125,7 +125,7 @@ void Bubble::release_memory(void)
 
 int Bubble::fill_parts()
 {
-	float r0 = m_physparams.r0;
+	float r0 = m_physparams->r0;
 
 	experiment_box = Cube(Point(m_origin), m_size.x,
 		m_size.y, m_size.z);
@@ -133,10 +133,10 @@ int Bubble::fill_parts()
 	fluid = Cube(Point(m_origin + extra_offset + make_double3(r0)),
 		lx-2*r0, ly-2*r0, H - 2*r0);
 
-	experiment_box.SetPartMass(r0, m_physparams.rho0[1]);
+	experiment_box.SetPartMass(r0, m_physparams->rho0[1]);
 
 #if !USE_PLANES
-	switch (m_simparams.boundarytype) {
+	switch (m_simparams->boundarytype) {
 	case LJ_BOUNDARY:
 	case MK_BOUNDARY:
 		experiment_box.FillBorder(boundary_parts, r0, false);
@@ -246,10 +246,10 @@ void Bubble::copy_to_array(BufferList &buffers)
 					- (pt(1))*(pt(1))
 					);
 			// pressure at interface, from heavy fluid
-			float g = length(m_physparams.gravity);
-			float P = m_physparams.rho0[1]*(H - z_intf)*g;
+			float g = length(m_physparams->gravity);
+			float P = m_physparams->rho0[1]*(H - z_intf)*g;
 			// plus hydrostatic pressure from _our_ fluid
-			P += m_physparams.rho0[0]*(z_intf - pt(2) + m_origin.z)*g;
+			P += m_physparams->rho0[0]*(z_intf - pt(2) + m_origin.z)*g;
 			rho = density_for_pressure(P, 0);
 		}
 		info[i]= make_particleinfo(PT_FLUID, fluid_idx, i);
