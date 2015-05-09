@@ -96,12 +96,10 @@ public:
 		m_neibsEngine = new CUDANeibsEngine<boundarytype, periodicbound, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, simflags & ENABLE_XSPH>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
-		m_forcesEngine = new CUDAForcesEngine
-			<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
-
-		m_bcEngine = CUDABoundaryConditionsSelector
-			<kerneltype, visctype, boundarytype, simflags>::select();
-		m_postprocEngine = NULL; // TODO
+		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
+		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();
+		if (simflags & NEED_POST_PROC)
+			m_postprocEngine = new CUDAPostProcessEngine<kerneltype>();
 
 		// TODO should be allocated by the integration scheme
 		m_allocPolicy = new PredCorrAllocPolicy();
@@ -117,6 +115,10 @@ public:
 		m_simparams.movingBoundaries = simflags & ENABLE_MOVING_BODIES;
 		m_simparams.inoutBoundaries = simflags & ENABLE_INLET_OUTLET;
 		m_simparams.ioWaterdepthComputation = simflags & ENABLE_WATER_DEPTH;
+		m_simparams.surfaceparticle = simflags & ENABLE_SURFACE_DETECTION;
+		m_simparams.savenormals = simflags & ENABLE_SAVE_NORMALS;
+		m_simparams.testpoints = simflags & ENABLE_TESTPOINTS;
+		m_simparams.vorticity = simflags & ENABLE_VORTICITY;
 	}
 
 protected:

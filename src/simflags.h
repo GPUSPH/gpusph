@@ -37,6 +37,7 @@
 
 // no options
 #define ENABLE_NONE			0UL
+#define DISABLE_ALL_SIMFLAGS	(ENABLE_NONE)
 
 // adaptive timestepping
 #define ENABLE_DTADAPT			1UL
@@ -58,6 +59,16 @@
 
 // water depth computation
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
+
+#define ENABLE_VORTICITY		(ENABLE_WATER_DEPTH << 1)
+
+#define ENABLE_TESTPOINTS		(ENABLE_VORTICITY << 1)
+
+#define ENABLE_SURFACE_DETECTION (ENABLE_TESTPOINTS << 1)
+
+#define ENABLE_SAVE_NORMALS		(ENABLE_SURFACE_DETECTION << 1)
+
+#define NEED_POST_PROC			(ENABLE_VORTICITY | ENABLE_TESTPOINTS | ENABLE_SURFACE_DETECTION | ENABLE_SAVE_NORMALS)
 
 // TODO testpoints, rigid bodies, ferrari, planes ...
 

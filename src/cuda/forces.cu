@@ -1005,17 +1005,17 @@ class CUDAPostProcessEngine : public AbstractPostProcessEngine
 public:
 
 void
-vorticity(const	float4*		pos,
-		const	float4*		vel,
-			float3*		vort,
-		const	particleinfo	*info,
-		const	hashKey*		particleHash,
-		const	uint*		cellStart,
-		const	neibdata*	neibsList,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			float		slength,
-			float		influenceradius)
+vorticity(	const	float4*			pos,
+			const	float4*			vel,
+			float3*					vort,
+			const	particleinfo	*info,
+			const	hashKey*		particleHash,
+			const	uint*			cellStart,
+			const	neibdata*		neibsList,
+			uint					numParticles,
+			uint					particleRangeEnd,
+			float					slength,
+			float					influenceradius)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_CALCVORT;
@@ -1042,18 +1042,18 @@ vorticity(const	float4*		pos,
 
 //Testpoints
 void
-testpoints( const float4*	pos,
-			float4*			newVel,
-			float*			newTke,
-			float*			newEpsilon,
+testpoints( const float4*		pos,
+			float4*				newVel,
+			float*				newTke,
+			float*				newEpsilon,
 			const particleinfo	*info,
 			const hashKey*		particleHash,
 			const uint*			cellStart,
 			const neibdata*		neibsList,
-			uint			numParticles,
-			uint			particleRangeEnd,
-			float			slength,
-			float			influenceradius)
+			uint				numParticles,
+			uint				particleRangeEnd,
+			float				slength,
+			float				influenceradius)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_CALCTEST;
@@ -1089,19 +1089,19 @@ testpoints( const float4*	pos,
 
 // Free surface detection
 void
-surfaceparticle(const	float4*		pos,
-				const	float4*     vel,
-					float4*		normals,
+surfaceparticle(const	float4*			pos,
+				const	float4*     	vel,
+						float4*			normals,
 				const	particleinfo	*info,
-					particleinfo	*newInfo,
+						particleinfo	*newInfo,
 				const	hashKey*		particleHash,
-				const	uint*		cellStart,
-				const	neibdata*	neibsList,
-					uint		numParticles,
-					uint		particleRangeEnd,
-					float		slength,
-					float		influenceradius,
-					bool		savenormals)
+				const	uint*			cellStart,
+				const	neibdata*		neibsList,
+						uint			numParticles,
+						uint			particleRangeEnd,
+						float			slength,
+						float			influenceradius,
+						bool			savenormals)
 {
 	// thread per particle
 	uint numThreads = BLOCK_SIZE_CALCTEST;
