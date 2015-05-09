@@ -202,23 +202,27 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	/* Fluid number is only included if there are more than 1 */
-	bool write_fluid_num = (gdata->problem->get_physparams()->numFluids > 1);
+	const bool write_fluid_num = (gdata->problem->get_physparams()->numFluids > 1);
 
 	/* Object number is only included if there are any */
 	// TODO a better way would be for GPUSPH to expose the highest
 	// object number ever associated with any particle, so that we
 	// could check that
-	bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
+	const bool write_part_obj = (gdata->problem->get_simparams()->numbodies > 0);
 
 	// particle info
 	if (info) {
 		scalar_array(fid, "UInt16", "Part type+flags", offset);
 		offset += sizeof(ushort)*numParts+sizeof(int);
+		// fluid number
 		if (write_fluid_num) {
-			scalar_array(fid, "UInt16", "Fluid number", offset);
-			offset += sizeof(ushort)*numParts+sizeof(int);
+			// Limit to 256 fluids
+			scalar_array(fid, "UInt8", "Fluid number", offset);
+			offset += sizeof(uchar)*numParts+sizeof(int);
 		}
+		// object number
 		if (write_part_obj) {
+			// TODO UInt16 or UInt8 based on number of objects
 			scalar_array(fid, "UInt16", "Part object", offset);
 			offset += sizeof(ushort)*numParts+sizeof(int);
 		}
@@ -423,7 +427,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		}
 
 		// fluid number
-		if (write_fluid_num || write_part_obj) {
+		if (write_fluid_num) {
+			numbytes=sizeof(uchar)*numParts;
+			write_var(fid, numbytes);
+			for (uint i=node_offset; i < node_offset + numParts; i++) {
+				uchar value = fluid_num(info[i]);
+				write_var(fid, value);
+			}
+		}
+
+		if (write_part_obj) {
+			numbytes=sizeof(ushort)*numParts;
 			write_var(fid, numbytes);
 			for (uint i=node_offset; i < node_offset + numParts; i++) {
 				ushort value = object(info[i]);
