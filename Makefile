@@ -990,6 +990,13 @@ test: all
 	$(CMDECHO)$(TARGET)
 	@echo Do "$(SCRIPTSDIR)/rmtests" to remove all tests
 
+# target: compile-problems - Test that all problems compile
+compile-problems:
+	$(CMDECHO)for prob in $(PROBLEM_LIST) ; do \
+		echo [TEST-BUILD] $${prob} ; \
+		$(MAKE) problem=$${prob} || exit 1 ; \
+		done
+
 # target: list-problems - List available problems
 list-problems:
 	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g' | sort
