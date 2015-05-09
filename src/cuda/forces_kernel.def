@@ -2076,9 +2076,8 @@ forcesDevice(
 		}
 
 		// Writing out the results
-		// TODO: below was the previous test, i don't understand it (Alexis).
-		//if (OBJECT(pdata.info) || (boundarytype == SA_BOUNDARY && pdata.ptype == PT_BOUNDARY && FLOATING(info))) {
-		if (COMPUTE_FORCE(pdata.info)) {
+		// NOTE: with SA bounds only boundary elements compute and write object forces, not vertices.
+		if (COMPUTE_FORCE(pdata.info) && !VERTEX(pdata.info)) {
 			// Except for SA boundary, the forces computed in the neighbors loop are forces by unit of mass
 			// (i.e) accelerations so when we computing the total forces (and torques) acting on an object
 			// particle, the force must be multiplied by the particle mass.
