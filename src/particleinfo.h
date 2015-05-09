@@ -42,7 +42,7 @@ typedef uint4 vertexinfo;
 
 /* Particle information. ushort4 with fields:
    .x: particle type and flags
-   .y: object id or fluid number
+   .y: object id and fluid number
    (.z << 16) + .w: particle id
 
    The last two fields are unlikely to be used for actual computations, but
@@ -51,8 +51,9 @@ typedef uint4 vertexinfo;
    particle id object-local and use (((.y << 16) + .z) << 16) + .w as a
    _global_ particle id. This would allow us to uniquely identify up to
    2^48 (about 281 trillion) particles.
-*/
 
+   TODO: consider making it its own struct
+*/
 typedef ushort4 particleinfo;
 
 /* The particle type is a short integer organized this way:
@@ -160,6 +161,8 @@ disable_particle(float4 &pos) {
 }
 
 
+//< RAW particleinfo constructor: the ushorts are loaded directly into the respective fields,
+//< and no check concerning type or other is effected.
 inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj, const ushort &z, const ushort &w)
 {
 	particleinfo v;
@@ -170,48 +173,70 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
 	return v;
 }
 
-inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj, const uint &id)
+/* The fluid (4 bits) and object (12 bits) number share a common location,
+ * so they should be assembled like this:
+ * 	SET_FLUID_NUM(foo) | SET_OBJECT_NUM(bar)
+ */
+
+#define FLUID_NUM_SHIFT 12 /* bit shift for fluid == bits resrved for object number */
+#define GET_FLUID_NUM(y) ((y) >> FLUID_NUM_SHIFT)
+#define SET_FLUID_NUM(fnum) ((fnum) << FLUID_NUM_SHIFT)
+#define OBJECT_NUM_MASK ((1 << FLUID_NUM_SHIFT) - 1) /* mask for the object number bits */
+#define GET_OBJECT_NUM(y) ((y) & OBJECT_NUM_MASK)
+#define SET_OBJECT_NUM(fnum) (fnum)
+
+// Flags that imply that the particle needs an object number.
+#define NEEDS_OBJECT_NUM (FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE | FG_INLET | FG_OUTLET)
+
+/// Typed particleinfo creator
+/*! This constructor sets the type, object/fluid number and id in the followig way:
+ *		* the type is accepted as-is;
+ *		* the id is split into z and w as appropriate;
+ *		* the obj_or_fnum is automatically interpreted as an object number or fluid number.
+ *	If obj_or_fnum is bigger than OBJECT_NUM_MASK, then it's assumed to be a fluid number,
+ *	or a combination of fluid and object number.
+ *	If it's smaller than OBJECT_NUM_MASK, then it will be interpreted as an object number
+ *	if the particle is not fuid and it NEEDS_OBJECT_NUM, otherwise it's interpreted as
+ *	fluid number.
+ *	TODO the only thing that is impossible to do this way is to assign a fluid number of 0
+ *	and an object number > 0 to a fluid particle. We'll face the proble if/when it arises.
+ */
+inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj_or_fnum, const uint &id)
 {
 	particleinfo v;
 	v.x = type;
-	v.y = obj;
-	// id is in the location of two shorts.
-	/* The following line does not work with optimization if the C99
-	   standard for strict aliasing holds. Rather than forcing
-	   -fno-strict-aliasing (which is GCC only) we resort to
-	   memcpy which is the only `portable' way of doing this stuff,
-	   allegedly. Note that even this is risky because it might fail
-	   in cases of different endianness. So I'll mark this
-	   FIXME endianness
-	 */
-	// *(uint*)&v.z = id;
-	memcpy((void *)&v.z, (const void *)&id, 4);
+	/* Automatic interpretation of obj_or_fnum */
+	if (obj_or_fnum > OBJECT_NUM_MASK)
+		v.y = obj_or_fnum;
+	else if ((type & PART_TYPE_MASK) > PT_FLUID /* not fluid */
+		&& (type & NEEDS_OBJECT_NUM)) /* needs an object number */
+		v.y = SET_OBJECT_NUM(obj_or_fnum);
+	else
+		v.y = SET_FLUID_NUM(obj_or_fnum);
+
+	v.z = (id & USHRT_MAX); // low id bits in z
+	v.w = (id >> 16); // high id bits in w
 	return v;
 }
 
-static __forceinline__ __host__ __device__ const ushort& type(const particleinfo &info)
+static __forceinline__ __host__ __device__ __attribute__((pure)) const ushort& type(const particleinfo &info)
 {
 	return info.x;
 }
 
-static __forceinline__ __host__ __device__ const ushort& object(const particleinfo &info)
+static __forceinline__ __host__ __device__ __attribute__((pure)) ushort object(const particleinfo &info)
 {
-	return info.y;
+	return GET_OBJECT_NUM(info.y);
 }
-
 
 static __forceinline__ __host__ __device__ __attribute__((pure)) ushort fluid_num(const particleinfo &info)
 {
-	// TODO FIXME the fluid_num should never be queried for non-fluid part. In the mean time,
-	// retun 0 in such a case, since this is generally used to get information on pressure or
-	// viscosity. This effectively makes the object system incompatible with multifluid.
-	// TODO FIXME also check multifluid SA
-	return BOUNDARY(info) ? 0 : info.y;
+	return GET_FLUID_NUM(info.y);
 }
 
-static __forceinline__ __host__ __device__ const uint & id(const particleinfo &info)
+static __forceinline__ __host__ __device__ __attribute__((pure)) uint id(const particleinfo &info)
 {
-	return *(const uint*)&info.z;
+	return (uint)(info.z) | ((uint)(info.w) << 16);
 }
 
 #endif
