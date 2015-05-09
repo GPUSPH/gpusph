@@ -41,8 +41,6 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 
 	// SPH parameters
 	m_simparams.dt = 0.00004f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 1;
 	m_simparams.ferrari= 1.0f;
@@ -138,8 +136,6 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
 	}
-
-	uint numOdeObjParts = 0;
 
 	if(n_bparts) {
 		std::cout << "Boundary parts: " << n_bparts << "\n";

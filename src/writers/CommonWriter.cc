@@ -258,7 +258,7 @@ CommonWriter::write_simparams(ostream &out)
 	}
 
 	out << " adaptive time stepping " << ED[SP->simflags & ENABLE_DTADAPT] << endl;
-	if (SP->dtadapt)
+	if (SP->simflags & ENABLE_DTADAPT)
 		out << " safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
 	out << " XSPH correction " << ED[SP->simflags & ENABLE_XSPH] << endl;
 	out << " moving bodies " << ED[SP->simflags & ENABLE_MOVING_BODIES] << endl;
@@ -330,11 +330,11 @@ CommonWriter::write_physparams(ostream &out)
 	for (uint f  = 0; f < PP->numFluids; ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f] << endl;
 
-	if (SP->xsph) {
+	if (SP->simflags & ENABLE_XSPH) {
 		out << " epsxsph = " << PP->epsxsph << endl;
 	}
 
-	if (SP->usedem) {
+	if (SP->simflags & ENABLE_DEM) {
 		out << " DEM resolution EW = " << PP->ewres << ", NS = " << PP->nsres << endl;
 		out << " DEM displacement for normal computation dx = " << PP->demdx << ", dy = " << PP->demdy << endl;
 		out << " DEM zmin = " << PP->demzmin << endl;

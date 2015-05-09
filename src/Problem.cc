@@ -913,7 +913,7 @@ void Problem::fillDeviceMapByRegularGrid()
 uint
 Problem::max_parts(uint numParts)
 {
-	if (!m_simparams.inoutBoundaries)
+	if (!(m_simparams.simflags & ENABLE_INLET_OUTLET))
 		return numParts;
 
 	// we assume that we can't have more particles than by filling the whole domain:

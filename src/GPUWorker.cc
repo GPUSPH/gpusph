@@ -98,7 +98,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_PARTINDEX>();
 	m_dBuffers.addBuffer<CUDABuffer, BUFFER_NEIBSLIST>(-1); // neib list is initialized to all bits set
 
-	if (m_simparams->xsph)
+	if (m_simparams->simflags & ENABLE_XSPH)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_XSPH>();
 
 	if (m_simparams->visctype == SPSVISC)
@@ -109,7 +109,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->vorticity)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
 
-	if (m_simparams->dtadapt) {
+	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
 		if (m_simparams->visctype == KEPSVISC)
@@ -135,7 +135,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
 	}
 
-	if (m_simparams->inoutBoundaries || m_simparams->visctype == KEPSVISC)
+	if (m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
 	if (m_simparams->sph_formulation == SPH_GRENIER) {
@@ -913,7 +913,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 	}
 
 	// water depth at open boundaries
-	if (m_simparams->inoutBoundaries && m_simparams->ioWaterdepthComputation) {
+	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
 		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numObjects*sizeof(uint)));
 		allocated += m_simparams->numObjects*sizeof(uint);
 	}
@@ -952,7 +952,7 @@ size_t GPUWorker::allocateDeviceBuffers() {
 		delete[] rbnum;
 	}
 
-	if (m_simparams->usedem) {
+	if (m_simparams->simflags & ENABLE_DEM) {
 		int nrows = gdata->problem->get_dem_nrows();
 		int ncols = gdata->problem->get_dem_ncols();
 		printf("Thread %d setting DEM texture\t cols = %d\trows =%d\n",
@@ -991,7 +991,7 @@ void GPUWorker::deallocateDeviceBuffers() {
 
 	CUDA_SAFE_CALL(cudaFree(m_dNewNumParticles));
 
-	if (m_simparams->inoutBoundaries && m_simparams->ioWaterdepthComputation)
+	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH))
 		CUDA_SAFE_CALL(cudaFree(m_dIOwaterdepth));
 
 	if (m_simparams->numforcesbodies) {
@@ -1933,7 +1933,7 @@ void GPUWorker::unbind_textures_forces()
 float GPUWorker::forces_dt_reduce()
 {
 	// no reduction for fixed timestep
-	if (!m_simparams->dtadapt)
+	if (!(m_simparams->simflags & ENABLE_DTADAPT))
 		return m_simparams->dt;
 
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
@@ -2227,7 +2227,7 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 			bufwrite.getData<BUFFER_EPSILON>(),
 			bufread.getData<BUFFER_INFO>(),
 			bufread.getData<BUFFER_POS>(),
-			m_simparams->ioWaterdepthComputation ? m_dIOwaterdepth : NULL,
+			(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
 			gdata->t,
 			m_numParticles,
 			m_simparams->numObjects,
@@ -2613,7 +2613,7 @@ void GPUWorker::uploadConstants()
 	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
-	if (m_simparams->inoutBoundaries)
+	if (m_simparams->simflags & ENABLE_INLET_OUTLET)
 		gdata->problem->setboundconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
 }
 

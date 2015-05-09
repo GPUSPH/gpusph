@@ -279,7 +279,7 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	}
 
 	// if any SA open bounds is enabled, we need to update the counters for correct id creation
-	if (_sp->inoutBoundaries)
+	if (_sp->simflags & ENABLE_INLET_OUTLET)
 		countVertexAndNonFluidParticles();
 
 	// initialize values of k and e for k-e model
@@ -577,7 +577,7 @@ bool GPUSPH::runSimulation() {
 
 		// update inlet/outlet changes only after step 2
 		// and check if a forced buildneibs is required (i.e. if particles were created)
-		if (problem->get_simparams()->inoutBoundaries){
+		if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET){
 			doCommand(DOWNLOAD_NEWNUMPARTS);
 
 			gdata->particlesCreated = gdata->particlesCreatedOnNode[0];
@@ -609,7 +609,7 @@ bool GPUSPH::runSimulation() {
 		// buildneibs_freq?
 
 		// choose minimum dt among the devices
-		if (gdata->problem->get_simparams()->dtadapt) {
+		if (gdata->problem->get_simparams()->simflags & ENABLE_DTADAPT) {
 			gdata->dt = gdata->dts[0];
 			for (uint d = 1; d < gdata->devices; d++)
 				gdata->dt = min(gdata->dt, gdata->dts[d]);
@@ -704,7 +704,8 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_SPS_TURBVISC;
 
 			// get Eulerian velocity
-			if (gdata->problem->get_simparams()->inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
+			if (gdata->problem->get_simparams()->simflags & ENABLE_INLET_OUTLET ||
+				gdata->problem->get_simparams()->visctype == KEPSVISC)
 				which_buffers |= BUFFER_EULERVEL;
 
 			// get private array
@@ -887,7 +888,8 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
-	if (problem->m_simparams.inoutBoundaries || gdata->problem->get_simparams()->visctype == KEPSVISC)
+	if (problem->m_simparams.simflags & ENABLE_INLET_OUTLET ||
+		problem->m_simparams.visctype == KEPSVISC)
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
 	if (problem->m_simparams.visctype == SPSVISC)
@@ -1490,7 +1492,7 @@ void GPUSPH::buildNeibList()
 		// until next calchash; however, they are filtered out when using the particle hashes.
 		doCommand(APPEND_EXTERNAL, IMPORT_BUFFERS);
 		// update the newNumParticles device counter
-		if (problem->get_simparams()->inoutBoundaries)
+		if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET)
 			doCommand(UPLOAD_NEWNUMPARTS);
 	} else
 		updateArrayIndices();
@@ -1696,14 +1698,17 @@ void GPUSPH::updateArrayIndices() {
 	 * since its aim is just error checking. However, in presence of inlets every process should have the
 	 * updated number of active particles, at least for coherent status printing; thus, every process counts
 	 * the particles and only rank 0 checks for correctness. */
-	if (gdata->mpi_rank == 0 || gdata->problem->get_simparams()->inoutBoundaries) {
+	if (gdata->mpi_rank == 0 || gdata->problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) {
 		uint newSimulationTotal = 0;
 		for (uint n = 0; n < gdata->mpi_nodes; n++)
 			newSimulationTotal += gdata->processParticles[n];
 
 		// number of particle may increase or decrease if there are respectively inlets or outlets
-		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_simparams()->inoutBoundaries) ||
-			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_simparams()->inoutBoundaries) ) {
+		// TODO this should be simplified, but it would be better to check separately
+		// for < and >, based on the number of inlets and outlets, so we leave
+		// it this way as a reminder
+		if ( (newSimulationTotal < gdata->totParticles && gdata->problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) ||
+			 (newSimulationTotal > gdata->totParticles && gdata->problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) ) {
 			// printf("Number of total particles at iteration %u passed from %u to %u\n", gdata->iterations, gdata->totParticles, newSimulationTotal);
 			gdata->totParticles = newSimulationTotal;
 		} else if (newSimulationTotal != gdata->totParticles && gdata->mpi_rank == 0) {
@@ -1753,10 +1758,10 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	}
 
 	// impose open boundary conditions
-	if (problem->get_simparams()->inoutBoundaries) {
+	if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) {
 		// reduce the water depth at pressure outlets if required
 		// if we have multiple devices then we need to run a global max on the different gpus / nodes
-		if (MULTI_DEVICE && problem->get_simparams()->ioWaterdepthComputation) {
+		if (MULTI_DEVICE && problem->get_simparams()->simflags & ENABLE_WATER_DEPTH) {
 			// each device gets his waterdepth array from the gpu
 			doCommand(DOWNLOAD_IOWATERDEPTH);
 			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
@@ -1799,7 +1804,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		//    new_id = vertex_id + initial_parts - initial_fluid_parts +
 		//             (num_iterations_with_part_creations * numVertexParticles)
 		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
-		if (problem->get_simparams()->inoutBoundaries) {
+		if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) {
 
 			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
 			//	(gdata->numVertices * gdata->createdParticlesIterations);
@@ -1819,7 +1824,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 	// check if we need to delete some particles which passed through open boundaries
-	if (problem->get_simparams()->inoutBoundaries && !(cFlag & INITIALIZATION_STEP)) {
+	if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET && !(cFlag & INITIALIZATION_STEP)) {
 		doCommand(DISABLE_OUTGOING_PARTS);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);

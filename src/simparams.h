@@ -31,6 +31,7 @@
 #include <vector>
 #include <stdexcept>
 #include "Point.h"
+#include "simflags.h"
 #include "deprecation.h"
 
 typedef std::vector<double3> GageList;
@@ -77,12 +78,6 @@ typedef struct SimParams {
 	Periodicity		periodicbound;			// periodicity of the domain (combination of PERIODIC_[XYZ], or PERIODIC_NONE)
 	flag_t			simflags;				// simulation flags
 
-	bool			dtadapt;				// true if adaptive timestep
-	bool			xsph;					// true if XSPH correction
-	bool			usedem;					// true if using a DEM
-	bool			inoutBoundaries;		// defines if in- or outflow boundaries are present
-	bool			ioWaterdepthComputation;// true if we need to compute the water depth at outflows
-
 	SimParams(void) :
 		sfactor(1.3f),
 		slength(0),
@@ -119,12 +114,7 @@ typedef struct SimParams {
 		periodicbound(PERIODIC_NONE),
 		sph_formulation(SPH_F1),
 		boundarytype(LJ_BOUNDARY),
-
-		xsph(false),
-		dtadapt(true),
-		usedem(false),
-		inoutBoundaries(false),
-		ioWaterdepthComputation(false)
+		simflags(ENABLE_DTADAPT)
 	{};
 
 	inline double

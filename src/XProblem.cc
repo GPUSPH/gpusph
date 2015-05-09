@@ -243,9 +243,9 @@ bool XProblem::initialize()
 	// TODO ideally we should enable/disable them depending on whether
 	// they are present, but this isn't trivial to do with the static framework
 	// options
-	if (m_numOpenBoundaries > 0 && m_simparams.inoutBoundaries != true)
+	if (m_numOpenBoundaries > 0 && !(m_simparams.simflags & ENABLE_INLET_OUTLET))
 		throw std::invalid_argument("open boundaries present, but ENABLE_INLET_OUTLET not specified in framework flag");
-	if (m_numOpenBoundaries == 0 && m_simparams.inoutBoundaries == true)
+	if (m_numOpenBoundaries == 0 && (m_simparams.simflags & ENABLE_INLET_OUTLET))
 		throw std::invalid_argument("no open boundaries present, but ENABLE_INLET_OUTLET specified in framework flag");
 
 	// TODO FIXME m_numMovingObjects does not exist yet

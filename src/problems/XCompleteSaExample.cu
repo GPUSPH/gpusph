@@ -38,7 +38,9 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
 		formulation<SPH_F1>,
+		// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
 		viscosity<ARTVISC>,
+		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
 		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
@@ -51,12 +53,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams.maxneibsnum = 256 + 64;
-	m_simparams.dtadapt = true;
-	// viscositys: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
-	m_simparams.visctype = DYNAMICVISC;
 	m_physparams.kinematicvisc[0] = 1.0e-2f;
-	// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
-	m_simparams.boundarytype = SA_BOUNDARY;
 	// ferrari correction
 	m_simparams.ferrariLengthScale = 0.25f;
 

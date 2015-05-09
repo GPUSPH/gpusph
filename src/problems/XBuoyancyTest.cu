@@ -38,8 +38,6 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	m_simparams.kernelradius = 2.0;
 	m_simparams.kerneltype = WENDLAND;
 	m_simparams.dt = 0.0003f;
-	m_simparams.xsph = false;
-	m_simparams.dtadapt = true;
 	m_simparams.dtadaptfactor = 0.3;
 	m_simparams.buildneibsfreq = 10;
 	m_simparams.ferrari = 0;
