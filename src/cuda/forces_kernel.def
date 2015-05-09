@@ -1589,7 +1589,7 @@ compute_water_depth_at_outflow<SA_BOUNDARY, true>::with(FP const& params, P cons
 	float nZpos = pdata.pos.z - ndata.relPos.z + pdata.gridPos.z*d_cellSize.z + 0.5f*d_cellSize.z;
 	// position between 0 and UINT_MAX:
 	nZpos *= ((float) UINT_MAX)/(d_gridSize.z*d_cellSize.z);
-	atomicMax(&params.IOwaterdepth[object(pdata.info)-1], (uint)nZpos);
+	atomicMax(&params.IOwaterdepth[object(pdata.info)], (uint)nZpos);
 }
 
 
