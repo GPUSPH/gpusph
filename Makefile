@@ -941,10 +941,22 @@ Makefile.conf: Makefile $(OPTFILES)
 # Finally, both GPUDEPS and CPUDEPS must depend on the _presence_ of the option file
 # for hash keys, to prevent errors about undefined hash key size every time
 # `src/hashkey.h` is preprocessed
-$(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+#
+# Both GPUDEPS and CPUS also depend from Makefile.conf, to ensure they are rebuilt when
+# e.g. the problem changes. This avoids a situation like the following:
+# * developer builds with problem A
+# * developer builds with problem B
+# * developer changes e.g. a kernel file
+# * developer builds with problem B => it gets compiled new
+# * developer builds with problem A => A doesn't get recompiled because the deps
+#   file only have the deps for B, not A, and the .o file for A is there already
+# This is particularly important to ensure that `make compile-problems` works correctly.
+# Of course, Makefile.conf has to be stripped from the list of dependencies before passing them
+# to the loop that builds the deps.
+$(GPUDEPS): $(CUFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	$(call show_stage,DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)for srcfile in $^ ; do \
+	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
 		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
 		objfile="$${objfile%.*}.o" ; \
 		$(CXX) -x c++ \
@@ -953,10 +965,10 @@ $(GPUDEPS): $(CUFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES) | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 	$(call show_stage,DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
-	$(CMDECHO)for srcfile in $^ ; do \
+	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
 		objfile="$(OBJDIR)/$${srcfile#$(SRCDIR)/}" ; \
 		objfile="$${objfile%.*}.o" ; \
 		$(CXX) $(CC_INCPATH) $(CPPFLAGS) \
