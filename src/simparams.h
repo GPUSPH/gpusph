@@ -61,19 +61,14 @@ typedef struct SimParams {
 	float			ferrariLengthScale;		// length scale for Ferrari correction
 
 	bool			gcallback;				// true if using a variable gravity in problem
-	bool			vorticity;				// true if we want to save vorticity
-	bool			testpoints;				// true if we want to find velocity at testpoints
 	bool			csvtestpoints;			// true to dump the testpoints also in CSV files
 	bool			csvsimplegages;			// true to dump the gages also in CSV files
-	bool			savenormals;			// true if we want to save the normals at free surface
-	bool			surfaceparticle;		// true if we want to find surface particles
 	bool			calc_energy;			// true if we want to compute system energy at save time
 	GageList		gage;					// water gages
 	uint			numODEbodies;			// number of bodies which movmeent is computed by ODE
 	uint			numforcesbodies;		// number of moving bodies on which we need to compute the forces (includes ODE bodies)
 	uint			numbodies;				// total number of bodies (ODE + forces + moving)
 	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
-	bool			calcPrivate;			// add the private array for debugging / additional calculation
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
 	uint			numObjects;				// number of ODE objects + open boundaries
 
@@ -108,17 +103,12 @@ typedef struct SimParams {
 		ferrariLengthScale(NAN),
 
 		gcallback(false),
-		vorticity(false),
-		testpoints(false),
 		csvtestpoints(false),
 		csvsimplegages(false),
-		savenormals(false),
-		surfaceparticle(false),
 		calc_energy(true),
 		numforcesbodies(0),
 		numbodies(0),
 		maxneibsnum(0),
-		calcPrivate(false),
 		epsilon(5e-5f),
 		numObjects(0)
 	{};

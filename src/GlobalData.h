@@ -88,8 +88,7 @@ enum CommandType {
 	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
 	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
 	FILTER,				// Filters (Shepard, MLS)
-	VORTICITY,			// vorticity computation
-	SURFACE_PARTICLES,	// surface particle detections (including storing the normals)
+	POSTPROCESS,		// Post-processing filters (vorticity, testpoints, etc)
 	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)
 	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,	// compute segment boundary conditions and identify fluid particles that leave open boundaries
 	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,		// compute vertex boundary conditions including mass update and create new fluid particles at open boundaries; at the init step this routine also computes a preliminary grad gamma direction vector
@@ -105,8 +104,6 @@ enum CommandType {
 	FORCES_UPLOAD_OBJECTS_CG,	// upload centers of grovity of objects (for forces only)
 	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
 	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
-	CALC_PRIVATE,		// compute a private variable for debugging or additional passive values
-	COMPUTE_TESTPOINTS,	// compute velocities on testpoints
 	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
 	DOWNLOAD_IOWATERDEPTH,		// gets the IOwaterdepth array from the GPU
 	UPLOAD_IOWATERDEPTH,	// uploads the IOwaterdepth array to the GPU

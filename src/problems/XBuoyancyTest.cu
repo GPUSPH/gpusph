@@ -42,13 +42,6 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 	m_simparams->ferrari = 0;
 	m_simparams->tend = 20.0f; //0.00036f
 
-	// Free surface detection
-	m_simparams->surfaceparticle = false;
-	m_simparams->savenormals = false;
-
-	// Vorticity
-	m_simparams->vorticity = false;
-
 	// Physical parameters
 	H = 0.6f;
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);

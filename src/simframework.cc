@@ -59,3 +59,31 @@ AbstractFilterEngine* SimFramework::addFilterEngine(FilterType filtertype, int f
 	flt->set_frequency(frequency);
 	return flt;
 }
+
+AbstractPostProcessEngine* SimFramework::addPostProcessEngine(PostProcessType pptype, flag_t options)
+{
+	AbstractPostProcessEngine *flt = NULL;
+
+	PostProcessEngineSet::iterator found(m_postProcessEngines.find(pptype));
+	if (found == m_postProcessEngines.end()) {
+		m_postProcessEngines[pptype] = newPostProcessEngine(pptype, options);
+	} else {
+		std::cerr << "WARNING: tried to re-add post-process filter " <<
+			PostProcessName[pptype < INVALID_POSTPROC ? pptype : INVALID_POSTPROC] <<
+			" (" << pptype << "), skipped!" << std::endl;
+	}
+	return flt;
+}
+
+AbstractPostProcessEngine* SimFramework::hasPostProcessEngine(PostProcessType pptype) const
+{
+	PostProcessEngineSet::const_iterator found(m_postProcessEngines.find(pptype));
+	return found == m_postProcessEngines.end() ? NULL : found->second;
+}
+
+flag_t SimFramework::hasPostProcessOption(PostProcessType pptype, flag_t option) const
+{
+	PostProcessEngineSet::const_iterator found(m_postProcessEngines.find(pptype));
+	return found == m_postProcessEngines.end() ? NO_FLAGS :
+		(found->second->get_options() & option);
+}

@@ -380,7 +380,7 @@ Writer::Writer(const GlobalData *_gdata) :
 	m_dirname = m_problem->get_dirname() + "/data";
 	mkdir(m_dirname.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 
-	if(m_problem->get_simparams()->testpoints){
+	if (_gdata->simframework->hasPostProcessEngine(TESTPOINTS)) {
 		string testpointsDir = m_dirname + "/testpoints";
 		mkdir(testpointsDir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO);
 	}

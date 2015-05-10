@@ -32,12 +32,8 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams->maxneibsnum = 240;
 
 	m_simparams->tend = 10.0;
-	m_simparams->testpoints = false;
-	m_simparams->surfaceparticle = false;
-	m_simparams->savenormals = false;
 	initial_water_level = 1.23f;
 	expected_final_water_level = INLET_WATER_LEVEL;
-	m_simparams->calcPrivate = false;
 
 	// SPH parameters
 	m_simparams->dt = 0.00004f;

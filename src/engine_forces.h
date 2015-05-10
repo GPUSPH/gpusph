@@ -143,73 +143,8 @@ public:
 
 };
 
-/// TODO AbstractPostProcessEngine and AbstractBoundaryConditionsEngine
-/// are presently just horrible hacks to speed up the transition to header-only
-/// engine definitions
-//
-class AbstractPostProcessEngine
-{
-public:
-
-virtual void
-vorticity(const	float4*		pos,
-		const	float4*		vel,
-			float3*		vort,
-		const	particleinfo	*info,
-		const	hashKey*		particleHash,
-		const	uint*		cellStart,
-		const	neibdata*	neibsList,
-			uint		numParticles,
-			uint		particleRangeEnd,
-			float		slength,
-			float		influenceradius) = 0;
-
-//Testpoints
-virtual void
-testpoints(	const float4*	pos,
-			float4*			newVel,
-			float*			newTke,
-			float*			newEpsilon,
-			const particleinfo*	info,
-			const hashKey*		particleHash,
-			const uint*			cellStart,
-			const neibdata*		neibsList,
-			uint			numParticles,
-			uint			particleRangeEnd,
-			float			slength,
-			float			influenceradius) = 0;
-
-// Free surface detection
-virtual void
-surfaceparticle(const	float4*		pos,
-				const	float4*     vel,
-					float4*		normals,
-				const	particleinfo	*info,
-					particleinfo	*newInfo,
-				const	hashKey*		particleHash,
-				const	uint*		cellStart,
-				const	neibdata*	neibsList,
-					uint		numParticles,
-					uint		particleRangeEnd,
-					float		slength,
-					float		influenceradius,
-					bool		savenormals) = 0;
-
-// calculate a private scalar for debugging or a passive value
-virtual void
-calcPrivate(const	float4*			pos,
-			const	float4*			vel,
-			const	particleinfo*	info,
-					float*			priv,
-			const	hashKey*		particleHash,
-			const	uint*			cellStart,
-			const	neibdata*		neibsList,
-					float			slength,
-					float			inflRadius,
-					uint			numParticles,
-					uint			particleRangeEnd) = 0;
-};
-
+/// TODO AbstractBoundaryConditionsEngine is presently just horrible hack to
+/// speed up the transition to header-only / engine definitions
 class AbstractBoundaryConditionsEngine
 {
 public:

@@ -73,13 +73,6 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams->buildneibsfreq = 10;
 	m_simparams->tend = 1.5f;
 
-	// Free surface detection
-	m_simparams->surfaceparticle = false;
-	m_simparams->savenormals = false;
-
-	// Vorticity
-	m_simparams->vorticity = false;
-
 	// Physical parameters
 	H = 0.4f;
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);

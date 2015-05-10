@@ -41,13 +41,14 @@
 
 GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	gdata(_gdata),
+	m_simframework(gdata->simframework),
 	neibsEngine(gdata->simframework->getNeibsEngine()),
-	filterEngines(gdata->simframework->getFilterEngines()),
 	viscEngine(gdata->simframework->getViscEngine()),
 	forcesEngine(gdata->simframework->getForcesEngine()),
 	integrationEngine(gdata->simframework->getIntegrationEngine()),
 	bcEngine(gdata->simframework->getBCEngine()),
-	postprocEngine(gdata->simframework->getPostProcEngine())
+	filterEngines(gdata->simframework->getFilterEngines()),
+	postProcEngines(gdata->simframework->getPostProcEngines())
 {
 	m_deviceIndex = _deviceIndex;
 	m_cudaDeviceNumber = gdata->device[m_deviceIndex];
@@ -104,9 +105,9 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 	if (m_simparams->visctype == SPSVISC)
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_TAU>();
 
-	if (m_simparams->savenormals)
+	if (m_simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_NORMALS>();
-	if (m_simparams->vorticity)
+	if (m_simframework->hasPostProcessEngine(VORTICITY))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_VORTICITY>();
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
@@ -143,7 +144,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SIGMA>();
 	}
 
-	if (m_simparams->calcPrivate)
+	if (m_simframework->hasPostProcessEngine(CALC_PRIVATE))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_PRIVATE>();
 }
 
@@ -1655,13 +1656,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing FILTER\n", deviceIndex);
 				instance->kernel_filter();
 				break;
-			case VORTICITY:
-				if (dbg_step_printf) printf(" T %d issuing VORTICITY\n", deviceIndex);
-				instance->kernel_vorticity();
-				break;
-			case SURFACE_PARTICLES:
-				if (dbg_step_printf) printf(" T %d issuing SURFACE_PARTICLES\n", deviceIndex);
-				instance->kernel_surfaceParticles();
+			case POSTPROCESS:
+				if (dbg_step_printf) printf(" T %d issuing POSTPROCESS\n", deviceIndex);
+				instance->kernel_postprocess();
 				break;
 			case DISABLE_OUTGOING_PARTS:
 				if (dbg_step_printf) printf(" T %d issuing DISABLE_OUTGOING_PARTS:\n", deviceIndex);
@@ -1723,17 +1720,9 @@ void* GPUWorker::simulationThread(void *ptr) {
 				if (dbg_step_printf) printf(" T %d issuing UPLOAD_OBJECTS_VELOCITIES\n", deviceIndex);
 				instance->uploadBodiesVelocities();
 				break;
-			case CALC_PRIVATE:
-				if (dbg_step_printf) printf(" T %d issuing CALC_PRIVATE\n", deviceIndex);
-				instance->kernel_calcPrivate();
-				break;
 			case IMPOSE_OPEN_BOUNDARY_CONDITION:
 				if (dbg_step_printf) printf(" T %d issuing IMPOSE_OPEN_BOUNDARY_CONDITION\n", deviceIndex);
 				instance->kernel_imposeBoundaryCondition();
-				break;
-			case COMPUTE_TESTPOINTS:
-				if (dbg_step_printf) printf(" T %d issuing COMPUTE_TESTPOINTS\n", deviceIndex);
-				instance->kernel_testpoints();
 				break;
 			case QUIT:
 				if (dbg_step_printf) printf(" T %d issuing QUIT\n", deviceIndex);
@@ -2267,55 +2256,29 @@ void GPUWorker::kernel_filter()
 		m_simparams->influenceRadius);
 }
 
-void GPUWorker::kernel_vorticity()
+void GPUWorker::kernel_postprocess()
 {
 	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
 
 	// is the device empty? (unlikely but possible before LB kicks in)
 	if (numPartsToElaborate == 0) return;
 
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
+	PostProcessType proctype = PostProcessType(gdata->extraCommandArg);
+	PostProcessEngineSet::const_iterator procpair(postProcEngines.find(proctype));
+	// make sure we're going to call an instantiated filter
+	if (procpair == postProcEngines.end()) {
+		throw invalid_argument("non-existing postprocess filter invoked");
+	}
 
-	// Calling vorticity computation kernel
-	postprocEngine->vorticity(
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufwrite.getData<BUFFER_VORTICITY>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_HASH>(),
+
+	procpair->second->process(
+		m_dBuffers.getReadBufferList(),
+		m_dBuffers.getWriteBufferList(),
 		m_dCellStart,
-		bufread.getData<BUFFER_NEIBSLIST>(),
 		m_numParticles,
 		numPartsToElaborate,
 		m_simparams->slength,
 		m_simparams->influenceRadius);
-}
-
-void GPUWorker::kernel_surfaceParticles()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	postprocEngine->surfaceparticle(
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufwrite.getData<BUFFER_NORMALS>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufwrite.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_HASH>(),
-		m_dCellStart,
-		bufread.getData<BUFFER_NEIBSLIST>(),
-		m_numParticles,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius,
-		m_simparams->savenormals);
 }
 
 void GPUWorker::kernel_compute_density()
@@ -2550,57 +2513,6 @@ void GPUWorker::kernel_disableOutgoingParts()
 				bufread.getData<BUFFER_INFO>(),
 				m_numParticles,
 				numPartsToElaborate);
-}
-
-void GPUWorker::kernel_calcPrivate()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	postprocEngine->calcPrivate(
-		bufread.getData<BUFFER_POS>(),
-		bufread.getData<BUFFER_VEL>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufwrite.getData<BUFFER_PRIVATE>(),
-		bufread.getData<BUFFER_HASH>(),
-		m_dCellStart,
-		bufread.getData<BUFFER_NEIBSLIST>(),
-		m_simparams->slength,
-		m_simparams->influenceRadius,
-		m_numParticles,
-		numPartsToElaborate);
-}
-
-void GPUWorker::kernel_testpoints()
-{
-	uint numPartsToElaborate = (gdata->only_internal ? m_particleRangeEnd : m_numParticles);
-
-	// is the device empty? (unlikely but possible before LB kicks in)
-	if (numPartsToElaborate == 0) return;
-
-	BufferList const& bufread = *m_dBuffers.getReadBufferList();
-	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
-
-	postprocEngine->testpoints(
-		bufread.getData<BUFFER_POS>(),
-		// TODO FIXME VEL, TKE and EPSILON are in/out, but it's taken on the READ position
-		// (updated in-place)
-		(float4*)bufread.getData<BUFFER_VEL>(),
-		(float*)bufread.getData<BUFFER_TKE>(),
-		(float*)bufread.getData<BUFFER_EPSILON>(),
-		bufread.getData<BUFFER_INFO>(),
-		bufread.getData<BUFFER_HASH>(),
-		m_dCellStart,
-		bufread.getData<BUFFER_NEIBSLIST>(),
-		m_numParticles,
-		numPartsToElaborate,
-		m_simparams->slength,
-		m_simparams->influenceRadius);
 }
 
 void GPUWorker::uploadConstants()

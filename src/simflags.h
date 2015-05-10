@@ -59,21 +59,4 @@
 // water depth computation
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
 
-
-//< Post processing flags
-//< (will be removed when post-processing is converted to filter-like behavior
-//! @{
-
-#define ENABLE_VORTICITY		(ENABLE_WATER_DEPTH << 1)
-
-#define ENABLE_TESTPOINTS		(ENABLE_VORTICITY << 1)
-
-#define ENABLE_SURFACE_DETECTION (ENABLE_TESTPOINTS << 1)
-
-#define ENABLE_SAVE_NORMALS		(ENABLE_SURFACE_DETECTION << 1)
-
-#define NEED_POST_PROC			(ENABLE_VORTICITY | ENABLE_TESTPOINTS | ENABLE_SURFACE_DETECTION | ENABLE_SAVE_NORMALS)
-
-//! }
-
 #endif

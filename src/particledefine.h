@@ -190,6 +190,32 @@ const char *FilterName[INVALID_FILTER+1]
 #endif
 ;
 
+/* Post processing engines */
+enum PostProcessType {
+	FIRST_POSTPROC = 0,
+	VORTICITY = FIRST_POSTPROC,
+	TESTPOINTS,
+	SURFACE_DETECTION,
+	CALC_PRIVATE,
+	INVALID_POSTPROC
+};
+
+#ifndef GPUSPH_MAIN
+extern
+#endif
+const char *PostProcessName[INVALID_POSTPROC+1]
+#ifdef GPUSPH_MAIN
+= {
+	"Vorticity",
+	"Testpoints",
+	"Surface detection",
+	"Private",
+	"(invalid)"
+}
+#endif
+;
+
+
 enum SPSKernelSimFlags {
 	SPSK_STORE_TAU = 1,
 	SPSK_STORE_TURBVISC = (SPSK_STORE_TAU << 1)

@@ -202,6 +202,12 @@ class Problem {
 		// add a filter (MLS, SHEPARD), with given frequency
 #define	addFilter(fltr, freq) m_simframework->addFilterEngine(fltr, freq)
 
+		// add a post-processing filter, e.g.:
+		// addPostProcess(CALC_PRIVATE);
+		// addPostProcess(SURFACE_DETECTION); // simple surface detection
+		// addPostProcess(SURFACE_DETECTION, BUFFER_NORMALS); // save normals too
+#define	addPostProcess m_simframework->addPostProcessEngine
+
 		MovingBodiesVect	m_bodies;			// array of moving objects
 		KinematicData		*m_bodies_storage;				// kinematic data storage for bodie movement integration
 

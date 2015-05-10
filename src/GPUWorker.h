@@ -59,12 +59,12 @@ private:
 	GlobalData* gdata;
 
 	AbstractNeibsEngine *neibsEngine;
-	FilterEngineSet const& filterEngines;
 	AbstractViscEngine *viscEngine;
 	AbstractForcesEngine *forcesEngine;
 	AbstractIntegrationEngine *integrationEngine;
 	AbstractBoundaryConditionsEngine *bcEngine;
-	AbstractPostProcessEngine *postprocEngine;
+	FilterEngineSet const& filterEngines;
+	PostProcessEngineSet const& postProcEngines;
 
 	pthread_t pthread_id;
 	static void* simulationThread(void *ptr);
@@ -117,6 +117,7 @@ private:
 	// utility pointers - the actual structures are in Problem
 	PhysParams*	m_physparams;
 	SimParams*	m_simparams;
+	const SimFramework *m_simframework;
 
 	// CPU arrays
 	//float4*			m_hPos;					// postions array
@@ -236,8 +237,7 @@ private:
 	void kernel_forces();
 	void kernel_euler();
 	void kernel_filter();
-	void kernel_vorticity();
-	void kernel_surfaceParticles();
+	void kernel_postprocess();
 	void kernel_compute_density();
 	void kernel_sps();
 	void kernel_meanStrain();
@@ -250,8 +250,6 @@ private:
 	void kernel_initGradGamma();
 	void kernel_updateGamma();
 	void kernel_updatePositions();
-	void kernel_calcPrivate();
-	void kernel_testpoints();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
 	void kernel_download_iowaterdepth();

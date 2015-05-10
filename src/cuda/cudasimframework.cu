@@ -92,26 +92,19 @@ template<
 class CUDASimFrameworkImpl : public SimFramework
 {
 public:
-	CUDASimFrameworkImpl() {
+	CUDASimFrameworkImpl() : SimFramework()
+	{
 		m_neibsEngine = new CUDANeibsEngine<boundarytype, periodicbound, true>();
 		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, simflags & ENABLE_XSPH>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();
-		if (simflags & NEED_POST_PROC)
-			m_postprocEngine = new CUDAPostProcessEngine<kerneltype>();
 
 		// TODO should be allocated by the integration scheme
 		m_allocPolicy = new PredCorrAllocPolicy();
 
 		m_simparams = new SimParams(kerneltype, sph_formulation, visctype,
 			boundarytype, periodicbound, simflags);
-
-		// TODO these should be removed
-		m_simparams->surfaceparticle = simflags & ENABLE_SURFACE_DETECTION;
-		m_simparams->savenormals = simflags & ENABLE_SAVE_NORMALS;
-		m_simparams->testpoints = simflags & ENABLE_TESTPOINTS;
-		m_simparams->vorticity = simflags & ENABLE_VORTICITY;
 	}
 
 protected:
@@ -123,6 +116,23 @@ protected:
 		case MLS_FILTER:
 			return new CUDAFilterEngine<MLS_FILTER, kerneltype, boundarytype>(frequency);
 		case INVALID_FILTER:
+			throw runtime_error("Invalid filter type");
+		}
+		throw runtime_error("Unknown filter type");
+	}
+
+	AbstractPostProcessEngine* newPostProcessEngine(PostProcessType pptype, flag_t options=NO_FLAGS)
+	{
+		switch (pptype) {
+		case VORTICITY:
+			return new CUDAPostProcessEngine<VORTICITY, kerneltype>(options);
+		case TESTPOINTS:
+			return new CUDAPostProcessEngine<TESTPOINTS, kerneltype>(options);
+		case SURFACE_DETECTION:
+			return new CUDAPostProcessEngine<SURFACE_DETECTION, kerneltype>(options);
+		case CALC_PRIVATE:
+			return new CUDAPostProcessEngine<CALC_PRIVATE, kerneltype>(options);
+		case INVALID_POSTPROC:
 			throw runtime_error("Invalid filter type");
 		}
 		throw runtime_error("Unknown filter type");

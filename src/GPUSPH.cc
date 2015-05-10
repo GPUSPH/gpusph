@@ -422,6 +422,7 @@ bool GPUSPH::runSimulation() {
 	buildNeibList();
 
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
+	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
 	while (gdata->keep_going) {
 		// when there will be an Integrator class, here (or after bneibs?) we will
@@ -665,35 +666,12 @@ bool GPUSPH::runSimulation() {
 			// choose the read buffer for the double buffered arrays
 			which_buffers |= DBLBUFFER_READ;
 
-			// compute and dump vorticity if set
-			if (gdata->problem->get_simparams()->vorticity) {
-				gdata->only_internal = true;
-				doCommand(VORTICITY);
-				which_buffers |= BUFFER_VORTICITY;
-			}
-
 			// get GradGamma
 			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
 
 			if (gdata->problem->get_simparams()->sph_formulation == SPH_GRENIER)
 				which_buffers |= BUFFER_VOLUME;
-
-			// compute and dump normals if set
-			// Warning: in the original code, buildneibs is called before surfaceParticle(). However, here should be safe
-			// not to call, since it has been called at least once for sure
-			if (gdata->problem->get_simparams()->surfaceparticle) {
-				gdata->only_internal = true;
-				doCommand(SURFACE_PARTICLES);
-				// NOTE: in the specific case, we could just copy the previous value in the read buffer,
-				// instead of transferring the buffer, since we will not dump external particles.
-				// Importing them from the neib devices is theoretically more correct and it allows us
-				// to know the surface flag for the external particles (in case we will ever care).
-				if (MULTI_DEVICE)
-					doCommand(UPDATE_EXTERNAL, BUFFER_INFO | DBLBUFFER_WRITE);
-				doCommand(SWAP_BUFFERS, BUFFER_INFO);
-				which_buffers |= BUFFER_NORMALS;
-			}
 
 			// get k and epsilon
 			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
@@ -708,12 +686,32 @@ bool GPUSPH::runSimulation() {
 				gdata->problem->get_simparams()->visctype == KEPSVISC)
 				which_buffers |= BUFFER_EULERVEL;
 
-			// get private array
-			if (gdata->problem->get_simparams()->calcPrivate) {
-				// by default, we want to run kernels on internal particles only
+			// run post-process filters and dump their arrays
+			for (PostProcessEngineSet::const_iterator flt(enabledPostProcess.begin());
+				flt != enabledPostProcess.end(); ++flt) {
+				PostProcessType filter = flt->first;
 				gdata->only_internal = true;
-				doCommand(CALC_PRIVATE);
-				which_buffers |= BUFFER_PRIVATE;
+				doCommand(POSTPROCESS, NO_FLAGS, float(filter));
+
+				/* list of buffers that were updated in-place */
+				const flag_t updated_buffers = flt->second->get_updated_buffers();
+				/* list of buffers that were written in BUFFER_WRITE */
+				const flag_t written_buffers = flt->second->get_written_buffers();
+				/* TODO FIXME ideally we would have a way to specify when,
+				 * after a post-processing, buffers need to be uploaded to other
+				 * devices as well.
+				 * This might be needed e.g. after the INFO update from SURFACE_DETECTION,
+				 * although maybe not during pre-write post-processing
+				 */
+#if 0
+				if (MULTI_DEVICE)
+					doCommand(UPDATE_EXTERNAL, written_buffers | DBLBUFFER_WRITE);
+#endif
+				/* Swap the written buffers, so we can access the new data from
+				 * DBLBUFFER_READ
+				 */
+				doCommand(SWAP_BUFFERS, written_buffers);
+				which_buffers |= updated_buffers | written_buffers;
 			}
 
 			if ( force_write || !gdata->nosave) {
@@ -871,9 +869,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_FORCES>();
 #endif
 
-	if (problem->m_simparams->savenormals)
+	if (gdata->simframework->hasPostProcessOption(SURFACE_DETECTION, BUFFER_NORMALS))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_NORMALS>();
-	if (problem->m_simparams->vorticity)
+	if (gdata->simframework->hasPostProcessEngine(VORTICITY))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VORTICITY>();
 
 	if (problem->m_simparams->boundarytype == SA_BOUNDARY) {
@@ -901,7 +899,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		//gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
 	}
 
-	if (problem->m_simparams->calcPrivate)
+	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_PRIVATE>();
 
 	// number of elements to allocate
@@ -1428,18 +1426,11 @@ void GPUSPH::doWrite(bool force)
 		Writer::WriteObjects(gdata->t);
 	}
 
-	//Testpoints
-	// TODO: move into runSim ?
-	if (gdata->problem->get_simparams()->testpoints) {
-		// Write testpoints, on buffer read
-		doCommand(COMPUTE_TESTPOINTS);
-	}
-
 	Writer::Write(
 		gdata->processParticles[gdata->mpi_rank],
 		gdata->s_hBuffers,
 		node_offset,
-		gdata->t, gdata->problem->get_simparams()->testpoints);
+		gdata->t, gdata->simframework->hasPostProcessEngine(TESTPOINTS));
 	Writer::MarkWritten(gdata->t);
 
 	// TODO: enable energy computation and dump
