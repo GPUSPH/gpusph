@@ -337,7 +337,7 @@ RESTORE_WARNINGS
 		{ return m_physparams->add_fluid(rho, gamma, c0); }
 		void set_kinematic_visc(size_t fluid_idx, float nu)
 		{ return m_physparams->set_kinematic_visc(fluid_idx, nu); }
-		void set_dynmamic_visc(size_t fluid_idx, float mu)
+		void set_dynamic_visc(size_t fluid_idx, float mu)
 		{ return m_physparams->set_dynamic_visc(fluid_idx, mu); }
 
 		// simple functions to add gages. the third component
