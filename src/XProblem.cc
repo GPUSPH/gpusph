@@ -37,19 +37,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 
 	m_positioning = PP_CENTER;
 
-	// *** Default viscosity coefficients
-	m_physparams->artvisccoeff = 0.3f;
-	m_physparams->epsartvisc = 0.01 * m_simparams->slength * m_simparams->slength;
-	m_physparams->kinematicvisc[0] = 1.0e-6f;
-	//m_physparams->epsxsph = 0.5f;
-
-	// TODO: following comment: still makes sense?
-	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
-
-	// *** Initialization of minimal physical parameters
-	set_deltap(0.02f);
-	m_physparams->r0 = m_deltap;
-	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	// NAN water level and max fall: will autocompute if user doesn't define them
 	m_waterLevel = NAN;
 	m_maxFall = NAN;
@@ -57,8 +44,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 
 	// *** Other parameters and settings
 	add_writer(VTKWRITER, 1e-2f);
-	m_origin = make_double3(NAN, NAN, NAN);
-	m_size = make_double3(NAN, NAN, NAN);
 	m_name = "XProblem";
 
 	// We don't initialize simparams because it will be done by the SETUP_FRAMEWORK
@@ -95,6 +80,12 @@ bool XProblem::initialize()
 		//SETUP_FRAMEWORK();
 		throw std::runtime_error("no simulation framework defined");
 	}
+
+	// *** Initialization of minimal physical parameters
+	if (isnan(m_deltap))
+		set_deltap(0.02f);
+	if (isnan(m_physparams->r0))
+		m_physparams->r0 = m_deltap;
 
 	// aux vars to compute bounding box
 	Point globalMin = Point(DBL_MAX, DBL_MAX, DBL_MAX);
@@ -218,15 +209,24 @@ bool XProblem::initialize()
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
 	}
 
-	if (!m_physparams->EOS_was_set) {
+	if (m_physparams->numFluids() == 0) {
 		const float default_rho = 1000.0;
 		const float default_gamma = 7;
 		// numerical speed of sound
 		const float default_c0 = 10.0 * m_maxParticleSpeed;
 
-		m_physparams->set_density(0, default_rho, default_gamma, default_c0);
-		printf("EOS not set, autocomputed for fluid 0: rho: %g, gamma %g, c0 %g\n",
-			default_rho, default_gamma, default_c0 );
+		m_physparams->add_fluid(default_rho, default_gamma, default_c0);
+		printf("No fluids specified, assuming water: rho: %g, gamma %g, c0 %g\n",
+			default_rho, default_gamma, default_c0);
+	}
+
+	for (size_t fluid = 0 ; fluid < m_physparams->numFluids(); ++fluid) {
+		const float default_kinematic_visc = 1.0e-6f;
+		if (isnan(m_physparams->kinematicvisc[fluid])) {
+			printf("Viscosity for fluid %zu not specified, assuming water (nu = %g)\n",
+				fluid, default_kinematic_visc);
+			m_physparams->set_kinematic_visc(fluid, default_kinematic_visc);
+		}
 	}
 
 	// compute the number of layers for dynamic boundaries, if not set
