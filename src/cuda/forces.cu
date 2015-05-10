@@ -292,21 +292,23 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_fcoeff_quadratic, &kernelcoeff, sizeof(float)));
 	kernelcoeff = 105.0f/(128.0f*M_PI*h5);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_fcoeff_wendland, &kernelcoeff, sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numfluids, &physparams->numFluids, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rho0, &physparams->rho0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_bcoeff, &physparams->bcoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gammacoeff, &physparams->gammacoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sscoeff, &physparams->sscoeff, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sspowercoeff, &physparams->sspowercoeff, MAX_FLUID_TYPES*sizeof(float)));
+
+	int numFluids = physparams->numFluids();
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numfluids, &numFluids, sizeof(int)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rho0, &physparams->rho0[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_bcoeff, &physparams->bcoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gammacoeff, &physparams->gammacoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sscoeff, &physparams->sscoeff[0], numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sspowercoeff, &physparams->sspowercoeff[0], numFluids*sizeof(float)));
 
 	// compute (and upload) square of sound speeds, needed for Ferrari
-	float sqC0[MAX_FLUID_TYPES];
-	for (uint i = 0; i < MAX_FLUID_TYPES; ++i) {
+	float sqC0[numFluids];
+	for (uint i = 0; i < numFluids; ++i) {
 		sqC0[i]  = physparams->sscoeff[i];
 		sqC0[i] *= sqC0[i];
 	}
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sqC0, sqC0, MAX_FLUID_TYPES*sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, physparams->visccoeff, MAX_FLUID_TYPES*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_sqC0, sqC0, numFluids*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_visccoeff, &physparams->visccoeff[0], numFluids*sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gravity, &physparams->gravity, sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_dcoeff, &physparams->dcoeff, sizeof(float)));
@@ -369,14 +371,17 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 void
 getconstants(PhysParams *physparams)
 {
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->numFluids, cuforces::d_numfluids, sizeof(int)));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff, cuforces::d_visccoeff, MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->rho0, cuforces::d_rho0, MAX_FLUID_TYPES*sizeof(float), 0));
+	int numFluids = -1;
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&numFluids, cuforces::d_numfluids, sizeof(int)));
+	if (numFluids != physparams->numFluids())
+		throw std::runtime_error("wrong number of fluids");
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->visccoeff[0], cuforces::d_visccoeff, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->rho0[0], cuforces::d_rho0, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->bcoeff[0], cuforces::d_bcoeff, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gammacoeff[0], cuforces::d_gammacoeff, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->sscoeff[0], cuforces::d_sscoeff, numFluids*sizeof(float), 0));
+	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->sspowercoeff[0], cuforces::d_sspowercoeff, numFluids*sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gravity, cuforces::d_gravity, sizeof(float3), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->bcoeff, cuforces::d_bcoeff, MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->gammacoeff, cuforces::d_gammacoeff, MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->sscoeff, cuforces::d_sscoeff, MAX_FLUID_TYPES*sizeof(float), 0));
-	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->sspowercoeff, cuforces::d_sspowercoeff, MAX_FLUID_TYPES*sizeof(float), 0));
 
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->dcoeff, cuforces::d_dcoeff, sizeof(float), 0));
 	CUDA_SAFE_CALL(cudaMemcpyFromSymbol(&physparams->p1coeff, cuforces::d_p1coeff, sizeof(float), 0));

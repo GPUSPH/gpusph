@@ -35,6 +35,12 @@
 
 XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 {
+	SETUP_FRAMEWORK(
+		// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
+		viscosity<ARTVISC>,
+		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
+		boundary<LJ_BOUNDARY>);
+
 	// *** Initialization of minimal physical parameters
 	set_deltap(0.02f);
 	m_physparams->r0 = m_deltap;
@@ -42,14 +48,8 @@ XProblemExample::XProblemExample(GlobalData *_gdata) : XProblem(_gdata)
 	float g = length(m_physparams->gravity);
 	double H = 3;
 	m_physparams->dcoeff = 5.0f*g*H;
-	m_physparams->set_density(0, 1000.0, 7.0f, 20.0f);
-	//m_physparams->kinematicvisc = 1.0e-2f;
-
-	SETUP_FRAMEWORK(
-		// viscosities: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
-		viscosity<ARTVISC>,
-		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
-		boundary<LJ_BOUNDARY>);
+	add_fluid(1000.0, 7.0f, 20.0f);
+	//set_kinematic_visc(0, 1.0e-2f);
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams->maxneibsnum = 256 + 32;

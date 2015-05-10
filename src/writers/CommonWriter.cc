@@ -48,7 +48,7 @@ CommonWriter::CommonWriter(const GlobalData *_gdata)
 	if (m_energyfile) {
 		m_energyfile << "time";
 		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
+		for (; fluid < m_problem->get_physparams()->numFluids(); ++fluid)
 			m_energyfile	<< "\tkinetic" << fluid
 							<< "\tpotential" << fluid
 							<< "\telastic" << fluid;
@@ -141,7 +141,7 @@ CommonWriter::write_energy(double t, float4 *energy)
 	if (m_energyfile) {
 		m_energyfile << t;
 		uint fluid = 0;
-		for (; fluid < m_problem->get_physparams()->numFluids; ++fluid)
+		for (; fluid < m_problem->get_physparams()->numFluids(); ++fluid)
 			m_energyfile	<< "\t" << energy[fluid].x
 							<< "\t" << energy[fluid].y
 							<< "\t" << energy[fluid].z;
@@ -303,8 +303,8 @@ CommonWriter::write_physparams(ostream &out)
 	out << " gravity = (" << g.x << ", " << g.y << ", " << g.z << ") [" << length(g) << "] "
 		<< (SP->gcallback ? "time-dependent" : "fixed") << endl;
 #undef g
-	out << " numFluids = " << PP->numFluids << endl;
-	for (uint f = 0; f < PP->numFluids ; ++f) {
+	out << " numFluids = " << PP->numFluids() << endl;
+	for (uint f = 0; f < PP->numFluids(); ++f) {
 		out << " rho0[ " << f << " ] = " << PP->rho0[f] << endl;
 		out << " B[ " << f << " ] = " << PP->bcoeff[f] << endl;
 		out << " gamma[ " << f << " ] = " << PP->gammacoeff[f] << endl;
@@ -312,7 +312,7 @@ CommonWriter::write_physparams(ostream &out)
 		out << " sspowercoeff[ " << f << " ] = " << PP->sspowercoeff[f] << endl;
 		out << " sound speed[ " << f << " ] = " << m_problem->soundspeed(PP->rho0[f],f) << endl;
 	}
-	if (PP->numFluids > 1 && SP->sph_formulation == SPH_GRENIER)
+	if (PP->numFluids() > 1 && SP->sph_formulation == SPH_GRENIER)
 		out << " interface epsilon = " << PP->epsinterface << endl;
 
 	out << " partsurf = " << PP->partsurf << endl;
@@ -340,14 +340,14 @@ CommonWriter::write_physparams(ostream &out)
 		out << "\tartvisccoeff = " << PP->artvisccoeff << "" << endl;
 		out << "\tepsartvisc = " << PP->epsartvisc << "" << endl;
 	} else {
-		for (uint f  = 0; f < PP->numFluids; ++f)
+		for (uint f  = 0; f < PP->numFluids(); ++f)
 			out << "\tkinematicvisc[ " << f << " ] = " << PP->kinematicvisc[f] << " (m^2/s)" << endl;
 	}
 	if (SP->visctype == SPSVISC) {
 		out << "\tSmagfactor = " << PP->smagfactor << endl;
 		out << "\tkSPSfactor = " << PP->kspsfactor << endl;
 	}
-	for (uint f  = 0; f < PP->numFluids; ++f)
+	for (uint f  = 0; f < PP->numFluids(); ++f)
 		out << "\tvisccoeff[ " << f << " ] = " << PP->visccoeff[f] << endl;
 
 	if (SP->simflags & ENABLE_XSPH) {

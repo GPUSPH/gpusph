@@ -54,7 +54,10 @@ Problem::Problem(GlobalData *_gdata) :
 	m_physparams(NULL),
 	m_simframework(NULL),
 	m_problem_dir(_gdata->clOptions->dir),
-	m_bodies_storage(NULL)
+	m_bodies_storage(NULL),
+	m_size(make_double3(NAN, NAN, NAN)),
+	m_origin(make_double3(NAN, NAN, NAN)),
+	m_deltap(NAN)
 {
 }
 
@@ -468,7 +471,7 @@ void
 Problem::check_dt(void)
 {
 	float dt_from_sspeed = INFINITY;
-	for (uint f = 0 ; f < m_physparams->numFluids; ++f) {
+	for (uint f = 0 ; f < m_physparams->numFluids(); ++f) {
 		float sspeed = m_physparams->sscoeff[f];
 		dt_from_sspeed = fmin(dt_from_sspeed, m_simparams->slength/sspeed);
 	}
@@ -479,7 +482,7 @@ Problem::check_dt(void)
 
 	float dt_from_visc = NAN;
 	if (m_simparams->visctype != ARTVISC) {
-		for (uint f = 0; f < m_physparams->numFluids; ++f)
+		for (uint f = 0; f < m_physparams->numFluids(); ++f)
 			dt_from_visc = fminf(dt_from_visc, m_simparams->slength*m_simparams->slength/m_physparams->kinematicvisc[f]);
 		dt_from_visc *= 0.125f; // TODO this should be configurable
 	}

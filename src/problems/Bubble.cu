@@ -84,20 +84,17 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	float maxvel = sqrt(g*H);
 	float rho0 = 1;
 	float rho1 = 1000;
-	// air
-	m_physparams->set_density(0, rho0, 1.4, 198*maxvel);
-	// water
-	m_physparams->set_density(1, rho1, 7.0f, 14*maxvel);
+
+	size_t air = add_fluid(rho0, 1.4, 198*maxvel);
+	size_t water = add_fluid(rho1, 7.0f, 14*maxvel);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0f*g*H;
 
 	m_physparams->r0 = m_deltap;
 
-	// air
-	m_physparams->kinematicvisc[0] = 4.5e-3;
-	// water
-	m_physparams->kinematicvisc[1] = 3.5e-5;
+	set_kinematic_visc(air, 4.5e-3f);
+	set_kinematic_visc(water, 3.5e-5f);
 
 	m_physparams->artvisccoeff = 0.3f;
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;

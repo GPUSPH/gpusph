@@ -53,7 +53,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// *** Initialization of minimal simulation parameters
 	m_simparams->maxneibsnum = 256 + 64;
-	m_physparams->kinematicvisc[0] = 1.0e-2f;
+	set_kinematic_visc(0, 1.0e-2f);
 	// ferrari correction
 	m_simparams->ferrariLengthScale = 0.25f;
 
@@ -87,7 +87,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	setMaxParticleSpeed(7.0);
 
 	// explicitly set sspeed (not necessary since using setMaxParticleSpeed();
-	//m_physparams->set_density(0, 1000.0, 7.0f, 70.0f);
+	//add_fluid(1000.0, 7.0f, 70.0f);
 
 	// add "universe box" of planes
 	//makeUniverseBox(m_origin, m_origin + m_size );

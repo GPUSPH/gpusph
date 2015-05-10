@@ -51,13 +51,13 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 	H = 0.6f;
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
 	double g = length(m_physparams->gravity);
-	m_physparams->set_density(0, 1000.0, 7.0f, 20.f);
+	add_fluid(1000.0, 7.0f, 20.f);
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0f*g*H;
 	m_physparams->r0 = m_deltap;
 
-	m_physparams->kinematicvisc[0] = 1.0e-6f;
+	set_kinematic_visc(0, 1.0e-6f);
 	m_physparams->artvisccoeff = 0.3f;
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;

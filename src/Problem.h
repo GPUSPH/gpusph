@@ -332,6 +332,14 @@ RESTORE_WARNINGS
 			return m_physparams;
 		};
 
+		// wrappers for physparams functions
+		size_t add_fluid(float rho, float gamma, float c0)
+		{ return m_physparams->add_fluid(rho, gamma, c0); }
+		void set_kinematic_visc(size_t fluid_idx, float nu)
+		{ return m_physparams->set_kinematic_visc(fluid_idx, nu); }
+		void set_dynmamic_visc(size_t fluid_idx, float mu)
+		{ return m_physparams->set_dynamic_visc(fluid_idx, mu); }
+
 		// simple functions to add gages. the third component
 		// is actually ignored
 		void add_gage(double3 const& pt);

@@ -202,7 +202,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	}
 
 	/* Fluid number is only included if there are more than 1 */
-	const bool write_fluid_num = (gdata->problem->get_physparams()->numFluids > 1);
+	const bool write_fluid_num = (gdata->problem->get_physparams()->numFluids() > 1);
 
 	/* Object number is only included if there are any */
 	// TODO a better way would be for GPUSPH to expose the highest

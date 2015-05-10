@@ -1279,19 +1279,19 @@ void GPUSPH::setViscosityCoefficient()
 	// Set visccoeff based on the viscosity model used
 	switch (vt) {
 		case ARTVISC:
-			for (uint f = 0; f < pp->numFluids; ++f)
+			for (uint f = 0; f < pp->numFluids(); ++f)
 				pp->visccoeff[f] = pp->artvisccoeff;
 			break;
 
 		case KINEMATICVISC:
 		case SPSVISC:
-			for (uint f = 0; f < pp->numFluids; ++f)
+			for (uint f = 0; f < pp->numFluids(); ++f)
 				pp->visccoeff[f] = 4*pp->kinematicvisc[f];
 			break;
 
 		case KEPSVISC:
 		case DYNAMICVISC:
-			for (uint f = 0; f < pp->numFluids; ++f)
+			for (uint f = 0; f < pp->numFluids(); ++f)
 				pp->visccoeff[f] = pp->kinematicvisc[f];
 			break;
 
@@ -1439,7 +1439,7 @@ void GPUSPH::doWrite(bool force)
 		m_dVel[m_currentVelRead],
 		m_dInfo[m_currentInfoRead],
 		m_numParticles,
-		m_physparams->numFluids);
+		m_physparams->numFluids());
 	m_writer->write_energy(m_simTime, m_hEnergy);*/
 
 	// always reset force-saving

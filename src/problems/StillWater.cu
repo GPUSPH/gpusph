@@ -98,14 +98,14 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// purely for cosmetic reason, let's round the soundspeed to the next
 	// integer
 	const float c0 = ceil(10*maxvel);
-	m_physparams->set_density(0, 1000.0, 7.0f, c0);
+	add_fluid(1000.0, 7.0f, c0);
 
 	m_physparams->dcoeff = 5.0f*g*H;
 
 	m_physparams->r0 = m_deltap;
 	//m_physparams->visccoeff = 0.05f;
-	m_physparams->kinematicvisc[0] = 3.0e-2f;
-	//m_physparams->kinematicvisc[0] = 1.0e-6f;
+	set_kinematic_visc(0, 3.0e-2f);
+	//set_kinematic_visc(0, 1.0e-6f);
 	m_physparams->artvisccoeff = 0.3f;
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 	m_physparams->epsxsph = 0.5f;

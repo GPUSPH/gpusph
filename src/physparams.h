@@ -29,6 +29,7 @@
 #define _PHYSPARAMS_H
 
 #include <stdexcept>
+#include <vector>
 #include <iostream>
 
 #include "particledefine.h"
@@ -36,15 +37,47 @@
 #include "deprecation.h"
 
 typedef struct PhysParams {
-	float	rho0[MAX_FLUID_TYPES]; // density of various particles
+	/*! Parameters for Cole's equation of state
+		\f[
+			P(\rho) = B((\rho/\rho_0)^\gamma - 1),
+		\f]
+		where \f$\rho_0\$ is the at-rest density,
+		\f$\gamma\f$ is the adjabatic index and
+		\f$B = \rho_0 c_0^2/\gamma\f$ for a given
+		at-rest sound speed \f$c_0\f$.
+		The sound speed for density \f$\rho\f$ can thus be computed as
+		\f[
+			c(\rho) = c_0((\rho/\rho_0)^{(\gamma -1)/2},
+		\f]
+	 */
+	//! @{
+	std::vector<float> rho0; //< At-rest density
+	std::vector<float> bcoeff; //< Pressure parameter
+	std::vector<float> gammacoeff; //< Adjabatic index
+	std::vector<float> sscoeff; //< Sound speed coefficient ( = sound speed at rest density)
+	std::vector<float> sspowercoeff; //< Sound speed exponent ( = (\gamma - 1)/2 )
+	//! @}
+
+	//! Fluid viscosity
+	//! @{
+	float	artvisccoeff;	//< Artificial viscosity coefficient (one, for all fluids)
+	std::vector<float>	kinematicvisc;	//< Kinematic viscosity coefficient (ν)
+	/*! Viscosity coefficient used in the viscous contribution functions, depends on
+		viscosity model:
+		* for ARTVSIC: artificial viscosity coefficient
+		* for KINEMATICVISC: 4*kinematic viscosity coefficient,
+		* for DYNAMICVISC: kinematic viscosity coefficient
+		(The choice might seem paradoxical, but with DYNAMICVISC the dynamic viscosity
+		 coefficient is obtained multiplying visccoeff by the particle density, while
+		 with the KINEMATICVISC model the kinematic coefficient is used directly, in a
+		 formula what also includes a harmonic average from which the factor 4 emerges.)
+	 */
+	std::vector<float>	visccoeff;
+	//! @}
 
 	float	partsurf;		// particle area (for surface friction)
 
 	float3	gravity;		// gravity
-	float	bcoeff[MAX_FLUID_TYPES];
-	float	gammacoeff[MAX_FLUID_TYPES];
-	float	sscoeff[MAX_FLUID_TYPES];
-	float	sspowercoeff[MAX_FLUID_TYPES];
 
 	// interface epsilon for Grenier's simplified surface tension model
 	float	epsinterface;
@@ -59,12 +92,6 @@ typedef struct PhysParams {
 	float	MK_d;			// Typically: distance between boundary particles
 	float	MK_beta;		// Typically: ratio between h and MK_d
 
-	float	kinematicvisc[MAX_FLUID_TYPES];	// Kinematic viscosity
-	float	artvisccoeff;	// Artificial viscosity coefficient
-	// For ARTVSIC: artificial viscosity coefficient
-	// For KINEMATICVISC: 4*kinematic viscosity,
-	// For DYNAMICVISC: dynamic viscosity
-	float	visccoeff[MAX_FLUID_TYPES];
 	float	epsartvisc;
 	float	epsxsph;		// XSPH correction coefficient
 
@@ -82,36 +109,67 @@ typedef struct PhysParams {
 	float	demzmin;		// minimum z in DEM
 	float	smagfactor;		// (Cs*∆p)^2
 	float	kspsfactor;		// 2/3*Ci*∆p^2
-	uint	numFluids;      // number of fluids in simulation
 	float	cosconeanglefluid;	     // cos of cone angle for free surface detection (If the neighboring particle is fluid)
 	float	cosconeanglenonfluid;	 // cos of cone angle for free surface detection (If the neighboring particle is non_fluid
 	float	objectobjectdf;	// damping factor for object-object interaction
 	float	objectboundarydf;	// damping factor for object-boundary interaction
-
-	// was set_density() called at least once? (not checking for which fluids)
-	bool EOS_was_set;
 
 	// We have three deprecated members, but we don't need
 	// to get a warning about them for the constructor, only
 	// when the users actually assign to them
 IGNORE_WARNINGS(deprecated-declarations)
 	PhysParams(void) :
+		artvisccoeff(0.3f),
 		partsurf(0),
 		epsinterface(NAN),
+		gravity(make_float3(0, 0, -9.81)),
 		r0(NAN),
 		p1coeff(12.0f),
 		p2coeff(6.0f),
 		epsxsph(0.5f),
 		smagfactor(NAN),
 		kspsfactor(NAN),
-		numFluids(1),
 		cosconeanglefluid(0.86f),
 		cosconeanglenonfluid(0.5f),
 		objectobjectdf(1.0f),
-		objectboundarydf(1.0f),
-		EOS_was_set(false)
+		objectboundarydf(1.0f)
 	{};
 RESTORE_WARNINGS
+
+	size_t numFluids() const
+	{ return rho0.size(); }
+
+	/*! Add a new fluid with given density, adjabatic index and sound speed at rest
+	  @param rho	at-rest density
+	  @param gamma	adjabatic index
+	  @param c0	sound speed at rest
+	  @return the 0-based index of the fluid
+	 */
+	size_t add_fluid(float rho, float gamma, float c0) {
+		if (numFluids() == MAX_FLUID_TYPES)
+			throw std::runtime_error("too many fluids");
+		rho0.push_back(rho);
+		gammacoeff.push_back(gamma);
+		bcoeff.push_back(rho*c0*c0/gamma);
+		sscoeff.push_back(c0);
+		sspowercoeff.push_back((gamma-1)/2);
+
+		// Prime the viscosity coefficient arrays, but do not initialize them
+		kinematicvisc.push_back(NAN);
+		visccoeff.push_back(NAN);
+
+		return rho0.size() - 1;
+	}
+
+	void set_kinematic_visc(size_t fluid_idx, float nu) {
+		if (fluid_idx >= numFluids())
+			throw std::runtime_error("trying to set viscosity of non-existing fluid");
+		kinematicvisc[fluid_idx] = nu;
+	}
+
+	void set_dynamic_visc(size_t fluid_idx, float mu) {
+		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
+	}
 
 	/*! Set density parameters
 	  @param i	index in the array of materials
@@ -122,25 +180,22 @@ RESTORE_WARNINGS
 	  The number of fluids is automatically increased if set_density()
 	  is called with consecutive indices
 	 */
-	void set_density(uint i, float rho, float gamma, float c0) {
-		rho0[i] = rho;
-		gammacoeff[i] = gamma;
-		bcoeff[i] = rho*c0*c0/gamma;
-		sscoeff[i] = c0;
-		sspowercoeff[i] = (gamma - 1)/2;
-
-		EOS_was_set = true;
-
-		/* Check if we need to increase numFluids. If the user skipped an index,
-		 * we will have i > numFluids, which we assume it's an error; otherwise,
-		 * we will have i <= numFluids, and if == we need to increase
-		 */
-		if (i > numFluids) {
-			std::cerr << "setting density for fluid index " << i << " > " << numFluids << std::endl;
+	void set_density(uint i, float rho, float gamma, float c0)
+	DEPRECATED_MSG("set_density() is deprecated, use add_fluid() instead")
+	{
+		if (i == rho0.size())
+			add_fluid(rho, gamma, c0);
+		else if (i < rho0.size()) {
+			std::cerr << "changing properties of fluid " << i << std::endl;
+			rho0[i] = rho;
+			gammacoeff[i] = gamma;
+			bcoeff[i] = rho*c0*c0/gamma;
+			sscoeff[i] = c0;
+			sspowercoeff[i] = (gamma - 1)/2;
+		} else {
+			std::cerr << "setting density for fluid index " << i << " > " << rho0.size() << std::endl;
 			throw std::runtime_error("fluid index is growing too fast");
 		}
-		if (i == numFluids)
-			numFluids++;
 	}
 } PhysParams;
 

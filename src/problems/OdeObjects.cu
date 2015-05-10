@@ -59,7 +59,7 @@ OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams->gravity);
-	m_physparams->set_density(0, 1000.0, 7.0, 10);
+	add_fluid(1000.0, 7.0, 10);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0*g*H;
@@ -72,7 +72,7 @@ OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->MK_beta = MK_par;
 	#undef MK_par
 
-	m_physparams->kinematicvisc[0] = 1.0e-6;
+	set_kinematic_visc(0, 1.0e-6);
 	m_physparams->artvisccoeff = 0.3;
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 

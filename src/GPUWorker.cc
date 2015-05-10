@@ -1935,7 +1935,7 @@ float GPUWorker::forces_dt_reduce()
 
 	float max_kinematic = NAN;
 	if (m_simparams->visctype != ARTVISC)
-		for (uint f = 0; f < m_physparams->numFluids; ++f)
+		for (uint f = 0; f < m_physparams->numFluids(); ++f)
 			max_kinematic = max(max_kinematic, m_physparams->kinematicvisc[f]);
 
 	return forcesEngine->dtreduce(
