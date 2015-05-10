@@ -257,17 +257,27 @@ CommonWriter::write_simparams(ostream &out)
 		++flt;
 	}
 
-	out << " adaptive time stepping " << ED[SP->simflags & ENABLE_DTADAPT] << endl;
+	out << " adaptive time stepping " << ED[!!(SP->simflags & ENABLE_DTADAPT)] << endl;
 	if (SP->simflags & ENABLE_DTADAPT)
 		out << " safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
-	out << " XSPH correction " << ED[SP->simflags & ENABLE_XSPH] << endl;
-	out << " moving bodies " << ED[SP->simflags & ENABLE_MOVING_BODIES] << endl;
-	out << " open boundaries " << ED[SP->simflags & ENABLE_INLET_OUTLET] << endl;
-	out << " water depth computation " << ED[SP->simflags & ENABLE_WATER_DEPTH] << endl;
-	out << " time-dependent gravity " << ED[SP->gcallback] << endl;
-	out << " DEM: " << TF[SP->simflags & ENABLE_DEM] << endl;
+	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
+	out << " moving bodies " << ED[!!(SP->simflags & ENABLE_MOVING_BODIES)] << endl;
+	out << " open boundaries " << ED[!!(SP->simflags & ENABLE_INLET_OUTLET)] << endl;
+	out << " water depth computation " << ED[!!(SP->simflags & ENABLE_WATER_DEPTH)] << endl;
+	out << " time-dependent gravity " << ED[!!(SP->gcallback)] << endl;
+	out << " DEM: " << TF[!!(SP->simflags & ENABLE_DEM)] << endl;
 
-	// TODO post-processing
+	/* Iterate over enabled postprocessing engines, showing their name and options */
+	PostProcessEngineSet const& postProcs(gdata->simframework->getPostProcEngines());
+	PostProcessEngineSet::const_iterator pp(postProcs.begin());
+	PostProcessEngineSet::const_iterator pp_end(postProcs.end());
+	while (pp != pp_end) {
+		out << " " << PostProcessName[pp->first] << " post-processing enabled" << endl;
+		if (pp->first == SURFACE_DETECTION)
+			out << "    normals saving is " << ED[!!(pp->second->get_options() & BUFFER_NORMALS)] << endl;
+		++pp;
+	}
+
 #undef SP
 }
 
