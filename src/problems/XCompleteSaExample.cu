@@ -43,7 +43,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		// boundary types: LJ_BOUNDARY, MK_BOUNDARY, SA_BOUNDARY, DYN_BOUNDARY
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
+		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET | ENABLE_FERRARI>
 	);
 
 	// *** Initialization of minimal physical parameters

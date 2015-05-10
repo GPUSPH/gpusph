@@ -48,8 +48,6 @@
 // DEM
 #define ENABLE_DEM				(ENABLE_XSPH << 1)
 
-// TODO ENABLE_FERRARI, ENABLE_PLANES
-
 // moving boundaries and rigid bodies
 #define ENABLE_MOVING_BODIES	(ENABLE_DEM << 1)
 
@@ -58,5 +56,8 @@
 
 // water depth computation
 #define ENABLE_WATER_DEPTH		(ENABLE_INLET_OUTLET << 1)
+
+// Ferrari correction
+#define ENABLE_FERRARI			(ENABLE_WATER_DEPTH << 1)
 
 #endif

@@ -915,7 +915,7 @@ struct compute_density_derivative {
 	}
 
 	// actual method
-	template<SPHFormulation sph_formulation, bool inoutBoundaries,
+	template<SPHFormulation sph_formulation, flag_t simflags,
 		typename FP, typename P, typename N, typename OP, typename ON>
 	__device__ __forceinline__
 	static void
@@ -929,11 +929,9 @@ struct compute_density_derivative {
 		} else {
 			// SPH_F1 or SPH_F2
 			common_with(params, pdata, ndata, pout, nout);
-			// TODO this should not be done at runtime, but as a template option
-			if (d_ferrari) {
-				// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
+			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
+			if (simflags & ENABLE_FERRARI)
 				ferrari_correction(params, pdata, ndata, pout, nout);
-			}
 		}
 		/* The second formulation takes into consideration the density ratio */
 		if (sph_formulation == SPH_F2)
@@ -944,7 +942,7 @@ struct compute_density_derivative {
 /// Specialization in the SA_BOUNDARY case
 
 template<>
-template<SPHFormulation sph_formulation, bool inoutBoundaries, typename FP, typename P, typename N, typename OP, typename ON>
+template<SPHFormulation sph_formulation, flag_t simflags, typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
@@ -953,9 +951,9 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 		// boundary term of div(v)
 		nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
 		if (IO_BOUNDARY(ndata.info))
-			compute_euler_contributions<inoutBoundaries>::boundary_term(params, pdata, ndata, pout, nout);
+			compute_euler_contributions<simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
 		// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
-		if (d_ferrari && inoutBoundaries && IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
+		if ((simflags & (ENABLE_FERRARI | ENABLE_INLET_OUTLET)) && IO_BOUNDARY(ndata.info) && PRES_IO(ndata.info)) {
 			const int fType =  fluid_num(pdata.info);
 			// gravity correction for free-surface flows
 			const float grav_corr = -dot(d_gravity, as_float3(ndata.relPos))*d_rho0[fType]/d_sqC0[fType];
@@ -971,9 +969,9 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, P const& pdata, 
 	} else {
 		// volumic term of div(v)
 		common_with(params, pdata, ndata, pout, nout);
-		if (inoutBoundaries && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
-			compute_euler_contributions<inoutBoundaries>::volumic_term(params, pdata, ndata, pout, nout);
-		if (d_ferrari && !(ndata.ntype==PT_VERTEX && IO_BOUNDARY(ndata.info))) {
+		if ((simflags & ENABLE_INLET_OUTLET) && ndata.ntype == PT_VERTEX && IO_BOUNDARY(ndata.info) && !CORNER(ndata.info))
+			compute_euler_contributions<simflags & ENABLE_INLET_OUTLET>::volumic_term(params, pdata, ndata, pout, nout);
+		if ((simflags & ENABLE_FERRARI) && !(ndata.ntype==PT_VERTEX && IO_BOUNDARY(ndata.info))) {
 			// volumic term of Ferrari diffusion term (according to Mayrhofer et al. 2013, CPC)
 			ferrari_correction(params, pdata, ndata, pout, nout);
 		}
@@ -1964,7 +1962,7 @@ forcesDevice(
 
 				if (computes_NS_drhodt) {
 					// Computes d\rho/dt, including ferrari correction
-					compute_density_derivative<boundarytype>::with<sph_formulation, simflags & ENABLE_INLET_OUTLET>(params, pdata, ndata, pout, nout);
+					compute_density_derivative<boundarytype>::with<sph_formulation, simflags>(params, pdata, ndata, pout, nout);
 					pout.force.w += nout.DrDt;
 					if (boundarytype == SA_BOUNDARY) {
 						pout.contupd.x += nout.contDiff;

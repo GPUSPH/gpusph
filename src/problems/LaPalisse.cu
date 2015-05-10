@@ -19,6 +19,7 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 		formulation<SPH_F2>,
 		flags<ENABLE_DTADAPT |
 			ENABLE_INLET_OUTLET |
+			ENABLE_FERRARI |
 			ENABLE_WATER_DEPTH>
 	);
 

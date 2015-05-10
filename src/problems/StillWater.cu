@@ -54,9 +54,10 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
 		//viscosity<ARTVISC>,
-		boundary<DYN_BOUNDARY>
-		//boundary<SA_BOUNDARY>
-		//boundary<LJ_BOUNDARY>
+		boundary<DYN_BOUNDARY>,
+		//boundary<SA_BOUNDARY>,
+		//boundary<LJ_BOUNDARY>,
+		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
 	);
 
 	set_deltap(0.0625f);

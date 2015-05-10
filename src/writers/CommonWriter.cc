@@ -259,8 +259,18 @@ CommonWriter::write_simparams(ostream &out)
 
 	out << " adaptive time stepping " << ED[!!(SP->simflags & ENABLE_DTADAPT)] << endl;
 	if (SP->simflags & ENABLE_DTADAPT)
-		out << " safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
+		out << "    safety factor for adaptive time step = " << SP->dtadaptfactor << endl;
 	out << " XSPH correction " << ED[!!(SP->simflags & ENABLE_XSPH)] << endl;
+	out << " Ferrari correction " << ED[!!(SP->simflags & ENABLE_FERRARI)] << endl;
+	if (SP->simflags & ENABLE_FERRARI) {
+		out << "    Ferrari length scale = " ;
+		if (isnan(SP->ferrariLengthScale))
+			out << "unset";
+		else
+			out << SP->ferrariLengthScale;
+		out << endl;
+		out << "    Ferrari coefficient = " << SP->ferrari << endl;
+	}
 	out << " moving bodies " << ED[!!(SP->simflags & ENABLE_MOVING_BODIES)] << endl;
 	out << " open boundaries " << ED[!!(SP->simflags & ENABLE_INLET_OUTLET)] << endl;
 	out << " water depth computation " << ED[!!(SP->simflags & ENABLE_WATER_DEPTH)] << endl;

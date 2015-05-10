@@ -45,7 +45,6 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams->dt = 0.0003f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 10;
-	m_simparams->ferrari = 0;
 	m_simparams->tend = 5.0f; //0.00036f
 
 	// Physical parameters
