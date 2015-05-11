@@ -733,6 +733,12 @@ densityGrenierDevice(
 		   TODO check what to do with SA
 		   Sigma calculations uses all such particles, whereas smoothed mass
 		   only uses same-fluid particles.
+		   Note that this requires PT_BOUNDARY neighbors to be in the list for
+		   PT_BOUNDARY particles, lest the boundary particles end up assuming
+		   they are always on the free surface.
+		   TODO an alternative approach for DYN_BOUNDARY would be to assign
+		   the sigma from the closest fluid particle, but that would require
+		   two runs, one for fluid and one for neighbor particles.
 		 */
 		if (INACTIVE(relPos) || r >= influenceradius ||
 			((boundarytype != DYN_BOUNDARY) && NOT_FLUID(neib_info)))
@@ -744,7 +750,7 @@ densityGrenierDevice(
 			has_fluid_neibs = true;
 
 		/* For smoothed mass, fluid particles only consider fluid particles,
-		   and non-fluid (only preset for DYN_BOUNDARY) only consider non-fluid
+		   and non-fluid (only present for DYN_BOUNDARY) only consider non-fluid
 		   */
 		if ((boundarytype != DYN_BOUNDARY || (PART_TYPE(neib_info) == PART_TYPE(info)))
 			&& fluid_num(neib_info) == fnum) {

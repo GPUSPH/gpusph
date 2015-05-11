@@ -77,7 +77,7 @@
 
  *	\ingroup neibs
 */
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
 class CUDANeibsEngine : public AbstractNeibsEngine
 {
 public:
@@ -405,7 +405,7 @@ const	float		boundNlSqInflRad)
 	buildneibs_params<boundarytype == SA_BOUNDARY> params(neibsList, pos, particleHash, particleRangeEnd, sqinfluenceradius,
 			vertPos, vertIDToIndex, boundNlSqInflRad);
 
-	cuneibs::buildNeibsListDevice<boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
+	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 
 	// check if kernel invocation generated an error
 	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");

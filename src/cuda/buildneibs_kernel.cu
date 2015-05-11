@@ -808,7 +808,7 @@ void process_niC_segment<true>(const uint index, const uint neib_index, float3 c
  * First and last particle index for grid cells and particle's informations
  * are read through texture fetches.
  */
-template <BoundaryType boundarytype, Periodicity periodicbound>
+template <SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound>
 __device__ __forceinline__ void
 neibsInCell(
 			buildneibs_params<boundarytype == SA_BOUNDARY>
@@ -855,8 +855,10 @@ neibsInCell(
 		if (TESTPOINT(neib_info))
 			continue;
 
-		// With dynamic boundaries boundary parts don't interact with other boundary parts
-		if (boundarytype == DYN_BOUNDARY) {
+		// With dynamic boundaries, boundary parts don't interact with other boundary parts
+		// except for Grenier's formulation, where the sigma computation needs all neighbors
+		// to be enumerated
+		if (boundarytype == DYN_BOUNDARY && sph_formulation != SPH_GRENIER) {
 			if (boundary && BOUNDARY(neib_info))
 				continue;
 		}
@@ -914,7 +916,8 @@ neibsInCell(
  */
 //TODO: templatize neibsInCell and associate parameters on neibs_type rather
 // use_sa_neibs. (Alexis)
-template<BoundaryType boundarytype, Periodicity periodicbound, bool neibcount>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, Periodicity periodicbound,
+	bool neibcount>
 __global__ void
 /*! \cond */
 __launch_bounds__( BLOCK_SIZE_BUILDNEIBS, MIN_BLOCKS_BUILDNEIBS)
@@ -975,7 +978,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype == SA_BOUNDARY> params)
 		for(int z=-1; z<=1; z++) {
 			for(int y=-1; y<=1; y++) {
 				for(int x=-1; x<=1; x++) {
-					neibsInCell<boundarytype, periodicbound>(params,
+					neibsInCell<sph_formulation, boundarytype, periodicbound>(params,
 						gridPos,
 						make_int3(x, y, z),
 						(x + 1) + (y + 1)*3 + (z + 1)*9,
