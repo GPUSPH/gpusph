@@ -275,17 +275,17 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	idx_t const& allocatedParticles)
 {
 	// Setting kernels and kernels derivative factors
-	float h = simparams->slength;
-	float h3 = h*h*h;
-	float h4 = h3*h;
-	float h5 = h4*h;
+	const float h = simparams->slength;
+	const float h2 = h*h;
+	const float h3 = h2*h;
+	const float h4 = h2*h2;
+	const float h5 = h4*h;
 	float kernelcoeff = 1.0f/(M_PI*h3);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wcoeff_cubicspline, &kernelcoeff, sizeof(float)));
 	kernelcoeff = 15.0f/(16.0f*M_PI*h3);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wcoeff_quadratic, &kernelcoeff, sizeof(float)));
 	kernelcoeff = 21.0f/(16.0f*M_PI*h3);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wcoeff_wendland, &kernelcoeff, sizeof(float)));
-
 	kernelcoeff = 3.0f/(4.0f*M_PI*h4);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_fcoeff_cubicspline, &kernelcoeff, sizeof(float)));
 	kernelcoeff = 15.0f/(32.0f*M_PI*h4);
@@ -293,7 +293,26 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 	kernelcoeff = 105.0f/(128.0f*M_PI*h5);
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_fcoeff_wendland, &kernelcoeff, sizeof(float)));
 
-	int numFluids = physparams->numFluids();
+	/*	Gaussian kernel: W(r, h) (exp(-(r/h)^2) - exp(-(δ/h)^2))/const
+		with δ cut-off radius (typically, 3h). For us, δ is the influence radius R*h,
+		with R kernel radius
+	 */
+	const float R = simparams->kernelradius;
+	const float R2 = R*R; // R2 = squared kernel radius = (δ/h)^2
+	const float exp_R2 = exp(-R2); // exp(-(δ/h)^2)
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wsub_gaussian, &exp_R2, sizeof(float)));
+	// constant: pi^(3/2)
+#define M_PI_TO_3_2 5.5683279968317078452848179821188357020136243902832439
+	// -2/3 exp(-R^2) h^3 Pi R (3 + 2 R^2) + h^3 Pi^(3/2) Erf(R) <- CHECK this
+	kernelcoeff = -2*exp_R2/3 * h3 * M_PI * R*(3+2*R2) + h3 * M_PI_TO_3_2 * erf(R);
+#undef M_PI_TO_3_2
+	kernelcoeff = 1/kernelcoeff;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_wcoeff_gaussian, &kernelcoeff, sizeof(float)));
+	// the coefficient for the F is just the W coefficient times 2/h^2
+	kernelcoeff *= 2/h2;
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_fcoeff_gaussian, &kernelcoeff, sizeof(float)));
+
+	const int numFluids = physparams->numFluids();
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numfluids, &numFluids, sizeof(int)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rho0, &physparams->rho0[0], numFluids*sizeof(float)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_bcoeff, &physparams->bcoeff[0], numFluids*sizeof(float)));

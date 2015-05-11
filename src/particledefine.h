@@ -44,6 +44,7 @@ enum KernelType {
 	CUBICSPLINE = 1,
 	QUADRATIC,
 	WENDLAND,
+	GAUSSIAN,
 	INVALID_KERNEL
 } ;
 
@@ -57,6 +58,7 @@ const char* KernelName[INVALID_KERNEL+1]
 	"Cubic spline",
 	"Quadratic",
 	"Wendland",
+	"Gaussian",
 	"(invalid)"
 }
 #endif

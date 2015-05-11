@@ -11,14 +11,24 @@
 // V A R I A B L E S
 ////////////////////
 
-// kernel constants
-__constant__ float	d_wcoeff_cubicspline;			// coeff = 1/(Pi h^3)
-__constant__ float	d_wcoeff_quadratic;				// coeff = 15/(16 Pi h^3)
-__constant__ float	d_wcoeff_wendland;				// coeff = 21/(16 Pi h^3)
-// kernel derivative constants
-__constant__ float	d_fcoeff_cubicspline;			// coeff = 3/(4Pi h^4)
-__constant__ float	d_fcoeff_quadratic;				// coeff = 15/(32Pi h^4)
-__constant__ float	d_fcoeff_wendland;				// coeff = 105/(128Pi h^5)
+//< Kernel normalization constants
+__constant__ float	d_wcoeff_cubicspline;			//< coeff = 1/(Pi h^3)
+__constant__ float	d_wcoeff_quadratic;				//< coeff = 15/(16 Pi h^3)
+__constant__ float	d_wcoeff_wendland;				//< coeff = 21/(16 Pi h^3)
+
+/*! Gaussian kernel is in the form (exp(-r/h)^2 - S)/K, so we have two constants:
+  d_wsub_gaussian = S which is exp(-R^2), and the normalization constant
+  d_wcoeff_gaussian = 1/K
+ */
+__constant__ float	d_wsub_gaussian;
+__constant__ float	d_wcoeff_gaussian;
+
+//< Kernel derivative normalization constants
+__constant__ float	d_fcoeff_cubicspline;			//< coeff = 3/(4Pi h^4)
+__constant__ float	d_fcoeff_quadratic;				//< coeff = 15/(32Pi h^4)
+__constant__ float	d_fcoeff_wendland;				//< coeff = 105/(128Pi h^5)
+__constant__ float	d_fcoeff_gaussian;				//< coeff = wcoeff * 2/h^2
+
 // physical constants
 __constant__ float	d_rho0[MAX_FLUID_TYPES];		// rest density of fluids
 __constant__ float3	d_gravity;						// gravity (vector)
@@ -89,6 +99,23 @@ W<WENDLAND>(float r, float slength)
 }
 
 
+// Gaussia kernel
+// W(r, h) = (exp(-(r/h)^2) - exp(-(δ/h)^2))*const
+// with δ cut-off radius (i.e. influence radius) (typically, 3h),
+// and const normalization constant
+template<>
+__device__ __forceinline__ float
+W<GAUSSIAN>(float r, float slength)
+{
+	const float R = r/slength;
+
+	float val = expf(-R*R);
+	val -= d_wsub_gaussian;
+	val *= d_wcoeff_gaussian;
+	return val;
+}
+
+
 // Return 1/r dW/dr at distance r, for a given smoothing length
 template<KernelType kerneltype>
 __device__ __forceinline__ float
@@ -131,6 +158,16 @@ F<WENDLAND>(const float r, const float slength)
 {
 	const float qm2 = r/slength - 2.0f;	// val = (-2 + R)^3
 	float val = qm2*qm2*qm2*d_fcoeff_wendland;
+	return val;
+}
+
+
+template<>
+__device__ __forceinline__ float
+F<GAUSSIAN>(const float r, const float slength)
+{
+	const float R = r/slength;
+	float val = -expf(-R*R)*d_fcoeff_gaussian;
 	return val;
 }
 /************************************************************************************************************/

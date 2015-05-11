@@ -89,7 +89,14 @@ typedef struct SimParams {
 
 		sfactor(1.3f),
 		slength(0),
-		kernelradius(2.0f),
+		/* The default kernel radius depends on the kernel choice:
+		 * most kernels have radius 2 (and in fact do not support a different
+		 * kernel radius currently), but the Gaussian kernel supports arbitrary
+		 * kernel radii and uses 3 by default
+		 * TODO we should have some centralized way to specify the default kernel
+		 * radius for each KernelType
+		 */
+		kernelradius(_kernel == GAUSSIAN ? 3.0f : 2.0f),
 		influenceRadius(0),
 		nlexpansionfactor(1.0f),
 		nlInfluenceRadius(0),
@@ -134,7 +141,8 @@ typedef struct SimParams {
 		// TODO currently all our kernels have radius 2,
 		// remember to adjust this when we have kernels
 		// with different radii
-		set_kernel_radius(radius ? radius : 2.0);
+		set_kernel_radius(radius ? radius :
+			kernel == GAUSSIAN ? 3.0 : 2.0);
 
 		return set_influenceradius();
 	}
