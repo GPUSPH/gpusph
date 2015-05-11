@@ -34,8 +34,6 @@ XBuoyancyTest::XBuoyancyTest(GlobalData *_gdata) : XProblem(_gdata)
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
-	m_simparams->slength = 1.3*m_deltap;
-	m_simparams->kernelradius = 2.0;
 	m_simparams->dt = 0.0003f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 10;
