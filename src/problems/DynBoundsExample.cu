@@ -35,6 +35,7 @@
 
 #include "DynBoundsExample.h"
 #include "GlobalData.h"
+#include "cudasimframework.cu"
 
 #include "Cube.h"
 
@@ -43,6 +44,12 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 	W = 1; // 2D cell side
 	H = 2*W; // still water height
 
+	SETUP_FRAMEWORK(
+		boundary<DYN_BOUNDARY>,
+		viscosity<DYNAMICVISC>,
+		periodicity<PERIODIC_XY>
+	);
+
 	set_deltap(W/64);
 
 	w = m_deltap*4;
@@ -50,27 +57,21 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 	m_size = make_double3(W, W, H + 2*w);
 	m_origin = -m_size/2;
 
-	SETUP_FRAMEWORK(
-		boundary<DYN_BOUNDARY>,
-		viscosity<DYNAMICVISC>,
-		periodicity<PERIODIC_XY>
-	);
-
-	m_simparams.tend = 2;
+	m_simparams->tend = 2;
 
 	/* slope */
 	float degs = 60; /* degrees */
 	alpha = M_PI*degs/180; /* radians */
 
 	float g = 9.81f;
-	m_physparams.gravity = make_float3(g*sin(alpha), 0, -g*cos(alpha));
+	m_physparams->gravity = make_float3(g*sin(alpha), 0, -g*cos(alpha));
 
 	float maxvel = sqrt(g*H);
 
-	m_physparams.set_density(0, 1, 7, 10*maxvel);
+	add_fluid(1, 7, 10*maxvel);
+	set_kinematic_visc(0, 120);
 
-	m_physparams.r0 = m_deltap/2;
-	m_physparams.kinematicvisc = 120;
+	m_physparams->r0 = m_deltap/2;
 
 	add_writer(VTKWRITER, 0.01);
 
@@ -92,8 +93,6 @@ DynBoundsExample::release_memory(void)
 int
 DynBoundsExample::fill_parts(void)
 {
-	float r0 = m_deltap/2;
-
 	Cube fluid = Cube(m_origin + make_double3(0, 0, w), W, W, H);
 	fluid.InnerFill(parts, m_deltap);
 
@@ -122,7 +121,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 		ht *= cos(alpha);
 		float rho = density(ht, 0);
 		vel[i] = make_float4(0, 0, 0, rho);
-		info[i] = make_particleinfo(BOUNDPART, 0, i);
+		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(boundary_parts[i], info[i], pos[i], hash[i]);
 		pos[i].w = m_deltap*m_deltap*m_deltap*rho;
 	}
@@ -135,7 +134,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 		ht *= cos(alpha);
 		float rho = density(ht, 0);
 		vel[ij] = make_float4(0, 0, 0, rho);
-		info[ij] = make_particleinfo(FLUIDPART, 0, ij);
+		info[ij] = make_particleinfo(PT_FLUID, 0, ij);
 		calc_localpos_and_hash(parts[i], info[ij], pos[ij], hash[ij]);
 		pos[ij].w = m_deltap*m_deltap*m_deltap*rho;
 	}
@@ -143,7 +142,7 @@ DynBoundsExample::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid part mass: " << pos[j-1].w << std::endl;
 
-	float flowvel = H*H*fabs(m_physparams.gravity.x)/(8*m_physparams.kinematicvisc);
+	float flowvel = H*H*fabs(m_physparams->gravity.x)/(8*m_physparams->kinematicvisc[0]);
 	cout << "Expected maximum flow velocity: " << flowvel << endl;
 
 	std::flush(std::cout);
