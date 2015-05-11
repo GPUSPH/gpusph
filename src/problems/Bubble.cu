@@ -69,7 +69,7 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 		extra_offset = make_double3(0.0);
 	}
 	m_size = make_double3(lx, ly, lz) + 2*extra_offset;
-	m_origin = make_double3(-lx/2, -ly/2, -lz/2) - extra_offset;
+	m_origin = -m_size/2;
 
 	m_simparams->buildneibsfreq = 10;
 
@@ -127,8 +127,8 @@ int Bubble::fill_parts()
 	experiment_box = Cube(Point(m_origin), m_size.x,
 		m_size.y, m_size.z);
 
-	fluid = Cube(Point(m_origin + extra_offset + make_double3(r0)),
-		lx-2*r0, ly-2*r0, H - 2*r0);
+	fluid = Cube(Point(m_origin + extra_offset),
+		lx, ly, H);
 
 	experiment_box.SetPartMass(r0, m_physparams->rho0[1]);
 
