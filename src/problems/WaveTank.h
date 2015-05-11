@@ -42,16 +42,23 @@ class WaveTank: public Problem {
 		Rect        bottom_rect;
 		PointVect	parts;
 		PointVect	boundary_parts;
-		PointVect	paddle_parts;
 		PointVect	test_points;
 
 		Cylinder	cyl[11];
 		Cone		cone;
+		Rect        paddle;
 		double		paddle_length;
 		double		paddle_width;
 		double		h_length, height, slope_length, beta;
 		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of experiment box
+
+		// Moving boundary data
+		double		paddle_amplitude, paddle_omega;
+		double3     paddle_origin;
+		double		paddle_tstart, paddle_tend;
+
+
 
 	public:
 		WaveTank(GlobalData *);
@@ -61,11 +68,12 @@ class WaveTank: public Problem {
 		void copy_planes(float4*, float*);
 
 		void copy_to_array(BufferList &);
-		MbCallBack& mb_callback(const double, const float, const int);
+
+		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
+									const float3&, const KinematicData &, KinematicData &,
+									double3&, EulerParameters&);
 
 		void release_memory(void);
-
-		void fillDeviceMap();
 };
 #endif	/* _WAVETANK_H */
 

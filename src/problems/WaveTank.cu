@@ -25,11 +25,12 @@
 
 #include <cmath>
 #include <iostream>
-
-#include "cudasimframework.cuh"
+#include <stdexcept>
 
 #include "WaveTank.h"
+#include "particledefine.h"
 #include "GlobalData.h"
+#include "cudasimframework.cu"
 
 
 #define MK_par 2
@@ -41,24 +42,6 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.6;
 	lz = 1.0;
 
-	double OFFS = 1;
-
-	m_size = make_double3(lx + OFFS, ly + OFFS, lz + OFFS);
-	m_origin = make_double3(-OFFS, -OFFS, -OFFS);
-
-	SETUP_FRAMEWORK(
-		//viscosity<ARTVISC>,
-		viscosity<KINEMATICVISC>,
-		//viscosity<SPSVISC>,
-
-		/* Uncomment preferred boundary type, comment the others */
-		// TODO easier way to switch
-		boundary<LJ_BOUNDARY>
-		//boundary<MK_BOUNDARY>
-		//boundary<DYN_BOUNDARY>
-	);
-
-	addFilter(SHEPARD_FILTER, 20);
 
 	// Data for problem setup
 	slope_length = 8.5;
@@ -66,82 +49,82 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	height = .63;
 	beta = 4.2364*M_PI/180.0;
 
-	// We have at least 1 moving boundary, the paddle
-	m_mbnumber = 1;
-	m_simparams.mbcallback = true;
+	SETUP_FRAMEWORK(
+	    //viscosity<ARTVISC>,
+		//viscosity<KINEMATICVISC>,
+		viscosity<SPSVISC>,
+		boundary<LJ_BOUNDARY>
+		//boundary<MK_BOUNDARY>
+	);
+
+	m_size = make_double3(lx, ly, lz + 2.0*height);
+	m_origin = make_double3(0.0, 0.0, -2.0*height);
+
+	addFilter(SHEPARD_FILTER, 20);
+	  //MLS_FILTER
+
 
 	// Add objects to the tank
 	use_cyl = false;
 	use_cone = false;
 
 	// use a plane for the bottom
-	use_bottom_plane = 1;
+	use_bottom_plane = 1;  //1 for plane; 0 for particles
 
 	// SPH parameters
-	set_deltap(0.04);  //0.005f;
-	m_simparams.dt = 0.00013;
-	m_simparams.dtadaptfactor = 0.2;
-	m_simparams.buildneibsfreq = 10;
-	m_simparams.tend = 10.0;
-
-	m_simparams.vorticity = false;
-	//Testpoints
-	m_simparams.testpoints = false;
-
-	// Free surface detection
-	m_simparams.surfaceparticle = false;
-	m_simparams.savenormals = false;
+	set_deltap(0.03f);  //0.005f;
+	m_simparams->dt = 0.0001;
+	m_simparams->dtadaptfactor = 0.2;
+	m_simparams->buildneibsfreq = 10;
+	m_simparams->tend = 10.0f; //seconds
 
 	//WaveGage
-	//add_gage(1, 0.3);
-	//add_gage(0.5, 0.3);
+//	add_gage(1, 0.3);
+//	add_gage(0.5, 0.3);
 
 	// Physical parameters
 	H = 0.45;
-	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-	float g = length(m_physparams.gravity);
+	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
+	float g = length(m_physparams->gravity);
 
-	m_physparams.set_density(0, 1000.0, 7.0, 50);
-	m_physparams.numFluids = 1;
 	float r0 = m_deltap;
-	m_physparams.r0 = r0;
+	m_physparams->r0 = r0;
 
-	m_physparams.kinematicvisc =  1.0e-6;
-	m_physparams.artvisccoeff =  0.3;
-	m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
-	m_physparams.kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
-	m_physparams.epsartvisc = 0.01*m_simparams.slength*m_simparams.slength;
+	add_fluid( 1000.0f, 7.0f, 20.f);
+	set_kinematic_visc(0,1.0e-6);
+
+	m_physparams->artvisccoeff =  0.2;
+	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
+	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
+	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 
 	// BC when using LJ
-	m_physparams.dcoeff = 5.0*g*H;
+	m_physparams->dcoeff = 0.5*g*H;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// BC when using MK
-	m_physparams.MK_K = g*H;
-	m_physparams.MK_d = 1.1*m_deltap/MK_par;
-	m_physparams.MK_beta = MK_par;
+	m_physparams->MK_K = g*H;
+	m_physparams->MK_d = 1.1*m_deltap/MK_par;
+	m_physparams->MK_beta = MK_par;
 
 	//Wave paddle definition:  location, start & stop times, stroke and frequency (2 \pi/period)
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	paddle_length = 1.0;
-	paddle_width = ly - 2*r0;
-	mbpaddledata.type = PADDLEPART;
-	mbpaddledata.origin = make_float3(0.13f, r0, -0.1344);
-	mbpaddledata.tstart = 0.2;
-	mbpaddledata.tend = m_simparams.tend;
-	m_simparams.movingBoundaries = true;
+
+	paddle_length = .7f;
+	paddle_width = m_size.y - 2*r0;
+	paddle_tstart=0.5f;
+	paddle_origin = make_double3(0.25f, r0, 0.0f);
+	paddle_tend = 30.0f;//seconds
 	// The stroke value is given at free surface level H
-	float stroke = 0.18;
-	// m_mbamplitude is the maximal angular value par paddle angle
+	float stroke = 0.2;
+	// m_mbamplitude is the maximal angular value for paddle angle
 	// Paddle angle is in [-m_mbamplitude, m_mbamplitude]
-	mbpaddledata.amplitude = atan(stroke/(2.0*(H - mbpaddledata.origin.z)));
-	mbpaddledata.omega = 2.0*M_PI/0.7;		// period T = 0.8 s
-	// Call mb_callback for paddle a first time to initialise
-	// values set by the call back function
-	mb_callback(0.0, 0.0, 0);
+	paddle_amplitude = atan(stroke/(2.0*(H - paddle_origin.z)));
+	std::cout << "\npaddle_amplitude (radians): " << paddle_amplitude << "\n";
+	paddle_omega = 2.0*M_PI/0.8;		// period T = 0.8 s
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+
+	add_writer(VTKWRITER, .1);  //second argument is saving time in seconds
 
 	// Name of problem used for directory creation
 	m_name = "WaveTank";
@@ -157,81 +140,75 @@ WaveTank::~WaveTank(void)
 void WaveTank::release_memory(void)
 {
 	parts.clear();
-	paddle_parts.clear();
 	boundary_parts.clear();
-	test_points.clear();
 }
 
-
-MbCallBack& WaveTank::mb_callback(const double t, const float dt, const int i)
+void
+WaveTank::moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+			const float3& force, const float3& torque, const KinematicData& initial_kdata,
+			KinematicData& kdata, double3& dx, EulerParameters& dr)
 {
 
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	float theta = mbpaddledata.amplitude;
-	float dthetadt = 0;
-	if (t >= mbpaddledata.tstart && t < mbpaddledata.tend) {
-		const float arg = mbpaddledata.omega*(t - mbpaddledata.tstart);
-		theta = mbpaddledata.amplitude*cos(arg);
-		dthetadt = - mbpaddledata.amplitude*mbpaddledata.omega*sin(arg);
+    dx= make_double3(0.0);
+    kdata.lvel=make_double3(0.0f, 0.0f, 0.0f);
+    if (t1> paddle_tstart & t1 < paddle_tend){
+       kdata.avel = make_double3(0.0, paddle_amplitude*paddle_omega*sin(paddle_omega*(t1-paddle_tstart)),0.0);
+       EulerParameters dqdt = 0.5*EulerParameters(kdata.avel)*kdata.orientation;
+       dr = EulerParameters::Identity() + (t1-t0)*dqdt*kdata.orientation.Inverse();
+       dr.Normalize();
+	   kdata.orientation = kdata.orientation + (t1 - t0)*dqdt;
+	   kdata.orientation.Normalize();
+	   }
+	else {
+	   kdata.avel = make_double3(0.0,0.0,0.0);
+	   kdata.orientation = kdata.orientation;
+	   dr.Identity();
 	}
-	mbpaddledata.sintheta = sin(theta);
-	mbpaddledata.costheta = cos(theta);
-	mbpaddledata.dthetadt = dthetadt;
-	return m_mbcallbackdata[0];
 }
 
 
 int WaveTank::fill_parts()
 {
-	const float r0 = m_physparams.r0;
-	const float br = (m_simparams.boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
-	/* When using dynamic boundaries, the number of layers should be the
-	 * at least equal to kernel radius times smoothing factor
-	 */
-	const int dynbound_layers = ceil(m_simparams.kernelradius * m_simparams.sfactor);
+	const float r0 = m_physparams->r0;
+	const float br = (m_simparams->boundarytype == MK_BOUNDARY ? m_deltap/MK_par : r0);
 
-	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length, ly, height);
-
-	MbCallBack& mbpaddledata = m_mbcallbackdata[0];
-	Rect paddle = Rect(Point(mbpaddledata.origin), Vector(0, paddle_width, 0),
-		Vector(paddle_length*mbpaddledata.sintheta, 0, paddle_length*mbpaddledata.costheta));
+	experiment_box = Cube(Point(0, 0, 0), h_length + slope_length,ly, height);
 
 	boundary_parts.reserve(100);
-	paddle_parts.reserve(500);
 	parts.reserve(34000);
 
-	paddle.SetPartMass(m_deltap, m_physparams.rho0[0]);
-	if (m_simparams.boundarytype == DYN_BOUNDARY)
-		paddle.FillIn(paddle_parts, m_deltap, -dynbound_layers);
-	else
-		paddle.Fill(paddle_parts, br, true);
+    const float amplitude = -paddle_amplitude ;
+	paddle = Rect(Point(paddle_origin), Vector(0, paddle_width, 0),
+				Vector(paddle_length*sin(amplitude), 0, paddle_length*cos(amplitude)));
+    paddle.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	paddle.Fill(paddle.GetParts(), br, true);
+	add_moving_body(&paddle, MB_MOVING);
+	set_body_cg(&paddle, paddle_origin);
 
 	bottom_rect = Rect(Point(h_length, 0, 0), Vector(0, ly, 0),
-		Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
+		//	Vector(slope_length/cos(beta), 0.0, slope_length*tan(beta)));
+		 Vector(0.0,0.0,paddle_length));
 	if (!use_bottom_plane) {
-		bottom_rect.SetPartMass(m_deltap, m_physparams.rho0[0]);
-		if (m_simparams.boundarytype == DYN_BOUNDARY)
-			bottom_rect.FillIn(boundary_parts, m_deltap, dynbound_layers);
-		else
-			bottom_rect.Fill(boundary_parts,br,true);
-	}
+	   bottom_rect.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	   bottom_rect.Fill(boundary_parts,br,true);
+	   }
 
 	Rect fluid;
 	float z = 0;
 	int n = 0;
-	const float amplitude = mbpaddledata.amplitude;
 	while (z < H) {
 		z = n*m_deltap + 1.5*r0;    //z = n*m_deltap + 1.5*r0;
-		float x = mbpaddledata.origin.x + (z - mbpaddledata.origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
+		float x = paddle_origin.x + (z - paddle_origin.z)*tan(amplitude) + 1.0*r0/cos(amplitude);
 		float l = h_length + z/tan(beta) - 1.5*r0/sin(beta) - x;
 		fluid = Rect(Point(x,  r0, z),
-			Vector(0, ly-2.0*r0, 0), Vector(l, 0, 0));
-		fluid.SetPartMass(m_deltap, m_physparams.rho0[0]);
+				Vector(0, ly-2.0*r0, 0), Vector(l, 0, 0));
+		fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		fluid.Fill(parts, m_deltap, true);
 		n++;
-	}
+	 }
 
-	if (m_simparams.testpoints) {
+/*
+	if (m_simparams->testpoints) {
 		Point pos = Point(0.5748, 0.1799, 0.2564, 0.0);
 		test_points.push_back(pos);
 		pos = Point(0.5748, 0.2799, 0.2564, 0.0);
@@ -239,7 +216,7 @@ int WaveTank::fill_parts()
 		pos = Point(1.5748, 0.2799, 0.2564, 0.0);
 		test_points.push_back(pos);
 	}
-
+*/
 	if (use_cyl) {
 		Point p[10];
 		p[0] = Point(h_length + slope_length/(cos(beta)*10), ly/2., 0);
@@ -256,7 +233,7 @@ int WaveTank::fill_parts()
 
 		for (int i = 0; i < 11; i++) {
 			cyl[i] = Cylinder(p[i], Vector(.025, 0, 0), Vector(0, 0, height));
-			cyl[i].SetPartMass(m_deltap, m_physparams.rho0[0]);
+			cyl[i].SetPartMass(m_deltap, m_physparams->rho0[0]);
 			cyl[i].FillBorder(boundary_parts, br, false, false);
 			cyl[i].Unfill(parts, br);
 		}
@@ -264,28 +241,29 @@ int WaveTank::fill_parts()
 	if (use_cone) {
 		Point p1 = Point(h_length + slope_length/(cos(beta)*10), ly/2, 0);
 		cone = Cone(p1,Vector(ly/4, 0.0, 0.0), Vector(ly/10, 0., 0.), Vector(0, 0, height));
-		cone.SetPartMass(m_deltap, m_physparams.rho0[0]);
+		cone.SetPartMass(m_deltap, m_physparams->rho0[0]);
 		cone.FillBorder(boundary_parts, br, false, true);
 		cone.Unfill(parts, br);
-	}
+    }
 
-	return parts.size() + boundary_parts.size() + paddle_parts.size() + test_points.size();
+	return  boundary_parts.size() + get_bodies_numparts() +parts.size(); // + test_points.size();
 }
 
 
 uint WaveTank::fill_planes()
 {
-	if (!use_bottom_plane) {
+    if (!use_bottom_plane) {
 		return 5;
-	} else {
+		}
+	else {
 		return 6;
-	} //corresponds to number of planes
+		} //corresponds to number of planes
 }
 
 
 void WaveTank::copy_planes(float4 *planes, float *planediv)
 {
-	const float w = ly;
+	const float w = m_size.y;
 	const float l = h_length + slope_length;
 
 	//  plane is defined as a x + by +c z + d= 0
@@ -313,48 +291,73 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	particleinfo *info = buffers.getData<BUFFER_INFO>();
 
 	int j = 0;
+	/*
 	if (test_points.size()) {
 		//Testpoints
 		std::cout << "\nTest points: " << test_points.size() << "\n";
 		std::cout << "      " << j << "--" << test_points.size() << "\n";
 		for (uint i = 0; i < test_points.size(); i++) {
-			vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
+			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 			info[i]= make_particleinfo(TESTPOINTSPART, 0, i);  // first is type, object, 3rd id
 			calc_localpos_and_hash(test_points[i], info[i], pos[i], hash[i]);
 		}
 		j += test_points.size();
 		std::cout << "Test point mass:" << pos[j-1].w << "\n";
 	}
+	*/
 
 	std::cout << "\nBoundary parts: " << boundary_parts.size() << "\n";
 	std::cout << "      " << j  << "--" << boundary_parts.size() << "\n";
 	for (uint i = j; i < j + boundary_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(BOUNDPART, 0, i);  // first is type, object, 3rd id
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		info[i]= make_particleinfo(PT_BOUNDARY, 0, i);  // first is type, object, 3rd id
 		calc_localpos_and_hash(boundary_parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += boundary_parts.size();
 	std::cout << "Boundary part mass:" << pos[j-1].w << "\n";
 
-	// The object id of moving boundaries parts must be coherent with mb_callback function and follow
-	// those rules:
-	//		1. object id must be unique (you cannot have a PADDLE with object id 0 and a GATEPART with same id)
-	//		2. particle of the same type having the object id move in the same way
-	std::cout << "\nPaddle parts: " << paddle_parts.size() << "\n";
-	std::cout << "      " << j  << "--" << j + paddle_parts.size() << "\n";
-	for (uint i = j; i < j + paddle_parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(PADDLEPART, 1, i);
-		calc_localpos_and_hash(paddle_parts[i-j], info[i], pos[i], hash[i]);
+	uint object_particle_counter = 0;
+	for (uint k = 0; k < m_bodies.size(); k++) {
+			PointVect & rbparts = m_bodies[k]->object->GetParts();
+			std::cout << "Rigid body " << k << ": " << rbparts.size() << " particles ";
+			for (uint i = 0; i < rbparts.size(); i++) {
+				uint ij = i + j;
+				float ht = H - rbparts[i](2);
+				if (ht < 0)
+					ht = 0.0;
+				float rho = density(ht, 0);
+				rho = m_physparams->rho0[0];
+				vel[ij] = make_float4(0, 0, 0, rho);
+				uint ptype = (uint) PT_BOUNDARY;
+				switch (m_bodies[k]->type) {
+					case MB_ODE:
+						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+						break;
+					case MB_FORCES_MOVING:
+						ptype |= FG_COMPUTE_FORCE | FG_MOVING_BOUNDARY;
+						break;
+					case MB_MOVING:
+						ptype |= FG_MOVING_BOUNDARY;
+						break;
+				}
+				info[ij] = make_particleinfo(ptype, k, i );
+				calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
+			}
+			if (k < m_simparams->numforcesbodies) {
+				gdata->s_hRbFirstIndex[k] = -j + object_particle_counter;
+				gdata->s_hRbLastIndex[k] = object_particle_counter + rbparts.size() - 1;
+				object_particle_counter += rbparts.size();
+			}
+			j += rbparts.size();
+			std::cout << ", part mass: " << pos[j-1].w << "\n";
+			std::cout << ", part type: " << type(info[j-1])<< "\n";
 	}
-	j += paddle_parts.size();
-	std::cout << "Paddle part mass:" << pos[j-1].w << "\n";
 
 	std::cout << "\nFluid parts: " << parts.size() << "\n";
 	std::cout << "      "<< j  << "--" << j + parts.size() << "\n";
 	for (uint i = j; i < j + parts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams.rho0[0]);
-		info[i]= make_particleinfo(FLUIDPART, 0, i);
+		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
+		info[i]= make_particleinfo(PT_FLUID, 0, i);
 		calc_localpos_and_hash(parts[i-j], info[i], pos[i], hash[i]);
 	}
 	j += parts.size();
@@ -363,14 +366,5 @@ void WaveTank::copy_to_array(BufferList &buffers)
 	std::cout << "Everything uploaded" <<"\n";
 }
 
-void WaveTank::fillDeviceMap()
-{
-	//fillDeviceMapByAxis(Y_AXIS);
-	//fillDeviceMapByEquation();
-	if (gdata->totDevices % 2 == 0)
-		fillDeviceMapByAxesSplits(gdata->totDevices / 2, 2, 1);
-	else
-		fillDeviceMapByAxis(Y_AXIS);
-}
 
 #undef MK_par
