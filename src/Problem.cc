@@ -427,13 +427,13 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		dr.GetRotation(base_addr);
 
 		#ifdef _DEBUG_OBJ_FORCES_
-		if (i == 1 && m_bodies_trans[i].x != 0.0) {
+		if (i == 1 && trans[i].x != 0.0) {
 		cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
 		mbdata->object->ODEPrintInformation(false);
-		printf("   lvel: %e\t%e\t%e\n", m_bodies_linearvel[i].x, m_bodies_linearvel[i].y, m_bodies_linearvel[i].z);
-		printf("   avel: %e\t%e\t%e\n", m_bodies_angularvel[i].x, m_bodies_angularvel[i].y, m_bodies_angularvel[i].z);
-		printf("   npos: %e\t%e\t%e\n", m_bodies_cg[i].x, m_bodies_cg[i].y, m_bodies_cg[i].z);
-		printf("   trans:%e\t%e\t%e\n", m_bodies_trans[i].x, m_bodies_trans[i].y, m_bodies_trans[i].z);
+		printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
+		printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
+		printf("   npos: %e\t%e\t%e\n", cg[i].x, cg[i].y, cg[i].z);
+		printf("   trans:%e\t%e\t%e\n", trans[i].x, trans[i].y, trans[i].z);
 		printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
 				mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
 		printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
