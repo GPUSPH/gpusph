@@ -1805,7 +1805,7 @@ forcesDevice(
 		// 	* vertex particles (for SA_BOUNDARY)
 		// 	* everything except TESTPOINTS (for DYN_BOUNDARY)
 
-		bool computes_stuff = FLUID(info) || COMPUTE_FORCE(info);
+		bool computes_stuff = FLUID(info) || (boundarytype != SA_BOUNDARY && COMPUTE_FORCE(info));
 		if (boundarytype == SA_BOUNDARY) {
 			computes_stuff = computes_stuff || VERTEX(info);
 			// Floating objects need to compute the force acting on them
@@ -2014,7 +2014,7 @@ forcesDevice(
 				}
 			}
 
-			if (boundarytype == LJ_BOUNDARY) {
+			if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) {
 				if (COMPUTE_FORCE(pdata.info))
 					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
 			}
@@ -2069,8 +2069,8 @@ forcesDevice(
 			}
 
 			shared.store(params, pdata, pout);
-		}
-		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info)) {
+		} else
+		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info) && BOUNDARY(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
 			compute_boundary_force<boundarytype>::with(params, pdata, pout);
 		}
