@@ -1297,10 +1297,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// number of particles loaded or filled by the current geometry
 		uint current_geometry_particles = 0;
-		// special attention to number of vertex particles, used for rb buffers of floating objs
-		uint current_geometry_vertex_particles = 0;
-		// id of first particle of current geometry
-		uint first_id_in_geometry = UINT_MAX;
+		// id of first boundary particle (both LJ and SA) and number of them in
+		// current geometry, used to compute the rb index offset for forces bodies
+		uint current_geometry_num_boundary_parts = 0;
+		uint current_geometry_first_boundary_id = UINT_MAX;
 
 		// object id (GPUSPH, not ODE) that will be used in particleinfo
 		// TODO: will also be fluid_number for multifluid
@@ -1341,7 +1341,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
 						ptype = PT_VERTEX;
 						vertex_parts++;
-						current_geometry_vertex_particles++;
 						break;
 					case CRIXUS_BOUNDARY:
 						// TODO: warn user if (m_geometries[g]->type == GT_FLUID)
@@ -1384,6 +1383,14 @@ void XProblem::copy_to_array(BufferList &buffers)
 					m_physparams.rho0[0]*hdf5Buffer[bi].Volume);
 				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
 				globalPos[i] = tmppoint.toDouble4();
+
+				// Update boundary particles counters for rb indices
+				// NOTE: the same check will be done for non-HDF5 bodies
+				if (ptype == PT_BOUNDARY && COMPUTE_FORCE(info[i])) {
+					current_geometry_num_boundary_parts++;
+					if (current_geometry_first_boundary_id == UINT_MAX)
+						current_geometry_first_boundary_id = id(info[i]); // which should be == i
+				}
 
 				if (eulerVel)
 					eulerVel[i] = make_float4(0);
@@ -1469,13 +1476,19 @@ void XProblem::copy_to_array(BufferList &buffers)
 						SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 						break;
 				}
-			}
-		}
 
-		// Store id of first particle. Here current_geometry_particles is set, whether the geometry
-		// was filled at runtime or loaded from file, and tot_parts hasn't been incremented yet
-		if (current_geometry_particles > 0)
-			first_id_in_geometry = tot_parts;
+				// Update boundary particles counters for rb indices
+				// NOTE: this is the safest way to update the counters, although
+				// with LJ boundaries we could directly set the values afterwards
+				// instead of checking every particle
+				if (COMPUTE_FORCE(info[i])) {
+					current_geometry_num_boundary_parts++;
+					if (current_geometry_first_boundary_id == UINT_MAX)
+						current_geometry_first_boundary_id = id(info[i]); // which should be == i
+				}
+
+			} // for every particle of body
+		} // if current geometry is a body and is not loaded from file
 
 		// floating-objects-related settings, regardless they were loaded from file or not
 		if (m_geometries[g]->type == GT_FLOATING_BODY) {
@@ -1486,24 +1499,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// Store index (currently identical to id) of first object particle plus the number
 			// of previously filled object particles. This, summed to the particle id, will be used
 			// as offset to compute the index in rbforces/torques.
-			gdata->s_hRbFirstIndex[object_id] = - first_id_in_geometry + bodies_particles_counter;
+			gdata->s_hRbFirstIndex[object_id] = - (int)current_geometry_first_boundary_id;
 
 			// update counter of rigid body particles
-			bodies_particles_counter += current_geometry_particles;
+			bodies_particles_counter += current_geometry_num_boundary_parts;
 
 			// set s_hRbLastIndex after updating bodies_particles_counter
 			gdata->s_hRbLastIndex[object_id] = bodies_particles_counter - 1;
-
-			// We need two little adjustments for SA boundaries:
-			// 1. Since vertices in Crixus are filled before boundary particles, and for SA objects we only
-			// need the latter ones, we shift the offset ("first index") by #vertices in current object;
-			// 2. Since rbforces is needed and allocated only for #bound_parts, "last index" is updated
-			// similarly, i.e. by subtracting #vertices.
-			// We can go more general if we ever need it (i.e. without any assumption on the filling order).
-			if (m_simparams.boundarytype == SA_BOUNDARY) {
-				gdata->s_hRbFirstIndex[object_id] -= current_geometry_vertex_particles;
-				gdata->s_hRbLastIndex[object_id] -= current_geometry_vertex_particles;
-			}
 
 			// recap on stdout
 			std::cout << "Rigid body " << bodies_counter << ": " << current_geometry_particles <<
@@ -1511,7 +1513,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 			// DBG info
 			// printf("  DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n", \
-				object_id, gdata->s_hRbFirstIndex[object_id], bodies_counter, gdata->s_hRbLastIndex[object_id]);
+				object_id, gdata->s_hRbFirstIndex[object_id], object_id, gdata->s_hRbLastIndex[object_id]);
 
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
@@ -1526,7 +1528,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// when numparts==0, Object uses rbparts.size(). Also, this is probably not
 			// necessary anymore after the update of s_hRbFirstIndex and s_hRbLastIndex
 			// has been moved here
-			m_geometries[g]->ptr->SetNumParts(current_geometry_particles - current_geometry_vertex_particles);
+			m_geometries[g]->ptr->SetNumParts(bodies_particles_counter);
 		}
 
 		// update global particle counter
