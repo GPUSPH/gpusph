@@ -38,7 +38,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	SETUP_FRAMEWORK(
 		kernel<WENDLAND>,
 		formulation<SPH_F1>,
-		viscosity<ARTVISC>,
+		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
 		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET>
@@ -50,7 +50,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
 
 	// *** Initialization of minimal simulation parameters
-	m_simparams.maxneibsnum = 256 + 64;
+	m_simparams.maxneibsnum = 256 + 64 + 32; // 352
 	m_simparams.dtadapt = true;
 	// viscositys: ARTVISC, KINEMATICVISC, DYNAMICVISC, SPSVISC, KEPSVISC
 	m_simparams.visctype = DYNAMICVISC;
