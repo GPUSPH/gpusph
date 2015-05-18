@@ -1887,10 +1887,11 @@ forcesDevice(
 			// We recycle the computes_stuff as boolean
 			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
-			// Particles in rigid bodies that need to compute forcs only interact with
-			// fluid particles, since object-object and object-boundary forces
-			// are computed with ODE
-			if (COMPUTE_FORCE(pdata.info))
+			// When not using SA_BOUNDARY, particles in rigid bodies that need
+			// to compute forces only interact with fluid particles, since
+			// object-object and object-boundary forces
+			// are computed with ODE.
+			if (boundarytype != SA_BOUNDARY && COMPUTE_FORCE(pdata.info))
 				computes_stuff = computes_stuff && FLUID(neib_info);
 
 			// With SA_BOUNDARY, fluid and vertex particles interact with any
