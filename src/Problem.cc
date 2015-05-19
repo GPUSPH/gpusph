@@ -755,22 +755,22 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 		else
 			preferred_split_axis = Z_AXIS;
 	}
-	uint cells_per_longest_axis = 0;
+	uint cells_per_split_axis = 0;
 	switch (preferred_split_axis) {
 		case X_AXIS:
-			cells_per_longest_axis = gdata->gridSize.x;
+			cells_per_split_axis = gdata->gridSize.x;
 			break;
 		case Y_AXIS:
-			cells_per_longest_axis = gdata->gridSize.y;
+			cells_per_split_axis = gdata->gridSize.y;
 			break;
 		case Z_AXIS:
-			cells_per_longest_axis = gdata->gridSize.z;
+			cells_per_split_axis = gdata->gridSize.z;
 			break;
 	}
-	uint cells_per_device_per_longest_axis = (uint)round(cells_per_longest_axis / (double)gdata->totDevices);
+	uint cells_per_device_per_split_axis = (uint)round(cells_per_split_axis / (double)gdata->totDevices);
 	/*
 	printf("Splitting domain along axis %s, %u cells per part\n",
-		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_longest_axis);
+		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_split_axis);
 	*/
 	for (uint cx = 0; cx < gdata->gridSize.x; cx++)
 		for (uint cy = 0; cy < gdata->gridSize.y; cy++)
@@ -782,8 +782,8 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 					case Z_AXIS: axis_coordinate = cz; break;
 				}
 				// everything is just a preparation for the following line
-				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_longest_axis);
-				// handle the case when cells_per_longest_axis multiplies cells_per_longest_axis
+				devcount_t dstDevice = devcount_t(axis_coordinate / cells_per_device_per_split_axis);
+				// handle the case when cells_per_split_axis multiplies cells_per_split_axis
 				dstDevice = (devcount_t)min(dstDevice, gdata->totDevices - 1);
 				// compute cell address
 				uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
