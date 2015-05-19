@@ -196,6 +196,12 @@ struct GlobalData {
 	uint s_hPartsPerDevice[MAX_DEVICES_PER_NODE]; // TODO: can change to PER_NODE if not compiling for multinode
 	uint s_hStartPerDevice[MAX_DEVICES_PER_NODE]; // ditto
 
+	// Counters to help splitting evenly after filling.
+	// NOTE: allocated only in multi-device simulations
+	uint* s_hPartsPerSliceAlongX;
+	uint* s_hPartsPerSliceAlongY;
+	uint* s_hPartsPerSliceAlongZ;
+
 	// cellStart, cellEnd, segmentStart (limits of cells of the sam type) for each device.
 	// Note the s(shared)_d(device) prefix, since they're device pointers
 	uint** s_dCellStarts;
@@ -298,6 +304,9 @@ struct GlobalData {
 		numInitialNonFluidParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),
+		s_hPartsPerSliceAlongX(NULL),
+		s_hPartsPerSliceAlongY(NULL),
+		s_hPartsPerSliceAlongZ(NULL),
 		s_dCellStarts(NULL),
 		s_dCellEnds(NULL),
 		s_dSegmentsStart(NULL),

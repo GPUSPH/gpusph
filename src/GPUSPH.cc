@@ -988,6 +988,17 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		memset(gdata->s_hDeviceMap, 0, devcountCellSize);
 		totCPUbytes += devcountCellSize;
 
+		// counters to help splitting evenly
+		gdata->s_hPartsPerSliceAlongX = new uint[ gdata->gridSize.x ];
+		gdata->s_hPartsPerSliceAlongY = new uint[ gdata->gridSize.y ];
+		gdata->s_hPartsPerSliceAlongZ = new uint[ gdata->gridSize.z ];
+		// initialize
+		for (uint c=0; c < gdata->gridSize.x; c++) gdata->s_hPartsPerSliceAlongX[c] = 0;
+		for (uint c=0; c < gdata->gridSize.y; c++) gdata->s_hPartsPerSliceAlongY[c] = 0;
+		for (uint c=0; c < gdata->gridSize.z; c++) gdata->s_hPartsPerSliceAlongZ[c] = 0;
+		// record used memory
+		totCPUbytes += sizeof(uint) * (gdata->gridSize.x + gdata->gridSize.y + gdata->gridSize.z);
+
 		// cellStarts, cellEnds, segmentStarts of all devices. Array of device pointers stored on host
 		// TODO: alloc pinned memory instead, with per-worker methods. See GPUWorker::asyncCellIndicesUpload()
 		gdata->s_dCellStarts = (uint**)calloc(gdata->devices, sizeof(uint*));
@@ -1048,6 +1059,9 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	// multi-GPU specific arrays
 	if (MULTI_DEVICE) {
 		delete[] gdata->s_hDeviceMap;
+		delete[] gdata->s_hPartsPerSliceAlongX;
+		delete[] gdata->s_hPartsPerSliceAlongY;
+		delete[] gdata->s_hPartsPerSliceAlongZ;
 		// cells
 		for (uint d = 0; d < gdata->devices; d++) {
 			cudaFreeHost(gdata->s_dCellStarts[d]);
@@ -1718,6 +1732,28 @@ void GPUSPH::updateArrayIndices() {
 void GPUSPH::prepareProblem()
 {
 	// stub
+	particleinfo *infos = gdata->s_hBuffers.getData<BUFFER_INFO>();
+	hashKey *hashes = gdata->s_hBuffers.getData<BUFFER_HASH>();
+
+	//nGridCells
+
+	// should write something more meaningful here
+	printf("Preparing the problem...\n");
+
+	// at the time being, we only need preparation for multi-device simulations
+	if (!MULTI_DEVICE) return;
+
+	for (uint p = 0; p < gdata->totParticles; p++) {
+		if (FLUID(infos[p])) {
+			const uint cellHash = cellHashFromParticleHash( hashes[p] );
+			const uint3 cellCoords = gdata->calcGridPosFromCellHash( cellHash );
+			// NOTE: s_hPartsPerSliceAlong* are only allocated if MULTI_DEVICE holds.
+			// Change the loop accordingly if other operations are performed!
+			gdata->s_hPartsPerSliceAlongX[ cellCoords.x ]++;
+			gdata->s_hPartsPerSliceAlongY[ cellCoords.y ]++;
+			gdata->s_hPartsPerSliceAlongZ[ cellCoords.z ]++;
+		}
+	}
 }
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
