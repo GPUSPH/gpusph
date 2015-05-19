@@ -206,26 +206,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	if (gdata->numPlanes)
 		problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
 
-	// let the Problem partition the domain (with global device ids)
-	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
-	// not before allocating the host buffers
-	if (MULTI_DEVICE) {
-		printf("Splitting the domain in %u partitions...\n", gdata->totDevices);
-		// fill the device map with numbers from 0 to totDevices
-		gdata->problem->fillDeviceMap();
-		// here it is possible to save the device map before the conversion
-		// gdata->saveDeviceMapToFile("linearIdx");
-		if (MULTI_NODE) {
-			// make the numbers globalDeviceIndices, with the least 3 bits reserved for the device number
-			gdata->convertDeviceMap();
-			// here it is possible to save the converted device map
-			// gdata->saveDeviceMapToFile("");
-		}
-		printf("Striping is:  %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
-		printf("GPUDirect is: %s\n", (gdata->clOptions->gpudirect ? "enabled" : "disabled") );
-		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
-	}
-
 	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
 	 * or, if it was requested, we load buffers from a HotStart file
 	 */
@@ -271,6 +251,26 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->t = hf->get_t();
 		hot_in.close();
 		resumed = true;
+	}
+
+	// let the Problem partition the domain (with global device ids)
+	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
+	// not before allocating the host buffers
+	if (MULTI_DEVICE) {
+		printf("Splitting the domain in %u partitions...\n", gdata->totDevices);
+		// fill the device map with numbers from 0 to totDevices
+		gdata->problem->fillDeviceMap();
+		// here it is possible to save the device map before the conversion
+		// gdata->saveDeviceMapToFile("linearIdx");
+		if (MULTI_NODE) {
+			// make the numbers globalDeviceIndices, with the least 3 bits reserved for the device number
+			gdata->convertDeviceMap();
+			// here it is possible to save the converted device map
+			// gdata->saveDeviceMapToFile("");
+		}
+		printf("Striping is:  %s\n", (gdata->clOptions->striping ? "enabled" : "disabled") );
+		printf("GPUDirect is: %s\n", (gdata->clOptions->gpudirect ? "enabled" : "disabled") );
+		printf("MPI transfers are: %s\n", (gdata->clOptions->asyncNetworkTransfers ? "ASYNCHRONOUS" : "BLOCKING") );
 	}
 
 	// initialize CGs (or, the problem could directly write on gdata)
