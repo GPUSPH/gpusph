@@ -278,10 +278,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->problem->get_bodies_cg();
 	}
 
-	// if any SA open bounds is enabled, we need to update the counters for correct id creation
-	if (_sp->simflags & ENABLE_INLET_OUTLET)
-		countVertexAndNonFluidParticles();
-
 	// initialize values of k and e for k-e model
 	if (!resumed && _sp->visctype == KEPSVISC)
 		problem->init_keps(
@@ -1060,19 +1056,6 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 		delete[] gdata->s_dCellEnds;
 		delete[] gdata->s_dCellStarts;
 		delete[] gdata->s_dSegmentsStart;
-	}
-}
-
-void GPUSPH::countVertexAndNonFluidParticles()
-{
-	for (uint p = 0; p < gdata->totParticles; p++) {
-		particleinfo info = gdata->s_hBuffers.getData<BUFFER_INFO>()[p];
-
-		if ( !FLUID(info) ) {
-			gdata->numInitialNonFluidParticles++;
-			if ( VERTEX(info) )
-				gdata->numVertices++;
-		}
 	}
 }
 
