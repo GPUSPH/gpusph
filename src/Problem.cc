@@ -767,7 +767,14 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 			cells_per_split_axis = gdata->gridSize.z;
 			break;
 	}
+
+	// Check that we have enough cells along the split axis. This check should
+	// be performed in all split algorithms
+	if (cells_per_split_axis / (double) gdata->totDevices < 3.0)
+		throw runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
+
 	uint cells_per_device_per_split_axis = (uint)round(cells_per_split_axis / (double)gdata->totDevices);
+
 	/*
 	printf("Splitting domain along axis %s, %u cells per part\n",
 		(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), cells_per_device_per_split_axis);
