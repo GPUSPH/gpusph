@@ -799,6 +799,114 @@ void Problem::fillDeviceMapByAxis(SplitAxis preferred_split_axis)
 			}
 }
 
+// Like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles
+void Problem::fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis)
+{
+	// Select the longest axis
+	if (preferred_split_axis == LONGEST_AXIS) {
+		if (	gdata->worldSize.x >= gdata->worldSize.y &&
+				gdata->worldSize.x >= gdata->worldSize.z)
+			preferred_split_axis = X_AXIS;
+		else
+		if (	gdata->worldSize.y >= gdata->worldSize.z)
+			preferred_split_axis = Y_AXIS;
+		else
+			preferred_split_axis = Z_AXIS;
+	}
+
+	// Set some aux variables - axis 1 is the split axis
+	uint cells_per_axis1 = 0;
+	uint cells_per_axis2 = 0;
+	uint cells_per_axis3 = 0;
+	uint cx = 0, cy = 0, cz = 0; // cell coordinates
+	uint *c1, *c2, *c3; // abstract from cell coordinates
+	uint *axisParticleCounter = NULL;
+	switch (preferred_split_axis) {
+		case X_AXIS:
+			cells_per_axis1 = gdata->gridSize.x;
+			cells_per_axis2 = gdata->gridSize.y;
+			cells_per_axis3 = gdata->gridSize.z;
+			c1 = &cx;
+			c2 = &cy;
+			c3 = &cz;
+			axisParticleCounter = gdata->s_hPartsPerSliceAlongX;
+			break;
+		case Y_AXIS:
+			cells_per_axis1 = gdata->gridSize.y;
+			cells_per_axis2 = gdata->gridSize.x;
+			cells_per_axis3 = gdata->gridSize.z;
+			c1 = &cy;
+			c2 = &cx;
+			c3 = &cz;
+			axisParticleCounter = gdata->s_hPartsPerSliceAlongY;
+			break;
+		case Z_AXIS:
+			cells_per_axis1 = gdata->gridSize.z;
+			cells_per_axis2 = gdata->gridSize.x;
+			cells_per_axis3 = gdata->gridSize.y;
+			c1 = &cz;
+			c2 = &cx;
+			c3 = &cy;
+			axisParticleCounter = gdata->s_hPartsPerSliceAlongZ;
+			break;
+	}
+
+	// Check that we have enough cells along the split axis. This check should
+	// be performed in all split algorithms
+	if (cells_per_axis1 / (double) gdata->totDevices < 3.0)
+		throw runtime_error ("FATAL: not enough cells along the split axis. Aborting.\n");
+
+	// Compute ideal split values
+	const uint particles_per_device = gdata->totParticles / gdata->totDevices;
+	const uint particles_per_slice = gdata->totParticles / cells_per_axis1;
+
+	// If a device has "almost" particles_per_device particles, next slice will assign particles_per_slice more
+	// particles and make it "overflow" the ideal number; we will instead stop before, at this threshold
+	const uint particles_per_device_threshold = particles_per_device - (particles_per_slice / 2);
+
+	// printf("Splitting domain along axis %s, ~%u particles per device\n",
+	//	(preferred_split_axis == X_AXIS ? "X" : (preferred_split_axis == Y_AXIS ? "Y" : "Z") ), (uint)particles_per_device);
+
+	// We need at least 3 cells per device, regardless the distribution of fluid; so we track the
+	// remaining cells which need to be "reserved" for device numbers yet to be analyzed, excluding
+	// the first.
+	uint reserved_cells =  3 * (gdata->totDevices - 1);
+
+	// We will iterate on the cells and increase the current device number
+	uint currentDevice = 0;
+	uint currentDeviceParticles = 0;
+
+	// NOTE: not using "*cx++" since post-increment has precedence over deference
+	for (*c1 = 0; *c1 < cells_per_axis1; (*c1)++) {
+		// We must increase the current device only if:
+		// 1. This is not the last device (i.e. should always be currentDevice < totDevices), and
+		// 2a. we got enough particles in previous iteration, or
+		// 2b. we reached the reserved cells (thus, we must leave them for next devices)
+		if ( (currentDevice < gdata->totDevices - 1) &&
+			(currentDeviceParticles >= particles_per_device_threshold ||
+			*c1 >= cells_per_axis1 - reserved_cells - 1) ) {
+			// switch to next device: reset counter,
+			currentDeviceParticles = 0;
+			// increase device,
+			currentDevice++;
+			// update reserved_cells (minus mine)
+			reserved_cells -= 3;
+		}
+
+		// add particles in current slice
+		currentDeviceParticles += axisParticleCounter[ *c1 ];
+
+		// assign all the cells of the current slice to current device
+		for (*c2 = 0; *c2 < cells_per_axis2; (*c2)++)
+			for (*c3 = 0; *c3 < cells_per_axis3; (*c3)++) {
+				// we are actually using c1, c2, c3 in a proper order
+				const uint cellLinearHash = gdata->calcGridHashHost(cx, cy, cz);
+				// assign it
+				gdata->s_hDeviceMap[cellLinearHash] = currentDevice;
+			}
+	} // iterate on split axis
+}
+
 void Problem::fillDeviceMapByEquation()
 {
 	// 1st equation: diagonal plane. (x+y+z)=coeff

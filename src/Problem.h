@@ -491,6 +491,8 @@ RESTORE_WARNINGS
 		void fillDeviceMapByCellHash();
 		// partition by splitting along an axis. Default: along the longest
 		void fillDeviceMapByAxis(SplitAxis preferred_split_axis);
+		// like fillDeviceMapByAxis(), but splits are proportional to the contained fluid particles
+		void fillDeviceMapByAxisBalanced(SplitAxis preferred_split_axis);
 		// partition by coordinates satistfying an example equation
 		void fillDeviceMapByEquation();
 		// partition by cutting the domain in parallelepipeds
