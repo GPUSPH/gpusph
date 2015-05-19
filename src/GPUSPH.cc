@@ -1527,10 +1527,10 @@ void GPUSPH::doCallBacks()
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
-void GPUSPH::printStatus()
+void GPUSPH::printStatus(FILE *out)
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
+	fprintf(out, "Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
@@ -1543,7 +1543,7 @@ void GPUSPH::printStatus()
 			//ti.meanTimeNeibsList,
 			//ti.meanTimeEuler
 			);
-	fflush(stdout);
+	fflush(out);
 //#undef ti
 }
 

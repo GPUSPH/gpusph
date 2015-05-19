@@ -26,6 +26,8 @@
 #ifndef GPUSPH_H_
 #define GPUSPH_H_
 
+#include <cstdio>
+
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
@@ -110,7 +112,7 @@ private:
 	void saBoundaryConditions(flag_t cFlag);
 
 	// print information about the status of the simulation
-	void printStatus();
+	void printStatus(FILE *out = stdout);
 
 	// print information about the status of the simulation
 	void printParticleDistribution();
