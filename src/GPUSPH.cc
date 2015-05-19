@@ -253,6 +253,10 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		resumed = true;
 	}
 
+	// Perform all those operations that require accessing the particles (e.g. find least obj id,
+	// count fluid parts per cell, etc.)
+	prepareProblem();
+
 	// let the Problem partition the domain (with global device ids)
 	// NOTE: this could be done before fill_parts(), as long as it does not need knowledge about the fluid, but
 	// not before allocating the host buffers
@@ -1710,6 +1714,11 @@ void GPUSPH::updateArrayIndices() {
 	}
 }
 
+// perform post-filling operations
+void GPUSPH::prepareProblem()
+{
+	// stub
+}
 
 void GPUSPH::saBoundaryConditions(flag_t cFlag)
 {

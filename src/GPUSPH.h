@@ -81,6 +81,9 @@ private:
 	// update s_hStartPerDevice and s_hPartsPerDevice
 	void updateArrayIndices();
 
+	// perform post-filling operations
+	void prepareProblem();
+
 	// set nextCommand, unlock the threads and wait for them to complete
 	void doCommand(CommandType cmd, flag_t flags=NO_FLAGS, float arg=NAN);
 
