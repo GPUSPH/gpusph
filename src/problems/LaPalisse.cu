@@ -119,7 +119,8 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			m_simparams->numObjects = max(specialBoundType, m_simparams->numObjects);
+			m_simparams->numOpenBoundaries = max(specialBoundType, m_simparams->numOpenBoundaries);
+			// TODO FIXME MERGE the object id should be sequential from 0, no shifting
 			info[i] = make_particleinfo(PT_VERTEX, specialBoundType, i);
 			// Define the type of boundaries
 			if (specialBoundType != 0) {
@@ -141,6 +142,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 			if (eulerVel)
 				eulerVel[i] = vel[i];
 			int specialBoundType = h5File.buf[i].KENT;
+			// TODO FIXME MERGE the object id should be sequential from 0, no shifting
 			info[i] = make_particleinfo(PT_BOUNDARY, specialBoundType, i);
 			// Define the type of boundaries
 			if (specialBoundType != 0) {

@@ -1755,19 +1755,19 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		if (MULTI_DEVICE && problem->get_simparams()->simflags & ENABLE_WATER_DEPTH) {
 			// each device gets his waterdepth array from the gpu
 			doCommand(DOWNLOAD_IOWATERDEPTH);
-			int* n_IOwaterdepth = new int[problem->get_simparams()->numObjects];
+			int* n_IOwaterdepth = new int[problem->get_simparams()->numOpenBoundaries];
 			// max over all devices per node
-			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++) {
+			for (uint ob = 0; ob < problem->get_simparams()->numOpenBoundaries; ob ++) {
 				n_IOwaterdepth[ob] = 0;
 				for (uint d = 0; d < gdata->devices; d++)
 					n_IOwaterdepth[ob] = max(n_IOwaterdepth[ob], gdata->h_IOwaterdepth[d][ob]);
 			}
 			// if we are in multi-node mode we need to run an mpi reduction over all nodes
 			if (MULTI_NODE) {
-				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numObjects, MAX_REDUCTION);
+				gdata->networkManager->networkIntReduction((int*)n_IOwaterdepth, problem->get_simparams()->numOpenBoundaries, MAX_REDUCTION);
 			}
 			// copy global value back to one array so that we can upload it again
-			for (uint ob = 0; ob < problem->get_simparams()->numObjects; ob ++)
+			for (uint ob = 0; ob < problem->get_simparams()->numOpenBoundaries; ob ++)
 				gdata->h_IOwaterdepth[0][ob] = n_IOwaterdepth[ob];
 			// upload the global max value to the devices
 			doCommand(UPLOAD_IOWATERDEPTH);

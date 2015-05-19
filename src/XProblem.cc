@@ -168,8 +168,7 @@ bool XProblem::initialize()
 	//m_simparams->numODEbodies = bodies_counter; // == m_numFloatingBodies;
 
 	// store number of objects (floating + moving + I/O)
-	// TODO: here we probably want numObjects to be actually a numOpenBoundaries
-	m_simparams->numObjects = open_boundaries_counter;
+	m_simparams->numOpenBoundaries = open_boundaries_counter;
 
 	// set computed world origin and size without overriding possible user choices
 	if (!isfinite(m_origin.x)) m_origin.x = globalMin(0);
@@ -1623,7 +1622,7 @@ void XProblem::imposeBoundaryConditionHost(
 			uint*			IOwaterdepth,
 	const	float			t,
 	const	uint			numParticles,
-	const	uint			numObjects,
+	const	uint			numOpenBoundaries,
 	const	uint			particleRangeEnd,
 	const	hashKey*		particleHash)
 {

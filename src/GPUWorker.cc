@@ -915,8 +915,8 @@ size_t GPUWorker::allocateDeviceBuffers() {
 
 	// water depth at open boundaries
 	if (m_simparams->simflags & (ENABLE_INLET_OUTLET | ENABLE_WATER_DEPTH)) {
-		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numObjects*sizeof(uint)));
-		allocated += m_simparams->numObjects*sizeof(uint);
+		CUDA_SAFE_CALL(cudaMalloc((void**)&m_dIOwaterdepth, m_simparams->numOpenBoundaries*sizeof(uint)));
+		allocated += m_simparams->numOpenBoundaries*sizeof(uint);
 	}
 
 	// newNumParticles for inlets
@@ -2181,7 +2181,7 @@ void GPUWorker::kernel_download_iowaterdepth()
 	bcEngine->downloadIOwaterdepth(
 			gdata->h_IOwaterdepth[m_deviceIndex],
 			m_dIOwaterdepth,
-			m_simparams->numObjects);
+			m_simparams->numOpenBoundaries);
 
 }
 
@@ -2195,7 +2195,7 @@ void GPUWorker::kernel_upload_iowaterdepth()
 	bcEngine->uploadIOwaterdepth(
 			gdata->h_IOwaterdepth[0],
 			m_dIOwaterdepth,
-			m_simparams->numObjects);
+			m_simparams->numOpenBoundaries);
 
 }
 
@@ -2219,7 +2219,7 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 			(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
 			gdata->t,
 			m_numParticles,
-			m_simparams->numObjects,
+			m_simparams->numOpenBoundaries,
 			numPartsToElaborate,
 			bufread.getData<BUFFER_HASH>());
 

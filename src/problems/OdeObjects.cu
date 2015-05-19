@@ -83,9 +83,6 @@ OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 	m_ODEJointGroup = dJointGroupCreate(0);
 	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity（x, y, z)
 
-	// update numObjects, which is used for allocations
-	m_simparams->numObjects = m_simparams->numODEbodies;
-
 	// Drawing and saving times
 	add_writer(VTKWRITER, 0.1);
 	add_writer(COMMONWRITER, 0.0);

@@ -70,7 +70,7 @@ typedef struct SimParams {
 	uint			numbodies;				// total number of bodies (ODE + forces + moving)
 	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
 	float			epsilon;				// if |r_a - r_b| < epsilon two positions are considered identical
-	uint			numObjects;				// number of ODE objects + open boundaries
+	uint			numOpenBoundaries;				// number of open boundaries
 
 	SimParams(
 		KernelType _kernel = WENDLAND,
@@ -117,7 +117,7 @@ typedef struct SimParams {
 		numbodies(0),
 		maxneibsnum(0),
 		epsilon(5e-5f),
-		numObjects(0)
+		numOpenBoundaries(0)
 	{};
 
 	inline double

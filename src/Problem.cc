@@ -1092,7 +1092,7 @@ Problem::imposeBoundaryConditionHost(
 			uint*			IOwaterdepth,
 	const	float			t,
 	const	uint			numParticles,
-	const	uint			numObjects,
+	const	uint			numOpenBoundaries,
 	const	uint			particleRangeEnd,
 	const	hashKey*		particleHash)
 {
