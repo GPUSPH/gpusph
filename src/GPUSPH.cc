@@ -25,6 +25,10 @@
 
 #include <float.h> // FLT_EPSILON
 
+#include <unistd.h> // getpid()
+#include <sys/mman.h> // shm_open()/shm_unlink()
+#include <fcntl.h> // O_* macros when opening files
+
 #define GPUSPH_MAIN
 #include "particledefine.h"
 #undef GPUSPH_MAIN
@@ -63,15 +67,49 @@ GPUSPH::GPUSPH() {
 	clOptions = NULL;
 	gdata = NULL;
 	problem = NULL;
+
 	initialized = false;
 	m_peakParticleSpeed = 0.0;
 	m_peakParticleSpeedTime = 0.0;
+
+	openInfoStream();
 }
 
 GPUSPH::~GPUSPH() {
+	closeInfoStream();
 	// it would be useful to have a "fallback" deallocation but we have to check
 	// that main did not do that already
 	if (initialized) finalize();
+}
+
+void GPUSPH::openInfoStream() {
+	stringstream ss;
+	ss << "GPUSPH-" << getpid();
+	m_info_stream_name = ss.str();
+	m_info_stream = NULL;
+	int ret = shm_open(m_info_stream_name.c_str(), O_RDWR | O_CREAT, S_IRWXU);
+	if (ret < 0) {
+		cerr << "WARNING: unable to open info stream " << m_info_stream_name << endl;
+		return;
+	}
+	m_info_stream = fdopen(ret, "w");
+	if (!m_info_stream) {
+		cerr << "WARNING: unable to fdopen info stream " << m_info_stream_name << endl;
+		close(ret);
+		shm_unlink(m_info_stream_name.c_str());
+	}
+	cout << "Info stream: " << m_info_stream_name << endl;
+	fputs("Initializing ...\n", m_info_stream);
+	fflush(m_info_stream);
+	fseek(m_info_stream, 0, SEEK_SET);
+}
+
+void GPUSPH::closeInfoStream() {
+	if (m_info_stream) {
+		shm_unlink(m_info_stream_name.c_str());
+		fclose(m_info_stream);
+		m_info_stream = NULL;
+	}
 }
 
 bool GPUSPH::initialize(GlobalData *_gdata) {
@@ -425,6 +463,7 @@ bool GPUSPH::runSimulation() {
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
 	while (gdata->keep_going) {
+		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
@@ -1544,6 +1583,9 @@ void GPUSPH::printStatus(FILE *out)
 			//ti.meanTimeEuler
 			);
 	fflush(out);
+	// output to the info stream is always overwritten
+	if (out == m_info_stream)
+		fseek(out, 0, SEEK_SET);
 //#undef ti
 }
 

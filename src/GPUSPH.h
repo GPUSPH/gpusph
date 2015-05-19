@@ -53,6 +53,11 @@ private:
 	IPPSCounter *m_intervalPerformanceCounter;
 	IPPSCounter *m_multiNodePerformanceCounter; // only used if MULTI_NODE
 
+	// Information stream where the current status
+	// is output
+	string m_info_stream_name; // name of the stream
+	FILE *m_info_stream; // file handle
+
 	// aux arrays for rollCallParticles()
 	bool *m_rcBitmap;
 	bool *m_rcNotified;
@@ -70,6 +75,10 @@ private:
 	GPUSPH();
 	GPUSPH(GPUSPH const&); // NOT implemented
 	void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
+
+	// open/close/write the info stream
+	void openInfoStream();
+	void closeInfoStream();
 
 	// (de)allocation of shared host buffers
 	size_t allocateGlobalHostBuffers();
