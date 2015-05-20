@@ -60,4 +60,12 @@
 // Ferrari correction
 #define ENABLE_FERRARI			(ENABLE_WATER_DEPTH << 1)
 
+#define LAST_SIMFLAG		ENABLE_FERRARI
+
+// since flags are a bitmap, LAST_SIMFLAG - 1 sets all bits before
+// the LAST_SIMFLAG bit, and OR-ing with LAST_SIMFLAG gives us
+// all flags. This is slightly safer than using ((LAST_SIMFLAG << 1) - 1)
+// in case LAST_SIMFLAG is already the last bit
+#define ENABLE_ALL_SIMFLAGS		(LAST_SIMFLAG | (LAST_SIMFLAG-1))
+
 #endif
