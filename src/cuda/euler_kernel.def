@@ -145,11 +145,9 @@ eulerDevice(
 	// Read particles data from sorted arrays
 	float4 pos = oldPos[index];		// always pos(n)
 	float4 vel = oldVel[index];		// always vel(n)
-	float4 vol = oldVol[index];		// always vol(n)
-	float4 eulerVel = make_float4(0.0f);
-	if (oldEulerVel)
-		eulerVel = oldEulerVel[index];		// always eulerVel(n)
 	// TODO templatize better
+	float4 vol = oldVol ? oldVol[index] :make_float4(NAN);		// always vol(n)
+	float4 eulerVel = oldEulerVel ? oldEulerVel[index] : make_float4(0.0f); // always eulerVel(n)
 	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
 	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
 
