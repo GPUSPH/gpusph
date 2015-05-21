@@ -876,8 +876,9 @@ void GPUSPH::move_bodies(const uint step)
 		}
 
 		// Let the problem compute the new moving bodies data
-		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t, gdata->s_hRbGravityCenters,
-				gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
+		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
+			gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
+			gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
 		if (step == 2)
 			problem->post_timestep_callback(gdata->t);
@@ -977,8 +978,10 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	const size_t numbodies = gdata->problem->get_simparams()->numbodies;
 	std::cout << "Numbodies : " << numbodies << "\n";
 	if (numbodies > 0) {
-		gdata->s_hRbGravityCenters = new float3 [numbodies];
-		fill_n(gdata->s_hRbGravityCenters, numbodies, make_float3(0.0f));
+		gdata->s_hRbCgGridPos = new int3 [numbodies];
+		fill_n(gdata->s_hRbCgGridPos, numbodies, make_int3(0));
+		gdata->s_hRbCgPos = new float3 [numbodies];
+		fill_n(gdata->s_hRbCgPos, numbodies, make_float3(0.0f));
 		gdata->s_hRbTranslations = new float3 [numbodies];
 		fill_n(gdata->s_hRbTranslations, numbodies, make_float3(0.0f));
 		gdata->s_hRbLinearVelocities = new float3 [numbodies];
@@ -987,7 +990,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		fill_n(gdata->s_hRbAngularVelocities, numbodies, make_float3(0.0f));
 		gdata->s_hRbRotationMatrices = new float [numbodies*9];
 		fill_n(gdata->s_hRbRotationMatrices, 9*numbodies, 0.0f);
-		totCPUbytes += numbodies*21*sizeof(float);
+		totCPUbytes += numbodies*(sizeof(int3) + 4*sizeof(float3) + 9*sizeof(float));
 	}
 	const size_t numforcesbodies = gdata->problem->get_simparams()->numforcesbodies;
 	std::cout << "Numforcesbodies : " << numforcesbodies << "\n";
@@ -1070,7 +1073,8 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 
 	// Deallocating rigid bodies related arrays
 	if (gdata->problem->get_simparams()->numbodies > 0) {
-		delete [] gdata->s_hRbGravityCenters;
+		delete [] gdata->s_hRbCgGridPos;
+		delete [] gdata->s_hRbCgPos;
 		delete [] gdata->s_hRbTranslations;
 		delete [] gdata->s_hRbLinearVelocities;
 		delete [] gdata->s_hRbAngularVelocities;

@@ -276,7 +276,9 @@ struct GlobalData {
 
 
 	// gravity centers and rototranslations, which are computed by the ODE library
-	float3* s_hRbGravityCenters;
+	int3* s_hRbCgGridPos; // cell of the gravity center
+	float3* s_hRbCgPos; // in-cell position of the gravity center
+
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
 	float3* s_hRbLinearVelocities;
@@ -337,7 +339,8 @@ struct GlobalData {
 		s_hRbTotalTorque(NULL),
 		s_hRbAppliedForce(NULL),
 		s_hRbAppliedTorque(NULL),
-		s_hRbGravityCenters(NULL),
+		s_hRbCgGridPos(NULL),
+		s_hRbCgPos(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),

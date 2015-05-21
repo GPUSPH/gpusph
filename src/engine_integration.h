@@ -48,7 +48,7 @@ public:
 	getconstants(PhysParams *physparams) = 0;
 
 	virtual void
-	setrbcg(const float3* cg, int numbodies) = 0;
+	setrbcg(const int3* cgGridPos, const float3* cgPos, int numbodies) = 0;
 
 	virtual void
 	setrbtrans(const float3* trans, int numbodies) = 0;

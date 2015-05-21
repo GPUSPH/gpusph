@@ -438,9 +438,10 @@ setgravity(float3 const& gravity)
 }
 
 void
-setrbcg(const float3* cg, int numbodies)
+setrbcg(const int3* cgGridPos, const float3* cgPos, int numbodies)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcg, cg, numbodies*sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcgGridPos, cgGridPos, numbodies*sizeof(int3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcgPos, cgPos, numbodies*sizeof(float3)));
 }
 
 void

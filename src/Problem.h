@@ -418,6 +418,8 @@ RESTORE_WARNINGS
 		size_t	get_body_numparts(const int);
 		size_t	get_body_numparts(const Object *);
 
+		// convert a double3 center of gravity into a grid + local position
+		void calc_cg_grid_pos(double3 const& cg, int3 *gridPos, float3 *localPos);
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		void get_bodies_cg(void);
 		void set_body_cg(const double3&, MovingBodyData*);
@@ -444,9 +446,11 @@ RESTORE_WARNINGS
 								const float3&, const KinematicData &, KinematicData &,
 								double3&, EulerParameters&);
 
-		void bodies_timestep(const float3 *, const float3 *, const int,
-							const double, const double, float3 * &, float3 * &,
-							float * &, float3 * &, float3 * &);
+		void bodies_timestep(const float3 *forces, const float3 *torques, const int step,
+							const double dt, const double t,
+							int3 * & cgGridPos, float3 * & cgPos,
+							float3 * & trans, float * & steprot,
+							float3 * & linearvel, float3 * & angularvel);
 
 		/*void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
 			const float *linvel, const float *angvel);*/

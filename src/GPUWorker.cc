@@ -2658,13 +2658,13 @@ void GPUWorker::checkPartValById(const char* printID, const uint pid)
 
 void GPUWorker::uploadEulerBodiesCentersOfGravity()
 {
-	integrationEngine->setrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	integrationEngine->setrbcg(gdata->s_hRbCgGridPos, gdata->s_hRbCgPos, m_simparams->numbodies);
 }
 
 
 void GPUWorker::uploadForcesBodiesCentersOfGravity()
 {
-	forcesEngine->setrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	forcesEngine->setrbcg(gdata->s_hRbCgGridPos, gdata->s_hRbCgPos, m_simparams->numbodies);
 }
 
 

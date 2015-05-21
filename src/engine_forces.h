@@ -57,7 +57,7 @@ public:
 	// Rigit Body methods
 
 	virtual void
-	setrbcg(const float3* cg, int numbodies) = 0;
+	setrbcg(const int3* cgGridPos, const float3* cgPos, int numbodies) = 0;
 
 	virtual void
 	setrbstart(const int* rbfirstindex, int numbodies) = 0;

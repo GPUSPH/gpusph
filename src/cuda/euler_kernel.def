@@ -254,7 +254,8 @@ eulerDevice(
 					printf("Euler device, object %d\n", obj);
 					printf("   lvel: %e\t%e\t%e\n", d_rblinearvel[obj].x, d_rblinearvel[obj].y, d_rblinearvel[obj].z);
 					printf("   avel: %e\t%e\t%e\n", d_rbangularvel[obj].x, d_rbangularvel[obj].y, d_rbangularvel[obj].z);
-					printf("   npos: %e\t%e\t%e\n", d_rbcg[obj].x, d_rbcg[obj].y, d_rbcg[obj].z);
+					printf("   gpos: %d\t%d\t%d\n", d_rbcgGridPos[obj].x, d_rbcgGridPos[obj].y, d_rbcgGridPos[obj].z);
+					printf("   lpos: %e\t%e\t%e\n", d_rbcgPos[obj].x, d_rbcgPos[obj].y, d_rbcgPos[obj].z);
 					printf("   trans:%e\t%e\t%e\n", d_rbtrans[obj].x, d_rbtrans[obj].y, d_rbtrans[obj].z);
 					printf("   SR:   %e\t%e\t%e\n", d_rbsteprot[9*obj + 0], d_rbsteprot[9*obj + 1], d_rbsteprot[9*obj + 2]);
 					printf("         %e\t%e\t%e\n", d_rbsteprot[9*obj + 3], d_rbsteprot[9*obj + 4], d_rbsteprot[9*obj + 5]);
@@ -265,7 +266,9 @@ eulerDevice(
 				// Applying rotation around center of gravity. We always have cg = cg(n). Cg behaves
 				// the same as pos and we always have pos = pos(n).
 				// relPos = x - x_cg
-				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
+				const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+				const float3 relPos = (gridPos - d_rbcgGridPos[obj])*d_cellSize +
+					(as_float3(pos) - d_rbcgPos[obj]);
 				applyrot(&d_rbsteprot[9*obj], relPos, pos);
 
 				// Applying center of gravity translation
@@ -298,7 +301,9 @@ eulerDevice(
 						pos.y += d_rbtrans[i].y;
 						pos.z += d_rbtrans[i].z;
 						// Applying rotation around center of gravity
-						const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[i];
+						const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
+						const float3 relPos = (gridPos - d_rbcgGridPos[obj])*d_cellSize +
+							(as_float3(pos) - d_rbcgPos[obj]);
 						applyrot(&d_rbsteprot[9*i], relPos, pos);
 						// compute velocity as position derivative
 						vel.x = (pos.x - oldPos.x)/dt;
