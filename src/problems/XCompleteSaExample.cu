@@ -41,7 +41,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		viscosity<DYNAMICVISC>,
 		boundary<SA_BOUNDARY>,
 		periodicity<PERIODIC_NONE>,
-		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET | ENABLE_FERRARI>
+		flags<ENABLE_DTADAPT | ENABLE_INLET_OUTLET | ENABLE_MOVING_BODIES | ENABLE_FERRARI>
 	);
 
 	// *** Initialization of minimal physical parameters
