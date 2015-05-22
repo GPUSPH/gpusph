@@ -237,11 +237,11 @@ Problem::restore_ODE_body(const uint i, const float *gravity_center, const float
 
 
 void
-Problem::calc_cg_grid_pos(double3 const& cg, int3 *gridPos, float3 *localPos)
+Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos)
 {
-	int3 _gridPos = calc_grid_pos(cg);
+	int3 _gridPos = calc_grid_pos(globalPos);
 	*gridPos = _gridPos;
-	*localPos = make_float3(cg - m_origin -
+	*localPos = make_float3(globalPos - m_origin -
 		(make_double3(_gridPos) + 0.5)*m_cellsize);
 }
 
@@ -249,7 +249,7 @@ void
 Problem::get_bodies_cg(void)
 {
 	for (uint i = 0; i < m_simparams->numbodies; i++) {
-		calc_cg_grid_pos(m_bodies[i]->kdata.crot,
+		calc_grid_and_local_pos(m_bodies[i]->kdata.crot,
 			gdata->s_hRbCgGridPos + i,
 			gdata->s_hRbCgPos + i);
 	}
@@ -432,7 +432,7 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 					mbdata->kdata, new_trans, dr);
 		}
 
-		calc_cg_grid_pos(mbdata->kdata.crot, cgGridPos + i, cgPos + i);
+		calc_grid_and_local_pos(mbdata->kdata.crot, cgGridPos + i, cgPos + i);
 		trans[i] = make_float3(new_trans);
 		linearvel[i] = make_float3(mbdata->kdata.lvel);
 		angularvel[i] = make_float3(mbdata->kdata.avel);
@@ -474,11 +474,10 @@ Problem::fill_planes(void)
 
 // Copy planes for upload
 void
-Problem::copy_planes(float4*, float*)
+Problem::copy_planes(double4* planes)
 {
 	return;
 }
-
 
 void
 Problem::check_dt(void)

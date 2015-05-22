@@ -240,9 +240,32 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
 
-	// copy planes from the problem to the shared array, if there are any
-	if (gdata->numPlanes)
-		problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
+	// copy planes from the problem to the shared array, if there are any,
+	// and convert them into the form requird for homogeneous accuracy
+	if (gdata->numPlanes) {
+		problem->copy_planes(gdata->s_hPlanes);
+
+		/* domain centerpoint, used to find the plane point below */
+		const double3 midPoint = problem->get_worldorigin() + problem->get_worldsize()/2;
+		for (uint i = 0; i < gdata->numPlanes; ++i) {
+			const double4 &p = gdata->s_hPlanes[i];
+			double norm = length3(p);
+			const double3 normal = as_double3(p)/norm;
+			gdata->s_hPlaneNormal[i] = make_float3(normal);
+
+			/* For the plane point, we pick the one closest to the center of the domain
+			 * TODO find a better logic ? */
+
+			/* note that to compute the distance we dot with the normal, and then
+			 * add p.w/norm, since p.w is still not normalized */
+			const double midDist = dot(midPoint, normal) + p.w/norm;
+			double3 planePoint = midPoint - midDist*normal;
+
+			problem->calc_grid_and_local_pos(planePoint,
+				gdata->s_hPlanePointGridPos + i,
+				gdata->s_hPlanePointLocalPos + i);
+		}
+	}
 
 	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
 	 * or, if it was requested, we load buffers from a HotStart file
@@ -963,16 +986,23 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAX_PLANES);
 			exit(1);
 		}
-		const size_t planeSize4 = sizeof(float4) * gdata->numPlanes;
-		const size_t planeSize  = sizeof(float) * gdata->numPlanes;
+		const size_t planeSize4 = sizeof(double4) * gdata->numPlanes;
+		const size_t planeSize3 = sizeof(float3) * gdata->numPlanes; // same as for int3
 
-		gdata->s_hPlanes = new float4[gdata->numPlanes];
+		gdata->s_hPlanes = new double4[gdata->numPlanes];
 		memset(gdata->s_hPlanes, 0, planeSize4);
 		totCPUbytes += planeSize4;
 
-		gdata->s_hPlanesDiv = new float[gdata->numPlanes];
-		memset(gdata->s_hPlanesDiv, 0, planeSize);
-		totCPUbytes += planeSize;
+		gdata->s_hPlaneNormal = new float3[gdata->numPlanes];
+		memset(gdata->s_hPlaneNormal, 0, planeSize3);
+
+		gdata->s_hPlanePointGridPos = new int3[gdata->numPlanes];
+		memset(gdata->s_hPlanePointGridPos, 0, planeSize3);
+
+		gdata->s_hPlanePointLocalPos = new float3[gdata->numPlanes];
+		memset(gdata->s_hPlanePointLocalPos, 0, planeSize3);
+
+		totCPUbytes += planeSize4 + 3*planeSize3;
 	}
 
 	const size_t numbodies = gdata->problem->get_simparams()->numbodies;
@@ -1096,7 +1126,9 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	// planes
 	if (gdata->numPlanes > 0) {
 		delete[] gdata->s_hPlanes;
-		delete[] gdata->s_hPlanesDiv;
+		delete[] gdata->s_hPlaneNormal;
+		delete[] gdata->s_hPlanePointGridPos;
+		delete[] gdata->s_hPlanePointLocalPos;
 	}
 
 	// multi-GPU specific arrays

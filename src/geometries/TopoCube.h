@@ -54,7 +54,7 @@ class TopoCube: public Object {
 		TopoCube(void);
 		virtual ~TopoCube(void);
 
-		void get_planes(float4 *planes, float *planediv);
+		void get_planes(double4 *planes);
 
 		void SetCubeDem(const float *dem,
 				double sizex, double sizey, double H,

@@ -251,7 +251,7 @@ class XProblem: public Problem {
 
 		int fill_parts();
 		uint fill_planes(void);
-		void copy_planes(float4 *planes, float *planediv);
+		void copy_planes(double4 *planes);
 
 		void copy_to_array(BufferList &buffers);
 		void release_memory();

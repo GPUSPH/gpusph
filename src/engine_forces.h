@@ -49,7 +49,8 @@ public:
 	getconstants(PhysParams *physparams) = 0;
 
 	virtual void
-	setplanes(int numPlanes, const float *planesDiv, const float4 *planes) = 0;
+	setplanes(int numPlanes, const float3 *planeNormal,
+		const int3 *gridPos, const float3 *localPos) = 0;
 
 	virtual void
 	setgravity(float3 const& gravity) = 0;

@@ -1175,7 +1175,7 @@ uint XProblem::fill_planes()
 	return m_numPlanes;
 }
 
-void XProblem::copy_planes(float4 *planes, float *planediv)
+void XProblem::copy_planes(double4 *planes)
 {
 	if (m_numPlanes == 0) return;
 	// look for planes
@@ -1191,8 +1191,7 @@ void XProblem::copy_planes(float4 *planes, float *planediv)
 
 		Plane *plane = (Plane*)(m_geometries[gid]->ptr);
 
-		planes[currPlaneIdx] = make_float4( plane->getA(), plane->getB(), plane->getC(), plane->getD() );
-		planediv[currPlaneIdx] = plane->getNorm();
+		planes[currPlaneIdx] = make_double4( plane->getA(), plane->getB(), plane->getC(), plane->getD() );
 
 		currPlaneIdx++;
 	}

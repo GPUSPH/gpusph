@@ -181,20 +181,15 @@ uint StillWater::fill_planes()
 	return (m_usePlanes ? 5 : 0);
 }
 
-void StillWater::copy_planes(float4 *planes, float *planediv)
+void StillWater::copy_planes(double4* planes)
 {
 	if (!m_usePlanes) return;
 
-	planes[0] = make_float4(0, 0, 1.0, -m_origin.z);
-	planediv[0] = 1.0;
-	planes[1] = make_float4(0, 1.0, 0, -m_origin.x);
-	planediv[1] = 1.0;
-	planes[2] = make_float4(0, -1.0, 0, m_origin.x + w);
-	planediv[2] = 1.0;
-	planes[3] = make_float4(1.0, 0, 0, -m_origin.y);
-	planediv[3] = 1.0;
-	planes[4] = make_float4(-1.0, 0, 0, m_origin.y + l);
-	planediv[4] = 1.0;
+	planes[0] = make_double4(0, 0, 1.0, -m_origin.z);
+	planes[1] = make_double4(0, 1.0, 0, -m_origin.x);
+	planes[2] = make_double4(0, -1.0, 0, m_origin.x + w);
+	planes[3] = make_double4(1.0, 0, 0, -m_origin.y);
+	planes[4] = make_double4(-1.0, 0, 0, m_origin.y + l);
 }
 
 

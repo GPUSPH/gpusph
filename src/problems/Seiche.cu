@@ -142,18 +142,13 @@ uint Seiche::fill_planes()
 	return 5;
 }
 
-void Seiche::copy_planes(float4 *planes, float *planediv)
+void Seiche::copy_planes(double4 *planes)
 {
-	planes[0] = make_float4(0, 0, 1.0, 0);
-	planediv[0] = 1.0;
-	planes[1] = make_float4(0, 1.0, 0, 0);
-	planediv[1] = 1.0;
-	planes[2] = make_float4(0, -1.0, 0, w);
-	planediv[2] = 1.0;
-	planes[3] = make_float4(1.0, 0, 0, 0);
-	planediv[3] = 1.0;
-	planes[4] = make_float4(-1.0, 0, 0, l);
-	planediv[4] = 1.0;
+	planes[0] = make_double4(0, 0, 1.0, 0);
+	planes[1] = make_double4(0, 1.0, 0, 0);
+	planes[2] = make_double4(0, -1.0, 0, w);
+	planes[3] = make_double4(1.0, 0, 0, 0);
+	planes[4] = make_double4(-1.0, 0, 0, l);
 }
 
 

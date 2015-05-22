@@ -77,23 +77,19 @@ void TopoCube::SetGeoLocation(double north, double south,
 	m_west = west;
 }
 
-/* Add wall planes to the planes/planediv array; the
- * given arrays should be able to hold at least 4 elements each
+/* Add wall planes to the planes array; the
+ * given array should be able to hold at least 4 elements each
  */
-void TopoCube::get_planes(float4 *planes, float *planediv)
+void TopoCube::get_planes(double4* planes)
 {
 	// north wall
-	planes[0] = make_float4(0, 1.0, 0, 0);
-	planediv[0] = 1.0;
+	planes[0] = make_double4(0, 1.0, 0, 0);
 	// south wall
-	planes[1] = make_float4(0, -1.0, 0, m_vy(1));
-	planediv[1] = 1.0;
+	planes[1] = make_double4(0, -1.0, 0, m_vy(1));
 	// west wall
-	planes[2] = make_float4(1.0, 0, 0, 0);
-	planediv[2] = 1.0;
+	planes[2] = make_double4(1.0, 0, 0, 0);
 	// east wall
-	planes[3] = make_float4(-1.0, 0, 0, m_vx(0));
-	planediv[3] = 1.0;
+	planes[3] = make_double4(-1.0, 0, 0, m_vx(0));
 }
 
 /* set the cube DEM to have

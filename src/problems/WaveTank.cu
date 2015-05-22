@@ -261,25 +261,19 @@ uint WaveTank::fill_planes()
 }
 
 
-void WaveTank::copy_planes(float4 *planes, float *planediv)
+void WaveTank::copy_planes(double4 *planes)
 {
-	const float w = m_size.y;
-	const float l = h_length + slope_length;
+	const double w = m_size.y;
+	const double l = h_length + slope_length;
 
 	//  plane is defined as a x + by +c z + d= 0
-	planes[0] = make_float4(0, 0, 1.0, 0);   //bottom, where the first three numbers are the normal, and the last is d.
-	planediv[0] = 1.0;
-	planes[1] = make_float4(0, 1.0, 0, 0);   //wall
-	planediv[1] = 1.0;
-	planes[2] = make_float4(0, -1.0, 0, w); //far wall
-	planediv[2] = 1.0;
-	planes[3] = make_float4(1.0, 0, 0, 0);  //end
-	planediv[3] = 1.0;
-	planes[4] = make_float4(-1.0, 0, 0, l);  //one end
-	planediv[4] = 1.0;
+	planes[0] = make_double4(0, 0, 1.0, 0);   //bottom, where the first three numbers are the normal, and the last is d.
+	planes[1] = make_double4(0, 1.0, 0, 0);   //wall
+	planes[2] = make_double4(0, -1.0, 0, w); //far wall
+	planes[3] = make_double4(1.0, 0, 0, 0);  //end
+	planes[4] = make_double4(-1.0, 0, 0, l);  //one end
 	if (use_bottom_plane)  {
-		planes[5] = make_float4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
-		planediv[5] = 1.0;
+		planes[5] = make_double4(-sin(beta),0,cos(beta), h_length*sin(beta));  //sloping bottom starting at x=h_length
 	}
 }
 

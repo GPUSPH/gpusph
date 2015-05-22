@@ -155,11 +155,9 @@ uint TestTopo::fill_planes()
 #endif
 }
 
-void TestTopo::copy_planes(float4 *planes, float *planediv)
+void TestTopo::copy_planes(double4 *planes)
 {
-	// planes are defined as a x + by +c z + d= 0
-
-	experiment_box->get_planes(planes, planediv);
+	experiment_box->get_planes(planes);
 }
 
 void TestTopo::copy_to_array(BufferList &buffers)

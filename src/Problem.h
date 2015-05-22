@@ -312,6 +312,9 @@ RESTORE_WARNINGS
 
 		void calc_localpos_and_hash(const Point&, const particleinfo&, float4&, hashKey&);
 
+		// convert a double3 point into a grid + local position
+		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos);
+
 		const SimParams *get_simparams(void) const
 		{
 			return m_simparams;
@@ -384,10 +387,11 @@ RESTORE_WARNINGS
 		virtual int fill_parts(void) = 0;
 		// maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
-		virtual uint fill_planes(void);
 		virtual void copy_to_array(BufferList & ) = 0;
-		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
+
+		virtual uint fill_planes(void);
+		virtual void copy_planes(double4* planes);
 
 		/* moving boundary and gravity callbacks */
 		virtual float3 g_callback(const float t) DEPRECATED;
@@ -418,8 +422,6 @@ RESTORE_WARNINGS
 		size_t	get_body_numparts(const int);
 		size_t	get_body_numparts(const Object *);
 
-		// convert a double3 center of gravity into a grid + local position
-		void calc_cg_grid_pos(double3 const& cg, int3 *gridPos, float3 *localPos);
 		void get_bodies_data(float3 * &, float * &, float3 * &, float3 * &);
 		void get_bodies_cg(void);
 		void set_body_cg(const double3&, MovingBodyData*);

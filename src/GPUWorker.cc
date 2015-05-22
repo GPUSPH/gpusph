@@ -1333,12 +1333,13 @@ void GPUWorker::uploadGravity()
 		forcesEngine->setgravity(gdata->s_varGravity);
 }
 
-// upload planes (called once until planes arae constant)
+// upload planes (called once while planes are constant)
 void GPUWorker::uploadPlanes()
 {
 	// check if planes > 0 (already checked before calling?)
 	if (gdata->numPlanes > 0)
-		forcesEngine->setplanes(gdata->numPlanes, gdata->s_hPlanesDiv, gdata->s_hPlanes);
+		forcesEngine->setplanes(gdata->numPlanes, gdata->s_hPlaneNormal,
+			gdata->s_hPlanePointGridPos, gdata->s_hPlanePointLocalPos);
 }
 
 

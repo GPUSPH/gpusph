@@ -2045,13 +2045,11 @@ forcesDevice(
 			// for viscous fluids
 			float geom_coeff = 0.0f;
 
-			const float3 globalpos = d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize;
-
 			// Adding repulsive force computed from DEM
 			if (simflags & ENABLE_DEM) {
 				switch (boundarytype) {
 				case LJ_BOUNDARY:
-					geom_coeff = DemLJForce(demTex, globalpos,
+					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
 						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
 					break;
 				default:
@@ -2062,7 +2060,7 @@ forcesDevice(
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numplanes) {
 				geom_coeff = max(geom_coeff,
-					GeometryForce(globalpos,
+					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
