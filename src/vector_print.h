@@ -37,15 +37,15 @@
 // having it work with the CUDA vector types
 #define DEFINE_STREAM_XYZW(type) \
 template< class Traits> \
-basic_ostream<char,Traits>& operator<< \
-(basic_ostream<char,Traits>& os, type##4 const& t) \
+std::basic_ostream<char,Traits>& operator<< \
+(std::basic_ostream<char,Traits>& os, type##4 const& t) \
 { return os << "(" << t.x << ", " << t.y << ", " << t.z << ", " << t.w << ")"; }
 
 // ditto, 3-vector types
 #define DEFINE_STREAM_XYZ(type) \
 template< class Traits> \
-basic_ostream<char,Traits>& operator<< \
-(basic_ostream<char,Traits>& os, type##3 const& t) \
+std::basic_ostream<char,Traits>& operator<< \
+(std::basic_ostream<char,Traits>& os, type##3 const& t) \
 { return os << "(" << t.x << ", " << t.y << ", " << t.z << ")"; }
 
 #define DEFINE_STREAM(type) \
