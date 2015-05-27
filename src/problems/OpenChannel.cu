@@ -35,6 +35,7 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 	SETUP_FRAMEWORK(
 		//viscosity<ARTVISC>,
 		viscosity<KINEMATICVISC>,
+		boundary<DYN_BOUNDARY>,
 		periodicity<PERIODIC_X>
 	);
 
@@ -47,13 +48,22 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 
 	H = 0.5; // water level
 
+	if (m_simparams->boundarytype == DYN_BOUNDARY) {
+		dyn_layers = ceil(m_simparams->influenceRadius/m_deltap) + 1;
+		// no extra offset in the X direction, since we have periodicity there
+		dyn_offset = dyn_layers*make_double3(0, m_deltap, m_deltap);
+	} else {
+		dyn_layers = 0;
+		dyn_offset = make_double3(0.0);
+	}
+
 	// Size and origin of the simulation domain
 	a = 1.0;
 	h = H*1.4;
 	l = 15*m_simparams->influenceRadius;
 
-	m_size = make_double3(l, a, h);
-	m_origin = make_double3(0.0, 0.0, 0.0);
+	m_size = make_double3(l, a, h) + 2*dyn_offset;
+	m_origin = make_double3(0.0, 0.0, 0.0) - dyn_offset;
 
 	// Physical parameters
 	const double angle = 4.5; // angle in degrees
@@ -93,24 +103,43 @@ void OpenChannel::release_memory(void)
 
 int OpenChannel::fill_parts()
 {
-	float r0 = m_physparams->r0;
+	const float r0 = m_physparams->r0;
+	// gap due to periodicity
+	const double3 periodicity_gap = make_double3(m_deltap/2, 0, 0);
 
-	rect1 = Rect(Point(m_deltap/2.0, 0, 0), Vector(l - m_deltap, 0, 0), Vector(0, a, 0));
-	rect2 = Rect(Point(m_deltap/2., 0, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
-	rect3 = Rect(Point(m_deltap/2., a, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
+	experiment_box = Cube(m_origin, l, a, h);
 
-	experiment_box = Cube(Point(0, 0, 0), l, a, h + r0);
-	Cube fluid = Cube(Point(m_deltap/2.0, r0, r0), l - m_deltap, a - 2*r0, H - r0);
+	// bottom: it must cover the whole bottom floor, including under the walls,
+	//  hence it must not be shifted by dyn_offset in the y direction
+	rect1 = Rect(m_origin + make_double3(dyn_offset.x, 0, dyn_offset.z) + periodicity_gap,
+		Vector(0, m_size.y, 0), Vector(m_size.x - m_deltap, 0, 0));
+
+	// side walls: shifted by dyn_offset, and with opposite orientation so that
+	// they "fill in" towards the outside
+	rect2 = Rect(m_origin + dyn_offset + periodicity_gap + make_double3(0, 0, r0),
+		Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
+	rect3 = Rect(m_origin + dyn_offset + periodicity_gap + make_double3(0, a, r0),
+		Vector(0, 0, h - r0), Vector(l - m_deltap, 0, 0));
+
+	Cube fluid = Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, r0, r0),
+		l - m_deltap, a - 2*r0, H - r0);
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
 	rect1.SetPartMass(r0, m_physparams->rho0[0]);
-	rect1.Fill(boundary_parts, r0, true);
 	rect2.SetPartMass(r0, m_physparams->rho0[0]);
-	rect2.Fill(boundary_parts, r0, true);
 	rect3.SetPartMass(r0, m_physparams->rho0[0]);
-	rect3.Fill(boundary_parts, r0, true);
+
+	if (m_simparams->boundarytype == DYN_BOUNDARY) {
+		rect1.FillIn(boundary_parts, m_deltap, dyn_layers);
+		rect2.FillIn(boundary_parts, m_deltap, dyn_layers);
+		rect3.FillIn(boundary_parts, m_deltap, dyn_layers);
+	} else {
+		rect1.Fill(boundary_parts, r0, true);
+		rect2.Fill(boundary_parts, r0, true);
+		rect3.Fill(boundary_parts, r0, true);
+	}
 
 	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);

@@ -37,6 +37,8 @@ class OpenChannel: public Problem {
 		Cube		experiment_box;
 		PointVect	parts;
 		PointVect	boundary_parts;
+		uint		dyn_layers;
+		double3		dyn_offset;
 		double		a, h, l;  // experiment box dimension
 		double		H; // still water level
 
