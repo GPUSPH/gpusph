@@ -37,8 +37,9 @@ class OpenChannel: public Problem {
 		Cube		experiment_box;
 		PointVect	parts;
 		PointVect	boundary_parts;
-		float		a, h, l;  // experiment box dimension
-		float		H; // still water level
+		double		a, h, l;  // experiment box dimension
+		double		H; // still water level
+
 
 	public:
 		OpenChannel(GlobalData *);
