@@ -234,6 +234,11 @@ class Problem {
 			return *m_options;
 		}
 
+		template <typename T>
+		T
+		get_option(std::string const& key, T _default) const
+		{ return m_options->get(key, _default); }
+
 		double3 const& get_worldorigin(void) const
 		{
 			return m_origin;
