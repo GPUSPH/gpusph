@@ -28,8 +28,21 @@
 
 #include <cmath>
 #include <string>
+#include <sstream> // for de-serialization of option values
+#include <map> // unordered_map would be faster, but it's C++11
 
-struct Options {
+// arbitrary problem options are allowed, stored in
+// a string -> string map, and deserialized on retrieval.
+typedef std::map<std::string, std::string> OptionMap;
+
+class Options {
+private:
+	// Storage for arbitrary options
+	// TODO convert legacy options to new mechanism
+	OptionMap m_options;
+
+public:
+	// legacy options
 	std::string	problem; // problem name
 	std::string	resume_fname; // file to resume simulation from
 	int		device;  // which device to use
@@ -45,7 +58,9 @@ struct Options {
 	bool	asyncNetworkTransfers; // enable asynchronous network transfers
 	unsigned int num_hosts; // number of physical hosts to which the processes are being assigned
 	bool byslot_scheduling; // by slot scheduling across MPI nodes (not round robin)
+
 	Options(void) :
+		m_options(),
 		problem(),
 		resume_fname(),
 		device(-1),
@@ -62,6 +77,27 @@ struct Options {
 		num_hosts(0),
 		byslot_scheduling(false)
 	{};
+
+	// set an arbitrary option
+	// TODO templatize for serialization?
+	void
+	set(std::string const& key, std::string const& value)
+	{
+		// TODO set legacy options from here too?
+		m_options[key] = value;
+	}
+
+	template <typename T> T
+	get(std::string const& key, T const& _default) const
+	{
+		T ret(_default);
+		OptionMap::const_iterator found(m_options.find(key));
+		if (found != m_options.end()) {
+			std::ostringstream extractor(found->second);
+			extractor >> ret;
+		}
+		return ret;
+	}
 };
 
 #endif
