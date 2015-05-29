@@ -98,6 +98,14 @@ public:
 		}
 		return ret;
 	}
+
+	OptionMap::const_iterator
+	begin() const
+	{ return m_options.begin(); }
+
+	OptionMap::const_iterator
+	end() const
+	{ return m_options.end(); }
 };
 
 #endif
