@@ -87,7 +87,7 @@ public:
 		m_options[key] = value;
 	}
 
-	template <typename T> T
+	template<typename T> T
 	get(std::string const& key, T const& _default) const
 	{
 		T ret(_default);
@@ -107,5 +107,16 @@ public:
 	end() const
 	{ return m_options.end(); }
 };
+
+// Declare custom specializations which otherwise wouldn't be known to
+// Options users
+template<>
+std::string
+Options::get(std::string const& key, std::string const& _default) const;
+
+template<>
+bool
+Options::get(std::string const& key, bool const& _default) const;
+
 
 #endif

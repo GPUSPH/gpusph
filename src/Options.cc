@@ -27,13 +27,57 @@
 
 #include <Options.h>
 
+#include <stdexcept>
+#include <algorithm>
+
+using namespace std;
+
 template<>
-std::string
-Options::get(std::string const& key, std::string const& _default) const
+string
+Options::get(string const& key, string const& _default) const
 {
 	OptionMap::const_iterator found(m_options.find(key));
 	if (found != m_options.end()) {
 		return found->second;
+	}
+	return _default;
+}
+
+static const string true_values[] = {
+	"yes", "true", "1"
+};
+static const string *true_values_end = true_values + sizeof(true_values)/sizeof(*true_values);
+
+static bool is_true_value(std::string const& value)
+{
+	return find(true_values, true_values_end, value) != true_values_end;
+}
+
+static const string false_values[] = {
+	"no", "false", "0"
+};
+static const string *false_values_end = false_values + sizeof(false_values)/sizeof(*false_values);
+
+static bool is_false_value(std::string const& value)
+{
+	return find(false_values, false_values_end, value) != false_values_end;
+}
+
+
+template<>
+bool
+Options::get(string const& key, bool const& _default) const
+{
+	OptionMap::const_iterator found(m_options.find(key));
+	if (found != m_options.end()) {
+		string const& value = found->second;
+		if (is_true_value(value))
+			return true;
+		if (is_false_value(value))
+			return false;
+		stringstream error;
+		error << "invalid boolean value '" << value << "' for key '" << key << "'";
+		throw invalid_argument(error.str());
 	}
 	return _default;
 }
