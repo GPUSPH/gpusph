@@ -29,14 +29,12 @@
 #include <cmath>
 #include <string>
 
-using namespace std;
-
 struct Options {
-	string	problem; // problem name
-	string	resume_fname; // file to resume simulation from
+	std::string	problem; // problem name
+	std::string	resume_fname; // file to resume simulation from
 	int		device;  // which device to use
-	string	dem; // DEM file to use
-	string	dir; // directory where data will be saved
+	std::string	dem; // DEM file to use
+	std::string	dir; // directory where data will be saved
 	double	deltap; // deltap
 	float	tend; // simulation end
 	float	checkpoint_freq; // frequency of hotstart checkpoints (in simulated seconds)
