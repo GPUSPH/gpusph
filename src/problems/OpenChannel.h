@@ -33,6 +33,7 @@
 
 class OpenChannel: public Problem {
 	private:
+		bool		use_side_walls; // use sidewalls or not
 		Rect		rect1, rect2, rect3;
 		Cube		experiment_box;
 		PointVect	parts;
