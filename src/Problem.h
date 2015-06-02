@@ -234,6 +234,11 @@ class Problem {
 			return *m_options;
 		}
 
+		template <typename T>
+		T
+		get_option(std::string const& key, T _default) const
+		{ return m_options->get(key, _default); }
+
 		double3 const& get_worldorigin(void) const
 		{
 			return m_origin;
@@ -312,6 +317,9 @@ RESTORE_WARNINGS
 
 		void calc_localpos_and_hash(const Point&, const particleinfo&, float4&, hashKey&);
 
+		// convert a double3 point into a grid + local position
+		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos);
+
 		const SimParams *get_simparams(void) const
 		{
 			return m_simparams;
@@ -333,8 +341,10 @@ RESTORE_WARNINGS
 		};
 
 		// wrappers for physparams functions
-		size_t add_fluid(float rho, float gamma, float c0)
-		{ return m_physparams->add_fluid(rho, gamma, c0); }
+		size_t add_fluid(float rho)
+		{ return m_physparams->add_fluid(rho); }
+		void set_equation_of_state(size_t fluid_idx, float gamma, float c0)
+		{ return m_physparams->set_equation_of_state(fluid_idx, gamma, c0); }
 		void set_kinematic_visc(size_t fluid_idx, float nu)
 		{ return m_physparams->set_kinematic_visc(fluid_idx, nu); }
 		void set_dynamic_visc(size_t fluid_idx, float mu)
@@ -384,10 +394,11 @@ RESTORE_WARNINGS
 		virtual int fill_parts(void) = 0;
 		// maximum number of particles that may be generated
 		virtual uint max_parts(uint numParts);
-		virtual uint fill_planes(void);
 		virtual void copy_to_array(BufferList & ) = 0;
-		virtual void copy_planes(float4*, float*);
 		virtual void release_memory(void) = 0;
+
+		virtual uint fill_planes(void);
+		virtual void copy_planes(double4* planes);
 
 		/* moving boundary and gravity callbacks */
 		virtual float3 g_callback(const float t) DEPRECATED;
@@ -444,9 +455,11 @@ RESTORE_WARNINGS
 								const float3&, const KinematicData &, KinematicData &,
 								double3&, EulerParameters&);
 
-		void bodies_timestep(const float3 *, const float3 *, const int,
-							const double, const double, float3 * &, float3 * &,
-							float * &, float3 * &, float3 * &);
+		void bodies_timestep(const float3 *forces, const float3 *torques, const int step,
+							const double dt, const double t,
+							int3 * & cgGridPos, float3 * & cgPos,
+							float3 * & trans, float * & steprot,
+							float3 * & linearvel, float3 * & angularvel);
 
 		/*void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
 			const float *linvel, const float *angvel);*/

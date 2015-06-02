@@ -32,44 +32,69 @@
 
 OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 {
-	SETUP_FRAMEWORK(
-		//viscosity<ARTVISC>,
-		viscosity<KINEMATICVISC>,
-		periodicity<PERIODIC_X>
-	);
+	use_side_walls = get_option("sidewalls", true);
+
+	if (use_side_walls) {
+		SETUP_FRAMEWORK(
+			//viscosity<ARTVISC>,
+			viscosity<KINEMATICVISC>,
+			boundary<DYN_BOUNDARY>,
+			periodicity<PERIODIC_X>);
+	} else {
+		SETUP_FRAMEWORK(
+			//viscosity<ARTVISC>,
+			viscosity<KINEMATICVISC>,
+			boundary<DYN_BOUNDARY>,
+			periodicity<PERIODIC_XY>);
+	}
 
 	// SPH parameters
-	set_deltap(0.05f);
+	set_deltap(0.02f);
 	m_simparams->dt = 0.00004f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 10;
 	m_simparams->tend = 20;
 
+	H = 0.5; // water level
+
+	if (m_simparams->boundarytype == DYN_BOUNDARY) {
+		dyn_layers = ceil(m_simparams->influenceRadius/m_deltap) + 1;
+		// no extra offset in the X direction, since we have periodicity there
+		// no extra offset in the Y direction either if we do NOT have side walls
+		dyn_offset = dyn_layers*make_double3(0,
+			use_side_walls ? m_deltap : 0,
+			m_deltap);
+	} else {
+		dyn_layers = 0;
+		dyn_offset = make_double3(0.0);
+	}
+
 	// Size and origin of the simulation domain
 	a = 1.0;
-	h = 0.7;
-	H = 0.5;
+	h = H*1.4;
+	l = 15*m_simparams->influenceRadius;
 
-	m_gridsize.x = 15;
-	l = m_gridsize.x*m_simparams->kernelradius*m_simparams->slength;
-	m_size = make_double3(l, a, h);
-	m_origin = make_double3(0.0, 0.0, 0.0);
+	m_size = make_double3(l, a, h) + 2*dyn_offset;
+	m_origin = make_double3(0.0, 0.0, 0.0) - dyn_offset;
 
 	// Physical parameters
-	m_physparams->gravity = make_float3(9.81f*sin(3.14159/40.0), 0.0, -9.81f*cos(3.14159/40.0));
-	float g = length(m_physparams->gravity);
+	const double angle = 4.5; // angle in degrees
+	const float g = 9.81f;
+	m_physparams->gravity = make_float3(g*sin(M_PI*angle/180), 0.0, -g*cos(M_PI*angle/180));
 
-	add_fluid(2650.0f, 2.0f, 20.f);
+	add_fluid(2650.0f);
+	set_equation_of_state(0,  2.0f, 20.f);
+	set_dynamic_visc(0, 110.f);
+
 	m_physparams->dcoeff = 5.0f*g*H;
 
 	m_physparams->r0 = m_deltap;
-	set_dynamic_visc(0, 110.f);
 
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 0.1);
+	add_writer(VTKWRITER, 0.5);
 
 	// Name of problem used for directory creation
 	m_name = "OpenChannel";
@@ -91,24 +116,58 @@ void OpenChannel::release_memory(void)
 
 int OpenChannel::fill_parts()
 {
-	float r0 = m_physparams->r0;
+	const float r0 = m_physparams->r0;
+	// gap due to periodicity
+	const double3 periodicity_gap = make_double3(m_deltap/2,
+		use_side_walls ? 0 : m_deltap/2, 0);
 
-	rect1 = Rect(Point(m_deltap/2.0, 0, 0), Vector(l - m_deltap, 0, 0), Vector(0, a, 0));
-	rect2 = Rect(Point(m_deltap/2., 0, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
-	rect3 = Rect(Point(m_deltap/2., a, r0), Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
+	experiment_box = Cube(m_origin, l, a, h);
 
-	experiment_box = Cube(Point(0, 0, 0), l, a, h + r0);
-	Cube fluid = Cube(Point(m_deltap/2.0, r0, r0), l - m_deltap, a - 2*r0, H - r0);
+	// bottom: it must cover the whole bottom floor, including under the walls,
+	// hence it must not be shifted by dyn_offset in the y direction. In the
+	// Y-periodic case (no side walls), the Y length must be decreased by
+	// a deltap to account for periodicity (start at deltap/2, end deltap/2 before the end)
+	rect1 = Rect(m_origin + make_double3(dyn_offset.x, 0, dyn_offset.z) + periodicity_gap,
+		Vector(0, m_size.y - (use_side_walls ? 0 : m_deltap), 0),
+		Vector(m_size.x - m_deltap, 0, 0));
+
+	if (use_side_walls) {
+		// side walls: shifted by dyn_offset, and with opposite orientation so that
+		// they "fill in" towards the outside
+		rect2 = Rect(m_origin + dyn_offset + periodicity_gap + make_double3(0, 0, r0),
+			Vector(l - m_deltap, 0, 0), Vector(0, 0, h - r0));
+		rect3 = Rect(m_origin + dyn_offset + periodicity_gap + make_double3(0, a, r0),
+			Vector(0, 0, h - r0), Vector(l - m_deltap, 0, 0));
+	}
+
+	Cube fluid = use_side_walls ?
+		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, r0, r0),
+		l - m_deltap, a - 2*r0, H - r0) :
+		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, 0, r0),
+		l - m_deltap, a - m_deltap, H - r0) ;
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
 
 	rect1.SetPartMass(r0, m_physparams->rho0[0]);
-	rect1.Fill(boundary_parts, r0, true);
-	rect2.SetPartMass(r0, m_physparams->rho0[0]);
-	rect2.Fill(boundary_parts, r0, true);
-	rect3.SetPartMass(r0, m_physparams->rho0[0]);
-	rect3.Fill(boundary_parts, r0, true);
+	if (use_side_walls) {
+		rect2.SetPartMass(r0, m_physparams->rho0[0]);
+		rect3.SetPartMass(r0, m_physparams->rho0[0]);
+	}
+
+	if (m_simparams->boundarytype == DYN_BOUNDARY) {
+		rect1.FillIn(boundary_parts, m_deltap, dyn_layers);
+		if (use_side_walls) {
+			rect2.FillIn(boundary_parts, m_deltap, dyn_layers);
+			rect3.FillIn(boundary_parts, m_deltap, dyn_layers);
+		}
+	} else {
+		rect1.Fill(boundary_parts, r0, true);
+		if (use_side_walls) {
+			rect2.Fill(boundary_parts, r0, true);
+			rect3.Fill(boundary_parts, r0, true);
+		}
+	}
 
 	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid.Fill(parts, m_deltap, true);

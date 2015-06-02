@@ -49,7 +49,7 @@ class Bubble: public Problem {
 		int fill_parts(void);
 		uint fill_planes(void);
 		void draw_boundary(float);
-		void copy_planes(float4 *, float *);
+		void copy_planes(double4*);
 		void copy_to_array(BufferList &);
 
 		void release_memory(void);

@@ -376,6 +376,13 @@ CommonWriter::write_options(ostream &out)
 	out << " GPUDirect " << ED[OP->gpudirect] << endl;
 	out << " striping " << ED[OP->striping] << endl;
 	out << " async network transfers " << ED[OP->asyncNetworkTransfers] << endl;
+
+	out << " Other options:" << endl;
+	OptionMap::const_iterator opt(OP->begin());
+	while (opt != OP->end()) {
+		out << "  '" << opt->first << "' = '" << opt->second << "'" << endl;
+		++opt;
+	}
 }
 
 void

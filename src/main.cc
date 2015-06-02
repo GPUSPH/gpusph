@@ -196,7 +196,11 @@ int parse_options(int argc, char **argv, GlobalData *gdata)
 			print_usage();
 			return 0;
 		} else if (!strncmp(arg, "--", 2)) {
-			cerr << "Skipping unsupported option " << arg << endl;
+			// TODO bool options would need to be treated specially,
+			// currently they require a following 1 or 0
+			_clOptions->set(arg+2, *argv);
+			argv++;
+			argc--;
 		} else {
 			cerr << "Fatal: Unknown option: " << arg << endl;
 			return -1;

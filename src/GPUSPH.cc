@@ -25,6 +25,10 @@
 
 #include <float.h> // FLT_EPSILON
 
+#include <unistd.h> // getpid()
+#include <sys/mman.h> // shm_open()/shm_unlink()
+#include <fcntl.h> // O_* macros when opening files
+
 #define GPUSPH_MAIN
 #include "particledefine.h"
 #undef GPUSPH_MAIN
@@ -63,15 +67,49 @@ GPUSPH::GPUSPH() {
 	clOptions = NULL;
 	gdata = NULL;
 	problem = NULL;
+
 	initialized = false;
 	m_peakParticleSpeed = 0.0;
 	m_peakParticleSpeedTime = 0.0;
+
+	openInfoStream();
 }
 
 GPUSPH::~GPUSPH() {
+	closeInfoStream();
 	// it would be useful to have a "fallback" deallocation but we have to check
 	// that main did not do that already
 	if (initialized) finalize();
+}
+
+void GPUSPH::openInfoStream() {
+	stringstream ss;
+	ss << "GPUSPH-" << getpid();
+	m_info_stream_name = ss.str();
+	m_info_stream = NULL;
+	int ret = shm_open(m_info_stream_name.c_str(), O_RDWR | O_CREAT, S_IRWXU);
+	if (ret < 0) {
+		cerr << "WARNING: unable to open info stream " << m_info_stream_name << endl;
+		return;
+	}
+	m_info_stream = fdopen(ret, "w");
+	if (!m_info_stream) {
+		cerr << "WARNING: unable to fdopen info stream " << m_info_stream_name << endl;
+		close(ret);
+		shm_unlink(m_info_stream_name.c_str());
+	}
+	cout << "Info stream: " << m_info_stream_name << endl;
+	fputs("Initializing ...\n", m_info_stream);
+	fflush(m_info_stream);
+	fseek(m_info_stream, 0, SEEK_SET);
+}
+
+void GPUSPH::closeInfoStream() {
+	if (m_info_stream) {
+		shm_unlink(m_info_stream_name.c_str());
+		fclose(m_info_stream);
+		m_info_stream = NULL;
+	}
 }
 
 bool GPUSPH::initialize(GlobalData *_gdata) {
@@ -202,9 +240,32 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		gdata->addSeparators(gdata->allocatedParticles).c_str(),
 		gdata->addSeparators(gdata->totParticles).c_str() );
 
-	// copy planes from the problem to the shared array, if there are any
-	if (gdata->numPlanes)
-		problem->copy_planes(gdata->s_hPlanes, gdata->s_hPlanesDiv);
+	// copy planes from the problem to the shared array, if there are any,
+	// and convert them into the form requird for homogeneous accuracy
+	if (gdata->numPlanes) {
+		problem->copy_planes(gdata->s_hPlanes);
+
+		/* domain centerpoint, used to find the plane point below */
+		const double3 midPoint = problem->get_worldorigin() + problem->get_worldsize()/2;
+		for (uint i = 0; i < gdata->numPlanes; ++i) {
+			const double4 &p = gdata->s_hPlanes[i];
+			double norm = length3(p);
+			const double3 normal = as_double3(p)/norm;
+			gdata->s_hPlaneNormal[i] = make_float3(normal);
+
+			/* For the plane point, we pick the one closest to the center of the domain
+			 * TODO find a better logic ? */
+
+			/* note that to compute the distance we dot with the normal, and then
+			 * add p.w/norm, since p.w is still not normalized */
+			const double midDist = dot(midPoint, normal) + p.w/norm;
+			double3 planePoint = midPoint - midDist*normal;
+
+			problem->calc_grid_and_local_pos(planePoint,
+				gdata->s_hPlanePointGridPos + i,
+				gdata->s_hPlanePointLocalPos + i);
+		}
+	}
 
 	/* Now we either copy particle data from the Problem to the GPUSPH buffers,
 	 * or, if it was requested, we load buffers from a HotStart file
@@ -425,6 +486,7 @@ bool GPUSPH::runSimulation() {
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
 	while (gdata->keep_going) {
+		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
 
@@ -837,8 +899,9 @@ void GPUSPH::move_bodies(const uint step)
 		}
 
 		// Let the problem compute the new moving bodies data
-		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t, gdata->s_hRbGravityCenters,
-				gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
+		problem->bodies_timestep(gdata->s_hRbAppliedForce, gdata->s_hRbAppliedTorque, step, gdata->dt, gdata->t,
+			gdata->s_hRbCgGridPos, gdata->s_hRbCgPos,
+			gdata->s_hRbTranslations, gdata->s_hRbRotationMatrices, gdata->s_hRbLinearVelocities, gdata->s_hRbAngularVelocities);
 
 		if (step == 2)
 			problem->post_timestep_callback(gdata->t);
@@ -923,23 +986,32 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 			printf("FATAL: unsupported number of planes (%u > %u)\n", gdata->numPlanes, MAX_PLANES);
 			exit(1);
 		}
-		const size_t planeSize4 = sizeof(float4) * gdata->numPlanes;
-		const size_t planeSize  = sizeof(float) * gdata->numPlanes;
+		const size_t planeSize4 = sizeof(double4) * gdata->numPlanes;
+		const size_t planeSize3 = sizeof(float3) * gdata->numPlanes; // same as for int3
 
-		gdata->s_hPlanes = new float4[gdata->numPlanes];
+		gdata->s_hPlanes = new double4[gdata->numPlanes];
 		memset(gdata->s_hPlanes, 0, planeSize4);
 		totCPUbytes += planeSize4;
 
-		gdata->s_hPlanesDiv = new float[gdata->numPlanes];
-		memset(gdata->s_hPlanesDiv, 0, planeSize);
-		totCPUbytes += planeSize;
+		gdata->s_hPlaneNormal = new float3[gdata->numPlanes];
+		memset(gdata->s_hPlaneNormal, 0, planeSize3);
+
+		gdata->s_hPlanePointGridPos = new int3[gdata->numPlanes];
+		memset(gdata->s_hPlanePointGridPos, 0, planeSize3);
+
+		gdata->s_hPlanePointLocalPos = new float3[gdata->numPlanes];
+		memset(gdata->s_hPlanePointLocalPos, 0, planeSize3);
+
+		totCPUbytes += planeSize4 + 3*planeSize3;
 	}
 
 	const size_t numbodies = gdata->problem->get_simparams()->numbodies;
 	std::cout << "Numbodies : " << numbodies << "\n";
 	if (numbodies > 0) {
-		gdata->s_hRbGravityCenters = new float3 [numbodies];
-		fill_n(gdata->s_hRbGravityCenters, numbodies, make_float3(0.0f));
+		gdata->s_hRbCgGridPos = new int3 [numbodies];
+		fill_n(gdata->s_hRbCgGridPos, numbodies, make_int3(0));
+		gdata->s_hRbCgPos = new float3 [numbodies];
+		fill_n(gdata->s_hRbCgPos, numbodies, make_float3(0.0f));
 		gdata->s_hRbTranslations = new float3 [numbodies];
 		fill_n(gdata->s_hRbTranslations, numbodies, make_float3(0.0f));
 		gdata->s_hRbLinearVelocities = new float3 [numbodies];
@@ -948,7 +1020,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		fill_n(gdata->s_hRbAngularVelocities, numbodies, make_float3(0.0f));
 		gdata->s_hRbRotationMatrices = new float [numbodies*9];
 		fill_n(gdata->s_hRbRotationMatrices, 9*numbodies, 0.0f);
-		totCPUbytes += numbodies*21*sizeof(float);
+		totCPUbytes += numbodies*(sizeof(int3) + 4*sizeof(float3) + 9*sizeof(float));
 	}
 	const size_t numforcesbodies = gdata->problem->get_simparams()->numforcesbodies;
 	std::cout << "Numforcesbodies : " << numforcesbodies << "\n";
@@ -1031,7 +1103,8 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 
 	// Deallocating rigid bodies related arrays
 	if (gdata->problem->get_simparams()->numbodies > 0) {
-		delete [] gdata->s_hRbGravityCenters;
+		delete [] gdata->s_hRbCgGridPos;
+		delete [] gdata->s_hRbCgPos;
 		delete [] gdata->s_hRbTranslations;
 		delete [] gdata->s_hRbLinearVelocities;
 		delete [] gdata->s_hRbAngularVelocities;
@@ -1053,7 +1126,9 @@ void GPUSPH::deallocateGlobalHostBuffers() {
 	// planes
 	if (gdata->numPlanes > 0) {
 		delete[] gdata->s_hPlanes;
-		delete[] gdata->s_hPlanesDiv;
+		delete[] gdata->s_hPlaneNormal;
+		delete[] gdata->s_hPlanePointGridPos;
+		delete[] gdata->s_hPlanePointLocalPos;
 	}
 
 	// multi-GPU specific arrays
@@ -1527,10 +1602,10 @@ void GPUSPH::doCallBacks()
 		gdata->s_varGravity = pb->g_callback(gdata->t);
 }
 
-void GPUSPH::printStatus()
+void GPUSPH::printStatus(FILE *out)
 {
 //#define ti timingInfo
-	printf(	"Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
+	fprintf(out, "Simulation time t=%es, iteration=%s, dt=%es, %s parts (%.2g, cum. %.2g MIPPS), maxneibs %u\n",
 			//"mean %e neibs. in %es, %e neibs/s, max %u neibs\n"
 			//"mean neib list in %es\n"
 			//"mean integration in %es\n",
@@ -1543,7 +1618,10 @@ void GPUSPH::printStatus()
 			//ti.meanTimeNeibsList,
 			//ti.meanTimeEuler
 			);
-	fflush(stdout);
+	fflush(out);
+	// output to the info stream is always overwritten
+	if (out == m_info_stream)
+		fseek(out, 0, SEEK_SET);
 //#undef ti
 }
 

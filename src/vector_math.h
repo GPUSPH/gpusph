@@ -111,6 +111,12 @@ static __forceinline__ __host__ __device__ void operator*=(int2 &a, const int &s
 	a.x *= s; a.y *= s;
 }
 
+// show an int3 as an int2
+static __forceinline__ __host__ __device__ int2& as_int2(const int3 &v)
+{
+	return *(int2*)&v;
+}
+
 // float2 functions
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,6 +130,13 @@ static __forceinline__ __host__ __device__ float2 make_float2(const int2 &a)
 {
 	return make_float2(float(a.x), float(a.y));
 }
+
+// show an float3 as an float2
+static __forceinline__ __host__ __device__ float2& as_float2(const float3 &v)
+{
+	return *(float2*)&v;
+}
+
 
 // negate
 static __forceinline__ __host__ __device__ float2 operator-(const float2 &a)
@@ -758,6 +771,11 @@ static __forceinline__ __host__ __device__ double4 make_double4(double a)
 	return make_double4(a, a, a, a);
 }
 
+static __forceinline__ __host__ __device__ double4 make_double4(const float4& v)
+{
+	return make_double4(v.x, v.y, v.z, v.w);
+}
+
 // sum
 static __forceinline__ __host__ __device__ double4 operator+(const double4 &a, const double4 &b)
 {
@@ -817,11 +835,25 @@ static __forceinline__ __host__ __device__ double sqlength(const double4 &v)
 	return dot(v, v);
 }
 
+// length for double4 but act as if they are double3s
+static __forceinline__ __host__ __device__ float sqlength3(const double4 &v)
+{
+	return dot3(v, v);
+}
+
+
 // length
 static __forceinline__ __host__ __device__ double length(const double4 &v)
 {
 	return sqrtf(sqlength(v));
 }
+
+// length for double4 but act as if they are double3s
+static __forceinline__ __host__ __device__ float length3(const double4 &v)
+{
+	return sqrtf(sqlength3(v));
+}
+
 
 // float4 functions
 ////////////////////////////////////////////////////////////////////////////////

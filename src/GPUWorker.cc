@@ -1333,12 +1333,13 @@ void GPUWorker::uploadGravity()
 		forcesEngine->setgravity(gdata->s_varGravity);
 }
 
-// upload planes (called once until planes arae constant)
+// upload planes (called once while planes are constant)
 void GPUWorker::uploadPlanes()
 {
 	// check if planes > 0 (already checked before calling?)
 	if (gdata->numPlanes > 0)
-		forcesEngine->setplanes(gdata->numPlanes, gdata->s_hPlanesDiv, gdata->s_hPlanes);
+		forcesEngine->setplanes(gdata->numPlanes, gdata->s_hPlaneNormal,
+			gdata->s_hPlanePointGridPos, gdata->s_hPlanePointLocalPos);
 }
 
 
@@ -2658,13 +2659,13 @@ void GPUWorker::checkPartValById(const char* printID, const uint pid)
 
 void GPUWorker::uploadEulerBodiesCentersOfGravity()
 {
-	integrationEngine->setrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	integrationEngine->setrbcg(gdata->s_hRbCgGridPos, gdata->s_hRbCgPos, m_simparams->numbodies);
 }
 
 
 void GPUWorker::uploadForcesBodiesCentersOfGravity()
 {
-	forcesEngine->setrbcg(gdata->s_hRbGravityCenters, m_simparams->numbodies);
+	forcesEngine->setrbcg(gdata->s_hRbCgGridPos, gdata->s_hRbCgPos, m_simparams->numbodies);
 }
 
 

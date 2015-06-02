@@ -65,7 +65,7 @@ class WaveTank: public Problem {
 		~WaveTank(void);
 		int fill_parts(void);
 		uint fill_planes(void);
-		void copy_planes(float4*, float*);
+		void copy_planes(double4*);
 
 		void copy_to_array(BufferList &);
 

@@ -236,12 +236,22 @@ Problem::restore_ODE_body(const uint i, const float *gravity_center, const float
 }*/
 
 
+void
+Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos)
+{
+	int3 _gridPos = calc_grid_pos(globalPos);
+	*gridPos = _gridPos;
+	*localPos = make_float3(globalPos - m_origin -
+		(make_double3(_gridPos) + 0.5)*m_cellsize);
+}
 
 void
 Problem::get_bodies_cg(void)
 {
 	for (uint i = 0; i < m_simparams->numbodies; i++) {
-		gdata->s_hRbGravityCenters[i] = make_float3(m_bodies[i]->kdata.crot);
+		calc_grid_and_local_pos(m_bodies[i]->kdata.crot,
+			gdata->s_hRbCgGridPos + i,
+			gdata->s_hRbCgPos + i);
 	}
 }
 
@@ -324,7 +334,8 @@ Problem::moving_bodies_callback(const uint index, Object* object, const double t
 // output: cg, trans, steprot (can be input uninitialized)
 void
 Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int step,
-		const double dt, const double t, float3 * & cg, float3 * & trans, float * & steprot,
+		const double dt, const double t,
+		int3 * & cgGridPos, float3 * & cgPos, float3 * & trans, float * & steprot,
 		float3 * & linearvel, float3 * & angularvel)
 {
 	// Compute time step and time according to the integration scheme
@@ -421,8 +432,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 					mbdata->kdata, new_trans, dr);
 		}
 
+		calc_grid_and_local_pos(mbdata->kdata.crot, cgGridPos + i, cgPos + i);
 		trans[i] = make_float3(new_trans);
-		cg[i] = make_float3(mbdata->kdata.crot);
 		linearvel[i] = make_float3(mbdata->kdata.lvel);
 		angularvel[i] = make_float3(mbdata->kdata.avel);
 
@@ -437,7 +448,9 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		mbdata->object->ODEPrintInformation(false);
 		printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
 		printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
-		printf("   npos: %e\t%e\t%e\n", cg[i].x, cg[i].y, cg[i].z);
+		printf("    pos: %g\t%g\t%g\n", mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z);
+		printf("   gpos: %d\t%d\t%d\n", cgGridPos[i].x, cgGridPos[i].y, cgGridPos[i].z);
+		printf("   lpos: %e\t%e\t%e\n", cgPos[i].x, cgPos[i].y, cgPos[i].z);
 		printf("   trans:%e\t%e\t%e\n", trans[i].x, trans[i].y, trans[i].z);
 		printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
 				mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
@@ -461,11 +474,10 @@ Problem::fill_planes(void)
 
 // Copy planes for upload
 void
-Problem::copy_planes(float4*, float*)
+Problem::copy_planes(double4* planes)
 {
 	return;
 }
-
 
 void
 Problem::check_dt(void)

@@ -39,7 +39,8 @@ __constant__ float	d_epsxsph;
 __constant__ float3	d_maxlimit;
 __constant__ float3	d_minlimit;
 
-__constant__ float3	d_rbcg[MAX_BODIES];
+__constant__ int3	d_rbcgGridPos[MAX_BODIES]; //< cell of the center of gravity
+__constant__ float3	d_rbcgPos[MAX_BODIES]; //< in-cell coordinate of the center of gravity
 __constant__ float3	d_rbtrans[MAX_BODIES];
 __constant__ float3	d_rblinearvel[MAX_BODIES];
 __constant__ float3	d_rbangularvel[MAX_BODIES];

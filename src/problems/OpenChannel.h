@@ -33,12 +33,16 @@
 
 class OpenChannel: public Problem {
 	private:
+		bool		use_side_walls; // use sidewalls or not
 		Rect		rect1, rect2, rect3;
 		Cube		experiment_box;
 		PointVect	parts;
 		PointVect	boundary_parts;
-		float		a, h, l;  // experiment box dimension
-		float		H; // still water level
+		uint		dyn_layers;
+		double3		dyn_offset;
+		double		a, h, l;  // experiment box dimension
+		double		H; // still water level
+
 
 	public:
 		OpenChannel(GlobalData *);

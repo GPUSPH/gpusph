@@ -36,6 +36,11 @@
 
 #include "deprecation.h"
 
+class Problem;
+class XProblem;
+class GPUWorker;
+class GPUSPH;
+
 typedef struct PhysParams {
 	/*! Parameters for Cole's equation of state
 		\f[
@@ -136,23 +141,32 @@ IGNORE_WARNINGS(deprecated-declarations)
 	{};
 RESTORE_WARNINGS
 
+	// Problem, XProblem (but not their derivatives —luckily, friendship is not inherited)
+	// GPUWorker and GPUSPH should be the only ones
+	// that access the physparams manipulator methods
+	friend class Problem;
+	friend class XProblem;
+	friend class GPUWorker;
+	friend class GPUSPH;
+
 	size_t numFluids() const
 	{ return rho0.size(); }
 
+protected:
+
 	/*! Add a new fluid with given density, adjabatic index and sound speed at rest
 	  @param rho	at-rest density
-	  @param gamma	adjabatic index
-	  @param c0	sound speed at rest
-	  @return the 0-based index of the fluid
 	 */
-	size_t add_fluid(float rho, float gamma, float c0) {
+	size_t add_fluid(float rho) {
 		if (numFluids() == MAX_FLUID_TYPES)
 			throw std::runtime_error("too many fluids");
 		rho0.push_back(rho);
-		gammacoeff.push_back(gamma);
-		bcoeff.push_back(rho*c0*c0/gamma);
-		sscoeff.push_back(c0);
-		sspowercoeff.push_back((gamma-1)/2);
+
+		// Prime the equation of state arrays, but do not initialize them
+		gammacoeff.push_back(NAN);
+		bcoeff.push_back(NAN);
+		sscoeff.push_back(NAN);
+		sspowercoeff.push_back(NAN);
 
 		// Prime the viscosity coefficient arrays, but do not initialize them
 		kinematicvisc.push_back(NAN);
@@ -161,12 +175,36 @@ RESTORE_WARNINGS
 		return rho0.size() - 1;
 	}
 
+	/*! Set the equation of state of a given fluid, specifying the adjabatic
+	 *  index and speed of sound. A non-finite speed of sound implies
+	 *  that it should be autocomputed (currrently supported in XProblem only)
+	  @param fluid_idx	fluid index
+	  @param gamma	adjabatic index
+	  @param c0	sound speed at rest
+	  */
+	void set_equation_of_state(size_t fluid_idx, float gamma, float c0) {
+		if (fluid_idx >= numFluids())
+			throw std::runtime_error("trying to set viscosity of non-existing fluid");
+		gammacoeff[fluid_idx] = gamma;
+		bcoeff[fluid_idx] = rho0[fluid_idx]*c0*c0/gamma;
+		sscoeff[fluid_idx] = c0;
+		sspowercoeff[fluid_idx] = (gamma-1)/2;
+	}
+
+	/*! Set the kinematic viscosity of the given fluid
+	  @param fluid_idx	fluid index
+	  @param nu	kinematic viscosity
+	  */
 	void set_kinematic_visc(size_t fluid_idx, float nu) {
 		if (fluid_idx >= numFluids())
 			throw std::runtime_error("trying to set viscosity of non-existing fluid");
 		kinematicvisc[fluid_idx] = nu;
 	}
 
+	/*! Set the dynamic viscosity of the given fluid
+	  @param fluid_idx	fluid index
+	  @param mu	dynamic viscosity
+	  */
 	void set_dynamic_visc(size_t fluid_idx, float mu) {
 		set_kinematic_visc(fluid_idx, mu/rho0[fluid_idx]);
 	}
@@ -181,17 +219,16 @@ RESTORE_WARNINGS
 	  is called with consecutive indices
 	 */
 	void set_density(uint i, float rho, float gamma, float c0)
-	DEPRECATED_MSG("set_density() is deprecated, use add_fluid() instead")
+	DEPRECATED_MSG("set_density() is deprecated, use add_fluid() + set_equation_of_state() instead")
 	{
-		if (i == rho0.size())
-			add_fluid(rho, gamma, c0);
+		if (i == rho0.size()) {
+			add_fluid(rho);
+			set_equation_of_state(i, gamma, c0);
+		}
 		else if (i < rho0.size()) {
 			std::cerr << "changing properties of fluid " << i << std::endl;
 			rho0[i] = rho;
-			gammacoeff[i] = gamma;
-			bcoeff[i] = rho*c0*c0/gamma;
-			sscoeff[i] = c0;
-			sspowercoeff[i] = (gamma - 1)/2;
+			set_equation_of_state(i, gamma, c0);
 		} else {
 			std::cerr << "setting density for fluid index " << i << " > " << rho0.size() << std::endl;
 			throw std::runtime_error("fluid index is growing too fast");

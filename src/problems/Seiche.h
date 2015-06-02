@@ -54,7 +54,7 @@ class Seiche: public Problem {
 		int  fill_parts(void);
 		uint fill_planes(void);
 		void copy_to_array(BufferList &);
-		void copy_planes(float4*, float*);
+		void copy_planes(double4*);
 		float3 g_callback(const double);
 
 		void release_memory(void);

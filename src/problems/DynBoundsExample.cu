@@ -68,7 +68,8 @@ DynBoundsExample::DynBoundsExample(GlobalData *_gdata) : Problem(_gdata)
 
 	float maxvel = sqrt(g*H);
 
-	add_fluid(1, 7, 10*maxvel);
+	add_fluid(1);
+	set_equation_of_state(0,  7, 10*maxvel);
 	set_kinematic_visc(0, 120);
 
 	m_physparams->r0 = m_deltap/2;

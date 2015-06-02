@@ -219,10 +219,23 @@ struct GlobalData {
 	// offset used for ID cloning
 	uint	newIDsOffset;
 
-	// planes
+	/**! Planes are defined in the implicit form a x + b y + c z + d = 0,
+	 * where (a, b, c) = n is the normal to the plane (oriented towards the
+	 * computational domain.
+	 * On GPU, the (signed) distance between a particle and plane is computed as
+	 * n.(P - P0) where P0 is a point of the plane. Therefore, on GPU we need
+	 * three pieces of information for each plane: the normal (float3), the
+	 * grid position of P0 (int3) and the in-cell local position of P0 (float3).
+	 * This is also stored on CPU for convenience, and computed after copy_planes.
+	 */
+	// TODO planes should be vector<double4> and fill_planes should push back to
+	// it directly, or something like that. And there should be an ENABLE_PLANES
+	// simflag.
 	uint numPlanes;
-	float4	*s_hPlanes;
-	float	*s_hPlanesDiv;
+	double4	*s_hPlanes;
+	float3 *s_hPlaneNormal;
+	int3 *s_hPlanePointGridPos;
+	float3 *s_hPlanePointLocalPos;
 
 	// variable gravity
 	float3 s_varGravity;
@@ -276,7 +289,9 @@ struct GlobalData {
 
 
 	// gravity centers and rototranslations, which are computed by the ODE library
-	float3* s_hRbGravityCenters;
+	int3* s_hRbCgGridPos; // cell of the gravity center
+	float3* s_hRbCgPos; // in-cell position of the gravity center
+
 	float3* s_hRbTranslations;
 	float* s_hRbRotationMatrices;
 	float3* s_hRbLinearVelocities;
@@ -312,7 +327,9 @@ struct GlobalData {
 		s_dSegmentsStart(NULL),
 		numPlanes(0),
 		s_hPlanes(NULL),
-		s_hPlanesDiv(NULL),
+		s_hPlaneNormal(NULL),
+		s_hPlanePointGridPos(NULL),
+		s_hPlanePointLocalPos(NULL),
 		keep_going(true),
 		quit_request(false),
 		save_request(false),
@@ -337,7 +354,8 @@ struct GlobalData {
 		s_hRbTotalTorque(NULL),
 		s_hRbAppliedForce(NULL),
 		s_hRbAppliedTorque(NULL),
-		s_hRbGravityCenters(NULL),
+		s_hRbCgGridPos(NULL),
+		s_hRbCgPos(NULL),
 		s_hRbTranslations(NULL),
 		s_hRbRotationMatrices(NULL),
 		s_hRbLinearVelocities(NULL),

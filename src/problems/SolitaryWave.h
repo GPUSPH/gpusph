@@ -72,7 +72,7 @@ class SolitaryWave: public Problem {
 		~SolitaryWave(void);
 		int fill_parts(void);
 		uint fill_planes(void);
-		void copy_planes(float4*, float*);
+		void copy_planes(double4*);
 
 		void copy_to_array(BufferList &);
 		void moving_bodies_callback(const uint, Object*, const double, const double, const float3&,

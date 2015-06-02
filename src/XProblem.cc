@@ -208,19 +208,44 @@ bool XProblem::initialize()
 		printf("Max particle speed not set, autocomputed from max fall: %g\n", m_maxParticleSpeed);
 	}
 
-	if (m_physparams->numFluids() == 0) {
-		const float default_rho = 1000.0;
-		const float default_gamma = 7;
-		// numerical speed of sound
-		const float default_c0 = 10.0 * m_maxParticleSpeed;
+	const float default_rho = 1000.0;
+	const float default_kinematic_visc = 1.0e-6f;
+	const float default_gamma = 7;
+	// numerical speed of sound TODO multifluid
+	const float default_c0 = 10.0 * m_maxParticleSpeed;
 
-		m_physparams->add_fluid(default_rho, default_gamma, default_c0);
-		printf("No fluids specified, assuming water: rho: %g, gamma %g, c0 %g\n",
-			default_rho, default_gamma, default_c0);
+	if (m_physparams->numFluids() == 0) {
+		m_physparams->add_fluid(default_rho);
+		printf("No fluids specified, assuming water (rho: %g\n",
+			default_rho);
 	}
 
 	for (size_t fluid = 0 ; fluid < m_physparams->numFluids(); ++fluid) {
-		const float default_kinematic_visc = 1.0e-6f;
+		const bool must_set_gamma = isnan(m_physparams->gammacoeff[fluid]);
+		const bool must_set_c0 = isnan(m_physparams->sscoeff[fluid]);
+
+		// tell the user what we're going to do
+		if (must_set_gamma && must_set_c0) {
+			printf("EOS for fluid %zu not specified, assuming water (gamma: %g, c0: %g)\n",
+				fluid, default_gamma, default_c0);
+		} else if (must_set_c0) {
+			printf("Speed of sound for fluid %zu auto-computed as c0 = %g\n",
+				fluid, default_c0);
+		} else if (must_set_gamma) {
+			// we consider this an anomalous situation, since gamma should always
+			// be specified if c0 was, hence stderr
+			fprintf(stderr, "Incomplete EOS for fluid %zu, assuming water (gamma: %g)\n",
+				fluid, default_gamma);
+		}
+
+		// set the EOS if needed
+		if (must_set_gamma || must_set_c0)
+			m_physparams->set_equation_of_state(
+				fluid,
+				must_set_gamma ? default_gamma : m_physparams->gammacoeff[fluid],
+				must_set_c0 ? default_c0 : m_physparams->sscoeff[fluid]);
+
+		// set the viscosity if needed
 		if (isnan(m_physparams->kinematicvisc[fluid])) {
 			printf("Viscosity for fluid %zu not specified, assuming water (nu = %g)\n",
 				fluid, default_kinematic_visc);
@@ -1175,7 +1200,7 @@ uint XProblem::fill_planes()
 	return m_numPlanes;
 }
 
-void XProblem::copy_planes(float4 *planes, float *planediv)
+void XProblem::copy_planes(double4 *planes)
 {
 	if (m_numPlanes == 0) return;
 	// look for planes
@@ -1191,8 +1216,7 @@ void XProblem::copy_planes(float4 *planes, float *planediv)
 
 		Plane *plane = (Plane*)(m_geometries[gid]->ptr);
 
-		planes[currPlaneIdx] = make_float4( plane->getA(), plane->getB(), plane->getC(), plane->getD() );
-		planediv[currPlaneIdx] = plane->getNorm();
+		planes[currPlaneIdx] = make_double4( plane->getA(), plane->getB(), plane->getC(), plane->getD() );
 
 		currPlaneIdx++;
 	}

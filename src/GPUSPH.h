@@ -26,6 +26,8 @@
 #ifndef GPUSPH_H_
 #define GPUSPH_H_
 
+#include <cstdio>
+
 #include "Options.h"
 #include "GlobalData.h"
 #include "Problem.h"
@@ -51,6 +53,11 @@ private:
 	IPPSCounter *m_intervalPerformanceCounter;
 	IPPSCounter *m_multiNodePerformanceCounter; // only used if MULTI_NODE
 
+	// Information stream where the current status
+	// is output
+	string m_info_stream_name; // name of the stream
+	FILE *m_info_stream; // file handle
+
 	// aux arrays for rollCallParticles()
 	bool *m_rcBitmap;
 	bool *m_rcNotified;
@@ -68,6 +75,10 @@ private:
 	GPUSPH();
 	GPUSPH(GPUSPH const&); // NOT implemented
 	void operator=(GPUSPH const&); // avoid the (unlikely) case of self-assignement
+
+	// open/close/write the info stream
+	void openInfoStream();
+	void closeInfoStream();
 
 	// (de)allocation of shared host buffers
 	size_t allocateGlobalHostBuffers();
@@ -110,7 +121,7 @@ private:
 	void saBoundaryConditions(flag_t cFlag);
 
 	// print information about the status of the simulation
-	void printStatus();
+	void printStatus(FILE *out = stdout);
 
 	// print information about the status of the simulation
 	void printParticleDistribution();

@@ -81,17 +81,20 @@ Bubble::Bubble(GlobalData *_gdata) : Problem(_gdata),
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
 	float g = length(m_physparams->gravity);
 
-	float maxvel = sqrt(g*H);
-	float rho0 = 1;
-	float rho1 = 1000;
-
-	size_t air = add_fluid(rho0, 1.4, 198*maxvel);
-	size_t water = add_fluid(rho1, 7.0f, 14*maxvel);
-
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0f*g*H;
 
 	m_physparams->r0 = m_deltap;
+
+	float maxvel = sqrt(g*H);
+	float rho0 = 1;
+	float rho1 = 1000;
+
+	size_t air = add_fluid(rho0);
+	size_t water = add_fluid(rho1);
+
+	set_equation_of_state(air,  1.4, 198*maxvel);
+	set_equation_of_state(water,  7.0f, 14*maxvel);
 
 	set_kinematic_visc(air, 4.5e-3f);
 	set_kinematic_visc(water, 3.5e-5f);
@@ -163,32 +166,26 @@ uint Bubble::fill_planes()
 #endif
 }
 
-void Bubble::copy_planes(float4 *planes, float *planediv)
+void Bubble::copy_planes(double4 *planes)
 {
 	uint pnum = 0;
 	// z = m_origin.z
-	planes[pnum] = make_float4(0, 0, 1.0, -m_origin.z);
-	planediv[pnum] = 1.0;
+	planes[pnum] = make_double4(0, 0, 1.0, -m_origin.z);
 	++pnum;
 	// z = m_origin.z+lz
-	planes[pnum] = make_float4(0, 0, -1.0, m_origin.z+lz);
-	planediv[pnum] = 1.0;
+	planes[pnum] = make_double4(0, 0, -1.0, m_origin.z+lz);
 	++pnum;
 	// y = m_origin.y
-	planes[pnum] = make_float4(0, 1.0, 0, -m_origin.y);
-	planediv[pnum] = 1.0;
+	planes[pnum] = make_double4(0, 1.0, 0, -m_origin.y);
 	++pnum;
 	// y = m_origin.y+ly
-	planes[pnum] = make_float4(0, -1.0, 0, m_origin.y+ly);
-	planediv[pnum] = 1.0;
+	planes[pnum] = make_double4(0, -1.0, 0, m_origin.y+ly);
 	++pnum;
 	// x = m_origin.x
-	planes[pnum] = make_float4(1.0, 0, 0, -m_origin.x);
-	planediv[pnum] = 1.0;
+	planes[pnum] = make_double4(1.0, 0, 0, -m_origin.x);
 	++pnum;
 	// x = m_origin.x+lx
-	planes[pnum] = make_float4(-1.0, 0, 0, m_origin.x+lx);
-	planediv[pnum] = 1.0;
+	planes[pnum] = make_double4(-1.0, 0, 0, m_origin.x+lx);
 	++pnum;
 }
 

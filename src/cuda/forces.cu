@@ -424,10 +424,11 @@ getconstants(PhysParams *physparams)
 }
 
 void
-setplanes(int numPlanes, const float *planesDiv, const float4 *planes)
+setplanes(int numPlanes, const float3 *planeNormal, const int3 *gridPos, const float3 *localPos)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planes, planes, numPlanes*sizeof(float4)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_plane_div, planesDiv, numPlanes*sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planeNormal, planeNormal, numPlanes*sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planePointGridPos, gridPos, numPlanes*sizeof(int3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_planePointLocalPos, localPos, numPlanes*sizeof(float3)));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_numplanes, &numPlanes, sizeof(uint)));
 }
 
@@ -438,9 +439,10 @@ setgravity(float3 const& gravity)
 }
 
 void
-setrbcg(const float3* cg, int numbodies)
+setrbcg(const int3* cgGridPos, const float3* cgPos, int numbodies)
 {
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcg, cg, numbodies*sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcgGridPos, cgGridPos, numbodies*sizeof(int3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_rbcgPos, cgPos, numbodies*sizeof(float3)));
 }
 
 void

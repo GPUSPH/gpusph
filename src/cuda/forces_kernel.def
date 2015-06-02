@@ -2045,13 +2045,11 @@ forcesDevice(
 			// for viscous fluids
 			float geom_coeff = 0.0f;
 
-			const float3 globalpos = d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize;
-
 			// Adding repulsive force computed from DEM
 			if (simflags & ENABLE_DEM) {
 				switch (boundarytype) {
 				case LJ_BOUNDARY:
-					geom_coeff = DemLJForce(demTex, globalpos,
+					geom_coeff = DemLJForce(demTex, pdata.gridPos, as_float3(pdata.pos),
 						pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force);
 					break;
 				default:
@@ -2062,7 +2060,7 @@ forcesDevice(
 			// Adding repulsive force computed from geometric boundaries
 			if (d_numplanes) {
 				geom_coeff = max(geom_coeff,
-					GeometryForce(globalpos,
+					GeometryForce(pdata.gridPos, as_float3(pdata.pos),
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
@@ -2089,17 +2087,16 @@ forcesDevice(
 				as_float3(pout.force) *= pdata.pos.w;
 			params.rbforces[pdata.rbindex] = pout.force;
 
-			// TODO: don't go through absolute coordinates here, instead save the gridPos of the centre
-			//       of gravity and the local position of the cg. wrt. that gridPos.
-			params.rbtorques[pdata.rbindex] = make_float4(
-				cross(d_worldOrigin + as_float3(pdata.pos) + pdata.gridPos*d_cellSize + 0.5f*d_cellSize
-								- d_rbcg[object(info)], as_float3(pout.force)));
+			const float3 arm =
+				(pdata.gridPos - d_rbcgGridPos[object(info)])*d_cellSize +
+				(as_float3(pdata.pos) - d_rbcgPos[object(info)]);
 
-			write_forces::with(params, pdata, pout);
+			params.rbtorques[pdata.rbindex] = make_float4(cross(arm, as_float3(pout.force)));
+
 		} else {
-			write_forces::with(params, pdata, pout);
 			write_gamma<boundarytype>::with(params, pdata, pout, simflags & ENABLE_INLET_OUTLET);
 		}
+		write_forces::with(params, pdata, pout);
 
 		if (FLUID(pdata.info)) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
