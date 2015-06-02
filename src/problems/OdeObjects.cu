@@ -59,7 +59,8 @@ OdeObjects::OdeObjects(GlobalData *_gdata) : Problem(_gdata)
 	// Physical parameters
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	float g = length(m_physparams->gravity);
-	add_fluid(1000.0, 7.0, 10);
+	add_fluid(1000.0);
+	set_equation_of_state(0,  7.0, 10);
 
 	//set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0*g*H;

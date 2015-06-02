@@ -81,7 +81,8 @@ SolitaryWave::SolitaryWave(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->gravity = make_float3(0.0f, 0.0f, -9.81f);
 	float g = length(m_physparams->gravity);
 
-	add_fluid(1000.0f, 7.0f, 20.f);
+	add_fluid(1000.0f);
+	set_equation_of_state(0,  7.0f, 20.f);
 	float r0 = m_deltap;
 	m_physparams->r0 = r0;
 

@@ -87,7 +87,8 @@ TestTopo::TestTopo(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(0.0, 0.0, 0.0);
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
 
-	add_fluid(1000.0f, 7.0f, 20.f);
+	add_fluid(1000.0f);
+	set_equation_of_state(0,  7.0f, 20.f);
 
 	m_physparams->dcoeff = 50.47;
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5

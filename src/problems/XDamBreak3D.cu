@@ -49,7 +49,8 @@ XDamBreak3D::XDamBreak3D(GlobalData *_gdata) : XProblem(_gdata)
 	float g = length(m_physparams->gravity);
 	double H = 3;
 	m_physparams->dcoeff = 5.0f*g*H;
-	add_fluid(1000.0, 7.0f, 20.0f);
+	add_fluid(1000.0);
+	set_equation_of_state(0,  7.0f, 20.0f);
 	//set_kinematic_visc(0, 1.0e-2f);
 
 	// *** Initialization of minimal simulation parameters

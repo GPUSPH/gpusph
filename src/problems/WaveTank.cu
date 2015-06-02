@@ -90,7 +90,8 @@ WaveTank::WaveTank(GlobalData *_gdata) : Problem(_gdata)
 	float r0 = m_deltap;
 	m_physparams->r0 = r0;
 
-	add_fluid( 1000.0f, 7.0f, 20.f);
+	add_fluid( 1000.0f);
+	set_equation_of_state(0,  7.0f, 20.f);
 	set_kinematic_visc(0,1.0e-6);
 
 	m_physparams->artvisccoeff =  0.2;

@@ -83,7 +83,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	setWaterLevel(0.5);
 	setMaxParticleSpeed(7.0);
 
-	add_fluid(1000.0, 7.0f, 70.0f);
+	add_fluid(1000.0);
+	set_equation_of_state(0,  7.0f, 70.0f);
 	set_kinematic_visc(0, 1.0e-2f);
 
 	// add "universe box" of planes

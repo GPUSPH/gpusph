@@ -26,7 +26,8 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams->sfactor=1.3f;
 	set_deltap(0.015f);
 
-	add_fluid(1000.0f, 7.0f, 70.0f);
+	add_fluid(1000.0f);
+	set_equation_of_state(0,  7.0f, 70.0f);
 	set_kinematic_visc(0, 1.0e-2f);
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 

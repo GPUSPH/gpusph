@@ -82,7 +82,8 @@ OpenChannel::OpenChannel(GlobalData *_gdata) : Problem(_gdata)
 	const float g = 9.81f;
 	m_physparams->gravity = make_float3(g*sin(M_PI*angle/180), 0.0, -g*cos(M_PI*angle/180));
 
-	add_fluid(2650.0f, 2.0f, 20.f);
+	add_fluid(2650.0f);
+	set_equation_of_state(0,  2.0f, 20.f);
 	set_dynamic_visc(0, 110.f);
 
 	m_physparams->dcoeff = 5.0f*g*H;

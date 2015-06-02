@@ -98,7 +98,8 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	// purely for cosmetic reason, let's round the soundspeed to the next
 	// integer
 	const float c0 = ceil(10*maxvel);
-	add_fluid(1000.0, 7.0f, c0);
+	add_fluid(1000.0);
+	set_equation_of_state(0,  7.0f, c0);
 
 	m_physparams->dcoeff = 5.0f*g*H;
 
