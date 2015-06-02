@@ -76,7 +76,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
 		m_simparams->ferrariLengthScale = 1.0f;
-		add_fluid(1000.0f, 7.0f, 60.0f);
+		size_t water = add_fluid(1000.0);
+		set_equation_of_state(water,  7.0f, 60.f);
 		set_kinematic_visc(0, 1.0e-2f);
 		addPostProcess(CALC_PRIVATE);
 	//*************************************************************************************
