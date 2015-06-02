@@ -100,7 +100,7 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		addHDF5File(GT_FIXED_BOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent0.h5sph", NULL);
 	disableCollisions(container);
 
-	// inflow square
+	// Inflow square. Load it as GT_FIXED_BOUNDARY to disable it.
 	GeometryID inlet =
 		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
