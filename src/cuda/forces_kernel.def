@@ -1293,7 +1293,7 @@ struct compute_viscous_contrib<SA_BOUNDARY, sph_formulation> {
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 	{
-		if (ndata.ntype == PT_BOUNDARY) {
+		if (BOUNDARY(ndata.info)) {
 			// boundary term of the viscous part based on a boundary segment
 			if (!IO_BOUNDARY(ndata.info)) // TODO check if we should not do something else here
 				visc_boundary_part<visctype>::with(params, pdata, ndata, pout, nout);
