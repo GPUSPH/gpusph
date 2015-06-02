@@ -107,7 +107,8 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 
 	// floating box, with STL mesh for collision detection
 	GeometryID cube =
-		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent2.h5sph", "./sa/sa_box_sbgrid_2.stl");
+		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent2.h5sph",
+			"./meshes/CompleteSaExample_cube_coarse.stl");
 	// NOTE: m_physparams->rho0[0] is not available yet if set_density() was not explicitly called,
 	// so we use an absolute value instead (half water density)
 	setMassByDensity(cube, 500);
