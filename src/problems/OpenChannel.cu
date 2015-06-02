@@ -123,9 +123,12 @@ int OpenChannel::fill_parts()
 	experiment_box = Cube(m_origin, l, a, h);
 
 	// bottom: it must cover the whole bottom floor, including under the walls,
-	//  hence it must not be shifted by dyn_offset in the y direction
+	// hence it must not be shifted by dyn_offset in the y direction. In the
+	// Y-periodic case (no side walls), the Y length must be decreased by
+	// a deltap to account for periodicity (start at deltap/2, end deltap/2 before the end)
 	rect1 = Rect(m_origin + make_double3(dyn_offset.x, 0, dyn_offset.z) + periodicity_gap,
-		Vector(0, m_size.y, 0), Vector(m_size.x - m_deltap, 0, 0));
+		Vector(0, m_size.y - (use_side_walls ? 0 : m_deltap), 0),
+		Vector(m_size.x - m_deltap, 0, 0));
 
 	if (use_side_walls) {
 		// side walls: shifted by dyn_offset, and with opposite orientation so that
@@ -139,7 +142,7 @@ int OpenChannel::fill_parts()
 	Cube fluid = use_side_walls ?
 		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, r0, r0),
 		l - m_deltap, a - 2*r0, H - r0) :
-		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, r0, r0),
+		Cube(m_origin + dyn_offset + periodicity_gap + make_double3(0, 0, r0),
 		l - m_deltap, a - m_deltap, H - r0) ;
 
 	boundary_parts.reserve(2000);
