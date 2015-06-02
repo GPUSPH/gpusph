@@ -108,10 +108,14 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
-	// floating box, with STL mesh for collision detection
+	// Floating box, with STL mesh for collision detection
+	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =
 		addHDF5File(GT_FLOATING_BODY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent2.h5sph",
 			"./meshes/CompleteSaExample_cube_coarse.stl");
+
+	enableFeedback(cube);
+
 	// NOTE: m_physparams->rho0[0] is not available yet if set_density() was not explicitly called,
 	// so we use an absolute value instead (half water density)
 	setMassByDensity(cube, 500);
