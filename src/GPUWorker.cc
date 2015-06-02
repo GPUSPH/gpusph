@@ -2584,9 +2584,9 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 	// get pos(s)
 	// WARNING: it is a *local* pos! It is only useful if we are checking for relative distances of clearly wrong values
 	float4 rPos, wPos;
-	CUDA_SAFE_CALL(cudaMemcpy(&rPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentRead[BUFFER_POS]) + pindex,
+	CUDA_SAFE_CALL(cudaMemcpy(&rPos, bufread.getData<BUFFER_POS>() + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
-	CUDA_SAFE_CALL(cudaMemcpy(&wPos, m_dBuffers.getData<BUFFER_POS>(gdata->currentWrite[BUFFER_POS]) + pindex,
+	CUDA_SAFE_CALL(cudaMemcpy(&wPos, bufwrite.getData<BUFFER_POS>() + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
 	printf("XXd%u_%s: id %u (%s) idx %u IT %u, readPos (%g,%g,%g %g) writePos (%g,%g,%g %g)\n",
 		m_deviceIndex, printID, id(pinfo),
@@ -2598,7 +2598,7 @@ void GPUWorker::checkPartValByIndex(const char* printID, const uint pindex)
 	/*
 	// get force
 	float4 force;
-	CUDA_SAFE_CALL(cudaMemcpy(&force, m_dBuffers.getData<BUFFER_FORCES>() + pindex,
+	CUDA_SAFE_CALL(cudaMemcpy(&force, bufread.getData<BUFFER_FORCES>() + pindex,
 		sizeof(float4), cudaMemcpyDeviceToHost));
 	printf("XXd%u_%s: id %u (%s) idx %u IT %u, force (%g,%g,%g %g)\n",
 		m_deviceIndex, printID, id(pinfo),
