@@ -807,7 +807,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 {
 	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		return;
-	if (MOVING(pdata.info) && (ndata.ntype == PT_VERTEX ) ) { // TODO FIXME SA check MOVING or FLOATING?
+	if (VERTEX(ndata.info)) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
 		const float dotRGG = 0.5f*dot3(neib_gam+pdata.oldGGam, ndata.relPos);
 		const float ndist = sqlength3(ndata.relPos)/params.slength/params.slength; //fabs(dotRGG)/length3(0.5f*(neib_gam+pdata.oldGGam))/params.slength;
@@ -817,7 +817,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	}
 	// we do not compute gamma for OBJECT particles,
 	// and only BOUNDARY particles contribute to it
-	if (!MOVING(pdata.info) && ndata.ntype == PT_BOUNDARY) {
+	if (BOUNDARY(ndata.info)) {
 		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
 		const float sx = fmax(x*8.0f - 1.0f,0.0f);
 		// smootherstep function
