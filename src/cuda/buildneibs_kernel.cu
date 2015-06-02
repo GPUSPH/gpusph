@@ -197,11 +197,10 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 
 	const particleinfo info = particelInfo[index];
 
-	// we compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
-	// TODO FIXME SA
-	// Getting the old grid hash
+	// Get the old grid hash
 	uint gridHash = cellHashFromParticleHash( particleHash[index] );
 
+	// We compute new hash only for fluid and moving not fluid particles (object, moving boundaries)
 	if (FLUID(info) || MOVING(info)) {
 		// Getting new pos relative to old cell
 		float4 pos = posArray[index];
@@ -222,13 +221,11 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 		as_float3(pos) -= gridOffset*d_cellSize;
 
 		// If the particle would have flown out of the domain by more than a cell, disable it
-		// TODO: this seems very dangerous to me. We disable but it could be a indices to a
-		// serious problem ? (Alexis)
 		if (toofar)
 			disable_particle(pos);
 
-		// Mark with special hash if inactive
-		// TODO: to be fuse with previous if ? (Alexis).
+		// Mark with special hash if inactive.
+		// NOTE: it could have been marked as inactive outside this kernel.
 		if (INACTIVE(pos))
 			gridHash = CELL_HASH_MAX;
 
@@ -236,9 +233,9 @@ calcHashDevice(float4*			posArray,			// particle's positions (in, out)
 	}
 
 	// Mark the cell as inner/outer and/or edge by setting the high bits
-	// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set
-	// TODO: fix comment CELLTYPE_*_SHIFTED ?????? Make it understandable. (Alexis).
-	if (compactDeviceMap)
+	// the value in the compact device map is a CELLTYPE_*_SHIFTED, so 32 bit with high bits set.
+	// See multi_gpu_defines.h for the definition of these macros.
+	if (compactDeviceMap && gridHash != CELL_HASH_MAX)
 		gridHash |= compactDeviceMap[gridHash];
 
 	// Store grid hash, particle index and position relative to cell
