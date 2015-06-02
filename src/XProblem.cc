@@ -56,11 +56,11 @@ void XProblem::release_memory()
 	m_fluidParts.clear();
 	m_boundaryParts.clear();
 	// also cleanup object parts
-	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
-		if (m_geometries[i]->enabled)
-			m_geometries[i]->ptr->GetParts().clear();
-		if (m_geometries[i]->hdf5_reader)
-			delete m_geometries[i]->hdf5_reader;
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
+		if (m_geometries[g]->enabled)
+			m_geometries[g]->ptr->GetParts().clear();
+		if (m_geometries[g]->hdf5_reader)
+			delete m_geometries[g]->hdf5_reader;
 	}
 }
 
@@ -1014,20 +1014,20 @@ int XProblem::fill_parts()
 	uint bodies_parts_counter = 0;
 	uint hdf5file_parts_counter = 0;
 
-	for (size_t i = 0, num_geoms = m_geometries.size(); i < num_geoms; i++) {
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		PointVect* parts_vector = NULL;
 		double dx = 0.0;
 
 		// ignore deleted geometries
-		if (!m_geometries[i]->enabled) continue;
+		if (!m_geometries[g]->enabled) continue;
 
 		// set dx and recipient vector according to geometry type
-		if (m_geometries[i]->type == GT_FLUID) {
+		if (m_geometries[g]->type == GT_FLUID) {
 			parts_vector = &m_fluidParts;
 			dx = m_deltap;
 		} else
-		if (m_geometries[i]->type == GT_FLOATING_BODY) {
-			parts_vector = &(m_geometries[i]->ptr->GetParts());
+		if (m_geometries[g]->type == GT_FLOATING_BODY) {
+			parts_vector = &(m_geometries[g]->ptr->GetParts());
 			dx = m_physparams->r0;
 		} else {
 			parts_vector = &m_boundaryParts;
@@ -1039,42 +1039,42 @@ int XProblem::fill_parts()
 		const double DEFAULT_DENSITY = m_physparams->rho0[0];
 
 		// Set part mass, if not set already.
-		if (m_geometries[i]->type != GT_PLANE && !m_geometries[i]->particle_mass_was_set)
-			setParticleMassByDensity(i, DEFAULT_DENSITY);
+		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
+			setParticleMassByDensity(g, DEFAULT_DENSITY);
 
 		// Set object mass for floating objects, if not set already
-		if (m_geometries[i]->type == GT_FLOATING_BODY && !m_geometries[i]->mass_was_set)
-			setMassByDensity(i, DEFAULT_DENSITY);
+		if (m_geometries[g]->type == GT_FLOATING_BODY && !m_geometries[g]->mass_was_set)
+			setMassByDensity(g, DEFAULT_DENSITY);
 
 		// prepare for erase operations
-		bool del_fluid = (m_geometries[i]->erase_operation == ET_ERASE_FLUID);
-		bool del_bound = (m_geometries[i]->erase_operation == ET_ERASE_BOUNDARY);
-		if (m_geometries[i]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
+		bool del_fluid = (m_geometries[g]->erase_operation == ET_ERASE_FLUID);
+		bool del_bound = (m_geometries[g]->erase_operation == ET_ERASE_BOUNDARY);
+		if (m_geometries[g]->erase_operation == ET_ERASE_ALL) del_fluid = del_bound = true;
 
 		// erase operations with existent geometries
 		if (del_fluid) {
-			if (m_geometries[i]->intersection_type == IT_SUBTRACT)
-				m_geometries[i]->ptr->Unfill(m_fluidParts, dx);
+			if (m_geometries[g]->intersection_type == IT_SUBTRACT)
+				m_geometries[g]->ptr->Unfill(m_fluidParts, dx);
 			else
-				m_geometries[i]->ptr->Intersect(m_fluidParts, dx);
+				m_geometries[g]->ptr->Intersect(m_fluidParts, dx);
 		}
 		if (del_bound) {
-			if (m_geometries[i]->intersection_type == IT_SUBTRACT)
-				m_geometries[i]->ptr->Unfill(m_boundaryParts, dx);
+			if (m_geometries[g]->intersection_type == IT_SUBTRACT)
+				m_geometries[g]->ptr->Unfill(m_boundaryParts, dx);
 			else
-				m_geometries[i]->ptr->Intersect(m_boundaryParts, dx);
+				m_geometries[g]->ptr->Intersect(m_boundaryParts, dx);
 		}
 
 		// after making some space, fill
-		switch (m_geometries[i]->fill_type) {
+		switch (m_geometries[g]->fill_type) {
 			case FT_BORDER:
 				if (m_simparams->boundarytype == DYN_BOUNDARY)
-					m_geometries[i]->ptr->FillIn(*parts_vector, m_deltap, m_numDynBoundLayers);
+					m_geometries[g]->ptr->FillIn(*parts_vector, m_deltap, m_numDynBoundLayers);
 				else
-					m_geometries[i]->ptr->FillBorder(*parts_vector, m_deltap);
+					m_geometries[g]->ptr->FillBorder(*parts_vector, m_deltap);
 				break;
 			case FT_SOLID:
-				m_geometries[i]->ptr->Fill(*parts_vector, m_deltap);
+				m_geometries[g]->ptr->Fill(*parts_vector, m_deltap);
 				break;
 			case FT_SOLID_BORDERLESS:
 				printf("WARNING: borderless not yet implemented; not filling\n");
@@ -1084,13 +1084,13 @@ int XProblem::fill_parts()
 		}
 
 		// geometries loaded from HDF5file do not undergo filling, but should be counted as well
-		if (m_geometries[i]->has_hdf5_file)
-			hdf5file_parts_counter += m_geometries[i]->hdf5_reader->getNParts();
+		if (m_geometries[g]->has_hdf5_file)
+			hdf5file_parts_counter += m_geometries[g]->hdf5_reader->getNParts();
 
 #if 0
 		// dbg: fill horizontal XY planes with particles, only within the world domain
-		if (m_geometries[i]->type == GT_PLANE) {
-			Plane *plane = (Plane*)(m_geometries[i]->ptr);
+		if (m_geometries[g]->type == GT_PLANE) {
+			Plane *plane = (Plane*)(m_geometries[g]->ptr);
 			// only XY planes planes
 			if (! (plane->getA() == 0 && plane->getB() == 0) )
 				continue;
@@ -1115,79 +1115,79 @@ int XProblem::fill_parts()
 #endif
 
 		// ODE-related operations - only for floating bodies
-		if (m_geometries[i]->handle_dynamics || m_geometries[i]->handle_collisions) {
+		if (m_geometries[g]->handle_dynamics || m_geometries[g]->handle_collisions) {
 
 			// We should not call both ODEBodyCreate() and ODEGeomCreate(), since the former
 			// calls the latter in a dummy way if no ODE space is passed and this messes
 			// up the position for the actual later ODEGeomCreate() call.
 			// Thus, special call if both are active, individual calls otherwise.
-			if (m_geometries[i]->handle_dynamics && m_geometries[i]->handle_collisions)
+			if (m_geometries[g]->handle_dynamics && m_geometries[g]->handle_collisions)
 				// both body and geom
-				m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace);
+				m_geometries[g]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap, m_ODESpace);
 			else {
 				// only one is active
-				if (m_geometries[i]->handle_dynamics)
-					m_geometries[i]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
-				if (m_geometries[i]->handle_collisions)
-					m_geometries[i]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
+				if (m_geometries[g]->handle_dynamics)
+					m_geometries[g]->ptr->ODEBodyCreate(m_ODEWorld, m_deltap);
+				if (m_geometries[g]->handle_collisions)
+					m_geometries[g]->ptr->ODEGeomCreate(m_ODESpace, m_deltap);
 			}
 
 			// overwrite the computed inertia matrix if user set a custom one
-			if (m_geometries[i]->handle_dynamics) {
+			if (m_geometries[g]->handle_dynamics) {
 
 				// use custom inertia only if entirely finite (no partial overwrite)
-				if (isfinite(m_geometries[i]->custom_inertia[0]) &&
-					isfinite(m_geometries[i]->custom_inertia[1]) &&
-					isfinite(m_geometries[i]->custom_inertia[2]) ) {
+				if (isfinite(m_geometries[g]->custom_inertia[0]) &&
+					isfinite(m_geometries[g]->custom_inertia[1]) &&
+					isfinite(m_geometries[g]->custom_inertia[2]) ) {
 
 					// setting the main diagonal only...
-					m_geometries[i]->ptr->m_ODEMass.I[0] =  m_geometries[i]->custom_inertia[0];
-					m_geometries[i]->ptr->m_ODEMass.I[5] =  m_geometries[i]->custom_inertia[1];
-					m_geometries[i]->ptr->m_ODEMass.I[10] = m_geometries[i]->custom_inertia[2];
+					m_geometries[g]->ptr->m_ODEMass.I[0] =  m_geometries[g]->custom_inertia[0];
+					m_geometries[g]->ptr->m_ODEMass.I[5] =  m_geometries[g]->custom_inertia[1];
+					m_geometries[g]->ptr->m_ODEMass.I[10] = m_geometries[g]->custom_inertia[2];
 
 					// ...thus resetting the rest
-					m_geometries[i]->ptr->m_ODEMass.I[1] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[2] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[3] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[4] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[6] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[7] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[8] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[9] = 0.0;
-					m_geometries[i]->ptr->m_ODEMass.I[11] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[1] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[2] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[3] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[4] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[6] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[7] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[8] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[9] = 0.0;
+					m_geometries[g]->ptr->m_ODEMass.I[11] = 0.0;
 
 					// tell ODE about the change
-					dBodySetMass(m_geometries[i]->ptr->m_ODEBody, &(m_geometries[i]->ptr->m_ODEMass));
+					dBodySetMass(m_geometries[g]->ptr->m_ODEBody, &(m_geometries[g]->ptr->m_ODEMass));
 				} // if custom_inertia is not NAN
 
 			} // if body has dynamics
 
 			// dynamics-only stuff
-			if (m_geometries[i]->handle_dynamics) {
+			if (m_geometries[g]->handle_dynamics) {
 				// TODO FIXME MERGE
-				// add_ODE_body(m_geometries[i]->ptr);
-				bodies_parts_counter += m_geometries[i]->ptr->GetParts().size();
+				// add_ODE_body(m_geometries[g]->ptr);
+				bodies_parts_counter += m_geometries[g]->ptr->GetParts().size();
 			}
 
 			// update ODE rotation matrix according to possible rotation - excl. planes!
-			if (m_geometries[i]->type != GT_PLANE)
-				m_geometries[i]->ptr->updateODERotMatrix();
+			if (m_geometries[g]->type != GT_PLANE)
+				m_geometries[g]->ptr->updateODERotMatrix();
 
 			// recap object info such as bounding box, mass, inertia matrix, etc.
 			// NOTE: ODEPrintInformation() should be plane-safe anyway
-			if (m_geometries[i]->type != GT_PLANE)
-				m_geometries[i]->ptr->ODEPrintInformation();
+			if (m_geometries[g]->type != GT_PLANE)
+				m_geometries[g]->ptr->ODEPrintInformation();
 		} // if m_numFloatingBodies > 0
 
 		// tell Problem to add the proper type of body
-		if (m_geometries[i]->type == GT_FLOATING_BODY)
-			add_moving_body(m_geometries[i]->ptr, MB_ODE);
+		if (m_geometries[g]->type == GT_FLOATING_BODY)
+			add_moving_body(m_geometries[g]->ptr, MB_ODE);
 		else
-		if (m_geometries[i]->type == GT_MOVING_BODY) {
-			if (m_geometries[i]->measure_forces)
-				add_moving_body(m_geometries[i]->ptr, MB_FORCES_MOVING);
+		if (m_geometries[g]->type == GT_MOVING_BODY) {
+			if (m_geometries[g]->measure_forces)
+				add_moving_body(m_geometries[g]->ptr, MB_FORCES_MOVING);
 			else
-				add_moving_body(m_geometries[i]->ptr, MB_MOVING);
+				add_moving_body(m_geometries[g]->ptr, MB_MOVING);
 		}
 
 	} // iterate on geometries
