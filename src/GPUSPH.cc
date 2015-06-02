@@ -1731,9 +1731,8 @@ void GPUSPH::updateArrayIndices() {
 // perform post-filling operations
 void GPUSPH::prepareProblem()
 {
-	// uncomment infos if the particle type/id is needed
-	//particleinfo *infos = gdata->s_hBuffers.getData<BUFFER_INFO>();
-	hashKey *hashes = gdata->s_hBuffers.getData<BUFFER_HASH>();
+	const particleinfo *infos = gdata->s_hBuffers.getData<BUFFER_INFO>();
+	const hashKey *hashes = gdata->s_hBuffers.getData<BUFFER_HASH>();
 
 	//nGridCells
 
@@ -1744,13 +1743,17 @@ void GPUSPH::prepareProblem()
 	if (!MULTI_DEVICE) return;
 
 	for (uint p = 0; p < gdata->totParticles; p++) {
-		const uint cellHash = cellHashFromParticleHash( hashes[p] );
-		const uint3 cellCoords = gdata->calcGridPosFromCellHash( cellHash );
-		// NOTE: s_hPartsPerSliceAlong* are only allocated if MULTI_DEVICE holds.
-		// Change the loop accordingly if other operations are performed!
-		gdata->s_hPartsPerSliceAlongX[ cellCoords.x ]++;
-		gdata->s_hPartsPerSliceAlongY[ cellCoords.y ]++;
-		gdata->s_hPartsPerSliceAlongZ[ cellCoords.z ]++;
+		// For DYN bounds, take into account also boundary parts; for other boundary types,
+		// only cound fluid parts
+		if ( problem->get_simparams()->boundarytype == DYN_BOUNDARY || FLUID(infos[p])) {
+			const uint cellHash = cellHashFromParticleHash( hashes[p] );
+			const uint3 cellCoords = gdata->calcGridPosFromCellHash( cellHash );
+			// NOTE: s_hPartsPerSliceAlong* are only allocated if MULTI_DEVICE holds.
+			// Change the loop accordingly if other operations are performed!
+			gdata->s_hPartsPerSliceAlongX[ cellCoords.x ]++;
+			gdata->s_hPartsPerSliceAlongY[ cellCoords.y ]++;
+			gdata->s_hPartsPerSliceAlongZ[ cellCoords.z ]++;
+		}
 	}
 }
 
