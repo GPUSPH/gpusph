@@ -84,7 +84,11 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 	setMaxParticleSpeed(7.0);
 
 	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, 70.0f);
+	// explicitly set sspeed (not necessary since using setMaxParticleSpeed();
+	//set_equation_of_state(7.0f, 70.0f);
+	// also possible:
+	//set_equation_of_state(7.0f, NAN);
+	// to set the adjabatic exponent, but no the sound speed
 	set_kinematic_visc(0, 1.0e-2f);
 
 	// add "universe box" of planes
