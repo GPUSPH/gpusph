@@ -1513,8 +1513,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 			} // for every particle of body
 		} // if current geometry is a body and is not loaded from file
 
-		// floating-objects-related settings, regardless they were loaded from file or not
-		if (m_geometries[g]->type == GT_FLOATING_BODY) {
+		// settings related to objects for which we compute the forces, regardless they were loaded from file or not
+		if (m_geometries[g]->measure_forces) {
 
 			// TODO: when we will need segmented scan on moving objs as well, the update of
 			// s_hRbFirstIndex and s_hRbLastIndex should be moved
