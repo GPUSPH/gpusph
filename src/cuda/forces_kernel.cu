@@ -2877,10 +2877,10 @@ saIdentifyCornerVertices(
 		return;
 
 	// read particle data from sorted arrays
-	// kernel is only run for vertex particles which are associated to an object
+	// kernel is only run for vertex particles which are associated to an open boundary
 	particleinfo info = pinfo[index];
 	const uint obj = object(info);
-	if (!VERTEX(info) || !IO_BOUNDARY(info))
+	if (!(VERTEX(info) && IO_BOUNDARY(info)))
 		return;
 
 	float4 pos = oldPos[index];
@@ -2946,10 +2946,10 @@ saFindClosestVertex(
 		return;
 
 	// read particle data from sorted arrays
-	// kernel is only run for boundary particles which are associated to an object
+	// kernel is only run for boundary particles which are associated to an open boundary
 	particleinfo info = pinfo[index];
 	const uint obj = object(info);
-	if (!BOUNDARY(info) || !IO_BOUNDARY(info))
+	if (!(BOUNDARY(info) && IO_BOUNDARY(info)))
 		return;
 
 	const vertexinfo verts = vertices[index];
