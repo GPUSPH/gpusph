@@ -10,7 +10,6 @@
 //
 //		Keyword					Id	// Description
 //*******************************************************************************************************
-#define	StillWater				1	// Periodic stillwater (lacking file)
 #define	Spheric2				2	// Spheric2 dambreak with obstacle
 #define	Box						3	// Small dambreak in a box
 #define	BoxCorner				4	// Small dambreak in a box with a corner
@@ -24,7 +23,7 @@
 #define PeriodicWave			12	// Periodic wave with IO
 //*******************************************************************************************************
 // Chosse one of the problems above
-#define SPECIFIC_PROBLEM PeriodicWave
+#define SPECIFIC_PROBLEM BoxCorner
 
 class InputProblem: public Problem {
 	private:
