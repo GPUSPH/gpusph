@@ -765,7 +765,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflag
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
 		// when using KEPSVISC, or when outflow boundaries are present
-		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && (pdata.ptype == PT_VERTEX) && !pdata.computeGamma;
+		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && (VERTEX(pdata.info) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
@@ -805,7 +805,7 @@ template<KernelType kerneltype, typename FP, typename P, typename N, typename OP
 __device__ __forceinline__ void
 compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	if (!pdata.computeGamma && pdata.ptype == PT_VERTEX && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
+	if (!pdata.computeGamma && VERTEX(pdata.info) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info))
 		return;
 	if (VERTEX(ndata.info)) {
 		const float4 neib_gam = tex1Dfetch(gamTex, ndata.index);
@@ -821,7 +821,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 		const float x = fmin(dot3(ndata.belem, ndata.relPos)/params.slength, 0.25f);
 		const float sx = fmax(x*8.0f - 1.0f,0.0f);
 		// smootherstep function
-		const float smooth = pdata.ptype == PT_VERTEX ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
+		const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
 		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
 				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 				ndata.belem, pdata.oldGGam,
@@ -1525,7 +1525,7 @@ __device__ __forceinline__ void
 gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 {
 	// check whether we are close to a wall
-	if(pout.minlRas < 0.5f && pdata.ptype != PT_VERTEX){
+	if(pout.minlRas < 0.5f && !VERTEX(pdata.info)){
 		// linear smoothing between eps/2 and eps
 		const float sx = fmax(pout.minlRas*4.0f - 1.0f,0.0f);
 		// smootherstep function
