@@ -247,8 +247,6 @@ private:
 	void kernel_saVertexBoundaryConditions();
 	void kernel_saIdentifyCornerVertices();
 	void kernel_saFindClosestVertex();
-	void kernel_initGradGamma();
-	void kernel_updateGamma();
 	void kernel_updatePositions();
 	void kernel_disableOutgoingParts();
 	void kernel_imposeBoundaryCondition();
