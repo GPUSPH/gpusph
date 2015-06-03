@@ -305,54 +305,6 @@ eulerDevice(
 			}
 			break;
 
-		// Moving boundaries
-		/*case PT_PISTON:
-			vel.w += dt*force.w;
-			// Updating positions for piston particles.
-			// Now d_mbdata.x contains the piston velocity
-			pos.x += d_mbdata[obj].x*dt;
-			vel.x = d_mbdata[obj].x;
-			break;
-		case PT_PADDLE:
-			{
-			vel.w += dt*force.w;
-			// Updating postions for paddle particles
-			const float3 absPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize;
-			const float2 relPos = make_float2(absPos.x - d_mbdata[obj].x, absPos.z - d_mbdata[obj].y);
-			const float c = cos(d_mbdata[obj].z*dt) - 1.0f;
-			const float s = sin(d_mbdata[obj].z*dt);
-			// Apply rotation around y axis
-			pos.x += c*relPos.x + s*relPos.y;
-			pos.z += -s*relPos.x + c*relPos.y;
-			// Velocity
-			vel.x = d_mbdata[obj].z*relPos.y;
-			vel.z = -d_mbdata[obj].z*relPos.x;
-			}
-			break;
-		case PT_GATE:
-			vel.w += dt*force.w;
-			// Updating positions for gate particles
-			// mbdata.x,y,z contains gate velocity
-			as_float3(pos) += as_float3(d_mbdata[obj])*dt;
-			as_float3(vel) = as_float3(d_mbdata[obj]);
-			break;
-		case PT_OBJECT:
-			vel.w += dt*force.w;
-			if (step == 2) {
-				// Applying center of gravity translation
-				pos.x += d_rbtrans[obj].x;
-				pos.y += d_rbtrans[obj].y;
-				pos.z += d_rbtrans[obj].z;
-
-				// Applying rotation around center of gravity
-				const float3 relPos = d_worldOrigin + as_float3(pos) + calcGridPosFromParticleHash(particleHash[index])*d_cellSize + 0.5f*d_cellSize - d_rbcg[obj];
-				applyrot(&d_rbsteprot[9*obj], relPos, pos);
-
-				// Computing particles velocity
-				// V(P) = V(Cg) + PCg^omega
-				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
-			}
-			break;*/
 		case PT_TESTPOINT:
 			/* TODO */
 			break;
