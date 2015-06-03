@@ -765,7 +765,7 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflag
 	{
 		// vertex particles will skip neighbors unless they need to compute gamma,
 		// when using KEPSVISC, or when outflow boundaries are present
-		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && (VERTEX(pdata.info) && !pdata.computeGamma;
+		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && VERTEX(pdata.info) && !pdata.computeGamma;
 	}
 
 	__device__ __forceinline__
