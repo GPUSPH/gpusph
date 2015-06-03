@@ -239,15 +239,15 @@ eulerDevice(
 					keps_e = (keps_e + dt*dkde.y)/(1.0f + dt*keps_e/oldK*dkde.z);
 				}
 				break;
-		// Updating velocity for vertex particles, used to set boundary conditions in k-e model
+
+		/* BOUNDARY and VERTEX particles behave essentially in the same way, so they are
+		   handled in the same switch case (VERTEX particles are only preset in SA_BOUNDARY
+		   case)
+		 */
 		case PT_BOUNDARY:
-			if (boundarytype == DYN_BOUNDARY) {
-				if (sph_formulation == SPH_GRENIER) {
-					vol.y += dt*force.w;
-				} else {
-					vel.w += dt*force.w;
-				}
-			}
+		case PT_VERTEX:
+
+			// integration pos and vel for moving objects
 			if (MOVING(pinfo)) {
 				#ifdef _DEBUG_OBJ_FORCES_
 				if (id(pinfo) == 0 && obj == 1 && d_rblinearvel[obj].x != 0.0) {
@@ -279,49 +279,28 @@ eulerDevice(
 				// Computing particles velocity
 				// V(P) = V(Cg) + PCg^omega
 				as_float3(vel) = d_rblinearvel[obj] + cross(d_rbangularvel[obj], relPos);
-				}
-				break;
 
-		case PT_VERTEX:
+				// update normal of boundary element, if using SA_BOUNDARY
+				if (boundarytype == SA_BOUNDARY && BOUNDARY(pinfo)) {
+					const float3 normal = as_float3(newBoundElement[index]);
+					applyrot(&d_rbsteprot[9*obj], normal, newBoundElement[index]);
+				}
+			}
+
+			// DYN_BOUNDARY: integrate density
+			if (boundarytype == DYN_BOUNDARY) {
+				if (sph_formulation == SPH_GRENIER) {
+					vol.y += dt*force.w;
+				} else {
+					vel.w += dt*force.w;
+				}
+			}
+
+			// SA_BOUNDARY: integrate Eulerian velocity for k-eps
 			if (boundarytype == SA_BOUNDARY) {
-				// TODO: verify and fix
 				if (!IO_BOUNDARY(pinfo) || (VERTEX(pinfo) && CORNER(pinfo))) {
 					// this is for k-eps only. Normally forces are going to be zero
 					eulerVel += dt*force;
-					// move segments and boundary particles if the MOVING flag is set
-					if (MOVING(pinfo) && step == 2) {
-						const uint i = object(pinfo);
-						// old position
-						const float4 oldPos = pos;
-						// Applying center of gravity translation
-						pos.x += d_rbtrans[i].x;
-						pos.y += d_rbtrans[i].y;
-						pos.z += d_rbtrans[i].z;
-						// Applying rotation around center of gravity
-						const int3 gridPos = calcGridPosFromParticleHash(particleHash[index]);
-						const float3 relPos = (gridPos - d_rbcgGridPos[obj])*d_cellSize +
-							(as_float3(pos) - d_rbcgPos[obj]);
-						applyrot(&d_rbsteprot[9*i], relPos, pos);
-						// compute velocity as position derivative
-						vel.x = (pos.x - oldPos.x)/dt;
-						vel.y = (pos.y - oldPos.y)/dt;
-						vel.z = (pos.z - oldPos.z)/dt;
-						// update normal of boundary element
-						if (BOUNDARY(pinfo)) {
-							const float3 normal = as_float3(newBoundElement[index]);
-							applyrot(&d_rbsteprot[9*i], normal, newBoundElement[index]);
-						}
-					}
-					else if (!MOVING(pinfo)) {
-						vel.x = 0.0f;
-						vel.y = 0.0f;
-						vel.z = 0.0f;
-					}
-				}
-				else {
-					vel.x = 0.0f;
-					vel.y = 0.0f;
-					vel.z = 0.0f;
 				}
 			}
 			break;
