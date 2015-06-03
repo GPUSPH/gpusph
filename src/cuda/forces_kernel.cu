@@ -3010,7 +3010,7 @@ saFindClosestVertex(
 		const particleinfo neib_info = pinfo[neib_index];
 		const uint neib_obj = object(neib_info);
 
-		if (VERTEX(neib_info) && obj == neib_obj && !CORNER(neib_info)) {
+		if (VERTEX(neib_info) && obj == neib_obj && IO_BOUNDARY(neib_info) && !CORNER(neib_info)) {
 			const float4 relPos = pos_corr - oldPos[neib_index];
 			const float r = length3(relPos);
 			if (minDist > r) {
