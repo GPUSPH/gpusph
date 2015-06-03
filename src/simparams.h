@@ -49,7 +49,7 @@ typedef struct SimParams {
 	double			slength;				// smoothing length (smoothing factor * deltap)
 	double			kernelradius;			// kernel radius
 	double			influenceRadius;		// influence radius ( = kernelradius * slength)
-	double			nlexpansionfactor;		// expand influcenradius by nlexpansionfactor for neib list construction
+	double			nlexpansionfactor;		// expand influenceradius by nlexpansionfactor for neib list construction
 	double			nlInfluenceRadius;		// extended radius ( = influence radius * nlexpansionfactor)
 	double			nlSqInfluenceRadius;	// square influence radius for neib list construction
 	float			dt;						// initial timestep
@@ -65,7 +65,7 @@ typedef struct SimParams {
 	bool			csvsimplegages;			// true to dump the gages also in CSV files
 	bool			calc_energy;			// true if we want to compute system energy at save time
 	GageList		gage;					// water gages
-	uint			numODEbodies;			// number of bodies which movmeent is computed by ODE
+	uint			numODEbodies;			// number of bodies which movmement is computed by ODE
 	uint			numforcesbodies;		// number of moving bodies on which we need to compute the forces (includes ODE bodies)
 	uint			numbodies;				// total number of bodies (ODE + forces + moving)
 	uint			maxneibsnum;			// maximum number of neibs (should be a multiple of NEIBS_INTERLEAVE)
