@@ -2638,7 +2638,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 			velavg.y += w*neib_vel.y;
 			velavg.z += w*neib_vel.z;
 			//Pressure
-			velavg.w += w*P(neib_vel.w, object(neib_info));
+			velavg.w += w*P(neib_vel.w, fluid_num(neib_info));
 			// Turbulent kinetic energy
 			if(newTke){
 				const float neib_tke = tex1Dfetch(keps_kTex, neib_index);
@@ -2877,10 +2877,10 @@ saIdentifyCornerVertices(
 		return;
 
 	// read particle data from sorted arrays
-	// kernel is only run for vertex particles which are associated to an object
+	// kernel is only run for vertex particles which are associated to an open boundary
 	particleinfo info = pinfo[index];
 	const uint obj = object(info);
-	if (!VERTEX(info) || obj==0 || !IO_BOUNDARY(info))
+	if (!(VERTEX(info) && IO_BOUNDARY(info)))
 		return;
 
 	float4 pos = oldPos[index];
@@ -2905,7 +2905,8 @@ saIdentifyCornerVertices(
 		const particleinfo neib_info = pinfo[neib_index];
 		const uint neib_obj = object(neib_info);
 
-		if (BOUNDARY(neib_info) && obj != neib_obj) {
+		// loop only over boundary elements that are not of the same open boundary
+		if (BOUNDARY(neib_info) && !(obj == neib_obj && IO_BOUNDARY(neib_info))) {
 			const float4 relPos = pos_corr - oldPos[neib_index];
 			const float r = length3(relPos);
 			// if the position is greater than 1.5 dr then the segment is too far away
@@ -2946,10 +2947,10 @@ saFindClosestVertex(
 		return;
 
 	// read particle data from sorted arrays
-	// kernel is only run for boundary particles which are associated to an object
+	// kernel is only run for boundary particles which are associated to an open boundary
 	particleinfo info = pinfo[index];
 	const uint obj = object(info);
-	if (!BOUNDARY(info) || obj==0 || !IO_BOUNDARY(info))
+	if (!(BOUNDARY(info) && IO_BOUNDARY(info)))
 		return;
 
 	const vertexinfo verts = vertices[index];
@@ -2962,9 +2963,9 @@ saFindClosestVertex(
 	particleinfo infoY = pinfo[vertYidx];
 	particleinfo infoZ = pinfo[vertZidx];
 	// check if at least one of vertex particles is part of same IO object and not a corner vertex
-	if ((object(infoX) == obj && !CORNER(infoX)) ||
-		(object(infoY) == obj && !CORNER(infoY)) ||
-		(object(infoZ) == obj && !CORNER(infoZ))   ) {
+	if ((object(infoX) == obj && IO_BOUNDARY(infoX) && !CORNER(infoX)) ||
+		(object(infoY) == obj && IO_BOUNDARY(infoY) && !CORNER(infoY)) ||
+		(object(infoZ) == obj && IO_BOUNDARY(infoZ) && !CORNER(infoZ))   ) {
 		// in this case set vertices.w which identifies how many vertex particles are associated to the same
 		// IO object
 		uint vertCount = 0;
@@ -3009,7 +3010,7 @@ saFindClosestVertex(
 		const particleinfo neib_info = pinfo[neib_index];
 		const uint neib_obj = object(neib_info);
 
-		if (VERTEX(neib_info) && obj == neib_obj && !CORNER(neib_info)) {
+		if (VERTEX(neib_info) && obj == neib_obj && IO_BOUNDARY(neib_info) && !CORNER(neib_info)) {
 			const float4 relPos = pos_corr - oldPos[neib_index];
 			const float r = length3(relPos);
 			if (minDist > r) {
