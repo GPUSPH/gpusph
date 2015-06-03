@@ -230,9 +230,9 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		offset += sizeof(uint)*numParts+sizeof(int);
 	}
 
-	if(vertices){
-		scalar_array(fid, "UInt32", "vertices", offset);
-		offset += sizeof(uint)*numParts+sizeof(int);
+	if (vertices) {
+		vector_array(fid, "UInt32", "Vertices", 4, offset);
+		offset += sizeof(uint)*4*numParts+sizeof(int);
 	}
 
 	// device index
@@ -454,12 +454,13 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		}
 	}
 
-	if(vertices){
-		// id
+	// vertices
+	if (vertices) {
+		numbytes = sizeof(uint)*4*numParts;
 		write_var(fid, numbytes);
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
-			uint value = vertices[i].w;
-			write_var(fid, value);
+			uint *value = (uint*)(vertices + i);
+			write_arr(fid, value, 4);
 		}
 	}
 
