@@ -2638,7 +2638,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 			velavg.y += w*neib_vel.y;
 			velavg.z += w*neib_vel.z;
 			//Pressure
-			velavg.w += w*P(neib_vel.w, object(neib_info));
+			velavg.w += w*P(neib_vel.w, fluid_num(neib_info));
 			// Turbulent kinetic energy
 			if(newTke){
 				const float neib_tke = tex1Dfetch(keps_kTex, neib_index);
