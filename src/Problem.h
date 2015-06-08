@@ -45,6 +45,8 @@
 #include "simparams.h"
 #include "vector_math.h"
 #include "Object.h"
+#include "MovingBody.h"
+
 #include "buffer.h"
 #include "simframework.h"
 
@@ -59,70 +61,6 @@ typedef std::vector<vertexinfo> VertexVect;
 // forward declaration. If a class wants to actually use
 // the callback writer it should include CallbackWriter.h
 class CallbackWriter;
-
-enum MovingBodyType {
-	MB_ODE,
-	MB_FORCES_MOVING,
-	MB_MOVING
-};
-
-typedef struct KinematicData {
-	double3			crot; ///< Center of rotation of the body
-	double3			lvel; ///< Linear velocity
-	double3			avel; ///< Angular velocity
-	EulerParameters	orientation;
-
-	KinematicData():
-		crot(make_double3(0.0)),
-		lvel(make_double3(0.0)),
-		avel(make_double3(0.0)),
-		orientation(EulerParameters())
-	{};
-
-	KinematicData(const KinematicData& kdata) {
-		crot = kdata.crot;
-		lvel = kdata.lvel;
-		avel = kdata.avel;
-		orientation = kdata.orientation;
-	};
-
-	KinematicData& operator = (const KinematicData& source) {
-		crot = source.crot;
-		lvel = source.lvel;
-		avel = source.avel;
-		orientation = source.orientation;
-		return *this;
-	};
-} KinematicData;
-
-typedef struct MovingBodyData {
-	uint				index; ///< Sequential insertion index (NOTE: NOT index in the array)
-	MovingBodyType		type;
-	Object				*object;
-	KinematicData		kdata;
-	KinematicData		initial_kdata;
-
-	MovingBodyData(): index(0), type(MB_MOVING), object(NULL), kdata(KinematicData()), initial_kdata(KinematicData()) {};
-
-	MovingBodyData(const MovingBodyData& mbdata) {
-		index = mbdata.index;
-		type = mbdata.type;
-		object = mbdata.object;
-		kdata = mbdata.kdata;
-		initial_kdata = mbdata.initial_kdata;
-	};
-
-	MovingBodyData& operator = (const MovingBodyData& source) {
-		index = source.index;
-		type = source.type;
-		object = source.object;
-		kdata = source.kdata;
-		initial_kdata = source.initial_kdata;
-		return *this;
-	};
-} MovingBodyData;
-
-typedef std::vector<MovingBodyData *> MovingBodiesVect;
 
 // not including GlobalData.h since it needs the complete definition of the Problem class
 struct GlobalData;
