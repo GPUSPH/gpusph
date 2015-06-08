@@ -433,15 +433,24 @@ Vector operator/(const Vector &vect, double k)
 }
 
 
+float3 make_float3(const Vector &v)
+{
+	return make_float3(float(v(0)), float(v(1)), float(v(2)));
+}
+
+double3 make_double3(const Vector &v)
+{
+	return make_double3(double(v(0)), double(v(1)), double(v(2)));
+}
+
 float4 make_float4(const Vector &v)
 {
 	return make_float4(float(v(0)), float(v(1)), float(v(2)), float(v(3)));
 }
 
-
-float3 make_float3(const Vector &v)
+double4 make_double4(const Vector &v)
 {
-	return make_float3(float(v(0)), float(v(1)), float(v(2)));
+	return make_double4(double(v(0)), double(v(1)), double(v(2)), double(v(3)));
 }
 
 

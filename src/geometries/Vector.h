@@ -107,9 +107,10 @@ class Vector {
 		void print(void);
 };
 
-float4 make_float4(const Vector &);
-
 float3 make_float3(const Vector &);
+double3 make_double3(const Vector &);
+float4 make_float4(const Vector &);
+double4 make_double4(const Vector &);
 
 void make_dvector3(const Vector &, dVector3);
 
