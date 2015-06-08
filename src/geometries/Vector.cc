@@ -78,10 +78,33 @@ Vector::Vector(const float3 &v)
 	x[3] = 0;
 }
 
+/// Constructor from double3
+/*!	\param pt : double3
+  the fourth component (mass) is initialized to 0
+*/
+Vector::Vector(const double3 &v)
+{
+	x[0] = v.x;
+	x[1] = v.y;
+	x[2] = v.z;
+	x[3] = 0;
+}
+
 /// Constructor from float4
 /*!	\param pt : float4
 */
 Vector::Vector(const float4 &v)
+{
+	x[0] = v.x;
+	x[1] = v.y;
+	x[2] = v.z;
+	x[3] = v.w;
+}
+
+/// Constructor from double4
+/*!	\param pt : double4
+*/
+Vector::Vector(const double4 &v)
 {
 	x[0] = v.x;
 	x[1] = v.y;

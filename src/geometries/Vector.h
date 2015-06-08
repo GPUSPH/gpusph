@@ -55,7 +55,9 @@ class Vector {
 		Vector(const Vector &);
 		Vector(double xx = 0, double yy = 0, double zz = 0);
 		Vector(const float3 &);
+		Vector(const double3 &);
 		Vector(const float4 &);
+		Vector(const double4 &);
 		Vector(const float *);
 		Vector(const double *);
 		~Vector(void) {};

@@ -449,7 +449,7 @@ void STLMesh::setEulerParameters(const EulerParameters &ep)
 void STLMesh::getBoundingBox(Point &output_min, Point &output_max)
 {
 	output_min = m_minbounds - make_double3(m_origin(0), m_origin(1), m_origin(2));
-	output_max = output_min + (m_maxbounds - m_minbounds);
+	output_max = output_min + Vector(m_maxbounds - m_minbounds);
 }
 
 void STLMesh::shift(const double3 &offset)
