@@ -335,7 +335,7 @@ void WaveTank::copy_to_array(BufferList &buffers)
 						ptype |= FG_MOVING_BOUNDARY;
 						break;
 				}
-				info[ij] = make_particleinfo(ptype, k, i );
+				info[ij] = make_particleinfo(ptype, k, ij);
 				calc_localpos_and_hash(rbparts[i], info[ij], pos[ij], hash[ij]);
 			}
 			if (k < m_simparams->numforcesbodies) {
