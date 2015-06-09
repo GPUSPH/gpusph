@@ -2221,18 +2221,13 @@ void GPUWorker::kernel_imposeBoundaryCondition()
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
 	gdata->problem->imposeBoundaryConditionHost(
-			bufwrite.getData<BUFFER_VEL>(),
-			bufwrite.getData<BUFFER_EULERVEL>(),
-			bufwrite.getData<BUFFER_TKE>(),
-			bufwrite.getData<BUFFER_EPSILON>(),
-			bufread.getData<BUFFER_INFO>(),
-			bufread.getData<BUFFER_POS>(),
-			(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
-			gdata->t,
-			m_numParticles,
-			m_simparams->numOpenBoundaries,
-			numPartsToElaborate,
-			bufread.getData<BUFFER_HASH>());
+		m_dBuffers.getWriteBufferList(),
+		m_dBuffers.getReadBufferList(),
+		(m_simparams->simflags & ENABLE_WATER_DEPTH) ? m_dIOwaterdepth : NULL,
+		gdata->t,
+		m_numParticles,
+		m_simparams->numOpenBoundaries,
+		numPartsToElaborate);
 
 }
 

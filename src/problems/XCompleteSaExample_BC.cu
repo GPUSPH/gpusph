@@ -138,21 +138,25 @@ XCompleteSaExample::setboundconstants(
 
 void
 XCompleteSaExample::imposeBoundaryConditionHost(
-			float4*			newVel,
-			float4*			newEulerVel,
-			float*			newTke,
-			float*			newEpsilon,
-	const	particleinfo*	info,
-	const	float4*			oldPos,
-			uint			*IOwaterdepth,
-	const	float			t,
-	const	uint			numParticles,
-	const	uint			numObjects,
-	const	uint			particleRangeEnd,
-	const	hashKey*		particleHash)
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd)
 {
-	uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
-	uint numBlocks = div_up(particleRangeEnd, numThreads);
+	float4	*newVel = bufwrite->getData<BUFFER_VEL>();
+	float4	*newEulerVel = bufwrite->getData<BUFFER_EULERVEL>();
+	float	*newTke = bufwrite->getData<BUFFER_TKE>();
+	float	*newEpsilon = bufwrite->getData<BUFFER_EPSILON>();
+
+	const particleinfo *info = bufread->getData<BUFFER_INFO>();
+	const float4 *oldPos = bufread->getData<BUFFER_POS>();
+	const hashKey *particleHash = bufread->getData<BUFFER_HASH>();
+
+	const uint numThreads = min(BLOCK_SIZE_IOBOUND, particleRangeEnd);
+	const uint numBlocks = div_up(particleRangeEnd, numThreads);
 
 	int dummy_shared = 0;
 	// TODO: Probably this optimization doesn't work with this function. Need to be tested.
@@ -169,10 +173,10 @@ XCompleteSaExample::imposeBoundaryConditionHost(
 
 	// reset waterdepth calculation
 	if (IOwaterdepth) {
-		uint h_IOwaterdepth[numObjects];
-		for (uint i=0; i<numObjects; i++)
+		uint h_IOwaterdepth[numOpenBoundaries];
+		for (uint i=0; i<numOpenBoundaries; i++)
 			h_IOwaterdepth[i] = 0;
-		CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numObjects*sizeof(int), cudaMemcpyHostToDevice));
+		CUDA_SAFE_CALL(cudaMemcpy(IOwaterdepth, h_IOwaterdepth, numOpenBoundaries*sizeof(int), cudaMemcpyHostToDevice));
 	}
 
 	// check if kernel invocation generated an error

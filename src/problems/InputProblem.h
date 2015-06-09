@@ -54,18 +54,13 @@ class InputProblem: public Problem {
 
 		void
 		imposeBoundaryConditionHost(
-					float4*			newVel,
-					float4*			newEulerVel,
-					float*			newTke,
-					float*			newEpsilon,
-			const	particleinfo*	info,
-			const	float4*			oldPos,
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
 					uint*			IOwaterdepth,
 			const	float			t,
 			const	uint			numParticles,
-			const	uint			numObjects,
-			const	uint			particleRangeEnd,
-			const	hashKey*		particleHash);
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd);
 
 		void release_memory(void) {};
 

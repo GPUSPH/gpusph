@@ -1212,20 +1212,15 @@ Problem::init_volume(BufferList &buffers, uint numParticles)
 
 void
 Problem::imposeBoundaryConditionHost(
-			float4*			newVel,
-			float4*			newEulerVel,
-			float*			newTke,
-			float*			newEpsilon,
-	const	particleinfo*	info,
-	const	float4*			oldPos,
-			uint*			IOwaterdepth,
-	const	float			t,
-	const	uint			numParticles,
-	const	uint			numOpenBoundaries,
-	const	uint			particleRangeEnd,
-	const	hashKey*		particleHash)
+			MultiBufferList::iterator		bufwrite,
+			MultiBufferList::const_iterator	bufread,
+					uint*			IOwaterdepth,
+			const	float			t,
+			const	uint			numParticles,
+			const	uint			numOpenBoundaries,
+			const	uint			particleRangeEnd)
 {
-	// not implemented
+	fprintf(stderr, "WARNING: open boundaries are present, but imposeBoundaryCondtionHost was not implemented\n");
 	return;
 }
 
