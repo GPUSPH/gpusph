@@ -178,7 +178,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
  * 	SET_FLUID_NUM(foo) | SET_OBJECT_NUM(bar)
  */
 
-#define FLUID_NUM_SHIFT 12 /* bit shift for fluid == bits resrved for object number */
+#define FLUID_NUM_SHIFT 12 /* bit shift for fluid == bits reserved for object number */
 #define GET_FLUID_NUM(y) ((y) >> FLUID_NUM_SHIFT)
 #define SET_FLUID_NUM(fnum) ((fnum) << FLUID_NUM_SHIFT)
 #define OBJECT_NUM_MASK ((1 << FLUID_NUM_SHIFT) - 1) /* mask for the object number bits */
@@ -189,7 +189,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
 #define NEEDS_OBJECT_NUM (FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE | FG_INLET | FG_OUTLET)
 
 /// Typed particleinfo creator
-/*! This constructor sets the type, object/fluid number and id in the followig way:
+/*! This constructor sets the type, object/fluid number and id in the following way:
  *		* the type is accepted as-is;
  *		* the id is split into z and w as appropriate;
  *		* the obj_or_fnum is automatically interpreted as an object number or fluid number.
@@ -199,7 +199,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
  *	if the particle is not fuid and it NEEDS_OBJECT_NUM, otherwise it's interpreted as
  *	fluid number.
  *	TODO the only thing that is impossible to do this way is to assign a fluid number of 0
- *	and an object number > 0 to a fluid particle. We'll face the proble if/when it arises.
+ *	and an object number > 0 to a fluid particle. We'll face the problem if/when it arises.
  */
 inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort &obj_or_fnum, const uint &id)
 {
