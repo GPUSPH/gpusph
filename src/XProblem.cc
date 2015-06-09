@@ -1385,7 +1385,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 				vel[i] = make_float4(0, 0, 0, rho);
 
 				// compute particle info, local pos, cellhash
-				info[i] = make_particleinfo(ptype, object_id, i);
+				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
+				// be set afterward (e.g. in initializeParticles() callback)
+				info[i] = make_particleinfo_by_ids(ptype, 0, object_id, i);
 
 				// set appropriate particle flags
 				switch (m_geometries[g]->type) {
@@ -1475,7 +1477,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
 				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 				// TODO FIXME MERGE
-				info[i] = make_particleinfo(PT_BOUNDARY, object_id, i);
+				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
+				// be set afterward (e.g. in initializeParticles() callback)
+				info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, object_id, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
 				if (eulerVel)
