@@ -46,7 +46,7 @@ __constant__ float3	d_rblinearvel[MAX_BODIES];
 __constant__ float3	d_rbangularvel[MAX_BODIES];
 __constant__ float	d_rbsteprot[9*MAX_BODIES];
 
-#include "cellgrid.h"
+#include "cellgrid.cuh"
 
 /// Apply rotation to a given vector
 /*! Apply the rotation given by the matrix rot to the vector relPos

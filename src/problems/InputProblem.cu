@@ -632,9 +632,9 @@ void InputProblem::fillDeviceMap()
 
 namespace cuInputProblem
 {
-#include "cuda/cellgrid.h"
+#include "cuda/cellgrid.cuh"
 // Core SPH functions
-#include "sph_core_utils.cuh"
+#include "cuda/sph_core_utils.cuh"
 
 __device__
 void

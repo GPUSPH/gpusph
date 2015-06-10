@@ -136,7 +136,7 @@ __constant__ float	d_objectobjectdf;
 __constant__ float	d_objectboundarydf;
 
 // Grid data
-#include "cellgrid.h"
+#include "cellgrid.cuh"
 // Core SPH functions
 #include "sph_core_utils.cuh"
 
