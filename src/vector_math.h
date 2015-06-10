@@ -1009,6 +1009,18 @@ static __forceinline__ __host__ __device__ float dot3(const float4 &a, const flo
 	return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+// as above, but one is a float3
+static __forceinline__ __host__ __device__ float dot3(const float3 &a, const float4 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+static __forceinline__ __host__ __device__ float dot3(const float4 &a, const float3 &b)
+{
+	return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+
+
 // squared length
 static __forceinline__ __host__ __device__ float sqlength(const float4 &v)
 {
