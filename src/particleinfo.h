@@ -231,7 +231,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
  *	the fluid number *and* the object number. It does not check nor set any particle flag,
  *  so setting them after creating the particleinfo is allowed.
  */
-inline __host__ particleinfo make_particleinfo_by_ids(const ushort &type, const ushort &fluid_number,
+inline __host__ __device__ particleinfo make_particleinfo_by_ids(const ushort &type, const ushort &fluid_number,
 	const ushort &object_number, const uint &id)
 {
 	particleinfo v;
