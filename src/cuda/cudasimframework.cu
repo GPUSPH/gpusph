@@ -32,6 +32,7 @@
 
 #include "simflags.h"
 
+#include "bounds.cu"
 #include "buildneibs.cu"
 #include "euler.cu"
 #include "forces.cu"

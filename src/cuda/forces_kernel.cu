@@ -130,9 +130,6 @@ __constant__ int	d_rbstartindex[MAX_BODIES];
 __constant__ float	d_objectobjectdf;
 __constant__ float	d_objectboundarydf;
 
-// host-computed id offset used for id generation
-__constant__ uint	d_newIDsOffset;
-
 ////////////////////////////////
 // Gaussian quadrature constants
 ////////////////////////////////
@@ -1868,38 +1865,6 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	}
 }
 
-/*!
- * Create a new particle, cloning an existing particle
- * This returns the index of the generated particle, initializing new_info
- */
-__device__ __forceinline__
-uint
-createNewFluidParticle(
-	/// particle info of the generated particle
-			particleinfo	&new_info,
-	/// particle info of the generator particle
-	const	particleinfo	info,
-	/// number of particles at the start of the current timestep
-	const	uint			numParticles,
-	/// number of particles including all the ones already created in this timestep
-	const	uint			numDevices,
-			uint			*newNumParticles)
-{
-	const uint new_index = atomicAdd(newNumParticles, 1);
-	// number of new particles that were created on this device in this
-	// time step
-	const uint newNumPartsOnDevice = new_index + 1 - numParticles;
-	// the i-th device can only allocate an id that satisfies id%n == i, where
-	// n = number of total devices
-	const uint new_id = newNumPartsOnDevice*numDevices + d_newIDsOffset;
-
-	new_info = make_particleinfo_by_ids(
-		PT_FLUID,
-		fluid_num(info), 0, // copy the fluid number, not the object number
-		new_id);
-	return new_index;
-}
-
 /// Compute boundary conditions for vertex particles in the semi-analytical boundary case
 /*! This function determines the physical properties of vertex particles in the semi-analytical boundary case. The properties of fluid particles are used to compute the properties of the vertices. Due to this most arrays are read from (the fluid info) and written to (the vertex info) simultaneously inside this function. In the case of open boundaries the vertex mass is updated in this routine and new fluid particles are created on demand. Additionally, the mass of outgoing fluid particles is redistributed to vertex particles herein.
  *	\param[in,out] oldPos : pointer to positions and masses; masses of vertex particles are updated
@@ -2183,7 +2148,7 @@ saVertexBoundaryConditions(
 			massFluid -= refMass;
 			// Create new particle
 			particleinfo clone_info;
-			uint clone_idx = createNewFluidParticle(clone_info, info, numParticles, numDevices, newNumParticles);
+			uint clone_idx = cubounds::createNewFluidParticle(clone_info, info, numParticles, numDevices, newNumParticles);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle

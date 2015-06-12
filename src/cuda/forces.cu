@@ -1499,7 +1499,7 @@ saVertexBoundaryConditions(
 	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
