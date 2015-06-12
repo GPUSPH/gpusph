@@ -879,9 +879,10 @@ show:
 snapshot: $(SNAPSHOT_FILE)
 	$(CMDECHO)echo "Created $(SNAPSHOT_FILE)"
 
-$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/*.cc $(SRCDIR)/*.h $(SRCDIR)/*.cu $(SRCDIR)/*.cuh $(SRCDIR)/*.def $(SCRIPTSDIR)/
+# One possibility to add the source files: $(SRCDIR)/*.{cc,h} $(SRCDIR)/*.{cc,h,cu,cuh,def}
+# However, Makefile does not support this bash-like expansion, so we take a shortcut.
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/
 	$(CMDECHO)tar czf $@ $^
-
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)
 # it is safe to say we don't actualy need this
