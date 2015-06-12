@@ -66,8 +66,8 @@ texture<float, 2, cudaReadModeElementType> demTex;	// DEM
  */
 namespace cuforces {
 
-// Grid data
-#include "cellgrid.cuh"
+using namespace cubounds;
+
 // Core SPH functions
 #include "sph_core_utils.cuh"
 
@@ -356,7 +356,6 @@ dtadaptBlockReduce(	float*	sm_max,
 }
 /************************************************************************************************************/
 
-
 /******************** Functions for computing repulsive force directly from DEM *****************************/
 
 //! Computes distance from a particle to a point on the plane
@@ -368,7 +367,7 @@ PlaneDistance(	const int3&		gridPos,
 				const float3&	planePointLocalPos)
 {
 	// relative position of our particle from the reference point of the plane
-	const float3 refRelPos = (gridPos - planePointGridPos)*d_cellSize + (pos - planePointLocalPos);
+	const float3 refRelPos = globalDistance(gridPos, pos, planePointGridPos, planePointLocalPos);
 	return abs(dot(planeNormal, refRelPos));
 }
 
@@ -2148,7 +2147,7 @@ saVertexBoundaryConditions(
 			massFluid -= refMass;
 			// Create new particle
 			particleinfo clone_info;
-			uint clone_idx = cubounds::createNewFluidParticle(clone_info, info, numParticles, numDevices, newNumParticles);
+			uint clone_idx = createNewFluidParticle(clone_info, info, numParticles, numDevices, newNumParticles);
 
 			// Problem has already checked that there is enough memory for new particles
 			float4 clone_pos = pos; // new position is position of vertex particle
@@ -2607,7 +2606,7 @@ void calcEnergiesDevice(
 			uint fnum = fluid_num(pinfo);
 			float v2 = kahan_sqlength(as_float3(vel));
 			// TODO improve precision by splitting the float part from the grid part
-			float gh = kahan_dot(d_gravity, as_float3(pos) + gridPos*d_cellSize + 0.5f*d_cellSize);
+			float gh = kahan_dot(d_gravity, as_float3(pos) + (make_float3(gridPos) + 0.5f)*d_cellSize);
 			kahan_add(energy[fnum].x, pos.w*v2/2, E_k[fnum].x);
 			kahan_add(energy[fnum].y, -pos.w*gh, E_k[fnum].y);
 			// internal elastic energy

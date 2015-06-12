@@ -2185,9 +2185,8 @@ forcesDevice(
 				as_float3(pout.force) *= pdata.pos.w;
 			params.rbforces[pdata.rbindex] = pout.force;
 
-			const float3 arm =
-				(pdata.gridPos - d_rbcgGridPos[object(info)])*d_cellSize +
-				(as_float3(pdata.pos) - d_rbcgPos[object(info)]);
+			const float3 arm = globalDistance(pdata.gridPos, as_float3(pdata.pos),
+					d_rbcgGridPos[object(info)], d_rbcgPos[object(info)]);
 
 			params.rbtorques[pdata.rbindex] = make_float4(cross(arm, as_float3(pout.force)));
 

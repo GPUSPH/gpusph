@@ -13,7 +13,10 @@
 
 namespace cuXCompleteSaExample
 {
-#include "cuda/cellgrid.cuh"
+// TODO when this  _BC.cu is merged into the main file, the cellgrid.cuh
+// inclusion should be replaced with a `using namespace cubounds`
+#include "cellgrid.cuh"
+
 // Core SPH functions
 #include "cuda/sph_core_utils.cuh"
 

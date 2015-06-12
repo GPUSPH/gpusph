@@ -715,7 +715,7 @@ void InputProblem::fillDeviceMap()
 
 namespace cuInputProblem
 {
-#include "cuda/cellgrid.cuh"
+using namespace cubounds;
 // Core SPH functions
 #include "cuda/sph_core_utils.cuh"
 

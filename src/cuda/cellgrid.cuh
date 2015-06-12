@@ -46,6 +46,20 @@ __constant__ char3	d_cell_to_offset[27];	///< Neibdata cell number to offset
 
 /** \name Device functions
  *  @{ */
+
+/// Compute offset to neighbor cell
+/*! Return the relative position offset to the center of the neighbor cell
+ *
+ *	\param[in] neib_cellnum : number of neighbor cell (0..26)
+ *
+ *	\return displacement offset
+ */
+__device__ __forceinline__ float3
+cellOffset(char neib_cellnum)
+{
+	return d_cell_to_offset[neib_cellnum]*d_cellSize;
+}
+
 /// Compute hash value from grid position
 /*! Compute the hash value from grid position according to the chosen
  * 	linearization (starting from x, y or z direction). The link
@@ -106,6 +120,24 @@ calcGridPosFromParticleHash(const hashKey particleHash)
 	const uint cellHash = cellHashFromParticleHash(particleHash);
 	return calcGridPosFromCellHash(cellHash);
 }
+
+/// Compute global distance vector between points
+/*! Compute the distance vector between two points in different cells
+ *
+ *	\param[in] gridPos1 : grid cell of point 1
+ *	\param[in] pos1 : in-cell position of point 1
+ *	\param[in] gridPos2 : grid cell of point 2
+ *	\param[in] pos2 : in-cell position of point 2
+ *
+ *	\return vector distance
+ */
+__device__ __forceinline__ float3
+globalDistance(int3 const& gridPos1, float3 const& pos1,
+	int3 const& gridPos2, float3 const& pos2)
+{
+	return (gridPos1 - gridPos2)*d_cellSize + (pos1 - pos2);
+}
+
 /** @} */
 
 

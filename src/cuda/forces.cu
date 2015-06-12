@@ -376,11 +376,12 @@ setconstants(const SimParams *simparams, const PhysParams *physparams,
 			}
 		}
 	}
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_cell_to_offset, cell_to_offset, 27*sizeof(char3)));
 
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_worldOrigin, &worldOrigin, sizeof(float3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_gridSize, &gridSize, sizeof(uint3)));
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_cellSize, &cellSize, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_worldOrigin, &worldOrigin, sizeof(float3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_gridSize, &gridSize, sizeof(uint3)));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_cellSize, &cellSize, sizeof(float3)));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_ferrari, &simparams->ferrari, sizeof(float)));
 
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cuforces::d_epsinterface, &physparams->epsinterface, sizeof(float)));

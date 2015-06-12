@@ -32,6 +32,9 @@
 
 namespace cubounds {
 
+// Grid data
+#include "cellgrid.cuh"
+
 /* Number of open boundaries (both inlets and outlets) */
 __constant__ uint d_numOpenBoundaries;
 
