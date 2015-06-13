@@ -30,12 +30,23 @@
 
 #include "particledefine.h"
 
+/*!
+ * \namespace cubounds
+ * \brief Contains all device functions/kernels/constants related to open boundaries and domain geometry.
+ *
+ * The namespace contains the device side of boundary handling
+ *	- domain size, origin and cell grid properties and related functions
+ *	- open boundaries properties and related functions
+ */
 namespace cubounds {
 
 // Grid data
 #include "cellgrid.cuh"
 
-/* Number of open boundaries (both inlets and outlets) */
+/// \name Device constants
+/// @{
+
+/// Number of open boundaries (both inlets and outlets)
 __constant__ uint d_numOpenBoundaries;
 
 // host-computed id offset used for id generation
@@ -44,18 +55,25 @@ __constant__ uint	d_newIDsOffset;
 /*!
  * Create a new particle, cloning an existing particle
  * This returns the index of the generated particle, initializing new_info
+ * for a FLUID particle of the same fluid as the generator, no associated
+ * object or inlet, and a new id generated in a way which is multi-GPU
+ * compatible.
+ *
+ * All other particle properties (position, velocity, etc) should be
+ * set by the caller.
  */
 __device__ __forceinline__
 uint
 createNewFluidParticle(
-	// particle info of the generated particle
+	/// [out] particle info of the generated particle
 			particleinfo	&new_info,
-	// particle info of the generator particle
+	/// [in] particle info of the generator particle
 	const	particleinfo	&info,
-	// number of particles at the start of the current timestep
+	/// [in] number of particles at the start of the current timestep
 	const	uint			numParticles,
-	// number of particles including all the ones already created in this timestep
+	/// [in] number of devices
 	const	uint			numDevices,
+	/// [in,out] number of particles including all the ones already created in this timestep
 			uint			*newNumParticles)
 {
 	const uint new_index = atomicAdd(newNumParticles, 1);
