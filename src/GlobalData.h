@@ -23,6 +23,10 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*! \file GlobalData.h
+ * GlobalData class and related data types and definitions
+ */
+
 #ifndef _GLOBAL_DATA_
 #define _GLOBAL_DATA_
 
@@ -68,46 +72,100 @@ class GPUWorker;
 // Next step for workers. It could be replaced by a struct with the list of parameters to be used.
 // A few explanations: DUMP requests to download pos, vel and info on shared arrays; DUMP_CELLS
 // requests to download cellStart and cellEnd
+
+/*!
+ * List of possible commands that GPUSPH can issue to workers via doCommand() calls
+ */
 enum CommandType {
-	IDLE,				// do a dummy cycle
-	SWAP_BUFFERS,		// swap double-buffered buffers
-	CALCHASH,			// run calcHash kernel
-	SORT,				// run thrust::sort
-	CROP,				// crop out all the external particles
-	REORDER,			// run reorderAndFindCellStart kernel
-	BUILDNEIBS,			// run buildNeibs kernel
-	FORCES_SYNC,		// run forces kernel in a blocking fashion (texture binds + kernel + unbinds + dt reduction)
-	FORCES_ENQUEUE,		// enqueues forces kernel in an asynchronous fashion and returns (texture binds + kernel)
-	FORCES_COMPLETE,	// waits for the forces kernel to complete (device sync + texture unbinds + dt reduction)
-	EULER,				// run euler kernel
-	DUMP,				// dump all pos, vel and info to shared host arrays
-	DUMP_CELLS,			// dump cellStart and cellEnd to shared host arrays
-	UPDATE_SEGMENTS,	// dump segments to shared host array, then update the number of internal parts
-	DOWNLOAD_NEWNUMPARTS,	// dump the updated number of particles (in case of inlets/outlets)
-	UPLOAD_NEWNUMPARTS,		// update the "newNumParts" on device with the host value
-	APPEND_EXTERNAL,	// append a copy of the external cells to the end of self device arrays
-	UPDATE_EXTERNAL,	// update the r.o. copy of the external cells
-	FILTER,				// Filters (Shepard, MLS)
-	POSTPROCESS,		// Post-processing filters (vorticity, testpoints, etc)
-	SA_UPDATE_VERTIDINDEX,	// update BUFFER_VERTIDINDEX buffer (ID->partIndex for vertices)
-	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,	// compute segment boundary conditions and identify fluid particles that leave open boundaries
-	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,		// compute vertex boundary conditions including mass update and create new fluid particles at open boundaries; at the init step this routine also computes a preliminary grad gamma direction vector
-	IDENTIFY_CORNER_VERTICES,	// identify the vertices at a corner of an open boundary so that no parts are created there
-	FIND_CLOSEST_VERTEX,	// Finds closest vertex for boundaries that have no proper IO vertex themselves
-	DISABLE_OUTGOING_PARTS,	// Removes particles that went through an open boundary
-	COMPUTE_DENSITY,	// Compute density (Grenier)
-	SPS,				// SPS stress matrix computation kernel TODO FIXME RENAME COMMAND (generic viscEngine processing)
-	REDUCE_BODIES_FORCES,	// reduce rigid bodies forces (sum the forces for each body)
-	UPLOAD_GRAVITY,		// upload new value for gravity, after problem callback
-	UPLOAD_PLANES,		// upload planes
-	EULER_UPLOAD_OBJECTS_CG,	// upload centers of gravity of objects (for Euler only)
-	FORCES_UPLOAD_OBJECTS_CG,	// upload centers of grovity of objects (for forces only)
-	UPLOAD_OBJECTS_MATRICES, // upload translation vector and rotation matrices for objects
-	UPLOAD_OBJECTS_VELOCITIES, // upload linear and angular velocity of objects
-	IMPOSE_OPEN_BOUNDARY_CONDITION,	// imposes velocity/pressure on open boundaries
-	DOWNLOAD_IOWATERDEPTH,		// gets the IOwaterdepth array from the GPU
-	UPLOAD_IOWATERDEPTH,	// uploads the IOwaterdepth array to the GPU
-	QUIT				// quits the simulation cycle
+	/// Dummy cycle (do nothing)
+	IDLE,
+	/// Swap double-buffered buffers
+	SWAP_BUFFERS,
+	/// Compute particle hashes
+	CALCHASH,
+	/// Sort particles by hash
+	SORT,
+	/// Crop particle list, dropping all external particles
+	CROP,
+	/// Reorder particle data according to the latest SORT, and find the start of each cell
+	REORDER,
+	/// Build the neighbors list
+	BUILDNEIBS,
+	/// Compute forces, blocking; this runs the whole forces sequence (texture bind, kernele execution, texture
+	/// unbinding, dt reduction) and only proceeds on completion
+	FORCES_SYNC,
+	/// Compute forces, asynchronously: bind textures, launch kernel and return without waiting for kernel completion
+	FORCES_ENQUEUE,
+	/// Wait for completion of the forces kernel unbind texture, reduce dt
+	FORCES_COMPLETE,
+	/// Integration (runs the Euler kernel)
+	EULER,
+	/// Dump (device) particle data arrays into shared host arrays
+	DUMP,
+	/// Dump (device) cellStart and cellEnd into shared host arrays
+	DUMP_CELLS,
+	/// Dump device segments to shared host arrays, and update number of internal particles
+	UPDATE_SEGMENTS,
+	/// Download the number of particles on device (in case of inlets/outlets)
+	DOWNLOAD_NEWNUMPARTS,
+	/// Upload the number of particles to the device
+	UPLOAD_NEWNUMPARTS,
+	/// Append a copy of the external cells to the end of self device arrays
+	APPEND_EXTERNAL,
+	///	Update the read-only copy of the external cells
+	UPDATE_EXTERNAL,
+	/// Run smoothing filters (e.g. Shepard, MLS)
+	FILTER,
+	/// Run post-processing filters (e.g. vorticity, testpoints)
+	POSTPROCESS,
+	/// SA_BOUNDARY only: update the vertex ID-to-index map
+	SA_UPDATE_VERTIDINDEX,
+	/// SA_BOUNDARY only: compute segment boundary conditions and identify fluid particles
+	/// that leave open boundaries
+	SA_CALC_SEGMENT_BOUNDARY_CONDITIONS,
+	/// SA_BOUNDARY only: compute vertex boundary conditions, including mass update
+	/// and generation of new fluid particles at open boundaries.
+	/// During initialization, also compute a preliminary ∇γ direction vector
+	SA_CALC_VERTEX_BOUNDARY_CONDITIONS,
+	/// SA_BOUNDARY only: identify vertices at corner of open boundaries.
+	/// Corner vertices do not generate new particles,
+	IDENTIFY_CORNER_VERTICES,
+	/// SA_BOUNDARY only: find the closest vertex for boundaries that have no proper I/O vertex themselves
+	FIND_CLOSEST_VERTEX,
+	/// SA_BOUNDARY only: disable particles that went through an open boundary
+	DISABLE_OUTGOING_PARTS,
+	/// SPH_GRENIER only: compute density
+	COMPUTE_DENSITY,
+	/// Compute SPS stress matrix
+	/// TODO FIXME RENAME COMMAND (generic viscEngine processing)
+	SPS,
+	/// Compute total force acting on a moving body
+	REDUCE_BODIES_FORCES,
+	/// Upload new value of gravity, after problem callback
+	UPLOAD_GRAVITY,
+	/// Upload planes to devices
+	UPLOAD_PLANES,
+	/// Upload centers of gravity of moving bodies for the integration engine
+	/// TODO FIXME there shouldn't be a need for separate EULER_ and FORCES_ version
+	/// of this, the moing body data should be put in its own namespac
+	EULER_UPLOAD_OBJECTS_CG,
+	/// Upload centers of gravity of moving bodies for forces computation
+	/// TODO FIXME there shouldn't be a need for separate EULER_ and FORCES_ version
+	/// of this, the moing body data should be put in its own namespac
+	FORCES_UPLOAD_OBJECTS_CG,
+	/// Upload translation vector and rotation matrices for moving bodies
+	UPLOAD_OBJECTS_MATRICES,
+	/// Upload linear and angular velocity of moving bodies
+	UPLOAD_OBJECTS_VELOCITIES,
+	/// Impose problem-specific velocity/pressure on open boundaries
+	/// (should update the WRITE buffer in-place)
+	IMPOSE_OPEN_BOUNDARY_CONDITION,
+	/// Download (partial) computed water depth from device to host
+	DOWNLOAD_IOWATERDEPTH,
+	/// Upload (total)computed water depth from host to device
+	UPLOAD_IOWATERDEPTH,
+	/// Quit the simulation cycle
+	QUIT
 };
 
 // command flags are defined in their own include files
