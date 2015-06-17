@@ -256,6 +256,8 @@ class XProblem: public Problem {
 		void copy_to_array(BufferList &buffers);
 		void release_memory();
 
+		uint suggestedDynamicBoundaryLayers();
+
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
 
 		// methods related to SA bounds

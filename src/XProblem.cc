@@ -64,6 +64,11 @@ void XProblem::release_memory()
 	}
 }
 
+uint XProblem::suggestedDynamicBoundaryLayers()
+{
+	return (uint) ceil(m_simparams->sfactor * m_simparams->kernelradius) + 1;
+}
+
 XProblem::~XProblem()
 {
 	release_memory();
@@ -255,7 +260,7 @@ bool XProblem::initialize()
 
 	// compute the number of layers for dynamic boundaries, if not set
 	if (m_simparams->boundarytype == DYN_BOUNDARY && m_numDynBoundLayers == 0) {
-		m_numDynBoundLayers = (uint) ceil(m_simparams->sfactor * m_simparams->kernelradius) + 1;
+		m_numDynBoundLayers = suggestedDynamicBoundaryLayers();
 		printf("Number of dynamic boundary layers not set, autocomputed: %u\n", m_numDynBoundLayers);
 	}
 
