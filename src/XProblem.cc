@@ -999,8 +999,11 @@ void XProblem::setDynamicBoundariesLayers(const uint numLayers)
 	if (m_simparams->boundarytype != DYN_BOUNDARY)
 		printf("WARNIG: setting number of layers for dynamic boundaries but not using DYN_BOUNDARY!\n");
 
-	if (numLayers > 0 && numLayers < 3)
-		printf("WARNIG: number of layers for dynamic boundaries is low (%u), use at least 3\n", numLayers);
+	// TODO: use autocomputed instead of 3
+	const uint suggestedNumLayers = suggestedDynamicBoundaryLayers();
+	if (numLayers > 0 && numLayers < suggestedNumLayers)
+		printf("WARNIG: number of layers for dynamic boundaries is low (%u), suggested number is %u\n",
+			numLayers, suggestedNumLayers);
 
 	m_numDynBoundLayers = numLayers;
 }
