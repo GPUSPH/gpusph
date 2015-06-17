@@ -260,38 +260,6 @@ class XProblem: public Problem {
 
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
 
-		// methods related to SA bounds
-		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
-		//virtual uint max_parts(uint);
-
-		virtual void setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
-
-		virtual void imposeBoundaryConditionHost(
-					float4*			newVel,
-					float4*			newEulerVel,
-					float*			newTke,
-					float*			newEpsilon,
-			const	particleinfo*	info,
-			const	float4*			oldPos,
-					uint*			IOwaterdepth,
-			const	float			t,
-			const	uint			numParticles,
-			const	uint			numOpenBoundaries,
-			const	uint			particleRangeEnd,
-			const	hashKey*		particleHash);
-
-		virtual void imposeForcedMovingObjects(
-					float3	&gravityCenters,
-					float3	&translations,
-					float*	rotationMatrices,
-			const	uint	ob,
-			const	double	t,
-			const	float	dt);
-
 		// will probably implement a smart, general purpose one
 		// void fillDeviceMap();
 };
