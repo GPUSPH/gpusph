@@ -1431,7 +1431,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 					vertex_part_mass = pos[i].w;
 				// also set rigid_body_part_mass, which is orthogonal the the previous values
 				// TODO: with SA bounds, this value has little meaning or should be split
-				if (m_geometries[g]->type == GT_FLOATING_BODY && !isfinite(rigid_body_part_mass))
+				if ((m_geometries[g]->type == GT_FLOATING_BODY ||
+					 m_geometries[g]->type == GT_MOVING_BODY) &&
+					 !isfinite(rigid_body_part_mass))
 					rigid_body_part_mass = pos[i].w;
 
 				// load boundary-specific data (SA bounds only)
