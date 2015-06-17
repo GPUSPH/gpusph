@@ -1387,6 +1387,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 				float rho = m_physparams->rho0[0];
 
 				// fix density of fluid parts for hydrostatic filling
+				// TODO FIXME for multifluid
 				if (ptype == PT_FLUID)
 					rho = density(m_waterLevel - hdf5Buffer[bi].Coords_2, 0);
 
