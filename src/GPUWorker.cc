@@ -1292,8 +1292,20 @@ void GPUWorker::downloadNewNumParticles()
 	if (activeParticles != m_numParticles) {
 		// if for debug reasons we need to print the change in numParts for each device, uncomment the following:
 		// printf("  Dev. index %u: particles: %d => %d\n", m_deviceIndex, m_numParticles, activeParticles);
-		if (activeParticles > m_numParticles)
-			gdata->highestDevId[m_deviceIndex] += (activeParticles-m_numParticles)*gdata->totDevices;
+
+		// Increment the highest particle ID that will be used as offset by the particle creation function,
+		// checking for overflow
+		if (activeParticles > m_numParticles) {
+			uint id_delta = (activeParticles-m_numParticles)*gdata->totDevices;
+			if (UINT_MAX - id_delta < gdata->highestDevId[m_deviceIndex]) {
+				fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n",
+					gdata->iterations, m_globalDeviceIdx);
+				gdata->quit_request = true;
+			}
+
+			gdata->highestDevId[m_deviceIndex] += id_delta;
+		}
+
 		m_numParticles = activeParticles;
 		// In multi-device simulations, m_numInternalParticles is updated in dropExternalParticles() and updateSegments();
 		// it should not be updated here. Single-device simulations, instead, have it updated here.

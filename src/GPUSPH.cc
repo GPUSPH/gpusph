@@ -1933,27 +1933,6 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 	if (MULTI_DEVICE)
 		doCommand(UPDATE_EXTERNAL, POST_SA_SEGMENT_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
-	// check if new particles were created and check for ID overflow
-	if (cFlag & INTEGRATOR_STEP_2) {
-		// compute the offset for id cloning and check for possible overflows
-		// NOTE: the formula is
-		//    new_id = vertex_id + initial_parts - initial_fluid_parts +
-		//             (num_iterations_with_part_creations * numVertexParticles)
-		// but we replace (initial_parts - initial_fluid_parts) with numInitialNonFluidParticles.
-		if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET) {
-
-			//gdata->newIDsOffset = gdata->numInitialNonFluidParticles +
-			//	(gdata->numVertices * gdata->createdParticlesIterations);
-
-			for (uint d = 0; d < gdata->devices; d++) {
-				if (UINT_MAX - gdata->numVertices < gdata->highestDevId[d]) {
-					fprintf(stderr, " FATAL: possible ID overflow in particle creation after iteration %lu on device %d - requesting quit...\n", gdata->iterations, d);
-					gdata->quit_request = true;
-				}
-			}
-		}
-	}
-
 	// compute boundary conditions on vertices including mass variation and create new particles at open boundaries
 	doCommand(SA_CALC_VERTEX_BOUNDARY_CONDITIONS, cFlag);
 	if (MULTI_DEVICE)

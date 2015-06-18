@@ -229,9 +229,6 @@ struct GlobalData {
 	uint processParticles[MAX_NODES_PER_CLUSTER];
 	// number of allocated particles *in the process*
 	uint allocatedParticles;
-	// number of SA vertices and non fluid parts, used for id cloning
-	uint numVertices;
-	uint numInitialNonFluidParticles;
 	// global number of planes (same as local ones)
 	//uint numPlanes;
 	// grid size, for particle hash computation
@@ -274,8 +271,6 @@ struct GlobalData {
 	bool	particlesCreated;
 	// keep track of #iterations in which at particlesCreated holds
 	uint	createdParticlesIterations;
-	// offset used for ID cloning
-	uint	newIDsOffset;
 
 	/**! Planes are defined in the implicit form a x + b y + c z + d = 0,
 	 * where (a, b, c) = n is the normal to the plane (oriented towards the
@@ -373,8 +368,6 @@ struct GlobalData {
 		networkManager(NULL),
 		totParticles(0),
 		allocatedParticles(0),
-		numVertices(0),
-		numInitialNonFluidParticles(0),
 		nGridCells(0),
 		s_hDeviceMap(NULL),
 		s_hPartsPerSliceAlongX(NULL),
@@ -396,7 +389,6 @@ struct GlobalData {
 		dt(0.0f),
 		particlesCreated(false),
 		createdParticlesIterations(0),
-		newIDsOffset(0),
 		lastGlobalPeakNeibsNum(0),
 		lastGlobalNumInteractions(0),
 		nextCommand(IDLE),
