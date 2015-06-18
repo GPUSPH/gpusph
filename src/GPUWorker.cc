@@ -1335,6 +1335,7 @@ void GPUWorker::downloadNewNumParticles()
 void GPUWorker::uploadNewNumParticles()
 {
 	// uploading even if empty (usually not, right after append)
+	// TODO move this to the bcEngine too
 	CUDA_SAFE_CALL(cudaMemcpy(m_dNewNumParticles, &m_numParticles, sizeof(uint), cudaMemcpyHostToDevice));
 }
 
@@ -2435,6 +2436,8 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
+	bcEngine->updateNewIDsOffset(gdata->highestDevId[m_deviceIndex]);
+
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
 
@@ -2466,7 +2469,6 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				gdata->highestDevId[m_deviceIndex],
 				initStep,
 				m_globalDeviceIdx,
 				gdata->totDevices);

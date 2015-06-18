@@ -1387,6 +1387,11 @@ class CUDABoundaryConditionsEngine : public AbstractBoundaryConditionsEngine
 {
 public:
 
+void
+updateNewIDsOffset(const uint &newIDsOffset)
+{
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
+}
 
 /// Disables particles that went through boundaries when open boundaries are used
 void
@@ -1490,7 +1495,6 @@ saVertexBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	uint&			newIDsOffset,
 	const	bool			initStep,
 	const	uint			deviceId,
 	const	uint			numDevices)
@@ -1499,8 +1503,6 @@ saVertexBoundaryConditions(
 
 	uint numThreads = BLOCK_SIZE_SHEPARD;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
-
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(cubounds::d_newIDsOffset, &newIDsOffset, sizeof(uint)));
 
 	CUDA_SAFE_CALL(cudaBindTexture(0, boundTex, boundelement, numParticles*sizeof(float4)));
 
