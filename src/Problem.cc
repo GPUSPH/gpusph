@@ -1152,6 +1152,24 @@ Problem::calc_grid_pos(const Point&	pos) const
 	return gridPos;
 }
 
+/// Compute the uniform grid components of a vector
+int3
+Problem::calc_grid_offset(double3 const& vec) const
+{
+	int3 gridOff;
+	gridOff = make_int3(floor(vec/m_cellsize));
+
+	return gridOff;
+}
+
+/// Compute the local (fractional grid cell) components of a vector,
+/// given the vector and its grid offset
+double3
+Problem::calc_local_offset(double3 const& vec, int3 const& gridOff) const
+{
+	return vec - (make_double3(gridOff) + 0.5)*m_cellsize;
+}
+
 
 // Compute address in grid from position
 uint
