@@ -1104,6 +1104,11 @@ static __forceinline__ __host__ __device__ int3 make_int3(const float3 &a)
 	return make_int3(int(a.x), int(a.y), int(a.z));
 }
 
+static __forceinline__ __host__ __device__ int3 make_int3(const double3 &a)
+{
+	return make_int3(int(a.x), int(a.y), int(a.z));
+}
+
 // negate
 static __forceinline__ __host__ __device__ int3 operator-(const int3 &a)
 {
