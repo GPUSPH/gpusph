@@ -95,14 +95,15 @@ enum ParticleFlag {
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 #define QUERY_FLAG(info, flag) ((info).x & (flag))
 
-/* A bitmask to select only the particle type */
+/* Bitmasks to select only the particle type or flags */
 #define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)
+#define PART_FLAGS_MASK	(((1<<16)-1) - PART_TYPE_MASK)
 
 /* Extract a specific subfield from the particle type: */
 // Extract particle type
 #define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
-// Extract particle flag
-#define PART_FLAGS(f)		(type(f) >> PART_FLAG_SHIFT)
+// Extract particle flags
+#define PART_FLAGS(f)		(type(f) & PART_FLAGS_MASK)
 
 /* Tests for particle types */
 
