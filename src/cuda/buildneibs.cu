@@ -216,7 +216,7 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 /*!	CPU part responsible of launching the reorder kernel
  * 	(cuneibs::reorderDataAndFindCellStartDevice) on the device.
  * 	\param[out] cellStart : index of cells first particle
- * 	\param[out] cellStart : index of cells last particle
+ * 	\param[out] cellEnd : index of cells last particle
  * 	\param[out] segmentStart : TODO
  * 	\param[in] particleHash : sorted particle hashes
  * 	\param[in] particleIndex : sorted particle indices

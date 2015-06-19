@@ -13,33 +13,31 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	h5File.setFilename("meshes/0.LaPalisse.h5sph");
 
 	SETUP_FRAMEWORK(
-		//viscosity<KEPSVISC>
-		viscosity<DYNAMICVISC>,
+		viscosity<KEPSVISC>,
 		boundary<SA_BOUNDARY>,
 		formulation<SPH_F2>,
 		flags<ENABLE_DTADAPT |
 			ENABLE_INLET_OUTLET |
 			ENABLE_FERRARI |
-			ENABLE_WATER_DEPTH>
+			ENABLE_WATER_DEPTH |
+			ENABLE_DENSITY_SUM>
 	);
 
 	m_simparams->sfactor=1.3f;
 	set_deltap(0.015f);
 
 	add_fluid(1000.0f);
-	set_equation_of_state(0,  7.0f, 70.0f);
-	set_kinematic_visc(0, 1.0e-2f);
+	set_equation_of_state(0,  7.0f, 50.0f);
+	set_kinematic_visc(0, 1.0e-6f);
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 
 	m_simparams->maxneibsnum = 240;
 
 	m_simparams->tend = 10.0;
-	initial_water_level = 1.23f;
-	expected_final_water_level = INLET_WATER_LEVEL;
 
 	// SPH parameters
-	m_simparams->dt = 0.00004f;
-	m_simparams->dtadaptfactor = 0.3;
+	m_simparams->dt = 0.00001f;
+	m_simparams->dtadaptfactor = 0.1;
 	m_simparams->buildneibsfreq = 1;
 	m_simparams->ferrari= 1.0f;
 	m_simparams->nlexpansionfactor = 1.1;
@@ -49,7 +47,7 @@ LaPalisse::LaPalisse(GlobalData *_gdata) : Problem(_gdata)
 	m_origin = make_double3(-2.35f, -3.5f, -1.3f);
 
 	// Drawing and saving times
-	add_writer(VTKWRITER, 1e-6f);
+	add_writer(VTKWRITER, 1e-2f);
 
 	// Name of problem used for directory creation
 	m_name = "LaPalisse";
@@ -96,7 +94,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 
 	std::cout << "Fluid parts: " << n_parts << "\n";
 	for (uint i = 0; i < n_parts; i++) {
-		float rho = density(initial_water_level - 1.08f - h5File.buf[i].Coords_2, 0);
+		float rho = density(INLET_WATER_LEVEL - h5File.buf[i].Coords_2, 0);
 		//float rho = m_physparams->rho0[0];
 		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
@@ -111,7 +109,7 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
 		for (uint i = j; i < j + n_vparts; i++) {
-			float rho = density(initial_water_level - 1.08f - h5File.buf[i].Coords_2, 0);
+			float rho = density(INLET_WATER_LEVEL - h5File.buf[i].Coords_2, 0);
 			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 			if (eulerVel)
 				eulerVel[i] = vel[i];
@@ -186,11 +184,9 @@ void LaPalisse::copy_to_array(BufferList &buffers)
 void
 LaPalisse::init_keps(float* k, float* e, uint numpart, particleinfo* info, float4* pos, hashKey* hash)
 {
-	const float k0 = 1.0f/sqrtf(0.09f);
-
 	for (uint i = 0; i < numpart; i++) {
-		k[i] = k0;
-		e[i] = 2.874944542f*k0*0.01f;
+		k[i] = 0.0f;
+		e[i] = 1e-5f;
 	}
 }
 

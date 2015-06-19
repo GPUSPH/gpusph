@@ -61,7 +61,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_DENSITY_SUM>
 		);
 
 		set_deltap(0.125f);
@@ -75,7 +75,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 1.0;
 		l = 2.2; w = 2.2; h = 2.2;
 		m_origin = make_double3(-1.1, -1.1, -1.1);
-		m_simparams->ferrariLengthScale = 1.0f;
+		//m_simparams->ferrariLengthScale = 1.0f;
+		m_simparams->ferrari = 1.0f;
 		size_t water = add_fluid(1000.0);
 		set_equation_of_state(water,  7.0f, 60.f);
 		set_kinematic_visc(0, 1.0e-2f);
@@ -353,7 +354,7 @@ int InputProblem::fill_parts()
 		test_points.push_back(m_origin + make_double3(2.5365, 0.5, 0.161) + make_double3(0.01, 0.01, 0.01));
 	}
 	//*******************************************************************
-	// Setting probes for KEPS test case
+	// Setting probes for channel flow keps test cases (with and without io)
 	//*******************************************************************
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS || SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 	if (m_simframework->hasPostProcessEngine(TESTPOINTS)) {
@@ -362,7 +363,7 @@ int InputProblem::fill_parts()
 			test_points.push_back(m_origin + make_double3(0.4, 0.4, 0.05*(float)i) + make_double3(0.0, 0.0, 0.01));
 	}
 	//*******************************************************************
-	// Setting probes for KEPS test case
+	// Setting probes for PeriodicWave test case
 	//*******************************************************************
 #elif SPECIFIC_PROBLEM == PeriodicWave
 	add_gage(make_double3(0.0, 0.0, 0.2));

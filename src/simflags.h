@@ -61,9 +61,9 @@
 #define ENABLE_FERRARI			(ENABLE_WATER_DEPTH << 1)
 
 // Summation density
-#define ENABLE_DENSITYSUM		(ENABLE_FERRARI << 1)
+#define ENABLE_DENSITY_SUM		(ENABLE_FERRARI << 1)
 
-#define LAST_SIMFLAG		ENABLE_DENSITYSUM
+#define LAST_SIMFLAG		ENABLE_DENSITY_SUM
 
 // since flags are a bitmap, LAST_SIMFLAG - 1 sets all bits before
 // the LAST_SIMFLAG bit, and OR-ing with LAST_SIMFLAG gives us

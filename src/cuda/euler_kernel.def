@@ -100,21 +100,25 @@
  *	\param[in] t : simualation time
  *
  *	\tparam step : integration step (1, 2)
- *	\tparam xsphcorr : if true, XSPH correction is applied
  *	\tparam boundarytype : type of boundary
+ *	\tparam kerneltype : type of kernel
+ *	\tparam simflags : simulation flags
  */
 //TODO templatize vars like other kernels
-template<int step, bool xsphcorr, SPHFormulation sph_formulation, BoundaryType boundarytype>
+template<SPHFormulation sph_formulation, BoundaryType boundarytype, KernelType kerneltype, flag_t simflags>
 __global__ void
 eulerDevice(
 	const	float4	*oldPos,			///< previous particle's position (in)
 	const	hashKey	*particleHash,		///< particle's hash (in)
-	const	float4	*oldVel,			///< previous particle's velocity (in)
+	const	neibdata	*neibsList,		///< neighbour list (in)
+	const	uint	*cellStart,			///< index first particle in cell (in)
+			float4	*oldVel,			///< previous particle's velocity (in/out)
 	const	float4	*oldVol,			///< previous particle's volume (in)
 	const	float4	*oldEulerVel,		///< previous eulerian velocities for ??? <- TODO (in)
-	const	float4	*oldgGam,			///< previous values of gradient of gamma (in)
+			float4	*oldgGam,			///< previous values of gradient of gamma (in/out)
 	const	float	*oldTKE,			///< previous values of k, for k-e model (in)
 	const	float	*oldEps,			///< previous values of e, for k-e model
+	const	float2	* const vertPos[],	///< relative position of vertices of a segment (in)
 	const	particleinfo	*info,		///< particle's information
 	const	float4	*forces,			///< derivative of particle's velocity and density (in)
 	const	float2	*contupd,			///< ?? (in)
@@ -130,9 +134,12 @@ eulerDevice(
 	// boundary elements are updated in-place, only used for rotation in the second step
 			float4	*newBoundElement,	///< ??? <- TODO (in, out)
 	const	uint	numParticles,		///< total number of particles
+	const	uint	step,				///< integrator step
 	const	float	full_dt,			///< time step (dt)
 	const	float	half_dt,			///< half of time step (dt/2)
-	const	float	t)					///< simulation time
+	const	float	t,					///< simulation time
+	const	float	slength,
+	const	float	influenceradius)					///< simulation time
 {
 	const int index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x;
 
@@ -147,12 +154,13 @@ eulerDevice(
 	float4 vel = oldVel[index];		// always vel(n)
 	// TODO templatize better
 	float4 vol = oldVol ? oldVol[index] :make_float4(NAN);		// always vol(n)
-	float4 eulerVel = oldEulerVel ? oldEulerVel[index] : make_float4(0.0f); // always eulerVel(n)
 	float keps_k = oldTKE ? oldTKE[index] : NAN;	// always k(n)
 	float keps_e = oldEps ? oldEps[index] : NAN;	// always e(n)
 
 	const particleinfo pinfo = info[index];
 	const ParticleType ptype = static_cast<ParticleType>(PART_TYPE(pinfo));
+
+	float4 eulerVel = (oldEulerVel && IO_BOUNDARY(pinfo)) ? oldEulerVel[index] : make_float4(0.0f); // always eulerVel(n)
 
 	do {
 		// Euler does nothing to boundary particles apart copying pos and vel
@@ -174,7 +182,7 @@ eulerDevice(
 		// Mean XSPH velocity, only when XSPH is active.
 		// The compiler is smart enough to actually optimize this out
 		// in the xsphcorr == false case
-		const float4 mean_vel = xsphcorr ? xsph[index] : make_float4(0);
+		const float4 mean_vel = (simflags & ENABLE_XSPH) ? xsph[index] : make_float4(0);
 
 		// velc = vel if step == 1, but
 		// velc = vel + forces[index]*dt/2.0f if step == 2
@@ -189,42 +197,46 @@ eulerDevice(
 				// Add weighted mean_vel only in xsphcorr case.
 				// The compiler is smart enough to optimize it out
 				// in the xsphcorr == false case
-				pos.x += (velc.x + xsphcorr*d_epsxsph*mean_vel.x)*dt;
-				pos.y += (velc.y + xsphcorr*d_epsxsph*mean_vel.y)*dt;
-				pos.z += (velc.z + xsphcorr*d_epsxsph*mean_vel.z)*dt;
+				pos.x += (velc.x + (!!(simflags & ENABLE_XSPH))*d_epsxsph*mean_vel.x)*dt;
+				pos.y += (velc.y + (!!(simflags & ENABLE_XSPH))*d_epsxsph*mean_vel.y)*dt;
+				pos.z += (velc.z + (!!(simflags & ENABLE_XSPH))*d_epsxsph*mean_vel.z)*dt;
 
 				// Grenier evolves the volume, not the density,
 				// all other evolve the density directly
 				if (sph_formulation == SPH_GRENIER) {
 					vol.y += dt*force.w;
+				} else if (boundarytype == SA_BOUNDARY) {
+					sa_integrate_continuity_equation<simflags & ENABLE_DENSITY_SUM>::with<kerneltype>(
+						newVel[index].w,
+						vel.w,
+						index,
+						pos,
+						velc,
+						oldgGam[index],
+						newgGam[index],
+						oldPos,
+						oldVel,
+						oldEulerVel,
+						forces,
+						info,
+						newBoundElement,
+						vertPos[0],
+						vertPos[1],
+						vertPos[2],
+						particleHash,
+						cellStart,
+						neibsList,
+						numParticles,
+						contupd[index],
+						force.w,
+						dt,
+						full_dt,
+						half_dt,
+						slength,
+						influenceradius,
+						step);
 				} else {
-					if (boundarytype == SA_BOUNDARY) {
-						// Updating particle density
-						// For step 1:
-						//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
-						// For step 2:
-						//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
-						// Improved continuity equation
-						if (step == 1) {
-							// gamma at time n+1 (gGam.w is gamma at time n)
-							const float gamN = newgGam[index].w;
-							const float gamNp1 = gamN + dt*contupd[index].y;
-							vel.w = gamN/gamNp1*(vel.w + dt*force.w) + dt*contupd[index].x;
-						}
-						else {
-							const float gamNp1o2 = newgGam[index].w;
-							const float rhoNp1o2 = newVel[index].w;
-							// gamma at time n (gGam.w is gamma at time n+1/2)
-							const float gamN   = oldgGam[index].w;
-							// gamma at time n+1
-							const float gamNp1 = gamN + dt*contupd[index].y;
-							vel.w = 1.0f/gamNp1*(gamN*vel.w + dt*vel.w/rhoNp1o2*gamNp1o2*force.w) + dt*contupd[index].x;
-						}
-						// Classical continuity equation
-						//vel.w += dt*force.w + dt*contupd[index].x - dt*vel.w/gGam[index].w*contupd[index].y;
-					} else {
-						vel.w += dt*force.w;
-					}
+					vel.w += dt*force.w;
 				}
 
 				as_float3(vel) += dt*as_float3(force);

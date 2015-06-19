@@ -112,6 +112,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	if (m_simparams->simflags & ENABLE_DTADAPT) {
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL>();
+		if (m_simparams->simflags & ENABLE_DENSITY_SUM)
+			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_DS>();
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_TEMP>();
 		if (m_simparams->visctype == KEPSVISC)
 			m_dBuffers.addBuffer<CUDABuffer, BUFFER_CFL_KEPS>();
@@ -1887,6 +1889,8 @@ void GPUWorker::kernel_buildNeibsList()
 // returns numBlocks as computed by forces()
 uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cflOffset)
 {
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
+
 	return forcesEngine->basicstep(
 		m_dBuffers.getReadBufferList(),
 		m_dBuffers.getWriteBufferList(),
@@ -1902,7 +1906,8 @@ uint GPUWorker::enqueueForcesOnRange(uint fromParticle, uint toParticle, uint cf
 		m_simparams->influenceRadius,
 		m_simparams->epsilon,
 		m_dIOwaterdepth,
-		cflOffset);
+		cflOffset,
+		firstStep ? 1 : 2);
 }
 
 // Bind the textures needed by forces kernel
@@ -1944,6 +1949,7 @@ float GPUWorker::forces_dt_reduce()
 		m_simparams->dtadaptfactor,
 		max_kinematic,
 		bufwrite.getData<BUFFER_CFL>(),
+		bufwrite.getData<BUFFER_CFL_DS>(),
 		bufwrite.getData<BUFFER_CFL_KEPS>(),
 		bufwrite.getData<BUFFER_CFL_TEMP>(),
 		m_forcesKernelTotalNumBlocks);
@@ -2162,14 +2168,18 @@ void GPUWorker::kernel_euler()
 	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	integrationEngine->basicstep(
-		m_dBuffers.getReadBufferList(),
+		m_dBuffers.getReadBufferList(),	// this is the read only arrays
+		m_dBuffers.getReadBufferList(),	// the read array but it will be written to in certain cases (densitySum)
 		m_dBuffers.getWriteBufferList(),
+		m_dCellStart,
 		m_numParticles,
 		numPartsToElaborate,
 		gdata->dt, // m_dt,
 		gdata->dt/2.0f, // m_dt/2.0,
 		firstStep ? 1 : 2,
-		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt));
+		gdata->t + (firstStep ? gdata->dt / 2.0f : gdata->dt),
+		m_simparams->slength,
+		m_simparams->influenceRadius);
 }
 
 void GPUWorker::kernel_download_iowaterdepth()
@@ -2360,6 +2370,7 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 	if (numPartsToElaborate == 0) return;
 
 	bool initStep = (gdata->commandFlags & INITIALIZATION_STEP);
+	bool firstStep = (gdata->commandFlags & INTEGRATOR_STEP_1);
 
 	BufferList const& bufread = *m_dBuffers.getReadBufferList();
 	BufferList &bufwrite = *m_dBuffers.getWriteBufferList();
@@ -2384,7 +2395,8 @@ void GPUWorker::kernel_saSegmentBoundaryConditions()
 				gdata->problem->m_deltap,
 				m_simparams->slength,
 				m_simparams->influenceRadius,
-				initStep);
+				initStep,
+				firstStep ? 1 : 2);
 }
 
 void GPUWorker::kernel_updateVertIdIndexBuffer()
@@ -2523,7 +2535,8 @@ void GPUWorker::uploadConstants()
 	// Setting kernels and kernels derivative factors
 	forcesEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
-	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize);
+	integrationEngine->setconstants(m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
+		m_numAllocatedParticles, m_simparams->maxneibsnum, m_simparams->slength);
 	neibsEngine->setconstants(m_simparams, m_physparams, gdata->worldOrigin, gdata->gridSize, gdata->cellSize,
 		m_numAllocatedParticles);
 	if (m_simparams->simflags & ENABLE_INLET_OUTLET)

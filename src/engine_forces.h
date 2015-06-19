@@ -123,7 +123,8 @@ public:
 				float	influenceradius,
 		const	float	epsilon,
 				uint	*IOwaterdepth,
-				uint	cflOffset) = 0;
+				uint	cflOffset,
+		const	uint	step) = 0;
 
 	// Reduction methods
 
@@ -138,6 +139,7 @@ public:
 				float	dtadaptfactor,
 				float	max_kinematic,
 				float	*cfl,
+				float	*cflDs,
 				float	*cflTVisc,
 				float	*tempCfl,
 				uint	numBlocks) = 0;
@@ -172,7 +174,8 @@ saSegmentBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep) = 0;
+	const	bool			initStep,
+	const	uint			step) = 0;
 
 // There is no need to use two velocity arrays (read and write) and swap them after.
 // Computes the boundary conditions on vertex particles using the values from the segments associated to it. Also creates particles for inflow boundary conditions.

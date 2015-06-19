@@ -38,8 +38,8 @@ LaPalisse_imposeBoundaryCondition(
 		// impose pressure
 		if (!VEL_IO(info)) {
 			if (object(info)==1) {
-				// set inflow waterdepth
-				waterdepth = INLET_WATER_LEVEL - 1.08f;
+				// rise slowly over 6 seconds
+				waterdepth = (INLET_WATER_LEVEL - 1.08f - INITIAL_WATER_LEVEL)*fmin(t/RISE_TIME, 1.0f) + INITIAL_WATER_LEVEL;
 			}
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;

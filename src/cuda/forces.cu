@@ -542,6 +542,7 @@ dtreduce(	float	slength,
 			float	dtadaptfactor,
 			float	max_kinematic,
 			float	*cfl,
+			float	*cfl_dS,
 			float	*cflTVisc,
 			float	*tempCfl,
 			uint	numBlocks)
@@ -550,6 +551,13 @@ dtreduce(	float	slength,
 	// so it holds numBlocks elements
 	float maxcfl = cflmax(numBlocks, cfl, tempCfl);
 	float dt = dtadaptfactor*sqrtf(slength/maxcfl);
+
+	if(simflags & ENABLE_DENSITY_SUM) {
+		maxcfl = fmax(cflmax(numBlocks, cfl_dS, tempCfl), 1e-5f/dt);
+		const float dt_gam = 0.001f/maxcfl;
+		if (dt_gam < dt)
+			dt = dt_gam;
+	}
 
 	if (visctype != ARTVISC) {
 		/* Stability condition from viscosity h²/ν
@@ -602,7 +610,8 @@ basicstep(
 	float	influenceradius,
 	const	float	epsilon,
 	uint	*IOwaterdepth,
-	uint	cflOffset)
+	uint	cflOffset,
+	const	uint	step)
 {
 	const float4 *pos = bufread->getData<BUFFER_POS>();
 	const float4 *vel = bufread->getData<BUFFER_VEL>();
@@ -626,6 +635,7 @@ basicstep(
 
 	float3 *keps_dkde = bufwrite->getData<BUFFER_DKDE>();
 	float *cfl = bufwrite->getData<BUFFER_CFL>();
+	float *cfl_Ds = bufwrite->getData<BUFFER_CFL_DS>();
 	float *cflTVisc = bufwrite->getData<BUFFER_CFL_KEPS>();
 	float *tempCfl = bufwrite->getData<BUFFER_CFL_TEMP>();
 
@@ -646,8 +656,8 @@ basicstep(
 	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
 			forces, contupd, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
-			deltap, slength, influenceradius,
-			cfl, cflTVisc, cflOffset,
+			deltap, slength, influenceradius, step,
+			cfl, cfl_Ds, cflTVisc, cflOffset,
 			xsph,
 			bufread->getData<BUFFER_SIGMA>(),
 			newGGam, vertPos, epsilon,
@@ -1424,7 +1434,8 @@ saSegmentBoundaryConditions(
 	const	float			deltap,
 	const	float			slength,
 	const	float			influenceradius,
-	const	bool			initStep)
+	const	bool			initStep,
+	const	uint			step)
 {
 	uint numThreads = BLOCK_SIZE_FORCES;
 	uint numBlocks = div_up(particleRangeEnd, numThreads);
@@ -1440,7 +1451,7 @@ saSegmentBoundaryConditions(
 
 	// execute the kernel
 	cuforces::saSegmentBoundaryConditions<kerneltype><<< numBlocks, numThreads, dummy_shared >>>
-		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, simflags & ENABLE_INLET_OUTLET);
+		(oldPos, oldVel, oldTKE, oldEps, oldEulerVel, oldGGam, vertices, vertIDToIndex, vertPos[0], vertPos[1], vertPos[2], particleHash, cellStart, neibsList, particleRangeEnd, deltap, slength, influenceradius, initStep, step, simflags & ENABLE_INLET_OUTLET);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(boundTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(infoTex));

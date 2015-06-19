@@ -131,7 +131,7 @@ public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
 		m_neibsEngine = new CUDANeibsEngine<sph_formulation, boundarytype, periodicbound, true>();
-		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, simflags & ENABLE_XSPH>();
+		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, simflags>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();
