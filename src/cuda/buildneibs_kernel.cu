@@ -708,7 +708,7 @@ struct niC_vars :
 template<bool use_sa_boundary>
 __device__ __forceinline__
 bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
-	buildneibs_params<use_sa_boundary> params)
+	buildneibs_params<use_sa_boundary> const& params)
 {
 	// Default : check against the influence radius
 	return sqlength(relPos) < params.sqinfluenceradius;
@@ -719,7 +719,7 @@ bool isCloseEnough(float3 const& relPos, particleinfo const& neib_info,
 template<>
 __device__ __forceinline__
 bool isCloseEnough<true>(float3 const& relPos, particleinfo const& neib_info,
-	buildneibs_params<true> params)
+	buildneibs_params<true> const& params)
 {
 	const float rp2(sqlength(relPos));
 	// Include boundary neighbors which are a little further than sqinfluenceradius
