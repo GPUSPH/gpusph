@@ -61,17 +61,6 @@ class XCompleteSaExample: public XProblem {
 			const	uint			particleRangeEnd,
 			const	hashKey*		particleHash);
 
-		/*
-		void
-		imposeForcedMovingObjects(
-			float3	&centerOfGravity,
-			float3	&translation,
-			float*	rotationMatrix,
-	const	uint	ob,
-	const	double	t,
-	const	float	dt);
-		// */
-
 		// override standard split
 		void fillDeviceMap();
 };
