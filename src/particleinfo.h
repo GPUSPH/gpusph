@@ -211,8 +211,7 @@ inline __host__ particleinfo make_particleinfo(const ushort &type, const ushort 
 	/* Automatic interpretation of obj_or_fnum */
 	if (obj_or_fnum > OBJECT_NUM_MASK)
 		v.y = obj_or_fnum;
-	else if ((type & PART_TYPE_MASK) > PT_FLUID /* not fluid */
-		&& (type & NEEDS_OBJECT_NUM)) /* needs an object number */
+	else if (type & NEEDS_OBJECT_NUM) /* needs an object number */
 		v.y = SET_OBJECT_NUM(obj_or_fnum);
 	else
 		v.y = SET_FLUID_NUM(obj_or_fnum);
