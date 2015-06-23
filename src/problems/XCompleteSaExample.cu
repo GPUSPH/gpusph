@@ -108,6 +108,9 @@ XCompleteSaExample::XCompleteSaExample(GlobalData *_gdata) : XProblem(_gdata)
 		addHDF5File(GT_OPENBOUNDARY, Point(0,0,0), "./sa/0.xcomplete_sa_example.boundary.kent1.h5sph", NULL);
 	disableCollisions(inlet);
 
+	// set velocity or pressure driven (see define in header)
+	setVelocityDriven(inlet, VELOCITY_DRIVEN);
+
 	// Floating box, with STL mesh for collision detection
 	// GT_FLOATING_BODY for floating, GT_MOVING_BODY for force measurement only
 	GeometryID cube =

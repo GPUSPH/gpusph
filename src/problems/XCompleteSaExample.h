@@ -28,8 +28,16 @@
 
 #include "XProblem.h"
 
+// Set to 1 (or true) for velocity driven inlet, 0 (or false) for pressure driven
+#define	VELOCITY_DRIVEN			1
+
 // Water level simulated by the pressure inlet
 #define INLET_WATER_LEVEL	0.9
+
+// Velocity (m/s) and fading-in time (s) for velocity driven inlet
+// Set fading time to 0 to impose immediately INLET_VELOCITY
+#define INLET_VELOCITY			4.0
+#define INLET_VELOCITY_FADE		1.0
 
 class XCompleteSaExample: public XProblem {
 	private:
