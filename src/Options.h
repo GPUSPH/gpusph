@@ -93,7 +93,7 @@ public:
 		T ret(_default);
 		OptionMap::const_iterator found(m_options.find(key));
 		if (found != m_options.end()) {
-			std::ostringstream extractor(found->second);
+			std::istringstream extractor(found->second);
 			extractor >> ret;
 		}
 		return ret;
