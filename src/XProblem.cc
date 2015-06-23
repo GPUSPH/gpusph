@@ -1509,10 +1509,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 					case GT_FLOATING_BODY:
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE);
 						break;
-					case GT_OPENBOUNDARY:
-						// floating && inlet possible?
-						SET_FLAG(info[i], FG_INLET | FG_OUTLET);
-						break;
+					// not possible
+					//case GT_OPENBOUNDARY:
+					//	break;
 				}
 
 				// Update boundary particles counters for rb indices
