@@ -150,7 +150,8 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_SPS_TURBVISC>();
 	}
 
-	if (m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC)
+	if (m_simparams->boundarytype == SA_BOUNDARY &&
+		(m_simparams->simflags & ENABLE_INLET_OUTLET || m_simparams->visctype == KEPSVISC))
 		m_dBuffers.addBuffer<CUDABuffer, BUFFER_EULERVEL>();
 
 	if (m_simparams->sph_formulation == SPH_GRENIER) {

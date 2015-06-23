@@ -1003,8 +1003,9 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_TURBVISC>();
 	}
 
-	if (problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
-		problem->simparams()->visctype == KEPSVISC)
+	if (problem->simparams()->boundarytype == SA_BOUNDARY &&
+		(problem->simparams()->simflags & ENABLE_INLET_OUTLET ||
+		problem->simparams()->visctype == KEPSVISC))
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_EULERVEL>();
 
 	if (problem->simparams()->visctype == SPSVISC)
