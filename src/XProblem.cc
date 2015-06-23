@@ -1479,8 +1479,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 		} // if (m_geometries[g]->has_hdf5_file)
 
 		// copy particles from the point vector of objects which have not been loaded from file
-		// FIXME: should include MOVING, maybe I/O; also, check: here assuming non-SA?
-		if (m_geometries[g]->type == GT_FLOATING_BODY && !(m_geometries[g]->has_hdf5_file)) {
+		if ( (m_geometries[g]->type == GT_FLOATING_BODY || m_geometries[g]->type == GT_MOVING_BODY)
+				&& !(m_geometries[g]->has_hdf5_file)) {
 			// not loading from file: take object vector
 			PointVect & rbparts = m_geometries[g]->ptr->GetParts();
 			current_geometry_particles = rbparts.size();
