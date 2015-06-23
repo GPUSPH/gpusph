@@ -929,6 +929,21 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 	return particle_mass;
 }
 
+// Flag an open boundary as velocity driven, so its particles will be flagged with
+// as VEL_IO during fill. Use with false to revert to pressure driven.
+// Only makes sense with GT_OPENBOUNDARY geometries.
+void XProblem::setVelocityDriven(const GeometryID gid, bool isVelocityDriven)
+{
+	if (!validGeometry(gid)) return;
+
+	if (m_geometries[gid]->type != GT_OPENBOUNDARY) {
+		printf("WARNING: trying to set as velocity driven a non-GT_OPENBOUNDARY geometry! Ignoring\n");
+		return;
+	}
+
+	m_geometries[gid]->velocity_driven = isVelocityDriven;
+}
+
 const GeometryInfo* XProblem::getGeometryInfo(GeometryID gid)
 {
 	// NOTE: not checking validGeometry() to allow for deleted geometries
@@ -1409,7 +1424,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 						SET_FLAG(info[i], FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE);
 						break;
 					case GT_OPENBOUNDARY:
-						SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+						const ushort VELOCITY_DRIVEN_FLAG =
+							(m_geometries[g]->velocity_driven ? FG_VELOCITY_DRIVEN : 0);
+						SET_FLAG(info[i], FG_INLET | FG_OUTLET | VELOCITY_DRIVEN_FLAG);
 						break;
 				}
 

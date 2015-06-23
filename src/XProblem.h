@@ -74,6 +74,9 @@ struct GeometryInfo {
 	bool mass_was_set;
 	bool particle_mass_was_set;
 
+	// flag to distinguish pressure/velocity open boundaries
+	bool velocity_driven;
+
 	GeometryInfo() {
 		ptr = NULL;
 
@@ -102,6 +105,8 @@ struct GeometryInfo {
 
 		mass_was_set = false;
 		particle_mass_was_set = false;
+
+		velocity_driven = false;
 	}
 };
 
@@ -216,6 +221,9 @@ class XProblem: public Problem {
 		// set mass (only meaningful for floating objects)
 		void setMass(const GeometryID gid, const double mass);
 		double setMassByDensity(const GeometryID gid, const double density);
+
+		// flag an open boundary as velocity driven; use with false to revert to pressure driven
+		void setVelocityDriven(const GeometryID gid, bool isVelocityDriven = true);
 
 		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
