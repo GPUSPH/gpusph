@@ -398,6 +398,12 @@ CommonWriter::write_summary(void)
 	out << endl;
 	write_options(out);
 	out.close();
+
+	// Writing out make show result
+	string command = "make show >>" + m_problem->get_dirname() + "/make_show.txt";
+	system(command.c_str());
+	command = "git branch -vv >>" + m_problem->get_dirname() + "/git_branch.txt";
+	system(command.c_str());
 }
 
 
