@@ -402,7 +402,7 @@ CommonWriter::write_summary(void)
 	// Writing out make show result
 	string command = "make show >>" + m_problem->get_dirname() + "/make_show.txt";
 	system(command.c_str());
-	command = "git branch -vv >>" + m_problem->get_dirname() + "/git_branch.txt";
+	command = "git describe --tags --dirty=+custom && git branch -vv >>" + m_problem->get_dirname() + "/git_branch.txt";
 	system(command.c_str());
 }
 
