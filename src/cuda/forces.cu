@@ -244,8 +244,8 @@ struct CUDADensityHelper<kerneltype, SPH_GRENIER, boundarytype> {
 		const hashKey *pHash = bufread->getData<BUFFER_HASH>();
 		const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
 
-		// density is updated in-place, so it uses the READ buffer
-		float4 *vel = const_cast<float4*>(bufread->getData<BUFFER_VEL>());
+		/* Update WRITE vel in place, caller should do a swap before and after */
+		float4 *vel = bufwrite->getData<BUFFER_VEL>();
 		float *sigma = bufwrite->getData<BUFFER_SIGMA>();
 
 		cuforces::densityGrenierDevice<kerneltype, boundarytype>

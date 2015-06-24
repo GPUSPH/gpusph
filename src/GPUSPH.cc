@@ -522,10 +522,16 @@ bool GPUSPH::runSimulation() {
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->get_simparams()->sph_formulation == SPH_GRENIER) {
+			// put READ vel in WRITE buffer
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 			gdata->only_internal = true;
+
+			// compute density and sigma, updating WRITE vel in-place
 			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_1);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
+			// restore vel buffer into READ position
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
@@ -590,10 +596,16 @@ bool GPUSPH::runSimulation() {
 
 		// for Grenier formulation, compute sigma and smoothed density
 		if (problem->get_simparams()->sph_formulation == SPH_GRENIER) {
+			// put READ vel in WRITE buffer
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 			gdata->only_internal = true;
+
+			// compute density and sigma, updating WRITE vel in-place
 			doCommand(COMPUTE_DENSITY, INTEGRATOR_STEP_2);
 			if (MULTI_DEVICE)
-				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_READ);
+				doCommand(UPDATE_EXTERNAL, BUFFER_SIGMA | BUFFER_VEL | DBLBUFFER_WRITE);
+			// restore vel buffer into READ position
+			doCommand(SWAP_BUFFERS, BUFFER_VEL);
 		}
 
 		// for SPS viscosity, compute first array of tau and exchange with neighbors
