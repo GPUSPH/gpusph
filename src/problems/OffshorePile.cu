@@ -191,12 +191,22 @@ int OffshorePile::fill_parts()
 	far_wall.Unfill(boundary_parts, 0.9*m_deltap);
 	far_wall.Fill(boundary_parts, m_deltap, true);
 
-	Cube fluid = Cube(Point(m_deltap/2., 0, m_deltap/2.), lx - m_deltap/2., ly, H - m_deltap/2.);
-	fluid.SetPartMass(m_deltap, m_physparams->rho0[0]);
-	fluid.Fill(parts, m_deltap);
+	Cube fluid1 = Cube(Point(m_deltap/2., 0, m_deltap/2.), h_length, ly, H - m_deltap/2.);
+	Cube fluid2 = Cube(Point(h_length + m_deltap, 0,  m_deltap/2.),
+			lx - h_length - m_deltap, ly, H - m_deltap/2, EulerParameters(Vector(0, 1, 0), -beta));
+	fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid2.SetPartMass(m_deltap, m_physparams->rho0[0]);
+	fluid2.Fill(parts, m_deltap);
+	fluid1.Unfill(parts, m_deltap);
+	double hu = 1.2*(lx - h_length)*tan(beta);
+	Cube unfill_top = Cube(Point(h_length + m_deltap, 0, H + m_deltap/2.), lx - h_length, ly, H + hu);
+	unfill_top.Unfill(parts, m_deltap);
+	fluid1.Fill(parts, m_deltap);
+
+	/*fluid1.Fill(parts, m_deltap);
 	double hu = 1.2*(lx - h_length)*tan(beta);
 	Cube unfill_slope = Cube(Point(h_length, 0, -hu), 1.05*(lx - h_length), ly, hu, EulerParameters(Vector(0, 1, 0), -beta));
-	unfill_slope.Unfill(parts, m_deltap/2.);
+	unfill_slope.Unfill(parts, m_deltap/2.);*/
 
 	// Rigid body : cylinder
 	cyl = Cylinder(Point(cyl_xpos, ly/2., 0), (cyl_diam - m_deltap)/2., cyl_height);
