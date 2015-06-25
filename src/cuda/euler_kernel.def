@@ -206,7 +206,7 @@ eulerDevice(
 				if (sph_formulation == SPH_GRENIER) {
 					vol.y += dt*force.w;
 				} else if (boundarytype == SA_BOUNDARY) {
-					sa_integrate_continuity_equation<simflags & ENABLE_DENSITY_SUM>::with<kerneltype>(
+					sa_integrate_continuity_equation<simflags & ENABLE_DENSITY_SUM>::template with<kerneltype>(
 						newVel[index].w,
 						vel.w,
 						index,
