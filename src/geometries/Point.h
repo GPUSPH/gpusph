@@ -126,8 +126,10 @@ class Point {
 };
 
 float4 make_float4(const Point &);
+double4 make_double4(const Point &);
 
 float3 make_float3(const Point &);
+double3 make_double3(const Point &);
 
 void make_dvector3(const Point &, dVector3);
 
