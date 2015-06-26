@@ -452,13 +452,13 @@ sa_integrate_continuity_equation<false>::with(
 	const	int		step)
 {
 	const float oldDensity = newDensity;
-	newDensity = 0.0f;
 	// Updating particle density
 	// For step 1:
 	//	  vel = vel(n+1/2) = vel(n) + f(n)*dt/2
 	// For step 2:
 	//	  vel = vel(n+1) = vel(n) + f(n+1/2)*dt
 	// Improved continuity equation
+	newDensity = 0.0f;
 	if (step == 1) {
 		// gamma at time n+1 (gGam.w is gamma at time n)
 		const float gamN = newgGam.w;
