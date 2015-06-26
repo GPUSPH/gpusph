@@ -69,6 +69,8 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	addFilter(SHEPARD_FILTER, 20);
 	  //MLS_FILTER
 
+	addPostProcess(SURFACE_DETECTION);
+
 	// SPH parameters
 	m_simparams->dt = 0.00013;
 	m_simparams->dtadaptfactor = 0.2;
@@ -107,12 +109,14 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	cyl_rho = 607.99;
 
 	//WaveGage
-	add_gage(cyl_xpos, ly/2 + 0.5);
-	add_gage(1.0, ly/2);
-	add_gage(h_length, ly/2);
-	add_gage(h_length-h_length/4, ly/2);
-	add_gage(h_length-h_length/2, ly/2);
-	add_gage(h_length-h_length*3/4, ly/2);
+	add_gage(cyl_xpos, ly/2 + 0.5, 0.5*m_deltap);
+	add_gage(cyl_xpos, ly/2 + 0.5, 0.3*m_deltap);
+	add_gage(cyl_xpos, ly/2 + 0.5, 0.1*m_deltap);
+	add_gage(1.0, ly/2, m_deltap);
+	add_gage(h_length, ly/2, m_deltap);
+	add_gage(h_length-h_length/4, ly/2, m_deltap);
+	add_gage(h_length-h_length/2, ly/2, m_deltap);
+	add_gage(h_length-h_length*3/4, ly/2, m_deltap);
 
 	// Allocate data for bodies
 	dInitODE();
@@ -191,7 +195,7 @@ int OffshorePile::fill_parts()
 	far_wall.Unfill(boundary_parts, 0.9*m_deltap);
 	far_wall.Fill(boundary_parts, m_deltap, true);
 
-	Cube fluid1 = Cube(Point(m_deltap/2., 0, m_deltap/2.), h_length, ly, H - m_deltap/2.);
+	Cube fluid1 = Cube(Point(m_deltap/2., 0, m_deltap/2.), h_length, ly, H - m_deltap);
 	Cube fluid2 = Cube(Point(h_length + m_deltap, 0,  m_deltap/2.),
 			lx - h_length - m_deltap, ly, H - m_deltap/2, EulerParameters(Vector(0, 1, 0), -beta));
 	fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);

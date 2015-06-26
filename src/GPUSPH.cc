@@ -1412,17 +1412,10 @@ void GPUSPH::doWrite(bool force)
 	double slength = problem->get_simparams()->slength;
 
 	size_t numgages = gages.size();
-
-	std::vector<double2> gage_llimit, gage_ulimit; // neighborhood limits
-	std::vector<uint> gage_parts;
-	GageList::iterator gage = gages.begin();
-	GageList::iterator gage_end = gages.end();
-	while (gage != gage_end) {
-		gage_llimit.push_back(make_double2(*gage) - 2*slength);
-		gage_ulimit.push_back(make_double2(*gage) + 2*slength);
-		gage_parts.push_back(0);
-		gage->z = 0;
-		++gage;
+	std::vector<uint> gage_parts(numgages, 0);
+	for (uint g = 0; g < numgages; ++g) {
+		gage_parts[g] = 0;
+		gages[g].z = 0;
 	}
 
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
@@ -1457,13 +1450,16 @@ void GPUSPH::doWrite(bool force)
 		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
-				if ((dpos.x > gage_llimit[g].x) && (dpos.x < gage_ulimit[g].x) &&
-					(dpos.y > gage_llimit[g].y) && (dpos.y < gage_ulimit[g].y)) {
-						gage_parts[g]++;
-						gages[g].z += dpos.z;
+				double r  = 0.;
+				if (gages[g].w == 0.)
+					r = 2*slength;
+				else
+					r = gages[g].w;
+				if ((dpos.x - gages[g].x)*(dpos.x - gages[g].x)* + (dpos.y - gages[g].y)*(dpos.y - gages[g].y) - r*r < 0) {
+					gage_parts[g]++;
+					gages[g].z += dpos.z;
 				}
 			}
-
 		}
 
 		gpos[i] = dpos;
@@ -1486,6 +1482,8 @@ void GPUSPH::doWrite(bool force)
 
 	if (numgages) {
 		for (uint g = 0 ; g < numgages; ++g) {
+			/*cout << "Ng : " << g << " gage: " << gages[g].x << "," << gages[g].y << " r : " << gages[g].w << " z: " << gages[g].z
+					<< " gparts :" << gage_parts[g] << endl;*/
 			gages[g].z /= gage_parts[g];
 		}
 		//Write WaveGage information on one text file

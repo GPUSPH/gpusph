@@ -123,7 +123,7 @@ public:
 
 	// write wave gages
 	static void
-	WriteWaveGage(double t, GageList const& gage);
+	WriteWaveGage(double t, GageList const& );
 
 	// write object data
 	static void

@@ -625,7 +625,7 @@ Problem::pressure(float rho, int i) const
 void
 Problem::add_gage(double3 const& pt)
 {
-	m_simparams->gage.push_back(pt);
+	m_simparams->gage.push_back(make_double4(pt.x, pt.y, 0., pt.z));
 }
 
 std::string const&
