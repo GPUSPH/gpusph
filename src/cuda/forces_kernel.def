@@ -2041,7 +2041,7 @@ forcesDevice(
 				// in first position
 				// if ( pdata.ptype == PT_FLUID || boundarytype == DYN_BOUNDARY) =>
 				// if (boundarytype == DYN_BOUNDARY || pdata.ptype == PT_FLUID)
-				const bool computes_NS_drhodt = (simflags & ENABLE_DENSITY_SUM && params.step==2) &&
+				const bool computes_NS_drhodt = !(simflags & ENABLE_DENSITY_SUM && params.step==2) &&
 						(boundarytype == DYN_BOUNDARY ||
 						 (boundarytype == SA_BOUNDARY && (BOUNDARY(ndata.info) || VERTEX(ndata.info)))
 						 || FLUID(ndata.info) );
