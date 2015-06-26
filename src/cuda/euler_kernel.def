@@ -118,7 +118,9 @@ eulerDevice(
 			float4	*oldgGam,			///< previous values of gradient of gamma (in/out)
 	const	float	*oldTKE,			///< previous values of k, for k-e model (in)
 	const	float	*oldEps,			///< previous values of e, for k-e model
-	const	float2	* const vertPos[],	///< relative position of vertices of a segment (in)
+	const	float2	* vertPos0,			///< relative position of vertex 0 of a segment (in)
+	const	float2	* vertPos1,			///< relative position of vertex 1 of a segment (in)
+	const	float2	* vertPos2,			///< relative position of vertex 2 of a segment (in)
 	const	particleinfo	*info,		///< particle's information
 	const	float4	*forces,			///< derivative of particle's velocity and density (in)
 	const	float2	*contupd,			///< ?? (in)
@@ -220,9 +222,9 @@ eulerDevice(
 						forces,
 						info,
 						newBoundElement,
-						vertPos[0],
-						vertPos[1],
-						vertPos[2],
+						vertPos0,
+						vertPos1,
+						vertPos2,
 						particleHash,
 						cellStart,
 						neibsList,
