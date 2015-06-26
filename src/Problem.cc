@@ -635,7 +635,7 @@ Problem::pressure(float rho, int i) const
 void
 Problem::add_gage(double3 const& pt)
 {
-	simparams()->gage.push_back(pt);
+	simparams()->gage.push_back(make_double4(pt.x, pt.y, 0., pt.z));
 }
 
 plane_t
