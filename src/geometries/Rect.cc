@@ -161,9 +161,6 @@ Rect::Rect(const Point &origin, const double lx, const double ly, const EulerPar
 	m_vz = m_vx.cross(m_vy);
 	m_vz.normalize();
 	setEulerParameters(ep);
-
-	m_origin.print();
-	m_center.print();
 }
 
 
