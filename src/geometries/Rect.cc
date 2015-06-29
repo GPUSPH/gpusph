@@ -622,7 +622,8 @@ void Rect::setEulerParameters(const EulerParameters &ep)
 
 	m_vx = m_lx*m_ep.Rot(Vector(1, 0, 0));
 	m_vy = m_ly*m_ep.Rot(Vector(0, 1, 0));
-	m_vz = m_vx.cross(m_vz);
+	m_vz = m_vx.cross(m_vy);
+	m_vz.normalize();
 
 	m_center = m_origin + m_ep.Rot(Vector(0.5*m_lx, 0.5*m_ly, 0.0));
 }
