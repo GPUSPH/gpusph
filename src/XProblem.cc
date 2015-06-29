@@ -1049,7 +1049,8 @@ int XProblem::fill_parts()
 			parts_vector = &m_fluidParts;
 			dx = m_deltap;
 		} else
-		if (m_geometries[g]->type == GT_FLOATING_BODY) {
+		if (m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY) {
 			parts_vector = &(m_geometries[g]->ptr->GetParts());
 			dx = m_physparams->r0;
 		} else {
