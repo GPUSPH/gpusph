@@ -1092,7 +1092,7 @@ int XProblem::fill_parts()
 		switch (m_geometries[g]->fill_type) {
 			case FT_BORDER:
 				if (m_simparams->boundarytype == DYN_BOUNDARY)
-					m_geometries[g]->ptr->FillIn(*parts_vector, m_deltap, m_numDynBoundLayers);
+					m_geometries[g]->ptr->FillIn(*parts_vector, m_deltap, - m_numDynBoundLayers);
 				else
 					m_geometries[g]->ptr->FillBorder(*parts_vector, m_deltap);
 				break;
