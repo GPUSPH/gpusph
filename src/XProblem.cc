@@ -1107,6 +1107,13 @@ int XProblem::fill_parts()
 			// yes, it is legal to have no "default:": ISO/IEC 9899:1999, section 6.8.4.2
 		}
 
+		// floating and moving bodies fill in their local point vector; let's increase
+		// the dedicated bodies_parts_counter
+		if (m_geometries[g]->type == GT_FLOATING_BODY ||
+			m_geometries[g]->type == GT_MOVING_BODY) {
+			bodies_parts_counter += m_geometries[g]->ptr->GetParts().size();
+		}
+
 		// geometries loaded from HDF5file do not undergo filling, but should be counted as well
 		if (m_geometries[g]->has_hdf5_file)
 			hdf5file_parts_counter += m_geometries[g]->hdf5_reader->getNParts();
@@ -1185,13 +1192,6 @@ int XProblem::fill_parts()
 				} // if custom_inertia is not NAN
 
 			} // if body has dynamics
-
-			// dynamics-only stuff
-			if (m_geometries[g]->handle_dynamics) {
-				// TODO FIXME MERGE
-				// add_ODE_body(m_geometries[g]->ptr);
-				bodies_parts_counter += m_geometries[g]->ptr->GetParts().size();
-			}
 
 			// update ODE rotation matrix according to possible rotation - excl. planes!
 			if (m_geometries[g]->type != GT_PLANE)
