@@ -156,6 +156,10 @@ Rect::Rect(const Point &origin, const double lx, const double ly, const EulerPar
 	m_lx = lx;
 	m_ly = ly;
 
+	m_vx = Vector(lx,0,0);
+	m_vy = Vector(0,ly,0);
+	m_vz = m_vx.cross(m_vy);
+	m_vz.normalize();
 	setEulerParameters(ep);
 
 	m_origin.print();
