@@ -764,6 +764,22 @@ static __forceinline__ __host__ __device__ double3 floor(const double3 &v)
 	return make_double3(floor(v.x), floor(v.y), floor(v.z));
 }
 
+// absolute value
+static __forceinline__ __host__ __device__ double3 fabs(const double3 &v)
+{
+	return make_double3(fabs(v.x), fabs(v.y), fabs(v.z));
+}
+
+// copysign
+static __forceinline__ __host__ __device__ double3 copysign(const double3 &v, const double3 &ref)
+{
+	return make_double3(
+		copysign(v.x, ref.x),
+		copysign(v.y, ref.y),
+		copysign(v.z, ref.z));
+}
+
+
 // double4 functions
 ////////////////////////////////////////////////////////////////////////////////
 static __forceinline__ __host__ __device__ double4 make_double4(double a)
