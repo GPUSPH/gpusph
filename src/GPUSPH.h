@@ -135,6 +135,8 @@ private:
 	void allocateRbArrays();
 	void cleanRbArrays();
 
+	double Wendland2D(const double, const double);
+
 public:
 	// destructor
 	~GPUSPH();

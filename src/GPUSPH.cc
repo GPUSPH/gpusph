@@ -1399,6 +1399,14 @@ void GPUSPH::createWriter()
 	Writer::Create(gdata);
 }
 
+double GPUSPH::Wendland2D(const double r, const double h) {
+	const double q = r/h;
+	double temp = 1 - q/2.;
+	temp *= temp;
+	temp *= temp;
+	return 7/(4*M_PI*h*h)*temp*(2*q + 1);
+}
+
 void GPUSPH::doWrite(bool force)
 {
 	uint node_offset = gdata->s_hStartPerDevice[0];
@@ -1412,10 +1420,10 @@ void GPUSPH::doWrite(bool force)
 	double slength = problem->get_simparams()->slength;
 
 	size_t numgages = gages.size();
-	std::vector<uint> gage_parts(numgages, 0);
+	std::vector<double> gages_W(numgages, 0.);
 	for (uint g = 0; g < numgages; ++g) {
-		gage_parts[g] = 0;
-		gages[g].z = 0;
+		gages_W[g] = 0.;
+		gages[g].z = 0.;
 	}
 
 	// TODO: parallelize? (e.g. each thread tranlsates its own particles)
@@ -1450,14 +1458,12 @@ void GPUSPH::doWrite(bool force)
 		// for surface particles add the z coordinate to the appropriate wavegages
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
-				double r  = 0.;
-				if (gages[g].w == 0.)
-					r = 2*slength;
-				else
-					r = gages[g].w;
-				if ((dpos.x - gages[g].x)*(dpos.x - gages[g].x)* + (dpos.y - gages[g].y)*(dpos.y - gages[g].y) - r*r < 0) {
-					gage_parts[g]++;
-					gages[g].z += dpos.z;
+				const double gslength  = gages[g].w;
+				const double r = sqrt((dpos.x - gages[g].x)*(dpos.x - gages[g].x)* + (dpos.y - gages[g].y)*(dpos.y - gages[g].y));
+				if (r < 2*gslength) {
+					const double W = Wendland2D(r, gslength);
+					gages_W[g] += W;
+					gages[g].z += dpos.z*W;
 				}
 			}
 		}
@@ -1484,7 +1490,7 @@ void GPUSPH::doWrite(bool force)
 		for (uint g = 0 ; g < numgages; ++g) {
 			/*cout << "Ng : " << g << " gage: " << gages[g].x << "," << gages[g].y << " r : " << gages[g].w << " z: " << gages[g].z
 					<< " gparts :" << gage_parts[g] << endl;*/
-			gages[g].z /= gage_parts[g];
+			gages[g].z /= gages_W[g];
 		}
 		//Write WaveGage information on one text file
 		Writer::WriteWaveGage(gdata->t, gages);
