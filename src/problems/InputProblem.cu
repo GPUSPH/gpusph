@@ -79,7 +79,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		m_simparams->ferrari = 1.0f;
 		size_t water = add_fluid(1000.0);
 		set_equation_of_state(water,  7.0f, 60.f);
-		set_kinematic_visc(0, 1.0e-2f);
+		set_kinematic_visc(water, 1.0e-2f);
 		addPostProcess(CALC_PRIVATE);
 	//*************************************************************************************
 
