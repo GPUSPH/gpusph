@@ -164,25 +164,27 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		m_simparams->sfactor=1.3f;
 		set_deltap(0.05f);
-
-		m_physparams->kinematicvisc = 1.0e-1f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
-
 		m_simparams->tend = 10.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
-		m_simparams->periodicbound = PERIODIC_Y;
+		m_simparams->ferrariLengthScale = 1.0f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-1f);
+
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
-		m_simparams->ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
+		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
@@ -477,13 +479,12 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				if (eulerVel)
 					eulerVel[i] = vel[i];
 #endif
-			// CAM-TODO use different indices here
 			int openBoundType = h5File.buf[i].KENT;
 			// count the number of different objects
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
-			info[i] = make_particleinfo(PT_VERTEX, openBoundType, i);
+			info[i] = make_particleinfo_by_ids(PT_VERTEX, 0, max(openBoundType-1,0), i);
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
@@ -491,26 +492,26 @@ void InputProblem::copy_to_array(BufferList &buffers)
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					// open boundary imposes velocity
 #if SPECIFIC_PROBLEM != IOWithoutWalls
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 				} else if (openBoundType == 2) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					// open boundary imposes pressure => FG_VELOCITY_DRIVEN not set
 				}
 #elif SPECIFIC_PROBLEM == PeriodicWave
 				// two pressure boundaries
 				if (openBoundType != 0) {
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 				}
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 				// two pressure boundaries
 				if (openBoundType != 0)
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 		}
@@ -534,7 +535,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					eulerVel[i] = vel[i];
 #endif
 			int openBoundType = h5File.buf[i].KENT;
-			info[i] = make_particleinfo(PT_BOUNDARY, openBoundType, i);
+			info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, max(openBoundType-1, 0), i);
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
@@ -542,26 +543,26 @@ void InputProblem::copy_to_array(BufferList &buffers)
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					// open boundary imposes velocity
 #if SPECIFIC_PROBLEM != IOWithoutWalls
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 				} else if (openBoundType == 2) {
 					// this vertex is part of an open boundary
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					// open boundary imposes pressure => VEL_IO_PARTICLE_FLAG not set
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					// open boundary imposes pressure => FG_VELOCITY_DRIVEN not set
 				}
 #elif SPECIFIC_PROBLEM == PeriodicWave
 				// two pressure boundaries
 				if (openBoundType != 0) {
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
-					SET_FLAG(info[i], VEL_IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 				}
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 				// two pressure boundaries
 				if (openBoundType != 0)
-					SET_FLAG(info[i], IO_PARTICLE_FLAG);
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
@@ -698,14 +699,14 @@ InputProblem_imposeBoundaryCondition(
 		}
 		else {
 #if SPECIFIC_PROBLEM == LaPalisseSmallTest
-			if (object(info)==1)
+			if (object(info)==0)
 				waterdepth = 0.255; // set inflow waterdepth to 0.21 (with respect to world_origin)
 				//waterdepth = -0.1 + 0.355*t/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
-			if (object(info)==1)
+			if (object(info)==0)
 				eulerVel.w = 1002.0f;
 			else
 				eulerVel.w = 1002.0f;
@@ -782,7 +783,7 @@ InputProblem_imposeBoundaryConditionDevice(
 			// when pressure outlets require the water depth compute it from the IOwaterdepth integer
 			float waterdepth = 0.0f;
 			if (!VEL_IO(info) && IOwaterdepth) {
-				waterdepth = ((float)IOwaterdepth[object(info)-1])/((float)UINT_MAX); // now between 0 and 1
+				waterdepth = ((float)IOwaterdepth[object(info)])/((float)UINT_MAX); // now between 0 and 1
 				waterdepth *= d_cellSize.z*d_gridSize.z; // now between 0 and world size
 				waterdepth += d_worldOrigin.z; // now absolute z position
 			}
