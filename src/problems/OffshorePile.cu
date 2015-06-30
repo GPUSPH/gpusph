@@ -61,10 +61,11 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 		periodicity<PERIODIC_Y>
 	);
 
-	x0 = -1.;
 	set_deltap(0.05f);  // 0.05 is minimum to have 3 layers of particles in the cylinder
-	m_size = make_double3(lx -x0 , ly, lz + 1.5*layers*m_deltap);
-	m_origin = make_double3(x0, 0, -1.5*layers*m_deltap);
+	x0 = -1.;
+	periodic_offset_y = m_deltap/2.;
+	m_size = make_double3(lx - x0 , ly + m_deltap, lz + 1.5*layers*m_deltap);
+	m_origin = make_double3(x0, 0., -1.5*layers*m_deltap);
 
 	addFilter(SHEPARD_FILTER, 20);
 	  //MLS_FILTER
@@ -100,7 +101,7 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	//float period = 2.4;
 	piston_amplitude = stroke/2.;
 	piston_omega = 2.0*M_PI/2.4;		// period T = 2.4 s
-	piston_origin = make_double3(-(layers + 0.5)*m_deltap, 0, -m_deltap);
+	piston_origin = make_double3(-(layers + 0.5)*m_deltap, periodic_offset_y, -m_deltap);
 
 	// Cylinder data
 	cyl_diam = 0.2 + m_deltap;
@@ -109,14 +110,15 @@ OffshorePile::OffshorePile(GlobalData *_gdata) : Problem(_gdata)
 	cyl_rho = 607.99;
 
 	//WaveGage
-	add_gage(cyl_xpos, ly/2 + 0.5, 0.5*m_deltap);
-	add_gage(cyl_xpos, ly/2 + 0.5, 0.3*m_deltap);
-	add_gage(cyl_xpos, ly/2 + 0.5, 0.1*m_deltap);
-	add_gage(1.0, ly/2, m_deltap);
-	add_gage(h_length, ly/2, m_deltap);
-	add_gage(h_length-h_length/4, ly/2, m_deltap);
-	add_gage(h_length-h_length/2, ly/2, m_deltap);
-	add_gage(h_length-h_length*3/4, ly/2, m_deltap);
+	const float slength = m_simparams->slength;
+	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, slength);
+	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, 0.5*slength);
+	add_gage(cyl_xpos, ly/2 + periodic_offset_y + 0.5, 0.25*slength);
+	add_gage(1.0, ly/2 + periodic_offset_y, m_deltap);
+	add_gage(h_length, ly/2 + periodic_offset_y, m_deltap);
+	add_gage(h_length-h_length/4, ly/2 + periodic_offset_y, m_deltap);
+	add_gage(h_length-h_length/2, ly/2 + periodic_offset_y, m_deltap);
+	add_gage(h_length-h_length*3/4, ly/2 + periodic_offset_y, m_deltap);
 
 	// Allocate data for bodies
 	dInitODE();
@@ -180,9 +182,9 @@ int OffshorePile::fill_parts()
 	add_moving_body(&piston, MB_MOVING);
 	set_body_cg(&piston, piston_origin);
 
-	Cube bottom_flat = Cube(Point(x0, 0, -(layersm1 + 0.5)*m_deltap),
+	Cube bottom_flat = Cube(Point(x0, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
 			h_length - x0 + 5*m_deltap , ly, layersm1*m_deltap);
-	Cube bottom_slope = Cube(Point(h_length, 0, -(layersm1 + 0.5)*m_deltap),
+	Cube bottom_slope = Cube(Point(h_length, periodic_offset_y, -(layersm1 + 0.5)*m_deltap),
 			lx - h_length, ly, layersm1*m_deltap, EulerParameters(Vector(0, 1, 0), -beta));
 	bottom_flat.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	bottom_flat.Fill(boundary_parts, m_deltap, true);
@@ -190,20 +192,20 @@ int OffshorePile::fill_parts()
 	bottom_slope.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	bottom_slope.Fill(boundary_parts, m_deltap, true);
 	double zfw = (lx - h_length)*tan(beta) - layersm1*m_deltap;
-	Cube far_wall = Cube(Point(lx - layersm1*m_deltap, 0, zfw), layersm1*m_deltap, ly, H);
+	Cube far_wall = Cube(Point(lx - layersm1*m_deltap, periodic_offset_y, zfw), layersm1*m_deltap, ly, H);
 	far_wall.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	far_wall.Unfill(boundary_parts, 0.9*m_deltap);
 	far_wall.Fill(boundary_parts, m_deltap, true);
 
-	Cube fluid1 = Cube(Point(m_deltap/2., 0, m_deltap/2.), h_length, ly, H - m_deltap);
-	Cube fluid2 = Cube(Point(h_length + m_deltap, 0,  m_deltap/2.),
+	Cube fluid1 = Cube(Point(m_deltap/2., periodic_offset_y, m_deltap/2.), h_length, ly, H - m_deltap);
+	Cube fluid2 = Cube(Point(h_length + m_deltap, periodic_offset_y,  m_deltap/2.),
 			lx - h_length - m_deltap, ly, H - m_deltap/2, EulerParameters(Vector(0, 1, 0), -beta));
 	fluid1.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid2.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	fluid2.Fill(parts, m_deltap);
 	fluid1.Unfill(parts, m_deltap);
 	double hu = 1.2*(lx - h_length)*tan(beta);
-	Cube unfill_top = Cube(Point(h_length + m_deltap, 0, H + m_deltap/2.), lx - h_length, ly, H + hu);
+	Cube unfill_top = Cube(Point(h_length + m_deltap, periodic_offset_y, H + m_deltap/2.), lx - h_length, ly, H + hu);
 	unfill_top.Unfill(parts, m_deltap);
 	fluid1.Fill(parts, m_deltap);
 
@@ -213,7 +215,7 @@ int OffshorePile::fill_parts()
 	unfill_slope.Unfill(parts, m_deltap/2.);*/
 
 	// Rigid body : cylinder
-	cyl = Cylinder(Point(cyl_xpos, ly/2., 0), (cyl_diam - m_deltap)/2., cyl_height);
+	cyl = Cylinder(Point(cyl_xpos, ly/2. + periodic_offset_y, 0), (cyl_diam - m_deltap)/2., cyl_height);
 	cyl.SetPartMass(m_deltap, m_physparams->rho0[0]);
 	cyl.SetMass(m_deltap, cyl_rho);
 	cyl.FillIn(cyl.GetParts(), m_deltap, layers);

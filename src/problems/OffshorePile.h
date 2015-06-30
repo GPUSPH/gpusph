@@ -45,6 +45,7 @@ class OffshorePile: public Problem {
 		double		H;		// still water level
 		double		lx, ly, lz;		// dimension of water tank
 		double 		x0;
+		double		periodic_offset_y;
 		double		cyl_xpos, cyl_height, cyl_diam, cyl_rho;
 
 		// Moving boundary data
