@@ -451,9 +451,9 @@ RESTORE_WARNINGS
 		post_timestep_callback(const double t);
 
 		virtual void
-		moving_bodies_callback(const uint, Object*, const double, const double, const float3&,
-								const float3&, const KinematicData &, KinematicData &,
-								double3&, EulerParameters&);
+		moving_bodies_callback(const uint index, Object* object, const double t0, const double t1,
+							const float3& force, const float3& torque, const KinematicData& initial_kdata,
+							KinematicData& kdata, double3& dx, EulerParameters& dr);
 
 		void bodies_timestep(const float3 *forces, const float3 *torques, const int step,
 							const double dt, const double t,
