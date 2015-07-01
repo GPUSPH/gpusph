@@ -697,11 +697,11 @@ struct common_neib_output
 
 struct sa_boundary_neib_output
 {
-	// gamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
-	float2	gamAS;
+	// ggamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
+	float	ggamAS;
 
 	__device__ __forceinline__
-	sa_boundary_neib_output() : gamAS(make_float2(0))
+	sa_boundary_neib_output() : ggamAS(0.0f)
 	{ }
 };
 
@@ -825,17 +825,16 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 		const float sx = fmax(x*8.0f - 1.0f,0.0f);
 		// smootherstep function
 		const float smooth = VERTEX(pdata.info) ? 1.0f : ((2.0f*sx-5.0f)*3.0f*sx+10.0f)*sx*sx*sx;
-		nout.gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
+		const float2 gamAS = Gamma<kerneltype>(params.slength, ndata.relPos,
 				params.vertPos0[ndata.index], params.vertPos1[ndata.index], params.vertPos2[ndata.index],
 				ndata.belem, pdata.oldGGam,
 				params.epsilon, params.deltap, pdata.computeGamma, ndata.index,
 				pout.minlRas);
-		if (smooth < params.epsilon)
-			nout.gamAS.y = 0.0f;
-		pout.gGam.x += nout.gamAS.x*ndata.belem.x;
-		pout.gGam.y += nout.gamAS.x*ndata.belem.y;
-		pout.gGam.z += nout.gamAS.x*ndata.belem.z;
-		pout.gGam.w -= nout.gamAS.y*smooth;
+		pout.gGam.x += gamAS.x*ndata.belem.x;
+		pout.gGam.y += gamAS.x*ndata.belem.y;
+		pout.gGam.z += gamAS.x*ndata.belem.z;
+		pout.gGam.w -= (smooth > params.epsilon ? gamAS.y : 0.0f)*smooth;
+		nout.ggamAS = gamAS.x;
 	}
 }
 
@@ -862,7 +861,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_euler_contributions<true>::boundary_term(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DrDt -= dot3(ndata.relEulerVel, ndata.belem)*nout.gamAS.x;
+	nout.DrDt -= dot3(ndata.relEulerVel, ndata.belem)*nout.ggamAS;
 }
 
 template<>
@@ -957,7 +956,7 @@ template<typename FP, typename P, typename N, typename OP, typename ON>
 __device__ __forceinline__ void
 compute_relEulerVel_continuity_contribution<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
-	nout.DgamDt = -nout.gamAS.x*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
+	nout.DgamDt = -nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
 }
 
 
@@ -987,21 +986,21 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 			// compute sum_{S^{io}} gradGamma_{as} \cdot u_s^{n}
 			compute_relEulerVel_continuity_contribution<simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
 			// compute sum_{S^{io}} gradGamma_{as} \cdot (-v_s^{n})
-			nout.DgamDt += nout.gamAS.x*dot3(ndata.belem, ndata.relVel-pdata.vel);
+			nout.DgamDt += nout.ggamAS*dot3(ndata.belem, ndata.relVel-pdata.vel);
 			// for pressure inlets we need to compute a boundary term for the Rhie & Chow filter
 			// the term is essentially the same as the one for the fluid particle except that V_b w' -> |ggam|/r_{as}
 			if (PRES_IO(ndata.info)) {
 				nout.contDiff = -((2.0/(pdata.vel.w + ndata.relVel.w))*
 								  (P(pdata.vel.w, fluid_num(pdata.info)) - P(ndata.relVel.w, fluid_num(ndata.info)))
 								 - dot(d_gravity, as_float3(ndata.relPos))
-								)*nout.gamAS.x/ndata.r_as;
+								)*nout.ggamAS/ndata.r_as;
 			}
 		}
 	}
 	else {
 		if (ndata.ntype == PT_BOUNDARY) {
 			// boundary term of div(v)
-			nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.gamAS.x;
+			nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
 			if (IO_BOUNDARY(ndata.info))
 				compute_euler_contributions<simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
 			// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
@@ -1012,8 +1011,8 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 				// actual diffusion term
 				const float ferraricor = (ndata.r > 1e-4f*params.slength) ? max(pdata.sspeed, ndata.sspeed)*(pdata.vel.w - ndata.relVel.w + grav_corr)/ndata.r : 0.0f;
 				// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-				//nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.gamAS.x;
-				//nout.contDiff -= d_ferrari*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.gamAS.x;
+				//nout.contDiff -= 2.0f*d_ferrari*ferraricor*nout.ggamAS;
+				//nout.contDiff -= d_ferrari*ferraricor*dot3(ndata.relPos,ndata.belem)*nout.ggamAS;
 			}
 			if (sph_formulation == SPH_F1) {
 				nout.DrDt *= ndata.relVel.w;
@@ -1094,7 +1093,7 @@ compute_pressure_contrib<SA_BOUNDARY>::with(FP const& params, P const& pdata, N 
 	const float pGradTerm(common_with<sph_formulation>(params, pdata, ndata, pout, nout));
 	if (ndata.ntype == PT_BOUNDARY) {
 		// full boundary term
-		nout.DvDt += pGradTerm*ndata.relVel.w*nout.gamAS.x*ndata.normal_s;
+		nout.DvDt += pGradTerm*ndata.relVel.w*nout.ggamAS*ndata.normal_s;
 	}
 	else {
 		// full volumic term
@@ -1205,7 +1204,7 @@ visc_boundary_part<DYNAMICVISC>::with
 	// velocity of fluid particle along the wall
 	const float3 vel_tau = as_float3(ndata.relVel) - dot(as_float3(ndata.relVel), ndata.normal_s)*ndata.normal_s;
 
-	nout.DvDt -= nout.gamAS.x*
+	nout.DvDt -= nout.ggamAS*
 		(d_visccoeff[fluid_num(pdata.info)]*pdata.vel.w + d_visccoeff[fluid_num(ndata.info)]*ndata.relVel.w)/ndata.r_as*
 		vel_tau/pdata.vel.w;
 }
@@ -1243,7 +1242,7 @@ visc_boundary_part<KEPSVISC>::with
 		u_star = abs_u_t / (log(y_plus)/0.41f + 5.2f);
 	}
 
-	nout.DvDt -= 2.0f*nout.gamAS.x*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
+	nout.DvDt -= 2.0f*nout.ggamAS*u_star*u_star*u_t/fmax(abs_u_t,1e-6f);
 }
 
 // auxiliary functor computing volumic contribution to the viscous term
@@ -1407,10 +1406,10 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 		// boundary contribution to epsilon diffusion term
 		// the constant factor is 4.0f*0.09/1.3 where 0.09 = C_\mu and 1.3 = \sigma_\epsilon
-		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.gamAS.x;
+		pout.diff_term_e += 0.276923077f*pdata.keps_k*pdata.keps_k/ndata.r_as*nout.ggamAS;
 
 		// multiplication for velocity gradient terms (gradGam_as*rho_s)
-		dvmul = nout.gamAS.x*ndata.normal_s*ndata.relVel.w;
+		dvmul = nout.ggamAS*ndata.normal_s*ndata.relVel.w;
 
 	} else if (ndata.ntype == PT_VERTEX || ndata.ntype == PT_FLUID) {
 
