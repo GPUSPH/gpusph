@@ -688,8 +688,18 @@ bool GPUSPH::runSimulation() {
 				gdata->networkManager->networkBoolReduction(&(gdata->particlesCreated), 1);
 
 			// update the it counter if new particles are created
-			if (gdata->particlesCreated)
+			if (gdata->particlesCreated) {
 				gdata->createdParticlesIterations++;
+				// we also update the array indices, so that e.g. when saving
+				// the newly created particles are visible
+				// TODO this doesn't seem to impact performance noticeably
+				// in single-GPU. If it is found to be too expensive on
+				// multi-GPU (or especially multi-node) it might be necessary
+				// to only do it when saving. It does not affect the simulation
+				// anyway, since it will be done during the next buildNeibList()
+				// call
+				updateArrayIndices();
+			}
 		}
 
 		doCommand(SWAP_BUFFERS, POST_COMPUTE_SWAP_BUFFERS);
