@@ -53,6 +53,8 @@ typedef unsigned short neibdata;
 #define ENCODE_CELL(cell) ((cell + 1) << CELLNUM_SHIFT)
 #define DECODE_CELL(data) ((data >> CELLNUM_SHIFT) - 1)
 
+#define NEIBS_END	USHRT_MAX
+#define CELL_EMPTY	UINT_MAX
 
 // type for index that iterates on the neighbor list
 typedef size_t idx_t;

@@ -108,7 +108,7 @@ calcVortDevice(	const	float4*		posArray,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -196,7 +196,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -315,7 +315,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -371,7 +371,7 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -460,7 +460,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);

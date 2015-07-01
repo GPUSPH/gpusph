@@ -163,7 +163,7 @@ struct sa_integrate_continuity_equation
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(posN, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);

@@ -796,7 +796,7 @@ neibsInCell(
 	niC_vars<boundarytype> var(gridPos, index, params);
 
 	// Return if the cell is empty
-	if (var.bucketStart == 0xffffffff)
+	if (var.bucketStart == CELL_EMPTY)
 		return;
 
 	// Substract gridOffset*cellsize to pos so we don't need to do it each time
@@ -959,7 +959,7 @@ buildNeibsListDevice(buildneibs_params<boundarytype> params)
 	// have an empty neighbor list. Otherwise, particles which are
 	// marked inactive will keep their old neighbor list.
 	if (index < params.numParticles && neibs_num < d_maxneibsnum) {
-		params.neibsList[neibs_num*d_neiblist_stride + index] = 0xffff;
+		params.neibsList[neibs_num*d_neiblist_stride + index] = NEIBS_END;
 	}
 
 	if (neibcount) {

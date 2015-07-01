@@ -688,7 +688,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = params.neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, params.cellStart,
 				neib_data, gridPos, neib_cellnum, neib_cell_base_index);
@@ -840,7 +840,7 @@ densityGrenierDevice(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 			neib_cellnum, neib_cell_base_index);
@@ -989,7 +989,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
@@ -1153,7 +1153,7 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 		for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 						neib_cellnum, neib_cell_base_index);
@@ -1349,7 +1349,7 @@ saVertexBoundaryConditions(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -1711,7 +1711,7 @@ initGamma(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -1841,7 +1841,7 @@ initIOmass_vertexCount(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -1881,7 +1881,7 @@ initIOmass_vertexCount(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -1955,7 +1955,7 @@ initIOmass(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -1995,7 +1995,7 @@ initIOmass(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -2101,7 +2101,7 @@ shepardDevice(	const float4*	posArray,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -2207,7 +2207,7 @@ MlsDevice(	const float4*	posArray,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);
@@ -2310,7 +2310,7 @@ MlsDevice(	const float4*	posArray,
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 			neib_cellnum, neib_cell_base_index);
@@ -2502,7 +2502,7 @@ saIdentifyCornerVertices(
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
 
-		if (neib_data == 0xffff) break;
+		if (neib_data == NEIBS_END) break;
 
 		const uint neib_index = getNeibIndex(pos, pos_corr, cellStart, neib_data, gridPos,
 					neib_cellnum, neib_cell_base_index);

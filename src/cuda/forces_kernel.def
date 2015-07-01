@@ -2348,7 +2348,7 @@ forcesDevice(
 		for (; i < d_neiblist_end; i += d_neiblist_stride) {
 			neibdata neib_data = params.neibsList[i + index];
 
-			if (neib_data == 0xffff) break;
+			if (neib_data == NEIBS_END) break;
 
 			const uint neib_index = getNeibIndex(pdata.pos, pos_corr, params.cellStart,
 				neib_data, pdata.gridPos, neib_cellnum, neib_cell_base_index);
