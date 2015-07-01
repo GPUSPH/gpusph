@@ -1438,7 +1438,10 @@ void GPUSPH::doWrite(bool force)
 	size_t numgages = gages.size();
 	std::vector<double> gages_W(numgages, 0.);
 	for (uint g = 0; g < numgages; ++g) {
-		gages_W[g] = 0.;
+		if (gages[g].w == 0.)
+			gages_W[g] = DBL_MAX;
+		else
+			gages_W[g] = 0.;
 		gages[g].z = 0.;
 	}
 
@@ -1474,10 +1477,18 @@ void GPUSPH::doWrite(bool force)
 			for (uint g = 0; g < numgages; ++g) {
 				const double gslength  = gages[g].w;
 				const double r = sqrt((dpos.x - gages[g].x)*(dpos.x - gages[g].x)* + (dpos.y - gages[g].y)*(dpos.y - gages[g].y));
-				if (r < 2*gslength) {
-					const double W = Wendland2D(r, gslength);
-					gages_W[g] += W;
-					gages[g].z += dpos.z*W;
+				if (gslength > 0) {
+					if (r < 2*gslength) {
+						const double W = Wendland2D(r, gslength);
+						gages_W[g] += W;
+						gages[g].z += dpos.z*W;
+					}
+				}
+				else {
+					if (r < gages_W[g]) {
+						gages_W[g] = r;
+						gages[g].z = dpos.z;
+					}
 				}
 			}
 		}
@@ -1504,7 +1515,8 @@ void GPUSPH::doWrite(bool force)
 		for (uint g = 0 ; g < numgages; ++g) {
 			/*cout << "Ng : " << g << " gage: " << gages[g].x << "," << gages[g].y << " r : " << gages[g].w << " z: " << gages[g].z
 					<< " gparts :" << gage_parts[g] << endl;*/
-			gages[g].z /= gages_W[g];
+			if (gages[g].w)
+				gages[g].z /= gages_W[g];
 		}
 		//Write WaveGage information on one text file
 		Writer::WriteWaveGage(writers, gdata->t, gages);
