@@ -4,7 +4,7 @@
 
 // limits
 #include <float.h>
-#include <limits.h>
+#include <limits>
 
 #include "Rect.h"
 #include "Disk.h"
