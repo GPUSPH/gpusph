@@ -117,6 +117,7 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	const hashKey *particleHash = buffers.getData<BUFFER_HASH>();
 	const float4 *vel = buffers.getData<BUFFER_VEL>();
 	const float4 *vol = buffers.getData<BUFFER_VOLUME>();
+	const float *sigma = buffers.getData<BUFFER_SIGMA>();
 	const particleinfo *info = buffers.getData<BUFFER_INFO>();
 	const float3 *vort = buffers.getData<BUFFER_VORTICITY>();
 	const float4 *normals = buffers.getData<BUFFER_NORMALS>();
@@ -290,6 +291,12 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 	if (vol) {
 		vector_array(fid, "Float32", "Volume", 4, offset);
 		offset += sizeof(float)*4*numParts+sizeof(int);
+	}
+
+	// sigma
+	if (sigma) {
+		scalar_array(fid, "Float32", "Sigma", offset);
+		offset += sizeof(float)*numParts+sizeof(int);
 	}
 
 	fid << "   </PointData>" << endl;
@@ -596,6 +603,17 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		for (uint i=node_offset; i < node_offset + numParts; i++) {
 			float *value = (float*)(vol + i);
 			write_arr(fid, value, 4);
+		}
+	}
+
+	numbytes=sizeof(float)*numParts;
+
+	// sigma
+	if (sigma) {
+		write_var(fid, numbytes);
+		for (uint i=node_offset; i < node_offset + numParts; i++) {
+			float value = sigma[i];
+			write_var(fid, value);
 		}
 	}
 

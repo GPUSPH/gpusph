@@ -745,7 +745,7 @@ bool GPUSPH::runSimulation() {
 				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
 
 			if (gdata->problem->get_simparams()->sph_formulation == SPH_GRENIER)
-				which_buffers |= BUFFER_VOLUME;
+				which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
 
 			// get k and epsilon
 			if (gdata->problem->get_simparams()->visctype == KEPSVISC)
@@ -971,7 +971,7 @@ size_t GPUSPH::allocateGlobalHostBuffers()
 	if (problem->m_simparams->sph_formulation == SPH_GRENIER) {
 		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_VOLUME>();
 		// Only for debugging:
-		//gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
+		gdata->s_hBuffers.addBuffer<HostBuffer, BUFFER_SIGMA>();
 	}
 
 	if (gdata->simframework->hasPostProcessEngine(CALC_PRIVATE))
