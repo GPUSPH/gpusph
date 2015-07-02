@@ -254,8 +254,8 @@ VTKWriter::write(uint numParts, BufferList const& buffers, uint node_offset, dou
 		vector_array(fid, "Float32", "Eulerian velocity", 3, offset);
 		offset += sizeof(float)*3*numParts+sizeof(int);
 
-		// Eulerian pressure
-		scalar_array(fid, "Float32", "Eulerian pressure", offset);
+		// Eulerian density
+		scalar_array(fid, "Float32", "Eulerian density", offset);
 		offset += sizeof(float)*numParts+sizeof(int);
 	}
 

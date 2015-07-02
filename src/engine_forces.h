@@ -239,6 +239,7 @@ saIdentifyCornerVertices(
 	const	float4*			boundelement,
 			particleinfo*	info,
 	const	hashKey*		particleHash,
+	const	vertexinfo*		vertices,
 	const	uint*			cellStart,
 	const	neibdata*		neibsList,
 	const	uint			numParticles,

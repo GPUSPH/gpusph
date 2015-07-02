@@ -2480,6 +2480,7 @@ void GPUWorker::kernel_saIdentifyCornerVertices()
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_INFO>(),
 				bufread.getData<BUFFER_HASH>(),
+				bufread.getData<BUFFER_VERTICES>(),
 				m_dCellStart,
 				bufread.getData<BUFFER_NEIBSLIST>(),
 				m_numParticles,

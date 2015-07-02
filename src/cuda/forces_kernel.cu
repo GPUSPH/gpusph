@@ -1963,12 +1963,15 @@ saVertexBoundaryConditions(
 			( (PRES_IO(info) && eulerVel.w - rho0 <= 1e-10f*rho0) ||
 			  (VEL_IO(info) && length3(eulerVel) < 1e-10f*d_sscoeff[fluid_num(info)])) )
 			pos.w = 0.0f;
-		// This is in contrast to Sphynx where 2.0f is used instead of 0.6f
-		//pos.w = fmax(-0.6f*refMass, fmin(0.6f*refMass, pos.w));
+
+		// clip to +/- 2 refMass all the time
 		pos.w = fmax(-2.0f*refMass, fmin(2.0f*refMass, pos.w));
-		// AM-TODO actually clip with initial mass and not refMass*0.5f
-		if (sumMdot < 0.0f)
-			pos.w = fmax(-refMass*0.5f, fmin(refMass*0.5f, pos.w));
+
+		// clip to +/- originalVertexMass if we have outflow
+		if (sumMdot < 0.0f) {
+			const float4 boundElement = tex1Dfetch(boundTex, index);
+			pos.w = fmax(-refMass*boundElement.w, fmin(refMass*boundElement.w, pos.w));
+		}
 
 		// check whether new particles need to be created
 			// only create new particles in the second part of the time step
@@ -2989,6 +2992,7 @@ saIdentifyCornerVertices(
 				const	float4*			oldPos,
 						particleinfo*	pinfo,
 				const	hashKey*		particleHash,
+				const	vertexinfo*		vertices,
 				const	uint*			cellStart,
 				const	neibdata*		neibsList,
 				const	uint			numParticles,
@@ -3017,6 +3021,8 @@ saIdentifyCornerVertices(
 	uint neib_cell_base_index = 0;
 	float3 pos_corr;
 
+	const uint vid = id(info);
+
 	// Loop over all the neighbors
 	for (idx_t i = 0; i < d_neiblist_end; i += d_neiblist_stride) {
 		neibdata neib_data = neibsList[i + index];
@@ -3031,20 +3037,10 @@ saIdentifyCornerVertices(
 
 		// loop only over boundary elements that are not of the same open boundary
 		if (BOUNDARY(neib_info) && !(obj == neib_obj && IO_BOUNDARY(neib_info))) {
-			const float4 relPos = pos_corr - oldPos[neib_index];
-			const float r = length3(relPos);
-			// if the position is greater than 1.5 dr then the segment is too far away
-			if (r > deltap*1.5f)
-				continue;
-
-			// check normal distance to segment
-			const float4 boundElement = tex1Dfetch(boundTex, neib_index);
-			const float normDist = fabs(dot3(boundElement,relPos));
-
-			// if normal distance is less than dr then the particle is a corner particle
-			// this implies that the mass of this particle won't vary but it is still treated
-			// like an open boundary in every other aspect
-			if (normDist < deltap - eps){
+			// check if the current vertex is part of the vertices of the segment
+			if (vertices[neib_index].x == vid ||
+				vertices[neib_index].y == vid ||
+				vertices[neib_index].z == vid) {
 				SET_FLAG(info, FG_CORNER);
 				pinfo[index] = info;
 				break;

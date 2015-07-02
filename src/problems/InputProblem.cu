@@ -245,8 +245,10 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.1f);
 
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
+		m_physparams->kinematicvisc = 1.0e-6f;
+		m_simparams->visctype = KEPSVISC;
+		//m_physparams->kinematicvisc = 1.0e-2f;
+		//m_simparams->visctype = DYNAMICVISC;
 		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 		m_physparams->set_density(0, 1000.0, 7.0f, 110.0f);
 
@@ -259,6 +261,36 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		m_origin = make_double3(-5.4, -1.1, -2.1);
 		//m_simparams->ferrariLengthScale = 0.2f;
 		m_simparams->ferrari= 1.0f;
+		m_simparams.calcPrivate = false;
+		m_simparams.inoutBoundaries = true;
+		m_simparams.ioWaterdepthComputation = false;
+		m_simparams.maxneibsnum = 240;
+	//*************************************************************************************
+
+	// Solitary Wave
+	//*************************************************************************************
+#elif SPECIFIC_PROBLEM == SolitaryWave
+		h5File.setFilename("meshes/0.solitary_wave.h5sph");
+
+		set_deltap(0.02f);
+
+		m_physparams.kinematicvisc = 1.0e-6f;
+		m_simparams.visctype = DYNAMICVISC;
+		m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
+		m_physparams.set_density(0, 1000.0, 7.0f, 25.0f);
+
+		m_simparams.tend = 10.0;
+		//m_simparams.tend = 0.2;
+		m_simparams.testpoints = true;
+		m_simparams.periodicbound = PERIODIC_Y;
+		m_simparams.surfaceparticle = true;
+		m_simparams.savenormals = true;
+		H = 0.5;
+		l = 2.7; w = 0.5; h = 1.2;
+		//m_simparams.sfactor=1.3f;
+		m_simparams.sfactor=2.0f;
+		m_origin = make_double3(-1.35, -0.25, -0.1);
+		m_simparams.ferrari = 0.1f;
 		m_simparams->calcPrivate = false;
 		m_simparams->inoutBoundaries = true;
 		m_simparams->ioWaterdepthComputation = true;
@@ -465,6 +497,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 
 	if(n_vparts) {
 		std::cout << "Vertex parts: " << n_vparts << "\n";
+		const float referenceVolume = m_deltap*m_deltap*m_deltap;
 		for (uint i = j; i < j + n_vparts; i++) {
 			float rho = density(H - h5File.buf[i].Coords_2, 0);
 #if SPECIFIC_PROBLEM == SmallChannelFlowKEPS || \
@@ -514,6 +547,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
+			// boundelm.w contains the reference mass of a vertex particle, actually only needed for IO_BOUNDARY
+			boundelm[i].w = h5File.buf[i].Volume/referenceVolume;
 		}
 		j += n_vparts;
 		std::cout << "Vertex part mass: " << pos[j-1].w << "\n";
