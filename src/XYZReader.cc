@@ -99,9 +99,6 @@ void XYZReader::read(Point *bbox_min, Point *bbox_max)
 		points.push_back(p);
     }
 
-    printf(" ---------------------------------------------------                  %u\n", points.size());
-	printf("first %g,%g,%g\n", points[0](0), points[0](1), points[0](2));
-
 	xyzFile.close();
 }
 

@@ -86,6 +86,8 @@ void XProblem::release_memory()
 			m_geometries[g]->ptr->GetParts().clear();
 		if (m_geometries[g]->hdf5_reader)
 			delete m_geometries[g]->hdf5_reader;
+		if (m_geometries[g]->xyz_reader)
+			delete m_geometries[g]->xyz_reader;
 	}
 }
 
@@ -131,6 +133,9 @@ bool XProblem::initialize()
 	double highest_water_part = NAN;
 
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
+		// aux vars to store bbox of current geometry
+		Point currMin, currMax;
+
 		// ignore planes for bbox
 		if (m_geometries[g]->type == GT_PLANE)
 			continue;
@@ -142,8 +147,10 @@ bool XProblem::initialize()
 		// load HDF5 files
 		if (m_geometries[g]->has_hdf5_file)
 			m_geometries[g]->hdf5_reader->read();
-
-		Point currMin, currMax;
+		else
+		// load XYZ files and store their bounding box, at the same time
+		if (m_geometries[g]->has_xyz_file)
+			m_geometries[g]->xyz_reader->read(&currMin, &currMax);
 
 		// geometries loaded from HDF5 files but not featuring a STL file do not have a
 		// bounding box yet; let's compute it
@@ -165,7 +172,9 @@ bool XProblem::initialize()
 			// TODO: store the so-computed bbox somewhere?
 			// Not using it yet, but we have it for free here
 		} else
-			// all other geometries should have one ready
+		// points loaded from XYZ files already stored their bounding box; all other
+		// geometries should have one ready
+		if (!m_geometries[g]->has_xyz_file)
 			m_geometries[g]->ptr->getBoundingBox(currMin, currMax);
 
 		// global min and max
@@ -378,7 +387,7 @@ void XProblem::ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
 }
 
 GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype, Object* obj_ptr,
-	const char *hdf5_fname, const char *stl_fname)
+	const char *hdf5_fname, const char *xyz_fname, const char *stl_fname)
 {
 	GeometryInfo* geomInfo = new GeometryInfo();
 	geomInfo->type = otype;
@@ -391,6 +400,14 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 		// TODO: error checking
 		geomInfo->hdf5_reader = new HDF5SphReader();
 		geomInfo->hdf5_reader->setFilename(hdf5_fname);
+	} else
+	if (xyz_fname) {
+		geomInfo->xyz_filename = std::string(xyz_fname);
+		geomInfo->has_xyz_file = true;
+		// initialize the reader
+		// TODO: error checking
+		geomInfo->xyz_reader = new XYZReader();
+		geomInfo->xyz_reader->setFilename(xyz_fname);
 	}
 	if (stl_fname) {
 		geomInfo->stl_filename = std::string(stl_fname);
@@ -659,6 +676,7 @@ GeometryID XProblem::addSTLMesh(const GeometryType otype, const FillType ftype, 
 	return addGeometry(otype, ftype,
 		stlmesh,
 		NULL,			// HDF5 filename
+		NULL,			// XYZ filename
 		filename		// STL filename
 	);
 }
@@ -683,6 +701,30 @@ GeometryID XProblem::addHDF5File(const GeometryType otype, const Point &origin,
 	return addGeometry(otype, FT_NOFILL,
 		stlmesh,
 		fname_hdf5,		// HDF5 filename
+		NULL,			// XYZ filename
+		fname_stl		// STL filename
+	);
+}
+
+// NOTE: particles loaded from XYZ files will not be erased!
+// To enable erase-like interaction we need to copy them to the global particle vectors, by passing an
+// existing vector to loadPointCloudFromXYZFile(). We can implement this if needed.
+GeometryID XProblem::addXYZFile(const GeometryType otype, const Point &origin,
+			const char *fname_xyz, const char *fname_stl)
+{
+	// NOTE: fill type is FT_NOFILL since particles are read from file
+
+	// create an empty STLMesh if the STL filename is not given
+	STLMesh *stlmesh = ( fname_stl == NULL ? new STLMesh(0) : STLMesh::load_stl(fname_stl) );
+
+	// TODO: handle positioning like in addSTLMesh()
+
+	// NOTE: an empty STL mesh does not return a meaningful bounding box. Will read parts for that
+
+	return addGeometry(otype, FT_NOFILL,
+		stlmesh,
+		NULL,			// HDF5 filename
+		fname_xyz,		// XYZ filename
 		fname_stl		// STL filename
 	);
 }
@@ -1061,6 +1103,7 @@ int XProblem::fill_parts()
 	//uint particleCounter = 0;
 	uint bodies_parts_counter = 0;
 	uint hdf5file_parts_counter = 0;
+	uint xyzfile_parts_counter = 0;
 
 	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		PointVect* parts_vector = NULL;
@@ -1142,6 +1185,9 @@ int XProblem::fill_parts()
 		// geometries loaded from HDF5file do not undergo filling, but should be counted as well
 		if (m_geometries[g]->has_hdf5_file)
 			hdf5file_parts_counter += m_geometries[g]->hdf5_reader->getNParts();
+		// ditto for XYZ files
+		if (m_geometries[g]->has_xyz_file)
+			xyzfile_parts_counter += m_geometries[g]->xyz_reader->getNParts();
 
 #if 0
 		// dbg: fill horizontal XY planes with particles, only within the world domain
@@ -1241,7 +1287,8 @@ int XProblem::fill_parts()
 
 	} // iterate on geometries
 
-	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter + hdf5file_parts_counter;
+	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter
+		+ hdf5file_parts_counter + xyzfile_parts_counter;
 }
 
 uint XProblem::fill_planes()
@@ -1294,10 +1341,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 	uint boundary_parts = 0;
 	uint vertex_parts = 0;
 	// count #particles loaded from HDF5 files. Needed also to adjust connectivity afterward
-	uint loaded_parts = 0;
+	uint hdf5_loaded_parts = 0;
+	// count #particles loaded from XYZ files. Only for information
+	uint xyz_loaded_parts = 0;
 	// Total number of filled parts, i.e. in GPUSPH array and ready to be uploaded. The following hold:
 	//   total = fluid_parts + boundary_parts + vertex_parts
-	//   total >= loaded_parts
+	//   total >= hdf5_loaded_parts + xyz_loaded_parts
 	//   total >= object_parts
 	uint tot_parts = 0;
 
@@ -1310,9 +1359,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 	std::map<uint, uint> hdf5idx_to_idx_map;
 
 	// count how many particles will be loaded from file
-	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++)
+	for (size_t g = 0, num_geoms = m_geometries.size(); g < num_geoms; g++) {
 		if (m_geometries[g]->has_hdf5_file)
-			loaded_parts += m_geometries[g]->hdf5_reader->getNParts();
+			hdf5_loaded_parts += m_geometries[g]->hdf5_reader->getNParts();
+		else
+		if (m_geometries[g]->has_xyz_file)
+			xyz_loaded_parts += m_geometries[g]->xyz_reader->getNParts();
+	}
 
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
@@ -1519,11 +1572,115 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 			} // for every particle in the HDF5 buffer
 
-		} // if (m_geometries[g]->has_hdf5_file)
+		} else // if (m_geometries[g]->has_hdf5_file)
+		// load from HDF5 file, whether fluid, boundary, floating or else
+		if (m_geometries[g]->has_xyz_file) {
+
+			// read number of particles
+			current_geometry_particles = m_geometries[g]->xyz_reader->getNParts();
+
+			// all particles in XYZ file will have the same type and flags
+			ushort ptype = PT_FLUID;
+			flag_t pflags = 0;
+
+			// update particle counters, set ptype, flags - all same for the whole XYZ geometry
+			switch (m_geometries[g]->type) {
+				case GT_FLUID:
+					ptype = PT_FLUID;
+					fluid_parts += current_geometry_particles;
+					break;
+				case GT_FIXED_BOUNDARY:
+					ptype = PT_BOUNDARY;
+					boundary_parts += current_geometry_particles;
+					break;
+				case GT_MOVING_BODY:
+					pflags = FG_MOVING_BOUNDARY;
+					if (m_geometries[g]->measure_forces)
+						pflags |= FG_COMPUTE_FORCE;
+					ptype = PT_BOUNDARY;
+					boundary_parts += current_geometry_particles;
+					break;
+				case GT_FLOATING_BODY:
+					pflags = FG_MOVING_BOUNDARY | FG_COMPUTE_FORCE;
+					ptype = PT_BOUNDARY;
+					boundary_parts += current_geometry_particles;
+					break;
+				case GT_OPENBOUNDARY:
+					const ushort VELOCITY_DRIVEN_FLAG =
+						(m_geometries[g]->velocity_driven ? FG_VELOCITY_DRIVEN : 0);
+					pflags = FG_INLET | FG_OUTLET | VELOCITY_DRIVEN_FLAG;
+					// TODO FIXME: check compatibility with new non-SA inlets
+					ptype = PT_BOUNDARY;
+					boundary_parts += current_geometry_particles;
+					break;
+				}
+			// TODO: nothing else is possible since this is checked while adding the
+			// geometry, should we double-check again? And a default
+
+			// utility pointer
+			const PointVect *xyzBuffer = &(m_geometries[g]->xyz_reader->points);
+
+			// add every particle
+			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
+
+				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current XZY file)
+				const uint bi = i - tot_parts;
+				// default density
+				float rho = m_physparams->rho0[0];
+
+				// fix density of fluid parts for hydrostatic filling
+				// TODO FIXME for multifluid
+				if (ptype == PT_FLUID)
+					rho = density(m_waterLevel - (*xyzBuffer)[bi](2), 0);
+
+				vel[i] = make_float4(0, 0, 0, rho);
+
+				// compute particle info, local pos, cellhash
+				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
+				// be set afterward (e.g. in initializeParticles() callback)
+				info[i] = make_particleinfo_by_ids(ptype, 0, object_id, i);
+
+				// set appropriate particle flags
+				SET_FLAG(info[i], pflags);
+
+				// NOTE: reading the mass from the object, even if it is an empty STL
+				Point tmppoint = Point((*xyzBuffer)[bi](0), (*xyzBuffer)[bi](1), (*xyzBuffer)[bi](2),
+					m_geometries[g]->ptr->GetPartMass());
+				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
+				globalPos[i] = tmppoint.toDouble4();
+
+				// Update boundary particles counters for rb indices
+				// NOTE: the same check will be done for non-HDF5 bodies
+				if (ptype == PT_BOUNDARY && m_geometries[g]->measure_forces) {
+					current_geometry_num_boundary_parts++;
+					if (current_geometry_first_boundary_id == UINT_MAX)
+						current_geometry_first_boundary_id = id(info[i]); // which should be == i
+				}
+
+				if (eulerVel)
+					eulerVel[i] = make_float4(0);
+
+				// store particle mass for current type, if it was not store already
+				if (ptype == PT_FLUID && !isfinite(fluid_part_mass))
+					fluid_part_mass = pos[i].w;
+				else
+				if (ptype == PT_BOUNDARY && !isfinite(boundary_part_mass))
+					boundary_part_mass = pos[i].w;
+				// no else supported yet
+
+				// also set rigid_body_part_mass, which is orthogonal the the previous values
+				if ((m_geometries[g]->type == GT_FLOATING_BODY ||
+					 m_geometries[g]->type == GT_MOVING_BODY) &&
+					 !isfinite(rigid_body_part_mass))
+					rigid_body_part_mass = pos[i].w;
+
+			} // for every particle in the XYZ buffer
+
+		} // if (m_geometries[g]->has_xyz_file)
 
 		// copy particles from the point vector of objects which have not been loaded from file
 		if ( (m_geometries[g]->type == GT_FLOATING_BODY || m_geometries[g]->type == GT_MOVING_BODY)
-				&& !(m_geometries[g]->has_hdf5_file)) {
+				&& !(m_geometries[g]->has_hdf5_file) && !(m_geometries[g]->has_xyz_file)) {
 			// not loading from file: take object vector
 			PointVect & rbparts = m_geometries[g]->ptr->GetParts();
 			current_geometry_particles = rbparts.size();
@@ -1619,7 +1776,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
 	// loading them from file, and here iterate only on that vector
-	if (m_simparams->boundarytype == SA_BOUNDARY && loaded_parts > 0) {
+	if (m_simparams->boundarytype == SA_BOUNDARY && hdf5_loaded_parts > 0) {
 		std::cout << "Fixing connectivity..." << std::flush;
 		for (uint i=0; i< tot_parts; i++)
 			if (BOUNDARY(info[i])) {

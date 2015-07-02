@@ -33,8 +33,9 @@
 
 #include "Problem.h"
 
-// HDF5 reader
+// HDF5 and XYF file readers
 #include "HDF5SphReader.h"
+#include "XYZReader.h"
 
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
@@ -89,6 +90,10 @@ struct GeometryInfo {
 	HDF5SphReader *hdf5_reader;
 	bool flip_normals; // for HF5 generated from STL files with wrong normals
 
+	bool has_xyz_file;  // ditto
+	std::string xyz_filename;
+	XYZReader *xyz_reader;
+
 	bool has_stl_file; // ditto
 	std::string stl_filename;
 
@@ -120,6 +125,10 @@ struct GeometryInfo {
 		hdf5_filename = "";
 		hdf5_reader = NULL;
 		flip_normals = false;
+
+		has_xyz_file = false;
+		xyz_filename = "";
+		xyz_reader = NULL;
 
 		has_stl_file = false;
 		stl_filename = "";
@@ -167,7 +176,7 @@ class XProblem: public Problem {
 
 		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
-			const char *hdf5_fname = NULL, const char *stl_fname = NULL);
+			const char *hdf5_fname = NULL, const char *xyz_fname = NULL, const char *stl_fname = NULL);
 
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
@@ -206,6 +215,8 @@ class XProblem: public Problem {
 			const char *fname);
 		GeometryID addHDF5File(const GeometryType otype, const Point &origin,
 			const char *fname_hdf5, const char *fname_stl = NULL);
+		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
+			const char *fname_xyz, const char *fname_stl = NULL);
 
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
