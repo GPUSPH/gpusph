@@ -1247,8 +1247,9 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
  When using the Grenier formulation, density is reinitialized at each timestep from
  a Shepard-corrected mass distribution limited to same-fluid particles M and volumes ω computed
  from a continuity equation, with ϱ = M/ω.
- During the same run, we also compute σ, the approximation of the inverse volume obtained by summing
- the kernel computed over _all_ neighbors (not just the same-fluid ones) which is used in the continuity
+ During the same run, we also compute σ, the discrete specific volume
+ (see e.g. Hu & Adams 2005), obtained by summing the kernel computed over
+ _all_ neighbors (not just the same-fluid ones) which is used in the continuity
  equation as well as the Navier-Stokes equation
 */
 template<KernelType kerneltype, BoundaryType boundarytype>
@@ -1301,7 +1302,8 @@ densityGrenierDevice(
 
 	// For DYN_BOUNDARY particles, we compute sigma in the same way as fluid particles,
 	// except that if the boundary particle has no fluid neighbors we set its
-	// sigma to 1.
+	// sigma to a default value which is the 'typical' specific volume, given by
+	// the typical number of neighbors divided by the volume of the influence sphere
 	bool has_fluid_neibs = false;
 
 	// Loop over all neighbors
@@ -1350,8 +1352,12 @@ densityGrenierDevice(
 		}
 	}
 
-	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info) && !has_fluid_neibs)
-		sigma = 1;
+	if (boundarytype == DYN_BOUNDARY && NOT_FLUID(info) && !has_fluid_neibs) {
+		// TODO OPTIMIZE
+		const floa typical_sigma = 3*cuneibs::d_maxNeibs/
+			(4*M_PIf*influenceradius*influenceradius*influenceradius);
+		sigma = typical_sigma;
+	}
 
 	// M = mass_corr/corr, ϱ = M/ω
 	// this could be optimized to pos.w/vol assuming all same-fluid particles

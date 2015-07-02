@@ -121,7 +121,7 @@ SET_BUFFER_TRAITS(BUFFER_SPS_TURBVISC, float, 1, "SPS Turbulent viscosity");
 SET_BUFFER_TRAITS(BUFFER_VOLUME, float4, 1, "Volume");
 
 #define BUFFER_SIGMA		(BUFFER_VOLUME << 1)
-SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (inverse discrete volume)");
+SET_BUFFER_TRAITS(BUFFER_SIGMA, float, 1, "Sigma (discrete specific volume)");
 
 #define BUFFER_PRIVATE		(BUFFER_SIGMA << 1)
 SET_BUFFER_TRAITS(BUFFER_PRIVATE, float, 1, "Private scalar");
