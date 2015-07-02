@@ -1462,7 +1462,7 @@ void GPUSPH::doWrite(bool force)
 		if (numgages && SURFACE(info[i])) {
 			for (uint g = 0; g < numgages; ++g) {
 				const double gslength  = gages[g].w;
-				const double r = sqrt((dpos.x - gages[g].x)*(dpos.x - gages[g].x)* + (dpos.y - gages[g].y)*(dpos.y - gages[g].y));
+				const double r = sqrt((dpos.x - gages[g].x)*(dpos.x - gages[g].x) + (dpos.y - gages[g].y)*(dpos.y - gages[g].y));
 				if (gslength > 0) {
 					if (r < 2*gslength) {
 						const double W = Wendland2D(r, gslength);
