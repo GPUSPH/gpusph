@@ -989,6 +989,10 @@ double XProblem::setParticleMassByDensity(const GeometryID gid, const double den
 {
 	if (!validGeometry(gid)) return NAN;
 
+	if ( (m_geometries[gid]->has_xyz_file || m_geometries[gid]->has_hdf5_file) &&
+		 !m_geometries[gid]->has_stl_file)
+		printf("WARNING: setting the mass by density can't work with a point-based geometry without a mesh!\n");
+
 	const double dx = (m_geometries[gid]->type == GT_FLUID ? m_deltap : m_physparams->r0);
 	const double particle_mass = m_geometries[gid]->ptr->SetPartMass(dx, density);
 	m_geometries[gid]->particle_mass_was_set = true;
