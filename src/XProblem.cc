@@ -1761,7 +1761,7 @@ void XProblem::copy_to_array(BufferList &buffers)
 			// when numparts==0, Object uses rbparts.size(). Also, this is probably not
 			// necessary anymore after the update of s_hRbFirstIndex and s_hRbLastIndex
 			// has been moved here
-			m_geometries[g]->ptr->SetNumParts(bodies_particles_counter);
+			m_geometries[g]->ptr->SetNumParts(current_geometry_num_boundary_parts);
 		}
 
 		// update global particle counter
