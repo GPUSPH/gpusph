@@ -318,29 +318,31 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == PeriodicWave
 		h5File.setFilename("meshes/0.periodic_wave_0.02.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
+		m_simparams->sfactor=2.0f;
 		set_deltap(0.02f);
-
-		m_physparams->kinematicvisc = 1.0e-6f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
-		m_physparams->set_density(0, 1000.0, 7.0f, 25.0f);
-
+		m_simparams->maxneibsnum = 240;
 		m_simparams->tend = 10.0;
-		//m_simparams->tend = 0.2;
-		m_simparams->testpoints = true;
-		m_simparams->periodicbound = PERIODIC_Y;
-		m_simparams->surfaceparticle = true;
-		m_simparams->savenormals = true;
+		m_simparams->ferrari = 0.1f;
+
+		addPostProcess(SURFACE_DETECTION);
+		addPostProcess(CALC_PRIVATE);
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 25.0f);
+		set_kinematic_visc(water, 1.0e-6f);
+
 		H = 0.5;
 		l = 2.7; w = 0.5; h = 1.2;
-		//m_simparams->sfactor=1.3f;
-		m_simparams->sfactor=2.0f;
 		m_origin = make_double3(-1.35, -0.25, -0.1);
-		m_simparams->ferrari = 0.1f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
-		m_simparams->ioWaterdepthComputation = false;
-		m_simparams->maxneibsnum = 240;
+		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 #endif
