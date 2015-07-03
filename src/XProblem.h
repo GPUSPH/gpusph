@@ -158,8 +158,7 @@ class XProblem: public Problem {
 		//PointVect m_vertexParts;
 
 		size_t m_numActiveGeometries;	// do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
-		size_t m_numBodies;				// total number of bodies (floating + moving + feedback only) /// DELETE?
-		size_t m_numForcesBodies;		// number of bodies with feedback enabled (includes floating) /// DELETE?
+		size_t m_numForcesBodies;		// number of bodies with feedback enabled (includes floating)
 		size_t m_numFloatingBodies;		// number of floating bodies (handled with ODE)
 		size_t m_numPlanes;				// number of plane geometries (ODE and/or GPUSPH planes)
 		size_t m_numOpenBoundaries;		// number of I/O geometries

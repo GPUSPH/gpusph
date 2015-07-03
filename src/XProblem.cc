@@ -50,7 +50,6 @@ XProblem::XProblem(GlobalData *_gdata) : Problem(_gdata)
 {
 	// *** XProblem initialization
 	m_numActiveGeometries = 0;
-	m_numBodies = 0;
 	m_numForcesBodies = 0;
 	m_numFloatingBodies = 0;
 	m_numPlanes = 0;
@@ -466,10 +465,6 @@ GeometryID XProblem::addGeometry(const GeometryType otype, const FillType ftype,
 	else
 		geomInfo->erase_operation = ET_ERASE_ALL;
 
-	// update bodies counter
-	if (geomInfo->type == GT_MOVING_BODY || geomInfo->type == GT_FLOATING_BODY)
-		m_numBodies++;
-
 	// NOTE: we don't need to check handle_collisions at all, since if there are no bodies
 	// we don't need collisions nor ODE at all
 	if (geomInfo->handle_dynamics)
@@ -751,9 +746,6 @@ void XProblem::deleteGeometry(const GeometryID gid)
 
 	// and this is the reason why m_numActiveGeometries not be used to iterate on m_geometries:
 	m_numActiveGeometries--;
-
-	if (m_geometries[gid]->type == GT_MOVING_BODY || m_geometries[gid]->type == GT_FLOATING_BODY)
-		m_numBodies--;
 
 	if (m_geometries[gid]->measure_forces)
 		m_numForcesBodies--;
