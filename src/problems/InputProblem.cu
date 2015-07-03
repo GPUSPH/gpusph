@@ -257,28 +257,30 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 		h5File.setFilename("meshes/0.la_palisse_small_test.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<KEPSVISC>,
+			//viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		set_deltap(0.1f);
-
-		m_physparams->kinematicvisc = 1.0e-6f;
-		m_simparams->visctype = KEPSVISC;
-		//m_physparams->kinematicvisc = 1.0e-2f;
-		//m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
-		m_physparams->set_density(0, 1000.0, 7.0f, 110.0f);
-
+		m_simparams->maxneibsnum = 240;
 		m_simparams->tend = 40.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
+		m_simparams->ferrari= 1.0f;
+		//m_simparams->ferrariLengthScale = 0.2f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 110.0f);
+		set_kinematic_visc(water, 1.0e-6f);
+		//set_kinematic_visc(water, 1.0e-2f);
+
 		H = 4.0;
 		l = 10.8; w = 2.2; h = 4.2;
 		m_origin = make_double3(-5.4, -1.1, -2.1);
-		//m_simparams->ferrariLengthScale = 0.2f;
-		m_simparams->ferrari= 1.0f;
-		m_simparams.calcPrivate = false;
-		m_simparams.inoutBoundaries = true;
-		m_simparams.ioWaterdepthComputation = false;
-		m_simparams.maxneibsnum = 240;
+		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	// Solitary Wave
@@ -753,7 +755,7 @@ InputProblem_imposeBoundaryCondition(
 				//waterdepth = -0.1 + 0.355*t/20.0f; // set inflow waterdepth to 0.21 (with respect to world_origin)
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
-			eulerVel.w = RHO(pressure, PART_FLUID_NUM(info));
+			eulerVel.w = RHO(pressure, fluid_num(info));
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
 			if (object(info)==0)
 				eulerVel.w = 1002.0f;
