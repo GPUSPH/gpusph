@@ -147,24 +147,27 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIO
 		h5File.setFilename("meshes/0.small_channel_io_walls.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		set_deltap(0.2f);
-
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
-
+		m_simparams->maxneibsnum = 220;
 		m_simparams->tend = 100.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
+		m_simparams->ferrariLengthScale = 1.0f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-2f);
+
 		H = 2.0;
 		l = 2.1; w = 2.1; h = 2.1;
 		m_origin = make_double3(-1.05, -1.05, -1.05);
-		m_simparams->ferrariLengthScale = 1.0f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
-		m_simparams->maxneibsnum = 220;
+		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
