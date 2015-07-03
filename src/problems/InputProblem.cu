@@ -203,25 +203,27 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<KEPSVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_Y>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		m_simparams->sfactor=1.3f;
 		set_deltap(0.05f);
-
-		m_physparams->kinematicvisc = 1.5625e-3f;
-		m_simparams->visctype = KEPSVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 200.0f);
-
 		m_simparams->tend = 10.0;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
-		m_simparams->periodicbound = PERIODIC_Y;
+		m_simparams->ferrariLengthScale = 1.0f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 200.0f);
+		set_kinematic_visc(water, 1.5625e-3f);
+
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
-		m_simparams->ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
+		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//IOWithoutWalls (i/o between two plates without walls)
