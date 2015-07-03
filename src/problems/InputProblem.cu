@@ -231,24 +231,25 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == IOWithoutWalls
 		h5File.setFilename("meshes/0.io_without_walls.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_YZ>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+		);
+
 		set_deltap(0.2f);
-
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
-
 		m_simparams->tend = 100.0;
-		m_simparams->periodicbound = PERIODIC_YZ;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
+		m_simparams->ferrariLengthScale = 1.0f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-2f);
+
 		H = 2.0;
 		l = 2.2; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.1, -1.0, -1.0);
-		m_simparams->ferrariLengthScale = 1.0f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
 	//*************************************************************************************
 
 	//Small test case with similar features to La Palisse
