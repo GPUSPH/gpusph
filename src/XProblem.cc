@@ -1393,12 +1393,33 @@ void XProblem::copy_to_array(BufferList &buffers)
 	boundary_parts += m_boundaryParts.size();
 
 	// We've already counted the objects in initialize(), but now we need incremental counters
-	uint bodies_counter = 0;
+	// to compute the correct object_id according to the insertion order and body type.
+	// Specifically, object_ids are coherent with the insertion order but floating (ODE) bodies
+	// are assigned first; then forces bodies; and finally moving bodies.
+	// Please note how they count one kind of body, not including the previous category, as
+	// opposite as the global counters (e.g. m_numForcesBodies includes m_numFloatingBodies,
+	// but forces_nonFloating_bodies_incremental does not).
+	// (i.e. it counts forces non-floating bodies only)
+	// Also see Problem::add_moving_body()
+	uint floating_bodies_incremental = 0;
+	uint forces_nonFloating_bodies_incremental = 0;
+	uint moving_nonForces_bodies_incremental = 0;
+	// finally, a counter of all forces bodies (either floating or not), only for printing information
+	uint forces_bodies_incremental = 0;
+	// Open boundaries are orthogonal to any kind of bodies, so their object_id will be simply
+	// equal to the incremental counter.
 	uint open_boundaries_counter = 0;
 	// the number of all the particles of rigid bodies will be used to set s_hRbLastIndex
 	uint bodies_particles_counter = 0;
 	// store particle mass of last added rigid body
 	double rigid_body_part_mass = NAN;
+
+	// Filling s_hRbLastIndex[i] requires the knowledge of the number of particles filled by any
+	// object_id < i. Unfortunately, since object_id does not follow the GeometryID, we do not have
+	// this knowledge. Thus, we prepare a small array we will fill the number of particles per
+	// object, and we will use it at the end of the filling process to fill s_hRbLastIndex[].
+	// Instead, s_hRbFirstIndex can be set while filling.
+	uint *body_particle_counters = new uint[m_numForcesBodies];
 
 	// Until now we copied fluid and boundary particles not belonging to floating objects and/or not to be loaded
 	// from HDF5 files. Now we iterate on the geometries with the aim to
@@ -1425,13 +1446,24 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// object id (GPUSPH, not ODE) that will be used in particleinfo
 		// TODO: will also be fluid_number for multifluid
+		// NOTE: see comments in the declaration of the counters, above
 		uint object_id = 0;
-		if (m_geometries[g]->type == GT_FLOATING_BODY ||
-			m_geometries[g]->type == GT_MOVING_BODY)
-			object_id = bodies_counter++;
+		if (m_geometries[g]->type == GT_FLOATING_BODY)
+			object_id = floating_bodies_incremental++;
 		else
+		if (m_geometries[g]->type == GT_MOVING_BODY && m_geometries[g]->measure_forces)
+			// forces body; not floating. ID after floating bodies
+			object_id = m_numFloatingBodies + forces_nonFloating_bodies_incremental++;
+		else
+		if (m_geometries[g]->type == GT_MOVING_BODY)
+			// moving body; not floating, no feedback. ID after forces (incl. floating) bodies
+			object_id = m_numForcesBodies + moving_nonForces_bodies_incremental++;
 		if (m_geometries[g]->type == GT_OPENBOUNDARY)
+			// open boundary; nothing to do with bodies
 			object_id = open_boundaries_counter++;
+		// now update the forces bodies counter, which includes floating ones, only for printing info later
+		if (m_geometries[g]->measure_forces)
+			forces_bodies_incremental++;
 
 		// load from HDF5 file, whether fluid, boundary, floating or else
 		if (m_geometries[g]->has_hdf5_file) {
@@ -1725,28 +1757,17 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// settings related to objects for which we compute the forces, regardless they were loaded from file or not
 		if (m_geometries[g]->measure_forces) {
-
-			// TODO: when we will need segmented scan on moving objs as well, the update of
-			// s_hRbFirstIndex and s_hRbLastIndex should be moved
-
 			// Store index (currently identical to id) of first object particle plus the number
 			// of previously filled object particles. This, summed to the particle id, will be used
 			// as offset to compute the index in rbforces/torques.
 			gdata->s_hRbFirstIndex[object_id] = - (int)current_geometry_first_boundary_id;
 
 			// update counter of rigid body particles
-			bodies_particles_counter += current_geometry_num_boundary_parts;
-
-			// set s_hRbLastIndex after updating bodies_particles_counter
-			gdata->s_hRbLastIndex[object_id] = bodies_particles_counter - 1;
+			body_particle_counters[object_id] = current_geometry_num_boundary_parts;
 
 			// recap on stdout
-			std::cout << "Rigid body " << bodies_counter << ": " << current_geometry_particles <<
+			std::cout << "Rigid body " << forces_bodies_incremental << ": " << current_geometry_particles <<
 				" parts, mass " << rigid_body_part_mass << ", object mass " << m_geometries[g]->ptr->GetMass() << "\n";
-
-			// DBG info
-			// printf("  DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n", \
-				object_id, gdata->s_hRbFirstIndex[object_id], object_id, gdata->s_hRbLastIndex[object_id]);
 
 			// reset value to spot possible anomalies in next bodies
 			rigid_body_part_mass = NAN;
@@ -1755,12 +1776,9 @@ void XProblem::copy_to_array(BufferList &buffers)
 		// update object num parts
 		if (m_geometries[g]->type == GT_FLOATING_BODY ||
 			m_geometries[g]->type == GT_MOVING_BODY) {
-
 			// set numParts, which will be read while allocating device buffers for obj parts
 			// NOTE: this is strictly necessary only for hdf5-loaded objects, because
-			// when numparts==0, Object uses rbparts.size(). Also, this is probably not
-			// necessary anymore after the update of s_hRbFirstIndex and s_hRbLastIndex
-			// has been moved here
+			// when numparts==0, Object uses rbparts.size().
 			m_geometries[g]->ptr->SetNumParts(current_geometry_num_boundary_parts);
 		}
 
@@ -1768,6 +1786,21 @@ void XProblem::copy_to_array(BufferList &buffers)
 		tot_parts += current_geometry_particles;
 
 	} // for each geometry
+
+	// Now we have enough knowledge to fill s_hRbLastIndex. We iterate on all the
+	// forces bodies by means of their object id, which is basically the insertion
+	// order after being sorted by body type.
+	uint incremental_bodies_part_counter = 0;
+	for (uint obj_id = 0; obj_id < m_numForcesBodies; obj_id++) {
+		// simply an incremental sum
+		incremental_bodies_part_counter += body_particle_counters[obj_id];
+		// memo: s_hRbLastIndex, as used in the reduction, is inclusive (thus -1)
+		gdata->s_hRbLastIndex[obj_id] = incremental_bodies_part_counter - 1;
+		// DBG info
+		printf(" DBG: s_hRbFirstIndex[%u] = %d, s_hRbLastIndex[%u] = %u\n", \
+			obj_id, gdata->s_hRbFirstIndex[obj_id], obj_id, gdata->s_hRbLastIndex[obj_id]);
+	}
+	delete [] body_particle_counters;
 
 	// fix connectivity by replacing Crixus' AbsoluteIndex with local index
 	// TODO: instead of iterating on all the particles, we could create a list of boundary particles while
