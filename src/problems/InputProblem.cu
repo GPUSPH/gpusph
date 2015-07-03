@@ -115,26 +115,31 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlowKEPS
 		h5File.setFilename("meshes/0.small_channel_keps.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<KEPSVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_XY>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		);
+
 		m_simparams->sfactor=2.0f;
 		set_deltap(0.05f);
+		m_simparams->tend = 100.0;
+		m_simparams->ferrariLengthScale = 1.0f;
 
 		// turbulent (as in agnes' paper)
-		m_physparams->kinematicvisc = 1.5625e-3f;
-		m_simparams->visctype = KEPSVISC;
-		m_physparams->gravity = make_float3(1.0, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 200.0f);
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 200.0f);
+		set_kinematic_visc(water, 1.5625e-3f);
 
-		m_simparams->tend = 100.0;
-		m_simparams->periodicbound = PERIODIC_XY;
-		m_simparams->testpoints = true;
-		m_simparams->csvtestpoints = true;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
+		addPostProcess(SURFACE_DETECTION);
+		addPostProcess(TESTPOINTS);
+
 		H = 2.0;
 		l = 0.8; w = 0.8; h = 2.02;
-		m_simparams->ferrariLengthScale = 1.0f;
 		m_origin = make_double3(-0.4, -0.4, -1.01);
-		m_simparams->calcPrivate = false;
+		m_physparams->gravity = make_float3(1.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowIO (a small channel flow for debugging in/outflow)
