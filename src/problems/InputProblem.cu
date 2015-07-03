@@ -88,23 +88,26 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 #elif SPECIFIC_PROBLEM == SmallChannelFlow
 		h5File.setFilename("meshes/0.small_channel.h5sph");
 
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_XY>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI>
+		);
+
 		set_deltap(0.0625f);
-
-		m_physparams->kinematicvisc = 1.0e-2f;
-		m_simparams->visctype = DYNAMICVISC;
-		m_physparams->gravity = make_float3(8.0*m_physparams->kinematicvisc, 0.0, 0.0);
-		m_physparams->set_density(0, 1000.0, 7.0f, 10.0f);
-
 		m_simparams->tend = 100.0;
-		m_simparams->periodicbound = PERIODIC_XY;
-		m_simparams->testpoints = false;
-		m_simparams->surfaceparticle = false;
-		m_simparams->savenormals = false;
+		m_simparams->ferrari = 1.0f;
+
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 10.0f);
+		set_kinematic_visc(water, 1.0e-2f);
+
 		H = 1.0;
 		l = 1.0; w = 1.0; h = 1.02;
-		m_simparams->ferrariLengthScale = 0.5f;
 		m_origin = make_double3(-0.5, -0.5, -0.51);
-		m_simparams->calcPrivate = true;
+		m_physparams->gravity = make_float3(8.0*m_physparams->kinematicvisc[water], 0.0, 0.0);
 	//*************************************************************************************
 
 	//SmallChannelFlowKEPS (a small channel flow for debugging the k-epsilon model)
