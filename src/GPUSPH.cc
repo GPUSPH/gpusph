@@ -1688,39 +1688,40 @@ void GPUSPH::printDeviceAccessibilityTable()
 
 // Do a roll call of particle IDs; useful after dumps if the filling was uniform.
 // Notifies anomalies only once in the simulation for each particle ID
-// NOTE: only meaningful in singlenode (otherwise, there is no correspondence between indices and ids)
+// NOTE: only meaningful in single-node (otherwise, there is no correspondence between indices and ids),
+// with compact particle filling (i.e. no holes in the ID space) and in simulations without open boundaries
 void GPUSPH::rollCallParticles()
 {
 	bool all_normal = true;
 
 	// reset bitmap and addrs
-	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++) {
-		m_rcBitmap[idx] = false;
-		m_rcAddrs[idx] = UINT_MAX;
+	for (uint part_id = 0; part_id < gdata->processParticles[gdata->mpi_rank]; part_id++) {
+		m_rcBitmap[part_id] = false;
+		m_rcAddrs[part_id] = UINT_MAX;
 	}
 
 	// fill out the bitmap and check for duplicates
-	for (uint pos = 0; pos < gdata->processParticles[gdata->mpi_rank]; pos++) {
-		uint idx = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[pos]);
-		if (m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %lu, time %g particle idx %u is in pos %u and %u!\n",
-					gdata->iterations, gdata->t, idx, m_rcAddrs[idx], pos);
+	for (uint part_index = 0; part_index < gdata->processParticles[gdata->mpi_rank]; part_index++) {
+		uint part_id = id(gdata->s_hBuffers.getData<BUFFER_INFO>()[part_index]);
+		if (m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
+			printf("WARNING: at iteration %lu, time %g particle ID %u is at indices %u and %u!\n",
+					gdata->iterations, gdata->t, part_id, m_rcAddrs[part_id], part_index);
 			// getchar(); // useful for debugging
 			// printf("Press ENTER to continue...\n");
 			all_normal = false;
-			m_rcNotified[idx] = true;
+			m_rcNotified[part_id] = true;
 		}
-		m_rcBitmap[idx] = true;
-		m_rcAddrs[idx] = pos;
+		m_rcBitmap[part_id] = true;
+		m_rcAddrs[part_id] = part_index;
 	}
 	// now check if someone is missing
-	for (uint idx = 0; idx < gdata->processParticles[gdata->mpi_rank]; idx++)
-		if (!m_rcBitmap[idx] && !m_rcNotified[idx]) {
-			printf("WARNING: at iteration %lu, time %g particle idx %u was not found!\n",
-					gdata->iterations, gdata->t, idx);
+	for (uint part_id = 0; part_id < gdata->processParticles[gdata->mpi_rank]; part_id++)
+		if (!m_rcBitmap[part_id] && !m_rcNotified[part_id]) {
+			printf("WARNING: at iteration %lu, time %g particle ID %u was not found!\n",
+					gdata->iterations, gdata->t, part_id);
 			// printf("Press ENTER to continue...\n");
 			// getchar(); // useful for debugging
-			m_rcNotified[idx] = true;
+			m_rcNotified[part_id] = true;
 			all_normal = false;
 		}
 	// if there was any warning...
