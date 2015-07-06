@@ -27,6 +27,8 @@
 #include "EulerParameters.h"
 #include <cmath>
 
+using namespace chrono;
+
 /// Empty constructor
 /*!	Set the Euler parameters to
  * identity (1, 0, 0, 0)
@@ -241,11 +243,10 @@ EulerParameters::ExtractEulerZXZ(double &psi, double &theta, double &phi) const
 /*!
  *	\param[in/out] quat : ODE quaternion
  */
-void
-EulerParameters::ToODEQuaternion(dQuaternion & quat) const
+ChQuaternion<>
+EulerParameters::ToChQuaternion(void) const
 {
-	for (int i = 0; i < 4; i++)
-		quat[i] = m_ep[i];
+	return ChQuaternion<>(m_ep[0], m_ep[1], m_ep[2], m_ep[3]);
 }
 
 

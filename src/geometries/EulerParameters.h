@@ -30,7 +30,7 @@
 
 #include "Point.h"
 #include "Vector.h"
-#include "ode/ode.h"
+#include "physics/ChQuaternion.h"
 
 /// Euler parameters class
 /*!
@@ -130,7 +130,7 @@ class EulerParameters {
 		//@{
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
-		void ToODEQuaternion(dQuaternion &) const;
+		chrono::ChQuaternion<> ToChQuaternion(void) const;
 		void ToIdentity(void);
 		//@}
 
