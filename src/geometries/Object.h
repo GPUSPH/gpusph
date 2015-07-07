@@ -30,7 +30,7 @@
 
 #include "Point.h"
 #include "EulerParameters.h"
-#include "ode/ode.h"
+#include "chrono/physics/ChBody.h"
 
 //! Object container class
 /*!
@@ -48,7 +48,6 @@
 class Object {
 	protected:
 		EulerParameters		m_ep;			///< Euler parameters associated with the object
-		dMatrix3			m_ODERot;		///< ODE rotation matrix associated to the object
 		Point				m_center;		///< Coordinates of center of gravity in the global reference frame
 		double				m_inertia[3];	///< Inertia matrix in the principal axes of inertia frame
 		double				m_mass;			///< Mass of the object
@@ -59,15 +58,11 @@ class Object {
 		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
 			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
-		dBodyID				m_ODEBody;		///< ODE body ID associated with the object
-		dGeomID				m_ODEGeom;		///< ODE geometry ID associated with the object
-		dMass				m_ODEMass;		///< ODE inertial parameters of the object
+		chrono::ChBody		*m_body;		/// Chrono body storage
 
 		Object(void) {
-			m_ODEBody = 0;
-			m_ODEGeom = 0;
+			m_body = NULL;
 			m_mass = 0.0;
-			dRSetIdentity (m_ODERot);
 			m_center = Point(0,0,0);
 			m_numParts = 0;
 			m_inertia[0] = NAN;
@@ -117,32 +112,29 @@ class Object {
 		 */
 		uint GetNumParts();
 
-		/// \name ODE related functions
-		/* These are not pure virtual to allow new GPUSPH Objects to be defined without
-		 * needing an ODE counterpart, but the default implementation will just throw
+		/// \name Chrono rigid body related functions
+		/* These are not pure virtual in order to allow new GPUSPH Objects to be defined without
+		 * needing a Chrono counterpart, but the default implementation will just throw
 		 * an exception
 		 */
 		//@{
-		/// Create an ODE body in the specified ODE world and space
+		/// Create a Chrono body in the specified Chrono physical system
+		void BodyCreate(chrono::ChSystem *, const double, const bool);
+		/// Create a Chrono collision model in the specified Chrono physical system
 		/*! \throws std::runtime_error if the method is not implemented
 		 */
-		virtual void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0)
-		{ throw std::runtime_error("ODEBodyCreate called but not defined!"); }
-		/// Create an ODE geometry in the specified ODE space
-		/*! \throws std::runtime_error if the method is not implemented
-		 */
-		virtual void ODEGeomCreate(dSpaceID, const double)
+		virtual void GeomCreate(const double)
 		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
 		/// Return the ODE body ID associated with the Object
 		/*! \return the body ID associated with the object
 		 *	\throws std::runtime_error if the object has no associated ODE body
 		 */
-		dBodyID ODEGetBody(void)
-		{	if (!m_ODEBody)
-				throw std::runtime_error("ODEGetBody called but object is not associated with an ODE body !");
-			return m_ODEBody; }
-		/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
-		void ODEPrintInformation(const bool print_geom = true);
+		chrono::ChBody* GetBody(void)
+		{	if (!m_body)
+				throw std::runtime_error("GetBody called but object is not associated with a Chrono body !");
+			return m_body; }
+		/// Print body-related information such as position, CG, geometry bounding box (if any), etc.
+		void BodyPrintInformation(const bool print_geom = true);
 		//@}
 
 
@@ -219,9 +211,6 @@ class Object {
 		 *	This function is pure virtual and then has to be defined at child level
 		 */
 		const EulerParameters* getEulerParameters() {return &m_ep; }
-
-		/// Update the ODE rotation matrix according to the EulerParameters
-		void updateODERotMatrix();
 
 		/// Get the bounding box
 		/*! This function writes the bounding box of the object in the given parameters,

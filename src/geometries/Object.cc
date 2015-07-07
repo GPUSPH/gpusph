@@ -28,6 +28,7 @@
 
 #include "Object.h"
 
+using namespace chrono;
 
 /// Compute the particle mass according to object volume and density
 /*! The mass of object particles is computed dividing the object volume
@@ -190,25 +191,21 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 
 /// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
 // TODO: could be useful to print also the rotation matrix
-void Object::ODEPrintInformation(const bool print_geom)
+void Object::BodyPrintInformation(const bool print_geom)
 {
-	if (m_ODEBody) {
-		const dReal* cpos = dBodyGetPosition(m_ODEBody);
-		dMass mass;
-		dBodyGetMass(m_ODEBody, &mass);
-		printf("ODE Body ID: %p\n", m_ODEBody);
-		printf("   Mass: %e\n", mass.mass);
-		printf("   Pos:	 %e\t%e\t%e\n", cpos[0], cpos[1], cpos[2]);
-		printf("   CG:   %e\t%e\t%e\n", mass.c[0], mass.c[1], mass.c[2]);
-		printf("   I:    %e\t%e\t%e\n", mass.I[0], mass.I[1], mass.I[2]);
-		printf("         %e\t%e\t%e\n", mass.I[4], mass.I[5], mass.I[6]);
-		printf("         %e\t%e\t%e\n", mass.I[8], mass.I[9], mass.I[10]);
-		const dReal* rot = dBodyGetRotation(m_ODEBody);
-		printf("   R:    %e\t%e\t%e\n", rot[0], rot[1], rot[2]);
-		printf("         %e\t%e\t%e\n", rot[4], rot[5], rot[6]);
-		printf("         %e\t%e\t%e\n", rot[8], rot[9], rot[10]);
-		const dReal* quat = dBodyGetQuaternion(m_ODEBody);
-		printf("   Q:    %e\t%e\t%e\t%e\n", quat[0], quat[1], quat[2], quat[3]);
+	if (m_body) {
+		const ChVector<> cg = m_body->GetPos();
+		double mass = m_body->GetMass();
+		const ChVector<> inertiaXX = m_body->GetInertiaXX();
+		const ChVector<> inertiaXY = m_body->GetInertiaXY();
+		printf("ODE Body ID: %p\n", m_body);
+		printf("   Mass: %e\n", mass);
+		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
+		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);
+		printf("         %e\t%e\t%e\n", inertiaXY.x, inertiaXX.y, inertiaXY.z);
+		printf("         %e\t%e\t%e\n", inertiaXY.y, inertiaXY.z, inertiaXX.z);
+		const ChQuaternion<> quat = m_body->GetRot();
+		printf("   Q:    %e\t%e\t%e\t%e\n", quat.x, quat.y, quat.z, quat.w);
 	}
 	// not only check if an ODE geometry is associated, but also it must not be a plane
 	if (print_geom && m_ODEGeom && dGeomGetClass(m_ODEGeom) != dPlaneClass) {
@@ -432,6 +429,32 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 	out_max(0) = currMax(0);
 	out_max(1) = currMax(1);
 	out_max(2) = currMax(2);
+}
+
+/// Create a Chrono body associated to the cube
+/* Create a cube Chrono body inside a specified Chrono physical system. If
+ * collide his true this method calls GeomCreate to associate a collision model
+ * to the object.
+ *	\param bodies_physical_system : Chrono physical system
+ *	\param dx : particle spacing
+ *	\param collide : add collision handling
+ */
+void
+Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+{
+	// Creating a new Chrono object
+	m_body = new ChBody();
+
+	// Assign cube mass and inertial data to the Chrono object
+	m_body->SetMass(m_mass);
+	m_body->SetInertiaXX(ChVector<>(m_inertia[¯], m_inertia[1], m_inertia[2]));
+	m_body->SetPos(ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(m_ep.ToChQuaternion());
+
+	if (collide)
+		GeomCreate(dx);
+	else
+		m_body->SetCollide(false);
 }
 
 // Update the ODE rotation matrix according to m_ep (EulerParameters)
