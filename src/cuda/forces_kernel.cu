@@ -1400,10 +1400,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		// compute an average gamma for the segment
 		float gam = oldGGam[index].w;
-		if (gam < 1e-10) {
+		if (gam < 1e-5f) {
 			float4 gGam = (oldGGam[vertXidx] + oldGGam[vertYidx] + oldGGam[vertZidx])/3.0f;
 			oldGGam[index] = gGam;
-			gam = gGam.w;
+			gam = fmax(gGam.w, 1e-5f);
 		}
 
 		const float4 pos = oldPos[index];
