@@ -460,23 +460,6 @@ float3 make_float3(const Point &pt)
 	return make_float3(float(pt(0)), float(pt(1)), float(pt(2)));
 }
 
-
-void make_dvector3(const Point &pt, dVector3 vec)
-{
-	vec[0] = dReal(pt(0));
-	vec[1] = dReal(pt(1));
-	vec[2] = dReal(pt(2));
-}
-
-
-void make_dvector4(const Point &pt, dVector4 vec)
-{
-	vec[0] = dReal(pt(0));
-	vec[1] = dReal(pt(1));
-	vec[2] = dReal(pt(2));
-	vec[3] = dReal(pt(3));
-}
-
 // DEBUG
 #include <iostream>
 void Point::print(void)
