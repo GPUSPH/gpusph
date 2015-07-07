@@ -47,8 +47,7 @@ class Sphere: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		void ODEBodyCreate(dWorldID, const double, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
+		void GeomCreate(const double);
 
 		void FillBorder(PointVect&, const double);
 		void FillIn(PointVect&, const double, const int);
