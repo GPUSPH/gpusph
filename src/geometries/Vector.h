@@ -109,7 +109,4 @@ float4 make_float4(const Vector &);
 
 float3 make_float3(const Vector &);
 
-void make_dvector3(const Vector &, dVector3);
-
-void make_dvector4(const Vector &, dVector4);
 #endif

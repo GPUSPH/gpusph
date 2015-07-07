@@ -422,23 +422,6 @@ float3 make_float3(const Vector &v)
 }
 
 
-void make_dvector3(const Vector &v, dVector3 vec)
-{
-	vec[0] = dReal(v(0));
-	vec[1] = dReal(v(1));
-	vec[2] = dReal(v(2));
-}
-
-
-void make_dvector4(const Vector &v, dVector4 vec)
-{
-	vec[0] = dReal(v(0));
-	vec[1] = dReal(v(1));
-	vec[2] = dReal(v(2));
-	vec[3] = dReal(v(3));
-}
-
-
 // DEBUG
 #include <iostream>
 void Vector::print(void)
