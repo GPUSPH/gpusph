@@ -30,6 +30,9 @@
 
 #include "Cone.h"
 
+#include "chrono/core/ChQuaternion.h"
+
+using namespace chrono;
 
 Cone::Cone(void)
 {
@@ -213,4 +216,55 @@ Cone::IsInside(const Point& p, const double dx) const
 	}
 
 	return inside;
+}
+
+/* Create a cube Chrono body inside a specified Chrono physical system. If
+ * collide his true this method calls GeomCreate to associate a collision model
+ * to the object.
+ * Here we have to specialize this function for the Cone because the Chrono cone
+ * is by default in the Y direction and ours in the Z direction.
+ *	\param bodies_physical_system : Chrono physical system
+ *	\param dx : particle spacing
+ *	\param collide : add collision handling
+ */
+void
+Cone::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+{
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::exception("Trying to create a body in an invalid physical system !\n");
+
+
+	// Creating a new Chrono object
+	m_body = new ChBody();
+
+	// Assign cube mass and inertial data to the Chrono object
+	m_body->SetMass(m_mass);
+	m_body->SetInertiaXX(ChVector<>(m_inertia[¯], m_inertia[1], m_inertia[2]));
+	m_body->SetPos(ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetRot(Q_from_AngAxis(CHC_PI/2., VECT_X)*m_ep.ToChQuaternion());
+
+	if (collide)
+		GeomCreate(dx);
+	else
+		m_body->SetCollide(false);
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(m_body);
+}
+
+/// Create a Chrono collision model
+/* Create a Chrono collsion model for the cube.
+ *	\param dx : particle spacing
+ */
+void
+Cone::GeomCreate(const double dx) {
+	m_body->GetCollisionModel()->ClearModel();
+	const double rb = m_rb + dx/2.;
+	const double rt = rt + dx/2.;
+	const double h = m_lz + dx;
+	m_body->GetCollisionModel()->AddCone(m_rb, m_rt, m_h);
+	m_body->GetCollisionModel()->BuildModel();
+	m_body->SetCollide(true);
+
 }

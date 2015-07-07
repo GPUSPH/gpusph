@@ -32,7 +32,6 @@
 #include "Point.h"
 #include "Vector.h"
 
-
 class Cone: public Object {
 	private:
 		Point	m_origin;
@@ -67,6 +66,10 @@ class Cone: public Object {
 		{ throw std::runtime_error("FillIn not implemented for this object!"); }
 
 		bool IsInside(const Point&, const double) const;
+
+		void BodyCreate(chrono::ChSystem *, const double, const bool);
+
+		void GeomCreate(const double);
 };
 
 #endif	/* _CONE_H */
