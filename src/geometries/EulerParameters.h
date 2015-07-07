@@ -30,7 +30,8 @@
 
 #include "Point.h"
 #include "Vector.h"
-#include "chrono/physics/ChQuaternion.h"
+
+#include "chrono/core/ChQuaternion.h"
 
 /// Euler parameters class
 /*!
