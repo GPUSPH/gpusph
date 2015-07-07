@@ -263,7 +263,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
 		set_deltap(0.1f);
@@ -535,6 +535,7 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			// note that we assume all objects to be sorted from 1 to n. Not really a problem if this
 			// is not true it simply means that the IOwaterdepth object is bigger than it needs to be
 			// in cases of ODE objects this array is allocated as well, even though it is not needed.
+			m_simparams->numOpenBoundaries = max(openBoundType, m_simparams->numOpenBoundaries);
 			info[i] = make_particleinfo_by_ids(PT_VERTEX, 0, max(openBoundType-1,0), i);
 			// Define the type of open boundaries
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
