@@ -31,8 +31,6 @@
 #include "Cube.h"
 #include "Rect.h"
 
-#include "chrono/physics/ChBody.h"
-
 using namespace std;
 using namespace chrono;
 
