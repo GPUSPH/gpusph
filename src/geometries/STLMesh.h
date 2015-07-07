@@ -167,8 +167,9 @@ public:
 	void SetInertia(double);
 	void SetInertia(const double*);
 
-	void ODEGeomCreate(dSpaceID ODESpace, const double dx);
-	void ODEBodyCreate(dWorldID ODEWorld, const double dx, dSpaceID ODESpace = 0);
+	void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+	{ throw std::runtime_error("BodyCreate not implemented for STLMesh object!"); }
+	// TODO: add Chrono support
 };
 
 #endif // _STLMESH_H
