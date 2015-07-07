@@ -438,8 +438,13 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
  *	\param collide : add collision handling
  */
 void
-Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
+		const bool collide, const ChQuaternion<> orientation_diff)
 {
+	// Check if the physical system is valid
+	if (!bodies_physical_system)
+		throw std::exception("Trying to create a body in an invalid physical system !\n");
+
 	// Creating a new Chrono object
 	m_body = new ChBody();
 
@@ -447,12 +452,22 @@ Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, co
 	m_body->SetMass(m_mass);
 	m_body->SetInertiaXX(ChVector<>(m_inertia[¯], m_inertia[1], m_inertia[2]));
 	m_body->SetPos(ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(m_ep.ToChQuaternion());
+	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
 	if (collide)
 		GeomCreate(dx);
 	else
 		m_body->SetCollide(false);
+
+	// Add the body to the physical system
+	bodies_physical_system->AddBody(m_body);
+}
+
+void
+Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
+		const bool collide)
+{
+	BodyCreate(bodies_physical_system, dx, collide, ChQuaternion<>(1., 0., 0., 0.));
 }
 
 // Update the ODE rotation matrix according to m_ep (EulerParameters)

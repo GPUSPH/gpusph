@@ -30,7 +30,10 @@
 
 #include "Point.h"
 #include "EulerParameters.h"
+
 #include "chrono/physics/ChBody.h"
+#include "chrono/physics/ChSystem.h"
+#include "chrono/core/ChQuaternion.h"
 
 //! Object container class
 /*!
@@ -119,6 +122,7 @@ class Object {
 		 */
 		//@{
 		/// Create a Chrono body in the specified Chrono physical system
+		void BodyCreate(chrono::ChSystem *, const double, const bool, const chrono::ChQuaternion<> &);
 		void BodyCreate(chrono::ChSystem *, const double, const bool);
 		/// Create a Chrono collision model in the specified Chrono physical system
 		/*! \throws std::runtime_error if the method is not implemented
@@ -197,7 +201,7 @@ class Object {
 		/// \name Other functions
 		//@{
 		/// Set the EulerParameters
-		/*! This function sets the EulerParameters and updateds the object accordingly
+		/*! This function sets the EulerParameters and updates the object accordingly
 		 *	\param ep : new EulerParameters
 		 *
 		 *	This function is pure virtual and then has to be defined at child level
@@ -215,8 +219,8 @@ class Object {
 		/// Get the bounding box
 		/*! This function writes the bounding box of the object in the given parameters,
 		 *  taking into account also the object rotation
-		 *  \param min : minimum coodinates
-		 *  \param min : maximum coodinates
+		 *  \param min : minimum coordinates
+		 *  \param min : maximum coordinates
 		 *
 		 *  This function is pure virtual and then has to be defined at child level.
 		 */

@@ -30,8 +30,6 @@
 
 #include "Cone.h"
 
-#include "chrono/core/ChQuaternion.h"
-
 using namespace chrono;
 
 Cone::Cone(void)
@@ -230,27 +228,7 @@ Cone::IsInside(const Point& p, const double dx) const
 void
 Cone::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 {
-	// Check if the physical system is valid
-	if (!bodies_physical_system)
-		throw std::exception("Trying to create a body in an invalid physical system !\n");
-
-
-	// Creating a new Chrono object
-	m_body = new ChBody();
-
-	// Assign cube mass and inertial data to the Chrono object
-	m_body->SetMass(m_mass);
-	m_body->SetInertiaXX(ChVector<>(m_inertia[¯], m_inertia[1], m_inertia[2]));
-	m_body->SetPos(ChVector<>(m_center(0), m_center(1), m_center(2)));
-	m_body->SetRot(Q_from_AngAxis(CHC_PI/2., VECT_X)*m_ep.ToChQuaternion());
-
-	if (collide)
-		GeomCreate(dx);
-	else
-		m_body->SetCollide(false);
-
-	// Add the body to the physical system
-	bodies_physical_system->AddBody(m_body);
+	BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(CHC_PI/2., VECT_X));
 }
 
 /// Create a Chrono collision model
