@@ -128,7 +128,7 @@ class Object {
 		/*! \throws std::runtime_error if the method is not implemented
 		 */
 		virtual void GeomCreate(const double)
-		{ throw std::runtime_error("ODEGeomCreate called but not defined!"); }
+		{ throw std::runtime_error("GeomCreate called but not defined!"); }
 		/// Return the ODE body ID associated with the Object
 		/*! \return the body ID associated with the object
 		 *	\throws std::runtime_error if the object has no associated ODE body
