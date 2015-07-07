@@ -198,7 +198,7 @@ void Object::BodyPrintInformation(const bool print_geom)
 		double mass = m_body->GetMass();
 		const ChVector<> inertiaXX = m_body->GetInertiaXX();
 		const ChVector<> inertiaXY = m_body->GetInertiaXY();
-		printf("ODE Body ID: %p\n", m_body);
+		printf("Chrono Body pointer: %p\n", m_body);
 		printf("   Mass: %e\n", mass);
 		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
 		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);
@@ -208,16 +208,14 @@ void Object::BodyPrintInformation(const bool print_geom)
 		printf("   Q:    %e\t%e\t%e\t%e\n", quat.x, quat.y, quat.z, quat.w);
 	}
 	// not only check if an ODE geometry is associated, but also it must not be a plane
-	if (print_geom && m_ODEGeom && dGeomGetClass(m_ODEGeom) != dPlaneClass) {
-		dReal bbox[6];
-		const dReal* gpos = dGeomGetPosition(m_ODEGeom);
-		dGeomGetAABB(m_ODEGeom, bbox);
-		printf("ODE Geom ID: %p\n", m_ODEGeom);
-		printf("   Position: %g\t%g\t%g\n", gpos[0], gpos[1], gpos[2]);
+	if (print_geom && m_body->GetCollide()) {
+		ChVector<> bbmin, bbmax;
+		m_body->GetCollisionModel()->GetABB(bbmin, bbmax);
+		printf("Chrono collision shape\n");
 		printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
-			bbox[0], bbox[1], bbox[2], bbox[3], bbox[4], bbox[5]);
-		printf("   size:     X [%g] Y [%g] Z [%g]\n", bbox[1] - bbox[0],
-			bbox[3] - bbox[2], bbox[5] - bbox[4]);
+			bbmin.x, bbmax.x, bbmin.y, bbmax.y, bbmin.z, bbmax.z;
+		printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x - bbmin.x,
+				bbmax.y - bbmin.y, bbmax.z - bbmin.z);
 	}
 }
 
