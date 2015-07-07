@@ -68,5 +68,8 @@ class Rect: public Object {
 		void setEulerParameters(const EulerParameters &ep);
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
+
+		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		{ throw std::runtime_error("BodyCreate not implemented for Disk object!"); }
 };
 #endif	/* _RECT_H */
