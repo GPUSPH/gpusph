@@ -132,6 +132,9 @@ class TopoCube: public Object {
 		{ throw std::runtime_error("FillIn not implemented for this object!"); }
 
 		bool IsInside(const Point&, const double) const;
+
+		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		{ throw std::runtime_error("BodyCreate not implemented for TopoCube object!"); }
 };
 
 #endif	/* _CUBE_H */
