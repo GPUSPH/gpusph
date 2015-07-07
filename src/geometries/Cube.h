@@ -119,10 +119,9 @@ class Cube: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		/// \name ODE related  functions
+		/// \name Chrono related  functions
 		//@{
-		void ODEBodyCreate(dWorldID, const double density = 1.0, dSpaceID ODESpace = 0);
-		void ODEGeomCreate(dSpaceID, const double);
+		void GeomCreate(const double);
 		//@}
 
 		friend std::ostream& operator<<(std::ostream&, const Cube&);
