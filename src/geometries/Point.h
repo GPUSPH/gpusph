@@ -37,7 +37,6 @@
 
 #include <vector>
 #include "Vector.h"
-#include "ode/ode.h"
 
 class Vector;
 

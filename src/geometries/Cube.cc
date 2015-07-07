@@ -32,7 +32,6 @@
 #include "Rect.h"
 
 using namespace std;
-using namespace chrono;
 
 /// Empty constructor
 /*! Return a cube with all class variables set to 0.

@@ -34,6 +34,7 @@
 #include "chrono/physics/ChBody.h"
 #include "chrono/physics/ChSystem.h"
 #include "chrono/core/ChQuaternion.h"
+#include "chrono/core/ChVector.h"
 
 //! Object container class
 /*!

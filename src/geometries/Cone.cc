@@ -30,8 +30,6 @@
 
 #include "Cone.h"
 
-using namespace chrono;
-
 Cone::Cone(void)
 {
 	m_origin = Point(0, 0, 0);
@@ -244,5 +242,4 @@ Cone::GeomCreate(const double dx) {
 	m_body->GetCollisionModel()->AddCone(m_rb, m_rt, m_h);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
-
 }
