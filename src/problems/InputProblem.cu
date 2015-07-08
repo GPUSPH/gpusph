@@ -172,7 +172,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 	//SmallChannelFlowIOPer (a small channel flow for debugging in/outflow with periodicity)
 	//*************************************************************************************
-#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+      SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
 		h5File.setFilename("meshes/0.small_channel_io_2d_per.h5sph");
 
 		SETUP_FRAMEWORK(
@@ -180,7 +181,11 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_Y>,
 			kernel<WENDLAND>,
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
+#else
 			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM>
+#endif
 		);
 
 		m_simparams->sfactor=1.3f;
@@ -190,12 +195,18 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+		set_equation_of_state(water, 7.0f, 30.0f);
+#endif
 		set_kinematic_visc(water, 1.0e-1f);
 
 		H = 2.0;
 		l = 1.1; w = 1.0; h = 2.1;
 		m_origin = make_double3(-0.55, -0.5, -1.05);
-		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
+		m_physparams->gravity = make_float3(0.0, 0.0, 0.0f);
+#if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+		m_physparams->gravity = make_float3(1.0, 0.0, -9.759f);
+#endif
 	//*************************************************************************************
 
 	//SmallChannelFlowIOKeps (a small channel flow for debugging in/outflow with keps)
@@ -541,12 +552,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					// open boundary imposes velocity
-#if SPECIFIC_PROBLEM != IOWithoutWalls
+#if SPECIFIC_PROBLEM != IOWithoutWalls && SPECIFIC_PROBLEM != SmallChannelFlowIOPerOpen
 					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 				} else if (openBoundType == 2) {
@@ -594,12 +606,13 @@ void InputProblem::copy_to_array(BufferList &buffers)
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
 				if (openBoundType == 1) {
 					// this vertex is part of an open boundary
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
 					// open boundary imposes velocity
-#if SPECIFIC_PROBLEM != IOWithoutWalls
+#if SPECIFIC_PROBLEM != IOWithoutWalls && SPECIFIC_PROBLEM != SmallChannelFlowIOPerOpen
 					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 				} else if (openBoundType == 2) {
@@ -671,6 +684,7 @@ InputProblem::max_parts(uint numpart)
 #if SPECIFIC_PROBLEM == SmallChannelFlowIO || \
     SPECIFIC_PROBLEM == IOWithoutWalls || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
+    SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps || \
     SPECIFIC_PROBLEM == PeriodicWave
 		return (uint)((float)numpart*1.2f);
@@ -765,6 +779,12 @@ InputProblem_imposeBoundaryCondition(
 			else
 				eulerVel.w = 1002.0f;
 				//eulerVel.w = 1000.0f;
+#elif SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
+			if (object(info)==0)
+				waterdepth = 0.0f;
+			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float pressure = 9.81e3f*localdepth;
+			eulerVel.w = RHO(pressure, fluid_num(info));
 #else
 			eulerVel.w = 1000.0f;
 #endif
