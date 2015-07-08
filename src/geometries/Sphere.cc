@@ -88,7 +88,7 @@ void Sphere::shift(const double3 &offset)
  *	\param dx : particle spacing
  */
 void
-Cube::GeomCreate(const double dx) {
+Sphere::GeomCreate(const double dx) {
 	m_body->GetCollisionModel()->ClearModel();
 	const double r = m_r + dx/2.;
 	m_body->GetCollisionModel()->AddSphere(r);

@@ -28,8 +28,6 @@
 
 #include "Object.h"
 
-using namespace chrono;
-
 /// Compute the particle mass according to object volume and density
 /*! The mass of object particles is computed dividing the object volume
  *  by the number of particles needed for filling and multiplying the
@@ -194,26 +192,26 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 void Object::BodyPrintInformation(const bool print_geom)
 {
 	if (m_body) {
-		const ChVector<> cg = m_body->GetPos();
+		const chrono::ChVector<> cg = m_body->GetPos();
 		double mass = m_body->GetMass();
-		const ChVector<> inertiaXX = m_body->GetInertiaXX();
-		const ChVector<> inertiaXY = m_body->GetInertiaXY();
+		const chrono::ChVector<> inertiaXX = m_body->GetInertiaXX();
+		const chrono::ChVector<> inertiaXY = m_body->GetInertiaXY();
 		printf("Chrono Body pointer: %p\n", m_body);
 		printf("   Mass: %e\n", mass);
 		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
 		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);
 		printf("         %e\t%e\t%e\n", inertiaXY.x, inertiaXX.y, inertiaXY.z);
 		printf("         %e\t%e\t%e\n", inertiaXY.y, inertiaXY.z, inertiaXX.z);
-		const ChQuaternion<> quat = m_body->GetRot();
-		printf("   Q:    %e\t%e\t%e\t%e\n", quat.x, quat.y, quat.z, quat.w);
+		const chrono::ChQuaternion<> quat = m_body->GetRot();
+		printf("   Q:    %e\t%e\t%e\t%e\n", quat.e0, quat.e1, quat.e2, quat.e3);
 	}
 	// not only check if an ODE geometry is associated, but also it must not be a plane
 	if (print_geom && m_body->GetCollide()) {
-		ChVector<> bbmin, bbmax;
-		m_body->GetCollisionModel()->GetABB(bbmin, bbmax);
+		chrono::ChVector<> bbmin, bbmax;
+		m_body->GetCollisionModel()->GetAABB(bbmin, bbmax);
 		printf("Chrono collision shape\n");
 		printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
-			bbmin.x, bbmax.x, bbmin.y, bbmax.y, bbmin.z, bbmax.z;
+			bbmin.x, bbmax.x, bbmin.y, bbmax.y, bbmin.z, bbmax.z);
 		printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x - bbmin.x,
 				bbmax.y - bbmin.y, bbmax.z - bbmin.z);
 	}
@@ -439,19 +437,19 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
  */
 void
 Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
-		const bool collide, const ChQuaternion<> orientation_diff)
+		const bool collide, const chrono::ChQuaternion<> & orientation_diff)
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
-		throw std::exception("Trying to create a body in an invalid physical system !\n");
+		throw std::runtime_error("Trying to create a body in an invalid physical system !\n");
 
 	// Creating a new Chrono object
-	m_body = new ChBody();
+	m_body = new chrono::ChBody();
 
 	// Assign cube mass and inertial data to the Chrono object
 	m_body->SetMass(m_mass);
-	m_body->SetInertiaXX(ChVector<>(m_inertia[¯], m_inertia[1], m_inertia[2]));
-	m_body->SetPos(ChVector<>(m_center(0), m_center(1), m_center(2)));
+	m_body->SetInertiaXX(chrono::ChVector<>(m_inertia[0], m_inertia[1], m_inertia[2]));
+	m_body->SetPos(chrono::ChVector<>(m_center(0), m_center(1), m_center(2)));
 	m_body->SetRot(orientation_diff*m_ep.ToChQuaternion());
 
 	if (collide)
@@ -460,12 +458,12 @@ Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
 		m_body->SetCollide(false);
 
 	// Add the body to the physical system
-	bodies_physical_system->AddBody(m_body);
+	bodies_physical_system->AddBody(chrono::ChSharedPtr<chrono::ChBody>(m_body));
 }
 
 void
 Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
 		const bool collide)
 {
-	BodyCreate(bodies_physical_system, dx, collide, ChQuaternion<>(1., 0., 0., 0.));
+	BodyCreate(bodies_physical_system, dx, collide, chrono::ChQuaternion<>(1., 0., 0., 0.));
 }

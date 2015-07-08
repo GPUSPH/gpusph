@@ -226,7 +226,7 @@ Cone::IsInside(const Point& p, const double dx) const
 void
 Cone::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 {
-	BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(CHC_PI/2., VECT_X));
+	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(chrono::CH_C_PI/2., chrono::VECT_X));
 }
 
 /// Create a Chrono collision model
@@ -238,7 +238,7 @@ Cone::GeomCreate(const double dx) {
 	m_body->GetCollisionModel()->ClearModel();
 	const double rb = m_rb + dx/2.;
 	const double rt = rt + dx/2.;
-	const double h = m_lz + dx;
+	const double h = m_h + dx;
 	m_body->GetCollisionModel()->AddCone(m_rb, m_rt, m_h);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);

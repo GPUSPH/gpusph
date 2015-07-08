@@ -115,11 +115,6 @@ void Cylinder::setEulerParameters(const EulerParameters &ep)
 	m_ep.ComputeRot();
 
 	m_center = m_origin + m_ep.Rot(0.5*m_h*Vector(0, 0, 1));
-
-	dQuaternion q;
-	for (int i = 0; i < 4; i++)
-		q[i] = m_ep(i);
-	dQtoR(q, m_ODERot);
 }
 
 void Cylinder::getBoundingBox(Point &output_min, Point &output_max)
@@ -148,7 +143,7 @@ void Cylinder::shift(const double3 &offset)
 void
 Cylinder::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
 {
-	BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(CHC_PI/2., VECT_X));
+	Object::BodyCreate(bodies_physical_system, dx, collide, Q_from_AngAxis(chrono::CH_C_PI/2., chrono::VECT_X));
 }
 
 /// Create a Chrono collision model
