@@ -24,7 +24,7 @@
 #define	SmallChannelFlowIOPerOpen	13	// Small channel flow for debugging i/o with periodicty and gravity
 #define SolitaryWave			14	// Solitary wave with IO
 //*******************************************************************************************************
-// Chosse one of the problems above
+// Choose one of the problems above
 #define SPECIFIC_PROBLEM BoxCorner
 
 class InputProblem: public Problem {
