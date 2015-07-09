@@ -50,7 +50,8 @@
 
 #include "deprecation.h"
 
-#include "ode/ode.h"
+#include "chrono/physics/ChSystem.h"
+#include "chrono/core/ChVector.h"
 
 #define BLOCK_SIZE_IOBOUND	256
 
@@ -147,9 +148,7 @@ class Problem {
 			Z_AXIS
 		};
 
-		dWorldID		m_ODEWorld;
-		dSpaceID		m_ODESpace;
-		dJointGroupID	m_ODEJointGroup;
+		chrono::ChSystem 	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
 
 		double3	m_size;			// Size of computational domain
 		double3	m_origin;		// Origin of computational domain
@@ -404,18 +403,6 @@ RESTORE_WARNINGS
 		virtual float3 g_callback(const float t) DEPRECATED;
 		virtual float3 g_callback(const double t);
 
-		/* ODE callbacks */
-		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2)
-		{
-			cerr << "ERROR: you forget to implement ODE_near_callback in your problem.\n";
-		}
-
-		static void ODE_near_callback_wrapper(void * data, dGeomID o1, dGeomID o2)
-		{
-			Problem* problem = (Problem *) data;
-			problem->ODE_near_callback(data, o1, o2);
-		}
-
 		void allocate_bodies_storage();
 		void add_moving_body(Object *, const MovingBodyType);
 		const MovingBodiesVect& get_mbvect() const
@@ -460,9 +447,6 @@ RESTORE_WARNINGS
 							int3 * & cgGridPos, float3 * & cgPos,
 							float3 * & trans, float * & steprot,
 							float3 * & linearvel, float3 * & angularvel);
-
-		/*void restore_ODE_body(const uint, const float *gravity_center, const float *quaternion,
-			const float *linvel, const float *angvel);*/
 
 		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
 

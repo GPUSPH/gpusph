@@ -34,6 +34,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include "chrono/physics/ChForce.h"
+
 #include "Problem.h"
 #include "vector_math.h"
 #include "vector_print.h"
@@ -106,10 +108,14 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	mbdata->kdata.orientation = object->GetOrientation();
 	switch (mbdata->type) {
 		case MB_ODE : {
-			const dBodyID bodyid = object->m_ODEBody;
-			mbdata->kdata.crot = make_double3(dBodyGetPosition(bodyid));
-			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
-			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
+			chrono::ChBody *body = object->m_body;
+			chrono::ChVector<> vec = body->GetPos();
+			mbdata->kdata.crot = make_double3(vec.x, vec.y, vec.z);
+			vec = body->GetPos_dt();
+			mbdata->kdata.lvel = make_double3(vec.x, vec.y, vec.z);
+			vec = body->GetWvel_par();
+			mbdata->kdata.avel = make_double3(vec.x, vec.y, vec.z);
+			chrono::ChQuaternion<> quat = body->GetRot();
 			m_bodies.insert(m_bodies.begin() + m_simparams->numODEbodies, mbdata);
 			m_simparams->numODEbodies++;
 			m_simparams->numforcesbodies++;
@@ -346,6 +352,8 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double t0 = t;
 	double t1 = t + dt1;
 
+
+	chrono::ChForce chforce, chtorque;
 	//#define _DEBUG_OBJ_FORCES_
 	bool ode_bodies = false;
 	// For ODE bodies apply forces and torques
@@ -361,22 +369,32 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 
 		if (mbdata->type == MB_ODE) {
 			ode_bodies = true;
-			const dBodyID bodyid = mbdata->object->m_ODEBody;
+			chrono::ChBody *body = mbdata->object->m_body;
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
 			if (step == 2) {
-				dBodySetPosition(bodyid, (dReal) mbdata->kdata.crot.x, (dReal) mbdata->kdata.crot.y,
-								(dReal) mbdata->kdata.crot.z);
-				dBodySetLinearVel(bodyid, (dReal) mbdata->kdata.lvel.x, (dReal) mbdata->kdata.lvel.y,
-								(dReal) mbdata->kdata.lvel.z);
-				dBodySetAngularVel(bodyid, (dReal) mbdata->kdata.avel.x, (dReal) mbdata->kdata.avel.y,
-								(dReal) mbdata->kdata.avel.z);
-				dQuaternion quat;
-				mbdata->kdata.orientation.ToODEQuaternion(quat);
-				dBodySetQuaternion(bodyid, quat);
+				body->SetPos(chrono::ChVector<>(mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z));
+				body->SetPos_dt(chrono::ChVector<>(mbdata->kdata.lvel.x, mbdata->kdata.lvel.y, mbdata->kdata.lvel.z));
+				body->SetWvel_par(chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
+				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
 			}
-			dBodyAddForce(bodyid, forces[i].x, forces[i].y, forces[i].z);
-			dBodyAddTorque(bodyid, torques[i].x, torques[i].y, torques[i].z);
+			/*chrono::ChVector<> cg = body->GetPos();
+			cout << "cg = " << cg.x << " " << cg.y << " " << cg.z << "\n";
+			chforce.SetVpoint(cg);
+			chforce.SetMforce(length(forces[i]));
+			float3 nforce = normalize(forces[i]);
+			chforce.SetDir(chrono::ChVector<>(nforce.x, nforce.y, nforce.z));
+			chforce.SetMode(FTYPE_FORCE);
+			body->AddForce(chrono::ChSharedPtr<chrono::ChForce>(&chforce));*/
+			body->Empty_forces_accumulators();
+			body->Accumulate_force(chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
+			body->Accumulate_torque(chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
+
+			/*chtorque.SetMforce(length(torques[i]));
+			nforce = normalize(torques[i]);
+			chtorque.SetDir(chrono::ChVector<>(nforce.x, nforce.y, nforce.z));
+			chtorque.SetMode(FTYPE_TORQUE);
+			body->AddForce(chrono::ChSharedPtr<chrono::ChForce>(&chtorque));*/
 
 			#ifdef _DEBUG_OBJ_FORCES_
 			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
@@ -387,12 +405,9 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		}
 	}
 
-	// Call ODE solver for ODE bodies
+	// Call Chrono solver for floating bodies
 	if (ode_bodies) {
-		dSpaceCollide(m_ODESpace, (void *) this, &ODE_near_callback_wrapper);
-		dWorldStep(m_ODEWorld, dt1);
-		if (m_ODEJointGroup)
-			dJointGroupEmpty(m_ODEJointGroup);
+		m_bodies_physical_system->DoStepDynamics(dt1);
 	}
 
 	// Walk trough all moving bodies :
@@ -406,13 +421,17 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// In case of an ODE body, new center of rotation position, linear and angular velocity
 		// and new orientation have been computed by ODE
 		if (mbdata->type == MB_ODE) {
-			const dBodyID bodyid = mbdata->object->m_ODEBody;
-			const double3 new_crot = make_double3(dBodyGetPosition(bodyid));
+			chrono::ChBody *body = mbdata->object->m_body;
+			chrono::ChVector<> vec = body->GetPos();
+			const double3 new_crot = make_double3(vec.x, vec.y, vec.z);
 			new_trans = new_crot - mbdata->kdata.crot;
 			mbdata->kdata.crot = new_crot;
-			mbdata->kdata.lvel = make_double3(dBodyGetLinearVel(bodyid));
-			mbdata->kdata.avel = make_double3(dBodyGetAngularVel(bodyid));
-			const EulerParameters new_orientation = EulerParameters(dBodyGetQuaternion(bodyid));
+			vec = body->GetPos_dt();
+			mbdata->kdata.lvel = make_double3(vec.x, vec.y, vec.z);
+			vec = body->GetWvel_par();
+			mbdata->kdata.avel = make_double3(vec.x, vec.y, vec.z);
+			chrono::ChQuaternion<> quat = body->GetRot();
+			const EulerParameters new_orientation = EulerParameters(quat.e0, quat.e1, quat.e2, quat.e3);
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
 		}

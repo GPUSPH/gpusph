@@ -16,7 +16,6 @@
 #include "Point.h"
 #include "Vector.h"
 
-
 BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 {
 	// Size and origin of the simulation domain
@@ -36,38 +35,39 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 		boundary<DYN_BOUNDARY>
 	);
 
-	//addFilter(MLS_FILTER, 17);
+	//addFilter(SHEPARD_FILTER, 37);
 
 	// SPH parameters
 	set_deltap(0.02); //0.008
 	m_simparams->dt = 0.0003f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 10;
-	m_simparams->tend = 5.0f; //0.00036f
+	m_simparams->tend = 15.0f; //0.00036f
 
 	// Physical parameters
 	H = 0.6f;
 	m_physparams->gravity = make_float3(0.0, 0.0, -9.81f);
 	double g = length(m_physparams->gravity);
 	add_fluid(1000.0);
-	set_equation_of_state(0,  7.0f, 20.f);
+	set_equation_of_state(0,  7.0f, 40.f);
 
     //set p1coeff,p2coeff, epsxsph here if different from 12.,6., 0.5
 	m_physparams->dcoeff = 5.0f*g*H;
 	m_physparams->r0 = m_deltap;
 
 	set_kinematic_visc(0, 1.0e-6f);
-	m_physparams->artvisccoeff = 0.3f;
+	m_physparams->artvisccoeff = 0.02f;
 	m_physparams->epsartvisc = 0.01*m_simparams->slength*m_simparams->slength;
 	m_physparams->smagfactor = 0.12*0.12*m_deltap*m_deltap;
 	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
-	// Initialize ODE
-	dInitODE();
-	m_ODEWorld = dWorldCreate();
-	m_ODESpace = dHashSpaceCreate(0);
-	m_ODEJointGroup = dJointGroupCreate(0);
-	dWorldSetGravity(m_ODEWorld, m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);	// Set gravity(x, y, z)
+	// Initialize Chrono
+	m_bodies_physical_system = new chrono::ChSystem(100, 1000, true);
+	m_bodies_physical_system->Set_G_acc(chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+			m_physparams->gravity.z));
+	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
+	m_bodies_physical_system->SetLcpSolverType(chrono::ChSystem::LCP_ITERATIVE_SOR);
+
 
 	//add_writer(VTKWRITER, 0.005);
 	add_writer(VTKWRITER, 0.1);
@@ -98,14 +98,11 @@ int BuoyancyTest::fill_parts()
 	const int layers = 4;
 
 	Cube experiment_box = Cube(Point(0, 0, 0), lx, ly, lz);
+	experiment_box.BodyCreate(m_bodies_physical_system, 0, true);
+	experiment_box.GetBody()->SetBodyFixed(true);
 
 	Cube fluid = Cube(Point(dp*layers, dp*layers, dp*layers),
 		lx - 2.0*dp*layers, ly - 2.0*dp*layers, H);
-	planes[0] = dCreatePlane(m_ODESpace, 0.0, 0.0, 1.0, 0.0);
-	planes[1] = dCreatePlane(m_ODESpace, 1.0, 0.0, 0.0, 0.0);
-	planes[2] = dCreatePlane(m_ODESpace, -1.0, 0.0, 0.0, -lx);
-	planes[3] = dCreatePlane(m_ODESpace, 0.0, 1.0, 0.0, 0.0);
-	planes[4] = dCreatePlane(m_ODESpace, 0.0, -1.0, 0.0, -ly);
 
 	boundary_parts.reserve(2000);
 	parts.reserve(14000);
@@ -144,39 +141,24 @@ int BuoyancyTest::fill_parts()
 	}
 
 	floating->SetMass(m_deltap, m_physparams->rho0[0]*0.5);
+	floating->SetInertia(m_deltap);
 	floating->SetPartMass(m_deltap, m_physparams->rho0[0]);
 	floating->FillIn(floating->GetParts(), m_deltap, layers);
 	floating->Unfill(parts, m_deltap*0.85);
 
-	floating->ODEBodyCreate(m_ODEWorld, m_deltap);
+	bool collide = true;
 	if (object_type != 2)
-		floating->ODEGeomCreate(m_ODESpace, m_deltap);
-	dBodySetLinearVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
-	dBodySetAngularVel(floating->ODEGetBody(), 0.0, 0.0, 0.0);
+		collide = false;
+	floating->BodyCreate(m_bodies_physical_system, dp, collide);
+	floating->GetBody()->SetPos_dt(chrono::ChVector<>(0.0, 0.0, 0.0));
+	floating->GetBody()->SetWvel_loc(chrono::ChVector<>(0.0, 0.0, 0.0));
 	add_moving_body(floating, MB_ODE);
-	floating->ODEPrintInformation();
+	floating->BodyPrintInformation(collide);
 
 	PointVect & rbparts = get_mbdata(uint(0))->object->GetParts();
 	std::cout << "Rigid body " << 1 << ": " << rbparts.size() << " particles \n";
 	std::cout << "totl rb parts:" << get_bodies_numparts() << "\n";
 	return parts.size() + boundary_parts.size() + get_bodies_numparts();
-}
-
-
-void BuoyancyTest::ODE_near_callback(void *data, dGeomID o1, dGeomID o2)
-{
-	const int N = 10;
-	dContact contact[N];
-
-	int n = dCollide(o1, o2, N, &contact[0].geom, sizeof(dContact));
-	for (int i = 0; i < n; i++) {
-		contact[i].surface.mode = dContactBounce;
-		contact[i].surface.mu   = dInfinity;
-		contact[i].surface.bounce     = 0.0; // (0.0~1.0) restitution parameter
-		contact[i].surface.bounce_vel = 0.0; // minimum incoming velocity for bounce
-		dJointID c = dJointCreateContact(m_ODEWorld, m_ODEJointGroup, &contact[i]);
-		dJointAttach (c, dGeomGetBody(contact[i].geom.g1), dGeomGetBody(contact[i].geom.g2));
-	}
 }
 
 
@@ -211,7 +193,7 @@ BuoyancyTest::copy_to_array(BufferList &buffers)
 			if (ht < 0)
 				ht = 0.0;
 			float rho = density(ht, 0);
-			rho = m_physparams->rho0[0];
+
 			vel[ij] = make_float4(0, 0, 0, rho);
 			uint ptype = (uint) PT_BOUNDARY;
 			switch (m_bodies[k]->type) {
