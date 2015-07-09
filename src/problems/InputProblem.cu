@@ -294,34 +294,36 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
-	// Solitary Wave
+	// Solitary Wave with IO
 	//*************************************************************************************
 #elif SPECIFIC_PROBLEM == SolitaryWave
-		h5File.setFilename("meshes/0.solitary_wave.h5sph");
+		h5File.setFilename("meshes/0.solitaryWave_small.h5sph");
+		//h5File.setFilename("meshes/0.solitary_wave.h5sph");
 
-		set_deltap(0.02f);
+		SETUP_FRAMEWORK(
+			viscosity<DYNAMICVISC>,
+			boundary<SA_BOUNDARY>,
+			periodicity<PERIODIC_NONE>,
+			kernel<WENDLAND>,
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM> // | ENABLE_WATER_DEPTH>
+		);
 
-		m_physparams.kinematicvisc = 1.0e-6f;
-		m_simparams.visctype = DYNAMICVISC;
-		m_physparams.gravity = make_float3(0.0, 0.0, -9.81);
-		m_physparams.set_density(0, 1000.0, 7.0f, 25.0f);
+		set_deltap(0.026460);
+		//set_deltap(0.0195f);
+		m_simparams->maxneibsnum = 512;
+		m_simparams->tend = 7.0;
+		m_simparams->ferrari = 1.0f;
 
-		m_simparams.tend = 10.0;
-		//m_simparams.tend = 0.2;
-		m_simparams.testpoints = true;
-		m_simparams.periodicbound = PERIODIC_Y;
-		m_simparams.surfaceparticle = true;
-		m_simparams.savenormals = true;
-		H = 0.5;
-		l = 2.7; w = 0.5; h = 1.2;
-		//m_simparams.sfactor=1.3f;
-		m_simparams.sfactor=2.0f;
-		m_origin = make_double3(-1.35, -0.25, -0.1);
-		m_simparams.ferrari = 0.1f;
-		m_simparams->calcPrivate = false;
-		m_simparams->inoutBoundaries = true;
-		m_simparams->ioWaterdepthComputation = true;
-		m_simparams->maxneibsnum = 240;
+		size_t water = add_fluid(1000.0f);
+		set_equation_of_state(water, 7.0f, 20.0f);
+		set_kinematic_visc(water, 1.0e-6f);
+
+		addPostProcess(SURFACE_DETECTION);
+
+		H = 0.6;
+		l = 7.7; w=3.2; h=1.5;
+		m_origin = make_double3(-3.85, -1.6, -0.1);
+		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
 	//Periodic wave with IO
