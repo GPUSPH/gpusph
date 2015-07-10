@@ -1826,6 +1826,9 @@ saVertexBoundaryConditions(
 			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
 
 			if (BOUNDARY(neib_info)) {
+				// corner vertices only take solid wall segments into account
+				if (CORNER(info) && IO_BOUNDARY(neib_info))
+					continue;
 				const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 
 				// check if vertex is associated with this segment
