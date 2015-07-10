@@ -28,13 +28,16 @@
 
 #include <stdexcept>
 
-#include "Point.h"
-#include "EulerParameters.h"
-
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
 #include "chrono/physics/ChBody.h"
 #include "chrono/physics/ChSystem.h"
 #include "chrono/core/ChQuaternion.h"
 #include "chrono/core/ChVector.h"
+#endif
+
+#include "Point.h"
+#include "EulerParameters.h"
 
 //! Object container class
 /*!
@@ -57,13 +60,16 @@ class Object {
 		double				m_mass;			///< Mass of the object
 		PointVect			m_parts;		///< Particles belonging to the object
 		uint				m_numParts;		///< Number of particles belonging to the object
+#if USE_CHRONO == 1
+		chrono::ChBody		*m_body;		///< Chrono body linked to the object
+#else
+		void				*m_body;
+#endif
 
 		// auxiliary function for computing the bounding box
 		void getBoundingBoxOfCube(Point &out_min, Point &out_max,
 			Point &origin, Vector v1, Vector v2, Vector v3);
 	public:
-		chrono::ChBody		*m_body;		/// Chrono body storage
-
 		Object(void) {
 			m_body = NULL;
 			m_mass = 0.0;
@@ -74,7 +80,12 @@ class Object {
 			m_inertia[2] = NAN;
 		};
 
-		virtual ~Object(void) {};
+		virtual ~Object(void)
+		{
+#if USE_CHRONO == 1
+			if (m_body) delete m_body;
+#endif
+		};
 
 		/// \name Mass related functions
 		//@{
@@ -119,9 +130,10 @@ class Object {
 		/// \name Chrono rigid body related functions
 		/* These are not pure virtual in order to allow new GPUSPH Objects to be defined without
 		 * needing a Chrono counterpart, but the default implementation will just throw
-		 * an exception
+		 * an exception.
 		 */
 		//@{
+#if USE_CHRONO == 1
 		/// Create a Chrono body in the specified Chrono physical system
 		void BodyCreate(chrono::ChSystem *, const double, const bool, const chrono::ChQuaternion<> &);
 		void BodyCreate(chrono::ChSystem *, const double, const bool);
@@ -129,19 +141,25 @@ class Object {
 		/*! \throws std::runtime_error if the method is not implemented
 		 */
 		virtual void GeomCreate(const double)
-		{ throw std::runtime_error("GeomCreate called but not defined!"); }
+		{ throw std::runtime_error("Object::GeomCreate not implemented !"); }
 		/// Return the ODE body ID associated with the Object
 		/*! \return the body ID associated with the object
 		 *	\throws std::runtime_error if the object has no associated ODE body
 		 */
 		chrono::ChBody* GetBody(void)
 		{	if (!m_body)
-				throw std::runtime_error("GetBody called but object is not associated with a Chrono body !");
+				throw std::runtime_error("Object::GetBody called but object not associated with a Chrono body !");
 			return m_body; }
+#else
+		void BodyCreate(void *, const double, const bool)
+		{ throw std::runtime_error("Object::BodyCreate Trying to create a Chrono body without USE_CHRONO defined !\n"); }
+		virtual void GeomCreate(const double)
+		{ throw std::runtime_error("Object::GeomCreate called without USE_CHRONO defined !"); }
+		void * GetBody(void) { return m_body;}
+#endif
 		/// Print body-related information such as position, CG, geometry bounding box (if any), etc.
 		void BodyPrintInformation(const bool print_geom = true);
 		//@}
-
 
 		/// \name Filling functions
 		//@{

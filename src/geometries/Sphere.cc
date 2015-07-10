@@ -83,20 +83,6 @@ void Sphere::shift(const double3 &offset)
 	m_center += poff;
 }
 
-/// Create a Chrono collision model
-/* Create a Chrono collsion model for the cube.
- *	\param dx : particle spacing
- */
-void
-Sphere::GeomCreate(const double dx) {
-	m_body->GetCollisionModel()->ClearModel();
-	const double r = m_r + dx/2.;
-	m_body->GetCollisionModel()->AddSphere(r);
-	m_body->GetCollisionModel()->BuildModel();
-	m_body->SetCollide(true);
-
-}
-
 
 void
 Sphere::FillBorder(PointVect& points, const double dx)
@@ -155,3 +141,18 @@ Sphere::IsInside(const Point& p, const double dx) const
 
 	return inside;
 }
+
+#if USE_CHRONO == 1
+/// Create a Chrono collision model
+/* Create a Chrono collsion model for the cube.
+ *	\param dx : particle spacing
+ */
+void
+Sphere::GeomCreate(const double dx) {
+	m_body->GetCollisionModel()->ClearModel();
+	const double r = m_r + dx/2.;
+	m_body->GetCollisionModel()->AddSphere(r);
+	m_body->GetCollisionModel()->BuildModel();
+	m_body->SetCollide(true);
+}
+#endif

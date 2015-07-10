@@ -38,9 +38,6 @@ class Torus: public Object {
 		void FillIn(PointVect& points, const double dx, const int layers);
 
 		bool IsInside(const Point &, const double) const;
-
-		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
-		{ throw std::runtime_error("BodyCreate not implemented for Torus object!"); }
 };
 
 #endif	/* TORUS_H */

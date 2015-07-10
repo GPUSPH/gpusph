@@ -30,6 +30,7 @@
 
 #include "Cone.h"
 
+
 Cone::Cone(void)
 {
 	m_origin = Point(0, 0, 0);
@@ -214,6 +215,7 @@ Cone::IsInside(const Point& p, const double dx) const
 	return inside;
 }
 
+#if USE_CHRONO == 1
 /* Create a cube Chrono body inside a specified Chrono physical system. If
  * collide his true this method calls GeomCreate to associate a collision model
  * to the object.
@@ -243,3 +245,4 @@ Cone::GeomCreate(const double dx) {
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
 }
+#endif

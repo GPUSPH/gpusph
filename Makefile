@@ -130,6 +130,7 @@ CCFILES = $(filter-out $(PROBLEM_FILTER),\
 	  $(foreach adir, $(SRCDIR) $(SRCSUBS),\
 	  $(wildcard $(adir)/*.cc))))
 
+
 # GPU source files: we only directly compile the current problem (if it's CUDA)
 # and cudautil.cu, everything else gets in by nested includes
 CUFILES = $(SRCDIR)/cuda/cudautil.cu \
@@ -140,7 +141,7 @@ HEADERS = $(foreach adir, $(SRCDIR) $(SRCSUBS),$(wildcard $(adir)/*.h))
 
 # object files via filename replacement
 MPICXXOBJS = $(patsubst %.cc,$(OBJDIR)/%.o,$(notdir $(MPICXXFILES)))
-CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES))
+CCOBJS = $(patsubst $(SRCDIR)/%.cc,$(OBJDIR)/%.o,$(CCFILES)) $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPPFILES))
 CUOBJS = $(patsubst $(SRCDIR)/%.cu,$(OBJDIR)/%.o,$(CUFILES))
 
 OBJS = $(CCOBJS) $(MPICXXOBJS) $(CUOBJS)
@@ -231,7 +232,7 @@ endif
 NVCC += -ccbin=$(CXX)
 
 
-# files to store last compile options: problem, dbg, compute, fastmath, MPI usage
+# files to store last compile options: problem, dbg, compute, fastmath, MPI usage, Chrono
 PROBLEM_SELECT_OPTFILE=$(OPTSDIR)/problem_select.opt
 DBG_SELECT_OPTFILE=$(OPTSDIR)/dbg_select.opt
 COMPUTE_SELECT_OPTFILE=$(OPTSDIR)/compute_select.opt
@@ -239,6 +240,7 @@ FASTMATH_SELECT_OPTFILE=$(OPTSDIR)/fastmath_select.opt
 HASH_KEY_SIZE_SELECT_OPTFILE=$(OPTSDIR)/hash_key_size_select.opt
 MPI_SELECT_OPTFILE=$(OPTSDIR)/mpi_select.opt
 HDF5_SELECT_OPTFILE=$(OPTSDIR)/hdf5_select.opt
+CHRONO_SELECT_OPTFILE=$(OPTSDIR)/chrono_select.opt
 
 # this is not really an option, but it follows the same mechanism
 GPUSPH_VERSION_OPTFILE=$(OPTSDIR)/gpusph_version.opt
@@ -250,7 +252,8 @@ OPTFILES=$(PROBLEM_SELECT_OPTFILE) \
 		 $(HASH_KEY_SIZE_SELECT_OPTFILE) \
 		 $(MPI_SELECT_OPTFILE) \
 		 $(HDF5_SELECT_OPTFILE) \
-		 $(GPUSPH_VERSION_OPTFILE)
+		 $(GPUSPH_VERSION_OPTFILE) \
+		 $(CHRONO_SELECT_OPTFILE)
 
 # Let make know that .opt and .i dependencies are to be looked for in $(OPTSDIR)
 vpath %.opt $(OPTSDIR)
@@ -455,6 +458,19 @@ else
 	endif
 endif
 
+# option: chrono - 0 do not use Chrono (no floating objects support), 1 use Chrono (enable floating object support). Default: 0
+ifdef chrono
+	# does it differ from last?
+	ifneq ($(USE_CHRONO),$(chrono))
+		TMP := $(shell test -e $(CHRONO_SELECT_OPTFILE) && \
+			$(SED_COMMAND) 's/$(USE_CHRONO)/$(chrono)/' $(CHRONO_SELECT_OPTFILE) )
+		# user choice
+		USE_CHRONO=$(chrono)
+	endif
+else
+	USE_CHRONO ?= 0
+endif
+
 # --- Includes and library section start ---
 
 LIB_PATH_SFX =
@@ -514,8 +530,6 @@ endif
 
 # link to the CUDA runtime library
 LIBS += -lcudart
-# link to ODE for the objects
-LIBS += -lode
 
 ifneq ($(USE_HDF5),0)
 	# link to HDF5 for input reading
@@ -537,6 +551,31 @@ else
 	LIBPATH += -L$(CUDA_SDK_PATH)/common/lib/$(platform_lcase)/$(arch)/
 endif
 
+ifneq ($(USE_CHRONO),0)
+	# override: CHRONO_INCLUDE_PATH - where Chrono include are installed
+	# override: CHRONO_LIB_PATH - where Chrono lib is installed
+	# override:                     defaults /usr/local/include/chrono, /usr/local/lib
+	# override:                     validity is checked by looking for bin/nvcc under it,
+	# override:                     /usr is always tried as a last resort
+	CHRONO_INCLUDE_PATH ?= /usr/local/include
+	CHRONO_LIB_PATH ?= /usr/local/lib
+	
+	# We check the validity of the Chrono include path by looking for ChChrono.h under it.
+	# if not found we finally abort
+	ifeq ($(wildcard $(CHRONO_INCLUDE_PATH)/chrono/core/ChChrono.h),)
+		TMP := $(error Could not find Chrono include, please set CHRONO_INCLUDE_PATH)
+	endif
+	
+	# We check the validity of the Chrono lib path by looking for libChronoEngine under it.
+	# if not found we finally abort
+	ifeq ($(wildcard $(CHRONO_LIB_PATH)/libChronoEngine.*),)
+		TMP := $(error Could not find Chrono lib, please set CHRONO_LIB_PATH)
+	endif
+	
+	INCPATH += -I$(CHRONO_INCLUDE_PATH) -I$(CHRONO_INCLUDE_PATH)/chrono -I$(CHRONO_INCLUDE_PATH)/chrono/collision/bullet
+	LIBPATH += -L$(CHRONO_LIB_PATH)
+	LIBS += -lChronoEngine
+endif
 LDFLAGS += $(LIBPATH)
 
 LDLIBS += $(LIBS)
@@ -583,8 +622,6 @@ else
 	CPPFLAGS += -D__COMPUTE__=$(COMPUTE)
 endif
 
-# The ODE library link is in single precision mode
-CPPFLAGS += -DdSINGLE
 
 # CXXFLAGS start with the target architecture
 CXXFLAGS += $(TARGET_ARCH)
@@ -753,12 +790,15 @@ $(GPUSPH_VERSION_OPTFILE): | $(OPTSDIR)
 	@echo "/* git version of GPUSPH. */" \
 		> $@
 	@echo "#define GPUSPH_VERSION \"$(GPUSPH_VERSION)\"" >> $@
-
+$(CHRONO_SELECT_OPTFILE): | $(OPTSDIR)
+	@echo "/* Determines if Chrono is enabled. */" \
+		> $@
+	@echo "#define USE_CHRONO $(USE_CHRONO)" >> $@
 
 $(OBJS): $(DBG_SELECT_OPTFILE)
 
 # compile CPU objects
-$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJSUBS)
+$(CCOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc $(HASH_KEY_SIZE_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CC,$(@F))
 	$(CMDECHO)$(CXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
@@ -767,7 +807,7 @@ $(MPICXXOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cc | $(OBJSUBS)
 	$(CMDECHO)$(MPICXX) $(CC_INCPATH) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # compile GPU objects
-$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) | $(OBJSUBS)
+$(CUOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.cu $(COMPUTE_SELECT_OPTFILE) $(FASTMATH_SELECT_OPTFILE) $(HASH_KEY_SIZE_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE) | $(OBJSUBS)
 	$(call show_stage,CU,$(@F))
 	$(CMDECHO)$(NVCC) $(CPPFLAGS) $(CUFLAGS) -c -o $@ $<
 
@@ -864,6 +904,7 @@ show:
 	@echo "Hashkey size:    $(HASH_KEY_SIZE)"
 	@echo "USE_MPI:         $(USE_MPI)"
 	@echo "USE_HDF5:        $(USE_HDF5)"
+	@echo "USE_CHRONO:      $(USE_CHRONO)"
 	@echo "INCPATH:         $(INCPATH)"
 	@echo "LIBPATH:         $(LIBPATH)"
 	@echo "LIBS:            $(LIBS)"
@@ -925,6 +966,8 @@ Makefile.conf: Makefile $(OPTFILES)
 	$(CMDECHO)grep "\#define USE_MPI" $(MPI_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 	$(CMDECHO)# recover value of USE_HDF5 from OPTFILES
 	$(CMDECHO)grep "\#define USE_HDF5" $(HDF5_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
+	$(CMDECHO)# recover value of USE_CHRONO from OPTFILES
+	$(CMDECHO)grep "\#define USE_CHRONO" $(CHRONO_SELECT_OPTFILE) | cut -f2-3 -d ' ' | tr ' ' '=' >> $@
 
 # Dependecies are generated by the C++ compiler, since nvcc does not understand the
 # more sophisticated -MM and -MT dependency generation options.
@@ -954,7 +997,7 @@ Makefile.conf: Makefile $(OPTFILES)
 # This is particularly important to ensure that `make compile-problems` works correctly.
 # Of course, Makefile.conf has to be stripped from the list of dependencies before passing them
 # to the loop that builds the deps.
-$(GPUDEPS): $(CUFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+$(GPUDEPS): $(CUFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE)
 	$(call show_stage,DEPS,GPU)
 	$(CMDECHO)echo '# GPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \
@@ -966,7 +1009,7 @@ $(GPUDEPS): $(CUFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
 		-MG -MM $$srcfile -MT $$objfile >> $@ ; \
 		done
 
-$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE)
+$(CPUDEPS): $(CCFILES) $(MPICXXFILES) Makefile.conf | $(HASH_KEY_SIZE_SELECT_OPTFILE) $(CHRONO_SELECT_OPTFILE)
 	$(call show_stage,DEPS,CPU)
 	$(CMDECHO)echo '# CPU sources dependencies generated with "make deps"' > $@
 	$(CMDECHO)for srcfile in $(filter-out Makefile.conf,$^) ; do \

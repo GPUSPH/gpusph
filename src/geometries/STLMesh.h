@@ -167,9 +167,13 @@ public:
 	void SetInertia(double);
 	void SetInertia(const double*);
 
-	void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
-	{ throw std::runtime_error("BodyCreate not implemented for STLMesh object!"); }
-	// TODO: add Chrono support
+#if USE_CHRONO == 1
+		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		{ throw std::runtime_error("STLMesh::BodyCreate not implemented !"); }
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+#endif
 };
 
 #endif // _STLMESH_H

@@ -38,6 +38,11 @@
 #include <fstream>
 #include <vector>
 
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/physics/ChSystem.h"
+#endif
+
 #include "Options.h"
 #include "Writer.h"
 #include "particledefine.h"
@@ -47,11 +52,7 @@
 #include "Object.h"
 #include "buffer.h"
 #include "simframework.h"
-
 #include "deprecation.h"
-
-#include "chrono/physics/ChSystem.h"
-#include "chrono/core/ChVector.h"
 
 #define BLOCK_SIZE_IOBOUND	256
 
@@ -148,7 +149,11 @@ class Problem {
 			Z_AXIS
 		};
 
+#if USE_CHRONO == 1
 		chrono::ChSystem 	*m_bodies_physical_system;	// Chrono physical system containing all solid bodies, contacts, ...
+#else
+		void				*m_bodies_physical_system;
+#endif
 
 		double3	m_size;			// Size of computational domain
 		double3	m_origin;		// Origin of computational domain
@@ -229,9 +234,7 @@ class Problem {
 		string const& create_problem_dir();
 
 		Options const& get_options(void) const
-		{
-			return *m_options;
-		}
+		{ return *m_options;}
 
 		template <typename T>
 		T
@@ -239,24 +242,16 @@ class Problem {
 		{ return m_options->get(key, _default); }
 
 		double3 const& get_worldorigin(void) const
-		{
-			return m_origin;
-		};
+		{ return m_origin; };
 
 		double3 const& get_worldsize(void) const
-		{
-			return m_size;
-		};
+		{ return m_size; };
 
 		double3 const& get_cellsize(void) const
-		{
-			return m_cellsize;
-		};
+		{ return m_cellsize; };
 
 		uint3 const& get_gridsize(void) const
-		{
-			return m_gridsize;
-		};
+		{ return m_gridsize; };
 
 		float density(float, int) const;
 		float density_for_pressure(float, int) const;
@@ -266,9 +261,7 @@ class Problem {
 		float soundspeed(float, int) const;
 
 		string const& get_dirname(void) const
-		{
-			return m_problem_dir;
-		}
+		{ return m_problem_dir; }
 
 		double set_deltap(const double dflt)
 		{
@@ -290,23 +283,17 @@ class Problem {
 
 		/* set smoothing factor */
 		double set_smoothing(const double smooth)
-		{
-			return m_simparams->set_smoothing(smooth, m_deltap);
-		}
+		{ return m_simparams->set_smoothing(smooth, m_deltap); }
 
 IGNORE_WARNINGS(deprecated-declarations)
 		/* set kernel type and radius */
 		// DEPRECATED, use set_kernel_radius instead
 		double set_kernel(KernelType kernel, double radius=0) DEPRECATED
-		{
-			return m_simparams->set_kernel(kernel, radius);
-		}
+		{ return m_simparams->set_kernel(kernel, radius); }
 RESTORE_WARNINGS
 
 		void set_kernel_radius(double radius)
-		{
-			m_simparams->set_kernel_radius(radius);
-		}
+		{ m_simparams->set_kernel_radius(radius); }
 
 		void set_grid_params(void);
 
@@ -320,24 +307,16 @@ RESTORE_WARNINGS
 		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos);
 
 		const SimParams *get_simparams(void) const
-		{
-			return m_simparams;
-		};
+		{ return m_simparams; };
 
 		SimParams *get_simparams(void)
-		{
-			return m_simparams;
-		};
+		{ return m_simparams; };
 
 		const PhysParams *get_physparams(void) const
-		{
-			return m_physparams;
-		};
+		{ return m_physparams; };
 
 		PhysParams *get_physparams(void)
-		{
-			return m_physparams;
-		};
+		{ return m_physparams; };
 
 		// wrappers for physparams functions
 		size_t add_fluid(float rho)
@@ -427,6 +406,8 @@ RESTORE_WARNINGS
 		void set_body_angularvel(const double3&, MovingBodyData*);
 		void set_body_angularvel(const uint, const double3&);
 		void set_body_angularvel(const Object*, const double3&);
+
+		void InitChrono(void);
 
 		/* This method can be overridden in problems when the object
 		 * forces have to be altered in some way before being applied.

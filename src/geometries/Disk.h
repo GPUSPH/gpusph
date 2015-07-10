@@ -49,16 +49,21 @@ class Disk: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
-		{ throw std::runtime_error("BodyCreate not implemented for Disk object!"); }
-
 		void FillBorder(PointVect&, const double);
 
 		int Fill(PointVect&, const double, const bool fill = true);
 		void FillIn(PointVect& points, const double dx, const int layers)
-		{ throw std::runtime_error("FillIn not implemented for this object!"); }
+		{ throw std::runtime_error("Disk::FillIn not implemented !"); }
 
 		bool IsInside(const Point&, const double) const;
+
+#if USE_CHRONO == 1
+		void BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx, const bool collide)
+		{ throw std::runtime_error("Disk::BodyCreate not implemented !"); }
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+#endif
 };
 #endif	/* _CIRCLE_H */
 

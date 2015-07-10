@@ -187,37 +187,6 @@ Object::GetInertialFrameData(double* cg, double& mass, double* inertia, EulerPar
 }
 
 
-/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
-// TODO: could be useful to print also the rotation matrix
-void Object::BodyPrintInformation(const bool print_geom)
-{
-	if (m_body) {
-		const chrono::ChVector<> cg = m_body->GetPos();
-		double mass = m_body->GetMass();
-		const chrono::ChVector<> inertiaXX = m_body->GetInertiaXX();
-		const chrono::ChVector<> inertiaXY = m_body->GetInertiaXY();
-		printf("Chrono Body pointer: %p\n", m_body);
-		printf("   Mass: %e\n", mass);
-		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
-		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);
-		printf("         %e\t%e\t%e\n", inertiaXY.x, inertiaXX.y, inertiaXY.z);
-		printf("         %e\t%e\t%e\n", inertiaXY.y, inertiaXY.z, inertiaXX.z);
-		const chrono::ChQuaternion<> quat = m_body->GetRot();
-		printf("   Q:    %e\t%e\t%e\t%e\n", quat.e0, quat.e1, quat.e2, quat.e3);
-	}
-	// not only check if an ODE geometry is associated, but also it must not be a plane
-	if (print_geom && m_body->GetCollide()) {
-		chrono::ChVector<> bbmin, bbmax;
-		m_body->GetCollisionModel()->GetAABB(bbmin, bbmax);
-		printf("Chrono collision shape\n");
-		printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
-			bbmin.x, bbmax.x, bbmin.y, bbmax.y, bbmin.z, bbmax.z);
-		printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x - bbmin.x,
-				bbmax.y - bbmin.y, bbmax.z - bbmin.z);
-	}
-}
-
-
 /// Return the particle vector associated with the object
 /*! \return a reference to the particles vector associated with the object
  */
@@ -427,6 +396,7 @@ void Object::getBoundingBoxOfCube(Point &out_min, Point &out_max,
 	out_max(2) = currMax(2);
 }
 
+#if USE_CHRONO == 1
 /// Create a Chrono body associated to the cube
 /* Create a cube Chrono body inside a specified Chrono physical system. If
  * collide his true this method calls GeomCreate to associate a collision model
@@ -441,7 +411,7 @@ Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
 {
 	// Check if the physical system is valid
 	if (!bodies_physical_system)
-		throw std::runtime_error("Trying to create a body in an invalid physical system !\n");
+		throw std::runtime_error("Object::BodyCreate Trying to create a body in an invalid physical system !\n");
 
 	// Creating a new Chrono object
 	m_body = new chrono::ChBody();
@@ -466,4 +436,40 @@ Object::BodyCreate(chrono::ChSystem *bodies_physical_system, const double dx,
 		const bool collide)
 {
 	BodyCreate(bodies_physical_system, dx, collide, chrono::ChQuaternion<>(1., 0., 0., 0.));
+}
+#endif
+
+/// Print ODE-related information such as position, CG, geometry bounding box (if any), etc.
+// TODO: could be useful to print also the rotation matrix
+void Object::BodyPrintInformation(const bool print_geom)
+{
+#if USE_CHRONO == 1
+	if (m_body) {
+		const chrono::ChVector<> cg = m_body->GetPos();
+		double mass = m_body->GetMass();
+		const chrono::ChVector<> inertiaXX = m_body->GetInertiaXX();
+		const chrono::ChVector<> inertiaXY = m_body->GetInertiaXY();
+		printf("Chrono Body pointer: %p\n", m_body);
+		printf("   Mass: %e\n", mass);
+		printf("   CG:   %e\t%e\t%e\n", cg.x, cg.y, cg.z);
+		printf("   I:    %e\t%e\t%e\n", inertiaXX.x, inertiaXY.x, inertiaXY.y);
+		printf("         %e\t%e\t%e\n", inertiaXY.x, inertiaXX.y, inertiaXY.z);
+		printf("         %e\t%e\t%e\n", inertiaXY.y, inertiaXY.z, inertiaXX.z);
+		const chrono::ChQuaternion<> quat = m_body->GetRot();
+		printf("   Q:    %e\t%e\t%e\t%e\n", quat.e0, quat.e1, quat.e2, quat.e3);
+
+		// not only check if an ODE geometry is associated, but also it must not be a plane
+		if (print_geom && m_body->GetCollide()) {
+			chrono::ChVector<> bbmin, bbmax;
+			m_body->GetCollisionModel()->GetAABB(bbmin, bbmax);
+			printf("Chrono collision shape\n");
+			printf("   B. box:   X [%g,%g], Y [%g,%g], Z [%g,%g]\n",
+				bbmin.x, bbmax.x, bbmin.y, bbmax.y, bbmin.z, bbmax.z);
+			printf("   size:     X [%g] Y [%g] Z [%g]\n", bbmax.x - bbmin.x,
+					bbmax.y - bbmin.y, bbmax.z - bbmin.z);
+		}
+	}
+#else
+	std::cout << "No body associated with the object (USE_CHRONO not defined).\n";
+#endif
 }

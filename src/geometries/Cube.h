@@ -121,9 +121,13 @@ class Cube: public Object {
 
 		/// \name Chrono related  functions
 		//@{
+#if USE_CHRONO == 1
 		void GeomCreate(const double);
+#else
+		void GeomCreate(const double p)
+		{ Object::GeomCreate(p); }
+#endif
 		//@}
-
 		friend std::ostream& operator<<(std::ostream&, const Cube&);
 };
 #endif	/* _CUBE_H */

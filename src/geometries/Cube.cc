@@ -633,6 +633,15 @@ void Cube::shift(const double3 &offset)
 }
 
 
+std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
+{
+    out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " <<cube. m_lz
+    		<< ") particles: " << cube.m_parts.size() << "\n";
+    return out;
+}
+
+
+#if USE_CHRONO == 1
 /// Create a Chrono collision model
 /* Create a Chrono collsion model for the cube.
  *	\param dx : particle spacing
@@ -646,12 +655,5 @@ Cube::GeomCreate(const double dx) {
 	m_body->GetCollisionModel()->AddBox(lx, ly, lz);
 	m_body->GetCollisionModel()->BuildModel();
 	m_body->SetCollide(true);
-
 }
-
-std::ostream& operator<<(std::ostream& out, const Cube& cube) // output
-{
-    out << "Cube size(" << cube.m_lx << ", " << cube.m_ly << ", " <<cube. m_lz
-    		<< ") particles: " << cube.m_parts.size() << "\n";
-    return out;
-}
+#endif

@@ -51,9 +51,6 @@ class Cylinder: public Object {
 		void getBoundingBox(Point &output_min, Point &output_max);
 		void shift(const double3 &offset);
 
-		void BodyCreate(chrono::ChSystem *, const double, const bool);
-		void GeomCreate(const double);
-
 		void FillBorder(PointVect&, const double, const bool, const bool);
 		void FillBorder(PointVect& points, const double dx)
 		{
@@ -68,8 +65,14 @@ class Cylinder: public Object {
 
 		bool IsInside(const Point&, const double) const;
 
-
+#if USE_CHRONO == 1
+		void BodyCreate(chrono::ChSystem *, const double, const bool);
+		void GeomCreate(const double);
+#else
+		void BodyCreate(void *p1, const double p2, const bool p3)
+		{ Object::BodyCreate(p1, p2, p3); }
+		void GeomCreate(const double p1)
+		{ Object::GeomCreate(p1); }
+#endif
 };
-
 #endif	/* _CYLINDER_H */
-

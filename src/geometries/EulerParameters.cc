@@ -238,6 +238,7 @@ EulerParameters::ExtractEulerZXZ(double &psi, double &theta, double &phi) const
 }
 
 
+#if USE_CHRONO == 1
 /// Return associated ODE quaternion
 /*!
  *	\param[in/out] quat : ODE quaternion
@@ -247,6 +248,7 @@ EulerParameters::ToChQuaternion(void) const
 {
 	return chrono::ChQuaternion<>(m_ep[0], m_ep[1], m_ep[2], m_ep[3]);
 }
+#endif
 
 
 /// Set Euler parameters to identity: (1, 0, 0, 0)

@@ -34,8 +34,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "chrono/physics/ChForce.h"
-
 #include "Problem.h"
 #include "vector_math.h"
 #include "vector_print.h"
@@ -61,6 +59,7 @@ Problem::Problem(GlobalData *_gdata) :
 	m_origin(make_double3(NAN, NAN, NAN)),
 	m_deltap(NAN)
 {
+	m_bodies_physical_system = NULL;
 }
 
 
@@ -69,7 +68,23 @@ Problem::~Problem(void)
 	if (m_simparams->numbodies) {
 		delete [] m_bodies_storage;
 	}
+#if USE_CHRONO == 1
+	if (m_bodies_physical_system)
+		delete m_bodies_physical_system;
+#endif
+}
 
+void
+Problem::InitChrono() {
+#if USE_CHRONO == 1
+	m_bodies_physical_system = new chrono::ChSystem();
+	m_bodies_physical_system->Set_G_acc(chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
+		m_physparams->gravity.z));
+	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
+	m_bodies_physical_system->SetLcpSolverType(chrono::ChSystem::LCP_ITERATIVE_SOR);
+#else
+	throw runtime_error ("Problem::InitChrono Trying to use Chrono without USE_CHRONO defined !\n");
+#endif
 }
 
 
@@ -97,7 +112,8 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	// force computing must have consecutive ids.
 	const uint index = m_bodies.size();
 	if (index >= MAX_BODIES)
-		throw runtime_error ("Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+		throw runtime_error ("Problem::add_moving_body Number of moving bodies superior to MAX_BODIES. Increase MAXBODIES\n");
+
 	MovingBodyData *mbdata = new MovingBodyData;
 	mbdata->index = index;
 	mbdata->type = mbtype;
@@ -108,7 +124,8 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 	mbdata->kdata.orientation = object->GetOrientation();
 	switch (mbdata->type) {
 		case MB_ODE : {
-			chrono::ChBody *body = object->m_body;
+#if USE_CHRONO == 1
+			chrono::ChBody *body = object->GetBody();
 			chrono::ChVector<> vec = body->GetPos();
 			mbdata->kdata.crot = make_double3(vec.x, vec.y, vec.z);
 			vec = body->GetPos_dt();
@@ -119,6 +136,9 @@ Problem::add_moving_body(Object* object, const MovingBodyType mbtype)
 			m_bodies.insert(m_bodies.begin() + m_simparams->numODEbodies, mbdata);
 			m_simparams->numODEbodies++;
 			m_simparams->numforcesbodies++;
+#else
+			throw runtime_error ("Problem::add_moving_body Cannot add a floating body without CHRONO\n");
+#endif
 			break;
 		}
 
@@ -265,7 +285,6 @@ Problem::get_bodies_cg(void)
 void
 Problem::set_body_cg(const double3& crot, MovingBodyData* mbdata) {
 	mbdata->kdata.crot = crot;
-
 }
 
 
@@ -284,7 +303,6 @@ Problem::set_body_cg(const Object *object, const double3& crot) {
 void
 Problem::set_body_linearvel(const double3& lvel, MovingBodyData* mbdata) {
 	mbdata->kdata.lvel = lvel;
-
 }
 
 
@@ -304,7 +322,6 @@ Problem::set_body_linearvel(const Object *object, const double3& lvel)
 void
 Problem::set_body_angularvel(const double3& avel, MovingBodyData* mbdata) {
 	mbdata->kdata.avel = avel;
-
 }
 
 void
@@ -352,8 +369,6 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 	double t0 = t;
 	double t1 = t + dt1;
 
-
-	chrono::ChForce chforce, chtorque;
 	//#define _DEBUG_OBJ_FORCES_
 	bool ode_bodies = false;
 	// For ODE bodies apply forces and torques
@@ -366,10 +381,10 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// Restore kinematic data from the value stored at the beginning of the time step
 		if (step == 2)
 			mbdata->kdata = m_bodies_storage[i];
-
+#if USE_CHRONO == 1
 		if (mbdata->type == MB_ODE) {
 			ode_bodies = true;
-			chrono::ChBody *body = mbdata->object->m_body;
+			chrono::ChBody *body = mbdata->object->GetBody();
 			// For step 2 restore cg, lvel and avel to the value at the beginning of
 			// the timestep
 			if (step == 2) {
@@ -378,37 +393,28 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 				body->SetWvel_par(chrono::ChVector<>(mbdata->kdata.avel.x, mbdata->kdata.avel.y, mbdata->kdata.avel.z));
 				body->SetRot(mbdata->kdata.orientation.ToChQuaternion());
 			}
-			/*chrono::ChVector<> cg = body->GetPos();
-			cout << "cg = " << cg.x << " " << cg.y << " " << cg.z << "\n";
-			chforce.SetVpoint(cg);
-			chforce.SetMforce(length(forces[i]));
-			float3 nforce = normalize(forces[i]);
-			chforce.SetDir(chrono::ChVector<>(nforce.x, nforce.y, nforce.z));
-			chforce.SetMode(FTYPE_FORCE);
-			body->AddForce(chrono::ChSharedPtr<chrono::ChForce>(&chforce));*/
+
 			body->Empty_forces_accumulators();
 			body->Accumulate_force(chrono::ChVector<>(forces[i].x, forces[i].y, forces[i].z), body->GetPos(), false);
 			body->Accumulate_torque(chrono::ChVector<>(torques[i].x, torques[i].y, torques[i].z), false);
 
-			/*chtorque.SetMforce(length(torques[i]));
-			nforce = normalize(torques[i]);
-			chtorque.SetDir(chrono::ChVector<>(nforce.x, nforce.y, nforce.z));
-			chtorque.SetMode(FTYPE_TORQUE);
-			body->AddForce(chrono::ChSharedPtr<chrono::ChForce>(&chtorque));*/
 
-			#ifdef _DEBUG_OBJ_FORCES_
-			cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-			//mbdata->object->ODEPrintInformation(false);
-			printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
-			printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
-			#endif
+			if (false) {
+				cout << "Before dWorldStep, object " << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+				//mbdata->object->ODEPrintInformation(false);
+				printf("   F:	%e\t%e\t%e\n", forces[i].x, forces[i].y, forces[i].z);
+				printf("   T:	%e\t%e\t%e\n", torques[i].x, torques[i].y, torques[i].z);
+			}
 		}
+#endif
 	}
 
+#if USE_CHRONO == 1
 	// Call Chrono solver for floating bodies
 	if (ode_bodies) {
 		m_bodies_physical_system->DoStepDynamics(dt1);
 	}
+#endif
 
 	// Walk trough all moving bodies :
 	// updates bodies center of rotation, linear and angular velocity and orientation
@@ -418,10 +424,11 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		// New center of rotation, linear and angular velocity and orientation
 		double3 new_trans = make_double3(0.0);
 		EulerParameters new_orientation, dr;
+#if USE_CHRONO == 1
 		// In case of an ODE body, new center of rotation position, linear and angular velocity
 		// and new orientation have been computed by ODE
 		if (mbdata->type == MB_ODE) {
-			chrono::ChBody *body = mbdata->object->m_body;
+			chrono::ChBody *body = mbdata->object->GetBody();
 			chrono::ChVector<> vec = body->GetPos();
 			const double3 new_crot = make_double3(vec.x, vec.y, vec.z);
 			new_trans = new_crot - mbdata->kdata.crot;
@@ -435,9 +442,10 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 			dr = new_orientation*mbdata->kdata.orientation.Inverse();
 			mbdata->kdata.orientation = new_orientation;
 		}
+#endif
 		// Otherwise the user is providing linear and angular velocity trough a call back
 		// function
-		else {
+		if (mbdata->type != MB_ODE) {
 			const uint index = mbdata->index;
 			// Get linear and angular velocities at t + dt/2.O for step 1 or t + dt for step 2
 			float3 force = make_float3(0.0f);
@@ -461,24 +469,24 @@ Problem::bodies_timestep(const float3 *forces, const float3 *torques, const int 
 		dr.ComputeRot();
 		dr.GetRotation(base_addr);
 
-		#ifdef _DEBUG_OBJ_FORCES_
-		if (i == 1 && trans[i].x != 0.0) {
-		cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
-		mbdata->object->ODEPrintInformation(false);
-		printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
-		printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
-		printf("    pos: %g\t%g\t%g\n", mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z);
-		printf("   gpos: %d\t%d\t%d\n", cgGridPos[i].x, cgGridPos[i].y, cgGridPos[i].z);
-		printf("   lpos: %e\t%e\t%e\n", cgPos[i].x, cgPos[i].y, cgPos[i].z);
-		printf("   trans:%e\t%e\t%e\n", trans[i].x, trans[i].y, trans[i].z);
-		printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
-				mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
-		printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
-		printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
-		printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
-		printf("         %e\t%e\t%e\n\n", base_addr[6], base_addr[7], base_addr[8]);
+		if (false) {
+			if (i == 1 && trans[i].x != 0.0) {
+			cout << "After dWorldStep, object "  << i << "\tt = " << t << "\tdt = " << dt <<"\n";
+			mbdata->object->BodyPrintInformation(false);
+			printf("   lvel: %e\t%e\t%e\n", linearvel[i].x, linearvel[i].y, linearvel[i].z);
+			printf("   avel: %e\t%e\t%e\n", angularvel[i].x, angularvel[i].y, angularvel[i].z);
+			printf("    pos: %g\t%g\t%g\n", mbdata->kdata.crot.x, mbdata->kdata.crot.y, mbdata->kdata.crot.z);
+			printf("   gpos: %d\t%d\t%d\n", cgGridPos[i].x, cgGridPos[i].y, cgGridPos[i].z);
+			printf("   lpos: %e\t%e\t%e\n", cgPos[i].x, cgPos[i].y, cgPos[i].z);
+			printf("   trans:%e\t%e\t%e\n", trans[i].x, trans[i].y, trans[i].z);
+			printf("   n_ep: %e\t%e\t%e\t%e\n", mbdata->kdata.orientation(0), mbdata->kdata.orientation(1),
+					mbdata->kdata.orientation(2), mbdata->kdata.orientation(3));
+			printf("   dr: %e\t%e\t%e\t%e\n", dr(0), dr(1),dr(2), dr(3));
+			printf("   SR:   %e\t%e\t%e\n", base_addr[0], base_addr[1], base_addr[2]);
+			printf("         %e\t%e\t%e\n", base_addr[3], base_addr[4], base_addr[5]);
+			printf("         %e\t%e\t%e\n\n", base_addr[6], base_addr[7], base_addr[8]);
+			}
 		}
-		#endif
 	}
 }
 

@@ -62,12 +62,7 @@ BuoyancyTest::BuoyancyTest(GlobalData *_gdata) : Problem(_gdata)
 	m_physparams->kspsfactor = (2.0/3.0)*0.0066*m_deltap*m_deltap;
 
 	// Initialize Chrono
-	m_bodies_physical_system = new chrono::ChSystem(100, 1000, true);
-	m_bodies_physical_system->Set_G_acc(chrono::ChVector<>(m_physparams->gravity.x, m_physparams->gravity.y,
-			m_physparams->gravity.z));
-	m_bodies_physical_system->SetIterLCPmaxItersSpeed(100);
-	m_bodies_physical_system->SetLcpSolverType(chrono::ChSystem::LCP_ITERATIVE_SOR);
-
+	InitChrono();
 
 	//add_writer(VTKWRITER, 0.005);
 	add_writer(VTKWRITER, 0.1);
@@ -98,8 +93,8 @@ int BuoyancyTest::fill_parts()
 	const int layers = 4;
 
 	Cube experiment_box = Cube(Point(0, 0, 0), lx, ly, lz);
-	experiment_box.BodyCreate(m_bodies_physical_system, 0, true);
-	experiment_box.GetBody()->SetBodyFixed(true);
+	//experiment_box.BodyCreate(m_bodies_physical_system, 0, true);
+	//experiment_box.GetBody()->SetBodyFixed(true);
 
 	Cube fluid = Cube(Point(dp*layers, dp*layers, dp*layers),
 		lx - 2.0*dp*layers, ly - 2.0*dp*layers, H);
@@ -150,8 +145,6 @@ int BuoyancyTest::fill_parts()
 	if (object_type != 2)
 		collide = false;
 	floating->BodyCreate(m_bodies_physical_system, dp, collide);
-	floating->GetBody()->SetPos_dt(chrono::ChVector<>(0.0, 0.0, 0.0));
-	floating->GetBody()->SetWvel_loc(chrono::ChVector<>(0.0, 0.0, 0.0));
 	add_moving_body(floating, MB_ODE);
 	floating->BodyPrintInformation(collide);
 

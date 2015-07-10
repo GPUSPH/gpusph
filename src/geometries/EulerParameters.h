@@ -28,10 +28,13 @@
 
 #include <iostream>
 
+#include "chrono_select.opt"
+#if USE_CHRONO == 1
+#include "chrono/core/ChQuaternion.h"
+#endif
+
 #include "Point.h"
 #include "Vector.h"
-
-#include "chrono/core/ChQuaternion.h"
 
 /// Euler parameters class
 /*!
@@ -131,7 +134,9 @@ class EulerParameters {
 		//@{
 		void Normalize(void);
 		void ExtractEulerZXZ(double &, double &, double &) const;
+#if USE_CHRONO == 1
 		chrono::ChQuaternion<> ToChQuaternion(void) const;
+#endif
 		void ToIdentity(void);
 		//@}
 
