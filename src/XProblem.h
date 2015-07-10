@@ -281,6 +281,8 @@ class XProblem: public Problem {
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
+		// get current value (NOTE: not yet autocomputed in problem constructor)
+		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
 
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
