@@ -1366,10 +1366,12 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// copy filled fluid parts
 	for (uint i = tot_parts; i < tot_parts + m_fluidParts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i]= make_particleinfo(PT_FLUID,0,i);
 		calc_localpos_and_hash(m_fluidParts[i], info[i], pos[i], hash[i]);
 		globalPos[i] = m_fluidParts[i].toDouble4();
+		// Compute density for hydrostatic filling. FIXME for multifluid
+		const float rho = density(m_waterLevel - globalPos[i].z, 0);
+		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
 		if (i == tot_parts)
@@ -1380,10 +1382,13 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// copy filled boundary parts
 	for (uint i = tot_parts; i < tot_parts + m_boundaryParts.size(); i++) {
-		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
 		globalPos[i] = m_boundaryParts[i - tot_parts].toDouble4();
+		// Compute density for hydrostatic filling. FIXME for multifluid
+		const float rho = (m_simparams->boundarytype == DYN_BOUNDARY ?
+			density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0]);
+		vel[i] = make_float4(0, 0, 0, rho);
 		if (eulerVel)
 			eulerVel[i] = make_float4(0);
 		if (i == tot_parts)
@@ -1505,16 +1510,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 						break;
 				}
 
-				// default density
-				float rho = m_physparams->rho0[0];
-
-				// fix density of fluid parts for hydrostatic filling
-				// TODO FIXME for multifluid
-				if (ptype == PT_FLUID)
-					rho = density(m_waterLevel - hdf5Buffer[bi].Coords_2, 0);
-
-				vel[i] = make_float4(0, 0, 0, rho);
-
 				// compute particle info, local pos, cellhash
 				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
 				// be set afterward (e.g. in initializeParticles() callback)
@@ -1541,6 +1536,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 					m_physparams->rho0[0]*hdf5Buffer[bi].Volume);
 				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
 				globalPos[i] = tmppoint.toDouble4();
+
+				// Compute density for hydrostatic filling. FIXME for multifluid
+				const float rho = (ptype == PT_FLUID || m_simparams->boundarytype == DYN_BOUNDARY ?
+					density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0] );
+				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
 				// NOTE: the same check will be done for non-HDF5 bodies
@@ -1653,15 +1653,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 				// "i" is the particle index in GPUSPH host arrays, "bi" the one in current XZY file)
 				const uint bi = i - tot_parts;
-				// default density
-				float rho = m_physparams->rho0[0];
-
-				// fix density of fluid parts for hydrostatic filling
-				// TODO FIXME for multifluid
-				if (ptype == PT_FLUID)
-					rho = density(m_waterLevel - (*xyzBuffer)[bi](2), 0);
-
-				vel[i] = make_float4(0, 0, 0, rho);
 
 				// compute particle info, local pos, cellhash
 				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
@@ -1676,6 +1667,11 @@ void XProblem::copy_to_array(BufferList &buffers)
 					m_geometries[g]->ptr->GetPartMass());
 				calc_localpos_and_hash(tmppoint, info[i], pos[i], hash[i]);
 				globalPos[i] = tmppoint.toDouble4();
+
+				// Compute density for hydrostatic filling. FIXME for multifluid
+				const float rho = (ptype == PT_FLUID || m_simparams->boundarytype == DYN_BOUNDARY ?
+					density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0] );
+				vel[i] = make_float4(0, 0, 0, rho);
 
 				// Update boundary particles counters for rb indices
 				// NOTE: the same check will be done for non-HDF5 bodies
@@ -1714,13 +1710,16 @@ void XProblem::copy_to_array(BufferList &buffers)
 			current_geometry_particles = rbparts.size();
 			// copy particles
 			for (uint i = tot_parts; i < tot_parts + current_geometry_particles; i++) {
-				vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 				// TODO FIXME MERGE
 				// NOTE: using explicit constructor make_particleinfo_by_ids() since some flags may
 				// be set afterward (e.g. in initializeParticles() callback)
 				info[i] = make_particleinfo_by_ids(PT_BOUNDARY, 0, object_id, i);
 				calc_localpos_and_hash(rbparts[i - tot_parts], info[i], pos[i], hash[i]);
 				globalPos[i] = rbparts[i - tot_parts].toDouble4();
+				// Compute density for hydrostatic filling. FIXME for multifluid
+				const float rho = (m_simparams->boundarytype == DYN_BOUNDARY ?
+					density(m_waterLevel - globalPos[i].z, 0) : m_physparams->rho0[0] );
+				vel[i] = make_float4(0, 0, 0, rho);
 				if (eulerVel)
 					// there should be no eulerVel with LJ bounds, but it is safe to init the array anyway
 					eulerVel[i] = make_float4(0);
