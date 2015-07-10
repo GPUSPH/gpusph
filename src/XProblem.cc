@@ -1330,11 +1330,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 	float4 *eulerVel = buffers.getData<BUFFER_EULERVEL>();
 
 	// NOTEs and TODO
-	// - Automatic hydrostatic filling. Or, callback?
 	// - SA currently supported only from file. Support runtime generation?
 	// - Warn if loaded particle has different type than filled, but only once
-	// - Save the id of the first boundary particle that belongs to an ODE object?
-	//   Was in previous code but we probably don't need it
 
 	// particles counters, by type
 	uint fluid_parts = 0;
@@ -1383,7 +1380,6 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// copy filled boundary parts
 	for (uint i = tot_parts; i < tot_parts + m_boundaryParts.size(); i++) {
-		// TODO: eulerVel
 		vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 		info[i] = make_particleinfo(PT_BOUNDARY, 0, i);
 		calc_localpos_and_hash(m_boundaryParts[i - tot_parts], info[i], pos[i], hash[i]);
