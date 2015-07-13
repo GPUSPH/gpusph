@@ -321,8 +321,8 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		addPostProcess(SURFACE_DETECTION);
 
 		H = 0.6;
-		l = 7.7; w=3.2; h=1.5;
-		m_origin = make_double3(-3.85, -1.6, -0.1);
+		l = 3.2; w=1.7; h=1.4;
+		m_origin = make_double3(-3.85, -0.1, -0.1);
 		m_physparams->gravity = make_float3(0.0, 0.0, -9.81);
 	//*************************************************************************************
 
@@ -578,6 +578,11 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+#elif SPECIFIC_PROBLEM == SolitaryWave
+				if (openBoundType != 0)
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+				if (openBoundType == 2)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, rho*h5File.buf[i].Volume), info[i], pos[i], hash[i]);
 			// boundelm.w contains the reference mass of a vertex particle, actually only needed for IO_BOUNDARY
@@ -632,6 +637,11 @@ void InputProblem::copy_to_array(BufferList &buffers)
 				// two pressure boundaries
 				if (openBoundType != 0)
 					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+#elif SPECIFIC_PROBLEM == SolitaryWave
+				if (openBoundType != 0)
+					SET_FLAG(info[i], FG_INLET | FG_OUTLET);
+				if (openBoundType == 2)
+					SET_FLAG(info[i], FG_VELOCITY_DRIVEN);
 #endif
 			calc_localpos_and_hash(Point(h5File.buf[i].Coords_0, h5File.buf[i].Coords_1, h5File.buf[i].Coords_2, 0.0), info[i], pos[i], hash[i]);
 			vertices[i].x = h5File.buf[i].VertexParticle1;
@@ -688,7 +698,8 @@ InputProblem::max_parts(uint numpart)
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps || \
-    SPECIFIC_PROBLEM == PeriodicWave
+    SPECIFIC_PROBLEM == PeriodicWave || \
+    SPECIFIC_PROBLEM == SolitaryWave
 		return (uint)((float)numpart*1.2f);
 #elif SPECIFIC_PROBLEM == LaPalisseSmallTest
 		return (uint)((float)numpart*2.0f);
@@ -763,6 +774,30 @@ InputProblem_imposeBoundaryCondition(
 				eulerVel.x = u;
 				eulerVel.z = w;
 			}
+#elif SPECIFIC_PROBLEM == SolitaryWave
+			const float d = 0.6;
+			const float a = 0.5*d;
+			const float g = 9.81;
+			const float theta = atan(1.);
+			const float3 normalWave = make_float3(cos(theta), sin(theta), 0);
+			const float c = sqrt(g*(d + a));
+			const float k = sqrt(0.75*a/d)/d;
+			const float xMin = -2.5*1.5;
+			const float x0 = xMin - 4./k;
+
+			const float kxct = k*(dot(normalWave, absPos)-c*t-x0);
+			const float eta = a/(cosh(kxct)*cosh(kxct));
+			const float detadt = 2*a*k*c*tanh(kxct)/(cosh(kxct)*cosh(kxct));
+
+			const float h = d + eta;
+			if (absPos.z < h) {
+				const float u = (c*eta/h)*normalWave.x;
+				const float v = (c*eta/h)*normalWave.y;
+				const float w = absPos.z*detadt/h;
+				eulerVel.x = u;
+				eulerVel.y = v;
+				eulerVel.z = w;
+			}
 #else
 			eulerVel.x = 0.0f;
 #endif
@@ -787,6 +822,11 @@ InputProblem_imposeBoundaryCondition(
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
+#elif SPECIFIC_PROBLEM == SolitaryWave
+			waterdepth = 0.6 - 0.5*0.0195;
+			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
+			const float pressure = 9.81e3f*localdepth;
+			eulerVel.w = RHO(pressure, fluid_num(info));
 #else
 			eulerVel.w = 1000.0f;
 #endif
@@ -794,8 +834,11 @@ InputProblem_imposeBoundaryCondition(
 
 		// impose tangential velocity
 		if (VEL_IO(info)) {
+#if SPECIFIC_PROBLEM != SolitaryWave
 			eulerVel.y = 0.0f;
-#if SPECIFIC_PROBLEM != PeriodicWave
+#endif
+#if SPECIFIC_PROBLEM != PeriodicWave && \
+    SPECIFIC_PROBLEM != SolitaryWave
 			eulerVel.z = 0.0f;
 #endif
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOKeps
