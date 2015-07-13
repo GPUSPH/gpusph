@@ -1422,8 +1422,8 @@ void XProblem::copy_to_array(BufferList &buffers)
 	// Filling s_hRbLastIndex[i] requires the knowledge of the number of particles filled by any
 	// object_id < i. Unfortunately, since object_id does not follow the GeometryID, we do not have
 	// this knowledge. Thus, we prepare a small array we will fill the number of particles per
-	// object, and we will use it at the end of the filling process to fill s_hRbLastIndex[].
-	// Instead, s_hRbFirstIndex can be set while filling.
+	// object, and we will use it at the end of the filling process to fill s_hRbLastIndex[] (and
+	// fix s_hRbFirstIndex - see comments later).
 	uint *body_particle_counters = new uint[m_numForcesBodies];
 
 	// Until now we copied fluid and boundary particles not belonging to floating objects and/or not to be loaded
@@ -1756,9 +1756,10 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// settings related to objects for which we compute the forces, regardless they were loaded from file or not
 		if (m_geometries[g]->measure_forces) {
-			// Store index (currently identical to id) of first object particle plus the number
-			// of previously filled object particles. This, summed to the particle id, will be used
-			// as offset to compute the index in rbforces/torques.
+			// In s_hRbFirstIndex it is stored the id of the first particle of current body (changed
+			// in sign, since it is used as an offset) plus the number of previously filled object
+			// particles. The former addendum is set here, the latter will be added later (when we'll
+			// know the number of particles of all the bodies).
 			gdata->s_hRbFirstIndex[object_id] = - (int)current_geometry_first_boundary_id;
 
 			// update counter of rigid body particles
@@ -1783,15 +1784,16 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 		// update global particle counter
 		tot_parts += current_geometry_particles;
-
 	} // for each geometry
 
-	// Now we have enough knowledge to fill s_hRbLastIndex. We iterate on all the
+	// Now we fix s_hRbFirstIndex and fill s_hRbLastIndex. We iterate on all the
 	// forces bodies by means of their object id, which is basically the insertion
-	// order after being sorted by body type.
+	// order after being sorted by body type, to keep and incremental particle counter.
 	uint incremental_bodies_part_counter = 0;
 	for (uint obj_id = 0; obj_id < m_numForcesBodies; obj_id++) {
-		// simply an incremental sum
+		// s_hRbFirstIndex is currently -first_bound_id; shift it further according to the previous bodies
+		gdata->s_hRbFirstIndex[obj_id] += incremental_bodies_part_counter;
+		// now let's increment incremental_bodies_part_counter with current body
 		incremental_bodies_part_counter += body_particle_counters[obj_id];
 		// memo: s_hRbLastIndex, as used in the reduction, is inclusive (thus -1)
 		gdata->s_hRbLastIndex[obj_id] = incremental_bodies_part_counter - 1;
