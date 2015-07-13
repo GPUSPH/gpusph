@@ -681,9 +681,9 @@ void GPUWorker::transferBurstsSizes()
 					receivedOneNonEmptyCellInBurst = true;
 				}
 				m_bursts[i].numParticles += numPartsInCell;
-				if (m_deviceIndex == 1 && gdata->iterations == 30 && false)
-					printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i,
-						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles,
+				// DBG
+				//	printf(" BURST %u, incr. parts from %u to %u (+%u) because of cell %u\n", i, \
+						   m_bursts[i].numParticles - numPartsInCell, m_bursts[i].numParticles, \
 							numPartsInCell, lin_cell );
 			}
 
