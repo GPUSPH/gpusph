@@ -82,8 +82,7 @@ __constant__ float	d_sqC0[MAX_FLUID_TYPES];	///< square of sound speed for at-re
 
 __constant__ float	d_ferrari;				///< coefficient for Ferrari correction
 
-// interface epsilon for simplified surface tension in Grenier
-__constant__ float	d_epsinterface;
+__constant__ float	d_epsinterface;			///< interface epsilon for simplified surface tension in Grenier
 
 // LJ boundary repusion force comuting
 __constant__ float	d_dcoeff;
@@ -92,15 +91,12 @@ __constant__ float	d_p2coeff;
 __constant__ float	d_r0;
 
 // Monaghan-Kaijar boundary repulsion force constants
-// This is typically the square of the maximum velocity, or gravity times the maximum height
-__constant__ float	d_MK_K;
-// This is typically the distance between boundary particles
-__constant__ float	d_MK_d;
-// This is typically the ration between h and the distance between boundary particles
-__constant__ float	d_MK_beta;
+__constant__ float	d_MK_K;		///< This is typically the square of the maximum velocity, or gravity times the maximum height
+__constant__ float	d_MK_d;		///< This is typically the distance between boundary particles
+__constant__ float	d_MK_beta;	///< This is typically the ration between h and the distance between boundary particles
 
-__constant__ float	d_visccoeff[MAX_FLUID_TYPES];
-__constant__ float	d_epsartvisc;
+__constant__ float	d_visccoeff[MAX_FLUID_TYPES];	///< viscous coefficient
+__constant__ float	d_epsartvisc;					///< epsilon of artificial viscosity
 
 // Constants used for DEM
 // TODO switch to float2s
@@ -111,7 +107,7 @@ __constant__ float	d_demdy;		///< ∆y increment of particle position for normal
 __constant__ float	d_demdxdy;		///< ∆x*∆y
 __constant__ float	d_demzmin;		///< minimum distance from DEM for normal computation
 
-__constant__ float	d_partsurf;		/// particle surface (typically particle spacing suared)
+__constant__ float	d_partsurf;		///< particle surface (typically particle spacing suared)
 
 // Definition of planes for geometrical boundaries
 __constant__ uint	d_numplanes;
@@ -137,22 +133,30 @@ __constant__ float	d_objectboundarydf;
 // host-computed id offset used for id generation
 __constant__ uint	d_newIDsOffset;
 
+////////////////////////////////
 // Gaussian quadrature constants
+////////////////////////////////
 
-// 5th order: weights
+// 5th order
+////////////
+
+//! Gaussian quadrature 5th order: weights
 __constant__ float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
 
-// 5th order: points, in barycentric coordinates
+//! Gaussian quadrature 5th order: points, in barycentric coordinates
 __constant__ float GQ_O5_points[3][3] = {
 	{0.333333333333333f, 0.333333333333333f, 0.333333333333333f},
 	{0.059715871789770f, 0.470142064105115f, 0.470142064105115f},
 	{0.797426985353087f, 0.101286507323456f, 0.101286507323456f}
 };
 
-// 5th order: multiplicity of each quadrature point
+//! Gaussian quadrature 5th order: multiplicity of each quadrature point
 __constant__ int GQ_O5_mult[3] = {1, 3, 3};
 
-// 14th order: weights
+// 14th order
+/////////////
+
+//! Gaussian quadrature 14th order: weights
 __constant__ float GQ_O14_weights[10] = {
 	0.021883581369429f,
 	0.032788353544125f,
@@ -166,7 +170,7 @@ __constant__ float GQ_O14_weights[10] = {
 	0.005010228838501f
 };
 
-// 14th order: points, in barycentric coordinates
+//! Gaussian quadrature 14th order: points, in barycentric coordinates
 __constant__ float GQ_O14_points[10][3] = {
 	{0.022072179275643f,0.488963910362179f,0.488963910362179f},
 	{0.164710561319092f,0.417644719340454f,0.417644719340454f},
@@ -180,7 +184,7 @@ __constant__ float GQ_O14_points[10][3] = {
 	{0.001268330932872f,0.118974497696957f,0.879757171370171f}
 };
 
-// 14th order: multiplicity of each quadrature point
+//! Gaussian quadrature 14th order: multiplicity of each quadrature point
 __constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
 
 /*  @} */
@@ -192,7 +196,7 @@ __constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
 /*							  Functions used by the different CUDA kernels							        */
 /************************************************************************************************************/
 
-// Lennard-Jones boundary repulsion force
+//! Lennard-Jones boundary repulsion force
 __device__ __forceinline__ float
 LJForce(const float r)
 {
@@ -204,11 +208,14 @@ LJForce(const float r)
 	return force;
 }
 
-// Monaghan-Kajtar boundary repulsion force doi:10.1016/j.cpc.2009.05.008
-// to be multiplied by r_aj vector
-// we allow the fluid particle mass mass_f to be different from the
-// boundary particle mass mass_b even though they are typically the same
-// (except for multi-phase fluids)
+//! Monaghan-Kajtar boundary repulsion force
+/*!
+ Monaghan-Kajtar boundary repulsion force doi:10.1016/j.cpc.2009.05.008
+ to be multiplied by r_aj vector
+ we allow the fluid particle mass mass_f to be different from the
+ boundary particle mass mass_b even though they are typically the same
+ (except for multi-phase fluids)
+*/
 __device__ __forceinline__ float
 MKForce(const float r, const float slength,
 		const float mass_f, const float mass_b)
@@ -265,7 +272,7 @@ reflectPoint(const float4 &pos, uint nplane)
 
 
 /***************************************** Viscosities *******************************************************/
-// Artificial viscosity s
+//! Artificial viscosity
 __device__ __forceinline__ float
 artvisc(	const float	vel_dot_pos,
 			const float	rho,
@@ -285,10 +292,13 @@ artvisc(	const float	vel_dot_pos,
 // ATTENTION: for all non artificial viscosity
 // µ is the dynamic viscosity (ρν)
 
-// Scalar part of viscosity using Morris 1997
-// expression 21 p218 when all particles have the same viscosity
-// in this case d_visccoeff = 4 nu
-// returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
+//! Morris laminar viscous term
+/*!
+ Scalar part of viscosity using Morris 1997
+ expression 21 p218 when all particles have the same viscosity
+ in this case d_visccoeff = 4 nu
+ returns 4.mj.nu/(ρi + ρj) (1/r ∂Wij/∂r)
+*/
 __device__ __forceinline__ float
 laminarvisc_kinematic(	const float	rho,
 						const float	neib_rho,
@@ -303,9 +313,12 @@ laminarvisc_kinematic(	const float	rho,
 }
 
 
-// Same behaviour as laminarvisc but for particle
-// dependent viscosity.
-// returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
+//! Morris laminar viscous term for variable viscosity
+/*!
+ Same behaviour as laminarvisc_kinematic but for particle
+ dependent viscosity.
+ returns mj.(µi + µi)/(ρi.ρj) (1/r ∂Wij/∂r)
+*/
 __device__ __forceinline__ float
 laminarvisc_dynamic(const float	rho,
 					const float	neib_rho,
@@ -320,9 +333,12 @@ laminarvisc_dynamic(const float	rho,
 
 
 /*********************************** Adptative time stepping ************************************************/
-// Function called at the end of the forces or powerlawVisc function doing
-// a per block maximum reduction
-// cflOffset is used in case the forces kernel was partitioned (striping)
+// Computes dt across different GPU blocks
+/*!
+ Function called at the end of the forces or powerlawVisc function doing
+ a per block maximum reduction
+ cflOffset is used in case the forces kernel was partitioned (striping)
+*/
 __device__ __forceinline__ void
 dtadaptBlockReduce(	float*	sm_max,
 					float*	cfl,
@@ -346,6 +362,7 @@ dtadaptBlockReduce(	float*	sm_max,
 
 /******************** Functions for computing repulsive force directly from DEM *****************************/
 
+//! Computes distance from a particle to a point on the plane
 __device__ __forceinline__ float
 PlaneDistance(	const int3&		gridPos,
 				const float3&	pos,
@@ -360,7 +377,7 @@ PlaneDistance(	const int3&		gridPos,
 
 // TODO: check for the maximum timestep
 
-// Normal and viscous force wrt to solid boundary
+//! Computes normal and viscous force wrt to solid planar boundary
 __device__ __forceinline__ float
 PlaneForce(	const int3&		gridPos,
 			const float3&	pos,
@@ -409,6 +426,7 @@ PlaneForce(	const int3&		gridPos,
 	return 0.0f;
 }
 
+//! DOC-TODO Describe function
 __device__ __forceinline__ float
 GeometryForce(	const int3&		gridPos,
 				const float3&	pos,
@@ -449,7 +467,6 @@ DemPos(const int2& gridPos, const float2 &pos)
   TODO for improved homogeneous accuracy, maybe have a texture for grid cells and a
   texture for local z coordinates?
  */
-
 __device__ __forceinline__ float
 DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
 	const float2& demPos, int dx=0, int dy=0)
@@ -458,6 +475,7 @@ DemInterpol(const texture<float, 2, cudaReadModeElementType> texref,
 }
 
 
+//! DOC-TODO describe function
 __device__ __forceinline__ float
 DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 			const int3&	gridPos,
@@ -509,7 +527,7 @@ DemLJForce(	const texture<float, 2, cudaReadModeElementType> texref,
 /*		   Kernels for computing SPS tensor and SPS viscosity												*/
 /************************************************************************************************************/
 
-/// A functor that writes out turbvisc for SPS visc
+//! A functor that writes out turbvisc for SPS visc
 template<bool>
 struct write_sps_turbvisc
 {
@@ -526,7 +544,7 @@ __device__ __forceinline__ void
 write_sps_turbvisc<true>::with(FP const& params, const uint index, const float turbvisc)
 { params.turbvisc[index] = turbvisc; }
 
-/// A functor that writes out tau for SPS visc
+//! A functor that writes out tau for SPS visc
 template<bool>
 struct write_sps_tau
 {
@@ -558,9 +576,12 @@ write_sps_tau<true>::with(FP const& params, const uint index, const float2& tau0
 /*		Gamma calculations																					*/
 /************************************************************************************************************/
 
-// Load old gamma value.
-// If computeGamma was false, it means the caller wants us to check gam.w against epsilon
-// to see if the new gamma is to be computed
+//! Obtains old (grad)gamma value
+/*
+ Load old gamma value.
+ If computeGamma was false, it means the caller wants us to check gam.w against epsilon
+ to see if the new gamma is to be computed
+*/
 __device__ __forceinline__
 float4
 fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
@@ -571,7 +592,7 @@ fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
 	return gam;
 }
 
-// This function returns the function value of the wendland kernel and of the integrated wendland kernel
+//! This function returns the function value of the wendland kernel and of the integrated wendland kernel
 __device__ __forceinline__ float2
 wendlandOnSegment(const float q)
 {
@@ -603,7 +624,7 @@ wendlandOnSegment(const float q)
  * Gaussian quadrature
  */
 
-// Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
+//! Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
 __device__ __forceinline__ float2
 gaussQuadratureO1(	const	float3	vPos0,
 					const	float3	vPos1,
@@ -623,7 +644,7 @@ gaussQuadratureO1(	const	float3	vPos0,
 	return val*vol;
 }
 
-// Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
+//! Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
 __device__ __forceinline__ float2
 gaussQuadratureO5(	const	float3	vPos0,
 					const	float3	vPos1,
@@ -652,7 +673,7 @@ gaussQuadratureO5(	const	float3	vPos0,
 }
 
 
-// Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
+//! Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
 __device__ __forceinline__ float2
 gaussQuadratureO14(	const	float3	vPos0,
 					const	float3	vPos1,
@@ -680,7 +701,12 @@ gaussQuadratureO14(	const	float3	vPos0,
 	return val*vol;
 }
 
-// returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate
+//! Computes (grad)gamma_{as}
+/*!
+ gamma_{as} is computed for fluid and vertex particles using a Gaussian quadrature rule.
+ grad gamma_{as} is computed using an analytical formula.
+ returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate.
+*/
 template<KernelType kerneltype>
 __device__ __forceinline__ float2
 Gamma(	const	float		&slength,
@@ -816,6 +842,11 @@ Gamma(	const	float		&slength,
 	return make_float2(gradGamma_as/slength, gamma_as);
 }
 
+//! Computes boundary conditions at open boundaries
+/*!
+ Depending on whether velocity or pressure is prescribed at a boundary the respective other component
+ is computed using the appropriate Riemann invariant.
+*/
 __device__ __forceinline__ void
 calculateIOboundaryCondition(
 			float4			&eulerVel,
@@ -922,6 +953,18 @@ calculateIOboundaryCondition(
 	}
 }
 
+//! Determines the distribution of mass based on a position on a segment
+/*!
+ A position inside a segment is used to split the segment area into three parts. The respective
+ size of these parts are used to determine how much the mass is redistributed that is associated
+ with this position. This is used in two cases:
+
+ 1.) A mass flux is given or computed for a certain segment, then the position for the function
+     is equivalent to the segement position. This determines the mass flux for the vertices
+
+ 2.) A fluid particle traverses a segment. Then the position is equal to the fluid position and
+     the function determines how much mass of the fluid particle is distributed to each vertex
+*/
 __device__ __forceinline__ void
 getMassRepartitionFactor(	const	float3	*vertexRelPos,
 							const	float3	normal,
@@ -997,8 +1040,7 @@ getMassRepartitionFactor(	const	float3	*vertexRelPos,
 	beta.z = surface2/refSurface;
 }
 
-// contribution of neighbor at relative position relPos with weight w to the
-// MLS matrix mls
+//! contribution of neighbor at relative position relPos with weight w to the MLS matrix mls
 __device__ __forceinline__ void
 MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
 {
@@ -1015,8 +1057,11 @@ MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
 
 }
 
-// contribution of neighbor at relative position relPos with weight w to the
-// MLS correction when B is the first row of the inverse MLS matrix
+//! MLS contribution
+/*!
+ contribution of neighbor at relative position relPos with weight w to the
+ MLS correction when B is the first row of the inverse MLS matrix
+*/
 __device__ __forceinline__ float
 MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 {
@@ -1024,8 +1069,11 @@ MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
 	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
 }
 
-// an auxiliary function that fetches the tau tensor
-// for particle i from the textures where it's stored
+//! Fetch tau tensor from texture
+/*!
+ an auxiliary function that fetches the tau tensor
+ for particle i from the textures where it's stored
+*/
 __device__
 symtensor3 fetchTau(uint i)
 {
@@ -1042,20 +1090,26 @@ symtensor3 fetchTau(uint i)
 	return tau;
 }
 
-
-
 /*  @} */
 
 /** \name Kernels
  *  @{ */
 
-// Compute the Sub-Particle-Stress (SPS) Tensor matrix for all Particles
-// WITHOUT Kernel correction
-// Procedure:
-// (1) compute velocity gradients
-// (2) compute turbulent eddy viscosity (non-dynamic)
-// (3) compute turbulent shear stresses
-// (4) return SPS tensor matrix (tau) divided by rho^2
+//! Compute SPS matrix
+/*!
+ Compute the Sub-Particle-Stress (SPS) Tensor matrix for all Particles
+ WITHOUT Kernel correction
+
+ Procedure:
+
+ (1) compute velocity gradients
+
+ (2) compute turbulent eddy viscosity (non-dynamic)
+
+ (3) compute turbulent shear stresses
+
+ (4) return SPS tensor matrix (tau) divided by rho^2
+*/
 template<KernelType kerneltype,
 	BoundaryType boundarytype,
 	uint simflags>
@@ -1188,12 +1242,15 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 /*										Density computation							*/
 /************************************************************************************************************/
 
-// When using the Grenier formulation, density is reinitialized at each timestep from
-// a Shepard-corrected mass distribution limited to same-fluid particles M and volumes ω computed
-// from a continuity equation, with ϱ = M/ω.
-// During the same run, we also compute σ, the approximation of the inverse volume obtained by summing
-// the kernel computed over _all_ neighbors (not just the same-fluid ones) which is used in the continuity
-// equation as well as the Navier-Stokes equation
+//! Continuity equation with the Grenier formulation
+/*!
+ When using the Grenier formulation, density is reinitialized at each timestep from
+ a Shepard-corrected mass distribution limited to same-fluid particles M and volumes ω computed
+ from a continuity equation, with ϱ = M/ω.
+ During the same run, we also compute σ, the approximation of the inverse volume obtained by summing
+ the kernel computed over _all_ neighbors (not just the same-fluid ones) which is used in the continuity
+ equation as well as the Navier-Stokes equation
+*/
 template<KernelType kerneltype, BoundaryType boundarytype>
 __global__ void
 densityGrenierDevice(
@@ -1306,6 +1363,10 @@ densityGrenierDevice(
 
 /************************************************************************************************************/
 
+//! Compute a private variable
+/*!
+ This function computes an arbitrary passive array. It can be used for debugging purposes or passive scalars
+*/
 __global__ void
 calcPrivateDevice(	const	float4*		pos_array,
 							float*		priv,
@@ -1361,6 +1422,7 @@ calcPrivateDevice(	const	float4*		pos_array,
 
 	}
 }
+
 // flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
 // is associated to an open boundary
 #define VERTEX1 ((flag_t)1)
@@ -1368,6 +1430,14 @@ calcPrivateDevice(	const	float4*		pos_array,
 #define VERTEX3 (VERTEX2 << 1)
 #define ALLVERTICES ((flag_t)(VERTEX1 | VERTEX2 | VERTEX3))
 
+//! Computes the boundary condition on segments for SA boundaries
+/*!
+ This function computes the boundary condition for density/pressure on segments if the SA boundary type
+ is selected. It does this not only for solid wall boundaries but also open boundaries. Additionally,
+ this function detects when a fluid particle crosses the open boundary and it identifies which segment it
+ crossed. The vertices of this segment are then used to identify how the mass of this fluid particle is
+ split.
+*/
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
@@ -2151,7 +2221,7 @@ saVertexBoundaryConditions(
 /*					   Kernels for XSPH, Shepard and MLS corrections									   */
 /************************************************************************************************************/
 
-// This kernel computes the Sheppard correction
+//! This kernel computes the Sheppard correction
 template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
@@ -2250,8 +2320,7 @@ shepardDevice(	const float4*	posArray,
 	newVel[index] = vel;
 }
 
-
-// This kernel computes the MLS correction
+//! This kernel computes the MLS correction
 template<KernelType kerneltype,
 	BoundaryType boundarytype>
 __global__ void
@@ -2458,6 +2527,7 @@ MlsDevice(	const float4*	posArray,
 /************************************************************************************************************/
 /*					   CFL max kernel																		*/
 /************************************************************************************************************/
+//! Computes the max of a float across several threads
 template <unsigned int blockSize>
 __global__ void
 fmaxDevice(float *g_idata, float *g_odata, const uint n)
@@ -2519,6 +2589,7 @@ fmaxDevice(float *g_idata, float *g_odata, const uint n)
 
 extern __shared__ float4 shmem4[];
 
+//! Computes the energy of all particles
 extern "C" __global__
 void calcEnergiesDevice(
 	const		float4	*pPos,
@@ -2602,7 +2673,7 @@ void calcEnergiesDevice(
 	}
 }
 
-// final reduction stage
+//! Sum the previously computed energy up (across threads)
 extern "C" __global__
 void calcEnergies2Device(
 		float4* buffer,
@@ -2663,7 +2734,7 @@ void calcEnergies2Device(
 /*					   Auxiliary kernels used for post processing										    */
 /************************************************************************************************************/
 
-// This kernel compute the vorticity field
+//! Computes the vorticity field
 template<KernelType kerneltype>
 __global__ void
 calcVortDevice(	const	float4*		posArray,
@@ -2745,8 +2816,7 @@ calcVortDevice(	const	float4*		posArray,
 }
 
 
-// Testpoints
-// This kernel compute the velocity at testpoints
+//! Compute the values of velocity, density, k and epsilon at test points
 template<KernelType kerneltype>
 __global__ void
 calcTestpointsVelocityDevice(	const float4*	oldPos,
@@ -2864,8 +2934,7 @@ calcTestpointsVelocityDevice(	const float4*	oldPos,
 }
 
 
-// Free surface detection
-// This kernel detects the surface particles
+//! Identifies particles which form the free-surface
 template<KernelType kerneltype, bool savenormals>
 __global__ void
 calcSurfaceparticleDevice(	const	float4*			posArray,
@@ -3019,6 +3088,13 @@ calcSurfaceparticleDevice(	const	float4*			posArray,
 
 }
 
+//! Disables particles that have exited through an open boundary
+/*!
+ This kernel is only used for SA boundaries in combination with the outgoing particle identification
+ in saSegmentBoundaryConditions(). If a particle crosses a segment then the vertexinfo array is set
+ for this fluid particle. This is used here to identify such particles. In turn the vertexinfo array
+ is reset and the particle is disabled.
+*/
 __global__ void
 disableOutgoingPartsDevice(			float4*		oldPos,
 									vertexinfo*	oldVertices,
@@ -3046,6 +3122,12 @@ disableOutgoingPartsDevice(			float4*		oldPos,
 	}
 }
 
+//! Identify corner vertices on open boundaries
+/*!
+ Corner vertices are vertices that have segments that are not part of an open boundary. These
+ vertices are treated slightly different when imposing the boundary conditions during the
+ computation in saVertexBoundaryConditions.
+*/
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 saIdentifyCornerVertices(
@@ -3109,6 +3191,11 @@ saIdentifyCornerVertices(
 	}
 }
 
+//! Find closest vertex to a segment which has only corner vertices
+/*!
+ This function also determines which of the vertices of a segment are not corners.
+*/
+// TODO this function can probably be removed if the current mass repartitioning is final
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
 saFindClosestVertex(
