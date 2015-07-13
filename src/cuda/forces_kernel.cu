@@ -50,30 +50,29 @@
 // FIXME : ah, ah ! Single precision with 976896587958795795 decimals ....
 #define M_PIf 3.141592653589793238462643383279502884197169399375105820974944f
 
-// an auxiliary function that fetches the tau tensor
-// for particle i from the textures where it's stored
-__device__
-symtensor3 fetchTau(uint i)
-{
-	symtensor3 tau;
-	float2 temp = tex1Dfetch(tau0Tex, i);
-	tau.xx = temp.x;
-	tau.xy = temp.y;
-	temp = tex1Dfetch(tau1Tex, i);
-	tau.xz = temp.x;
-	tau.yy = temp.y;
-	temp = tex1Dfetch(tau2Tex, i);
-	tau.yz = temp.x;
-	tau.zz = temp.y;
-	return tau;
-}
-
 #define MAXKASINDEX 10
 
 texture<float, 2, cudaReadModeElementType> demTex;	// DEM
 
+/** \namespace cuforces
+ *  \brief Contains all device functions/kernels/variables used force computations, filters and boundary conditions
+ *
+ *  The namespace cuforces contains all the device part of force computations, filters and boundary conditions :
+ *  	- device constants/variables
+ *  	- device functions
+ *  	- kernels
+ *
+ *  \ingroup neibs
+ */
 namespace cuforces {
 
+// Grid data
+#include "cellgrid.cuh"
+// Core SPH functions
+#include "sph_core_utils.cuh"
+
+/** \name Device constants
+ *  @{ */
 __constant__ idx_t	d_neiblist_end;			///< maximum number of neighbors * number of allocated particles
 __constant__ idx_t	d_neiblist_stride;		///< stride between neighbors of the same particle
 
@@ -135,13 +134,59 @@ __constant__ int	d_rbstartindex[MAX_BODIES];
 __constant__ float	d_objectobjectdf;
 __constant__ float	d_objectboundarydf;
 
-// Grid data
-#include "cellgrid.cuh"
-// Core SPH functions
-#include "sph_core_utils.cuh"
-
 // host-computed id offset used for id generation
 __constant__ uint	d_newIDsOffset;
+
+// Gaussian quadrature constants
+
+// 5th order: weights
+__constant__ float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
+
+// 5th order: points, in barycentric coordinates
+__constant__ float GQ_O5_points[3][3] = {
+	{0.333333333333333f, 0.333333333333333f, 0.333333333333333f},
+	{0.059715871789770f, 0.470142064105115f, 0.470142064105115f},
+	{0.797426985353087f, 0.101286507323456f, 0.101286507323456f}
+};
+
+// 5th order: multiplicity of each quadrature point
+__constant__ int GQ_O5_mult[3] = {1, 3, 3};
+
+// 14th order: weights
+__constant__ float GQ_O14_weights[10] = {
+	0.021883581369429f,
+	0.032788353544125f,
+	0.051774104507292f,
+	0.042162588736993f,
+	0.014433699669777f,
+	0.004923403602400f,
+	0.024665753212564f,
+	0.038571510787061f,
+	0.014436308113534f,
+	0.005010228838501f
+};
+
+// 14th order: points, in barycentric coordinates
+__constant__ float GQ_O14_points[10][3] = {
+	{0.022072179275643f,0.488963910362179f,0.488963910362179f},
+	{0.164710561319092f,0.417644719340454f,0.417644719340454f},
+	{0.453044943382323f,0.273477528308839f,0.273477528308839f},
+	{0.645588935174913f,0.177205532412543f,0.177205532412543f},
+	{0.876400233818255f,0.061799883090873f,0.061799883090873f},
+	{0.961218077502598f,0.019390961248701f,0.019390961248701f},
+	{0.057124757403648f,0.172266687821356f,0.770608554774996f},
+	{0.092916249356972f,0.336861459796345f,0.570222290846683f},
+	{0.014646950055654f,0.298372882136258f,0.686980167808088f},
+	{0.001268330932872f,0.118974497696957f,0.879757171370171f}
+};
+
+// 14th order: multiplicity of each quadrature point
+__constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
+
+/*  @} */
+
+/** \name Device functions
+ *  @{ */
 
 /************************************************************************************************************/
 /*							  Functions used by the different CUDA kernels							        */
@@ -503,6 +548,507 @@ write_sps_tau<true>::with(FP const& params, const uint index, const float2& tau0
 	params.tau2[index] = tau2;
 }
 
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*		Device functions used in kernels other than the main forces kernel									*/
+/************************************************************************************************************/
+
+/************************************************************************************************************/
+/*		Gamma calculations																					*/
+/************************************************************************************************************/
+
+// Load old gamma value.
+// If computeGamma was false, it means the caller wants us to check gam.w against epsilon
+// to see if the new gamma is to be computed
+__device__ __forceinline__
+float4
+fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
+{
+	float4 gam = tex1Dfetch(gamTex, index);
+	if (!computeGamma)
+		computeGamma = (gam.w < epsilon);
+	return gam;
+}
+
+// This function returns the function value of the wendland kernel and of the integrated wendland kernel
+__device__ __forceinline__ float2
+wendlandOnSegment(const float q)
+{
+	float kernel = 0.0f;
+	float intKernel = 0.0f;
+
+	if (q < 2.0f) {
+		float tmp = (1.0f-q/2.0f);
+		float tmp4 = tmp*tmp;
+		tmp4 *= tmp4;
+
+// Wendland coefficient: 21/(16 π)
+#define WENDLAND_K_COEFF 0.417781725616225256393319878852850200340456570068698177962626f
+// Integrated Wendland coefficient: 1/(32 π)
+#define WENDLAND_I_COEFF 0.009947183943243458485555235210782147627153727858778528046729f
+
+		// Wendland kernel
+		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
+
+		// integrated Wendland kernel
+		const float uq = 1.0f/q;
+		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8.0f*uq + 20.0f)*uq + 30.0f)*uq) + 21.0f);
+	}
+
+	return make_float2(kernel, intKernel);
+}
+
+/*
+ * Gaussian quadrature
+ */
+
+// Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
+__device__ __forceinline__ float2
+gaussQuadratureO1(	const	float3	vPos0,
+					const	float3	vPos1,
+					const	float3	vPos2,
+					const	float3	relPos)
+{
+	float2 val = make_float2(0.0f);
+	// perform the summation
+	float3 pa =	vPos0/3.0f +
+				vPos1/3.0f +
+				vPos2/3.0f  ;
+	pa -= relPos;
+	val += 1.0f*wendlandOnSegment(length(pa));
+	// compute the triangle volume
+	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	// return the summed values times the volume
+	return val*vol;
+}
+
+// Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
+__device__ __forceinline__ float2
+gaussQuadratureO5(	const	float3	vPos0,
+					const	float3	vPos1,
+					const	float3	vPos2,
+					const	float3	relPos)
+{
+	float2 val = make_float2(0.0f);
+	// perform the summation
+#pragma unroll
+	for (int i=0; i<3; i++) {
+#pragma unroll
+		for (int j=0; j<3; j++) {
+			float3 pa =	vPos0*GQ_O5_points[i][j]       +
+						vPos1*GQ_O5_points[i][(j+1)%3] +
+						vPos2*GQ_O5_points[i][(j+2)%3]  ;
+			pa -= relPos;
+			val += GQ_O5_weights[i]*wendlandOnSegment(length(pa));
+			if (j >= GQ_O5_mult[i])
+				break;
+		}
+	}
+	// compute the triangle volume
+	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	// return the summed values times the volume
+	return val*vol;
+}
+
+
+// Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
+__device__ __forceinline__ float2
+gaussQuadratureO14(	const	float3	vPos0,
+					const	float3	vPos1,
+					const	float3	vPos2,
+					const	float3	relPos)
+{
+	float2 val = make_float2(0.0f);
+	// perform the summation
+#pragma unroll
+	for (int i=0; i<10; i++) {
+#pragma unroll
+		for (int j=0; j<6; j++) {
+			float3 pa =	vPos0*GQ_O14_points[i][j%3]       +
+						vPos1*GQ_O14_points[i][(j+1+j/3)%3] +
+						vPos2*GQ_O14_points[i][(j+2-j/3)%3]  ;
+			pa -= relPos;
+			val += GQ_O14_weights[i]*wendlandOnSegment(length(pa));
+			if (j >= GQ_O14_mult[i])
+				break;
+		}
+	}
+	// compute the triangle volume
+	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
+	// return the summed values times the volume
+	return val*vol;
+}
+
+// returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate
+template<KernelType kerneltype>
+__device__ __forceinline__ float2
+Gamma(	const	float		&slength,
+				float4		relPos,
+		const	float2		&vPos0,
+		const	float2		&vPos1,
+		const	float2		&vPos2,
+		const	float4		&boundElement,
+				float4		oldGGam,
+		const	float		&epsilon,
+		const	float		&deltap,
+		const	bool		&computeGamma,
+		const	uint		&nIndex,
+				float		&minlRas)
+{
+	// normalize the distance r_{as} with h
+	relPos.x /= slength;
+	relPos.y /= slength;
+	relPos.z /= slength;
+	// Sigma is the point a projected onto the plane spanned by the edge
+	// q_aSigma is the non-dimensionalized distance between this plane and the particle
+	float4 q_aSigma = boundElement*dot3(boundElement,relPos);
+	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
+	// local coordinate system for relative positions to vertices
+	uint j = 0;
+	// Get index j for which n_s is minimal
+	if (fabs(boundElement.x) > fabs(boundElement.y))
+		j = 1;
+	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
+		j = 2;
+
+	// compute the first coordinate which is a 2-D rotated version of the normal
+	const float4 coord1 = normalize(make_float4(
+		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
+		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
+		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
+		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
+		0));
+	// the second coordinate is the cross product between the normal and the first coordinate
+	const float4 coord2 = cross3(boundElement, coord1);
+
+	// relative positions of vertices with respect to the segment, normalized by h
+	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
+	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
+	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
+	// calculate if the projection of a (with respect to n) is inside the segment
+	const float4 ba = v1 - v0; // vector from v0 to v1
+	const float4 ca = v2 - v0; // vector from v0 to v2
+	const float4 pa = relPos - v0; // vector from v0 to the particle
+	const float uu = sqlength3(ba);
+	const float uv = dot3(ba,ca);
+	const float vv = sqlength3(ca);
+	const float wu = dot3(ba,pa);
+	const float wv = dot3(ca,pa);
+	const float invdet = 1.0f/(uv*uv-uu*vv);
+	const float u = (uv*wv-vv*wu)*invdet;
+	const float v = (uv*wu-uu*wv)*invdet;
+	//const float w = 1.0f - u - v;
+	// set minlRas only if the projection is close enough to the triangle and if the normal
+	// distance is close
+	if (q_aSigma.w < 0.5f && (u > -0.5f && v > -0.5f && 1.0f - u - v > -0.5f && u < 1.5f && v < 1.5f && 1.0f - u - v < 1.5f)) {
+		minlRas = min(minlRas, q_aSigma.w);
+	}
+	float gradGamma_as = 0.0f;
+	float gamma_as = 0.0f;
+	float gamma_vs = 0.0f;
+	// check if the particle is on a vertex
+	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
+			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
+			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
+		// set touching vertex to v0
+		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
+			const float4 tmp = v1;
+			v1 = v2;
+			v2 = v0;
+			v0 = tmp;
+		}
+		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
+			const float4 tmp = v2;
+			v2 = v1;
+			v1 = v0;
+			v0 = tmp;
+		}
+		// additional value of grad gamma
+		const float openingAngle = acos(dot3((v1-v0),(v2-v0))/sqrt(sqlength3(v1-v0)*sqlength3(v2-v0)));
+		gradGamma_as = openingAngle*0.1193662073189215018266628225293857715258447343053423f; // 3/(8π)
+
+		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
+		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
+		oldGGam /= -fmax(length3(oldGGam),slength*1e-3f);
+		float l1 = length3(v1-v0);
+		float l2 = length3(v2-v0);
+		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
+		float d = dot3(oldGGam,cross3((v1-v0),(v2-v0)))/l1/l2;
+
+		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
+		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
+		gamma_vs = SolidAngle*0.079577471545947667884441881686257181017229822870228224373833f; // 1/(4π)
+	}
+	// check if particle is on an edge
+	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
+				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
+				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
+			 ) && q_aSigma.w < epsilon) {
+		oldGGam /= -length3(oldGGam);
+		// grad gamma for a half-plane
+		gradGamma_as = 0.375f; // 3.0f/4.0f/2.0f;
+
+		// compute the angle between a segment and -gradgamma
+		const float theta0 = acos(dot3(boundElement,oldGGam)); // angle of the norms between 0 and pi
+		const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
+		const float4 normDir = cross3(boundElement, oldGGam); // this is the sin between the two norms
+		const float theta = M_PIf + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
+
+		// this is actually two times gamma_as:
+		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
+	}
+	// general formula (also used if particle is on vertex / edge to compute remaining edges)
+	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
+		// Gaussian quadrature of 14th order
+		//float2 intVal = gaussQuadratureO1(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		// Gaussian quadrature of 14th order
+		//float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		// Gaussian quadrature of 5th order
+		const float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
+		gradGamma_as += intVal.x;
+		gamma_as += intVal.y*dot3(boundElement,q_aSigma);
+	}
+	gamma_as = gamma_vs + gamma_as;
+	const float3 vertexRelPos[3] = {as_float3(v0), as_float3(v1), as_float3(v2)};
+	// TODO FIXME don't calculate gradGamma twice!
+	gradGamma_as = gradGamma<kerneltype>(as_float3(relPos),   vertexRelPos, as_float3(boundElement), 1.0f);
+	return make_float2(gradGamma_as/slength, gamma_as);
+}
+
+__device__ __forceinline__ void
+calculateIOboundaryCondition(
+			float4			&eulerVel,
+	const	particleinfo	info,
+	const	float			rhoInt,
+	const	float			rhoExt,
+	const	float3			uInt,
+	const	float			unInt,
+	const	float			unExt,
+	const	float3			normal)
+{
+	const int a = fluid_num(info);
+	const float rInt = R(rhoInt, a);
+
+	// impose velocity (and k,eps) => compute density
+	if (VEL_IO(info)) {
+		const float cInt = soundSpeed(rhoInt, a);
+		float riemannR = 0.0f;
+		if (unExt <= unInt) { // Expansion wave
+			riemannR = rInt + (unExt - unInt);
+			// Verify that it is indeed an expansion wave
+			float riemannRho = RHOR(riemannR, a);
+			float riemannC = soundSpeed(riemannRho, a);
+			float lambdaInt = unInt + cInt;
+			float lambda = unExt + riemannC;
+			if (lambda > lambdaInt) { // not an expansion but a shock wave
+				riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
+				riemannR = R(riemannRho, a);
+				riemannC = soundSpeed(riemannRho, a);
+				lambdaInt = unInt + cInt;
+				lambda = unExt + riemannC;
+				if (lambda <= lambdaInt) // not a shock wave but a contact discontinuity
+					riemannR = rInt;
+			}
+		}
+		else { // Shock wave
+			float riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
+			riemannR = R(riemannRho, a);
+			float riemannC = soundSpeed(riemannRho, a);
+			float lambdaInt = unInt + cInt;
+			float lambda = unExt + riemannC;
+			if (lambda <= lambdaInt) { // not a shock but an expansion wave
+				riemannR = rInt + (unExt - unInt);
+				riemannRho = RHOR(riemannR, a);
+				riemannC = soundSpeed(riemannRho, a);
+				lambdaInt = unInt + cInt;
+				lambda = unExt + riemannC;
+				if (lambda > lambdaInt) // not an expansion wave but a contact discontinuity
+					riemannR = rInt;
+			}
+		}
+		eulerVel.w = RHOR(riemannR, a);
+	}
+	// impose pressure => compute velocity (normal & tangential; k and eps are already interpolated)
+	else {
+		float flux = 0.0f;
+		// Rankine-Hugoniot is not properly working
+		const float cExt = soundSpeed(rhoExt, a);
+		const float cInt = soundSpeed(rhoInt, a);
+		const float lambdaInt = unInt + cInt;
+		const float rExt = R(rhoExt, a);
+		if (rhoExt <= rhoInt) { // Expansion wave
+			flux = unInt + (rExt - rInt);
+			float lambda = flux + cInt;
+			if (lambda > lambdaInt) { // shock wave
+				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
+				// check that unInt was not too small
+				if (fabs(flux) > d_sscoeff[a] * 0.1f)
+					flux = unInt;
+				lambda = flux + cExt;
+				if (lambda <= lambdaInt) // contact discontinuity
+					flux = unInt;
+			}
+		}
+		else { // shock wave
+			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
+			// check that unInt was not too small
+			if (fabs(flux) > d_sscoeff[a] * 0.1f)
+				flux = unInt;
+			float lambda = flux + cExt;
+			if (lambda <= lambdaInt) { // expansion wave
+				flux = unInt + (rExt - rInt);
+				lambda = flux + cExt;
+				if (lambda > lambdaInt) // contact discontinuity
+					flux = unInt;
+			}
+		}
+		// AM-TODO allow imposed tangential velocity (make sure normal component is zero)
+		// currently for inflow we assume that the tangential velocity is zero
+		as_float3(eulerVel) = make_float3(0.0f);
+		// if the imposed pressure on the boundary is negative make sure that the flux is negative
+		// as well (outflow)
+		if (rhoExt < d_rho0[a])
+			flux = fmin(flux, 0.0f);
+		// Outflow
+		if (flux < 0.0f)
+			// impose eulerVel according to dv/dn = 0
+			// and remove normal component of velocity
+			as_float3(eulerVel) = uInt - dot(uInt, normal)*normal;
+		// add calculated normal velocity
+		as_float3(eulerVel) += normal*flux;
+		// set density to the imposed one
+		eulerVel.w = rhoExt;
+	}
+}
+
+__device__ __forceinline__ void
+getMassRepartitionFactor(	const	float3	*vertexRelPos,
+							const	float3	normal,
+									float3	&beta)
+{
+	float3 v01 = vertexRelPos[0]-vertexRelPos[1];
+	float3 v02 = vertexRelPos[0]-vertexRelPos[2];
+	float3 p0  = vertexRelPos[0]-dot(vertexRelPos[0], normal)*normal;
+	float3 p1  = vertexRelPos[1]-dot(vertexRelPos[1], normal)*normal;
+	float3 p2  = vertexRelPos[2]-dot(vertexRelPos[2], normal)*normal;
+
+	float refSurface = 0.5*dot(cross(v01, v02), normal);
+
+	float3 v21 = vertexRelPos[2]-vertexRelPos[1];
+
+	float surface0 = 0.5*dot(cross(p2, v21), normal);
+	float surface1 = 0.5*dot(cross(p0, v02), normal);
+	// Warning v10 = - v01
+	float surface2 = - 0.5*dot(cross(p1, v01), normal);
+	if (surface0 < 0. && surface2 < 0.) {
+		// the projected point is clipped to v1
+		surface0 = 0.;
+		surface1 = refSurface;
+		surface2 = 0.;
+	} else if (surface0 < 0. && surface1 < 0.) {
+		// the projected point is clipped to v2
+		surface0 = 0.;
+		surface1 = 0.;
+		surface2 = refSurface;
+	} else if (surface1 < 0. && surface2 < 0.) {
+		// the projected point is clipped to v0
+		surface0 = refSurface;
+		surface1 = 0.;
+		surface2 = 0.;
+	} else if (surface0 < 0.) {
+		// We project p2 into the v21 line, parallel to p0
+		// then surface0 is 0
+		// we also modify p0 an p1 accordingly
+		float coef = surface0/(0.5*dot(cross(p0, v21), normal));
+
+		p1 -= coef*p0;
+		p0 *= (1.-coef);
+
+		surface0 = 0.;
+		surface1 = 0.5*dot(cross(p0, v02), normal);
+		surface2 = - 0.5*dot(cross(p1, v01), normal);
+	} else if (surface1 < 0.) {
+		// We project p0 into the v02 line, parallel to p1
+		// then surface1 is 0
+		// we also modify p1 an p2 accordingly
+		float coef = surface1/(0.5*dot(cross(p1, v02), normal));
+		p2 -= coef*p1;
+		p1 *= (1.-coef);
+
+		surface0 = 0.5*dot(cross(p2, v21), normal);
+		surface1 = 0.;
+		surface2 = - 0.5*dot(cross(p1, v01), normal);
+	} else if (surface2 < 0.) {
+		// We project p1 into the v01 line, parallel to p2
+		// then surface2 is 0
+		// we also modify p0 an p2 accordingly
+		float coef = -surface2/(0.5*dot(cross(p2, v01), normal));
+		p0 -= coef*p2;
+		p2 *= (1.-coef);
+
+		surface0 = 0.5*dot(cross(p2, v21), normal);
+		surface1 = 0.5*dot(cross(p0, v02), normal);
+		surface2 = 0.;
+	}
+
+	beta.x = surface0/refSurface;
+	beta.y = surface1/refSurface;
+	beta.z = surface2/refSurface;
+}
+
+// contribution of neighbor at relative position relPos with weight w to the
+// MLS matrix mls
+__device__ __forceinline__ void
+MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
+{
+	mls.xx += w;						// xx = ∑Wij*Vj
+	mls.xy += relPos.x*w;				// xy = ∑(xi - xj)*Wij*Vj
+	mls.xz += relPos.y*w;				// xz = ∑(yi - yj)*Wij*Vj
+	mls.xw += relPos.z*w;				// xw = ∑(zi - zj)*Wij*Vj
+	mls.yy += relPos.x*relPos.x*w;		// yy = ∑(xi - xj)^2*Wij*Vj
+	mls.yz += relPos.x*relPos.y*w;		// yz = ∑(xi - xj)(yi - yj)*Wij*Vj
+	mls.yw += relPos.x*relPos.z*w;		// yz = ∑(xi - xj)(zi - zj)*Wij*Vj
+	mls.zz += relPos.y*relPos.y*w;		// zz = ∑(yi - yj)^2*Wij*Vj
+	mls.zw += relPos.y*relPos.z*w;		// zz = ∑(yi - yj)(zi - zj)*Wij*Vj
+	mls.ww += relPos.z*relPos.z*w;		// zz = ∑(yi - yj)^2*Wij*Vj
+
+}
+
+// contribution of neighbor at relative position relPos with weight w to the
+// MLS correction when B is the first row of the inverse MLS matrix
+__device__ __forceinline__ float
+MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
+{
+	return (B.x + B.y*relPos.x + B.z*relPos.y + B.w*relPos.z)*w;
+	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
+}
+
+// an auxiliary function that fetches the tau tensor
+// for particle i from the textures where it's stored
+__device__
+symtensor3 fetchTau(uint i)
+{
+	symtensor3 tau;
+	float2 temp = tex1Dfetch(tau0Tex, i);
+	tau.xx = temp.x;
+	tau.xy = temp.y;
+	temp = tex1Dfetch(tau1Tex, i);
+	tau.xz = temp.x;
+	tau.yy = temp.y;
+	temp = tex1Dfetch(tau2Tex, i);
+	tau.yz = temp.x;
+	tau.zz = temp.y;
+	return tau;
+}
+
+
+
+/*  @} */
+
+/** \name Kernels
+ *  @{ */
+
 // Compute the Sub-Particle-Stress (SPS) Tensor matrix for all Particles
 // WITHOUT Kernel correction
 // Procedure:
@@ -760,313 +1306,6 @@ densityGrenierDevice(
 
 /************************************************************************************************************/
 
-/************************************************************************************************************/
-/*					   Gamma calculations						    */
-/************************************************************************************************************/
-
-// Load old gamma value.
-// If computeGamma was false, it means the caller wants us to check gam.w against epsilon
-// to see if the new gamma is to be computed
-__device__ __forceinline__
-float4
-fetchOldGamma(const uint index, const float epsilon, bool &computeGamma)
-{
-	float4 gam = tex1Dfetch(gamTex, index);
-	if (!computeGamma)
-		computeGamma = (gam.w < epsilon);
-	return gam;
-}
-
-// This function returns the function value of the wendland kernel and of the integrated wendland kernel
-__device__ __forceinline__ float2
-wendlandOnSegment(const float q)
-{
-	float kernel = 0.0f;
-	float intKernel = 0.0f;
-
-	if (q < 2.0f) {
-		float tmp = (1.0f-q/2.0f);
-		float tmp4 = tmp*tmp;
-		tmp4 *= tmp4;
-
-// Wendland coefficient: 21/(16 π)
-#define WENDLAND_K_COEFF 0.417781725616225256393319878852850200340456570068698177962626f
-// Integrated Wendland coefficient: 1/(32 π)
-#define WENDLAND_I_COEFF 0.009947183943243458485555235210782147627153727858778528046729f
-
-		// Wendland kernel
-		kernel = WENDLAND_K_COEFF*tmp4*(1.0f+2.0f*q);
-
-		// integrated Wendland kernel
-		const float uq = 1.0f/q;
-		intKernel = WENDLAND_I_COEFF*tmp4*tmp*((((8.0f*uq + 20.0f)*uq + 30.0f)*uq) + 21.0f);
-	}
-
-	return make_float2(kernel, intKernel);
-}
-
-/*
- * Gaussian quadrature
- */
-
-// Function that computes the surface integral of a function on a triangle using a 1st order Gaussian quadrature rule
-__device__ __forceinline__ float2
-gaussQuadratureO1(	const	float3	vPos0,
-					const	float3	vPos1,
-					const	float3	vPos2,
-					const	float3	relPos)
-{
-	float2 val = make_float2(0.0f);
-	// perform the summation
-	float3 pa =	vPos0/3.0f +
-				vPos1/3.0f +
-				vPos2/3.0f  ;
-	pa -= relPos;
-	val += 1.0f*wendlandOnSegment(length(pa));
-	// compute the triangle volume
-	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
-	// return the summed values times the volume
-	return val*vol;
-}
-
-// 5th order: weights
-__constant__ float GQ_O5_weights[3] = {0.225f, 0.132394152788506f, 0.125939180544827f};
-
-// 5th order: points, in barycentric coordinates
-__constant__ float GQ_O5_points[3][3] = {
-	{0.333333333333333f, 0.333333333333333f, 0.333333333333333f},
-	{0.059715871789770f, 0.470142064105115f, 0.470142064105115f},
-	{0.797426985353087f, 0.101286507323456f, 0.101286507323456f}
-};
-
-// 5th order: multiplicity of each quadrature point
-__constant__ int GQ_O5_mult[3] = {1, 3, 3};
-
-// Function that computes the surface integral of a function on a triangle using a 5th order Gaussian quadrature rule
-__device__ __forceinline__ float2
-gaussQuadratureO5(	const	float3	vPos0,
-					const	float3	vPos1,
-					const	float3	vPos2,
-					const	float3	relPos)
-{
-	float2 val = make_float2(0.0f);
-	// perform the summation
-#pragma unroll
-	for (int i=0; i<3; i++) {
-#pragma unroll
-		for (int j=0; j<3; j++) {
-			float3 pa =	vPos0*GQ_O5_points[i][j]       +
-						vPos1*GQ_O5_points[i][(j+1)%3] +
-						vPos2*GQ_O5_points[i][(j+2)%3]  ;
-			pa -= relPos;
-			val += GQ_O5_weights[i]*wendlandOnSegment(length(pa));
-			if (j >= GQ_O5_mult[i])
-				break;
-		}
-	}
-	// compute the triangle volume
-	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
-	// return the summed values times the volume
-	return val*vol;
-}
-
-// 14th order: weights
-__constant__ float GQ_O14_weights[10] = {
-	0.021883581369429f,
-	0.032788353544125f,
-	0.051774104507292f,
-	0.042162588736993f,
-	0.014433699669777f,
-	0.004923403602400f,
-	0.024665753212564f,
-	0.038571510787061f,
-	0.014436308113534f,
-	0.005010228838501f
-};
-
-
-// 14th order: points, in barycentric coordinates
-__constant__ float GQ_O14_points[10][3] = {
-	{0.022072179275643f,0.488963910362179f,0.488963910362179f},
-	{0.164710561319092f,0.417644719340454f,0.417644719340454f},
-	{0.453044943382323f,0.273477528308839f,0.273477528308839f},
-	{0.645588935174913f,0.177205532412543f,0.177205532412543f},
-	{0.876400233818255f,0.061799883090873f,0.061799883090873f},
-	{0.961218077502598f,0.019390961248701f,0.019390961248701f},
-	{0.057124757403648f,0.172266687821356f,0.770608554774996f},
-	{0.092916249356972f,0.336861459796345f,0.570222290846683f},
-	{0.014646950055654f,0.298372882136258f,0.686980167808088f},
-	{0.001268330932872f,0.118974497696957f,0.879757171370171f}
-};
-
-// 14th order: multiplicity of each quadrature point
-__constant__ int GQ_O14_mult[10] = {1,3,3,3,3,3,6,6,6,6};
-
-
-// Function that computes the surface integral of a function on a triangle using a 14th order Gaussian quadrature rule
-__device__ __forceinline__ float2
-gaussQuadratureO14(	const	float3	vPos0,
-					const	float3	vPos1,
-					const	float3	vPos2,
-					const	float3	relPos)
-{
-	float2 val = make_float2(0.0f);
-	// perform the summation
-#pragma unroll
-	for (int i=0; i<10; i++) {
-#pragma unroll
-		for (int j=0; j<6; j++) {
-			float3 pa =	vPos0*GQ_O14_points[i][j%3]       +
-						vPos1*GQ_O14_points[i][(j+1+j/3)%3] +
-						vPos2*GQ_O14_points[i][(j+2-j/3)%3]  ;
-			pa -= relPos;
-			val += GQ_O14_weights[i]*wendlandOnSegment(length(pa));
-			if (j >= GQ_O14_mult[i])
-				break;
-		}
-	}
-	// compute the triangle volume
-	const float vol = length(cross(vPos1-vPos0,vPos2-vPos0))/2.0f;
-	// return the summed values times the volume
-	return val*vol;
-}
-
-// returns grad gamma_{as} as x coordinate, gamma_{as} as y coordinate
-template<KernelType kerneltype>
-__device__ __forceinline__ float2
-Gamma(	const	float		&slength,
-				float4		relPos,
-		const	float2		&vPos0,
-		const	float2		&vPos1,
-		const	float2		&vPos2,
-		const	float4		&boundElement,
-				float4		oldGGam,
-		const	float		&epsilon,
-		const	float		&deltap,
-		const	bool		&computeGamma,
-		const	uint		&nIndex,
-				float		&minlRas)
-{
-	// normalize the distance r_{as} with h
-	relPos.x /= slength;
-	relPos.y /= slength;
-	relPos.z /= slength;
-	// Sigma is the point a projected onto the plane spanned by the edge
-	// q_aSigma is the non-dimensionalized distance between this plane and the particle
-	float4 q_aSigma = boundElement*dot3(boundElement,relPos);
-	q_aSigma.w = fmin(length3(q_aSigma),2.0f);
-	// local coordinate system for relative positions to vertices
-	uint j = 0;
-	// Get index j for which n_s is minimal
-	if (fabs(boundElement.x) > fabs(boundElement.y))
-		j = 1;
-	if ((1-j)*fabs(boundElement.x) + j*fabs(boundElement.y) > fabs(boundElement.z))
-		j = 2;
-
-	// compute the first coordinate which is a 2-D rotated version of the normal
-	const float4 coord1 = normalize(make_float4(
-		// switch over j to give: 0 -> (0, z, -y); 1 -> (-z, 0, x); 2 -> (y, -x, 0)
-		-((j==1)*boundElement.z) +  (j == 2)*boundElement.y , // -z if j == 1, y if j == 2
-		  (j==0)*boundElement.z  - ((j == 2)*boundElement.x), // z if j == 0, -x if j == 2
-		-((j==0)*boundElement.y) +  (j == 1)*boundElement.x , // -y if j == 0, x if j == 1
-		0));
-	// the second coordinate is the cross product between the normal and the first coordinate
-	const float4 coord2 = cross3(boundElement, coord1);
-
-	// relative positions of vertices with respect to the segment, normalized by h
-	float4 v0 = -(vPos0.x*coord1 + vPos0.y*coord2)/slength; // e.g. v0 = r_{v0} - r_s
-	float4 v1 = -(vPos1.x*coord1 + vPos1.y*coord2)/slength;
-	float4 v2 = -(vPos2.x*coord1 + vPos2.y*coord2)/slength;
-	// calculate if the projection of a (with respect to n) is inside the segment
-	const float4 ba = v1 - v0; // vector from v0 to v1
-	const float4 ca = v2 - v0; // vector from v0 to v2
-	const float4 pa = relPos - v0; // vector from v0 to the particle
-	const float uu = sqlength3(ba);
-	const float uv = dot3(ba,ca);
-	const float vv = sqlength3(ca);
-	const float wu = dot3(ba,pa);
-	const float wv = dot3(ca,pa);
-	const float invdet = 1.0f/(uv*uv-uu*vv);
-	const float u = (uv*wv-vv*wu)*invdet;
-	const float v = (uv*wu-uu*wv)*invdet;
-	//const float w = 1.0f - u - v;
-	// set minlRas only if the projection is close enough to the triangle and if the normal
-	// distance is close
-	if (q_aSigma.w < 0.5f && (u > -0.5f && v > -0.5f && 1.0f - u - v > -0.5f && u < 1.5f && v < 1.5f && 1.0f - u - v < 1.5f)) {
-		minlRas = min(minlRas, q_aSigma.w);
-	}
-	float gradGamma_as = 0.0f;
-	float gamma_as = 0.0f;
-	float gamma_vs = 0.0f;
-	// check if the particle is on a vertex
-	if ((	(fabs(u-1.0f) < epsilon && fabs(v) < epsilon) ||
-			(fabs(v-1.0f) < epsilon && fabs(u) < epsilon) ||
-			(     fabs(u) < epsilon && fabs(v) < epsilon)   ) && q_aSigma.w < epsilon) {
-		// set touching vertex to v0
-		if (fabs(u-1.0f) < epsilon && fabs(v) < epsilon) {
-			const float4 tmp = v1;
-			v1 = v2;
-			v2 = v0;
-			v0 = tmp;
-		}
-		else if (fabs(v-1.0f) < epsilon && fabs(u) < epsilon) {
-			const float4 tmp = v2;
-			v2 = v1;
-			v1 = v0;
-			v0 = tmp;
-		}
-		// additional value of grad gamma
-		const float openingAngle = acos(dot3((v1-v0),(v2-v0))/sqrt(sqlength3(v1-v0)*sqlength3(v2-v0)));
-		gradGamma_as = openingAngle*0.1193662073189215018266628225293857715258447343053423f; // 3/(8π)
-
-		// compute the sum of all solid angles of the tetrahedron spanned by v1-v0, v2-v0 and -gradgamma
-		// the minus is due to the fact that initially gamma is equal to one, so we want to subtract the outside
-		oldGGam /= -fmax(length3(oldGGam),slength*1e-3f);
-		float l1 = length3(v1-v0);
-		float l2 = length3(v2-v0);
-		float abc = dot3((v1-v0),oldGGam)/l1 + dot3((v2-v0),oldGGam)/l2 + dot3((v1-v0),(v2-v0))/l1/l2;
-		float d = dot3(oldGGam,cross3((v1-v0),(v2-v0)))/l1/l2;
-
-		// formula by A. Van Oosterom and J. Strackee “The Solid Angle of a Plane Triangle”, IEEE Trans. Biomed. Eng. BME-30(2), 125-126 (1983)
-		float SolidAngle = fabs(2.0f*atan2(d,(1.0f+abc)));
-		gamma_vs = SolidAngle*0.079577471545947667884441881686257181017229822870228224373833f; // 1/(4π)
-	}
-	// check if particle is on an edge
-	else if ((	(fabs(u) < epsilon && v > -epsilon && v < 1.0f+epsilon) ||
-				(fabs(v) < epsilon && u > -epsilon && u < 1.0f+epsilon) ||
-				(fabs(u+v-1.0f) < epsilon && u > -epsilon && u < 1.0f+epsilon && v > -epsilon && v < 1.0f+epsilon)
-			 ) && q_aSigma.w < epsilon) {
-		oldGGam /= -length3(oldGGam);
-		// grad gamma for a half-plane
-		gradGamma_as = 0.375f; // 3.0f/4.0f/2.0f;
-
-		// compute the angle between a segment and -gradgamma
-		const float theta0 = acos(dot3(boundElement,oldGGam)); // angle of the norms between 0 and pi
-		const float4 refDir = cross3(boundElement, relPos); // this defines a reference direction
-		const float4 normDir = cross3(boundElement, oldGGam); // this is the sin between the two norms
-		const float theta = M_PIf + copysign(theta0, dot3(refDir, normDir)); // determine the actual angle based on the orientation of the sin
-
-		// this is actually two times gamma_as:
-		gamma_vs = theta*0.1591549430918953357688837633725143620344596457404564f; // 1/(2π)
-	}
-	// general formula (also used if particle is on vertex / edge to compute remaining edges)
-	if (q_aSigma.w < 2.0f && q_aSigma.w > epsilon) {
-		// Gaussian quadrature of 14th order
-		//float2 intVal = gaussQuadratureO1(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
-		// Gaussian quadrature of 14th order
-		//float2 intVal = gaussQuadratureO14(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
-		// Gaussian quadrature of 5th order
-		const float2 intVal = gaussQuadratureO5(-as_float3(v0), -as_float3(v1), -as_float3(v2), as_float3(relPos));
-		gradGamma_as += intVal.x;
-		gamma_as += intVal.y*dot3(boundElement,q_aSigma);
-	}
-	gamma_as = gamma_vs + gamma_as;
-	const float3 vertexRelPos[3] = {as_float3(v0), as_float3(v1), as_float3(v2)};
-	// TODO FIXME don't calculate gradGamma twice!
-	gradGamma_as = gradGamma<kerneltype>(as_float3(relPos),   vertexRelPos, as_float3(boundElement), 1.0f);
-	return make_float2(gradGamma_as/slength, gamma_as);
-}
-
 __global__ void
 calcPrivateDevice(	const	float4*		pos_array,
 							float*		priv,
@@ -1122,188 +1361,6 @@ calcPrivateDevice(	const	float4*		pos_array,
 
 	}
 }
-
-__device__ __forceinline__ void
-calculateIOboundaryCondition(
-			float4			&eulerVel,
-	const	particleinfo	info,
-	const	float			rhoInt,
-	const	float			rhoExt,
-	const	float3			uInt,
-	const	float			unInt,
-	const	float			unExt,
-	const	float3			normal)
-{
-	const int a = fluid_num(info);
-	const float rInt = R(rhoInt, a);
-
-	// impose velocity (and k,eps) => compute density
-	if (VEL_IO(info)) {
-		const float cInt = soundSpeed(rhoInt, a);
-		float riemannR = 0.0f;
-		if (unExt <= unInt) { // Expansion wave
-			riemannR = rInt + (unExt - unInt);
-			// Verify that it is indeed an expansion wave
-			float riemannRho = RHOR(riemannR, a);
-			float riemannC = soundSpeed(riemannRho, a);
-			float lambdaInt = unInt + cInt;
-			float lambda = unExt + riemannC;
-			if (lambda > lambdaInt) { // not an expansion but a shock wave
-				riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
-				riemannR = R(riemannRho, a);
-				riemannC = soundSpeed(riemannRho, a);
-				lambdaInt = unInt + cInt;
-				lambda = unExt + riemannC;
-				if (lambda <= lambdaInt) // not a shock wave but a contact discontinuity
-					riemannR = rInt;
-			}
-		}
-		else { // Shock wave
-			float riemannRho = RHO(P(rhoInt, a) + rhoInt * unInt * (unInt - unExt), a);
-			riemannR = R(riemannRho, a);
-			float riemannC = soundSpeed(riemannRho, a);
-			float lambdaInt = unInt + cInt;
-			float lambda = unExt + riemannC;
-			if (lambda <= lambdaInt) { // not a shock but an expansion wave
-				riemannR = rInt + (unExt - unInt);
-				riemannRho = RHOR(riemannR, a);
-				riemannC = soundSpeed(riemannRho, a);
-				lambdaInt = unInt + cInt;
-				lambda = unExt + riemannC;
-				if (lambda > lambdaInt) // not an expansion wave but a contact discontinuity
-					riemannR = rInt;
-			}
-		}
-		eulerVel.w = RHOR(riemannR, a);
-	}
-	// impose pressure => compute velocity (normal & tangential; k and eps are already interpolated)
-	else {
-		float flux = 0.0f;
-		// Rankine-Hugoniot is not properly working
-		const float cExt = soundSpeed(rhoExt, a);
-		const float cInt = soundSpeed(rhoInt, a);
-		const float lambdaInt = unInt + cInt;
-		const float rExt = R(rhoExt, a);
-		if (rhoExt <= rhoInt) { // Expansion wave
-			flux = unInt + (rExt - rInt);
-			float lambda = flux + cInt;
-			if (lambda > lambdaInt) { // shock wave
-				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
-				// check that unInt was not too small
-				if (fabs(flux) > d_sscoeff[a] * 0.1f)
-					flux = unInt;
-				lambda = flux + cExt;
-				if (lambda <= lambdaInt) // contact discontinuity
-					flux = unInt;
-			}
-		}
-		else { // shock wave
-			flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
-			// check that unInt was not too small
-			if (fabs(flux) > d_sscoeff[a] * 0.1f)
-				flux = unInt;
-			float lambda = flux + cExt;
-			if (lambda <= lambdaInt) { // expansion wave
-				flux = unInt + (rExt - rInt);
-				lambda = flux + cExt;
-				if (lambda > lambdaInt) // contact discontinuity
-					flux = unInt;
-			}
-		}
-		// AM-TODO allow imposed tangential velocity (make sure normal component is zero)
-		// currently for inflow we assume that the tangential velocity is zero
-		as_float3(eulerVel) = make_float3(0.0f);
-		// if the imposed pressure on the boundary is negative make sure that the flux is negative
-		// as well (outflow)
-		if (rhoExt < d_rho0[a])
-			flux = fmin(flux, 0.0f);
-		// Outflow
-		if (flux < 0.0f)
-			// impose eulerVel according to dv/dn = 0
-			// and remove normal component of velocity
-			as_float3(eulerVel) = uInt - dot(uInt, normal)*normal;
-		// add calculated normal velocity
-		as_float3(eulerVel) += normal*flux;
-		// set density to the imposed one
-		eulerVel.w = rhoExt;
-	}
-}
-
-__device__ __forceinline__ void
-getMassRepartitionFactor(	const	float3	*vertexRelPos,
-							const	float3	normal,
-									float3	&beta)
-{
-	float3 v01 = vertexRelPos[0]-vertexRelPos[1];
-	float3 v02 = vertexRelPos[0]-vertexRelPos[2];
-	float3 p0  = vertexRelPos[0]-dot(vertexRelPos[0], normal)*normal;
-	float3 p1  = vertexRelPos[1]-dot(vertexRelPos[1], normal)*normal;
-	float3 p2  = vertexRelPos[2]-dot(vertexRelPos[2], normal)*normal;
-
-	float refSurface = 0.5*dot(cross(v01, v02), normal);
-
-	float3 v21 = vertexRelPos[2]-vertexRelPos[1];
-
-	float surface0 = 0.5*dot(cross(p2, v21), normal);
-	float surface1 = 0.5*dot(cross(p0, v02), normal);
-	// Warning v10 = - v01
-	float surface2 = - 0.5*dot(cross(p1, v01), normal);
-	if (surface0 < 0. && surface2 < 0.) {
-		// the projected point is clipped to v1
-		surface0 = 0.;
-		surface1 = refSurface;
-		surface2 = 0.;
-	} else if (surface0 < 0. && surface1 < 0.) {
-		// the projected point is clipped to v2
-		surface0 = 0.;
-		surface1 = 0.;
-		surface2 = refSurface;
-	} else if (surface1 < 0. && surface2 < 0.) {
-		// the projected point is clipped to v0
-		surface0 = refSurface;
-		surface1 = 0.;
-		surface2 = 0.;
-	} else if (surface0 < 0.) {
-		// We project p2 into the v21 line, parallel to p0
-		// then surface0 is 0
-		// we also modify p0 an p1 accordingly
-		float coef = surface0/(0.5*dot(cross(p0, v21), normal));
-
-		p1 -= coef*p0;
-		p0 *= (1.-coef);
-
-		surface0 = 0.;
-		surface1 = 0.5*dot(cross(p0, v02), normal);
-		surface2 = - 0.5*dot(cross(p1, v01), normal);
-	} else if (surface1 < 0.) {
-		// We project p0 into the v02 line, parallel to p1
-		// then surface1 is 0
-		// we also modify p1 an p2 accordingly
-		float coef = surface1/(0.5*dot(cross(p1, v02), normal));
-		p2 -= coef*p1;
-		p1 *= (1.-coef);
-
-		surface0 = 0.5*dot(cross(p2, v21), normal);
-		surface1 = 0.;
-		surface2 = - 0.5*dot(cross(p1, v01), normal);
-	} else if (surface2 < 0.) {
-		// We project p1 into the v01 line, parallel to p2
-		// then surface2 is 0
-		// we also modify p0 an p2 accordingly
-		float coef = -surface2/(0.5*dot(cross(p2, v01), normal));
-		p0 -= coef*p2;
-		p2 *= (1.-coef);
-
-		surface0 = 0.5*dot(cross(p2, v21), normal);
-		surface1 = 0.5*dot(cross(p0, v02), normal);
-		surface2 = 0.;
-	}
-
-	beta.x = surface0/refSurface;
-	beta.y = surface1/refSurface;
-	beta.z = surface2/refSurface;
-}
-
 // flags for the vertexinfo .w coordinate which specifies how many vertex particles of one segment
 // is associated to an open boundary
 #define VERTEX1 ((flag_t)1)
@@ -1735,6 +1792,32 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 	}
 }
 
+/// Compute boundary conditions for vertex particles in the semi-analytical boundary case
+/*! This function determines the physical properties of vertex particles in the semi-analytical boundary case. The properties of fluid particles are used to compute the properties of the vertices. Due to this most arrays are read from (the fluid info) and written to (the vertex info) simultaneously inside this function. In the case of open boundaries the vertex mass is updated in this routine and new fluid particles are created on demand. Additionally, the mass of outgoing fluid particles is redistributed to vertex particles herein.
+ *	\param[in,out] oldPos : pointer to positions and masses; masses of vertex particles are updated
+ *	\param[in,out] oldVel : pointer to velocities and density; densities of vertex particles are updated
+ *	\param[in,out] oldTKE : pointer to turbulent kinetic energy
+ *	\param[in,out] oldEps : pointer to turbulent dissipation
+ *	\param[in,out] oldGGam : pointer to (grad) gamma; used only for cloning (i.e. creating a new particle)
+ *	\param[in,out] oldEulerVel : pointer to Eulerian velocity & density; imposed values are set and the other is computed here
+ *	\param[in,out] forces : pointer to forces; used only for cloning
+ *	\param[in,out] contupd : pointer to contudp; used only for cloning
+ *	\param[in,out] vertices : pointer to associated vertices; fluid particles have this information if they are passing through a boundary and are going to be deleted
+ *	\param[in] vertIDToIndex : pointer that associated a vertex id with an array index
+ *	\param[in,out] pinfo : pointer to particle info; written only when cloning
+ *	\param[in,out] particleHash : pointer to particle hash; written only when cloning
+ *	\param[in] cellStart : pointer to indices of first particle in cells
+ *	\param[in] neibsList : neighbour list
+ *	\param[in] numParticles : number of particles
+ *	\param[out] newNumParticles : number of particles after creation of new fluid particles due to open boundaries
+ *	\param[in] dt : time-step size
+ *	\param[in] step : the step in the time integrator
+ *	\param[in] deltap : the particle size
+ *	\param[in] slength : the smoothing length
+ *	\param[in] influenceradius : the kernel radius
+ *	\param[in] deviceId : current device identifier
+ *	\param[in] numDevices : total number of devices; used for id generation of new fluid particles
+ */
 template<KernelType kerneltype>
 __global__ void
 __launch_bounds__(BLOCK_SIZE_SHEPARD, MIN_BLOCKS_SHEPARD)
@@ -1849,6 +1932,7 @@ saVertexBoundaryConditions(
 							numOutVerts = 1.0f;
 						*/
 
+						//getMassRepartitionFactor(vx, as_float3(normal), as_float3(vertexWeights));
 						float numOutVerts = 3.0f;
 
 						sumMdot += neibRho/numOutVerts*boundElement.w*
@@ -2164,33 +2248,6 @@ shepardDevice(	const float4*	posArray,
 	// Normalize the density and write in global memory
 	vel.w = temp1/temp2;
 	newVel[index] = vel;
-}
-
-// contribution of neighbor at relative position relPos with weight w to the
-// MLS matrix mls
-__device__ __forceinline__ void
-MlsMatrixContrib(symtensor4 &mls, float4 const& relPos, float w)
-{
-	mls.xx += w;						// xx = ∑Wij*Vj
-	mls.xy += relPos.x*w;				// xy = ∑(xi - xj)*Wij*Vj
-	mls.xz += relPos.y*w;				// xz = ∑(yi - yj)*Wij*Vj
-	mls.xw += relPos.z*w;				// xw = ∑(zi - zj)*Wij*Vj
-	mls.yy += relPos.x*relPos.x*w;		// yy = ∑(xi - xj)^2*Wij*Vj
-	mls.yz += relPos.x*relPos.y*w;		// yz = ∑(xi - xj)(yi - yj)*Wij*Vj
-	mls.yw += relPos.x*relPos.z*w;		// yz = ∑(xi - xj)(zi - zj)*Wij*Vj
-	mls.zz += relPos.y*relPos.y*w;		// zz = ∑(yi - yj)^2*Wij*Vj
-	mls.zw += relPos.y*relPos.z*w;		// zz = ∑(yi - yj)(zi - zj)*Wij*Vj
-	mls.ww += relPos.z*relPos.z*w;		// zz = ∑(yi - yj)^2*Wij*Vj
-
-}
-
-// contribution of neighbor at relative position relPos with weight w to the
-// MLS correction when B is the first row of the inverse MLS matrix
-__device__ __forceinline__ float
-MlsCorrContrib(float4 const& B, float4 const& relPos, float w)
-{
-	return (B.x + B.y*relPos.x + B.z*relPos.y + B.w*relPos.z)*w;
-	// ρ = ∑(ß0 + ß1(xi - xj) + ß2(yi - yj))*Wij*Vj
 }
 
 
@@ -3155,6 +3212,7 @@ saFindClosestVertex(
 		pinfo[index] = info;
 	}
 }
+/** @} */
 
 /************************************************************************************************************/
 
