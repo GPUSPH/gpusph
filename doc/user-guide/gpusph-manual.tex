@@ -1,12 +1,16 @@
 % vi:tw=72:fenc=utf-8
 \documentclass[12pt]{memoir}
 
+\usepackage{lmodern}
+
 % UTF-8 input encoding
 \usepackage[utf8]{inputenc}
 % T1 font encoding
 \usepackage[T1]{fontenc}
 
-\usepackage{lmodern}
+\usepackage{textcomp}
+
+\usepackage{underscore}
 
 % URL management
 \usepackage{url}
@@ -54,9 +58,7 @@
 \newcommand{\pddv}[2]{\frac{\partial^2 #1}{\partial #2 ^2}}
 \newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
 \newcommand{\lap}{\nabla^2}
-
-% command-like text
-\catcode`_=12\relax % we want to use _ in words
+\newcommand{\unabla}{\uvec{\nabla}}
 
 % current version
 \newcommand{\version}{3.0}
@@ -65,25 +67,6 @@
 % text macros
 \newcommand{\nvidia}{\textsc{nvidia}}
 \newcommand{\cpp}{{\sffamily C\ttfamily++}}
-
-%\makeatletter
-%%% At definition time the token `_` must be active
-%\let\oldcmd\cmd
-%\begingroup
-%\catcode`_=\active
-%\gdef\activate@us{%
-%  \let_\textunderscore
-%  \catcode`\_=\active
-%}
-%\endgroup
-%
-%\renewcommand{\cmd}[1]{%
-%  \begingroup\ttfamily
-%\activate@us
-%\scantokens{#1\endinput}%
-%  \endgroup
-%}
-%\makeatother
 
 \title{GPUSPH Users Manual}
 
