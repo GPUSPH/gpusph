@@ -81,7 +81,7 @@ enum ParticleType {
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 enum ParticleFlag {
 	FG_COMPUTE_FORCE =		(PART_FLAG_START<<0), ///< particle belongs to a body that needs to compute forces
-	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1), ///< particle belongs to a body with externally prescriped motion
+	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1), ///< particle belongs to a body with externally prescribed motion
 
 	FG_INLET =				(PART_FLAG_START<<2), ///< particle belongs to an inlet
 	FG_OUTLET =				(PART_FLAG_START<<3), ///< particle belongs to an outlet
