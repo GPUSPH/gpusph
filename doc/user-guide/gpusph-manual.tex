@@ -52,8 +52,10 @@
 \newcommand{\be}{\begin{equation}}
 \newcommand{\en}{\end{equation}}
 \newcommand{\bx}{\mathbf{x}}
-\newcommand{\tdv}[2]{\frac{d#1}{d#2}}
-\newcommand{\tddv}[2]{\frac{d^2 #1}{d#2^2}}
+\newcommand{\uvec}[1]{\underline{#1}}
+\newcommand{\td}{\text{d}}
+\newcommand{\tdv}[2]{\frac{\td #1}{\td #2}}
+\newcommand{\tddv}[2]{\frac{\td^2 #1}{\td #2^2}}
 \newcommand{\pdv}[2]{\frac{\partial #1}{\partial #2}}
 \newcommand{\pddv}[2]{\frac{\partial^2 #1}{\partial #2 ^2}}
 \newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
@@ -566,6 +568,37 @@ particles, fill the domain with fluid}
 \subsection{Initializing the particle system}
 
 \todo{fill \cmd{copy_to_array}}
+
+\chapter{Implemented SPH formulations}
+
+In the present chapter the SPH formulations realized in GPUSPH will be
+described. While this section is as complete as necessary we recommend
+to read the cited literature in order to gain a full understanding of
+the respective methods.
+
+The basic premise is that GPUSPH approximates solutions to the
+Navier-Stokes equations which are given by
+\begin{equation}
+\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\unabla p + \unabla \cdot (\nu
+\unabla \otimes \uvec{v}) + \uvec{g},
+\label{e:sph:ns}
+\end{equation}
+where $\uvec{v}$ is the velocity, $\rho$ the density, $p$ the
+pressure, $\nu$ the kinematic viscosity and $\uvec{g}$ an external
+force. These equations are coupled with the continuity equation
+\begin{equation}
+\tdv{\rho}{t} = - \rho \unabla \cdot \uvec{v}.
+\label{e:sph:cont}
+\end{equation}
+In order to close the system of equations a weakly-compressible
+formulation is chosen which uses an Equation of State given by
+\begin{equation}
+p = \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho}{\rho_0}\right)^\xi
+-1 \right],
+\label{e:sph:eos}
+\end{equation}
+where $c_0$ is the speed of sound, $\rho_0$ the reference density and
+$\xi$ a parameter, equal to 7 in the case of water.
 
 \chapter{GPUSPH}
 
