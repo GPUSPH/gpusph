@@ -1122,13 +1122,17 @@ int XProblem::fill_parts()
 			dx = m_physparams->r0;
 		}
 
-		// Now will set the particle and object mass if still unset. We will set
-		// mass by density, using rho of the first fluid.
+		// Now will set the particle and object mass if still unset
 		const double DEFAULT_DENSITY = m_physparams->rho0[0];
+		// Setting particle mass by means of dx and default density only. This leads to same mass
+		// everywhere but possibly slightly different densities.
+		const double DEFAULT_PARTICLE_MASS = (dx * dx * dx) * m_physparams->rho0[0];
 
 		// Set part mass, if not set already.
 		if (m_geometries[g]->type != GT_PLANE && !m_geometries[g]->particle_mass_was_set)
 			setParticleMassByDensity(g, DEFAULT_DENSITY);
+			// TODO: should the following be an option?
+			//setParticleMass(g, DEFAULT_PARTICLE_MASS);
 
 		// Set object mass for floating objects, if not set already
 		if (m_geometries[g]->type == GT_FLOATING_BODY && !m_geometries[g]->mass_was_set)
