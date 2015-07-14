@@ -1,0 +1,1304 @@
+% vi:tw=72:fenc=utf-8
+\documentclass[12pt]{memoir}
+
+% UTF-8 input encoding
+\usepackage[utf8]{inputenc}
+% T1 font encoding
+\usepackage[T1]{fontenc}
+
+\usepackage{lmodern}
+
+% URL management
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+% TODO notes
+\usepackage{todonotes}
+
+% listings
+\usepackage{listings}
+\lstloadlanguages{sh,make,C++}
+\lstset{
+ basicstyle=\ttfamily,
+ xleftmargin=2\parindent,
+ xrightmargin=2\parindent,
+}
+
+\lstnewenvironment{shellcode}[1][]{\lstset{language=sh,#1}}{}
+\lstnewenvironment{ccode}[1][]{\lstset{language=C++,#1}}{}
+
+% Use to setup the geometry of the page
+\usepackage{geometry}
+\geometry{letterpaper}
+
+% graphics inclusion
+\usepackage{graphicx}
+
+% extra mathematical symbols, full AMS math support
+\usepackage{amssymb,amsmath}
+
+% wrap text around figures
+\usepackage{wrapfig}
+
+% bibliography
+\usepackage[round]{natbib}
+\bibliographystyle{plainnat}
+
+% common math shortcuts
+\newcommand{\be}{\begin{equation}}
+\newcommand{\en}{\end{equation}}
+\newcommand{\bx}{\mathbf{x}}
+\newcommand{\tdv}[2]{\frac{d#1}{d#2}}
+\newcommand{\tddv}[2]{\frac{d^2 #1}{d#2^2}}
+\newcommand{\pdv}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\pddv}[2]{\frac{\partial^2 #1}{\partial #2 ^2}}
+\newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
+\newcommand{\lap}{\nabla^2}
+
+% command-like text
+\catcode`_=12\relax % we want to use _ in words
+
+% current version
+\newcommand{\version}{3.0}
+\newcommand{\currentver}{version~\version}
+
+% text macros
+\newcommand{\nvidia}{\textsc{nvidia}}
+\newcommand{\cpp}{{\sffamily C\ttfamily++}}
+
+\title{GPUSPH Users Manual}
+
+\author{Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple}
+
+\date{\currentver\ --- June 2014}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\chapter{Introduction}
+
+\todo{Better rewrite this section in terms of: (1) GPUSPH is an
+implementation of SPH that runs on CUDA GPUs (2) what is SPH
+(3) why did we choose to run on GPU.}
+
+The demands of advanced computer gaming has lead to the development of
+sophisticated graphics processing units (GPUs) that handle
+three-dimensional graphics for the computer display. Each of these
+graphics cards has numerous streaming processors to do the mathematics
+of image rotation, resizing etc. With the advent of the {\em CUDA}
+programing language from \nvidia\ in 2007, simple \cpp\ language can be used
+to access the mathematical power of these massively parallel cards. For
+computer simulations that are not data-intensive, GPU programming
+provides supercomputer capabilities at commodity prices.
+
+Smoothed Particle Hydrodynamics (SPH) is a Lagrangian meshless numerical
+method that was developed in astrophysics by \cite{Lucy:1977} and
+\cite{GingMon:1977}. Its first application to free surface flows (e.g.
+dam breaks and waves) was by \cite{Monaghan:1994}.
+\cite{Gomez-Gesteira:2004} and \cite{DalrympleRogers:2006}, also
+applying SPH to dam breaks and waves, began the development of SPHysics,
+an open source FORTRAN code (\url{http://www.sphysics.org}),
+\cite{Gesteiraetal:2008}.
+
+GPUSPH is an implementation of Smoothed Particle Hydrodynamics (SPH) on
+\nvidia\ CUDA-enabled (graphics) cards. The first version of GPUSPH was
+developed by Alexis Hérault, guided by SPHysics, and presented at the
+Third SPHERIC Workshop in Lausanne, Switzerland in 2008. The GPU
+implementation came from GPU-LAVA, a lava flow program, developed by
+Hérault and Bilotta at INGV in Catania, Italy. The present version of
+GPUSPH is open source, licensed under the GNU General Public License
+(\url{www.gnu.org/licenses/gpl.txt}). \cite{Heraultetal:2010} provide
+some timing information showing that using the GPU is far faster (orders
+of magnitude) than using a CPU to compute SPH models. Speedups of 100
+can be achieved for parts of the code when compared to serial versions
+of the code.
+
+GPUSPH has been run on \nvidia's GeForce 8600 (32 processors), 8800
+(110), the Tesla family of cards (e.g., Tesla C2050 with 480 streaming
+processors and 3~GB of memory), and the latest generation of Kepler
+cards (with 2688 processors and 6~GB memory). It also runs on many of
+the \nvidia\ GTX cards.
+
+This guide is divided into several sections. The first is the
+installation and set-up of the GPUSPH code and some example problems to
+illustrate its use and how to develop different problems. Then the
+next chapter deals with an overview of SPH, with which the reader should
+have some familiarity. Finally we discuss the nature of the GPUSPH
+program in some detail.
+
+\chapter{Installing and Running CUDA and GPUSPH}
+
+The first step to run GPUSPH is to install the \nvidia\ company's CUDA
+compilers and libraries (directions given below). CUDA is an extension
+of the \cpp\ language to allow \cpp\ to talk to the graphics card.
+
+The second step is to install the open source software, Open Dynamics
+Engine, which simulates rigid body dynamics. This library is used for
+any rigid objects that move, such as floating objects or objects moved
+by fluid flow.
+
+The third step is to obtain, compile and run GPUSPH.
+
+\section{Installing CUDA}
+
+Ensure that your computer has an \nvidia\ graphics card that is CUDA
+enabled. The \nvidia\ website has a list of all the CUDA-enabled graphics
+cards: \url{www.nvidia.com/object/cuda_gpus.html} From a computational
+point of view the more streaming processors and the more video memory on
+the card, the better. Also, the higher the Compute Capability, the more
+CUDA language features can be used on the card. Currently the Kepler
+K40 has the most memory (12~GB), the most processors (${}>2600$), and
+the highest Compute Capability (3.5) for scientific work. High end
+gaming cards, such as the GTX Titan, have a similar numbers of
+processors and memory, but with less computational features, such as
+error-correcting memory. While they are not quite as robust for
+scientific work, they are cheaper. On a MacBook Pro laptop, circa 2012,
+the graphics card is a GeForce GT 650M, with 384 processors with 1024~MB
+of VRAM with a Compute Capability of 3.0; more than enough to do
+significant parallel computing.
+
+The GPU programming language CUDA is obtainable from the \nvidia\ website,
+CUDA Zone. The CUDA Toolkit and CUDA Software Development Kit (SDK)
+need to be installed for your operating system along with the video
+driver. These packages include the CUDA compiler \cmd{nvcc}, which is
+needed to develop executable code, and the graphics card driver that
+allows your program to access the GPU card.
+
+To ensure that all is installed correctly and working, you should
+compile and run the SDK examples, which include many programs that
+illustrate the capabilities of CUDA and the GPU; for example, \nvidia's
+sorting program \cmd{radixSort} is used by GPUSPH to organize the
+neighbor list. Some interesting SDK programs are \cmd{fluidsGL} and
+\cmd{particles}. To compile the SDK programs, after the SDK is
+installed, go to \url{/Developer/GPU Computing/C} and (on a unix/linux
+or mac machine), type \cmd{make} on a terminal window command line. This
+should create a directory of executable examples located within the C
+directory called bin/darwin/release for the mac and bin/linux/release
+for a linux machine. In this directory, type \cmd{./fluidsGL} to run
+the \cmd{fluidsGL} example. You should see a green window open on your
+desktop. Use the mouse to stir up the fluid. The example program
+Particles is worth playing with as well, as it provided a basis for
+developing GPUSPH.
+
+At the present time, you must have a card with at least Compute
+Capability of 1.1 to run GPUSPH.
+
+\todo{How to install relevant packages on common distributions
+(Debian/Ubuntu, Arch, Fedora/RedHat).}
+
+\section{Installing the Open Dynamics Engine}
+
+The website for the Open Dynamics Engine is \url{http://www.ode.org},
+with links to the Source Forge repository to download the code. This
+needs to be installed to run GPUSPH. If you use moving rigid bodies in
+your problems, you will need the manual (available from the link above
+but here it is anyway:
+\url{http://ode-wiki.org/wiki/index.php?title=Manual:_Introduction}) to
+assist in the writing of your own problem.
+
+Please note that ODE should be compiled in single-precision mode.
+
+\todo{How to install relevant packages on common distributions
+(Debian/Ubuntu, Arch, Fedora/RedHat).}
+
+\section{Installing GPUSPH}
+
+The GPUSPH source code is hosted on \href{http://github.com}{GitHub}.
+The project's GitHub page is \url{http://github.com/GPUSPH/gpusph}.
+
+To obtain the GPUSPH code, you can either use the \cmd{git} revision
+control system, or download a \cmd{.zip}ped archive of a specific
+version. This manual refers to \currentver\ of GPUSPH.
+
+If you have \cmd{git} installed, you can use
+\begin{shellcode}[escapeinside=\{\}]
+git clone https://github.com/GPUSPH/gpusph.git
+cd gpusph
+git checkout v{\version}
+\end{shellcode}
+to get \currentver\ specifically. Otherwise, download the \cmd{.zip}ped
+archive from \url{http://github.com/GPUSPH/gpusph/archive/v\version.zip},
+and then
+\begin{shellcode}[escapeinside=\{\}]
+unzip v{\version}.zip
+cd gpusph-{\version}
+\end{shellcode}
+(you may remove \cmd{v\version.zip} afterwards).
+
+Within the top directory, you can find the \cmd{Makefile}, a \cmd{src}
+directory (holding the main GPUSPH source), a \cmd{scripts} directory
+(holding various auxiliary scripts), a copy of the license, settings to
+produce internal documentation with Doxygen, and a sample Digital
+Elevation Model (DEM) data file.
+
+The most interesting source files in \cmd{src} are the \cmd{Problem}s.
+A few sample problems are shipped with GPUSPH, showing how to employ
+specific features. You can get a list of the available problems by
+running
+\begin{shellcode}
+make list-problems
+\end{shellcode}
+
+To build and test GPUSPH, you can run
+\begin{shellcode}
+make test
+\end{shellcode}
+which should automatically detect your configuration, such as the
+compute capability of your GPU as well as the availability of optional
+libraries such as MPI (for mulit-node support) or HDF5 (to read HDF5SPH
+data files).
+
+When the building completes, you will have some new directoryes
+(\cmd{build} and \cmd{dist}) and a \cmd{GPUSPH} soft link to the
+compiled binary. \cmd{make test} will also automatically run
+\cmd{./GPUSPH} for you.
+
+After building, simply runnning \cmd{./GPUSPH} will run the program
+again.
+
+\subsection{Visualizing the results}
+
+Please note that since version~3.0 the OpenGL user interface has been
+removed, since it was not compatible with the new design that allows
+distributing GPUSPH across multiple nodes in a network.
+
+\todo{Maybe we could have a writer in single-node mode that does what
+the old OpenGL visualization did?}
+
+The results of the simulation are stored in a directory under
+\cmd{tests}, named after the used Problem and the date of execution
+(e.g. \cmd{tests/DamBreak3D_2014-6-12T13h23}). Data files (found in a
+\cmd{data} subdirectory of the specific test directory) are normally
+written in VTK Unstructured Grid format (\cmd{.vtu}) and can be
+visualized with ParaView.
+
+\iffalse % OBSOLETE
+\begin{figure}
+\centering{%
+\includegraphics[scale=0.5]{DamBreak3D.png}%
+}
+\caption{Initial OpenGL window for the problem DamBreak3DObjects,
+showing the fluid behind the dam on the right and the containment tank
+in green and structure in red in the middle of the tank. There are
+10,664 particles in this example problem, 6000 of which are fluid
+particles. The remaining particles form the boundaries. Note the
+caption indicating that to initiate the computation, you have to tap the
+space bar.}
+\end{figure}
+\else
+\todo{damreak picture}
+\fi
+
+The run directories and their content are preserved until manually
+removed. The \cmd{scripts/rmtests} auxiliary script can be used to clean
+up the \cmd{tests} directory.
+
+\subsection{Choosing the \cmd{Problem} and other options}
+
+You can test a different problem by using:
+\begin{shellcode}
+make problem=OtherProblem test
+\end{shellcode}
+where \cmd{OtherProblem} is the name of a different problem. You can get
+a list of available problems with \cmd{make list-problems}.
+
+There are a number of other options available. A complete list of the
+options and their description can be obtained by running \cmd{make
+help-options}. All options (with the exception of \cmd{plain} and
+\cmd{echo}) are persistent across compilations, so they can be set once
+with \cmd{make option=value}, and subsequent executions of \cmd{make}
+will remember the \cmd{value} set.
+
+\todo{List and describe \cmd{make} options}
+
+\section{Example Problems}
+
+Simulations in GPUSPH are defined in terms of \cmd{Problem}s. Some
+example problems are provided with GPUSPH itself, to illustrate the
+basics of problem design, and how to use the fundamental building blocks
+provided by GPUSPH. Such building blocks include a variety of
+geometrical shapes to describe the (fixed) solid boundaries of the
+domain, as well as a number of objects that move following prescribed
+laws, such as gates, pistons and paddles.
+
+These objects are designed to offer great flexibility in their use, far
+beyond what is shown in the sample problems. This flexibility should
+allow you to create very complex simulations by combining the objects
+appropriately.
+
+\iffalse
+GPUSPH has options for specified moving objects, which are used to make
+piston and paddle wavemakers and a moving gate. These objects are
+comprised of particles that are distinguished by identifying their type
+as GATEPART, PISTONPART, and PADDLEPART. (Water is distinguished by
+FLUIDPART and fixed boundary particles are of type BOUNDPART.) The
+distinction between GATEPART and PISTONPART is that the particles of the
+GATE are moved by providing an arbitrary (possibly time-varying)
+velocity vector in the problem's callback function and a PISTONPART
+particle is moved by providing a displacement for the vertical piston in
+(only the) x direction with time, again via the callback function.
+\else
+\todo{blurb about the various moving object types shold be moved
+elsewhere}
+\fi
+
+The number of particles used in the test problems is deliberately taken
+as a small number, simply to allow for fast execution times even on
+older hardware. One of the first tests to try is to increase the
+resolution by reducing the size of the particles. For example,
+by~reducing the particle size from the default of~$0.025$m to the
+smalle~$0.02$m, \cmd{DamBreak3D} would run with $21,252$ particles
+instead of the default $10,664$.
+
+This can be done in two ways. A permanent change comes about by editing
+the problem file (e.g. \cmd{DamBreak3D.cc}) and changing the value
+passed as argument of \cmd{set_deltap()} (e.g., replace
+\cmd{set_deltap(0.025f);} with \cmd{set_deltap(0.02f);}. The second way
+is to specify the particle size at runtime using the appropriate command
+line option (described below): e.g. \cmd{./GPUSPH --deltap 0.02}.
+
+\subsection{DamBreak3D}
+
+\cmd{DamBreak3D} is a case originally used by \cite{Gomez-Gesteira:2004}
+for testing a prototype version of SPHysics. It is based on some
+experiments done by \cite{Arnason:2005} at the University of Washington.
+We assume an instantaneous breaking dam and the resulting flow impinging
+onto a rectangular object. The whole problem is contained within a
+bounding box, which extends $1.6$m in length ($x$ axis), $0.67$m in
+width ($y$ axis), and $0.4$m in height. This is the experimental box.
+The fluid behind the dam is a rectangular box of water at one end of the
+tank at time equal to zero. The dam is assumed to break instantaneously
+so that the column of water, confined on three sides, collapses into the
+tank. In the tank there is a vertical rectangular object ---the
+collapsing water column impacts on the tank and then flows up the front
+face of the object and around the sides. Finally the water hits the back
+wall of the tank.
+
+\subsection{DamBreakGate}
+
+In most laboratory experiments of dam breaks, the dam takes a certain
+amount of time to move out of the way. The example problem
+\cmd{DamBreakGate} illustrates the use of moving boundary particles of
+the type GATEPART. The problem is set up the same way as the
+\cmd{DamBreak3D} case, but there is a moving gate that is raised
+vertically with a linearly varying velocity. In this case, the gate will
+move with a velocity that is zero when the problem starts and that
+linearly increases with time until the gate is outside the domain. The
+effect on the dam break is that the escaping water is affected by the
+gage motion. (See \cite{Crespo:2008}'s SPH modeling of
+\cite{Janosi:2004}'s experiment, where a moving gate was important.)
+
+The moving gate is created by defining its geometry with particles
+denoted as GATEPART particles and the \cmd{mb_callback} function, which
+is used for the \textbf{m}oving \textbf{b}oundaries.
+
+\subsection{OpenChannel}
+
+This problem represents an instantaneous start up of a highly viscous
+and dense fluid flow in an open channel on a $9\deg$ slope. The
+channel is rectangular in cross-section ($1$m wide and $0.7$m deep) and
+the computed length of the infinitely long channel is $2$m. The side
+walls are fixed (Leonard-Jones boundary force) while the computational
+ends of the domain are periodic, so that a particle leaving the
+downstream end of the model domain enters the upstream end at the same
+place, $2$m upstream.
+
+The periodic boundary here is used in the $x$ direction, although
+boundaries in other problems can be periodic in the other directions as
+well. The key parameter in the problem statement is
+\cmd{m_simparams.periodicbound}, which can be set to any combination of
+\cmd{PERIODIC_X}, \cmd{PERIODIC_Y}, \cmd{PERIODIC_Z} to indicate
+peridocity along each of the axes.
+
+
+\subsection{WaveTank}
+
+WaveTank uses a moving boundary to create a paddle wavemaker at one end
+of a wave tank with a sloping bottom (bottom slope is $4.2364\deg$). The
+wavemaker motion is controlled by the \cmd{mb_callback} function. In
+this case, the length of the paddle is $1.0$m and the paddle pivots
+about an origin \cmd{m_origin}; here, the pivot is located $0.1344$m
+below the bottom and $0.13$m from the front wall of the tank. To specify
+the paddle motion, the angular frequency of the motion ($2 \pi/T$, where
+$T=1$s is the wave period), and the wave paddle stroke at the water
+surface ($S=0.1$m) are given in the variables \cmd{mb_omega} and
+\cmd{mb_amplitude}. To change the stroke and the frequency of the wave
+paddle, you must change these variables in the problem file,
+\cmd{WaveTank.cc}.
+
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[width=0.63\textwidth]{paddle.png}%
+}
+\caption{Schematic of the wave paddle for \cmd{WaveTank.cc}}
+\end{figure}
+\else
+\todo{paddle picture}
+\fi
+
+\subsection{SolitaryWave}
+
+SolitaryWave is similar in set up to the WaveTank example, except that a
+piston moving boundary is used. The motion of a vertical plate is
+determined by the method of \cite{Goring:1978}, available in PDF format
+from \cmd{http://caltechkhr.library.caltech.edu/50/}. The full
+excursion (stroke) of the paddle is the variable \cmd{S}.
+
+\subsection{Seiche}
+
+The Seiche problem is to examine the influence of shaking on a
+rectangular container of size: $\ell = 0.707$m, $w = \ell/2$, and depth,
+$H = 0.5$m. The purpose of the example is to illustrate the ability to
+vary gravity in a problem. As the problem starts, there is water in the
+container. After $0.3$s, gravity is modified by adding a component in
+the $x$ direction, such that the total gravity vector is
+\cmd{m_physparams.gravity = make_float3(3.*sin(9.8*(t-m_gtstart)), 0.0,
+-9.81f);}, which means that the container is shaken with a sinusoidal
+motion with angular frequency of $9.8\text{s}^-1$ (period${} = 0.64$s),
+with a magnitude of $3\text{m}/\text{s}^2$ until time \cmd{m_gtend=3.0}
+is reached, when the gravity vector once again returns to the vertical
+acceleration of gravity. After this time, the seiching motion starts to
+decrease in amplitude.
+
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[scale=0.5]{Seiche.png}%
+}
+\caption{Resonant seiching in a rectangular domain showing the results
+of a time varying gravity in the problem, \cmd{Seiche.cc}. Here the tank has
+been shaking side to side at the resonant frequency of $0.638$s. The
+color coding is for the pressure in the fluid.}
+\end{figure}
+\else
+\todo{seiche picture}
+\fi
+
+The variation of gravity with time (and any stop (\cmd{m_gtend}) and
+start times) is prescribed in a user-supplied (in the problem)
+\cmd{g_callback} function.
+
+\subsection{TestTopo}
+
+This is an example showing how to use GPUSPH's support for Digital
+Elevation Models (DEMs). It loads the topography of the bottom of the
+domain from a file called \cmd{half_wave0.1m.txt}, shipped with GPUSPH.
+A different DEM can be used, by either changing the name in the source
+\cmd{TestTopo.cc} file, or by providing the new name as argument to the
+\cmd{--dem} command-line option to GPUSPH.
+
+\todo{TestTopo picture}
+
+\section{GPUSPH Command Line Options}\label{options}
+
+When running from the command line, there are several options available
+to you to alter some aspects of the GPUSPH run.
+
+\begin{description}
+\item[--device \emph{integer}]
+For single GPU runs on a multi-GPU machine, you can chose which GPU to
+use. On the command line: \cmd{./GPUSPH --device N}, where N is the
+(integer) number of the device you wish to use. To find the number
+associated with each of your CUDA-enabled devices (graphics cards), you
+can use the CUDA SDK program DeviceQueryDrv. If you only have one
+CUDA-enabled GPU, the only possible choice for N is~0, which is the
+default.
+\item[--deltap \emph{float}]
+Change the resolution (inter-particle spacing) at which the problem
+should be run.
+\item[--tend \emph{float}]
+The model time in seconds when you wish the model to stop.
+\item[--dem \emph{string}]
+For the Problem TestTopo: the name of the DEM file to use.
+\end{description}
+
+\todo{add missing options}
+
+\chapter{Making your own simulations}
+
+To run simulations with your own setup, you must create a new
+\cmd{Problem}. This is done by creating a new \cpp\ source file, with
+the associated header (e.g.\ \cmd{MyProject.cc} and \cmd{MyProject.h}),
+placing them under \cmd{src}, running \cmd{make problem=MyProject} to
+build it, and finally \cmd{./GPUSPH} to run it. Beginners should use one
+of the provided sample files as template for their project.
+
+\cmd{MyProject.cc} should define a new \cpp\ class by the same name
+(\cmd{MyProject}), derived of the \cmd{Problem} class. The constructor
+for \cmd{MyProject} should set up the domain size, the physical
+parameters to be used in the simulation (gravity, viscosity,
+sound-speed, etc), as well as any other simulation parameter (such as
+SPH formulation to use, viscosity model, boundary type, etc).
+
+The \cmd{MyProject} class must have at least two methods, aside from the
+constructor and destructor: \cmd{fill_parts}, where the objects
+describing the domain and the fluid are filled with particles (whose
+total number is then fed back to GPUSPH), and \cmd{copy_to_array}, where
+the particles generated during \cmd{fill_parts} are uploaded to the
+particle system.
+
+\todo{Next: sections describing each part of a project file, both the
+\cmd{.cc} source and the \cmd{.h} header, with a step-by-step
+construction.}
+
+\section{Anatomy of a project}
+
+\subsection{Starting from scratch}
+
+\todo{start with minimal files (just declaring the class in the header,
+empty methods in the body)}
+
+\subsection{Setting up the simulation}
+
+\todo{fill the constructor: define the domain, set up a minimum of
+physical and simulation properties, define the writers}
+
+\subsection{Filling up the domain}
+
+\todo{fill \cmd{fill_parts}: define a few objects, cover everything with
+particles, fill the domain with fluid}
+
+\subsection{Initializing the particle system}
+
+\todo{fill \cmd{copy_to_array}}
+
+\chapter{GPUSPH}
+
+The GPUSPH source is documented with Doxygen, which is available online
+at \url{http://www.stack.nl/~dimitri/doxygen/index.html}. Once Doxygen
+is installed, \cmd{make docs} can be used to generate the documentation
+in a directory called \cmd{docs} under the GPUSPH working directory.
+
+\section{Structure of GPUSPH}
+
+
+\iffalse
+
+\section{OpenGL graphics}
+
+One of the real advantages of GPUSPH is that the model can display
+results real-time; further the displayed results can be manipulated
+(resized, rotated, etc) while running. This permits the modeler to
+determine first that the model is correctly specified and that it is
+running correctly, without having to wait until the run is completed.
+
+To achieve this real-time imaging, the main program of the GPUSPH code
+looks like an OpenGL program. In GPUSph.cc, the OpenGL Utility Toolkit
+(GLUT) is used to set-up the image window and to run the GPU-SPH program
+from within the glutDisplayFunc. The other glut functions are used to
+determine the program's response to key strokes and mouse inputs.
+
+\begin{verbatim}
+
+glutInit(&argc, argv);
+glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
+glutInitWindowSize(800, 600);
+glutCreateWindow("GPUSPH Hit Space Bar to Start!");
+
+initGL();
+initMenus();
+
+glutDisplayFunc(display);
+glutReshapeFunc(reshape);
+glutMouseFunc(mouse);
+glutMotionFunc(motion);
+glutKeyboardFunc(key);
+glutIdleFunc(idle);
+
+glutMainLoop();
+\end{verbatim}
+
+The OpenGL window, however, slows down the execution of the code. If
+you are sure the problem is specified correctly, it is possible to run
+the model without the OpenGL window. When executing the code, the
+following command line option is used: GPUSPH --console. The data
+files will still be created, but no images are saved since they are not
+generated.
+
+\fi
+
+\section{The ParticleSystem object}
+
+\todo{REVIEW FROM HERE ON}
+
+The main object of GPUSPH is ParticleSystem. This object acts like an
+interface to CUDA and handles the whole SPH simulation, including
+passing parameters and data to the GPU, carrying out the neighbor list
+construction, the evaluation of forces on the particles, and the
+integration in time. ParticleSystem also determines when and what data
+to write and when to send a display update to the screen.
+
+All the parameters regarding the simulation are stored in two
+structures: \underline{physparams}, which contains all the physical
+parameters involved in the problem to be simulated, such as density,
+gravity, parameters in the equations of state, etc. and
+\underline{simparams}, which contains the SPH parameters, such as
+smoothing length, kernel type, etc. These structures provide all the
+data needed for the execution of the model.
+
+
+The typical use of ParticleSystem object is to define the physical
+parameters, the simulation parameters (the dimension, the world size and
+origin), instantiate a ParticleSystem object with those data; populate
+the CPU side (host side) of position and velocity arrays with the
+initial particle distribution; copy the initial particle and velocity
+distribution to the GPU with the setArray method; call the
+PredCorrTimeStep for each Euler time step.
+
+
+\section{Problem Objects}\label{objects}
+
+GPUSPH has a variety of objects that can be used to generate Problems.
+In two dimensions, the objects (in \cpp\ terms, classes) include {\em
+Point, Vector, Segment, Rect (rectangle), Circle}. In three
+dimensions, there are additional objects: {\em Cone, Cube, Cylinder,
+Sphere and TopoCube}. Using these objects, many types of Problems can
+be constructed. For the three dimensional case, the bottom (
+bathymetry) of the problem domain can be input via a file, using the
+TopoCube object and a dem file.
+
+The {\em Point} object is usually used as a three dimensional object
+containing the location of a point in three dimensions. All numbers are
+double precision. Associated with the Point object are functions that
+determine distance (or distance squared) of a point from the origin or
+the distance from another point.
+
+A {\em Vector} object is a three dimensional double precision object of
+three space coordinates, x,y, and z. Vector has a number of associated
+and useful functions, such as Vector.norm, for the length of the vector.
+
+
+The {\em Cube} object is really a parallelepiped, defined by an origin,
+given by a Point object, and three vectors are used to define the size
+and orientation of the cube. For example, here is a box that delimits
+an experimental domain (taken from the DamBreak3D.cc example), called
+{\em experiment\_box.} \\
+
+\noindent experiment\_box = Cube(Point(0, 0, 0),Vector(1.6, 0,
+0),Vector(0, 0.67, 0), Vector(0, 0, 0.4));\\
+
+This box has a corner located at the origin of the domain, with $(x, y,
+z) = (0,0,0)$, and three vectors from this point describe the cube,
+which happens to be 1.6 m long in the $x$ direction, 0.67 m long in the
+$y$ direction, and $0.4$ in the $z$ direction.
+
+So far we have only defined the cube {\em experiment\-box}, we have
+given it no properties. For this particular box, which bounds the
+computational domain, its bottom and four sides will be set as boundary
+particles, as we will see later.
+
+Associated with the Cube object are commands to fill the inner part of
+the box with particles, or to fill the boundaries as with boundary
+particles. Also there are drawing commands for openGL rendering of the
+cube.
+
+
+The {\em Cylinder} object is defined by a point that determines the
+location of the center of the disk that forms its base, a vector that
+defines the radius about the point, and then another vector that defined
+the height of the cylinder. The cylinder object also has fill and
+FillBorder commands. For example, \\
+
+jet = Cylinder(Point(0.,0.,0.), Vector(0.5,0.,0.), Vector(0.,0.,1.));\\
+\\would define a cylinder located at the origin with radius 0.5 and
+height 1.0 with the name jet. The Cylinder object can be used to
+define a cylindrical column of fluid, using the \verb!jet.Fill!
+command for the defined cylinder, jet. The mass of the particles
+forming jet is set by \verb!jet.SetPartMass! function. If the jet was
+supposed to be a pipe, the \verb!jet.FillBorder!, with suitable
+arguments, would use boundary particles for the pipe called jet. Two
+of the arguments (Booleans: true or false) of the method determine if
+the cylinder is closed on the bottom or the top.
+
+The {\em Sphere} object is defined by a point that determines the center
+of the sphere, a vector that determines its radius (and equatorial
+normal), and a vector pointing to the sphere's pole. For a sphere,
+these two vectors have equal magnitude and are normal to each other.
+The Sphere object uses the Circle object in layers to create a sphere.
+
+A {\em TopoCube} object is used to define a domain that has the bottom
+of the cube provided by a data file. The geometry of the TopoCube is
+determined the same was as in the Cube object. The data file has a
+strict format; for example: \\\\ north: 13.2 \\ south: -0.2\\ east:
+43.2 \\ west: 0.54 \\ rows: 134\\ cols: 432 \\ \{data in 134 rows
+with 432 entries per line; numbers space separated\}\\ \\ The numbers
+following the compass directions are the length of the domain described
+by the data, in meters. (North and south correspond to the +Y axis and
+the -Y axis, while E and W are aligned with the +X and -X directions.)
+The internal variables (see problem TestTopo.cc) $nsres$ and $ewres$ are
+grid resolutions determined by $nsres= (north-south)/(nrows-1)$ and
+$ewres= (east -west)/(ncols-1)$.
+
+The data file is read using the TopoCube.SetCubeDem function, which is
+called with arguments (float H, float *dem, int ncols, int nrows, float
+nsres, float ewres, bool interpol), where H is the depth of the cube,
+*dem points to the array of bathymetric data in the data file, ncols and
+nrows are the number of columns and rows in the dem data set, nsres and
+ewres is the spacing between the bathymetric data in the north/south
+direction and the east/west direction, and interpol (not the police) is
+the boolean variable for interpolation. FillBorder will fill a face
+with particles--the particular face is determined by face\_num, which
+takes on the values of (0,1,2,3), for the front face, the right side
+face, the back face, and the left side face (facing the -$x$ direction)
+for a rectangular box.
+
+Other objects can be defined and added to the source directory to allow
+for additional flexibility.
+
+\subsection{Simulation Parameters}
+
+Simulation parameters are values and choices that affect the numerical
+model. These govern, say, the choice of the SPH smoothing kernel and
+the nature of the viscosity to use in the model. These simulation
+parameters are stored in a structure that is defined in
+\verb!particledefine.h.!
+
+The structure SimParams is specified within the user's problem file.
+For example, parts of WaveTank.cc look like: \begin{verbatim}
+m_simparams.slength = 1.3f*m_deltap; m_simparams.kernelradius = 2.0f;
+m_simparams.kerneltype = WENDLAND; \end{verbatim} These variables set
+the smoothing length to be 1.3 times the particle size (m\_deltap, set
+earlier in the problem); the kernel type is taken as a Wendland SPH
+kernel \cite{Wendland:2005} (choices for smoothing kernels are
+QUADRATIC, CUBICSPLINE, and WENDLAND). Associated with the kernel is
+the kernel radius in terms of multiples of the smoothing length (2 $h$
+in this case). The simparams structure is defined in
+$particledefine.h$ and it is given below along with the parameters'
+default values if not specified in the problem statement.
+\begin{verbatim} \begin{verbatim} typedef struct SimParams { float
+slength; // smoothing length KernelType
+kerneltype; // kernel type float
+kernelradius; // kernel radius float dt;
+// initial timestep float tend;
+// simulation end time (0 means run forever) bool
+xsph; // true if XSPH correction bool
+dtadapt; // true if adaptive timestep float
+dtadaptfactor; // safety factor in the adaptive time step
+formula int buildneibsfreq; //
+frequency (in iterations) of neib list rebuilding int
+shepardfreq; // frequency (in iterations) of Shepard density
+filter int mlsfreq;
+// frequency (in iterations) of MLS density filter ViscosityType
+visctype; // viscosity type (1 artificial, 2
+laminar) int displayfreq; //
+display update frequence (in seconds) int
+savedatafreq; // simulation data saving frequence (in
+displayfreq) int saveimagefreq;
+// screen capture frequence (in displayfreq) bool
+mbcallback; // true if moving boundary velocity
+varies bool periodicbound; // type of
+periodic boundary used float nlexpansionfactor;
+// increase influcenradius by nlexpansionfactor for neib list
+construction bool usedem;
+// true if using a DEM SPHFormulation sph_formulation; //
+formulation to use for density and pressure computation BoundaryType
+boundarytype; // boundary force formulation (Lennard-Jones
+etc) bool vorticity; SimParams(void) :
+kernelradius(2.0), dt(0.00013), tend(0), xsph(false), dtadapt(true),
+dtadaptfactor(0.3), buildneibsfreq(10), shepardfreq(0), mlsfreq(15),
+visctype(ARTVISC), mbcallback(false), periodicbound(false),
+nlexpansionfactor(1.0), usedem(false), sph_formulation(SPH_F1),
+boundarytype(LJ_BOUNDARY), vorticity(false) {}; } SimParams;
+
+\end{verbatim} The default values of some of the simulation parameters
+are set in the last set of lines above and therefore do not have to be
+specified, unless different than desired.
+
+
+Some of the variables such as KernelType have a fixed set of values.
+These are defined with enum blocks: \begin{verbatim} enum KernelType {
+CUBICSPLINE = 1, QUADRATIC, WENDLAND } ;
+
+enum SPHFormulation { SPH_F1 = 1, SPH_F2 } ;
+
+enum BoundaryType { LJ_BOUNDARY, MK_BOUNDARY, INVALID_BOUNDARY }; enum
+ViscosityType { ARTVISC = 1, KINEMATICVISC, DYNAMICVISC, SPSVISC,
+INVALID_VISCOSITY } ; enum ParticleType { GATEPART = -4, PADDLEPART,
+PISTONPART, BOUNDPART, FLUIDPART }; \end{verbatim}
+
+There are five particle types (ParticleType) available. FLUIDPART
+refers to the fluid particles in the model, while GATEPART, PADDLEPART,
+and PISTONPART refer to moving boundaries that move under the action of
+a user-supplied (in the {\em mb\_callback} function). Finally,
+BOUNDPART refers to particles that comprise the boundaries (other than
+planes).
+
+\subsection{Physical Parameters} The variables that govern the physical
+problem are stored in the structure PhysParams. These variables are set
+in the problem file. Again, in WaveTank.cc, we have a number of
+physparams set. Here is a selection: \begin{verbatim}
+
+m_physparams.gravity = make_float3(0.0, 0.0, -9.81f);
+m_physparams.kinematicvisc = 1.0e-6f; m_physparams.artvisccoeff =
+0.3f; m_physparams.smagfactor = 0.12*0.12*m_deltap*m_deltap;
+\end{verbatim} These parameters set the constant value of the
+acceleration of gravity in all three component directions, with
+magnitude $g$. The others set the values of viscosity and the
+Smagorinsky value for the SPS (sub-particle-scaling) model of viscosity.
+
+The structure PhysParams is given as:
+
+\begin{verbatim} typedef struct PhysParams { float
+rho0[MAX_FLUID_TYPES]; // density of various particles
+
+float partsurf; // particle area (for surface
+friction)
+
+float3 gravity; // gravity float
+bcoeff[MAX_FLUID_TYPES]; float gammacoeff[MAX_FLUID_TYPES]; float
+sscoeff[MAX_FLUID_TYPES]; float sspowercoeff[MAX_FLUID_TYPES];
+
+// Lennard-Jones boundary coefficients float r0;
+// influence radius of boundary repulsive force float dcoeff; float
+p1coeff; float p2coeff; // Monaghan-Kajtar boundary coefficients float
+MK_K; // Typically: maximum velocity squared, or
+gravity times maximum height float MK_d; //
+Typically: distance between boundary particles float MK_beta;
+// Typically: ratio between h and MK_d
+
+float kinematicvisc; // Kinematic viscosity float artvisccoeff;
+// Artificial viscosity coefficient // For ARTVSIC: artificial viscosity
+coefficient // For KINEMATICVISC: 4*kinematic viscosity, // For
+DYNAMICVISC: dynamic viscosity float visccoeff; float
+epsartvisc; float epsxsph; // XSPH correction
+coefficient float3 dispvect; float3 maxlimit; float3
+minlimit; float ewres; // DEM east-west resolution
+float nsres; // DEM north-south resolution float
+demdx; // Used for normal compution: displcement in x
+direction range ]0, exres[ float demdy; //
+displcement in y direction range ]0, nsres[ float demdxdy; float
+demzmin; // demdx*demdy float smagfactor;
+// Cs*??^2 float kspsfactor; // 2/3*Ci*??^2 int
+numFluids; // number of fluids in simulation PhysParams(void) :
+partsurf(0), p1coeff(12.0f), p2coeff(6.0f), epsxsph(0.5f), numFluids(1)
+{}; /*! Set density parameters @param i index in the array of
+materials @param rho base density @param gamma gamma
+coefficient @param ssmul sound speed multiplier: sscoeff will be
+sqrt(ssmul*gravity) */ void set_density(uint i, float rho, float gamma,
+float ssmul) { rho0[i] = rho; gammacoeff[i] = gamma; bcoeff[i] =
+rho*ssmul/gamma; sscoeff[i] = sqrt(ssmul*length(gravity));
+sspowercoeff[i] = (gamma - 1)/2; } } PhysParams;
+
+\end{verbatim}
+
+
+\section{Particle Information}
+
+GPUSPH problems are usually comprised of different types of particles,
+such as fluid and boundary particles. Further, since GPUSPH is a
+Lagrangian method, it can track each individual moving particle. To
+keep track of all particles, GPUSPH uses a unique number for each
+particle, called {\em particleinfo(type, obj, id)}, which is comprised
+of three different pieces of information. Each particle in the
+simulation is given an individual particle {\em id} number for tracking
+purposes. Further, each particle is given a {\em type} and an object
+({\em obj}) number. For example, a particle in a wave paddle would have
+a unique {\em id} number and the {\em type} would be PADDLEPART. If
+this is the only wave paddle, then the object number would be 0. If the
+problem had a second wave paddle that moved independently, then it would
+have an object number of 1. If both paddles moved the same way, then
+they would have the same {\em obj} number. If other objects are
+introduced in a problem, such as cylinders and spheres, the particle
+type might be BOUNDPART (for fixed objects) or GATEPART, PADDLEPART, or
+PISTONPART for moving boundaries. Again, for the moving objects of a
+given type, if they move together, these particles can all have the same
+object number.
+
+The number {\em particleinfo} is assigned in the problem file. The
+number is created by the command \verb!make_particleinfo(type, obj,id)!
+as shown at the end of all the example files.
+
+\section{Boundaries}
+
+\subsection{Fixed (Particle) Boundaries}
+
+Fixed problem boundaries are currently described by walls (RECT or CUBE
+objects) that have their borders filled with particles of type
+BOUNDPART, which of course means boundary particles. For the
+DamBreak3D.cc problem, the computational domain is surrounded by a box,
+which we saw earlier: \\
+
+\noindent experiment\_box = Cube(Point(0, 0, 0),Vector(1.6, 0,
+0),Vector(0, 0.67, 0), Vector(0, 0, 0.4));\\
+experiment\_box.SetPartMass(r0, m\_physparams.rho0[0]);\\
+experiment\_box.FillBorder(boundary\_parts, r0, false);\\
+
+Here the {\em rho0[0]} refers to the fluid density, and {\em r0} is
+related to the particle spacing. The Boolean false refers to whether or
+not the top of the box is filled with boundary particles. We elect not
+to have a lid on the problem.
+
+There may be other objects in the problem that have a fixed object. For
+example, in DamBreak3D.cc, there is a fixed rectangular object that is
+impacted by the water from the dam.
+
+There are two kinds of boundary conditions that are applied to particle
+boundary conditions. The first is the Lennard-Jones boundary condition,
+which has the fixed boundary particles repelling incident fluid
+particles with a radial force proportional to the distance between the
+particles, given that the distance between them is less than the initial
+spacing, $r_0$. \be \mbox{LJForce}(r) = d \, \Big( (
+\frac{r_0}{r})^{p_1} - (\frac{r_0}{r})^{p_2}\Big), \en where $d, p_1,$
+and $p_2$ are specified in the Problem via PhysParams as dcoeff,
+p1coef, and p2coef. Monaghan (1994) suggested a magnitude of dcoeff as
+$5 g H$, where $g$ is the acceleration of gravity and $H$ is a
+characteristic water depth. The exponents, p1coef and p2coef, are 12
+and 6 according to the Lennard-Jones formulation.
+
+A second fixed boundary condition is due to \citet{MonaghanBC:2009}, who
+provide a smoother boundary force as particles move parallel to the
+boundary as the contributions of neighboring boundary particles is more
+carefully included.
+
+\be \mbox{MKForce}(r) = \frac{1}{\beta} \left( \frac{g H}{r-d}\;\;W(r,h)
+\; \Big(\frac{\vec{r}}{r}\Big)\; \;\frac{2 m_b}{m + m_b}\right) \en
+where $W(r,h)$ is taken as a 1-D Wendland kernel.
+
+\subsection{Plane Boundaries}
+
+Fixed problem boundaries can also be established by using geometric
+planes. While this is a more complicated boundary condition to apply,
+the advantage is that no particles are used; the boundaries are
+mathematical planes. This can be a considerable savings in memory as
+particle boundaries require a considerable amount of particles,
+requiring video memory.
+
+A plane is defined by a linear equation: $a x + by + c z + d = 0$. The
+distance of a particle located at $(x_1, y_1, z_1)$ from the plane is
+given by \[r =\frac {| a x_1 + b y_1 + c z_1 +d |}{\sqrt{a^2+b^2+c^2}}\]
+If the (a, b, c) correspond to the components of the unit normal vector,
+then the denominator in this expression is 1.0. This is the case for
+the following example, where the denominators for all the planes
+\verb{planediv{ is set to one.
+
+In the problem statement, there are two sections of code to be added.
+Here is an example derived from WaveTank.cc, used to set up the
+experimental wave tank. Here $w$ is the width of the tank and $l$ is
+the length. \begin{verbatim} uint WaveTank::fill_planes() { return 5;
+//corresponds to number of planes }
+
+void WaveTank::copy_planes(float4 *planes, float *planediv) { // plane
+is defined as a x + by +c z + d= 0 planes[0] = make_float4(0, 0, 1.0,
+0); //bottom, where the first three numbers are the normal, and the
+last is d. planediv[0] = 1.0; planes[1] = make_float4(0, 1.0, 0, 0);
+//wall planediv[1] = 1.0; planes[2] = make_float4(0, -1.0, 0, w); //far
+wall planediv[2] = 1.0; planes[3] = make_float4(1.0, 0, 0, 0); //end
+planediv[3] = 1.0; planes[4] = make_float4(-1.0, 0, 0, l); //one end
+planediv[4] = 1.0; }
+
+\end{verbatim} \subsection{Moving Boundaries}
+
+GPUSPH allows for moving boundaries, such as piston and flap wavemakers,
+and gates. The particles that delimit these boundaries are of three
+possible {\em type}s: PISTONPART, PADDLEPART, or GATEPART. The
+motion of these objects is specified by the mb\_callback function.
+GATEPART are particles that move according to a supplied velocity,
+which can change with time. PADDLEPART are particles that comprise a
+wave paddle that moves in a flapping mode. Finally PISTONPART is a
+moving boundary that is vertical that moves according to the supplied
+positions with time.
+
+The function that allows for moving boundaries is the {\em mb\_callback}
+function that the user defines in the problem file. There are variables
+that are needed to provide starting and stopping times of the moving
+boundary, for example, sometimes it is convenient to wait some time for
+the fluid particles to equilibrate with the boundaries when a problem is
+started before the moving boundary is started. As an example, the
+DamBreakGate.cc problem, has the mb\_callback function: \begin{verbatim}
+
+MbCallBack& DamBreakGate::mb_callback(const float t, const float dt,
+const int i) { MbCallBack& mbgatedata = m_mbcallbackdata[0]; if (t >=
+mbgatedata.tstart && t < mbgatedata.tend) { mbgatedata.vel =
+make_float3(0.0, 0.0, 4.*(t - mbgatedata.tstart)); mbgatedata.disp +=
+mbgatedata.vel*dt; } else mbgatedata.vel = make_float3(0.0f);
+
+return m_mbcallbackdata[0]; } \end{verbatim}
+
+The GATEPART requires the velocity of the gate, so that is computed as
+mbgatedata.vel. (The other variable, mbgatedata.disp, is computed but
+only used to help openGL draw the motion of the gate on the screen. See
+the {\em draw\_boundary} method in DamBreakGate.cc.)
+
+\section{Particles Used for Specialized Output}
+\subsection{TESTPOINTSPART}
+
+It is often useful to obtain output from GPUSPH runs at given fixed
+positions, such as a location of a current meter. This measurement is
+an Eulerian measurement, while the SPH particles are Lagrangian, moving
+with the fluid. To allow for Eulerian measurements, set of imaginary
+particles are defined that are used only for measurements:
+TESTPOINTPART. For instance, the velocity at fixed position f is
+calculated by where p is related to neighboring moving particles and f
+is related to fixed positions. \begin{equation} v_f = \sum_p^{N_n}
+\frac{m_p}{\rho_p}\, v_p\, W_{fp} \end{equation} where the index $p$
+includes all the $N_n$ neighboring fluid particles, $m$ is the mass of
+the particle, $\rho$ is the density, and $W_{fp}$ is the weighting
+kernel determine for the test point particle $f$ and the fluid particle
+$p$.
+
+To use test points, we have to set the parameter \cmd{m_simparams.testpoints=true} in the problem description (say,
+WaveTank.cc). Then we have to inform GPUSPH how many test points to
+include, here we will use three as an example. \begin{verbatim}
+if(m_simparams.testpoints) numTestpoints = 3; \end{verbatim} Later in
+the problem in \cmd{fill_parts()}, we include \begin{verbatim} if
+(m_simparams.testpoints) return
+parts.size()+boundary_parts.size()+paddle_parts.size()
++gate_parts.size()+numTestpoints; else return parts.size()
++boundary_parts.size() +paddle_parts.size() +gate_parts.size();
+\end{verbatim} The position of testpoints are introduced at the
+beginning of \verb{copy_to_array(...){: \begin{verbatim} int j; if
+(m_simparams.testpoints ) { std::cout << "\nTestpoints parts: " <<
+numTestpoints << "\n"; std::cout << " "<< 0 <<"--"<< numTestpoints
+<< "\n";
+
+pos[0] = make_float4(0.364,0.16,0.04,0.0); pos[1] =
+make_float4(0.37,0.17,0.04,0.0); pos[2] =
+make_float4(1.5748,0.2799,0.2564,0.0);
+
+
+for (uint i = 0; i < numTestpoints; i++) { vel[i] = make_float4(0, 0, 0,
+m_physparams.rho0[0]); info[i]= make_particleinfo(TESTPOINTSPART, 0, i);
+// first is type, object, 3rd id }
+
+j =numTestpoints; std::cout << "Testpoints part mass:" << pos[j-1].w <<
+"\n"; }
+
+else j=0; //If there is no testpoints \end{verbatim} Velocity at the
+test points are calculated only when we write results in output files
+and the results of test points are saved in \cmd{PARTTESTPOINTS} files and
+these files are saved in the same directory as \cmd{PART} files are saved.
+For example in \cmd{TextWriter.cc}, we have: \begin{verbatim} if
+(testpoints){ filename = "PARTTESTPOINTS_" + filenum + ".txt";
+full_filename = m_dirname + "/" + filename;
+
+FILE *fid1 = fopen(full_filename.c_str(), "w");
+
+// Writing datas for (int i=0; i < numParts; i++) { if
+(TESTPOINTS(info[i])){ // position
+fprintf(fid1,"%d\t%d\t%d\t%f\t%f\t%f\t", id(info[i]), type(info[i]),
+object(info[i]) , pos[i].x, pos[i].y, pos[i].z);
+
+// velocity
+
+fprintf(fid1,"%f\t%f\t%f\t",vel[i].x, vel[i].y, vel[i].z);
+
+
+fprintf(fid1,"\n"); } \end{verbatim} \subsection{Surface Particles}
+
+The on-screen video output of GPUSPH shows all the particles and the
+written data output files also include all the particles. Sometimes it
+is useful to identify the surface particles, say for display purposes.
+This is done by setting the \verb{SURFACE_PARTICLE_FLAG{ to true in the
+problem, using \verb{m_simparams.surfaceparticle= true;{
+
+The free surface detection algorithm is a simplification of
+\cite{Marrone:2010}, consisting of two steps: determining a normal
+vector to a particle, and then determining the number of neighbors in
+the direction of the normal.
+
+The normal vector for particle $i$ is defined as \begin{equation}
+\vec{n}_i = \frac{\vec{\nu_i}}{|\vec{\nu}_i|} \mbox{,
+where}\end{equation} \begin{equation} \vec{n}_i = \!\sum_j
+\frac{m_j}{\rho_j} \;\nabla W_{ij} = \!\left\{\sum_j \frac{m_j}{\rho_j}
+\tdv{W_{ij}}{r} \frac{(x_i-x_j)}{r_{ij}}, \sum_j \frac{m_j}{\rho_j}
+\tdv{W_{ij}}{r} \frac{(y_i-y_j)}{r_{ij}}, \sum_j \frac{m_j}{\rho_j}
+\tdv{W_{ij}}{r} \frac{(z_i-z_j)}{r_{ij}}\right\} \end{equation}
+
+In the second step, for each particle, a cone is defined with the
+particle's normal vector as its axis and a cone angle that is taken as
+$\pi/6$. Then a check is made to determine where or not at least one
+neighboring particle exists in this cone region. If no neighbor
+particle is found, then the particle is a surface particle. This check
+is carried out by computing \[\frac{(\vec{n}_i \cdot \vec{r}_{ji})}{r} <
+\cos (\pi/6)\]If any neighbor particle satisfies that condition, then
+particle $i$ is not a surface particle.
+
+
+\iffalse
+\begin{figure}[h]
+\centering{%
+\includegraphics[trim=40mm 40mm 0mm 0mm, clip, scale=1.]{SurfaceDetect1.png}%
+}
+\caption{Surface particles in red for the DamBreak3D.cc problem.}
+\end{figure}
+\else
+\todo{surface detection picture}
+\fi
+
+\section{Wave Gages}
+
+\section{Floating Objects}
+
+Floating objects are distinguished from other objects by the fact that
+they respond to implied forces by translating and rotating. To do this,
+each object is associated with its principal axes of inertia and the
+moments of inertia about these axis, which are designated $(x',y',z')$.
+The GPUSPH model is developed in the $(x,y,z)$ fixed axes. The Euler
+angles are defined as $(\phi, \theta, \psi)$, which are, respectively,
+the angle between the fixed $x$ axis and the
+
+The rotations of the object about its principal axes are $(\omega_1,
+\omega_2, \omega_3)$ and the Euler equations for angular acceleration
+given by applied moments to the object are \begin{eqnarray} (I_3 - I_2)
+\;\omega_3\omega_2 + I_1 \; \dot{{\omega_1}} &=& M_1 \\ (I_1-I_3)
+\;\omega_1 \omega_3 + I_2 \;\dot{{\omega_2}} &=& M_2\\ (I_2-I_1)
+\;\omega_1 \omega_2 + I_3 \;\dot{{\omega_3}} &=& M_3 \end{eqnarray}
+where the moments are determined in the body frame of reference.
+
+
+Floating objects are created by using the GPUSPH objects: Cube, Sphere,
+Cylinder, etc. These objects now have have an extra argument when
+initializing them--the EulerParameters. \section{Output Formats}
+
+GPUSPH produces output in two ways. The first is drawing images on the
+user's screen, showing the state of the running model, which are
+subsequently saved in the {\em image} directory and writing data files,
+saved in the {\em data} directory; both directories in the problem
+directory.
+
+
+When GPUSPH executes, an OpenGL window opens with a depiction of the
+running model. This provides you with the current state of the
+simulation. The rate at which the window is refreshed is set in the
+problem file (e.g. DamBreak3D.cc file) with the variable
+m\_displayinterval. Its default value is 0.001 s. Model runs with the
+window can execute faster if the user presses t (turn off timing
+information) or r (disable window; which also means no image files).
+The model can run without the window and it will go faster by running
+the model from the command line with the option \verb!GPUSPH --console!,
+as discussed in \ref{options}.
+
+By choosing a non-zero value of the problem variables, m\_screenshotfreq
+and m\_writefreq in the problem file, data files are saved during the
+run for post processing. The data files can be written in one of two
+formats: ASCII or VTK (Visualization Toolkit, useful for such
+post-processing programs as ParaView). This format is set in the
+problem, for example, \\ m\_writerType = TEXTWRITER;\\ means ASCII files
+are written. Using VTKWRITER, gives of course VTK format; LEGACYVTK
+gives the older style VTK.
+
+
+
+The files contain information about the particle, its position,
+velocity, and pressure and density, including the particle id number.
+
+\subsection{Images} \subsubsection{Runtime GL Window}
+
+m\_displayinterval = 0.001f;
+
+The user has a great number of commands available from the keyboard and
+menu, when the program is running and the cursor is in the OpenGL
+window: typing a v, p, d, or n, will cause the display to color code
+the particles with velocity, pressure, density, or simply just blue
+color. The run can be paused by depressing the space bar, and resumed
+by doing the same again.
+
+Typing 'q' or 'esc' will kill the run. Typing 'b' shows the boundaries
+of the problem in green.
+
+To rotate the problem, 'x' and cursor movement will rotate the problem
+about the $x$ axis. The letters y and z will cause rotation about the
+other two axes. By holding down the shift key, the problem can be shift
+in the window. Using the '+" and '-' keys, will magnify the image or
+decrease its size. Should you move the image too much, typing '0' will
+recenter the object.
+
+Timing information can be displayed, or not (it's faster without).
+Typing e, m, or i gives information on the time in the simulation and
+the current timing of various operations. 't' stops showing run time
+information, 'r' disables the whole display.
+
+To take a screenshot on command, type 's'. These are added into the
+running sequence of images that are being created.
+
+\subsubsection{Image Files}
+
+Snapshots of the openGL window are taken at a multiple of the time step:
+
+m\_screenshotfreq = 10;\\ Image files in the .tga format are stored in
+the directory {\em images}. These images are developed in numerical
+order starting with a file name image00000.tga. However, if the model is
+running with a variable time step, the timing of the images may be vary
+during a run, therefore a timing file, time.txt, which has a numerical
+list of images and the time at which they were taken.
+
+The image files can easily be converted to movies using a variety of
+software. On Mac, Quicktime can open an image sequences by using the
+file browser to find the first image. On Linux, ffmpeg works well.
+
+
+In the project file, the following parameters determine the timing of
+the screen refresh of the model display, the frequency at which data is
+written to a file and when a image file (of the openGL window) is made.
+The last two timing parameters are given as multiples of the
+displayinterval; for example, 10 times the displayinterval. If these
+two parameters are given as zero, then no data is saved from the run.
+\\
+
+
+
+\noindent m\_displayinterval = 0.001f; \\ m\_writefreq = 10;\\
+m\_screenshotfreq = 10;\\
+
+The value of m\_displayinterval can either be a multiple of
+m\_simparams.dt (which for variable time stepping would write data at
+irregular intervals as in: 100*m\_simparams.dt;) or it can be set to a
+fixed value, such as m\_displayinterval = 0.001f; Note typing 'r' in
+the running display window will kill the display, but not stop the run.
+
+When GPUSPH runs, it creates an output file in the top directory, with
+the name of the project, the day of the week, the date, and the hour of
+the run. Within this new directory, there is a summary.txt file, and
+two subdirectories: {\em data} and {\em images.} The summary.txt file
+includes a copy of many of the physical parameters (physparams)
+variables and the simulation parameter variables (simparams). The
+subdirectory {\em images} contains a sequence of images and {\em data}
+contains written data files.
+
+
+\subsection{Data Files} For post-processing, GPUSPH will write out data
+files at given times during a run for use in data analysis or
+visualization.
+
+By setting the value of $m\_filewriter$ in the Project file to
+TEXTWRITER, an ASCII text file will be written every $ m\_screenshotfreq
+= 10 $ times the display time. This ASCII file will contain one line
+per particle. The first three numbers will be the $x, y, z$ position.
+The next three columns contain the velocities $u, v, w$. This is
+followed by the particle mass, the density, then the pressure.
+
+If $m\_filewriter = VTKWRITER$, then vtu files are written followed by a
+summary VTUinp.pvd. These files contain the same data as the ASCII
+files, but in a format to be read by such scientific visualization
+software as PARAVIEW and its SPH version PV-meshless. They are numbered
+sequentially as PART\_0000.vtu, PART\_0001.vtu, etc.
+
+
+
+
+
+
+\appendix
+\appendixpage
+
+\chapter{Functions}
+
+The various
+functions, methods, and kernels are defined here and their location with
+the GPUSPH source code is provided.\\
+
+\begin{tabular}{l l l} Function & Role & Location \\ \hline P( float,
+int) & Calculate pressure from Equation of State &
+forces\_kernel.cu\\ LFForce( float) & Calculate Lennard-Jones boundary
+force & forces\_kernel.cu\\ MKForce (float)& Calculate
+Monaghan-Kajtar boundary force & forces\_kernel.cu \\ \hline
+\end{tabular}
+
+\include{gpusph-license}
+
+\bibliography{gpusph-reference}
+
+\end{document}
