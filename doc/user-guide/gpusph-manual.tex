@@ -66,6 +66,25 @@
 \newcommand{\nvidia}{\textsc{nvidia}}
 \newcommand{\cpp}{{\sffamily C\ttfamily++}}
 
+%\makeatletter
+%%% At definition time the token `_` must be active
+%\let\oldcmd\cmd
+%\begingroup
+%\catcode`_=\active
+%\gdef\activate@us{%
+%  \let_\textunderscore
+%  \catcode`\_=\active
+%}
+%\endgroup
+%
+%\renewcommand{\cmd}[1]{%
+%  \begingroup\ttfamily
+%\activate@us
+%\scantokens{#1\endinput}%
+%  \endgroup
+%}
+%\makeatother
+
 \title{GPUSPH Users Manual}
 
 \author{Alexis Hérault, Giuseppe Bilotta, Robert A. Dalrymple}
