@@ -60,7 +60,6 @@
 \newcommand{\pddv}[2]{\frac{\partial^2 #1}{\partial #2 ^2}}
 \newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
 \newcommand{\lap}{\nabla^2}
-\newcommand{\unabla}{\uvec{\nabla}}
 \newcommand{\ie}{\textit{i.e.}~}
 \newcommand{\eg}{\textit{e.g.}~}
 \newcommand{\sumF}{\underset{b \in \mathcal{F}}{\sum}}
@@ -587,26 +586,26 @@ the respective methods.
 The basic premise is that GPUSPH approximates solutions to the
 Navier-Stokes equations which are given by
 \begin{equation}
-\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\unabla p + \unabla \cdot (\nu
-\unabla \otimes \uvec{v}) + \uvec{g},
+\tdv{\uvec{v}}{t} = -\frac{1}{\rho}\nabla p + \nabla \cdot (\nu
+\nabla \otimes \uvec{v}) + \uvec{g},
 \label{e:sph:ns}
 \end{equation}
 where $\uvec{v}$ is the velocity, $\rho$ the density, $p$ the
 pressure, $\nu$ the kinematic viscosity and $\uvec{g}$ an external
 force. These equations are coupled with the continuity equation
 \begin{equation}
-\tdv{\rho}{t} = - \rho \unabla \cdot \uvec{v}.
+\tdv{\rho}{t} = - \rho \nabla \cdot \uvec{v}.
 \label{e:sph:cont}
 \end{equation}
 In order to close the system of equations a weakly-compressible
-formulation is chosen which uses an Equation of State given by
+formulation is chosen which uses the Cole Equation of State given by
 \begin{equation}
 p = \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho}{\rho_0}\right)^\xi
 -1 \right],
 \label{e:sph:eos}
 \end{equation}
 where $c_0$ is the speed of sound, $\rho_0$ the reference density and
-$\xi$ a parameter, equal to 7 in the case of water.
+$\xi$ is the polytropic index, equal to 7 in the case of water.
 
 \section{The SPH approximation}
 
@@ -617,7 +616,7 @@ then
 f(r) = \int f(s) \delta(\|r-s\|) \td s,
 \label{e:sph:delta}
 \end{equation}
-where $\delta$ is the Dirac delta function. The continuous SPH
+where $\delta$ is the Dirac delta distribution. The continuous SPH
 approximation can be written as
 \begin{equation}
 [f]^c(r) = \int_\Omega f(s) w(\|r-s\|,h) \td s,
@@ -674,10 +673,10 @@ w(q,h) = \frac{\alpha_W}{h^3}\left(1-\frac{q}{2}\right)^4(1+2q),
 \end{equation}
 where $\alpha_W = 21/(16\pi)$ and its derivative by
 \begin{equation}
-\|\unabla w(q,h)\| = \frac{\alpha_{\unabla W}}{h^5}\left(q-2\right)^3,
+\|\nabla w(q,h)\| = \frac{\alpha_{\nabla W}}{h^5}\left(q-2\right)^3,
 \label{e:sph:gradwendland}
 \end{equation}
-where $\alpha_{\unabla W} = 105/(128\pi)$ in 3-D.
+where $\alpha_{\nabla W} = 105/(128\pi)$ in 3-D.
 
 \todo{Complete kernel information}
 
@@ -686,25 +685,25 @@ where $\alpha_{\unabla W} = 105/(128\pi)$ in 3-D.
 In order to approximate derivatives the continuous SPH interpolation Eq.
 \eqref{e:sph:cint} is used as follows
 \begin{equation}
-[\unabla f]^c(r) = \int_\Omega \unabla f(s) w(\|r-s\|,h) \td s.
+[\nabla f]^c(r) = \int_\Omega \nabla f(s) w(\|r-s\|,h) \td s.
 \label{e:sph:cint-gradf-start}
 \end{equation}
 Applying integration by parts yields
 \begin{equation}
-[\unabla f]^c(r) = - \int_\Omega f(s) \unabla_s w(\|r-s\|,h) \td s +
-\int_\Omega \unabla (f(s) w(\|r-s\|,h)) \td s.
+[\nabla f]^c(r) = - \int_\Omega f(s) \nabla_s w(\|r-s\|,h) \td s +
+\int_\Omega \nabla (f(s) w(\|r-s\|,h)) \td s.
 \label{e:sph:cint-intpart}
 \end{equation}
 As $w$ is symmetric the kernel is antisymmetric and thus
 \begin{equation}
-\unabla_s w(\|r-s\|,h) = - \unabla_r w(\|r-s\|,h).
+\nabla_s w(\|r-s\|,h) = - \nabla_r w(\|r-s\|,h).
 \label{e:sph:kernel-asym} \end{equation}
 Furthermore, using Stokes
 theorem the last term in Eq. \eqref{e:sph:cint-intpart} can be rewritten
 as integral over the boundary of the computational domain, denoted by
 $\partial \Omega$ which yields
 \begin{equation}
-[\unabla f]^c(r) = \int_\Omega f(s) \unabla_r w(\|r-s\|,h) \td s -
+[\nabla f]^c(r) = \int_\Omega f(s) \nabla_r w(\|r-s\|,h) \td s -
 \int_{\partial\Omega} (f(s) w(\|r-s\|,h)) \uvec{n}_s \td s,
 \label{e:sph:cint-stokes}
 \end{equation}
@@ -715,13 +714,13 @@ If the domain $\Omega$ is unbounded then the last term of Eq.
 kernel $w$. Thus, in a continuous sense the first derivative can be
 approximated as
 \begin{equation}
-[\unabla f]^c(r) = \int_\Omega f(s) \unabla_r w(\|r-s\|,h) \td s.
+[\nabla f]^c(r) = \int_\Omega f(s) \nabla_r w(\|r-s\|,h) \td s.
 \label{e:sph:cint-gradf}
 \end{equation}
 The discretization in space again replaces the integral by a sum over
 all particles and so
 \begin{equation}
-[\unabla f]_a = \sumF V_b f_b \unabla_a w_{ab},
+[\nabla f]_a = \sumF V_b f_b \nabla_a w_{ab},
 \label{e:sph:int-gradf}
 \end{equation}
 where $V_b = m_b/\rho_b$ is the volume of a particle $b$. It is common
@@ -730,7 +729,7 @@ is used to compute the pressure gradient and thus Newtons third law of
 equal but opposite forces should be obeyed. This can be achieved by
 defining the gradient as
 \begin{equation}
-\Grad_a(f) = [\unabla f]_a + [\unabla f_a]_a,
+\Grad_a(f) = [\nabla f]_a + [\nabla f_a]_a,
 \label{e:sph:grad-def}
 \end{equation}
 where the latter derivative is that of a constant function $f_a$. As
@@ -746,17 +745,17 @@ divergence operators to be skew-adjoint, \ie
 where $<.,.>$ is a scalar product on all particles. As a result of this
 constraint the divergence can be shown to be
 \begin{equation}
-\Div_a(\uvec{G}) = [\unabla \uvec{G}]_a - [\unabla \uvec{G}_a]_a.
+\Div_a(\uvec{G}) = [\nabla \uvec{G}]_a - [\nabla \uvec{G}_a]_a.
 \label{e:sph:div-def}
 \end{equation}
 This allows to write the gradient and divergence as
 \begin{equation}
-\Grad_a(f) = \sumF V_b (f_b + f_a) \unabla_a w_{ab},
+\Grad_a(f) = \sumF V_b (f_b + f_a) \nabla_a w_{ab},
 \label{e:sph:grad}
 \end{equation}
 and
 \begin{equation}
-\Div_a(\uvec{G}) = \sumF V_b (\uvec{G}_b - \uvec{G}_a) \cdot \unabla_a w_{ab},
+\Div_a(\uvec{G}) = \sumF V_b (\uvec{G}_b - \uvec{G}_a) \cdot \nabla_a w_{ab},
 \label{e:sph:div}
 \end{equation}
 respectively.
@@ -769,11 +768,11 @@ numerically unstable. Thus, the preferred approach is to use a
 combination of a SPH first order derivative and a finite difference
 first order derivative.
 
-The goal of this section is to derive a discretization for $\unabla f
-\unabla \otimes \uvec{G}$. To approximate the interior gradient, a
+The goal of this section is to derive a discretization for $\nabla f
+\nabla \otimes \uvec{G}$. To approximate the interior gradient, a
 Taylor Series of $\uvec{G}$ can be used as follows
 \begin{equation}
-\uvec{G}_b = \uvec{G}_a - (\unabla_a \otimes \uvec{G})^T \cdot
+\uvec{G}_b = \uvec{G}_a - (\nabla_a \otimes \uvec{G})^T \cdot
 \uvec{r}_{ab} + \mathcal{O}(\uvec{r}_{ab}),
 \label{e:sph:taylor}
 \end{equation}
@@ -783,37 +782,37 @@ $\uvec{r}$.
 The above can be rewritten to obtain an expression for the interior
 gradient
 \begin{equation}
-(\unabla_a \otimes \uvec{G})^T \cdot
+(\nabla_a \otimes \uvec{G})^T \cdot
 \frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \approx
 \frac{1}{\|r_{ab}\|}\uvec{G}_{ab},
 \label{e:sph:grad-finitediff}
 \end{equation}
 and similarly
 \begin{equation}
-(\unabla_b \otimes \uvec{G})^T \cdot
+(\nabla_b \otimes \uvec{G})^T \cdot
 \frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \approx
 \frac{1}{\|r_{ab}\|}\uvec{G}_{ab},
 \label{e:sph:grad-finitediff-b}
 \end{equation}
 As the kernel is radially symmetric
 \begin{equation}
-\unabla_a w_{ab} = \frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\unabla_a
+\nabla_a w_{ab} = \frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\nabla_a
 w_{ab}\|.
 \label{e:sph:rad-sym}
 \end{equation}
 The Divergence similar to the one given by Eq.
 \eqref{e:sph:div} but with a $+$ instead of the $-$ yields
 \begin{equation}
-\unabla \cdot (f \unabla \otimes \uvec{G}) = \sumF V_b (f_b \unabla_b
-\otimes \uvec{G} + f_a \unabla_a \otimes \uvec{G})
-\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\unabla_a w_{ab}\|,
+\nabla \cdot (f \nabla \otimes \uvec{G}) = \sumF V_b (f_b \nabla_b
+\otimes \uvec{G} + f_a \nabla_a \otimes \uvec{G})
+\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\nabla_a w_{ab}\|,
 \end{equation}
 which, with Eqs. \eqref{e:sph:grad-finitediff},
 \eqref{e:sph:grad-finitediff-b} and \eqref{e:sph:rad-sym}, can be used to
 define the Laplacian
 \begin{equation}
-\Lap_a(f, \uvec{G}) = \unabla \cdot (f \unabla \otimes \uvec{G}) = \sumF
-V_b (f_b + f_a) \uvec{G}_{ab} \frac{1}{\|\uvec{r}_{ab}\|} \|\unabla_a w_{ab}\|.
+\Lap_a(f, \uvec{G}) = \nabla \cdot (f \nabla \otimes \uvec{G}) = \sumF
+V_b (f_b + f_a) \uvec{G}_{ab} \frac{1}{\|\uvec{r}_{ab}\|} \|\nabla_a w_{ab}\|.
 \label{e:sph:lap}
 \end{equation}
 
