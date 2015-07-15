@@ -2071,13 +2071,13 @@ saVertexBoundaryConditions(
 	// update boundary conditions on array
 	// note that numseg should never be zero otherwise you found a bug
 	oldVel[index].w = sumrho/numseg;
-	if (oldTKE) {
+	if (oldTKE && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info))) {
 		oldTKE[index] = sumtke/numseg;
 		// adjust Eulerian velocity so that it is tangential to the fixed wall
 		if ((!IO_BOUNDARY(info) || CORNER(info)) && !initStep)
 			as_float3(oldEulerVel[index]) -= dot(as_float3(oldEulerVel[index]), avgNorm)*avgNorm;
 	}
-	if (oldEps)
+	if (oldEps && (!IO_BOUNDARY(info) || CORNER(info) || PRES_IO(info)))
 		oldEps[index] = sumeps/numseg;
 	// open boundaries
 	if (IO_BOUNDARY(info) && !CORNER(info)) {
