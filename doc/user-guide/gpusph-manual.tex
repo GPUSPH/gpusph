@@ -61,6 +61,14 @@
 \newcommand{\abs}[1]{\ensuremath{\left|#1\right|}}
 \newcommand{\lap}{\nabla^2}
 \newcommand{\unabla}{\uvec{\nabla}}
+\newcommand{\ie}{\textit{i.e.}~}
+\newcommand{\eg}{\textit{e.g.}~}
+\newcommand{\sumF}{\underset{b \in \mathcal{F}}{\sum}}
+\newcommand{\sumP}{\underset{b \in \mathcal{P}}{\sum}}
+\newcommand{\sumS}{\underset{s \in \mathcal{S}}{\sum}}
+\newcommand{\Grad}{\textbf{G}}
+\newcommand{\Div}{\textbf{D}}
+\newcommand{\Lap}{\textbf{L}}
 
 % current version
 \newcommand{\version}{3.0}
@@ -599,6 +607,287 @@ p = \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho}{\rho_0}\right)^\xi
 \end{equation}
 where $c_0$ is the speed of sound, $\rho_0$ the reference density and
 $\xi$ a parameter, equal to 7 in the case of water.
+
+\section{The SPH approximation}
+
+At the heart of the SPH method is an interpolation that defines a
+physical quantity at a certain position. Let $f$ be such a quantity,
+then
+\begin{equation}
+f(r) = \int f(s) \delta(\|r-s\|) \td s,
+\label{e:sph:delta}
+\end{equation}
+where $\delta$ is the Dirac delta function. The continuous SPH
+approximation can be written as
+\begin{equation}
+[f]^c(r) = \int_\Omega f(s) w(\|r-s\|,h) \td s,
+\label{e:sph:cint}
+\end{equation}
+where the Dirac delta function was replaced by a weight or kernel
+function $w$, $\Omega$ is the computational domain and $h$ is the
+smoothing length. Several constraints are imposed on this function
+\begin{itemize}
+\item $\underset{h\rightarrow 0}{\lim} w(.,h) = \delta(.)$, \ie the
+kernel function converges to the delta function,
+\item $\int w(s,h) \td s = 1$, \ie the kernel function has unitary
+integral,
+\item $w(s,h) = w(-s,h)$, \ie the kernel is symmetric,
+\item the kernel has compact support.
+\end{itemize}
+The continuous interpolation of Eq. \eqref{e:sph:cint} does not yet
+contain any discretization of space. In SPH the computational domain is
+discretized using points in space that have no explicit connection with
+each other. These points carry the physical information such as density
+and volume and are referred to as particles. They also carry a mass and
+thus have an associated volume. The position of a particle is denoted
+with $\uvec{r}_a$ where the subscript $a$ refers to particle $a$.
+Similarly any physical quantity is subscripted in order to refer to the
+particle, \eg $\rho(\uvec{r}_a) = \rho_a$.
+
+Now that the space has been discretized the continuous interpolation
+(Eq. \eqref{e:sph:cint}) can be converted by replacing the integral with
+a sum to yield the SPH interpolation as
+\begin{equation}
+[f]_a = \underset{b \in \mathcal{F}}{\sum} \frac{m_b}{\rho_b} f_b w_{ab},
+\label{e:sph:int}
+\end{equation}
+where $\mathcal{F}$ is the set of all particles, $m$ the mass and
+$w_{ab} = w(\|\uvec{r}_a - \uvec{r}_b\|/h, h)$. It should be noted that
+$[f]_a \neq f_a$, \ie SPH violates the Kronecker delta property.
+
+\subsection{SPH kernels}
+
+Currently GPUSPH features four different kernels.
+\begin{itemize}
+  \item \cmd{CUBICSPLINE}: The cubic spline function
+  \item \cmd{QUADRATIC}:
+  \item \cmd{WENDLAND}: The quintic Wendland function
+  \item \cmd{GAUSSIAN}: The Gaussian
+\end{itemize}
+
+The formulae for the different kernels and their derivatives are given below.
+
+The Wendland kernel is given by
+\begin{equation}
+w(q,h) = \frac{\alpha_W}{h^3}\left(1-\frac{q}{2}\right)^4(1+2q),
+\label{e:sph:wendland}
+\end{equation}
+where $\alpha_W = 21/(16\pi)$ and its derivative by
+\begin{equation}
+\|\unabla w(q,h)\| = \frac{\alpha_{\unabla W}}{h^5}\left(q-2\right)^3,
+\label{e:sph:gradwendland}
+\end{equation}
+where $\alpha_{\unabla W} = 105/(128\pi)$ in 3-D.
+
+\todo{Complete kernel information}
+
+\subsection{First-order derivatives}
+
+In order to approximate derivatives the continuous SPH interpolation Eq.
+\eqref{e:sph:cint} is used as follows
+\begin{equation}
+[\unabla f]^c(r) = \int_\Omega \unabla f(s) w(\|r-s\|,h) \td s.
+\label{e:sph:cint-gradf-start}
+\end{equation}
+Applying integration by parts yields
+\begin{equation}
+[\unabla f]^c(r) = - \int_\Omega f(s) \unabla_s w(\|r-s\|,h) \td s +
+\int_\Omega \unabla (f(s) w(\|r-s\|,h)) \td s.
+\label{e:sph:cint-intpart}
+\end{equation}
+As $w$ is symmetric the kernel is antisymmetric and thus
+\begin{equation}
+\unabla_s w(\|r-s\|,h) = - \unabla_r w(\|r-s\|,h).
+\label{e:sph:kernel-asym} \end{equation}
+Furthermore, using Stokes
+theorem the last term in Eq. \eqref{e:sph:cint-intpart} can be rewritten
+as integral over the boundary of the computational domain, denoted by
+$\partial \Omega$ which yields
+\begin{equation}
+[\unabla f]^c(r) = \int_\Omega f(s) \unabla_r w(\|r-s\|,h) \td s -
+\int_{\partial\Omega} (f(s) w(\|r-s\|,h)) \uvec{n}_s \td s,
+\label{e:sph:cint-stokes}
+\end{equation}
+where $\uvec{n}_s$ is the inward pointing normal. As a convention for
+the remainder of this document all normals will point inward the domain.
+If the domain $\Omega$ is unbounded then the last term of Eq.
+\eqref{e:sph:cint-stokes} will vanish due to the compact support of the
+kernel $w$. Thus, in a continuous sense the first derivative can be
+approximated as
+\begin{equation}
+[\unabla f]^c(r) = \int_\Omega f(s) \unabla_r w(\|r-s\|,h) \td s.
+\label{e:sph:cint-gradf}
+\end{equation}
+The discretization in space again replaces the integral by a sum over
+all particles and so
+\begin{equation}
+[\unabla f]_a = \sumF V_b f_b \unabla_a w_{ab},
+\label{e:sph:int-gradf}
+\end{equation}
+where $V_b = m_b/\rho_b$ is the volume of a particle $b$. It is common
+in SPH practice to write the gradient operator slightly different as it
+is used to compute the pressure gradient and thus Newtons third law of
+equal but opposite forces should be obeyed. This can be achieved by
+defining the gradient as
+\begin{equation}
+\Grad_a(f) = [\unabla f]_a + [\unabla f_a]_a,
+\label{e:sph:grad-def}
+\end{equation}
+where the latter derivative is that of a constant function $f_a$. As
+derivatives of constant functions are not necessarily zero this term
+will have a non-zero contribution.
+
+The principle of energy conservation requires the gradient and
+divergence operators to be skew-adjoint, \ie
+\begin{equation}
+<\Grad_a(f), \uvec{G}> = - <f, \Div_a(\uvec{G})>,
+\label{e:sph:skew-ajd}
+\end{equation}
+where $<.,.>$ is a scalar product on all particles. As a result of this
+constraint the divergence can be shown to be
+\begin{equation}
+\Div_a(\uvec{G}) = [\unabla \uvec{G}]_a - [\unabla \uvec{G}_a]_a.
+\label{e:sph:div-def}
+\end{equation}
+This allows to write the gradient and divergence as
+\begin{equation}
+\Grad_a(f) = \sumF V_b (f_b + f_a) \unabla_a w_{ab},
+\label{e:sph:grad}
+\end{equation}
+and
+\begin{equation}
+\Div_a(\uvec{G}) = \sumF V_b (\uvec{G}_b - \uvec{G}_a) \cdot \unabla_a w_{ab},
+\label{e:sph:div}
+\end{equation}
+respectively.
+
+\subsection{Second-order derivatives}
+
+In theory second-order derivatives could simply be derived from first
+order ones, but that would cause second derivatives to appear which are
+numerically unstable. Thus, the preferred approach is to use a
+combination of a SPH first order derivative and a finite difference
+first order derivative.
+
+The goal of this section is to derive a discretization for $\unabla f
+\unabla \otimes \uvec{G}$. To approximate the interior gradient, a
+Taylor Series of $\uvec{G}$ can be used as follows
+\begin{equation}
+\uvec{G}_b = \uvec{G}_a - (\unabla_a \otimes \uvec{G})^T \cdot
+\uvec{r}_{ab} + \mathcal{O}(\uvec{r}_{ab}),
+\label{e:sph:taylor}
+\end{equation}
+where $\uvec{r}_{ab} = \uvec{r}_a - \uvec{r}_b$, a convention that will
+be used throughout this document also for quantities different from
+$\uvec{r}$.
+The above can be rewritten to obtain an expression for the interior
+gradient
+\begin{equation}
+(\unabla_a \otimes \uvec{G})^T \cdot
+\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \approx
+\frac{1}{\|r_{ab}\|}\uvec{G}_{ab},
+\label{e:sph:grad-finitediff}
+\end{equation}
+and similarly
+\begin{equation}
+(\unabla_b \otimes \uvec{G})^T \cdot
+\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \approx
+\frac{1}{\|r_{ab}\|}\uvec{G}_{ab},
+\label{e:sph:grad-finitediff-b}
+\end{equation}
+As the kernel is radially symmetric
+\begin{equation}
+\unabla_a w_{ab} = \frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\unabla_a
+w_{ab}\|.
+\label{e:sph:rad-sym}
+\end{equation}
+The Divergence similar to the one given by Eq.
+\eqref{e:sph:div} but with a $+$ instead of the $-$ yields
+\begin{equation}
+\unabla \cdot (f \unabla \otimes \uvec{G}) = \sumF V_b (f_b \unabla_b
+\otimes \uvec{G} + f_a \unabla_a \otimes \uvec{G})
+\frac{\uvec{r}_{ab}}{\|\uvec{r}_{ab}\|} \|\unabla_a w_{ab}\|,
+\end{equation}
+which, with Eqs. \eqref{e:sph:grad-finitediff},
+\eqref{e:sph:grad-finitediff-b} and \eqref{e:sph:rad-sym}, can be used to
+define the Laplacian
+\begin{equation}
+\Lap_a(f, \uvec{G}) = \unabla \cdot (f \unabla \otimes \uvec{G}) = \sumF
+V_b (f_b + f_a) \uvec{G}_{ab} \frac{1}{\|\uvec{r}_{ab}\|} \|\unabla_a w_{ab}\|.
+\label{e:sph:lap}
+\end{equation}
+
+\subsection{Discretization of the Navier-Stokes equations}
+With the definition of the three operators $\Grad$, $\Div$ and $\Lap$ as
+given by Eqs. \eqref{e:sph:grad}, \eqref{e:sph:div} and
+\eqref{e:sph:lap}, respectively, the Navier-Stokes equations
+\eqref{e:sph:ns} and \eqref{e:sph:cont} can be discretized in space as
+\begin{eqnarray}
+\tdv{\uvec{v}_a}{t} &=& - \frac{1}{\rho_a}\Grad_a(p) +
+\Lap_a(\nu,\uvec{v}) + \uvec{g},
+\label{e:sph:ns-disc}
+\\
+\tdv{\rho_a}{t} &=& -\rho_a \Div_a(\uvec{v}).
+\label{e:sph:cont-disc}
+\end{eqnarray}
+The final step to a full discretization is the implementation of a time
+integration scheme. GPUSPH currently features a predictor-corrector
+scheme that is given by
+\begin{eqnarray}
+\uvec{u}^{n+1/2} &=& \uvec{u}^n + \frac{\Delta t}{2} NS(\uvec{u}^n),
+\label{e:sph:pred-corr}
+\\
+\uvec{u}^{n} &=& \uvec{u}^n + \Delta t NS(\uvec{u}^{n+1/2}),
+\nonumber
+\end{eqnarray}
+where $\uvec{u}$ is the state vector and $NS$ are the right-hand sides
+of the discretized Navier-Stokes equations. Furthermore, the
+superscripts refer to the time instances. Written out in detail
+the full discretization reads
+\begin{eqnarray}
+\uvec{v}_a^{n+1/2} &=& \uvec{v}_a^n + \frac{\Delta t}{2} \left(
+-\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\uvec{v}^n) + \uvec{g}
+\right),
+\label{e:sph:pred-corr-ns}
+\\
+\uvec{r}_a^{n+1/2} &=& \uvec{r}_a^{n} + \frac{\Delta t}{2}
+\uvec{v}_a^{n},
+\nonumber
+\\
+\rho_a^{n+1/2} &=& \rho_a^n - \frac{\Delta t}{2} \rho_a^n
+\Div_a(\uvec{v}^n),
+\nonumber
+\\
+p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0}\right)^\xi
+-1 \right],
+\nonumber
+\\
+\uvec{v}_a^{n+1} &=& \uvec{v}_a^n + \Delta t \left(
+-\frac{1}{\rho^{n+1/2}_a}\Grad_a(p^{n+1/2}) +
+\Lap_a(\nu^{n+1/2},\uvec{v}^{n+1/2}) + \uvec{g}
+\right),
+\nonumber
+\\
+\uvec{r}_a^{n+1} &=& \uvec{r}_a^{n} + \Delta t\,
+\uvec{v}_a^{n+1/2},
+\nonumber
+\\
+\rho_a^{n+1} &=& \rho_a^n - \Delta t\, \rho_a^{n+1/2}
+\Div_a(\uvec{v}^{n+1/2}),
+\nonumber
+\\
+p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\right)^\xi
+-1 \right].
+\nonumber
+\end{eqnarray}
+
+\section{Boundary conditions}
+
+\subsection{Semi-analytical boundaries}
+
+\todo{Add other boundary conditions}
+
+
 
 \chapter{GPUSPH}
 
