@@ -58,7 +58,7 @@ PROJECT_LOGO           = img/logo.png
 # entered, it will be relative to the location where doxygen was started. If
 # left blank the current directory will be used.
 
-OUTPUT_DIRECTORY       = docs
+OUTPUT_DIRECTORY       = docs/dev-guide
 
 # If the CREATE_SUBDIRS tag is set to YES then doxygen will create 4096 sub-
 # directories (in 2 levels) under the output directory of each output format and
@@ -771,7 +771,7 @@ WARN_LOGFILE           =
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = src \
-                         doc \
+                         docs/dev-guide/src \
                          src/cuda \
                          src/geometries \
                          src/problems \

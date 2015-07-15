@@ -3,7 +3,14 @@ Makefile.gpu
 Makefile.local
 Makefile.conf
 options
-docs
+docs/dev-guide/html
+docs/user-guide/*pdf
+docs/user-guide/src/*bbl
+docs/user-guide/src/*aux
+docs/user-guide/src/*blg
+docs/user-guide/src/*out
+docs/user-guide/src/*log
+docs/user-guide/src/*toc
 build
 dist
 nbproject
