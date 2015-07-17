@@ -8,9 +8,12 @@
 % T1 font encoding
 \usepackage[T1]{fontenc}
 
-\usepackage{textcomp}
-
-\usepackage{underscore}
+% Allow for underscores in the text (without using \_)
+\AtBeginDocument{%
+  \begingroup\lccode`~=`_%
+  \lowercase{\endgroup\let~}_%
+  \catcode`_=12
+}
 
 % URL management
 \usepackage{url}
@@ -105,13 +108,13 @@ computer simulations that are not data-intensive, GPU programming
 provides supercomputer capabilities at commodity prices.
 
 Smoothed Particle Hydrodynamics (SPH) is a Lagrangian meshless numerical
-method that was developed in astrophysics by \cite{Lucy:1977} and
-\cite{GingMon:1977}. Its first application to free surface flows (e.g.
-dam breaks and waves) was by \cite{Monaghan:1994}.
-\cite{Gomez-Gesteira:2004} and \cite{DalrympleRogers:2006}, also
+method that was developed in astrophysics by \cite{lucy_numerical_1977} and
+\cite{gingold_smoothed_1977}. Its first application to free surface flows (e.g.
+dam breaks and waves) was by \cite{monaghan_volcanoes_1994}.
+\cite{gomez-gesteira_using_2004} and \cite{dalrymple_numerical_2006}, also
 applying SPH to dam breaks and waves, began the development of SPHysics,
 an open source FORTRAN code (\url{http://www.sphysics.org}),
-\cite{Gesteiraetal:2008}.
+\cite{gomez-gesteira_sphysics_2012}.
 
 GPUSPH is an implementation of Smoothed Particle Hydrodynamics (SPH) on
 \nvidia\ CUDA-enabled (graphics) cards. The first version of GPUSPH was
@@ -120,7 +123,7 @@ Third SPHERIC Workshop in Lausanne, Switzerland in 2008. The GPU
 implementation came from GPU-LAVA, a lava flow program, developed by
 Hérault and Bilotta at INGV in Catania, Italy. The present version of
 GPUSPH is open source, licensed under the GNU General Public License
-(\url{www.gnu.org/licenses/gpl.txt}). \cite{Heraultetal:2010} provide
+(\url{www.gnu.org/licenses/gpl.txt}). \cite{herault_sph_2010} provide
 some timing information showing that using the GPU is far faster (orders
 of magnitude) than using a CPU to compute SPH models. Speedups of 100
 can be achieved for parts of the code when compared to serial versions
@@ -372,9 +375,10 @@ line option (described below): e.g. \cmd{./GPUSPH --deltap 0.02}.
 
 \subsection{DamBreak3D}
 
-\cmd{DamBreak3D} is a case originally used by \cite{Gomez-Gesteira:2004}
+\cmd{DamBreak3D} is a case originally used by
+\cite{gomez-gesteira_using_2004}
 for testing a prototype version of SPHysics. It is based on some
-experiments done by \cite{Arnason:2005} at the University of Washington.
+experiments done by \cite{arnason_interactions_2005} at the University of Washington.
 We assume an instantaneous breaking dam and the resulting flow impinging
 onto a rectangular object. The whole problem is contained within a
 bounding box, which extends $1.6$m in length ($x$ axis), $0.67$m in
@@ -398,8 +402,8 @@ vertically with a linearly varying velocity. In this case, the gate will
 move with a velocity that is zero when the problem starts and that
 linearly increases with time until the gate is outside the domain. The
 effect on the dam break is that the escaping water is affected by the
-gage motion. (See \cite{Crespo:2008}'s SPH modeling of
-\cite{Janosi:2004}'s experiment, where a moving gate was important.)
+gage motion. (See \cite{crespo_modeling_2008}'s SPH modeling of
+\cite{janosi_turbulent_2004}'s experiment, where a moving gate was important.)
 
 The moving gate is created by defining its geometry with particles
 denoted as GATEPART particles and the \cmd{mb_callback} function, which
@@ -454,7 +458,7 @@ paddle, you must change these variables in the problem file,
 
 SolitaryWave is similar in set up to the WaveTank example, except that a
 piston moving boundary is used. The motion of a vertical plate is
-determined by the method of \cite{Goring:1978}, available in PDF format
+determined by the method of \cite{goring_tsunamis_1979}, available in PDF format
 from \cmd{http://caltechkhr.library.caltech.edu/50/}. The full
 excursion (stroke) of the paddle is the variable \cmd{S}.
 
@@ -1085,7 +1089,7 @@ m_simparams.slength = 1.3f*m_deltap; m_simparams.kernelradius = 2.0f;
 m_simparams.kerneltype = WENDLAND; \end{verbatim} These variables set
 the smoothing length to be 1.3 times the particle size (m\_deltap, set
 earlier in the problem); the kernel type is taken as a Wendland SPH
-kernel \cite{Wendland:2005} (choices for smoothing kernels are
+kernel \cite{wendland_piecewise_1995} (choices for smoothing kernels are
 QUADRATIC, CUBICSPLINE, and WENDLAND). Associated with the kernel is
 the kernel radius in terms of multiples of the smoothing length (2 $h$
 in this case). The simparams structure is defined in
@@ -1271,7 +1275,7 @@ $5 g H$, where $g$ is the acceleration of gravity and $H$ is a
 characteristic water depth. The exponents, p1coef and p2coef, are 12
 and 6 according to the Lennard-Jones formulation.
 
-A second fixed boundary condition is due to \citet{MonaghanBC:2009}, who
+A second fixed boundary condition is due to \citet{monaghan_sph_2009}, who
 provide a smoother boundary force as particles move parallel to the
 boundary as the contributions of neighboring boundary particles is more
 carefully included.
@@ -1418,7 +1422,7 @@ This is done by setting the \verb{SURFACE_PARTICLE_FLAG{ to true in the
 problem, using \verb{m_simparams.surfaceparticle= true;{
 
 The free surface detection algorithm is a simplification of
-\cite{Marrone:2010}, consisting of two steps: determining a normal
+\cite{marrone_fast_2010}, consisting of two steps: determining a normal
 vector to a particle, and then determining the number of neighbors in
 the direction of the normal.
 
@@ -1625,3 +1629,7 @@ Monaghan-Kajtar boundary force & forces\_kernel.cu \\ \hline
 \bibliography{gpusph-reference}
 
 \end{document}
+
+% missing:
+% gomez-gesteira:2004
+% Goring:1978 (solitary wave; wave tank)
