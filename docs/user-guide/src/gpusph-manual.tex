@@ -22,6 +22,8 @@
 % TODO notes
 \usepackage{todonotes}
 
+\usepackage{nth}
+
 % listings
 \usepackage{listings}
 \lstloadlanguages{sh,make,C++}
@@ -65,6 +67,7 @@
 \newcommand{\lap}{\nabla^2}
 \newcommand{\ie}{\textit{i.e.}~}
 \newcommand{\eg}{\textit{e.g.}~}
+\newcommand{\etal}{\textit{et al.}~}
 \newcommand{\sumF}{\underset{b \in \mathcal{F}}{\sum}}
 \newcommand{\sumP}{\underset{b \in \mathcal{P}}{\sum}}
 \newcommand{\sumS}{\underset{s \in \mathcal{S}}{\sum}}
@@ -672,12 +675,18 @@ The formulae for the different kernels and their derivatives are given below.
 
 The Wendland kernel is given by
 \begin{equation}
-w(q,h) = \frac{\alpha_W}{h^3}\left(1-\frac{q}{2}\right)^4(1+2q),
+w(q,h) = \left\{ \begin{array}{rl}
+ \dfrac{\alpha_W}{h^3} \left(1-\dfrac{q}{2}\right)^4(1+2q) &\mbox{ if $0\le q \le 2$,} \\
+  0 &\mbox{ if $2 < q$,}
+       \end{array} \right.
 \label{e:sph:wendland}
 \end{equation}
 where $\alpha_W = 21/(16\pi)$ and its derivative by
 \begin{equation}
-\|\nabla w(q,h)\| = \frac{\alpha_{\nabla W}}{h^5}\left(q-2\right)^3,
+\|\nabla w(q,h)\| = \left\{ \begin{array}{rl}
+  \dfrac{\alpha_{\nabla W}}{h^5}\left(q-2\right)^3 &\mbox{ if $0\le q \le 2$,} \\
+  0 &\mbox{ if $2 < q$,}
+       \end{array} \right.
 \label{e:sph:gradwendland}
 \end{equation}
 where $\alpha_{\nabla W} = 105/(128\pi)$ in 3-D.
@@ -739,6 +748,8 @@ defining the gradient as
 where the latter derivative is that of a constant function $f_a$. As
 derivatives of constant functions are not necessarily zero this term
 will have a non-zero contribution.
+
+\todo{Add different formulations SPH_F1 and SPH_F2, including theory}
 
 The principle of energy conservation requires the gradient and
 divergence operators to be skew-adjoint, \ie
@@ -886,9 +897,105 @@ p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\ri
 
 \section{Boundary conditions}
 
+Several different boundary conditions are available for the SPH method
+and a few selected ones are implemented in GPUSPH. Currently the
+following options are implemented
+\begin{itemize}
+  \item \cmd{LJ_BOUNDARY}: Lennard-Jones boundary conditions
+  \item \cmd{MK_BOUNDARY}: Monaghan-Kajtar boundary conditions
+  \item \cmd{SA_BOUNDARY}: Semi-analytical boundary conditions
+  \item \cmd{DYN_BOUNDARY}: Dynamic boundary conditions
+\end{itemize}
+In the following these boundary conditions and their formulations will
+be described in detail.
+
 \subsection{Semi-analytical boundaries}
 
+The semi-analytical wall boundary conditions developed by Ferrand \etal
+\cite{ferrand_unified_2012} have shown promising results in the
+simulation of flows with complex boundaries using the Smoothed Particle
+Hydrodynamics (SPH) method. Recent efforts have pushed these boundary
+towards practical applications \cite{mayrhofer_unified_2014, leroy_unified_2014}.
+While the accuracy of these boundary conditions is outstanding, one of
+their downsides is their comparably high computational cost.
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.48\textwidth]{fig/vertex_and_boundary_elements.pdf}
+\caption{Different particle types}
+\label{fig:sa:types}
+\end{figure}
+The domain $\Omega$ which is the fluid domain is discretized using three different sets of particles:
+\begin{enumerate}
+\item $f \in \mathcal{F}$: the fluid particles,
+\item $p \in \mathcal{P}$: the vertex particles,
+\item $s \in \mathcal{S}$: the boundary elements.
+\end{enumerate}
+The boundary segments are triangles, in the 3-D case, that are located at the boundary $\partial \Omega$ of the domain. At each vertex of such a boundary elements is a vertex particle that has a mass that is related to the boundary shape as shown in Fig. \ref{fig:sa:types}. These particles, in a finite volume sense, represent the near-wall cells and are moving only if the solid wall is. The fluid particles on the other hand are typical SPH particles that move in a Lagrangian fashion and occupy $\Omega$. The union of fluid and vertex particles will be denoted with $\mathcal{P}$.
+
+The SPH interpolation in the context of the semi-analytical boundary conditions is given by
+\begin{equation}
+[f]_a = \frac{1}{\gamma_a}\sumP V_b f_b w_{ab},
+\label{e:sa:int}
+\end{equation}
+where $\gamma_a$ is the kernel renormalization parameter defined as
+\begin{equation}
+\gamma_a = \int_\Omega w(\|\uvec{r}-\uvec{r_b}\|),
+\label{e:sa:gam}
+\end{equation}
+which is computed following the idea by Violeau \etal
+\cite{violeau_exact_2014}. However, instead of analytically evaluating
+the integral over the boundary element, a \nth{5}-order quadrature rule
+is used. Note that currently this is implemented only for the Wendland
+kernel and so the semi-analytical boundary conditions can only be used
+using this kernel.
+
+The differential operators gradient and divergence are given as
+\begin{eqnarray}
+\Grad_a(p) &=& \frac{1}{\gamma_a}\sumP V_b (p_a+p_b) \nabla_a w_{ab}
+ -\frac{1}{\gamma_a}\sumS (p_a + p_s) \nabla \gamma_{as},
+\label{e:sa:grad}
+\\
+\Div_a(\uvec{v}) &=& \frac{1}{\gamma_a}\sumP V_b (\uvec{v}_b - \uvec{v}_a) \cdot \nabla_a w_{ab}
+ -\frac{1}{\gamma_a}\sumS (\uvec{v}_s - \uvec{v}_a) \cdot \nabla \gamma_{as},
+\label{e:sa:div}
+\end{eqnarray}
+respectively. $\nabla \gamma_{as}$ is the surface integral of the kernel
+on a triangle $s$ which is solved using the same \nth{5}-order
+quadrature rule. The derivation of these operators can be found in
+\cite{ferrand_unified_2012}. The basic idea is to not drop the surface
+integral term in Eq. \eqref{e:sph:cint-stokes} but instead replace it
+with a discrete approximation, \ie the sum over the segments. The Laplacian operator, required to discretize the viscous term of the momentum equation, is given by
+\begin{equation}
+\Lap_a(\nu, \uvec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\uvec{v}_{ab}}{\|\uvec{r}_{ab}\|^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab}
+ - \frac{2 \nu_a \uvec{v}_a}{\gamma_a} \sumS \frac{\|\nabla \gamma_{as}\|}{\delta r_{as}},
+\label{e:sa:lap}
+\end{equation}
+where the laminar shear stress was used in the boundary term \cite{ferrand_unified_2012}, $\uvec{r}_{ab} = \uvec{r}_a - \uvec{r}_b$ and $\delta r_{as} = \max(\uvec{r}_{as}\cdot\uvec{n}_s, \Delta r)$. Finally the Dirichlet boundary condition $\uvec{v} = 0$ is applied at no-slip boundaries by imposing $\uvec{v}_a = 0\ \forall a \in \mathcal{V} \cup \mathcal{S}$. The Neumann boundary condition $\partial \rho/\partial \uvec{n} = 0$ is imposed using the approximation
+\begin{equation}
+\rho_a = \frac{1}{\alpha_a}\sumF m_b w_{ab},
+\end{equation}
+\todo{hydrostatic correction}
+with
+\begin{equation}
+\alpha_a = \sumF V_b w_{ab},
+\end{equation}
+for all vertex particles and boundary elements (for details see \cite{mayrhofer_investigation_2013}).
+
 \todo{Add other boundary conditions}
+
+\section{Turbulence modelling}
+
+\subsection{The $k-\epsilon$ model}
+
+\subsubsection{Semi-analytical boundaries}
+
+\todo{Add SPS}
+
+\section{Open boundaries}
+
+\subsection{Semi-analytical boundaries}
+
+\todo{Add dynamic buffer zone boundaries}
 
 
 
