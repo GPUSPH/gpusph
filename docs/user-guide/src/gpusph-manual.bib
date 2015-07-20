@@ -86,6 +86,19 @@ be easily extended to deal with more complicated physical models.},
 	file = {ScienceDirect Full Text PDF:/home/arnom/work/diss/lit/storage/VGV6ZM6T/Dalrymple and Rogers - 2006 - Numerical modeling of water waves with the SPH met.pdf:application/pdf;ScienceDirect Snapshot:/home/arnom/work/diss/lit/storage/TF6FFZM6/S0378383905001304.html:text/html}
 }
 
+@article{ferrand_unified_2012,
+	title = {Unified semi-analytical wall boundary conditions for inviscid, laminar or turbulent flows in the meshless {SPH} method},
+	volume = {71},
+	doi = {10.1002/fld.3666},
+	number = {4},
+	journal = {International Journal for Numerical Methods in Fluids},
+	author = {Ferrand, Martin and Laurence, Dominique and Rogers, Benedict D. and Violeau, Damien and Kassiotis, Christophe},
+	year = {2012},
+	note = {DOI: 10.1002/fld.3666},
+	pages = {446--472},
+	file = {ferrand_ijnmf.pdf:/home/arnom/work/diss/lit_old/ferrand_ijnmf.pdf:application/pdf}
+}
+
 @article{monaghan_sph_2009,
 	title = {{SPH} particle boundary forces for arbitrary boundaries},
 	volume = {180},
@@ -137,6 +150,53 @@ be easily extended to deal with more complicated physical models.},
 	file = {Full Text PDF:/home/arnom/work/diss/lit/storage/G35T7T4A/Crespo et al. - 2008 - Modeling Dam Break Behavior over a Wet Bed by a SP.pdf:application/pdf;Snapshot:/home/arnom/work/diss/lit/storage/GJUWNNIS/(ASCE)0733-950X(2008)1346(313).html:text/html}
 }
 
+@article{mayrhofer_investigation_2013,
+	title = {Investigation of wall bounded flows using {SPH} and the unified semi-analytical wall boundary conditions},
+	volume = {184},
+	issn = {0010-4655},
+	doi = {10.1016/j.cpc.2013.07.004},
+	abstract = {Abstract
+Semi-analytical wall boundary conditions present a mathematically rigorous framework to prescribe the influence of solid walls in smoothed particle hydrodynamics (SPH) for fluid flows. In this paper they are investigated with respect to the skew-adjoint property which implies exact energy conservation. It will be shown that this property holds only in the limit of the continuous SPH approximation, whereas in the discrete SPH formulation it is only approximately true, leading to numerical noise. This noise, interpreted as a form of “turbulence”, is treated using an additional volume diffusion term in the continuity equation which we show is equivalent to an approximate Riemann solver. Subsequently two extensions to the boundary conditions are presented. The first dealing with a variable driving force when imposing a volume flux in a periodic flow and the second showing a generalization of the wall boundary condition to Robin type and arbitrary-order interpolation. Two modifications for free-surface flows are presented for the volume diffusion term as well as the wall boundary condition. In order to validate the theoretical constructs numerical experiments are performed showing that the present volume flux term yields results with an error 5 orders of magnitude smaller then previous methods while the Robin boundary conditions are imposed correctly with an error depending on the order of the approximation. Furthermore, the proposed modifications for free-surface flows improve the behavior at the intersection of free surface and wall as well as prevent free-surface detachment when using the volume diffusion term. Finally, this paper is concluded by a simulation of a dam break over a wedge demonstrating the improvements proposed in this paper.},
+	number = {11},
+	urldate = {2013-08-27},
+	journal = {Computer Physics Communications},
+	author = {Mayrhofer, Arno and Rogers, Benedict D. and Violeau, Damien and Ferrand, Martin},
+	month = nov,
+	year = {2013},
+	keywords = {boundary conditions, Energy conservation, Free-surface flows, Numerical turbulence, Smoothed particle hydrodynamics, Volume diffusion},
+	pages = {2515--2527},
+	file = {ScienceDirect Full Text PDF:/home/arnom/work/diss/lit/storage/PZF3TT93/Mayrhofer et al. - 2013 - Investigation of wall bounded flows using SPH and .pdf:application/pdf;ScienceDirect Snapshot:/home/arnom/work/diss/lit/storage/MK297RSI/S0010465513002324.html:text/html}
+}
+
+@article{leroy_unified_2014,
+	title = {Unified semi-analytical wall boundary conditions applied to 2-{D} incompressible {SPH}},
+	volume = {261},
+	issn = {0021-9991},
+	doi = {10.1016/j.jcp.2013.12.035},
+	journal = {Journal of Computational Physics},
+	author = {Leroy, A. and Violeau, D. and Ferrand, M. and Kassiotis, C.},
+	year = {2014},
+	pages = {106--129},
+	file = {leroy_ISPH_2013.pdf:/home/arnom/work/diss/lit_old/leroy_ISPH_2013.pdf:application/pdf}
+}
+
+@article{mayrhofer_unified_2014,
+	title = {Unified semi-analytical wall boundary conditions in {SPH}: analytical extension to 3-\{{D}\}},
+	issn = {1017-1398, 1572-9265},
+	shorttitle = {Unified semi-analytical wall boundary conditions in {SPH}},
+	doi = {10.1007/s11075-014-9835-y},
+	abstract = {Solid wall boundary conditions have been an area of active research within the context of Smoothed Particle Hydrodynamics (SPH) for quite a while. Ferrand et al. (Int. J. Numer. Methods Fluids 71(4), 446–472, 2012) presented a novel approach using a renormalization factor in the SPH approximation. The computation of this factor depends on an integral along the boundary of the domain and in their original paper Ferrand et al. gave an analytical formulation for the 2-D case using the Wendland kernel. In this paper the formulation will be extended to 3-D, again providing analytical formulae. Due to the boundary being two dimensional a domain decomposition algorithm needs to be employed in order to obtain special integration domains. For these the analytical formulae will be presented when using the Wendland kernel. The algorithm presented within this paper is applied to several academic test-cases for which either analytical results or simulations with other methods are available. It will be shown that the present formulation produces accurate results and provides a significant improvement compared to approximative methods.},
+	language = {en},
+	urldate = {2014-02-24},
+	journal = {Numerical Algorithms},
+	author = {Mayrhofer, Arno and Ferrand, Martin and Kassiotis, Christophe and Violeau, Damien and Morel, François-Xavier},
+	month = feb,
+	year = {2014},
+	keywords = {Algebra, Algorithms, Fluid mechanics, NUMERICAL ANALYSIS, Numeric Computing, Smoothed particle hydrodynamics, Theory of Computation, Unified semi-analytical, Wall boundary conditions},
+	pages = {1--20},
+	file = {Full Text PDF:/home/arnom/work/diss/lit/storage/FMPMT6NT/Mayrhofer et al. - Unified semi-analytical wall boundary conditions i.pdf:application/pdf;Snapshot:/home/arnom/work/diss/lit/storage/E9427QGP/10.html:text/html}
+}
+
 @article{monaghan_volcanoes_1994,
 	title = {Volcanoes, {Tsunamis} and the demise of the {Minoans}},
 	volume = {77},
@@ -161,6 +221,16 @@ be easily extended to deal with more complicated physical models.},
 	author = {Hérault, Alexis and Bilotta, Giuseppe and Dalrymple, Robert Anthony},
 	year = {2010},
 	pages = {74--79}
+}
+
+@inproceedings{violeau_exact_2014,
+	address = {Paris},
+	title = {Exact computation of {SPH} wall renormalising integrals in 3-{D}},
+	booktitle = {Proceedings of the 9th {International} {SPHERIC} {Workshop}},
+	author = {Violeau, Damien and Leroy, Agnès and Mayrhofer, Arno},
+	month = may,
+	year = {2014},
+	pages = {95--102}
 }
 
 @article{gomez-gesteira_using_2004,
