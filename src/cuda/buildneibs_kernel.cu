@@ -72,7 +72,7 @@ __device__ int d_numInteractions;		///< Total number of interactions
 __device__ int d_maxNeibs;				///< Computed maximum number of neighbors per particle
 /** @} */
 
-#include "cellgrid.h"
+#include "cellgrid.cuh"
 
 /** \name Device functions
  *  @{ */

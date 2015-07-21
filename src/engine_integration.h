@@ -42,7 +42,8 @@ class AbstractIntegrationEngine
 public:
 	virtual void
 	setconstants(const PhysParams *physparams, float3 const& worldOrigin,
-		uint3 const& gridSize, float3 const& cellSize) = 0;
+		uint3 const& gridSize, float3 const& cellSize, idx_t const& allocatedParticles,
+		int const& maxneibsnum, float const& slength) = 0;
 
 	virtual void
 	getconstants(PhysParams *physparams) = 0;
@@ -67,14 +68,18 @@ public:
 	// integration schemes
 	virtual void
 	basicstep(
-		MultiBufferList::const_iterator bufread,
+		MultiBufferList::const_iterator bufread,	// this is the read only arrays
+		MultiBufferList::iterator bufreadUpdate,	// the read array but it will be written to in certain cases (densitySum)
 		MultiBufferList::iterator bufwrite,
+		const	uint	*cellStart,
 		const	uint	numParticles,
 		const	uint	particleRangeEnd,
 		const	float	dt,
 		const	float	dt2,
 		const	int		step,
-		const	float	t)
+		const	float	t,
+		const	float	slength,
+		const	float	influenceRadius)
 	= 0;
 
 };

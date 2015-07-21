@@ -116,13 +116,28 @@ template<
 	flag_t simflags,
 	bool invalid_combination = (
 		// Currently, we consider invalid only the case
-		// of SA_BOUNDARY with viscosity different from DYNAMIC or KEPS,
-		// since they aren't tested.
-		// TODO extend to include all unsupported/untested combinations
-		boundarytype == SA_BOUNDARY &&
-		(visctype != DYNAMICVISC &&
-		 visctype != KEPSVISC)
+		// of SA_BOUNDARY
+
+		// TODO extend to include all unsupported/untested combinations for other boundary conditions
+
+		boundarytype == SA_BOUNDARY && (
+			// viscosity
+			visctype == KINEMATICVISC		||	// untested
+			visctype == SPSVISC 			||	// untested
+			visctype == ARTVISC 			||	// untested (use is discouraged, use Ferrari correction)
+			// kernel
+			! (kerneltype == WENDLAND) 		||	// only the Wendland kernel is allowed in SA_BOUNDARY
+												// all other kernels would require their respective
+												// gamma and grad gamma formulation
+			// formulation
+			sph_formulation == SPH_GRENIER	||	// multi-fluid is currently not implemented
+			// flags
+			simflags & ENABLE_XSPH			||	// untested
+			simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
+			(simflags & ENABLE_INLET_OUTLET && ((~simflags) & ENABLE_DENSITY_SUM))
+												// inlet outlet works only with the summation density
 		)
+	)
 >
 class CUDASimFrameworkImpl : public SimFramework,
 	private InvalidOptionCombination<invalid_combination>
@@ -131,7 +146,7 @@ public:
 	CUDASimFrameworkImpl() : SimFramework()
 	{
 		m_neibsEngine = new CUDANeibsEngine<sph_formulation, boundarytype, periodicbound, true>();
-		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, simflags & ENABLE_XSPH>();
+		m_integrationEngine = new CUDAPredCorrEngine<sph_formulation, boundarytype, kerneltype, simflags>();
 		m_viscEngine = new CUDAViscEngine<visctype, kerneltype, boundarytype>();
 		m_forcesEngine = new CUDAForcesEngine<kerneltype, sph_formulation, visctype, boundarytype, simflags>();
 		m_bcEngine = CUDABoundaryConditionsSelector<kerneltype, visctype, boundarytype, simflags>::select();

@@ -881,7 +881,7 @@ snapshot: $(SNAPSHOT_FILE)
 
 # One possibility to add the source files: $(SRCDIR)/*.{cc,h} $(SRCDIR)/*.{cc,h,cu,cuh,def}
 # However, Makefile does not support this bash-like expansion, so we take a shortcut.
-$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/
+$(SNAPSHOT_FILE):  ./$(MFILE_NAME) $(EXTRA_PROBLEM_FILES) $(DOXYCONF) $(SRCDIR)/ $(SCRIPTSDIR)/
 	$(CMDECHO)tar czf $@ $^
 
 # target: expand - Expand euler* and forces* GPU code in $(EXPDIR)

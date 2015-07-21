@@ -567,9 +567,22 @@ bool GPUSPH::runSimulation() {
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(1);
-		// integrate also the externals
-		gdata->only_internal = false;
+
+		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
+		if (!(problem->get_simparams()->simflags & ENABLE_DENSITY_SUM))
+			// integrate also the externals
+			gdata->only_internal = false;
+
 		doCommand(EULER, INTEGRATOR_STEP_1);
+
+		// summation density requires an update from the other GPUs.
+		if (problem->get_simparams()->simflags & ENABLE_DENSITY_SUM) {
+			if (MULTI_DEVICE) {
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+				// the following only need update after the first step, vel due to rhie and chow and gradgamma to save gam^n
+				doCommand(UPDATE_EXTERNAL, BUFFER_VEL | BUFFER_GRADGAMMA | DBLBUFFER_READ);
+			}
+		}
 
 		doCommand(SWAP_BUFFERS, BUFFER_BOUNDELEMENTS);
 
@@ -637,9 +650,21 @@ bool GPUSPH::runSimulation() {
 		// Take care of moving bodies
 		// TODO: use INTEGRATOR_STEP
 		move_bodies(2);
-		// integrate also the externals
-		gdata->only_internal = false;
+
+		// in the case of the summation density there is a neighbour loop in euler and so we can run on internal only
+		if (!(problem->get_simparams()->simflags & ENABLE_DENSITY_SUM))
+			// integrate also the externals
+			gdata->only_internal = false;
+
 		doCommand(EULER, INTEGRATOR_STEP_2);
+
+		// summation density requires an update from the other GPUs.
+		if (problem->get_simparams()->simflags & ENABLE_DENSITY_SUM) {
+			if (MULTI_DEVICE) {
+				doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VEL | BUFFER_EULERVEL | BUFFER_TKE | BUFFER_EPSILON | BUFFER_BOUNDELEMENTS | BUFFER_GRADGAMMA | DBLBUFFER_WRITE);
+			}
+		}
+
 		// Euler needs always cg(n)
 		if (problem->get_simparams()->numbodies > 0)
 			doCommand(EULER_UPLOAD_OBJECTS_CG);
@@ -1934,7 +1959,7 @@ void GPUSPH::saBoundaryConditions(flag_t cFlag)
 		doCommand(UPDATE_EXTERNAL, POST_SA_VERTEX_UPDATE_BUFFERS | DBLBUFFER_WRITE);
 
 	// check if we need to delete some particles which passed through open boundaries
-	if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET && !(cFlag & INITIALIZATION_STEP)) {
+	if (problem->get_simparams()->simflags & ENABLE_INLET_OUTLET && (cFlag & INTEGRATOR_STEP_2)) {
 		doCommand(DISABLE_OUTGOING_PARTS);
 		if (MULTI_DEVICE)
 			doCommand(UPDATE_EXTERNAL, BUFFER_POS | BUFFER_VERTICES | DBLBUFFER_WRITE);

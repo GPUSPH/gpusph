@@ -75,6 +75,7 @@ struct common_forces_params
 	const	float	deltap;
 	const	float	slength;
 	const	float	influenceradius;
+	const	uint	step;
 
 	// Constructor / initializer
 	common_forces_params(
@@ -90,7 +91,8 @@ struct common_forces_params
 		const	uint	_toParticle,
 		const	float	_deltap,
 		const	float	_slength,
-		const	float	_influenceradius) :
+		const	float	_influenceradius,
+		const	uint	_step) :
 		forces(_forces),
 		contupd(_contupd),
 		rbforces(_rbforces),
@@ -103,7 +105,8 @@ struct common_forces_params
 		toParticle(_toParticle),
 		deltap(_deltap),
 		slength(_slength),
-		influenceradius(_influenceradius)
+		influenceradius(_influenceradius),
+		step(_step)
 	{}
 };
 
@@ -111,11 +114,12 @@ struct common_forces_params
 struct dyndt_forces_params
 {
 	float	*cfl;
+	float	*cfl_dS;
 	float	*cfltvisc;
 	uint	cflOffset;
 
-	dyndt_forces_params(float *_cfl, float *_cfltvisc, uint _cflOffset) :
-		cfl(_cfl), cfltvisc(_cfltvisc), cflOffset(_cflOffset)
+	dyndt_forces_params(float *_cfl, float *_cfl_dS, float *_cfltvisc, uint _cflOffset) :
+		cfl(_cfl), cfl_dS(_cfl_dS), cfltvisc(_cfltvisc), cflOffset(_cflOffset)
 	{}
 };
 
@@ -217,9 +221,11 @@ struct forces_params :
 				float	_deltap,
 				float	_slength,
 				float	_influenceradius,
+				uint	_step,
 
 		// dyndt
 				float	*_cfl,
+				float	*_cfl_dS,
 				float	*_cflTVisc,
 				uint	_cflOffset,
 
@@ -244,9 +250,9 @@ struct forces_params :
 		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
-			_deltap, _slength, _influenceradius),
+			_deltap, _slength, _influenceradius, _step),
 		COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params)
-			(_cfl, _cflTVisc, _cflOffset),
+			(_cfl, _cfl_dS, _cflTVisc, _cflOffset),
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
