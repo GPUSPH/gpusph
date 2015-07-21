@@ -62,7 +62,7 @@ texture<float, 2, cudaReadModeElementType> demTex;	// DEM
  *  	- device functions
  *  	- kernels
  *
- *  \ingroup neibs
+ *  \ingroup forces
  */
 namespace cuforces {
 
