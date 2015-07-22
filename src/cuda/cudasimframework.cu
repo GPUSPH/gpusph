@@ -134,7 +134,7 @@ template<
 			// flags
 			simflags & ENABLE_XSPH			||	// untested
 			simflags & ENABLE_DEM			||	// not implemented (flat wall formulation is in an old branch)
-			(simflags & ENABLE_INLET_OUTLET && ((~simflags) & ENABLE_DENSITY_SUM))
+			(simflags & ENABLE_INLET_OUTLET && !(simflags & ENABLE_DENSITY_SUM))
 												// inlet outlet works only with the summation density
 		)
 	)
