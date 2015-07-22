@@ -1005,9 +1005,9 @@ test: all
 
 # target: compile-problems - Test that all problems compile
 compile-problems:
-	$(CMDECHO)for prob in $(PROBLEM_LIST) ; do \
-		echo [TEST-BUILD] $${prob} ; \
-		$(MAKE) problem=$${prob} || exit 1 ; \
+	$(CMDECHO)pn=1 ; for prob in $(PROBLEM_LIST) ; do \
+		echo [TEST-BUILD $${pn}/$(words $(PROBLEM_LIST))] $${prob} ; \
+		$(MAKE) problem=$${prob} || exit 1 ; pn=$$(($$pn+1)) ; \
 		done
 
 # target: list-problems - List available problems
