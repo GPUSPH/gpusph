@@ -81,7 +81,7 @@ enum ParticleType {
 #define PART_FLAG_START	(1<<PART_FLAG_SHIFT)
 enum ParticleFlag {
 	FG_COMPUTE_FORCE =		(PART_FLAG_START<<0), ///< particle belongs to a body that needs to compute forces
-	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1), ///< particle belongs to a body with externally prescriped motion
+	FG_MOVING_BOUNDARY =	(PART_FLAG_START<<1), ///< particle belongs to a body with externally prescribed motion
 
 	FG_INLET =				(PART_FLAG_START<<2), ///< particle belongs to an inlet
 	FG_OUTLET =				(PART_FLAG_START<<3), ///< particle belongs to an outlet
@@ -95,14 +95,15 @@ enum ParticleFlag {
 #define CLEAR_FLAG(info, flag) ((info).x &= ~(flag))
 #define QUERY_FLAG(info, flag) ((info).x & (flag))
 
-/// A bitmask to select only the particle type
+/// Bitmasks to select only the particle type or flags
 #define PART_TYPE_MASK	((1<<PART_FLAG_SHIFT)-1)
+#define PART_FLAGS_MASK	(((1<<16)-1) - PART_TYPE_MASK)
 
 /* Extract a specific subfield from the particle type: */
 /// Extract particle type
 #define PART_TYPE(f)		(type(f) & PART_TYPE_MASK)
-/// Extract particle flag
-#define PART_FLAGS(f)		(type(f) >> PART_FLAG_SHIFT)
+/// Extract particle flags
+#define PART_FLAGS(f)		(type(f) & PART_FLAGS_MASK)
 
 /* Tests for particle types */
 

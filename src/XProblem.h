@@ -1,3 +1,28 @@
+/*  Copyright 2011-2013 Alexis Herault, Giuseppe Bilotta, Robert A. Dalrymple, Eugenio Rustico, Ciro Del Negro
+
+    Istituto Nazionale di Geofisica e Vulcanologia
+        Sezione di Catania, Catania, Italy
+
+    Università di Catania, Catania, Italy
+
+    Johns Hopkins University, Baltimore, MD
+
+    This file is part of GPUSPH.
+
+    GPUSPH is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    GPUSPH is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #ifndef _XPROBLEM_H
 #define	_XPROBLEM_H
 
@@ -8,8 +33,9 @@
 
 #include "Problem.h"
 
-// HDF5 reader
+// HDF5 and XYF file readers
 #include "HDF5SphReader.h"
+#include "XYZReader.h"
 
 enum GeometryType {	GT_FLUID,
 					GT_FIXED_BOUNDARY,
@@ -64,6 +90,10 @@ struct GeometryInfo {
 	HDF5SphReader *hdf5_reader;
 	bool flip_normals; // for HF5 generated from STL files with wrong normals
 
+	bool has_xyz_file;  // ditto
+	std::string xyz_filename;
+	XYZReader *xyz_reader;
+
 	bool has_stl_file; // ditto
 	std::string stl_filename;
 
@@ -73,6 +103,9 @@ struct GeometryInfo {
 	// aux vars to check if user set what he/she should
 	bool mass_was_set;
 	bool particle_mass_was_set;
+
+	// flag to distinguish pressure/velocity open boundaries
+	bool velocity_driven;
 
 	GeometryInfo() {
 		ptr = NULL;
@@ -93,6 +126,10 @@ struct GeometryInfo {
 		hdf5_reader = NULL;
 		flip_normals = false;
 
+		has_xyz_file = false;
+		xyz_filename = "";
+		xyz_reader = NULL;
+
 		has_stl_file = false;
 		stl_filename = "";
 
@@ -102,6 +139,8 @@ struct GeometryInfo {
 
 		mass_was_set = false;
 		particle_mass_was_set = false;
+
+		velocity_driven = false;
 	}
 };
 
@@ -119,8 +158,7 @@ class XProblem: public Problem {
 		//PointVect m_vertexParts;
 
 		size_t m_numActiveGeometries;	// do NOT use it to iterate on m_geometries, since it lacks the deleted geoms
-		size_t m_numBodies;				// total number of bodies (floating + moving + feedback only) /// DELETE?
-		size_t m_numForcesBodies;		// number of bodies with feedback enabled (includes floating) /// DELETE?
+		size_t m_numForcesBodies;		// number of bodies with feedback enabled (includes floating)
 		size_t m_numFloatingBodies;		// number of floating bodies (handled with ODE)
 		size_t m_numPlanes;				// number of plane geometries (ODE and/or GPUSPH planes)
 		size_t m_numOpenBoundaries;		// number of I/O geometries
@@ -137,7 +175,7 @@ class XProblem: public Problem {
 
 		// wrapper with common operations for adding a geometry
 		GeometryID addGeometry(const GeometryType otype, const FillType ftype, Object *obj_ptr,
-			const char *hdf5_fname = NULL, const char *stl_fname = NULL);
+			const char *hdf5_fname = NULL, const char *xyz_fname = NULL, const char *stl_fname = NULL);
 
 		// check validity of given GeometryID
 		bool validGeometry(GeometryID gid);
@@ -176,6 +214,8 @@ class XProblem: public Problem {
 			const char *fname);
 		GeometryID addHDF5File(const GeometryType otype, const Point &origin,
 			const char *fname_hdf5, const char *fname_stl = NULL);
+		GeometryID addXYZFile(const GeometryType otype, const Point &origin,
+			const char *fname_xyz, const char *fname_stl = NULL);
 
 		// request to invert normals while loading - only for HDF5 files
 		void flipNormals(const GeometryID gid, bool flip = true);
@@ -217,6 +257,9 @@ class XProblem: public Problem {
 		void setMass(const GeometryID gid, const double mass);
 		double setMassByDensity(const GeometryID gid, const double density);
 
+		// flag an open boundary as velocity driven; use with false to revert to pressure driven
+		void setVelocityDriven(const GeometryID gid, bool isVelocityDriven = true);
+
 		// get read-only information
 		const GeometryInfo* getGeometryInfo(GeometryID gid);
 
@@ -238,6 +281,8 @@ class XProblem: public Problem {
 
 		// set number of layers for dynamic boundaries. Default is 0, which means: autocompute
 		void setDynamicBoundariesLayers(const uint numLayers);
+		// get current value (NOTE: not yet autocomputed in problem constructor)
+		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
 
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
@@ -256,39 +301,9 @@ class XProblem: public Problem {
 		void copy_to_array(BufferList &buffers);
 		void release_memory();
 
+		uint suggestedDynamicBoundaryLayers();
+
 		virtual void ODE_near_callback(void * data, dGeomID o1, dGeomID o2);
-
-		// methods related to SA bounds
-		virtual void init_keps(float*, float*, uint, particleinfo*, float4*, hashKey*);
-		//virtual uint max_parts(uint);
-
-		virtual void setboundconstants(
-			const	PhysParams	*physparams,
-			float3	const&		worldOrigin,
-			uint3	const&		gridSize,
-			float3	const&		cellSize);
-
-		virtual void imposeBoundaryConditionHost(
-					float4*			newVel,
-					float4*			newEulerVel,
-					float*			newTke,
-					float*			newEpsilon,
-			const	particleinfo*	info,
-			const	float4*			oldPos,
-					uint*			IOwaterdepth,
-			const	float			t,
-			const	uint			numParticles,
-			const	uint			numOpenBoundaries,
-			const	uint			particleRangeEnd,
-			const	hashKey*		particleHash);
-
-		virtual void imposeForcedMovingObjects(
-					float3	&gravityCenters,
-					float3	&translations,
-					float*	rotationMatrices,
-			const	uint	ob,
-			const	double	t,
-			const	float	dt);
 
 		// will probably implement a smart, general purpose one
 		// void fillDeviceMap();

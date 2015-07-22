@@ -36,8 +36,10 @@ XCompleteSaExample_imposeBoundaryCondition(
 
 	// open boundary conditions
 	if (IO_BOUNDARY(info)) {
-		// impose pressure
+
 		if (!VEL_IO(info)) {
+			// impose pressure
+
 			/*
 			if (t < 1.0)
 				// inlet pressure grows to target in 1s settling time
@@ -49,6 +51,12 @@ XCompleteSaExample_imposeBoundaryCondition(
 			const float localdepth = fmax(waterdepth - absPos.z, 0.0f);
 			const float pressure = 9.81e3f*localdepth;
 			eulerVel.w = RHO(pressure, fluid_num(info));
+		} else {
+			// impose velocity
+			if (t < INLET_VELOCITY_FADE)
+				eulerVel.x = INLET_VELOCITY * t / INLET_VELOCITY_FADE;
+			else
+				eulerVel.x = INLET_VELOCITY;
 		}
 	}
 }

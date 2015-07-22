@@ -269,7 +269,7 @@ double STLMesh::SetPartMass(const double dp, const double rho)
 
 void STLMesh::SetPartMass(const double mass)
 {
-	m_barycenter(3) = mass;
+	m_center(3) = mass;
 	F4Vect::iterator f = m_vertices.begin();
 	F4Vect::iterator e = m_vertices.end();
 	for (; f != e; ++f)
