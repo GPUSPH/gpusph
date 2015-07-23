@@ -236,7 +236,7 @@ Point &Point::operator=(double *source)
 	x[0] = source[0];
 	x[1] = source[1];
 	x[2] = source[2];
-		x[3] = source[3];
+	x[3] = source[3];
 	return *this;
 }
 
