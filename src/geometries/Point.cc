@@ -130,7 +130,7 @@ Point::Point(const float *xx)
 	x[3] = xx[3];
 }
 
-double4 Point::toDouble4()
+double4 Point::toDouble4() const
 {
 	return make_double4(x[0], x[1], x[2], x[3]);
 }
