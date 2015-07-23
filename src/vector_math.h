@@ -782,6 +782,11 @@ static __forceinline__ __host__ __device__ double4 operator+(const double4 &a, c
 	return make_double4(a.x + b.x, a.y + b.y, a.z + b.z,  a.w + b.w);
 }
 
+static __forceinline__ __host__ __device__ void operator+=(double4 &a, const double4 &b)
+{
+	a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w;
+}
+
 // subtract
 static __forceinline__ __host__ __device__ double4 operator-(const double4 &a, const double4 &b)
 {
