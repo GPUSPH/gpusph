@@ -148,7 +148,7 @@ typedef std::vector<GeometryInfo*> GeometryVector;
 
 // GeometryID, aka index of the GeometryInfo in the GeometryVector
 typedef size_t GeometryID;
-#define GEOMETRY_ERROR		SIZE_MAX
+#define INVALID_GEOMETRY	SIZE_MAX
 
 class XProblem: public Problem {
 	private:
