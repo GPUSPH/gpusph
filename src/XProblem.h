@@ -284,6 +284,8 @@ class XProblem: public Problem {
 		// get current value (NOTE: not yet autocomputed in problem constructor)
 		uint getDynamicBoundariesLayers() { return m_numDynBoundLayers; }
 
+		// callback for filtering out points before they become particles
+		virtual void filterPoints(PointVect &fluidParts, PointVect &boundaryParts);
 		// callback for initializing particles with custom values
 		virtual void initializeParticles(BufferList &buffers, const uint numParticles);
 

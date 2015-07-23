@@ -1287,6 +1287,9 @@ int XProblem::fill_parts()
 
 	} // iterate on geometries
 
+	// call user-set filtering routine, if any
+	filterPoints(m_fluidParts, m_boundaryParts);
+
 	return m_fluidParts.size() + m_boundaryParts.size() + bodies_parts_counter
 		+ hdf5file_parts_counter + xyzfile_parts_counter;
 }
@@ -1838,6 +1841,17 @@ void XProblem::copy_to_array(BufferList &buffers)
 
 	// call user-set initialization routine, if any
 	initializeParticles(buffers, tot_parts);
+}
+
+// callback for filtering out points before they become particles (e.g. unfills/cuts)
+void XProblem::filterPoints(PointVect &fluidParts, PointVect &boundaryParts)
+{
+		// Default: do nothing
+
+	/*
+	// Example usage
+	// TODO
+	*/
 }
 
 // callback for initializing particles with custom values
