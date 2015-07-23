@@ -67,6 +67,7 @@ class Point {
 
 		void SetCoord(double *);
 		void SetCoord(double, double, double);
+		void SetMass(const double _newVal);
 
 		Point Rot(const dMatrix3);
 		Point TransposeRot(const dMatrix3);

@@ -174,6 +174,11 @@ void Point::SetCoord(double X, double Y, double Z)
 	x[2] = Z;
 }
 
+void Point::SetMass(const double _newVal)
+{
+	x[3] = _newVal;
+}
+
 /// Squared distance from origin
 /*!	\return the squared distance from origin
 */
