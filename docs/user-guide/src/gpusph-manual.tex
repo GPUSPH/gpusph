@@ -978,6 +978,7 @@ where the laminar shear stress was used in the boundary term \cite{ferrand_unifi
 with
 \begin{equation}
 \alpha_a = \sumF V_b w_{ab},
+\label{e:sa:alpha}
 \end{equation}
 for all vertex particles and boundary elements (for details see \cite{mayrhofer_investigation_2013}).
 
@@ -987,11 +988,163 @@ for all vertex particles and boundary elements (for details see \cite{mayrhofer_
 
 \subsection{The $k-\epsilon$ model}
 
+The $k-\epsilon$ model is a Reynolds-Averaged Navier Stokes (RANS) model that
+uses two additional differential equations to close the equations
+\cite{pope_turbulent_2001}. The RANS equations modify the momentum
+equations as follows:
+\begin{equation}
+\tdv{\uvec{v}}{t} = - \frac{1}{\rho}\nabla p + \nabla \cdot ( (\nu +
+\nu_T) \nabla \otimes \uvec{v}) + \uvec{g},
+\label{e:turb:ns}
+\end{equation}
+where $\nu_T$ is the turbulent viscosity. This in turn is given by
+\begin{equation}
+\nu_T = C_\mu \frac{k^2}{\epsilon},
+\label{e:turb:nut}
+\end{equation}
+where $k$ is the turbulent kinetic energy and $\epsilon$ the turbulent
+dissipation. The constants, such as $C_\mu$ are summarized in Table
+\ref{tab:turb:consts}. Both $k$ and $\epsilon$ are given by two
+differential equations:
+\begin{equation}
+\tdv{k}{t} = P - \epsilon + \nabla \cdot \left[  \left(\nu +
+\frac{\nu_T}{\sigma_k}\right) \nabla k\right],
+\label{e:turb:k}
+\end{equation}
+and
+\begin{equation}
+\tdv{\epsilon}{t} =\frac{\epsilon}{k}\left[ C_{\epsilon_1} P -
+C_{\epsilon_2} \epsilon \right]+ \nabla \cdot \left[  \left(\nu +
+\frac{\nu_T}{\sigma_\epsilon}\right) \nabla k\right],
+\label{e:turb:eps}
+\end{equation}
+where $P$ is the production, given by
+\begin{equation}
+P = \min(\sqrt{C_\mu} k S, \nu_T S^2),
+\label{e:turb:strain}
+\end{equation}
+with $S$ is the scalar mean rate-of-strain $S = \sqrt{2 \uvec{\uvec{S}}
+: \uvec{\uvec{S}}}$.
+\begin{table}
+\centering
+\begin{tabular}{| c | c | c | c | c | c |}
+\hline
+$C_\mu$ & $\sigma_k$ & $\sigma_\epsilon$ & $C_{\epsilon_1}$ &
+$C_{\epsilon_2}$ & $\kappa$
+\\
+\hline
+0.09 & 1.0 & 1.3 & 1.44 & 1.92 & 0.41
+\\
+\hline
+\end{tabular}
+\caption{Constants of the $k-\epsilon$ model}
+\label{tab:turb:consts}
+\end{table}
+Finally, the boundary conditions for $k$ and $\epsilon$ at solid walls
+need to be prescribed. For $k$ a von Neumann boundary condition is
+imposed
+\begin{equation}
+\pdv{k}{n} = 0.
+\label{e:turb:k-bound}
+\end{equation}
+$\epsilon$ close to the wall can be approximated via the theoretical
+relation
+\begin{equation}
+\epsilon = \frac{u_k^3}{\kappa z},
+\label{e:turb:eps-nearwall}
+\end{equation}
+where $u_k = C_\mu^{1/4} \sqrt{k}$ and $z$ is the normal distance to the
+wall. Clearly, this formula is singular at the wall and $\epsilon$
+varies strongly when close to the wall. The flow is rather sensitive to
+this value and thus proper boundary conditions are essential. In the
+following section about the implementation of the $k-\epsilon$ model
+with the semi-analytical boundary model this can be taken into account.
+
 \subsubsection{Semi-analytical boundaries}
+The discretization presented in the present section is based on the work
+by \cite{leroy_unified_2014} and for the exact derivation the interested
+reader is referred to this paper.
+
+To discretize the equations for $k$ and $\epsilon$ the production term
+requires the computations of the strain rate, which can be achieved by
+using the gradient operator. However, not the one of Eq.
+\eqref{e:sa:grad} is used, but instead the zero-order accurate version
+given by
+\begin{equation}
+\Grad^-_a(\uvec{v}) = - \frac{1}{\gamma_a}\sumP V_b \uvec{v}_{ab} \otimes \nabla_a w_{ab}
+ +\frac{1}{\gamma_a}\sumS \uvec{v}_{ab} \otimes \nabla \gamma_{as},
+\label{e:turb:grad-}
+\end{equation}
+One important change compared to the laminar simulation is that the
+vertex particles now also carry a velocity which is evolved according to
+the viscous term, \ie
+\begin{equation}
+\tdv{\uvec{v}_v}{t} = \Lap(\nu + \nu_T, \uvec{v})
+\label{e:turb:vert-vel}
+\end{equation}
+The normal component of this velocity is set to zero to avoid particles
+penetrating the wall. The laplacian of the viscous term presented in Eq.
+\eqref{e:sa:lap} assumes a laminar flow profile and thus needs to be
+modified for turbulent flows in order to properly take the log law into
+account. This is achieved by setting the Laplacian to
+\begin{equation}
+\Lap_a(\nu, \uvec{v}) = \frac{1}{\gamma_a}\sumP m_b \left(\frac{\nu_a}{\rho_b} + \frac{\nu_b}{\rho_a}\right) \frac{\uvec{v}_{ab}}{\|\uvec{r}_{ab}\|^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab}
+ - \frac{2}{\gamma_a} \sumS u_{*,as}^2 \uvec{t}_{as} \|\nabla \gamma_{as}\|,
+\label{e:turb:lap}
+\end{equation}
+where $u_{*,as}$ is the friction velocity at the wall seen by particle
+$a$ computed iteratively from the implicit equation
+\begin{equation}
+\frac{\uvec{v}_{as}\cdot\uvec{t}_{as}}{u_{*,as}} =
+\frac{1}{\kappa}\ln\left( \frac{\delta r_{as} u_{*,as}}{\nu} \right) +
+5.2,
+\label{e:turb:fric-vel}
+\end{equation}
+where
+\begin{equation}
+\uvec{t}_{as} = \frac{\uvec{v}_{as} -
+(\uvec{v}_{as}\cdot\uvec{n}_s)\uvec{n}_s}{\|\uvec{v}_{as} -
+(\uvec{v}_{as}\cdot\uvec{n}_s)\uvec{n}_s\|}.
+\label{e:turb:tas}
+\end{equation}
+The other term in the governing equations for $k$ and $\epsilon$ is the
+Laplacian which are discretized as follows:
+\begin{equation}
+\Lap_a(\nu + \frac{\nu_T}{\sigma_k}, k) = \frac{1}{\gamma_a}\sumP V_b
+\left( 2\nu + \frac{\nu_{T,a} + \nu_{T,b}}{\sigma_k} \right)
+\frac{k_{ab}}{r_{ab}^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab},
+\label{e:turb:k-lap-sa}
+\end{equation}
+and
+\begin{equation}
+\Lap_a(\nu + \frac{\nu_T}{\sigma_\epsilon}, \epsilon) = \frac{1}{\gamma_a}\sumP V_b
+\left( 2\nu + \frac{\nu_{T,a} + \nu_{T,b}}{\sigma_\epsilon} \right)
+\frac{\epsilon_{ab}}{r_{ab}^2}\uvec{r}_{ab}\cdot \nabla_a w_{ab} +
+\frac{4 C_\mu}{\sigma_\epsilon \gamma_a}\sumS\frac{k_a^2}{\delta
+r_{as}}\|\nabla \gamma_{as}\|.
+\label{e:turb:eps-lap-sa}
+\end{equation}
+The compatible values on the boundary are given by
+\begin{equation}
+k_v = \frac{1}{\alpha_v}\sumF V_b k_b w_{vb},
+\label{e:turb:k-bound-sa}
+\end{equation}
+and
+\begin{equation}
+\epsilon_v = \frac{1}{\alpha_v}\sumF V_b \left( \epsilon_b +
+\frac{4 C_\mu^{3/4} k_b^{3/2}}{\kappa \delta r_{bv}} \right) w_{vb},
+\label{e:turb:eps-bound-sa}
+\end{equation}
+where $\alpha_v$ is given according to Eq. \eqref{e:sa:alpha}.
 
 \todo{Add SPS}
 
 \section{Open boundaries}
+GPUSPH currently implements two different types of open boundaries. One
+of them is for the dynamic boundary conditions and uses a buffer zone
+approach. The other can only be used in conjunction with the
+semi-analytical boundary conditions and uses flat open boundaries, which
+allows for in- and outflow to be at the same wall (\eg waves).
 
 \subsection{Semi-analytical boundaries}
 
