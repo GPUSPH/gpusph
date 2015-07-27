@@ -142,6 +142,15 @@ basicstep(
 	const particleinfo *info = bufread->getData<BUFFER_INFO>();
 	const neibdata *neibsList = bufread->getData<BUFFER_NEIBSLIST>();
 	const float2 * const *vertPos = bufread->getRawPtr<BUFFER_VERTPOS>();
+	/* The kernel wants each array passed separately, but we should not dereference
+	   vertPos if it's NULL (i.e. in the non-SA case); to make the kernel invocation
+	   slightly cleaner, we check this now.
+	   TODO FIXME A _much_ cleaner solution would be to assemble a param struct,
+	   as we do for forces
+	 */
+	const float2 *vertPos0 = vertPos ? vertPos[0] : NULL;
+	const float2 *vertPos1 = vertPos ? vertPos[1] : NULL;
+	const float2 *vertPos2 = vertPos ? vertPos[2] : NULL;
 
 	const float4 *forces = bufread->getData<BUFFER_FORCES>();
 	const float2 *contupd = bufread->getData<BUFFER_CONTUPD>();
@@ -163,7 +172,7 @@ basicstep(
 	// boundary elements are updated in-place; only used for rotation in the second step
 	float4 *newBoundElement = bufwrite->getData<BUFFER_BOUNDELEMENTS>();
 
-#define ARGS oldPos, particleHash, neibsList, cellStart, oldVel, oldVol, oldEulerVel, oldgGam, oldTKE, oldEps, vertPos[0], vertPos[1], vertPos[2],\
+#define ARGS oldPos, particleHash, neibsList, cellStart, oldVel, oldVol, oldEulerVel, oldgGam, oldTKE, oldEps, vertPos0, vertPos1, vertPos2,\
 	info, forces, contupd, keps_dkde, xsph, newPos, newVel, newVol, newEulerVel, newgGam, newTKE, newEps, newBoundElement, particleRangeEnd, step, dt, dt2, t, slength, influenceradius
 
 	if (step == 1) {
