@@ -1,0 +1,105 @@
+#
+# tank dimensions (m)
+tank_x          60.0
+tank_y          14.0
+tank_z          10.0
+#
+# test_points_num n
+# test_point, x,y,z
+test_points_num  5
+test_point_0     5,5,0.9
+test_point_1     10,5,0.9
+test_point_2     15,5,0.9
+test_point_3     20,5,0.9
+test_point_4     25,5,0.9
+#
+# paddle start time (s)
+paddle_time_start  0.5
+#
+# paddle stroke at surface (m)
+paddle_stroke      2.50
+#
+# Paddle period
+paddle_period      4.9
+#
+# simulation duration (s)
+duration           25
+#
+# height of water in tank (m)
+water_height       5.0
+#
+# actual paddle length = (paddle_length * tank_z) (m)
+paddle_length      1.1
+#
+# actual paddle origin X = (paddle_origin_x * tank_x) (m)
+paddle_origin_x    0.02
+#
+# actual paddle origin Z = (paddle_origin_z * tank_z) (m)
+paddle_origin_z   -0.1
+#
+# particle size
+deltap             0.2
+#
+# the horizontal portion of the tank bottom = (h_length_factor * tank_x) (m)
+h_length_factor    0.5
+#
+# platform metrics
+platform_x         20.0
+platform_y         4.0
+platform_l         6.0
+platform_w         6.0
+platform_h         1.0
+platform_sg        0.10
+#
+# tower metrics diam 0.2
+tower_diameter     1
+tower_height       7.65
+tower_width        4.0
+#
+# swing metrics
+swing_diameter     1.5
+swing_sg           2.0
+swing_length       4.5
+#
+# swing2 metrics
+swing2_diameter    1.5
+swing2_sg          2.0
+swing2_length      4.0
+#
+# Mooring anchors
+#                     0       1
+# Paddle                WetNz                     beach
+#                     3       2
+#							^ y
+#							|
+#						0	|							1
+#					  (-32, 62)						(78, 62)
+#							|
+#							|         6
+#		  					|	  -------			
+#							|  	  |     | 6
+#                           |     x------ x = (20, 4)
+# ------------------------- 0 -------------------------> x
+#							|						
+#							|							
+#					  (-32, -48)					(78, -48)
+#						3	|							2
+#							|
+#		
+mooring_anchor0_x  -32.0
+mooring_anchor0_y  62.0	
+mooring_anchor0_z  -25.0	
+mooring_anchor1_x  78.0
+mooring_anchor1_y  62.0	
+mooring_anchor1_z  -25.0				|
+mooring_anchor2_x  78.0
+mooring_anchor2_y  -48.0
+mooring_anchor2_z  -25.0	
+mooring_anchor3_x  -32.0
+mooring_anchor3_y  -48.0
+mooring_anchor3_z  -25.0	
+chain_uw           1000.0
+chain_length0 100.0
+chain_length1 100.0
+chain_length2 100.0
+chain_length3 100.0
