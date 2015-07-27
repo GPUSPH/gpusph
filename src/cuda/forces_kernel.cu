@@ -910,7 +910,7 @@ calculateIOboundaryCondition(
 		const float rExt = R(rhoExt, a);
 		if (rhoExt <= rhoInt) { // Expansion wave
 			flux = unInt + (rExt - rInt);
-			float lambda = flux + cInt;
+			float lambda = flux + cExt;
 			if (lambda > lambdaInt) { // shock wave
 				flux = (P(rhoInt, a) - P(rhoExt, a))/(rhoInt*fmax(unInt,1e-5f*d_sscoeff[a])) + unInt;
 				// check that unInt was not too small
