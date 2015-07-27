@@ -114,12 +114,17 @@ CSIDevice::CSIDevice(GlobalData *_gdata) : Problem(_gdata)
 	paddle_omega = 2.0 * M_PI / parser.getD("paddle_period"); // period T = 1.5 s
 
 	// Initializing mooring points
-	mooring[0] = make_double3(parser.getD("mooring_anchor0_x"), parser.getD("mooring_anchor0_y"), 0.0);
-	mooring[1] = make_double3(parser.getD("mooring_anchor1_x"), parser.getD("mooring_anchor1_y"), 0.0);
-	mooring[2] = make_double3(parser.getD("mooring_anchor2_x"), parser.getD("mooring_anchor2_y"), 0.0);
-	mooring[3] = make_double3(parser.getD("mooring_anchor3_x"), parser.getD("mooring_anchor3_y"), 0.0);
-	// and chain data
+	mooring[0] = make_double3(parser.getD("mooring_anchor0_x"), parser.getD("mooring_anchor0_y"), parser.getD("mooring_anchor0_z"));
+	mooring[1] = make_double3(parser.getD("mooring_anchor1_x"), parser.getD("mooring_anchor1_y"), parser.getD("mooring_anchor1_z"));
+	mooring[2] = make_double3(parser.getD("mooring_anchor2_x"), parser.getD("mooring_anchor2_y"), parser.getD("mooring_anchor2_z"));
+	mooring[3] = make_double3(parser.getD("mooring_anchor3_x"), parser.getD("mooring_anchor3_y"), parser.getD("mooring_anchor3_z"));
+	// chain data
 	chain_uw = parser.getD("chain_uw");
+	// and chain lengths
+	chain_length[0] = parser.getD("chain_length0");
+	chain_length[1] = parser.getD("chain_length1");
+	chain_length[2] = parser.getD("chain_length2");
+	chain_length[3] = parser.getD("chain_length3");
 
 	// Initialize ODE
 	dInitODE();
@@ -148,39 +153,35 @@ CSIDevice::release_memory(void) {
 }
 
 
-// Return f(T, xdist, height) where f is the function that givers the tension
-// on the mooring line solving f(T) = 0 for T.
+// Return f(alpha, lt, lb) where alpha = T/uw, lt = total length of the chain
+// lb = chain projected length on the (x,y) plane, h = height.
+// Since uw, lt, lb and h are known, solving f = 0 for alpha gives the tension T0
+// at the sea bed.
 double
-CSIDevice::f(const double T, const double xdist, const double height) {
-	return (T*(cosh(chain_uw*xdist/T) - 1.0)/chain_uw - height);
+CSIDevice::f(const double alpha, const double lt, const double lb, const double h) {
+	return cosh(sqrt(alpha*h*(alpha*h + 2)) - alpha*(lt - lb)) - alpha*h - 1.;
 }
 
-// Derivative of respect to T. Used in find_tension.
+// Derivative of f respect to alpha. Used in find_tension.
 double
-CSIDevice::dfdT(const double T, const double xdist) {
-	return (cosh(chain_uw*xdist/T) - 1)/chain_uw - xdist*sinh(chain_uw*xdist/T)/T;
-}
-
-// Derivative of f respect to x. Used to compute the direction of the mooring
-// force on the platform.
-double
-CSIDevice::dfdx(const double x, const double T) {
-	return sinh(chain_uw*x/T);
+CSIDevice::dfdalpha(const double alpha, const double lt, const double lb, const double h) {
+	const double temp = sqrt(alpha*h*(alpha*h + 2));
+	return (h*(alpha*h + 1)/temp - (lt - lb))*sinh(temp - alpha*(lt - lb)) - h;
 }
 
 
-// Solve f(T, xdist, height) = 0 for T with Newton method.
+// Solve f(alpha, lt, lb, h) = 0 for alpha with Newton method.
 double
-CSIDevice::find_tension(const double Ti, const double xdist, const double height) {
-	double T = Ti;
-	double Ts = Ti;
+CSIDevice::find_tension(const double Ti, const double lt, const double lb, const double h) {
+	double alpha = chain_uw/Ti;
+	double alphas = alpha;
 
 	do {
-		Ts = T;
-		T = T - f(T, xdist, height)/dfdT(T, xdist);
-	} while (abs((T - Ts)/T) > FLT_EPSILON);
+		alphas = alpha;
+		alpha = alpha - f(alpha, lt, lb, h)/dfdalpha(alpha, lt, lb, h);
+	} while (abs((alpha - alphas)/alpha) > FLT_EPSILON);
 
-	return T;
+	return chain_uw/alpha;
 }
 
 // This method is called before the computation of the platform movement by ODE.
@@ -200,25 +201,44 @@ CSIDevice::bodies_forces_callback(const double t0, const double t1, const uint s
 		attachment_rest_frame[i] = p + mbdata->kdata.crot;
 		double2 hp = make_double2(mooring[i] - attachment_rest_frame[i]);
 
+		// Height of the mooring
+		double h = attachment_rest_frame[i].z - mooring[i].z;
+		//cout << "h = " << h << "\n";
+
 		// Now compute mooring line projected length
-		const double xdist = length(hp);
+		const double lb = length(hp);
+		//cout << "lb = " << lb << "\n";
 
 		// Solve for tension
-		const double T = find_tension(length(mooring_tension[i]), xdist, height);
+		const double T0 = find_tension(mooring_tension[i], chain_length[i], lb, h);
+		//cout << "T0 = " << T0 << "\n";
 
-		// Compute force and torque
+		// Computing force and torque on floating body
 		double3 F;
+
+		// Tension at the upper point of the mooring line (bottom of floating body)
+		const double T = T0 + chain_uw*h;
+
+		// Effective length of the mooring line
+		const double leff = sqrt(h*(h + 2*T0/chain_uw));
+		chain_leff[i] = leff;
+
+		// Compute length of the sea bed resting portion of the chain
+		chain_hlength[i] = chain_length[i] - leff;
+		//cout << "lb = " << chain_hlength[i] << "\n";
+
 		// First vertical component of force
 		// Angle between mooring line and horizontal plane
-		const double alpha = atan(dfdx(xdist, T));
-		F.z = -T*sin(alpha);
-		const double Fh = T*cos(alpha);
+		const double theta = atan(chain_uw*leff/T0);
+		F.z = -T*sin(theta);
+		const double Fh = T*cos(theta);
 		hp = normalize(hp);
 		F.x = T*hp.x;
 		F.y = T*hp.y;
 
-		// Save tension for next iteration
-		mooring_tension[i] = F;
+		// Save tension mooring tension and force
+		mooring_tension[i] = T0;
+		mooring_force[i] = F;
 
 		// Update forces and torques on the floating platform
 		forces[0] += make_float3(F);
@@ -240,7 +260,7 @@ CSIDevice::writer_callback(CallbackWriter *cbw,
 	static bool first_write = false;
 
 	if (!first_write) {
-		main_out << "t\tFx\tFy\tFz\tTx\tTy\tTz\tT0\tT1\tT2\tT3" << endl;
+		main_out << "t\tFx\tFy\tFz\tMx\tMy\tMz\tT0\tT1\tT2\tT3" << endl;
 		first_write = true;
 	}
 	// Write joint feed back and tension of mooring lines at each time step
@@ -248,8 +268,7 @@ CSIDevice::writer_callback(CallbackWriter *cbw,
 	main_out << jointFb.t1[0] << "\t" << jointFb.t1[1] << "\t" << jointFb.t1[2];
 
 	for (int i = 0; i < 4; i++)
-		main_out << "\t" << mooring_tension[i];
-	main_out << "\n";
+		main_out << "\t" << mooring_force[i].x << "\t" << mooring_force[i].y << "\t" << mooring_force[i].z << "\n";
 
 	const Writer *vtk = cbw->get_other_writer(VTKWRITER);
 
@@ -259,6 +278,8 @@ CSIDevice::writer_callback(CallbackWriter *cbw,
 	if (vtk) {
 		// VTK has written something
 		std::ofstream& vtk_out = cbw->open_data_file("mooring", vtk->last_filenum(), ".txt");
+		vtk_out << chain_uw << "," << 0 << "," << 0 << "\n";
+
 		for (int i = 0; i < 4; i++)
 			vtk_out << mooring[i].x << "," << mooring[i].y << "," << mooring[i].z << "\n";
 
@@ -266,15 +287,20 @@ CSIDevice::writer_callback(CallbackWriter *cbw,
 			vtk_out << attachment_rest_frame[i].x << "," << attachment_rest_frame[i].y << "," << attachment_rest_frame[i].z << "\n";
 
 		for (int i = 0; i < 4; i++)
-			vtk_out << mooring_tension[i].x << "," << mooring_tension[i].y << "," << mooring_tension[i].z << "\n";
+			vtk_out << mooring_tension[i] << "," << 0 << "," << 0 << "\n";
 
-		vtk_out << jointFb.t1[0] << "," << jointFb.t1[1] << "," << jointFb.t1[2] << "\n";
+		for (int i = 0; i < 4; i++)
+			vtk_out << chain_length[i] << "," << 0 << "," << 0 << "\n";
+
+		for (int i = 0; i < 4; i++)
+			vtk_out << chain_leff[i] << "," << 0 << "," << 0 << "\n";
+
 		vtk_out.close();
 	}
 }
 
 
-// Builf the platform with base + two cylinder and a swinging sphere
+// Build the platform with base + two cylinder and a swinging sphere
 void
 CSIDevice::build() {
 	const int layers = 3;
@@ -295,12 +321,6 @@ CSIDevice::build() {
 	attachment_object_frame[1] = make_double3(platform_l/2.0, platform_w/2.0, -platform_h/2.0);
 	attachment_object_frame[2] = make_double3(platform_l/2.0, -platform_w/2.0, -platform_h/2.0);
 	attachment_object_frame[3] = make_double3(-platform_l/2.0, -platform_w/2.0, -platform_h/2.0);
-
-
-	for (int i = 0; i < 4; i++) {
-		mooring_tension[i] = make_double3(0, 0,
-				chain_uw*length(make_double2(mooring[i] - make_double3(platform_x, platform_y, 0))));
-	}
 
 	// get tower metrics
 	double tower_diameter = parser.getD("tower_diameter");
@@ -397,6 +417,13 @@ CSIDevice::build() {
 	dJointSetFeedback(bid, &jointFb);
 	zloc = water_level + platform_h + tower_height - (tower_diameter / 2.0);
 	dJointSetBallAnchor(bid, xloc, yloc, zloc);
+
+	// Compute mooring at t = 0
+	float3 forces, torques;
+	// Initialize mooring tension
+	for (int i = 0; i < 4; i++)
+		mooring_tension[i] = chain_uw;
+	bodies_forces_callback(0, 0, 0, &forces, &torques);
 }
 
 

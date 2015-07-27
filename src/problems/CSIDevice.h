@@ -80,12 +80,16 @@ class CSIDevice: public Problem {
 		Sphere				swing1, swing2;
         vector<dJointID> 	joints;
         double3				mooring[4];					// Mooring points on the sea bed
+        double				chain_length[4];			// Total mooring length
+        double				chain_hlength[4];			// Length of the portion of the mooring resting on sea bed
+        double				chain_leff[4];				// Effective length of the chain
         double3				attachment_object_frame[4];	// Mooring points on the platform relative to the platform frame
         double3				attachment_rest_frame[4];	// Mooring points on the platform relative to rest frame
-        double3				mooring_tension[4];			// Tension of the morring cables
+        double				mooring_tension[4];			// Tension of the mooring cables
+        double3				mooring_force[4];			// Tension of the mooring cables
         dJointFeedback 		jointFb;
         std::ofstream		jf_file;
-        double 				chain_uw, chain_xdist;
+        double 				chain_uw;
 
 	public:
 		CSIDevice(GlobalData *);
@@ -104,10 +108,9 @@ class CSIDevice: public Problem {
 	private:
 		void release_memory(void);
 		void build();
-		double f(const double T, const double xdist, const double height);
-		double dfdT(const double T, const double xdist);
-		double dfdx(const double x, const double T);
-		double find_tension(const double Ti, const double xdist, const double height);
+		double f(const double alpha, const double lt, const double lb, const double h);
+		double dfdalpha(const double alpha, const double lt, const double lb, const double h);
+		double find_tension(const double Ti, const double lt, const double lb, const double h);
 };
 
 
