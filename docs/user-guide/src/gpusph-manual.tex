@@ -895,6 +895,29 @@ p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\ri
 \nonumber
 \end{eqnarray}
 
+\subsubsection{Alternative continuity equation}
+The density can alternatively be computed by
+\begin{equation}
+[\rho]_a = \sumF V_b \rho_b w_{ab},
+\end{equation}
+which simplifies to
+\begin{equation}
+[\rho]_a = \sumF m_b w_{ab}.
+\label{e:sph:sumrho}
+\end{equation}
+To be consisten with the time-stepping and to preserve initial density
+values the following time dependent version is used
+\begin{equation}
+\rho_a^{n+1} = \rho_a^n - \left(\sumF m_b w_{ab}\right)^n + \left(\sumF
+m_b w_{ab}\right)^{n+1},
+\label{e:sph:sumrho-time}
+\end{equation}
+where the sums inside the brackets are with respect to the positions of
+the particles at the respective time step indicated by the superscript.
+It can be shown \todo{cite vila} that this is equivalent to the
+continuity equation based on the divergence. However, as the formulation
+depends only on the particle position it is numerically more stable.
+
 \section{Boundary conditions}
 
 Several different boundary conditions are available for the SPH method
@@ -982,7 +1005,76 @@ with
 \end{equation}
 for all vertex particles and boundary elements (for details see \cite{mayrhofer_investigation_2013}).
 
+The alternative continuity equation can also be extended in order to
+take boundaries into account via
+\begin{equation}
+\rho_a^{n+1} = \frac{1}{\gamma_a^{n+1}}\left[\gamma_a^n \rho_a^n - \left(\sumF m_b
+w_{ab}\right)^n + \left(\sumF\right]
+m_b w_{ab}\right)^{n+1}.
+\label{e:sa:sumrho-time}
+\end{equation}
+
 \todo{Add other boundary conditions}
+
+\section{Stabilizing methods}
+
+Due to the collocated nature of the SPH method it is unavoidable that
+spurious pressure modes are created. In order to prevent the numerical
+solution from becoming unstable several stabilizing methods can be
+employed.
+
+\subsection{Ferrari}
+
+The Ferrari correction is based on the work by \todo{cite ferrari}
+and modifies the continuity equation with an additional term given by
+\begin{equation}
+\tdv{\rho_a}{t} = -\rho_a \Div_a(\uvec{v}) + \eta_F \sumF V_b c_{a,b}\frac{\uvec{r}_{ab}}{r_{ab}}\rho_{ab}\cdot\nabla_a w_{ab},
+\label{e:ferrari:cont}
+\end{equation}
+where
+\begin{equation}
+c_{a,b} = \max(c_a,c_b),
+\label{e:ferrari:upw}
+\end{equation}
+and
+\begin{equation}
+c_a = c_0\sqrt{\left(\frac{\rho_a}{\rho_0}\right)^{\xi-1}}.
+\label{e:ferrari:ca}
+\end{equation}
+Note that in the case of the semi-analytical boundaries the formulation
+is the same and not boundary term needs to be added.
+
+In certain flows (\eg direct numerical simulation of turbulent flow
+\todo{cite my turb paper}) the induced diffusivity can be too high.
+A more appropriate damping can be introduced by using a damping
+coefficient $\eta_F$ different from one.
+\cite{mayrhofer_investigation_2013} have shown that it should be chosen
+according to
+\begin{equation}
+\eta_F = \frac{L}{10^3 \Delta r},
+\label{e:ferrari:eta}
+\end{equation}
+where $L$ is a typical length-scale of the flow. In GPUSPH $L$ can be
+set directly using the \cmd{ferrariLengthScale} variable.
+
+\subsection{Rhie and Chow}
+
+Similar to the Ferrari correction is the correction in the spirit of
+Rhie and Chow \todo{cite them}. Again an additional term is added to the
+continuity equation. However, the density at time $n+1$ is computed
+first, denoted by $\widetilde{\rho}^{n+1}$, by solving the continuity
+equation and then a correction is applied to obatin $\rho^{n+1}$. This
+correction is given by
+\begin{equation}
+\rho_a^{n+1} = \eta_{RC} \widetilde{\rho}^{n+1} \left[ \Lap_a\left(
+\frac{\Delta t}{\widetilde{\rho}}, \widetilde{\rho}
+\right) - \Lap_a (\Delta t, \uvec{g}\cdot\uvec{r})\right],
+\label{e:rc}
+\end{equation}
+where $\eta_{RC}$ governs the strength of this correction, but is
+usually equal to one.
+
+\todo{Add other diffusion stuff, artificial viscosity, sheppard etc.}
 
 \section{Turbulence modelling}
 
@@ -1146,11 +1238,47 @@ approach. The other can only be used in conjunction with the
 semi-analytical boundary conditions and uses flat open boundaries, which
 allows for in- and outflow to be at the same wall (\eg waves).
 
-\subsection{Semi-analytical boundaries}
+\subsection{Semi-analytical open boundaries}
+
+The open boundaries are based around the idea of vertex particles with
+varying mass. The mass of these vertex particles can change due to three
+different reasons:
+\begin{itemize}
+\item Flux through the boundary
+\item Fluid particle crossing boundary
+\item Creation of new fluid particle
+\end{itemize}
+An open boundary has either a prescribed velocity or a prescribed
+pressure and in the following these two options will be denoted with
+velocity and pressure boundary, respectively. The quantity that is not
+prescribed needs to be computed using Riemann invariants which is
+detailed in the following.
+
+\subsubsection{Riemann invariants for velocity boundaries}
+\label{h:open:vel}
+The imposed normal velocity at the open boundary is denoted with
+$u_{ext}$. The normal velocity inside the flow is extrapolated to the wall
+by
+\begin{equation}
+u_{int,a} = \frac{1}{\alpha_a}\sumF V_b \uvec{v}_b \cdot \uvec{n}_a
+w_{ab}.
+\label{e:open:uint}
+\end{equation}
+Similary, the pressure is extrapolated according to
+\begin{equation}
+p_{int,a} = \frac{1}{\alpha_a}\sumF V_b p_b w_{ab}.
+\label{e:open:pint}
+\end{equation}
+
+\subsubsection{Riemann invariants for pressure boundaries}
+\label{h:open:pres}
+
+\subsubsection{Mass update}
+Assuming that both velocity and pressure are known at both segments and
+vertices of an open boundary the mass update of a vertex particle can be
+performed.
 
 \todo{Add dynamic buffer zone boundaries}
-
-
 
 \chapter{GPUSPH}
 
