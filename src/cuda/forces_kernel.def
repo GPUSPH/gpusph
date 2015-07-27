@@ -2057,10 +2057,10 @@ forcesDevice(
 					}
 					else {
 						pout.force.w += nout.DrDt;
-						if (boundarytype == SA_BOUNDARY) {
+						if (params.simflags & ENABLE_FERRARI)
 							pout.contupd.x += nout.contDiff;
+						if (boundarytype == SA_BOUNDARY)
 							pout.contupd.y += nout.DgamDt;
-						}
 					}
 				}
 
