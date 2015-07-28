@@ -45,11 +45,6 @@
 
 StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 {
-	H = 1;
-
-	l = sqrt(2)*H; w = l; h = 1.1*H;
-	m_usePlanes = get_option("use-planes", false);
-
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
 		viscosity<DYNAMICVISC>,
@@ -60,19 +55,23 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 		flags<ENABLE_DTADAPT | ENABLE_FERRARI>
 	);
 
-	set_deltap(0.0625f);
+	H = 1;
+
+	set_deltap(H/16);
+
+	l = w = sqrt(2)*H; h = 1.1*H;
+
+	m_usePlanes = get_option("use-planes", false);
+
+	// Size and origin of the simulation domain
+	m_size = make_double3(l, w ,h);
+	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
 	// SPH parameters
 	m_simparams->dt = 0.00004f;
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 20;
-	// Ferrari correction parameter should be (L/deltap)/1000, with L charactersitic
-	// length of the problem
-	m_simparams->ferrari = H/(m_deltap*1000);
-
-	// Size and origin of the simulation domain
-	m_size = make_double3(l, w ,h);
-	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
+	m_simparams->ferrariLengthScale = H;
 
 	// enlarge the domain to take into account the extra layers of particles
 	// of the boundary
