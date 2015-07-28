@@ -53,9 +53,10 @@ DamBreak3D::DamBreak3D(GlobalData *_gdata) : Problem(_gdata)
 	ly = 0.67;
 	lz = 0.6;
 	H = 0.4;
-	wet = true;
+	wet = get_option("wet", false);
 
-	m_usePlanes = false;
+	m_usePlanes = get_option("use-planes", false);
+
 	m_size = make_double3(lx, ly, lz);
 	m_origin = make_double3(OFFSET_X, OFFSET_Y, OFFSET_Z);
 
