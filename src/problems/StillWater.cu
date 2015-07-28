@@ -48,7 +48,7 @@ StillWater::StillWater(GlobalData *_gdata) : Problem(_gdata)
 	H = 1;
 
 	l = sqrt(2)*H; w = l; h = 1.1*H;
-	m_usePlanes = false;
+	m_usePlanes = get_option("use-planes", false);
 
 	SETUP_FRAMEWORK(
 		//viscosity<KINEMATICVISC>,
