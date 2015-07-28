@@ -1069,6 +1069,8 @@ Problem::calculateFerrariCoefficient()
 		if (isnan(m_simparams->ferrariLengthScale)) {
 			m_simparams->ferrari = 0.0f;
 			printf("Ferrari coefficient: %e (default value, disabled)\n", m_simparams->ferrari);
+			if (m_simparams->simflags & ENABLE_FERRARI)
+				fprintf(stderr, "WARNING: Ferrari correction enabled, but no coefficient or length scale given!\n");
 			return;
 		}
 		else {
