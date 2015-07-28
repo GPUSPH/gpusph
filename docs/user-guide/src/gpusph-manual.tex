@@ -1269,14 +1269,190 @@ Similary, the pressure is extrapolated according to
 p_{int,a} = \frac{1}{\alpha_a}\sumF V_b p_b w_{ab}.
 \label{e:open:pint}
 \end{equation}
+$\rho_{int}$ can easily be computed using the inverse Equation of State
+($EOS^{-1}$). The aim of this section will be to compute $p_{ext,a}$
+from the extrapolated and imposed quantities.
+
+The main idea is that there is an internal and an external state with
+the interface at the open boundary. Due to the discontinuity of the
+internal and external fields and the assumption of a 1-D problem the
+Riemann problem is recovered and a solution is known that can be divided
+into three different states.
+
+Let
+\begin{equation}
+\psi(\rho) = \frac{2 c_0}{\xi - 1}\left( \frac{\rho}{\rho_0}
+\right)^{\frac{\xi-1}{2}}\mbox{ if } \xi > 1 \quad \mbox{ or } \quad
+\psi(\rho) = c_0 \ln\left( \frac{\rho}{\rho_0} \right) \mbox{ if } \xi =
+1.
+\label{e:open:psi}
+\end{equation}
+and $\psi^{-1}$ the respective inverse function. The three states yield
+the following densities
+\begin{itemize}
+  \item Expansion wave:
+  \begin{equation}
+  \rho_{ext,e} = \psi^{-1}(\psi(\rho_{int}) +
+  u_{ext} - u_{int})
+  \label{e:open:vexp}
+  \end{equation}
+  \item Shock wave:
+  \begin{equation}
+  \rho_{ext,s} = EOS^{-1}(p_{int} + \rho_{int}
+  u_{int} (u_{int} - u_{ext}))
+  \label{e:open:vshock}
+  \end{equation}
+  \item Contact discontinuity
+  \begin{equation}
+  \rho_{ext,c} = \rho_{int}
+  \label{e:open:vcontact}
+  \end{equation}
+\end{itemize}
+To decide which state needs to be considered the speed of sound as
+function of density needs to be defined as
+\begin{equation}
+c(\rho) = c_0 \left( \frac{\rho}{\rho_0} \right)^{\frac{\xi - 1}{2}}
+\label{e:open:speedofsound}
+\end{equation}
+to be able to compute the celerities $\lambda$. They are given as
+\begin{eqnarray}
+\lambda &=& u_{int} + c(\rho_{int}),
+\label{e:open:lambda}
+\\
+\lambda_e &=& u_{ext} + c(\rho_{ext,e}),
+\label{e:open:vlambda_e}
+\\
+\lambda_s &=& u_{ext} + c(\rho_{ext,s}),
+\label{e:open:vlambda_s}
+\end{eqnarray}
+Based on these celerities the states occur according to
+\begin{itemize}
+  \item $\lambda_e \le \lambda \Rightarrow$ expansion wave
+  \item $\lambda_s > \lambda \Rightarrow$ shock wave
+  \item $\lambda_e > \lambda \ge \lambda_s \Rightarrow$ contact
+  discontinuity
+\end{itemize}
+Depending on the computed state the pressure $p_{ext}$ is set according
+to the corresponding density in Eqs. \eqref{e:open:vexp},
+\eqref{e:open:vshock} or \eqref{e:open:vcontact}.
 
 \subsubsection{Riemann invariants for pressure boundaries}
 \label{h:open:pres}
+Compared to the velocity boundary, this time $u_{ext}$ needs to be
+computed and $p_{ext}$ is imposed. Similar to the previous section three
+different fluxes, $u_{ext}$, can be computed according to the different
+states
+\begin{itemize}
+\item Expansion wave:
+\begin{equation}
+u_{ext,e} = u_{int} + \psi(\rho_{ext}) - \psi(\rho_{int})
+\label{e:open:pexp}
+\end{equation}
+\item Shock wave:
+\begin{equation}
+u_{ext,s} = u_{int} + \frac{p_{int} - p_{ext}}{\rho_{int}\max(u_{int},
+10^{-5}c_0)}
+\label{e:open:pshock}
+\end{equation}
+\item Contact discontinuity:
+\begin{equation}
+u_{ext,c} = u_{int}
+\label{e:open:pcontact}
+\end{equation}
+\end{itemize}
+The celerities $\lambda_{\{e,s\}} = u_{ext,\{e,s\}} + c(\rho_{ext})$ can
+then be used equivalently as above to determine the appropriate state
+and thus to set $u_{ext}$.
 
 \subsubsection{Mass update}
-Assuming that both velocity and pressure are known at both segments and
-vertices of an open boundary the mass update of a vertex particle can be
-performed.
+Assuming that both velocity $u_{ext}$ and pressure $p_{ext}$ are known
+at both segments and vertices of an open boundary the mass update of a
+vertex particle can be performed. Each segment has three vertices
+associated with it and similarly, each vertex has a defined set of
+segments that it is associated with it. The latter set will be denoted
+with $\mathcal{S}_v$ for a specific vertex $v$. The principal mass
+change comes from the flux through segments and reads
+\begin{equation}
+\widetilde{m}_v = m^n_v + \dot{m}_v,
+\label{e:open:mtilde}
+\end{equation}
+where
+\begin{equation}
+\dot{m}_v = \Delta t \underset{s \in \mathcal{S}_v}{\sum}
+\rho_{ext,s} u_{ext,s} A_s \beta_v(\uvec{r}_s),
+\label{e:open:mdot}
+\end{equation}
+where $A_s$ represents the area of the segment $s$ and
+$\beta_v(\uvec{r}_s)$ is the mass repartition factor that will be
+described below.
+
+Next some mass clippings occur in the sequence listed below
+\begin{itemize}
+\item If no fluid particle is in the support of $v$ and $\dot{m}_v < 0$
+then $\widetilde{m}_v = 0$.
+\item Ensure that $|\widetilde{m}_v| < 2 m_{ref}$, where $m_{ref} =
+\rho_0 \Delta r^3$ is the reference mass.
+\item If $\dot{m}_v < 0$ ensure that $|\widetilde{m}_v| < 2 m^0_v$,
+where $m^0_v$ is the initial mass of the vertex $v$.
+\end{itemize}
+After these clippings have been made, a new fluid particle is created if
+$\widetilde{m}_v > \frac{1}{2}m_{ref}$. This new fluid particle has
+exactly the same properties as the vertex particle and a mass equal to
+the reference mass. Note that this can only happen in the corrector step
+of the time-stepping scheme. Further conditions are that $u_{ext,v}$ and
+$p_{ext,v}$ are both greater than zero. If a fluid particle is created
+than $\widetilde{m}_v$ has $m_{ref}$ subtracted.
+
+If a fluid particle $a$ has crossed a segment $s \in \mathcal{S}_v$ then
+the mass of the fluid particle is redistributed to the vertex particles
+associated to that segment. If $v$ is one such segment then
+\begin{equation}
+\widetilde{m}_v = \widetilde{m}_v + \beta_v(\uvec{r}_a) m_{ref}.
+\label{e:open:splitfluid}
+\end{equation}
+Finally the new mass of the vertex particle $m^{n+1}_v =
+\widetilde{m}_v$.
+
+\subsubsection{The corners}
+Vertex particles that are part of the open boundary but have associated
+segments that are not part of a boundary are labeled as corner vertices.
+These vertices have several special properties that are detailed below.
+
+First, they do not change their mass and due to that also never create
+new fluid particles. If a corner vertex is part of a velocity boundary,
+then both its velocity and pressure is set to that of the solid wall.
+If instead the corner vertex is part of a pressure boundary, then the
+velocity is set to that of the solid wall and the imposed pressure of
+the open boundary is used.
+
+\subsubsection{Modified continuity equation}
+The open boundaries are restricted to use with the alternative
+continuity equation given by Eq. \eqref{e:sa:sumrho-time}. In the
+following $\mathcal{S}^o$ and $\mathcal{V}^o$ denote the segments and
+vertices respectively that are associated with open boundaries.
+\begin{eqnarray}
+\rho_a^{n+1} &=& \frac{1}{\gamma_a^{n+1}}\left\{ \gamma_a^n \rho_a^n +
+\sumP m_b^n (w_{ab}^{n+1} - w_{ab}^n) + \right.
+\label{e:open:sumrho-time}
+\\
+&&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o \right) \right]\right.
+\nonumber
+\\
+&&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o\right) +
+\nabla\gamma_{as}(\uvec{r}_{as}^n)
+\right]\cdot\uvec{\delta r}_s^o\right\},
+\nonumber
+\end{eqnarray}
+where
+\begin{equation}
+\uvec{\delta r}_a^o = \Delta t (\uvec{u}_a^n + \uvec{v}_a^n),
+\label{e:open:deltar}
+\end{equation}
+where $\uvec{u}$ and $\uvec{v}$ are the Eulerian and Lagrangian
+velocity, respectively.
+
 
 \todo{Add dynamic buffer zone boundaries}
 
