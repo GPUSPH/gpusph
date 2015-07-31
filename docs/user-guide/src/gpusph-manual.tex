@@ -1436,22 +1436,88 @@ vertices respectively that are associated with open boundaries.
 \label{e:open:sumrho-time}
 \\
 &&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
-w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o \right) \right]\right.
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
 \nonumber
 \\
 &&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
-\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o\right) +
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t)\right) +
 \nabla\gamma_{as}(\uvec{r}_{as}^n)
-\right]\cdot\uvec{\delta r}_s^o\right\},
+\right]\cdot\uvec{\delta r}_s^o(\Delta t)\right\},
 \nonumber
 \end{eqnarray}
 where
 \begin{equation}
-\uvec{\delta r}_a^o = \Delta t (\uvec{u}_a^n + \uvec{v}_a^n),
+\uvec{\delta r}_a^o(\Delta t) = \Delta t (\uvec{u}_a^n + \uvec{v}_a^n),
 \label{e:open:deltar}
 \end{equation}
 where $\uvec{u}$ and $\uvec{v}$ are the Eulerian and Lagrangian
 velocity, respectively.
+
+\subsubsection{Time integration}
+The full time-stepping scheme including for open boundaries reads
+\begin{eqnarray}
+\uvec{v}_a^{n+1/2} &=& \uvec{v}_a^n + \frac{\Delta t}{2} \left(
+-\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\uvec{v}^n) + \uvec{g}
+\right),
+\label{e:sph:pred-corr-ns}
+\\
+\uvec{r}_a^{n+1/2} &=& \uvec{r}_a^{n} + \frac{\Delta t}{2}
+\uvec{v}_a^{n},
+\nonumber
+\\
+\rho_a^{n+1/2} &=& \frac{1}{\gamma_a^{n+1/2}}\left\{ \gamma_a^n \rho_a^n +
+\sumP m_b^n (w_{ab}^{n+1/2} - w_{ab}^n) + \right.
+\label{e:open:sumrho-time}
+\\
+&&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t/2) \right) \right]\right.
+\nonumber
+\\
+&&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t/2)\right) +
+\nabla\gamma_{as}(\uvec{r}_{as}^n)
+\right]\cdot\uvec{\delta r}_s^o(\Delta t/2)\right\},
+\nonumber
+\\
+p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0}\right)^\xi
+-1 \right],
+\nonumber
+\\
+&&\mbox{Boundary conditions \& mass update}
+\nonumber
+\\
+\uvec{v}_a^{n+1} &=& \uvec{v}_a^n + \Delta t \left(
+-\frac{1}{\rho^{n+1/2}_a}\Grad_a(p^{n+1/2}) +
+\Lap_a(\nu^{n+1/2},\uvec{v}^{n+1/2}) + \uvec{g}
+\right),
+\nonumber
+\\
+\uvec{r}_a^{n+1} &=& \uvec{r}_a^{n} + \Delta t\,
+\uvec{v}_a^{n+1/2},
+\nonumber
+\\
+\rho_a^{n+1} &=& \frac{1}{\gamma_a^{n+1}}\left\{ \gamma_a^n \rho_a^n +
+\sumP m_b^n (w_{ab}^{n+1} - w_{ab}^n) + \right.
+\label{e:open:sumrho-time}
+\\
+&&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
+w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
+\nonumber
+\\
+&&\left. + \frac{\rho_a^n}{2}\underset{s\in\mathcal{S}^o}{\sum}\left[
+\nabla\gamma_{as}\left(\uvec{r}_{as}^n + \uvec{\delta r}_s^o(\Delta t)\right) +
+\nabla\gamma_{as}(\uvec{r}_{as}^n)
+\right]\cdot\uvec{\delta r}_s^o(\Delta t)\right\},
+\nonumber
+\\
+p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\right)^\xi
+-1 \right].
+\nonumber
+\\
+&&\mbox{Boundary conditions \& mass update}
+\nonumber
+\\
+\end{eqnarray}
 
 
 \todo{Add dynamic buffer zone boundaries}
