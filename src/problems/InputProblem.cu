@@ -698,10 +698,10 @@ InputProblem::max_parts(uint numpart)
     SPECIFIC_PROBLEM == SmallChannelFlowIOPer || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen || \
     SPECIFIC_PROBLEM == SmallChannelFlowIOKeps || \
-    SPECIFIC_PROBLEM == PeriodicWave || \
-    SPECIFIC_PROBLEM == SolitaryWave
+    SPECIFIC_PROBLEM == PeriodicWave
 		return (uint)((float)numpart*1.2f);
-#elif SPECIFIC_PROBLEM == LaPalisseSmallTest
+#elif SPECIFIC_PROBLEM == LaPalisseSmallTest || \
+      SPECIFIC_PROBLEM == SolitaryWave
 		return (uint)((float)numpart*2.0f);
 #else
 		return numpart;
