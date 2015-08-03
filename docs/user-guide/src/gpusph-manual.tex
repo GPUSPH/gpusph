@@ -1459,15 +1459,19 @@ The full time-stepping scheme including for open boundaries reads
 \uvec{v}_a^{n+1/2} &=& \uvec{v}_a^n + \frac{\Delta t}{2} \left(
 -\frac{1}{\rho^n_a}\Grad_a(p^n) + \Lap_a(\nu^n,\uvec{v}^n) + \uvec{g}
 \right),
-\label{e:sph:pred-corr-ns}
+\label{e:open:pred-corr-ns}
 \\
 \uvec{r}_a^{n+1/2} &=& \uvec{r}_a^{n} + \frac{\Delta t}{2}
 \uvec{v}_a^{n},
 \nonumber
 \\
+\gamma_a^{n+1/2} &=& \gamma_a^{n} + \frac{1}{2}
+(\uvec{r}_a^{n+1/2} - \uvec{r}_a^{n}) \cdot (\nabla \gamma_a^n + \nabla \gamma_a^{n+1/2}),
+\nonumber
+\\
 \rho_a^{n+1/2} &=& \frac{1}{\gamma_a^{n+1/2}}\left\{ \gamma_a^n \rho_a^n +
 \sumP m_b^n (w_{ab}^{n+1/2} - w_{ab}^n) + \right.
-\label{e:open:sumrho-time}
+\nonumber
 \\
 &&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
 w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t/2) \right) \right]\right.
@@ -1496,9 +1500,13 @@ p_a^{n+1/2} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1/2}}{\rho_0
 \uvec{v}_a^{n+1/2},
 \nonumber
 \\
+\gamma_a^{n+1} &=& \gamma_a^{n} +\frac{1}{2}
+(\uvec{r}^{n+1} - \uvec{r}_a^{n}) \cdot (\nabla \gamma_a^n + \nabla \gamma_a^{n+1}),
+\nonumber
+\\
 \rho_a^{n+1} &=& \frac{1}{\gamma_a^{n+1}}\left\{ \gamma_a^n \rho_a^n +
 \sumP m_b^n (w_{ab}^{n+1} - w_{ab}^n) + \right.
-\label{e:open:sumrho-time}
+\nonumber
 \\
 &&\left. + \underset{v\in\mathcal{V}^o}{\sum}m_v^n\left[ w_{av}^n -
 w\left( \uvec{r}_{av}^n + \uvec{\delta r}_v^o(\Delta t) \right) \right]\right.
@@ -1517,6 +1525,8 @@ p_a^{n+1} &=& \frac{c_0 \rho_0}{\xi}\left[ \left( \frac{\rho_a^{n+1}}{\rho_0}\ri
 &&\mbox{Boundary conditions \& mass update}
 \nonumber
 \\
+&&\mbox{Create and delete particles if required}
+\nonumber
 \end{eqnarray}
 
 
