@@ -767,7 +767,7 @@ bool GPUSPH::runSimulation() {
 
 			// get GradGamma
 			if (gdata->problem->get_simparams()->boundarytype == SA_BOUNDARY)
-				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES;
+				which_buffers |= BUFFER_GRADGAMMA | BUFFER_VERTICES | BUFFER_BOUNDELEMENTS;
 
 			if (gdata->problem->get_simparams()->sph_formulation == SPH_GRENIER)
 				which_buffers |= BUFFER_VOLUME | BUFFER_SIGMA;
