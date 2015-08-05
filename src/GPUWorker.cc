@@ -2461,6 +2461,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				m_simparams->influenceRadius,
 				gdata->highestDevId[m_deviceIndex],
 				initStep,
+				!gdata->clOptions->resume_fname.empty(),
 				m_globalDeviceIdx,
 				gdata->totDevices);
 }

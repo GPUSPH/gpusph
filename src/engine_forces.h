@@ -207,6 +207,7 @@ saVertexBoundaryConditions(
 	const	float			influenceradius,
 	const	uint&			newIDsOffset,
 	const	bool			initStep,
+	const	bool			resume,
 	const	uint			deviceId,
 	const	uint			numDevices) = 0;
 

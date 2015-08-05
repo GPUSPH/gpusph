@@ -2114,27 +2114,29 @@ saVertexBoundaryConditions(
 		const float refMass = deltap*deltap*deltap*rho0;
 
 		// Update vertex mass
-		// time stepping
-		pos.w += dt*sumMdot;
-		// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
-		//if (alpha < 0.1*gam && sumMdot < 0.0f) // sphynx version
-		if (!foundFluid && sumMdot < 0.0f)
-			pos.w = 0.0f;
+		if (!initStep) {
+			// time stepping
+			pos.w += dt*sumMdot;
+			// if a vertex has no fluid particles around and its mass flux is negative then set its mass to 0
+			if (alpha < 0.1*gam && sumMdot < 0.0f) // sphynx version
+			//if (!foundFluid && sumMdot < 0.0f)
+				pos.w = 0.0f;
+
+			// clip to +/- 2 refMass all the time
+			pos.w = fmax(-2.0f*refMass, fmin(2.0f*refMass, pos.w));
+
+			// clip to +/- originalVertexMass if we have outflow
+			if (sumMdot < 0.0f) {
+				const float4 boundElement = tex1Dfetch(boundTex, index);
+				pos.w = fmax(-refMass*boundElement.w, fmin(refMass*boundElement.w, pos.w));
+			}
+		}
 		// particles that have an initial density less than the reference density have their mass set to 0
 		// or if their velocity is initially 0
-		if (initStep &&
+		else if (!resume &&
 			( (PRES_IO(info) && eulerVel.w - rho0 <= 1e-10f*rho0) ||
 			  (VEL_IO(info) && length3(eulerVel) < 1e-10f*d_sscoeff[fluid_num(info)])) )
 			pos.w = 0.0f;
-
-		// clip to +/- 2 refMass all the time
-		pos.w = fmax(-2.0f*refMass, fmin(2.0f*refMass, pos.w));
-
-		// clip to +/- originalVertexMass if we have outflow
-		if (sumMdot < 0.0f) {
-			const float4 boundElement = tex1Dfetch(boundTex, index);
-			pos.w = fmax(-refMass*boundElement.w, fmin(refMass*boundElement.w, pos.w));
-		}
 
 		// check whether new particles need to be created
 			// only create new particles in the second part of the time step
