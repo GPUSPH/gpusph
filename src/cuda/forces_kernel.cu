@@ -1985,13 +1985,23 @@ saVertexBoundaryConditions(
 			const uint neibVertZidx = vertIDToIndex[neibVerts.z];
 
 			if (BOUNDARY(neib_info)) {
-				// corner vertices only take solid wall segments into account
-				if (CORNER(info) && IO_BOUNDARY(neib_info))
-					continue;
 				const float4 boundElement = tex1Dfetch(boundTex, neib_index);
 
 				// check if vertex is associated with this segment
 				if (neibVertXidx == index || neibVertYidx == index || neibVertZidx == index) {
+					// in the initial step we need to compute an approximate grad gamma direction
+					// for the computation of gamma, in general we need a sort of normal as well
+					// for open boundaries to decide whether or not particles are created at a
+					// vertex or not, finally for k-epsilon we need the normal to ensure that the
+					// velocity in the wall obeys v.n = 0
+					if (initStep ||
+						(IO_BOUNDARY(info) && !CORNER(info)) ||
+						(oldTKE && !IO_BOUNDARY(neib_info))
+						)
+						avgNorm += as_float3(boundElement)*boundElement.w;
+					// corner vertices only take solid wall segments into account
+					if (CORNER(info) && IO_BOUNDARY(neib_info))
+						continue;
 					// boundary conditions on rho, k, eps
 					const float neibRho = oldVel[neib_index].w;
 					sumrho += neibRho;
@@ -2017,16 +2027,6 @@ saVertexBoundaryConditions(
 					sumtke += oldTKE ? oldTKE[neib_index] : NAN;
 					sumeps += oldEps ? oldEps[neib_index] : NAN;
 					numseg += 1.0f;
-					// in the initial step we need to compute an approximate grad gamma direction
-					// for the computation of gamma, in general we need a sort of normal as well
-					// for open boundaries to decide whether or not particles are created at a
-					// vertex or not
-					if ((IO_BOUNDARY(info) && !CORNER(info)) || initStep || (oldTKE && !initStep && !IO_BOUNDARY(neib_info) && !CORNER(info))) {
-						avgNorm += as_float3(boundElement);
-					}
-				}
-				if (oldTKE && !initStep && !IO_BOUNDARY(neib_info) && CORNER(info)) {
-					avgNorm += as_float3(boundElement)*boundElement.w;
 				}
 			}
 			else if (IO_BOUNDARY(info) && FLUID(neib_info)){
