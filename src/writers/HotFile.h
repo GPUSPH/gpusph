@@ -46,6 +46,7 @@ public:
 	double get_t() { return _header.t; }
 	void save();
 	void load();
+	uint readHeader(uint &part_count);
 private:
 	union {
 		ifstream		*in;
@@ -64,7 +65,6 @@ private:
 	void writeHeader(ofstream *fp, version_t version);
 	void readBuffer(ifstream *fp, AbstractBuffer *buffer, version_t version);
 	void readBody(ifstream *fp, version_t version);
-	void readHeader(ifstream *fp);
 
 	friend std::ostream& operator<<(std::ostream&, const HotFile&);
 };

@@ -188,8 +188,32 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	gdata->dt = _sp->dt;
 
 	printf("Generating problem particles...\n");
+
+	ifstream hot_in;
+	HotFile *hf = NULL;
+
+	if (clOptions->resume_fname.empty()) {
+		// get number of particles from problem file
+		gdata->totParticles = problem->fill_parts();
+	} else {
+		// get number of particles from hot file
+		struct stat statbuf;
+		ostringstream err_msg;
+		const char *fname = clOptions->resume_fname.c_str();
+		cout << "Hot starting from " << fname << "..." << endl;
+		if (stat(fname, &statbuf)) {
+			// stat failed
+			err_msg << "Hot start file " << fname << " not found";
+			throw runtime_error(err_msg.str());
+		}
+		/* enable automatic exception handling on failure */
+		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
+		hot_in.open(fname);
+		hf = new HotFile(hot_in, gdata);
+		hf->readHeader(gdata->totParticles);
+	}
+
 	// allocate the particles of the *whole* simulation
-	gdata->totParticles = problem->fill_parts();
 
 	// Determine the highest ID per device for unambiguous particle creation
 	for (uint d=0; d < gdata->devices; d++)
@@ -282,21 +306,6 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 		problem->copy_to_array(gdata->s_hBuffers);
 		printf("---\n");
 	} else {
-		struct stat statbuf;
-		ifstream hot_in;
-		ostringstream err_msg;
-		HotFile *hf = NULL;
-		const char *fname = clOptions->resume_fname.c_str();
-		cout << "Hot starting from " << fname << "..." << endl;
-		if (stat(fname, &statbuf)) {
-			// stat failed
-			err_msg << "Hot start file " << fname << " not found";
-			throw runtime_error(err_msg.str());
-		}
-		/* enable automatic exception handling on failure */
-		hot_in.exceptions(ifstream::failbit | ifstream::badbit);
-		hot_in.open(fname);
-		hf = new HotFile(hot_in, gdata);
 		hf->load();
 		cerr << "Successfully restored hot start file" << endl;
 		cerr << *hf << endl;
