@@ -2207,7 +2207,7 @@ saVertexBoundaryConditions(
 	}
 
 	// finalize computation of average norm for gamma calculation in the initial step
-	if (initStep) {
+	if (initStep && !resume) {
 		oldGGam[index].x = avgNorm.x;
 		oldGGam[index].y = avgNorm.y;
 		oldGGam[index].z = avgNorm.z;
