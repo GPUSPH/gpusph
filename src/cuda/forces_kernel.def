@@ -1589,6 +1589,11 @@ gamma_fixup<SA_BOUNDARY>::with(FP const& params, P const& pdata, OP &pout)
 	}
 	// clipping gamma
 	pout.gGam.w = fmin(fmax(pout.gGam.w, params.epsilon),1.0f);
+	// in case of density sum we compute gamma in euler so it's
+	// already available here
+	// TODO avoid computation before
+	if(simflags & ENABLE_DENSITY_SUM && pdata.oldGGam.w > 1e-5f)
+		pout.gGam = pdata.oldGGam;
 	pout.force.x /= pout.gGam.w;
 	pout.force.y /= pout.gGam.w;
 	pout.force.z /= pout.gGam.w;
