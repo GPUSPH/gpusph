@@ -192,6 +192,7 @@ saVertexBoundaryConditions(
 			float2*			contupd,
 	const	float4*			boundelement,
 			vertexinfo*		vertices,
+	const	float2			* const vertPos[],
 	const	uint*			vertIDToIndex,
 			particleinfo*	info,
 			hashKey*		particleHash,

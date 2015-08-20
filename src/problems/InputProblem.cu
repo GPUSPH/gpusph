@@ -514,6 +514,8 @@ void InputProblem::copy_to_array(BufferList &buffers)
 			const float u = A*omega*cosh(k*z)/sinh(k*D)*cos(k*x+phi);
 			const float w = A*omega*sinh(k*z)/sinh(k*D)*sin(k*x+phi);
 			vel[i] = make_float4(u, 0, w, _rho);
+#elif SPECIFIC_PROBLEM == SolitaryWave
+			vel[i] = make_float4(0, 0, 0, powf(((0.58212-h5File.buf[i].Coords_2)*9.807f*m_physparams->rho0[0])*7.0f/m_physparams->sscoeff[0]/m_physparams->sscoeff[0]/m_physparams->rho0[0] + 1.0f,1.0f/7.0f)*m_physparams->rho0[0]);
 #else
 			vel[i] = make_float4(0, 0, 0, m_physparams->rho0[0]);
 #endif
@@ -785,7 +787,7 @@ InputProblem_imposeBoundaryCondition(
 			const float xMin = -2.5*1.5;
 			const float x0 = xMin - 4./k;
 
-			const float kxct = k*(dot(normalWave, absPos)-c*t-x0);
+			const float kxct = k*(dot(normalWave, absPos)-c*(t-2.0f)-x0);
 			const float eta = a/(cosh(kxct)*cosh(kxct));
 			const float detadt = 2*a*k*c*tanh(kxct)/(cosh(kxct)*cosh(kxct));
 
@@ -797,6 +799,11 @@ InputProblem_imposeBoundaryCondition(
 				eulerVel.x = u;
 				eulerVel.y = v;
 				eulerVel.z = w;
+			}
+			if (t < 2.0f) {
+				eulerVel.x = 0.0f;
+				eulerVel.y = 0.0f;
+				eulerVel.z = 0.0f;
 			}
 #else
 			eulerVel.x = 0.0f;
@@ -892,7 +899,7 @@ InputProblem_imposeBoundaryConditionDevice(
 		//   from the viscosity
 		// - for a pressure inlet the pressure is imposed on the corners. If we are in the k-epsilon case then
 		//   we need to get the viscosity info from newEulerVel (x,y,z) and add the imposed density in .w
-		if (VERTEX(info) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
+		if ((VERTEX(info) || BOUNDARY(info)) && IO_BOUNDARY(info) && (!CORNER(info) || !VEL_IO(info))) {
 			// For corners we need to get eulerVel in case of k-eps and pressure outlet
 			if (CORNER(info) && newTke && !VEL_IO(info))
 				eulerVel = newEulerVel[index];

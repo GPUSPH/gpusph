@@ -2442,6 +2442,7 @@ void GPUWorker::kernel_saVertexBoundaryConditions()
 				bufwrite.getData<BUFFER_CONTUPD>(),
 				bufread.getData<BUFFER_BOUNDELEMENTS>(),
 				bufwrite.getData<BUFFER_VERTICES>(),
+				bufread.getRawPtr<BUFFER_VERTPOS>(),
 				bufread.getData<BUFFER_VERTIDINDEX>(),
 
 				// TODO FIXME INFO and HASH are in/out, but it's taken on the READ position

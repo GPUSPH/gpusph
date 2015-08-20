@@ -450,13 +450,16 @@ struct sa_boundary_particle_output
 	float alpha;
 	// avg gam
 	float gamavg;
+	// max value of \nabla \gamma_{as} \cdot {v_{as}, v_a - u_s, u_s + v_s} for cfl condition
+	float gammaCfl;
 
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
 		gGam(make_float4(0, 0, 0, 1)),
 		minlRas(1e10f),
 		alpha(0.0f),
-		gamavg(0.0f)
+		gamavg(0.0f),
+		gammaCfl(0.0f)
 	{}
 };
 
@@ -948,7 +951,16 @@ struct compute_relEulerVel_continuity_contribution {
 	__device__ __forceinline__
 	static void
 	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
+	{
+		// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+		pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+			// n . (v_a - v_s)
+			fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+			// n . (v_a - u_s)
+			fabs(dot3(ndata.belem, pdata.vel)),
+			// n . (v_s + u_s)
+			fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel)) )));
+	}
 };
 
 template<>
@@ -957,6 +969,14 @@ __device__ __forceinline__ void
 compute_relEulerVel_continuity_contribution<true>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
 {
 	nout.DgamDt = -nout.ggamAS*dot3(ndata.belem, ndata.relEulerVel-pdata.eulerVel);
+	// compute cfl condition for gamma, always |gradGamma_{as}| * |(n . velocity)|
+	pout.gammaCfl = fmax(pout.gammaCfl, nout.ggamAS*fmax(
+		// n . (v_a - v_s)
+		fabs(dot3(ndata.belem, ndata.relVel)), fmax(
+		// n . (v_a - u_s)
+		fabs(dot3(ndata.belem, pdata.vel+ndata.relEulerVel)),
+		// n . (v_s + u_s)
+		fabs(dot3(ndata.belem, -ndata.relVel+pdata.vel-ndata.relEulerVel)) )));
 }
 
 
@@ -984,6 +1004,7 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 		}
 		else if (ndata.ntype == PT_BOUNDARY && IO_BOUNDARY(ndata.info)) {
 			// compute sum_{S^{io}} gradGamma_{as} \cdot u_s^{n}
+			// plus gamma CFL condition
 			compute_relEulerVel_continuity_contribution<simflags & ENABLE_INLET_OUTLET>::with(params, pdata, ndata, pout, nout);
 			// compute sum_{S^{io}} gradGamma_{as} \cdot (-v_s^{n})
 			nout.DgamDt += nout.ggamAS*dot3(ndata.belem, ndata.relVel-pdata.vel);
@@ -1001,6 +1022,8 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 		if (ndata.ntype == PT_BOUNDARY) {
 			// boundary term of div(v)
 			nout.DgamDt = dot3(ndata.relVel, ndata.belem)*nout.ggamAS;
+			// compute cfl condition for gamma, no IO here, so it's only |gradGamma_{as}| * |(n . (v_a - v_s))|
+			pout.gammaCfl = fmax( pout.gammaCfl, nout.ggamAS*fabs(dot3(ndata.belem, ndata.relVel)) );
 			if (IO_BOUNDARY(ndata.info))
 				compute_euler_contributions<simflags & ENABLE_INLET_OUTLET>::boundary_term(params, pdata, ndata, pout, nout);
 			// D\rho/Dn is not zero near a boundary where pressure is imposed so the volume diffusion formula gains a term
@@ -1794,7 +1817,7 @@ struct forces_shared_data<true, visctype> :
 	{
 		this->sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
 		if (simflags & ENABLE_DENSITY_SUM)
-			this->sm_max_dS[threadIdx.x] = fabs(pout.contupd.y);
+			this->sm_max_dS[threadIdx.x] = pout.gammaCfl;
 	}
 
 	// auxiliary: reduce common dyndt shared data
