@@ -341,7 +341,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		m_simparams->sfactor=2.0f;
 		set_deltap(0.02f);
-		m_simparams->maxneibsnum = 240;
+		m_simparams->maxneibsnum = 440;
 		m_simparams->tend = 10.0;
 		m_simparams->ferrari = 0.1f;
 
