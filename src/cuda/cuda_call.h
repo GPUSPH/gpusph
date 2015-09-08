@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #define CUDA_SAFE_CALL_NOSYNC(err)	__cudaSafeCallNoSync(err, __FILE__, __LINE__)
 #define CUDA_SAFE_CALL(err)			__cudaSafeCall(err, __FILE__, __LINE__)
@@ -12,8 +13,8 @@
 inline void __cudaSafeCallNoSync( cudaError err, const char *file, const int line )
 {
     if( cudaSuccess != err) {
-        fprintf(stderr, "%s(%i) : cudaSafeCallNoSync() Runtime API error %d : %s.\n",
-                file, line, (int)err, cudaGetErrorString( err ));
+        fprintf(stderr, "%s(%i) : cudaSafeCallNoSync() Runtime API error %d : %s @ thread 0x%zx.\n",
+                file, line, (int)err, cudaGetErrorString( err ), pthread_self());
         exit(-1);
     }
 }
@@ -23,8 +24,8 @@ inline void __cudaSafeCall( cudaError err, const char *file, const int line )
 {
 	if( err == cudaSuccess) err = cudaDeviceSynchronize();
     if( cudaSuccess != err) {
-		fprintf(stderr, "%s(%i) : cudaSafeCall() Runtime API error %d: %s.\n",
-                file, line, (int)err, cudaGetErrorString( err ) );
+		fprintf(stderr, "%s(%i) : cudaSafeCall() Runtime API error %d: %s @ thread 0x%zx.\n",
+                file, line, (int)err, cudaGetErrorString( err ), pthread_self());
         exit(-1);
     }
 }
@@ -39,8 +40,8 @@ inline void __cutilGetLastError( const char *errorMessage, const char *file, con
 {
     cudaError_t err = cudaGetLastError();
     if( cudaSuccess != err) {
-        fprintf(stderr, "%s(%i) : cutilCheckMsg() CUTIL CUDA error : %s : (%d) %s.\n",
-                file, line, errorMessage, (int)err, cudaGetErrorString( err ) );
+        fprintf(stderr, "%s(%i) : cutilCheckMsg() CUTIL CUDA error %s : (%d) %s @ thread 0x%zx.\n",
+                file, line, errorMessage, (int)err, cudaGetErrorString( err ), pthread_self() );
         exit(-1);
     }
 }
@@ -50,8 +51,8 @@ inline void __cutilGetSyncError( const char *errorMessage, const char *file, con
 {
     cudaError_t err = cudaDeviceSynchronize();
     if( cudaSuccess != err) {
-        fprintf(stderr, "%s(%i) : cutilCheckMsg() CUTIL CUDA error : %s : (%d) %s.\n",
-                file, line, errorMessage, (int)err, cudaGetErrorString( err ) );
+        fprintf(stderr, "%s(%i) : cutilCheckMsg() CUTIL CUDA error : %s : (%d) %s @ thread 0x%zx.\n",
+                file, line, errorMessage, (int)err, cudaGetErrorString( err ), pthread_self() );
         exit(-1);
     }
 }

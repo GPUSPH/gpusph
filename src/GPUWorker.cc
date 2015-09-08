@@ -55,7 +55,7 @@ GPUWorker::GPUWorker(GlobalData* _gdata, devcount_t _deviceIndex) :
 
 	m_globalDeviceIdx = GlobalData::GLOBAL_DEVICE_ID(gdata->mpi_rank, _deviceIndex);
 
-	printf("Global device id: %d (%d)\n", m_globalDeviceIdx, gdata->totDevices);
+	printf("Thread 0x%zx global device id: %d (%d)\n", pthread_self(), m_globalDeviceIdx, gdata->totDevices);
 
 	// we know that GPUWorker is initialized when Problem was already
 	m_simparams = gdata->problem->get_simparams();
