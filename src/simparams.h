@@ -168,7 +168,7 @@ typedef struct SimParams {
 	/// return the number of layers of particles necessary
 	/// to cover the influence radius
 	inline int
-	get_influence_layers()
+	get_influence_layers() const
 	{ return (int)ceil(sfactor*kernelradius); }
 
 } SimParams;
