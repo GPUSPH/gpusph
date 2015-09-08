@@ -92,7 +92,7 @@ void XProblem::release_memory()
 
 uint XProblem::suggestedDynamicBoundaryLayers()
 {
-	return (uint) ceil(m_simparams->sfactor * m_simparams->kernelradius) + 1;
+	return (uint)m_simparams->get_influence_layers() + 1;
 }
 
 XProblem::~XProblem()
