@@ -1139,7 +1139,7 @@ Problem::set_grid_params(void)
 
 // Compute position in uniform grid (clamping to edges)
 int3
-Problem::calc_grid_pos(const Point&	pos) const
+Problem::calc_grid_pos(const Point& pos) const
 {
 	int3 gridPos;
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);

@@ -279,7 +279,7 @@ struct keps_particle_data
 	__device__ __forceinline__
 	keps_particle_data(const uint index, particleinfo const& info) :
 		keps_k(tex1Dfetch(keps_kTex, index)),
-		keps_e( tex1Dfetch(keps_eTex, index)),
+		keps_e(tex1Dfetch(keps_eTex, index)),
 		turbVisc(0.09f*keps_k*keps_k/keps_e),
 		turbViscForViscTerm(FLUID(info) ? turbVisc : 0)
 	{}

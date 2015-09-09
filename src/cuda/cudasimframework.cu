@@ -124,10 +124,10 @@ template<
 		boundarytype == SA_BOUNDARY && (
 			// viscosity
 			visctype == KINEMATICVISC		||	// untested
-			visctype == SPSVISC 			||	// untested
-			visctype == ARTVISC 			||	// untested (use is discouraged, use Ferrari correction)
+			visctype == SPSVISC			||	// untested
+			visctype == ARTVISC			||	// untested (use is discouraged, use Ferrari correction)
 			// kernel
-			! (kerneltype == WENDLAND) 		||	// only the Wendland kernel is allowed in SA_BOUNDARY
+			! (kerneltype == WENDLAND)		||	// only the Wendland kernel is allowed in SA_BOUNDARY
 												// all other kernels would require their respective
 												// gamma and grad gamma formulation
 			// formulation

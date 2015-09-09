@@ -79,7 +79,7 @@ void print_usage() {
 	cout << " --device n[,n...] : Use device number n; runs multi-gpu if multiple n are given\n";
 	cout << " --dem : Use given DEM (if problem supports it)\n";
 	cout << " --deltap : Use given deltap (VAL is cast to float)\n";
-	cout << " --tend: Break at given time (VAL is cast to float)\n";
+	cout << " --tend : Break at given time (VAL is cast to float)\n";
 	cout << " --dir : Use given directory for dumps instead of date-based one\n";
 	cout << " --nosave : Disable all file dumps but the last\n";
 	cout << " --gpudirect: Enable GPUDirect for RDMA (requires a CUDA-aware MPI library)\n";
