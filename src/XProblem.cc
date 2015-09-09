@@ -28,7 +28,7 @@
 #include <iostream>
 
 // limits
-#include <float.h>
+#include <cfloat>
 #include <limits>
 
 #include "Rect.h"

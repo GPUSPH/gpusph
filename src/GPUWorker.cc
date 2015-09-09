@@ -26,7 +26,7 @@
 // ostringstream
 #include <sstream>
 // FLT_MAX
-#include <float.h>
+#include <cfloat>
 
 #include "GPUWorker.h"
 #include "Problem.h"

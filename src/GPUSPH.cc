@@ -23,7 +23,7 @@
     along with GPUSPH.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <float.h> // FLT_EPSILON
+#include <cfloat> // FLT_EPSILON
 
 #include <unistd.h> // getpid()
 #include <sys/mman.h> // shm_open()/shm_unlink()
