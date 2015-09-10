@@ -94,6 +94,9 @@ LIST_CUDA_CC=$(SCRIPTSDIR)/list-cuda-cc
 GPUDEPS = $(MAKEFILE).gpu
 CPUDEPS = $(MAKEFILE).cpu
 
+# all files under $(SRCDIR), needed by tags files
+ALLSRCFILES = $(shell find $(SRCDIR) -type f)
+
 # .cc source files (CPU)
 MPICXXFILES = $(SRCDIR)/NetworkManager.cc
 ifeq ($(USE_HDF5),2)
@@ -993,9 +996,11 @@ docsclean:
 	$(CMDECHO)rm -rf $(DOCSDIR)
 
 # target: tags - Create TAGS file
-tags: TAGS
-TAGS: $(wildcard $(SRCDIR)/*)
-	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def
+tags: TAGS cscope.out
+TAGS: $(ALLSRCFILES)
+	$(CMDECHO)etags -R -h=.h.cuh.inc --exclude=docs --langmap=c++:.cc.cuh.cu.def.h.inc
+cscope.out: $(ALLSRCFILES)
+	$(CMDECHO)which cscope > /dev/null && cscope -b $(ALLSRCFILES) || touch cscope.out
 
 
 # target: test - Run GPUSPH with WaveTank. Compile it if needed
