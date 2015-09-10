@@ -746,6 +746,8 @@ bool GPUSPH::runSimulation() {
 
 		// are we done?
 		bool finished = gdata->problem->finished(gdata->t);
+		finished = finished || (gdata->clOptions->maxiter &&
+			gdata->iterations >= gdata->clOptions->maxiter);
 		// list of writers that need to write
 		ConstWriterMap writers = Writer::NeedWrite(gdata->t);
 		// do we need to write?
