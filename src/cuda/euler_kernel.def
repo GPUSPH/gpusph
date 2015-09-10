@@ -318,6 +318,8 @@ eulerDevice(
 					// this is for k-eps only. Normally forces are going to be zero
 					eulerVel += dt*force;
 				}
+				if(BOUNDARY(pinfo))
+					newgGam[index] = oldgGam[index];
 			}
 			break;
 
