@@ -389,7 +389,7 @@ RESTORE_WARNINGS
 			const bool testpoints) const;
 
 		// is the simulation running at the given time?
-		bool finished(double) const;
+		virtual bool finished(double) const;
 
 		virtual int fill_parts(void) = 0;
 		// maximum number of particles that may be generated
