@@ -1015,6 +1015,10 @@ compile-problems:
 		$(MAKE) problem=$${prob} || exit 1 ; pn=$$(($$pn+1)) ; \
 		done
 
+# target: <problem_name> - Compile the given problem
+$(PROBLEM_LIST):
+	$(CMDECHO)$(MAKE) problem=$@
+
 # target: list-problems - List available problems
 list-problems:
 	$(CMDECHO)echo $(PROBLEM_LIST) | sed 's/ /\n/g' | sort
