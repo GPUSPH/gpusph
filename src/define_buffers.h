@@ -54,7 +54,7 @@ SET_BUFFER_TRAITS(BUFFER_HASH, hashKey, 1, "Hash");
 #define BUFFER_PARTINDEX	(BUFFER_HASH << 1)
 SET_BUFFER_TRAITS(BUFFER_PARTINDEX, uint, 1, "Particle Index");
 #define BUFFER_VERTIDINDEX		(BUFFER_PARTINDEX << 1)
-SET_BUFFER_TRAITS(BUFFER_VERTIDINDEX, uint, 1, "Vertice ID to Particle Index");
+SET_BUFFER_TRAITS(BUFFER_VERTIDINDEX, uint, 1, "Vertex ID to Particle Index");
 
 // not used for the time being. evaluate if they should be migrated to the buffer mechanism
 // too or not

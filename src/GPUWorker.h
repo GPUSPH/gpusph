@@ -97,7 +97,7 @@ private:
 	// this, however, would violate the principle that any CUDA-related code should be
 	// handled by GPUWorkers and, secondly, GPUSPH
 	cudaDeviceProp m_deviceProperties;
-	// the setter is private and meant to be called ony by the simulation thread
+	// the setter is private and meant to be called only by the simulation thread
 	void setDeviceProperties(cudaDeviceProp _m_deviceProperties);
 
 	// enable direct p2p memory transfers

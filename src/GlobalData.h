@@ -147,11 +147,11 @@ enum CommandType {
 	UPLOAD_PLANES,
 	/// Upload centers of gravity of moving bodies for the integration engine
 	/// TODO FIXME there shouldn't be a need for separate EULER_ and FORCES_ version
-	/// of this, the moing body data should be put in its own namespac
+	/// of this, the moving body data should be put in its own namespace
 	EULER_UPLOAD_OBJECTS_CG,
 	/// Upload centers of gravity of moving bodies for forces computation
 	/// TODO FIXME there shouldn't be a need for separate EULER_ and FORCES_ version
-	/// of this, the moing body data should be put in its own namespac
+	/// of this, the moving body data should be put in its own namespace
 	FORCES_UPLOAD_OBJECTS_CG,
 	/// Upload translation vector and rotation matrices for moving bodies
 	UPLOAD_OBJECTS_MATRICES,
