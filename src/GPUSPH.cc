@@ -120,20 +120,13 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 	clOptions = gdata->clOptions;
 	problem = gdata->problem;
 
-	// needed for the new problem interface (compute worldorigin, init ODE, etc.)
+	// For the new problem interface (compute worldorigin, init ODE, etc.)
+	// In all cases, also runs the checks for dt, maxneibsnum, etc
+	// and creates the problem dir
 	if (!problem->initialize()) {
 		printf("Problem initialization failed. Aborting...\n");
 		return false;
 	}
-
-	// run post-construction functions
-	problem->check_dt();
-	problem->check_maxneibsnum();
-	problem->create_problem_dir();
-	problem->calculateFerrariCoefficient();
-
-	printf("Problem calling set grid params\n");
-	problem->set_grid_params();
 
 	// sets the correct viscosity coefficient according to the one set in SimParams
 	setViscosityCoefficient();

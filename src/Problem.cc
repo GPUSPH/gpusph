@@ -61,6 +61,20 @@ Problem::Problem(GlobalData *_gdata) :
 {
 }
 
+bool
+Problem::initialize()
+{
+	// run post-construction functions
+	check_dt();
+	check_maxneibsnum();
+	calculateFerrariCoefficient();
+	create_problem_dir();
+
+	printf("Problem calling set grid params\n");
+	set_grid_params();
+
+	return true;
+}
 
 Problem::~Problem(void)
 {

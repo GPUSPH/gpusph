@@ -314,7 +314,10 @@ bool XProblem::initialize()
 	//if (m_numMovingObjects > 0)
 	//	m_simparams->movingBoundaries = true;
 
-	return true;
+	// Call Problem's initialization that takes care of the common
+	// initialization functions (checking dt, preparing the grid,
+	// creating the problem dir, etc)
+	return Problem::initialize();
 }
 
 void XProblem::initializeODE()

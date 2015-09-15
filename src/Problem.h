@@ -152,7 +152,7 @@ class Problem {
 		Problem(GlobalData *_gdata);
 
 		// returns true if successful, false if should abort the simulation
-		virtual bool initialize() { return true; };
+		virtual bool initialize();
 
 		virtual ~Problem(void);
 
