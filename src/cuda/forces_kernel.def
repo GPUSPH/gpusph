@@ -1798,6 +1798,23 @@ struct forces_shared_data // by default, depend on nothing
 	{ /* do nothing */ }
 };
 
+template<bool densitySum, BoundaryType boundarytype>
+struct store_sm_max_dS
+{
+	template<typename OP>
+	__device__ __forceinline__
+	static float
+	with(OP const& pout)
+	{ return 0.0f; }
+};
+
+template<>
+template<typename OP>
+__device__ __forceinline__
+float
+store_sm_max_dS<true, SA_BOUNDARY>::with(OP const& pout)
+{ return pout.gammaCfl; }
+
 template<ViscosityType visctype>
 struct forces_shared_data<true, visctype> :
 	dyndt_shared_data, dyndt_densitySum_shared_data,
@@ -1811,14 +1828,10 @@ struct forces_shared_data<true, visctype> :
 	}
 
 	// auxiliary: store common dyndt shared data
-	template<flag_t simflags, typename FP, typename P, typename OP>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store_sm_max(FP const& params, P const& pdata, OP const& pout)
-	{
-		this->sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
-		if (simflags & ENABLE_DENSITY_SUM)
-			this->sm_max_dS[threadIdx.x] = pout.gammaCfl;
-	}
+	{ this->sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength); }
 
 	// auxiliary: reduce common dyndt shared data
 	template<flag_t simflags, typename FP>
@@ -1830,10 +1843,13 @@ struct forces_shared_data<true, visctype> :
 	}
 
 	// store shared data
-	template<flag_t simflags, typename FP, typename P, typename OP>
+	template<flag_t simflags, BoundaryType boundarytype, typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
-	{ store_sm_max<simflags>(params, pdata, pout); }
+	{
+		store_sm_max(params, pdata, pout);
+		this->sm_max_dS[threadIdx.x] = store_sm_max_dS<simflags & ENABLE_DENSITY_SUM, boundarytype>::with(pout);
+	}
 
 	// reduce shared data
 	template<flag_t simflags, typename FP>
@@ -1851,11 +1867,12 @@ forces_shared_data<true, KEPSVISC>::init()
 }
 
 template<>
-template<flag_t simflags, typename FP, typename P, typename OP>
+template<flag_t simflags, BoundaryType boundarytype, typename FP, typename P, typename OP>
 __device__ __forceinline__ void
 forces_shared_data<true, KEPSVISC>::store(FP const& params, P const& pdata, OP const& pout)
 {
-	store_sm_max<simflags>(params, pdata, pout);
+	store_sm_max(params, pdata, pout);
+	this->sm_max_dS[threadIdx.x] = store_sm_max_dS<simflags & ENABLE_DENSITY_SUM, boundarytype>::with(pout);
 	this->sm_max_nut[threadIdx.x] = pdata.turbVisc;
 }
 
@@ -2190,7 +2207,7 @@ forcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			shared.store<simflags>(params, pdata, pout);
+			shared.store<simflags, boundarytype>(params, pdata, pout);
 		} else
 		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info) && BOUNDARY(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
