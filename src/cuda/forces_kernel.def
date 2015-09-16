@@ -354,11 +354,11 @@ struct keps_precalc_particle_data
 // but for the time being we don't optimize this far and just limit ourselves
 // to conditional inclusions based on kernel specialization only, not particle type
 
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
 struct forces_particle_data :
 	// included unconditionally for all particles:
 	common_particle_data,
@@ -369,28 +369,34 @@ struct forces_particle_data :
 	// PT_OBJECT don't use them
 	vel_particle_data,
 	// eulerian velocity only used in case of keps or with open boundaries
-	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_particle_data),
-	COND_STRUCT(visctype == KEPSVISC || simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_particle_data),
+	COND_STRUCT(_visctype == KEPSVISC || _simflags & ENABLE_INLET_OUTLET , // TODO this only works for SA_BOUNDARY atm
 		eulerVel_particle_data),
 	// SA_BOUNDARY data (always needed by PT_VERTEX, since they only obviously
 	// appear with SA_BOUNDARY)
-	conditional<boundarytype == SA_BOUNDARY,
-		sa_boundary_particle_data<visctype, simflags>,
-		empty< sa_boundary_particle_data<visctype, simflags> > >::type,
+	conditional<_boundarytype == SA_BOUNDARY,
+		sa_boundary_particle_data<_visctype, _simflags>,
+		empty< sa_boundary_particle_data<_visctype, _simflags> > >::type,
 	// KEPSVISC data, needed by both PT_FLUID and PT_VERTEX
-	COND_STRUCT(visctype == KEPSVISC,
+	COND_STRUCT(_visctype == KEPSVISC,
 		keps_particle_data),
 	// everything else is just for PT_FLUID
-	COND_STRUCT(visctype == SPSVISC,
+	COND_STRUCT(_visctype == SPSVISC,
 		sps_particle_data),
 	// to see why this is so messy, see definition of p_precalc_particle_data
-	p_precalc_particle_data<sph_formulation,
-		typename conditional<sph_formulation == SPH_GRENIER,
-		grenier_particle_data, typename COND_STRUCT(visctype == KEPSVISC, keps_particle_data)
+	p_precalc_particle_data<_sph_formulation,
+		typename conditional<_sph_formulation == SPH_GRENIER,
+		grenier_particle_data, typename COND_STRUCT(_visctype == KEPSVISC, keps_particle_data)
 	>::type >,
-	COND_STRUCT(visctype == KEPSVISC,
+	COND_STRUCT(_visctype == KEPSVISC,
 		keps_precalc_particle_data)
 {
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
 	// shorthand for the type of the forces params
 	typedef forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params_t;
 
@@ -490,18 +496,22 @@ struct xsph_particle_output
 	{}
 };
 
-template<BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
 struct forces_particle_output :
 	common_particle_output,
 	// TODO FIXME KEPSVISC currently depends on SA_BOUNDARY (see .e.g viscous_fixup<KEPSVISC>),
 	// but there is no way to prevent it from being selected with other boundary conditions.
 	// When this is implemented, the || visctype == KEPSVISC should be removed
-	COND_STRUCT(boundarytype == SA_BOUNDARY || visctype == KEPSVISC, sa_boundary_particle_output),
-	COND_STRUCT(visctype == KEPSVISC, keps_particle_output),
-	COND_STRUCT(simflags & ENABLE_XSPH, xsph_particle_output)
+	COND_STRUCT(_boundarytype == SA_BOUNDARY || _visctype == KEPSVISC, sa_boundary_particle_output),
+	COND_STRUCT(_visctype == KEPSVISC, keps_particle_output),
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_particle_output)
 {
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
 	__device__ __forceinline__
 	forces_particle_output() :
 		common_particle_output(),

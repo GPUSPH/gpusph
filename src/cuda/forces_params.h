@@ -188,20 +188,26 @@ struct kepsvisc_forces_params
 };
 
 /// The actual forces_params struct, which concatenates all of the above, as appropriate.
-template<KernelType kerneltype,
-	SPHFormulation sph_formulation,
-	BoundaryType boundarytype,
-	ViscosityType visctype,
-	flag_t simflags>
+template<KernelType _kerneltype,
+	SPHFormulation _sph_formulation,
+	BoundaryType _boundarytype,
+	ViscosityType _visctype,
+	flag_t _simflags>
 struct forces_params :
 	common_forces_params,
-	COND_STRUCT(simflags & ENABLE_DTADAPT, dyndt_forces_params),
-	COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params),
-	COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params),
-	COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
-	COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
-	COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)
+	COND_STRUCT(_simflags & ENABLE_DTADAPT, dyndt_forces_params),
+	COND_STRUCT(_simflags & ENABLE_XSPH, xsph_forces_params),
+	COND_STRUCT(_sph_formulation == SPH_GRENIER, grenier_forces_params),
+	COND_STRUCT(_boundarytype == SA_BOUNDARY, sa_boundary_forces_params),
+	COND_STRUCT(_simflags & ENABLE_WATER_DEPTH, water_depth_forces_params),
+	COND_STRUCT(_visctype == KEPSVISC, kepsvisc_forces_params)
 {
+	static const KernelType kerneltype = _kerneltype;
+	static const SPHFormulation sph_formulation = _sph_formulation;
+	static const BoundaryType boundarytype = _boundarytype;
+	static const ViscosityType visctype = _visctype;
+	static const flag_t simflags = _simflags;
+
 	// This structure provides a constructor that takes as arguments the union of the
 	// parameters that would ever be passed to the forces kernel.
 	// It then delegates the appropriate subset of arguments to the appropriate
