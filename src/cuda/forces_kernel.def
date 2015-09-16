@@ -429,12 +429,10 @@ struct forces_particle_data :
 struct common_particle_output
 {
 	float4	force;
-	float2	contupd;
 
 	__device__ __forceinline__
 	common_particle_output() :
-		force(make_float4(0.0f)),
-		contupd(make_float2(0.0f))
+		force(make_float4(0.0f))
 	{}
 };
 
@@ -443,6 +441,7 @@ struct sa_boundary_particle_output
 {
 	// x,y,z contains the gradient of gamma, w gamma itself
 	float4	gGam;
+	float2	contupd;
 	// this is used to identify cases in which the normal gamma computation becomes singular
 	// minimum distance between wall segments and the particle
 	float minlRas;
@@ -454,6 +453,7 @@ struct sa_boundary_particle_output
 	__device__ __forceinline__
 	sa_boundary_particle_output() :
 		gGam(make_float4(0, 0, 0, 1)),
+		contupd(make_float2(0.0f)),
 		minlRas(1e10f),
 		alpha(0.0f),
 		gamavg(0.0f)
@@ -683,15 +683,11 @@ struct common_neib_output
 	float3	DvDt;
 	// density derivative
 	float	DrDt;
-	float	contDiff;
-	float	DgamDt;
 
 	__device__ __forceinline__
 	common_neib_output() :
 		DvDt(make_float3(0.0f)),
-		DrDt(0.0f),
-		contDiff(0.0f),
-		DgamDt(0.0f)
+		DrDt(0.0f)
 	{}
 };
 
@@ -699,9 +695,14 @@ struct sa_boundary_neib_output
 {
 	// ggamAS as used by ptype == PT_FLUID, gamES as used by ptype == PT_VERTEX
 	float	ggamAS;
+	float	DgamDt;
+	float	contDiff;
 
 	__device__ __forceinline__
-	sa_boundary_neib_output() : ggamAS(0.0f)
+	sa_boundary_neib_output() :
+		ggamAS(0.0f),
+		DgamDt(0.0f),
+		contDiff(0.0f)
 	{ }
 };
 
@@ -881,6 +882,14 @@ compute_euler_contributions<true>::volumic_term(FP const& params, P const& pdata
 template<BoundaryType boundarytype>
 struct compute_density_derivative {
 
+	// Ferrari updates nout.contDiff in the SA case, and nout.DrDt otherwise,
+	// so we need a boundary-type templatized selector
+	template<typename ON>
+	__device__ __forceinline__
+	static float&
+	ferrari_updates(ON &nout)
+	{ return nout.DrDt; }
+
 	// common volumic Ferrari diffusion term
 	// TODO the Ferrari correction should be handled based on its own template
 	// parameter (use_ferrari or whatever).
@@ -899,7 +908,7 @@ struct compute_density_derivative {
 			(pdata.vel.w - ndata.relVel.w + grav_corr)/pdata.vel.w/ndata.r*as_float3(ndata.relPos) :
 			make_float3(0.0f);
 		// adding term to D\rho/Dt, weighted with d_ferrari (choose according to Mayrhofer et al. 2013, CPC)
-		nout.contDiff += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
+		ferrari_updates(nout) += d_ferrari*ndata.relPos.w*dot(ferraricor, as_float3(ndata.relPos))*ndata.f;
 	}
 
 	// auxiliary function
@@ -915,6 +924,13 @@ struct compute_density_derivative {
 		// restructuring
 		nout.DrDt = ndata.relPos.w*ndata.vel_dot_pos*ndata.f;
 	}
+
+	// update force.w
+	template<flag_t simflags, typename OP, typename ON>
+	__device__ __forceinline__
+	static void
+	update_drho_dt(OP &pout, ON const& nout)
+	{ pout.force.w += nout.DrDt; }
 
 	// actual method
 	template<SPHFormulation sph_formulation, flag_t simflags,
@@ -938,8 +954,36 @@ struct compute_density_derivative {
 		/* The second formulation takes into consideration the density ratio */
 		if (sph_formulation == SPH_F2)
 			nout.DrDt *= pdata.vel.w/ndata.relVel.w;
+
+		/* Add contribution to density derivative */
+		update_drho_dt<simflags>(pout, nout);
 	}
 };
+
+template<>
+template<typename ON>
+__device__ __forceinline__
+float&
+compute_density_derivative<SA_BOUNDARY>::ferrari_updates(ON &nout)
+{
+	return nout.contDiff;
+}
+
+template<>
+template<flag_t simflags, typename OP, typename ON>
+__device__ __forceinline__
+void
+compute_density_derivative<SA_BOUNDARY>::update_drho_dt(OP &pout, ON const& nout)
+{
+	if (simflags & ENABLE_DENSITY_SUM) {
+		pout.force.w += d_ferrari*nout.contDiff;
+		pout.contupd.x += nout.DrDt;
+	} else {
+		pout.force.w += nout.DrDt;
+		pout.contupd.x += nout.contDiff;
+	}
+	pout.contupd.y += nout.DgamDt;
+}
 
 // A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
@@ -1032,6 +1076,9 @@ compute_density_derivative<SA_BOUNDARY>::with(FP const& params, PD const& pdata,
 				nout.DrDt *= pdata.vel.w/ndata.relVel.w;
 		}
 	}
+
+	/* Add contribution to density derivative */
+	update_drho_dt<simflags>(pout, nout);
 }
 
 /// Functor to compute the pressure contribution to the particle acceleration.
@@ -1711,8 +1758,20 @@ write_turbvisc<KEPSVISC>::with(FP const& params, P const& pdata, OP const& pout)
 
 /// A functor that writes out forces
 /// (no templatization, not needed)
+template<BoundaryType boundarytype>
 struct write_forces
 {
+	template<flag_t simflags, typename FP, typename P, typename OP>
+	__device__ __forceinline__
+	static void
+	with(FP const& params, P const& pdata, OP const& pout)
+	{
+		params.forces[pdata.index] = pout.force;
+	}
+};
+
+template<>
+struct write_forces<SA_BOUNDARY> {
 	template<flag_t simflags, typename FP, typename P, typename OP>
 	__device__ __forceinline__
 	static void
@@ -1735,111 +1794,146 @@ struct write_forces
  */
 
 /// Some forces kernel specializations have global variables which are not individual particle data
-/// and are therefore collected here
+/// and are therefore collected here. Since we can have a wide combination of these
+/// blocks, we define a common infrastructure for them, and we call the method
+/// for each of the parent structures. Therefore, the alternative in case of a missing
+/// structure cannot be the empty struct, as it must provide the needed interface
+
+template<typename T>
+struct dyndt_shared_none
+{
+	// init shared data
+	__device__ __forceinline__ void
+	init() { /* do nothing */ }
+
+	// store shared data
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{ /* do nothing */ }
+
+	// reduce shared data
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{ /* do nothing */ }
+};
+
+#define COND_SHARED(some_cond, some_struct) \
+	conditional<some_cond, some_struct, dyndt_shared_none<some_struct> >::type
 
 struct dyndt_shared_data
 {
 	float sm_max[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_max[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(this->sm_max, params.cfl, params.cflOffset);
+	}
 };
 
 struct dyndt_densitySum_shared_data
 {
 	float sm_max_dS[BLOCK_SIZE_FORCES];
+
+	__device__ __forceinline__ void
+	init() { sm_max_dS[threadIdx.x] = 0; }
+
+	template<typename FP, typename P, typename OP>
+	__device__ __forceinline__ void
+	store(FP const& params, P const& pdata, OP const& pout)
+	{
+		sm_max_dS[threadIdx.x] = fabs(pout.contupd.y);
+	}
+
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(sm_max_dS, params.cfl_dS, params.cflOffset);
+	}
 };
 
 struct dyndt_keps_shared_data
 {
 	float sm_max_nut[BLOCK_SIZE_FORCES];
-};
 
-template<bool dyndt, ViscosityType visctype>
-struct forces_shared_data // by default, depend on nothing
-{
-	// init shared data
-	__device__ __forceinline__ void init() { /* do nothing */ }
+	__device__ __forceinline__ void
+	init() { sm_max_nut[threadIdx.x] = 0; }
 
-	// store shared data
-	template<flag_t simflags, typename FP, typename P, typename OP>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
-	{ /* do nothing */ }
+	{
+		sm_max_nut[threadIdx.x] = fabs(pout.contupd.y);
+	}
 
-	// reduce shared data
-	template<flag_t simflags, typename FP>
-	__device__ __forceinline__ void reduce(FP const& params)
-	{ /* do nothing */ }
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		dtadaptBlockReduce(sm_max_nut, params.cfltvisc, params.cflOffset);
+	}
 };
 
-template<ViscosityType visctype>
-struct forces_shared_data<true, visctype> :
-	dyndt_shared_data, dyndt_densitySum_shared_data,
-	COND_STRUCT(visctype == KEPSVISC, dyndt_keps_shared_data)
+template<BoundaryType boundarytype, ViscosityType visctype, flag_t simflags>
+struct forces_shared_data :
+	COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data),
+	COND_SHARED(simflags & (ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+		boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data),
+	COND_SHARED(simflags & ENABLE_DTADAPT &&
+		visctype == KEPSVISC, dyndt_keps_shared_data)
 {
-	// init shared data
-	__device__ __forceinline__ void init()
-	{
-		this->sm_max[threadIdx.x] = 0;
-		this->sm_max_dS[threadIdx.x] = 0;
-	}
+	typedef
+		typename COND_SHARED(simflags & ENABLE_DTADAPT, dyndt_shared_data)
+		common;
+	typedef
+		typename COND_SHARED(simflags & (ENABLE_DTADAPT | ENABLE_DENSITY_SUM) &&
+			boundarytype == SA_BOUNDARY, dyndt_densitySum_shared_data)
+		density_sum;
+	typedef
+		typename COND_SHARED(simflags & ENABLE_DTADAPT &&
+			visctype == KEPSVISC, dyndt_keps_shared_data)
+		nut;
 
-	// auxiliary: store common dyndt shared data
-	template<flag_t simflags, typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
-	store_sm_max(FP const& params, P const& pdata, OP const& pout)
+	init()
 	{
-		this->sm_max[threadIdx.x] = max(length(as_float3(pout.force)), pdata.sspeed*pdata.sspeed/params.slength);
-		if (simflags & ENABLE_DENSITY_SUM)
-			this->sm_max_dS[threadIdx.x] = fabs(pout.contupd.y);
+		common::init();
+		density_sum::init();
+		nut::init();
 	}
 
-	// auxiliary: reduce common dyndt shared data
-	template<flag_t simflags, typename FP>
-	__device__ __forceinline__ void reduce_sm_max(FP const& params)
-	{
-		dtadaptBlockReduce(this->sm_max, params.cfl, params.cflOffset);
-		if (simflags & ENABLE_DENSITY_SUM)
-			dtadaptBlockReduce(this->sm_max_dS, params.cfl_dS, params.cflOffset);
-	}
-
-	// store shared data
-	template<flag_t simflags, typename FP, typename P, typename OP>
+	template<typename FP, typename P, typename OP>
 	__device__ __forceinline__ void
 	store(FP const& params, P const& pdata, OP const& pout)
-	{ store_sm_max<simflags>(params, pdata, pout); }
+	{
+		common::store(params, pdata, pout);
+		density_sum::store(params, pdata, pout);
+		nut::store(params, pdata, pout);
+	}
 
-	// reduce shared data
-	template<flag_t simflags, typename FP>
-	__device__ __forceinline__ void reduce(FP const& params)
-	{ reduce_sm_max<simflags>(params); }
+	template<typename FP>
+	__device__ __forceinline__ void
+	reduce(FP const& params)
+	{
+		common::reduce(params);
+		density_sum::reduce(params);
+		nut::reduce(params);
+	}
 };
-
-template<>
-__device__ __forceinline__ void
-forces_shared_data<true, KEPSVISC>::init()
-{
-	this->sm_max[threadIdx.x] = 0;
-	this->sm_max_dS[threadIdx.x] = 0;
-	this->sm_max_nut[threadIdx.x] = 0;
-}
-
-template<>
-template<flag_t simflags, typename FP, typename P, typename OP>
-__device__ __forceinline__ void
-forces_shared_data<true, KEPSVISC>::store(FP const& params, P const& pdata, OP const& pout)
-{
-	store_sm_max<simflags>(params, pdata, pout);
-	this->sm_max_nut[threadIdx.x] = pdata.turbVisc;
-}
-
-template<>
-template<flag_t simflags, typename FP>
-__device__ __forceinline__ void
-forces_shared_data<true, KEPSVISC>::reduce(FP const& params)
-{
-	reduce_sm_max<simflags>(params);
-	dtadaptBlockReduce(this->sm_max_nut, params.cfltvisc, params.cflOffset);
-}
-
 
 /************************************************************************************************************/
 /*		   Kernels for computing forces with the different options											*/
@@ -1856,7 +1950,7 @@ forcesDevice(
 	// Global particle index
 	const uint index = INTMUL(blockIdx.x,blockDim.x) + threadIdx.x + params.fromParticle;
 
-	__shared__ forces_shared_data<simflags & ENABLE_DTADAPT, visctype> shared;
+	__shared__ forces_shared_data<boundarytype, visctype, simflags> shared;
 	shared.init();
 
 	// The body of this kernel easily gets a lot of indentation. to prevent that,
@@ -2048,20 +2142,6 @@ forcesDevice(
 				if (computes_NS_drhodt) {
 					// Computes d\rho/dt, including ferrari correction
 					compute_density_derivative<boundarytype>::with<sph_formulation, simflags>(params, pdata, ndata, pout, nout);
-					if (simflags & ENABLE_DENSITY_SUM) {
-						pout.force.w += d_ferrari*nout.contDiff;
-						if (boundarytype == SA_BOUNDARY) {
-							pout.contupd.x += nout.DrDt;
-							pout.contupd.y += nout.DgamDt;
-						}
-					}
-					else {
-						pout.force.w += nout.DrDt;
-						if (boundarytype == SA_BOUNDARY) {
-							pout.contupd.x += nout.contDiff;
-							pout.contupd.y += nout.DgamDt;
-						}
-					}
 				}
 
 				// For DYN_BOUNDARY acceleration is only computed by fluid particles, or by object particles
@@ -2162,7 +2242,7 @@ forcesDevice(
 							pdata.pos.w, as_float3(pdata.vel), dynvisc, pout.force));
 			}
 
-			shared.store<simflags>(params, pdata, pout);
+			shared.store(params, pdata, pout);
 		} else
 		if (boundarytype == SA_BOUNDARY && FLOATING(pdata.info) && BOUNDARY(pdata.info)) {
 			// For SA_BOUNDARY: compute force acting on boundary
@@ -2193,7 +2273,7 @@ forcesDevice(
 		} else {
 			write_gamma<boundarytype>::with<simflags>(params, pdata, pout);
 		}
-		write_forces::with<simflags>(params, pdata, pout);
+		write_forces<boundarytype>::with<simflags>(params, pdata, pout);
 
 		if (FLUID(pdata.info)) {
 			write_xsph<simflags & ENABLE_XSPH>::with(params, pdata, pout);
@@ -2202,7 +2282,7 @@ forcesDevice(
 
 	} while (0);
 
-	shared.reduce<simflags>(params);
+	shared.reduce(params);
 }
 /************************************************************************************************************/
 

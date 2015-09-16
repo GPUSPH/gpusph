@@ -59,7 +59,6 @@
 struct common_forces_params
 {
 			float4	*forces;
-			float2	*contupd;
 			float4	*rbforces;
 			float4	*rbtorques;
 	const	float4	*posArray;
@@ -80,7 +79,6 @@ struct common_forces_params
 	// Constructor / initializer
 	common_forces_params(
 				float4	*_forces,
-				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_posArray,
@@ -94,7 +92,6 @@ struct common_forces_params
 		const	float	_influenceradius,
 		const	uint	_step) :
 		forces(_forces),
-		contupd(_contupd),
 		rbforces(_rbforces),
 		rbtorques(_rbtorques),
 		posArray(_posArray),
@@ -144,6 +141,7 @@ struct grenier_forces_params
 struct sa_boundary_forces_params
 {
 			float4	*newGGam;
+			float2	*contupd;
 	const	float2	*vertPos0;
 	const	float2	*vertPos1;
 	const	float2	*vertPos2;
@@ -152,9 +150,12 @@ struct sa_boundary_forces_params
 	// Constructor / initializer
 	sa_boundary_forces_params(
 				float4	*_newGGam,
+				float2	*_contupd,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon) :
-		newGGam(_newGGam), epsilon(_epsilon)
+		newGGam(_newGGam),
+		contupd(_contupd),
+		epsilon(_epsilon)
 	{
 		if (_vertPos) {
 			vertPos0 = _vertPos[0];
@@ -208,7 +209,6 @@ struct forces_params :
 	forces_params(
 		// common
 				float4	*_forces,
-				float2	*_contupd,
 				float4	*_rbforces,
 				float4	*_rbtorques,
 		const	float4	*_pos,
@@ -237,6 +237,7 @@ struct forces_params :
 
 		// SA_BOUNDARY
 				float4	*_newGGam,
+				float2	*_contupd,
 		const	float2	* const _vertPos[],
 		const	float	_epsilon,
 
@@ -247,7 +248,7 @@ struct forces_params :
 				float3	*_keps_dkde,
 				float	*_turbvisc
 		) :
-		common_forces_params(_forces, _contupd, _rbforces, _rbtorques,
+		common_forces_params(_forces, _rbforces, _rbtorques,
 			_pos, _particleHash, _cellStart,
 			_neibsList, _fromParticle, _toParticle,
 			_deltap, _slength, _influenceradius, _step),
@@ -256,7 +257,7 @@ struct forces_params :
 		COND_STRUCT(simflags & ENABLE_XSPH, xsph_forces_params)(_xsph),
 		COND_STRUCT(sph_formulation == SPH_GRENIER, grenier_forces_params)(_sigmaArray),
 		COND_STRUCT(boundarytype == SA_BOUNDARY, sa_boundary_forces_params)
-			(_newGGam, _vertPos, _epsilon),
+			(_newGGam, _contupd, _vertPos, _epsilon),
 		COND_STRUCT(simflags & ENABLE_WATER_DEPTH, water_depth_forces_params)(_IOwaterdepth),
 		COND_STRUCT(visctype == KEPSVISC, kepsvisc_forces_params)(_keps_dkde, _turbvisc)
 	{}

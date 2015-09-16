@@ -655,13 +655,13 @@ basicstep(
 	#endif
 
 	forces_params<kerneltype, sph_formulation, boundarytype, visctype, simflags> params(
-			forces, contupd, rbforces, rbtorques,
+			forces, rbforces, rbtorques,
 			pos, particleHash, cellStart, neibsList, fromParticle, toParticle,
 			deltap, slength, influenceradius, step,
 			cfl, cfl_Ds, cflTVisc, cflOffset,
 			xsph,
 			bufread->getData<BUFFER_SIGMA>(),
-			newGGam, vertPos, epsilon,
+			newGGam, contupd, vertPos, epsilon,
 			IOwaterdepth,
 			keps_dkde, turbvisc);
 
