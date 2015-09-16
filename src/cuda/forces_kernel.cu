@@ -1242,7 +1242,7 @@ SPSstressMatrixDevice(sps_params<kerneltype, boundarytype, simflags> params)
 /*!
  When using the Grenier formulation, density is reinitialized at each timestep from
  a Shepard-corrected mass distribution limited to same-fluid particles M and volumes ω computed
- from a continuity equation, with ϱ = M/ω.
+ from a continuity equation, with ρ = M/ω.
  During the same run, we also compute σ, the discrete specific volume
  (see e.g. Hu & Adams 2005), obtained by summing the kernel computed over
  _all_ neighbors (not just the same-fluid ones) which is used in the continuity
@@ -1355,7 +1355,7 @@ densityGrenierDevice(
 		sigma = typical_sigma;
 	}
 
-	// M = mass_corr/corr, ϱ = M/ω
+	// M = mass_corr/corr, ρ = M/ω
 	// this could be optimized to pos.w/vol assuming all same-fluid particles
 	// have the same mass
 	vel.w = mass_corr/(corr*vol);

@@ -1427,9 +1427,9 @@ compute_keps_term<SA_BOUNDARY, KEPSVISC>::with
 
 	// velocity gradient
 	// From boundary:
-	//	dvx = ∑ρs vxas ∇ɣas
-	//	dvy = ∑ρs vyas ∇ɣas
-	//	dvz = ∑ρs vzas ∇ɣas
+	//	dvx = ∑ρs vxas ∇γas
+	//	dvy = ∑ρs vyas ∇γas
+	//	dvz = ∑ρs vzas ∇γas
 	// From fluid/vertex:
 	//	dvx = -∑mb vxab ∇(ra - rb)/r ∂Wab/∂r
 	//	dvy = -∑mb vyab ∇(ra - rb)/r ∂Wab/∂r
@@ -1498,9 +1498,9 @@ viscous_fixup<KEPSVISC>::with(FP const& params, P const& pdata, OP &pout)
 	pout.diff_term_k /= rhoGam;
 	pout.diff_term_e /= rhoGam;
 	// finalize velocity gradients
-	pout.dvx /= rhoGam;	// dvx = -1/ɣa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
-	pout.dvy /= rhoGam;	// dvy = -1/ɣa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
-	pout.dvz /= rhoGam;	// dvz = -1/ɣa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
+	pout.dvx /= rhoGam;	// dvx = -1/γa*ρa ∑mb vxab (ra - rb)/r ∂Wab/∂r
+	pout.dvy /= rhoGam;	// dvy = -1/γa*ρa ∑mb vyab (ra - rb)/r ∂Wab/∂r
+	pout.dvz /= rhoGam;	// dvz = -1/γa*ρa ∑mb vzab (ra - rb)/r ∂Wab/∂r
 	// Calculate norm of the mean strain rate tensor
 	float SijSij_bytwo = 2.0f*(pout.dvx.x*pout.dvx.x +
 		pout.dvy.y*pout.dvy.y +

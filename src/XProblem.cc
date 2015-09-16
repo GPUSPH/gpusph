@@ -7,7 +7,7 @@
 
     Johns Hopkins University, Baltimore, MD
 
-    This file is part of GPUSPH.
+    This file is part of GPUSPH.
 
     GPUSPH is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -329,7 +329,7 @@ void XProblem::initializeODE()
 	m_ODEWorld = dWorldCreate(); // ODE world for dynamics
 	m_ODESpace = dHashSpaceCreate(0); // ODE world for collisions
 	m_ODEJointGroup = dJointGroupCreate(0);  // Joint group for collision detection
-	// Set gravity（x, y, z)
+	// Set gravity (x, y, z)
 	dWorldSetGravity(m_ODEWorld,
 		m_physparams->gravity.x, m_physparams->gravity.y, m_physparams->gravity.z);
 }
