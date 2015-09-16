@@ -1164,47 +1164,23 @@ compute_mean_vel<true>::with(FP const& params, P const& pdata, N const& ndata, O
 }
 
 
-/// A functor that computes simple fluid/boundary forces (LJ, MK)
-template<BoundaryType>
-struct compute_repulsive_force {
-	template<typename FP, typename P, typename N, typename OP, typename ON>
-	__device__ __forceinline__
-	static void
-	with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-	{ /* do nothing */ }
-};
-
-template<>
+/// A function that computes simple fluid/boundary forces (LJ, MK)
 template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_repulsive_force<LJ_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
+__device__ __forceinline__
+void compute_repulsive_force(FP const& params, P const& pdata, N const& ndata,
+	OP &pout, ON &nout)
 {
-	nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
-}
-
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_repulsive_force<MK_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
-}
-
-/// TODO FIXME currently this code path only computes the force between fluid particles and
-/// non-BOUNDARY, non-VERTEX particles in the SA_BOUNDARY case: specifically, this computes
-/// the interaction between FLUID and OBJECT particles when SA_BOUNDARY is active. Since
-/// OBJECT particles currently assume LJ-style behavior, we use here LJ-style behavior.
-/// This should
-/// be fixed by:
-/// (1) never mixing SA and non-SA boundary-type particles, and
-/// (2) removing this special case
-template<>
-template<typename FP, typename P, typename N, typename OP, typename ON>
-__device__ __forceinline__ void
-compute_repulsive_force<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndata, OP &pout, ON &nout)
-{
-	// TODO FIXME see above
-	nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+	switch (FP::boundarytype) {
+	case LJ_BOUNDARY:
+		nout.DvDt = LJForce(ndata.r)*as_float3(ndata.relPos);
+		break;
+	case MK_BOUNDARY:
+		nout.DvDt = MKForce(ndata.r, params.slength, pdata.pos.w, pdata.pos.w)*as_float3(ndata.relPos);
+		break;
+	default:
+		/* do nothing */
+		break;
+	}
 }
 
 // Functor that returns the relative Eulerian velocity for viscous computations
@@ -2164,8 +2140,8 @@ forcesDevice(
 					// Compute mean velocity for the use in the XSPH variant. Contribution added in euler.
 					compute_mean_vel<simflags & ENABLE_XSPH>::with(params, pdata, ndata, pout, nout);
 				} else {
-					if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY)
-						compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					// Repulsive force (no-op except for LJ_BOUNDARY and MK_BOUNDARY)
+					compute_repulsive_force(params, pdata, ndata, pout, nout);
 				}
 
 			}
@@ -2182,9 +2158,10 @@ forcesDevice(
 				}
 			}
 
+			// Force acting on moving/force-feedback object in LJ and MK boundary cases
 			if (boundarytype == LJ_BOUNDARY || boundarytype == MK_BOUNDARY) {
 				if (COMPUTE_FORCE(pdata.info))
-					compute_repulsive_force<boundarytype>::with(params, pdata, ndata, pout, nout);
+					compute_repulsive_force(params, pdata, ndata, pout, nout);
 			}
 
 			// Sum all contributions from the neighbors in the force array
