@@ -237,7 +237,7 @@ Problem::restore_ODE_body(const uint i, const float *gravity_center, const float
 
 
 void
-Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos)
+Problem::calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const
 {
 	int3 _gridPos = calc_grid_pos(globalPos);
 	*gridPos = _gridPos;
@@ -1139,7 +1139,7 @@ Problem::set_grid_params(void)
 
 // Compute position in uniform grid (clamping to edges)
 int3
-Problem::calc_grid_pos(const Point&	pos)
+Problem::calc_grid_pos(const Point&	pos) const
 {
 	int3 gridPos;
 	gridPos.x = (int)floor((pos(0) - m_origin.x) / m_cellsize.x);
@@ -1155,14 +1155,14 @@ Problem::calc_grid_pos(const Point&	pos)
 
 // Compute address in grid from position
 uint
-Problem::calc_grid_hash(int3 gridPos)
+Problem::calc_grid_hash(int3 gridPos) const
 {
 	return gridPos.COORD3 * m_gridsize.COORD2 * m_gridsize.COORD1 + gridPos.COORD2 * m_gridsize.COORD1 + gridPos.COORD1;
 }
 
 
 void
-Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash)
+Problem::calc_localpos_and_hash(const Point& pos, const particleinfo& info, float4& localpos, hashKey& hash) const
 {
 	int3 gridPos = calc_grid_pos(pos);
 

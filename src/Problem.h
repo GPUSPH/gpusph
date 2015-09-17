@@ -232,14 +232,14 @@ RESTORE_WARNINGS
 
 		void set_grid_params(void);
 
-		int3 calc_grid_pos(const Point&);
+		int3 calc_grid_pos(const Point&) const;
 
-		uint calc_grid_hash(int3);
+		uint calc_grid_hash(int3) const;
 
-		void calc_localpos_and_hash(const Point&, const particleinfo&, float4&, hashKey&);
+		void calc_localpos_and_hash(const Point&, const particleinfo&, float4&, hashKey&) const;
 
 		// convert a double3 point into a grid + local position
-		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos);
+		void calc_grid_and_local_pos(double3 const& globalPos, int3 *gridPos, float3 *localPos) const;
 
 		const SimParams *get_simparams(void) const
 		{ return m_simparams; }
