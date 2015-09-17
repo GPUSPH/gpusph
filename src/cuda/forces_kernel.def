@@ -769,9 +769,23 @@ struct skip_neiblist<kerneltype, sph_formulation, SA_BOUNDARY, visctype, simflag
 	__device__ __forceinline__
 	bool check(FP const& params, P const& pdata)
 	{
-		// vertex particles will skip neighbors unless they need to compute gamma,
-		// when using KEPSVISC, or when outflow boundaries are present
-		return !((simflags & ENABLE_INLET_OUTLET) && IO_BOUNDARY(pdata.info) && !VEL_IO(pdata.info)) && visctype != KEPSVISC && VERTEX(pdata.info) && !pdata.computeGamma;
+		// vertex particles need to loop over neighbors when certain conditions are met
+		if (VERTEX(pdata.info)) {
+			// if the vertex needs to compute gamma, then we can't skip
+			if (pdata.computeGamma)
+				return false;
+			// in case of k-epsilon we need to compute the viscous force acting on the vertex
+			else if (visctype == KEPSVISC)
+				return false;
+			// in case of IO and pressure outlet we need to compute the water level
+			else if (simflags & ENABLE_INLET_OUTLET && IO_BOUNDARY(pdata.info) && PRES_IO(pdata.info))
+				return false;
+			// if none of the above matches, then we can skip the neighbour loop
+			else
+				return true;
+		} else {
+			return false;
+		}
 	}
 
 	__device__ __forceinline__
