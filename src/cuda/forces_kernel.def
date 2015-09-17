@@ -2024,7 +2024,10 @@ forcesDevice(
 
 			// We now check if the current particle interacts with the neighbor.
 			// We recycle the computes_stuff as boolean
-			computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
+			if(BOUNDARY(neib_info))
+				computes_stuff = (r < params.influenceradius+params.deltap);
+			else
+				computes_stuff = (r < params.influenceradius) && !TESTPOINT(neib_info);
 
 			// When not using SA_BOUNDARY, particles in rigid bodies that need
 			// to compute forces only interact with fluid particles, since
