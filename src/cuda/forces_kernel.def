@@ -855,7 +855,7 @@ compute_gamma<SA_BOUNDARY>::with(FP const& params, P const& pdata, N const& ndat
 	}
 }
 
-// A functor that helps to compute the influence of eulerian velocities onto the governing equations
+/// A functor that helps to compute the influence of eulerian velocities onto the governing equations
 template<bool inoutBoundaries>
 struct compute_euler_contributions {
 	// boundary term
