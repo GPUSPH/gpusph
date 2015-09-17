@@ -191,12 +191,12 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		m_simparams->sfactor=1.3f;
 		set_deltap(0.05f);
 		m_simparams->tend = 10.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		m_simparams->ferrari = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
 #if SPECIFIC_PROBLEM == SmallChannelFlowIOPerOpen
-		set_equation_of_state(water, 7.0f, 30.0f);
+		set_equation_of_state(water, 7.0f, 50.0f);
 #endif
 		set_kinematic_visc(water, 1.0e-1f);
 
@@ -252,7 +252,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 
 		set_deltap(0.2f);
 		m_simparams->tend = 100.0;
-		m_simparams->ferrariLengthScale = 1.0f;
+		m_simparams->ferrari = 1.0f;
 
 		size_t water = add_fluid(1000.0f);
 		set_equation_of_state(water, 7.0f, 10.0f);
@@ -261,6 +261,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 		H = 2.0;
 		l = 2.2; w = 2.0; h = 2.0;
 		m_origin = make_double3(-1.1, -1.0, -1.0);
+		m_physparams->gravity = make_float3(0.0, 0.0, 0.0);
 	//*************************************************************************************
 
 	//Small test case with similar features to La Palisse
@@ -305,7 +306,7 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 			boundary<SA_BOUNDARY>,
 			periodicity<PERIODIC_NONE>,
 			kernel<WENDLAND>,
-			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM> // | ENABLE_WATER_DEPTH>
+			flags<ENABLE_DTADAPT | ENABLE_FERRARI | ENABLE_INLET_OUTLET | ENABLE_DENSITY_SUM | ENABLE_WATER_DEPTH>
 		);
 
 		set_deltap(0.026460);
@@ -365,7 +366,6 @@ InputProblem::InputProblem(GlobalData *_gdata) : Problem(_gdata)
 	m_simparams->dtadaptfactor = 0.3;
 	m_simparams->buildneibsfreq = 1;
 	m_simparams->nlexpansionfactor = 1.1;
-	//m_simparams->densitySum = true;
 
 	// Size and origin of the simulation domain
 	m_size = make_double3(l, w ,h);
