@@ -1686,10 +1686,10 @@ saSegmentBoundaryConditions(			float4*		oldPos,
 
 		}
 		// corners in pressure boundaries have imposed pressures
-		else if (IO_BOUNDARY(info) && CORNER(info) && PRES_IO(info)) {
-			oldVel[index].w = eulerVel.w;
-			oldEulerVel[index].w = eulerVel.w;
-		}
+		//else if (IO_BOUNDARY(info) && CORNER(info) && PRES_IO(info)) {
+		//	oldVel[index].w = eulerVel.w;
+		//	oldEulerVel[index].w = eulerVel.w;
+		//}
 
 	}
 	// for fluid particles this kernel checks whether they have crossed the boundary at open boundaries
@@ -2279,9 +2279,9 @@ saVertexBoundaryConditions(
 		oldPos[index].w = pos.w;
 	}
 	// corners in pressure boundaries have imposed pressures
-	else if (IO_BOUNDARY(info) && CORNER(info) && PRES_IO(info)) {
-		oldVel[index].w = oldEulerVel[index].w;
-	}
+	//else if (IO_BOUNDARY(info) && CORNER(info) && PRES_IO(info)) {
+	//	oldVel[index].w = oldEulerVel[index].w;
+	//}
 
 	// finalize computation of average norm for gamma calculation in the initial step
 	if (initStep && !resume) {
