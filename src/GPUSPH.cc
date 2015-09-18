@@ -386,6 +386,9 @@ bool GPUSPH::initialize(GlobalData *_gdata) {
 
 	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
+	if (!gdata->keep_going)
+		return false;
+
 	// peer accessibility is checked and set in the initialization phase
 	if (MULTI_GPU)
 		printDeviceAccessibilityTable();
@@ -476,7 +479,13 @@ bool GPUSPH::runSimulation() {
 	FilterFreqList const& enabledFilters = gdata->simframework->getFilterFreqList();
 	PostProcessEngineSet const& enabledPostProcess = gdata->simframework->getPostProcEngines();
 
-	while (gdata->keep_going) {
+	// Run the actual simulation loop, by issuing the appropriate doCommand()s
+	// in sequence. keep_going will be set to false either by the loop itself
+	// if the simulation is finished, or by a Worker that fails in executing a
+	// command; in the latter case, doCommand itself will throw, to prevent
+	// the loop from issuing subsequent commands; hence, the body consists of a
+	// try/catch block --------v-----
+	while (gdata->keep_going) try {
 		printStatus(m_info_stream);
 		// when there will be an Integrator class, here (or after bneibs?) we will
 		// call Integrator -> setNextStep
@@ -860,6 +869,13 @@ bool GPUSPH::runSimulation() {
 		if (finished || gdata->quit_request)
 			// NO doCommand() after keep_going has been unset!
 			gdata->keep_going = false;
+	} catch (std::exception &e) {
+		cerr << e.what() << endl;
+		gdata->keep_going = false;
+		// the loop is being ended by some exception, so we cannot guarantee that
+		// all threads are alive. Force unlocks on all subsequent barriers to exit
+		// as cleanly as possible without stalling
+		gdata->threadSynchronizer->forceUnlock();
 	}
 
 	// elapsed time, excluding the initialization
@@ -1385,6 +1401,9 @@ void GPUSPH::doCommand(CommandType cmd, flag_t flags, float arg)
 	gdata->extraCommandArg = arg;
 	gdata->threadSynchronizer->barrier(); // unlock CYCLE BARRIER 2
 	gdata->threadSynchronizer->barrier(); // wait for completion of last command and unlock CYCLE BARRIER 1
+
+	if (!gdata->keep_going)
+		throw std::runtime_error("GPUSPH aborted by worker thread");
 }
 
 void GPUSPH::setViscosityCoefficient()

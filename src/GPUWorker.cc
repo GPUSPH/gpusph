@@ -1548,27 +1548,33 @@ void* GPUWorker::simulationThread(void *ptr) {
 	const unsigned int cudaDeviceNumber = instance->getCUDADeviceNumber();
 	const unsigned int deviceIndex = instance->getDeviceIndex();
 
-	instance->setDeviceProperties( checkCUDA(gdata, deviceIndex) );
+	try {
 
-	instance->initialize();
+		instance->setDeviceProperties( checkCUDA(gdata, deviceIndex) );
 
-	gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
+		instance->initialize();
 
-	// here GPUSPH::initialize is over and GPUSPH::runSimulation() is called
+		gdata->threadSynchronizer->barrier(); // end of INITIALIZATION ***
 
-	gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
+		// here GPUSPH::initialize is over and GPUSPH::runSimulation() is called
 
-	instance->uploadSubdomain();
+		gdata->threadSynchronizer->barrier(); // begins UPLOAD ***
 
-	gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
+		// if anything else failed (e.g. another worker was assigned an
+		// non-existent device number and failed to complete initialize()
+		// correctly), we shouldn't do anything. So check that keep_going is still true
+		if (gdata->keep_going)
+			instance->uploadSubdomain();
 
-	bool dbg_step_printf = false;
+		gdata->threadSynchronizer->barrier();  // end of UPLOAD, begins SIMULATION ***
 
-	// TODO
-	// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
-	while (gdata->keep_going) {
-		switch (gdata->nextCommand) {
-			// logging here?
+		bool dbg_step_printf = false;
+
+		// TODO
+		// Here is a copy-paste from the CPU thread worker of branch cpusph, as a canvas
+		while (gdata->keep_going) {
+			switch (gdata->nextCommand) {
+				// logging here?
 			case IDLE:
 				break;
 			case SWAP_BUFFERS:
@@ -1726,25 +1732,35 @@ void* GPUWorker::simulationThread(void *ptr) {
 			default:
 				fprintf(stderr, "FATAL: command (%d) issued on device %d is not implemented\n", gdata->nextCommand, deviceIndex);
 				exit(1);
-		}
-		if (gdata->keep_going) {
-			/*
-			// example usage of checkPartValBy*()
-			// alternatively, can be used in the previous switch construct, to check who changes what
-			if (gdata->iterations >= 10) {
+			}
+			if (gdata->keep_going) {
+				/*
+				// example usage of checkPartValBy*()
+				// alternatively, can be used in the previous switch construct, to check who changes what
+				if (gdata->iterations >= 10) {
 				dbg_step_printf = true; // optional
 				instance->checkPartValByIndex("test", 0);
+				}
+				*/
+				// the first barrier waits for the main thread to set the next command; the second is to unlock
+				gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 1
+				gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
 			}
-			*/
-			// the first barrier waits for the main thread to set the next command; the second is to unlock
-			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 1
-			gdata->threadSynchronizer->barrier();  // CYCLE BARRIER 2
 		}
+	} catch (std::exception &e) {
+		cerr << e.what() << endl;
+		const_cast<GlobalData*>(gdata)->keep_going = false;
 	}
 
 	gdata->threadSynchronizer->barrier();  // end of SIMULATION, begins FINALIZATION ***
 
-	instance->finalize();
+	try {
+		instance->finalize();
+	} catch (std::exception &e) {
+		// if anything goes wrong here, there isn't much we can do,
+		// so just show the error and carry on
+		cerr << e.what() << endl;
+	}
 
 	gdata->threadSynchronizer->barrier();  // end of FINALIZATION ***
 
