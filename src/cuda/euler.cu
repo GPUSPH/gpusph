@@ -171,7 +171,7 @@ basicstep(
 #undef ARGS
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("Euler kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 };

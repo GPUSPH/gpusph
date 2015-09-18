@@ -177,7 +177,7 @@ calcHash(float4		*pos,					// particle's positions (in, out)
 		(pos, particleHash, particleIndex, particleInfo, compactDeviceMap, numParticles);
 
 	// Check if kernel invocation generated an error
-	CUT_CHECK_ERROR("CalcHash kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 
@@ -204,7 +204,7 @@ fixHash(hashKey	*particleHash,				// particle's hashes (in, out)
 				particleInfo, compactDeviceMap, numParticles);
 
 	// Check if kernel invocation generated an error
-	CUT_CHECK_ERROR("FixHash kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 
@@ -293,7 +293,7 @@ reorderDataAndFindCellStart(
 		newEulerVel, particleHash, particleIndex, numParticles, newNumParticles);
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("ReorderDataAndFindCellStart kernel execution failed");
+	KERNEL_CHECK_ERROR;
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(posTex));
 	CUDA_SAFE_CALL(cudaUnbindTexture(velTex));
@@ -339,7 +339,7 @@ sort(hashKey*	particleHash, uint*	particleIndex, uint	numParticles)
 
 	thrust::sort_by_key(particleHash_devptr, particleHash_devptr + numParticles, particleIndex_devptr);
 
-	CUT_CHECK_ERROR("thrust sort failed");
+	KERNEL_CHECK_ERROR;
 }
 
 
@@ -404,7 +404,7 @@ const	float		boundNlSqInflRad)
 	cuneibs::buildNeibsListDevice<sph_formulation, boundarytype, periodicbound, neibcount><<<numBlocks, numThreads>>>(params);
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("BuildNeibs kernel execution failed");
+	KERNEL_CHECK_ERROR;
 
 	if (boundarytype == SA_BOUNDARY) {
 		CUDA_SAFE_CALL(cudaUnbindTexture(vertTex));

@@ -175,7 +175,7 @@ LaPalisse::imposeBoundaryConditionHost(
 	}
 
 	// check if kernel invocation generated an error
-	CUT_CHECK_ERROR("imposeBoundaryCondition kernel execution failed");
+	KERNEL_CHECK_ERROR;
 }
 
 #endif

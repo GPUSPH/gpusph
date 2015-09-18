@@ -10,6 +10,7 @@
 #define CUDA_SAFE_CALL_NOSYNC(err)	__cudaSafeCallNoSync(err, __FILE__, __LINE__, __func__)
 #define CUDA_SAFE_CALL(err)			__cudaSafeCall(err, __FILE__, __LINE__, __func__)
 #define CUT_CHECK_ERROR(err)		__cutilGetSyncError(err, __FILE__, __LINE__, __func__)
+#define KERNEL_CHECK_ERROR			CUT_CHECK_ERROR("kernel execution failed")
 
 inline void __cudaSafeCallNoSync(cudaError err,
 	const char *file, const int line, const char *func,
