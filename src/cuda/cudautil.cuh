@@ -7,6 +7,4 @@
 
 cudaDeviceProp checkCUDA(const GlobalData* gdata, uint devnum);
 
-cudaDeviceProp checkCUDA(const Options&);
-
 #endif
